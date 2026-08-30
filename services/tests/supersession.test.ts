@@ -31,6 +31,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
+      /Resolving MagicBlock run|Recovering ActiveRun rent|Preparing verified opening|Final tier \d+\/7|Forget run locally/i,
+    trees: [CLIENT],
+    reversal: "player-facing run copy names player actions, not protocol plumbing",
+  },
+  {
+    pattern:
       /push(?:ed|es)? automatically|payouts are pushed|push confirms|pushed prize/i,
     trees: [CLIENT, SERVICES, PROGRAM],
     reversal: "settlement is claim-based (2026-08-08); nothing is pushed",

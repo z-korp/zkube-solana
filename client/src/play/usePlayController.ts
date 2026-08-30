@@ -99,17 +99,17 @@ export function settleStageLabel(stage: SettleStage | null): string {
     case "abandoning":
       return "Abandoning run…";
     case "delegating":
-      return "Resuming run on MagicBlock…";
+      return "Loading your run…";
     case "committing":
-      return "Committing to Solana…";
+      return "Your run is being saved…";
     case "settling":
-      return "Waiting for base copyback…";
+      return "Your run is being saved…";
     case "consuming":
       return "Crediting progress…";
     case "cleaning":
-      return "Cleaning up settled run…";
+      return "Your run is being saved…";
     case "preparing":
-      return "Preparing on-chain run…";
+      return "Preparing your run…";
     default:
       return "Settling…";
   }

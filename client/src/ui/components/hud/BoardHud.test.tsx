@@ -19,6 +19,7 @@ describe("BoardHud", () => {
         themeScore={0}
         level={2}
         combo={0}
+        streak={0}
         comboThreshold={2}
         pressureScore={0}
         currentDifficulty={0}
@@ -49,5 +50,37 @@ describe("BoardHud", () => {
     ).toHaveAttribute("aria-valuenow", "5");
     expect(screen.getByLabelText("Blow: Empty the board")).toBeInTheDocument();
     expect(screen.getByText("◇ Waiting for one move")).toBeInTheDocument();
+  });
+
+  it("renders the Theme sentence, streak, and named pressure step", () => {
+    render(
+      <BoardHud
+        isDaily
+        zoneId={2}
+        mood="idle"
+        score={420}
+        targetScore={0}
+        themeScore={12}
+        themeDescription="width-3 blocks broken"
+        level={1}
+        combo={3}
+        streak={2}
+        comboThreshold={2}
+        pressureScore={25}
+        currentDifficulty={1}
+        pressureThresholds={[10, 40, 80, 150, 280, 500, 900]}
+        pressureScoreMultipliersX100={[
+          100, 150, 200, 300, 400, 600, 800, 1_000,
+        ]}
+        gameLevel={null}
+        constraintProgress={0}
+        constraint2Progress={0}
+        latchedStarSources={0}
+      />,
+    );
+
+    expect(screen.getByText("width-3 blocks broken")).toBeInTheDocument();
+    expect(screen.getByText("2 streak")).toBeInTheDocument();
+    expect(screen.getByText("Easy ×1.5 · 15 to Medium")).toBeInTheDocument();
   });
 });

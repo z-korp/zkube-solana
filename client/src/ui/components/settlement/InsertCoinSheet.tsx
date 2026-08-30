@@ -10,6 +10,8 @@ import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
+import type { DailyThemeView } from "@/chain/dailyRules";
+import { dailyThemeDescription } from "@/game/constraint";
 
 interface InsertCoinSheetProps {
   open: boolean;
@@ -22,6 +24,7 @@ interface InsertCoinSheetProps {
   onConfirm: () => void;
   /** True while the Kredit spend is being prepared. */
   busy?: boolean;
+  dailyTheme: DailyThemeView;
 }
 
 const FEED_JAWS_MS = 480;
@@ -41,6 +44,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
   entryLamports,
   onConfirm,
   busy = false,
+  dailyTheme,
 }) => {
   const reduceMotion = useReducedMotion();
   const { playSfx } = useMusicPlayer();
@@ -108,7 +112,10 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
           />
           <span
             className="absolute left-3 top-[-1px] rounded-b-lg px-2.5 py-1 font-display text-sm tracking-[0.06em] text-[#3a2c04]"
-            style={{ background: MONEY_GOLD, boxShadow: "0 2px 0 rgba(138,106,8,0.9)" }}
+            style={{
+              background: MONEY_GOLD,
+              boxShadow: "0 2px 0 rgba(138,106,8,0.9)",
+            }}
           >
             {guardian.name}
           </span>
@@ -151,10 +158,15 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
         </div>
 
         <div className="flex flex-col items-center gap-3">
+          <p className="max-w-[300px] text-center font-sans text-xs font-semibold text-cyan-100/80">
+            Today's Theme: {dailyThemeDescription(dailyTheme)}
+          </p>
           <motion.span
             className="drop-shadow-[0_0_12px_rgba(250,204,21,0.4)]"
             animate={
-              reduceMotion || feeding ? { opacity: feeding ? 0 : 1 } : { y: [0, 6, 0] }
+              reduceMotion || feeding
+                ? { opacity: feeding ? 0 : 1 }
+                : { y: [0, 6, 0] }
             }
             transition={
               reduceMotion || feeding
@@ -174,12 +186,13 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
           </div>
           <InfoSheet title="How ranked entry works">
             <p>
-              The owner wallet bought this Kredit for {formatSolBalanceLamports(entryLamports)} SOL.
-              A device session may spend it within that prepaid balance.
+              The owner wallet bought this Kredit for{" "}
+              {formatSolBalanceLamports(entryLamports)} SOL. A device session
+              may spend it within that prepaid balance.
             </p>
             <p>
-              Purchase sends 10% to the operator. Spending sends the prepaid
-              90% to the following Daily. Scored or expired, never refunded.
+              Purchase sends 10% to the operator. Spending sends the prepaid 90%
+              to the following Daily. Scored or expired, never refunded.
             </p>
             <p>
               Any reward you are still owed is collected in this same

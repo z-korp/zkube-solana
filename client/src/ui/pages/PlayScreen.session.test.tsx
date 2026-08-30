@@ -119,8 +119,8 @@ vi.mock("@/play/usePlayController", () => ({
       activeRun: fixtures.gameAvailable ? activeRun : null,
       outcome: null,
       onBonus: vi.fn(),
-      onReroll: vi.fn(),
-      onMove: vi.fn(),
+      onReroll: vi.fn(() => Promise.resolve()),
+      onMove: vi.fn(() => Promise.resolve()),
       onCascadeComplete: vi.fn(),
       retrySettlement: fixtures.retrySettlement,
       retrySessionRenewal: fixtures.retrySessionRenewal,
@@ -193,6 +193,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  window.localStorage.clear();
   fixtures.bonusType = 1;
   fixtures.activeRunOverride = null;
   fixtures.gameOverride = null;
@@ -336,8 +337,7 @@ describe("PlayScreen bonus receipt feedback", () => {
       {
         name: "Reroll",
         charges: 1,
-        triggerDescription:
-          "Start with 1 · Perfect clear awards +1 · hold up to 3",
+        triggerDescription: "Held rerolls",
       },
     ]);
   });
@@ -386,6 +386,55 @@ describe("PlayScreen bonus receipt feedback", () => {
     expect(fixtures.actionBarProps?.bonusEarnSignal).toBe(1);
     expect(fixtures.playSfx).toHaveBeenCalledTimes(1);
   });
+
+  it("dismisses each first-run coach mark by doing its action", async () => {
+    render(<PlayScreen />);
+    expect(screen.getByText("Swipe a block to move it")).toBeInTheDocument();
+
+    await act(async () => {
+      await (
+        fixtures.gameBoardProps?.onMove as (
+          row: number,
+          start: number,
+          destination: number,
+        ) => Promise<unknown>
+      )(0, 0, 1);
+    });
+    expect(screen.getByText(/Earn a charge/)).toBeInTheDocument();
+
+    act(() => {
+      fixtures.onActionReceipt?.({
+        actionCounter: 8,
+        chargesGained: 1,
+        linesCleared: 3,
+        levelLinesCleared: 3,
+        source: "move",
+      });
+      (fixtures.gameBoardProps?.onCascadeComplete as () => void)();
+    });
+    expect(
+      screen.getByText("Reroll replaces the next row"),
+    ).toBeInTheDocument();
+
+    const reroll = (
+      fixtures.actionBarProps?.bonusSlots as Array<{
+        type: number | "reroll";
+        onClick: () => void;
+      }>
+    ).find((slot) => slot.type === "reroll")!;
+    await act(async () => reroll.onClick());
+
+    expect(
+      screen.queryByText("Reroll replaces the next row"),
+    ).not.toBeInTheDocument();
+    expect(
+      JSON.parse(window.localStorage.getItem("zkube:settings:coach-marks:v1")!),
+    ).toEqual({
+      move: true,
+      charge: true,
+      reroll: true,
+    });
+  });
 });
 
 describe("PlayScreen expired-session escape", () => {
@@ -412,9 +461,7 @@ describe("PlayScreen expired-session escape", () => {
       expect(
         screen.queryByRole("button", { name: "Renew session" }),
       ).not.toBeInTheDocument();
-      fireEvent.click(
-        screen.getByRole("button", { name: "Forget run locally" }),
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Return to Arcade" }));
 
       expect(fixtures.dismissRun).toHaveBeenCalledOnce();
       expect(fixtures.navigate).toHaveBeenCalledWith("arcade");

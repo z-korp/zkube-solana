@@ -1,7 +1,6 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
-import { ConnectedPlayerContext } from "@/chain/connectedPlayerContext";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
@@ -26,12 +25,6 @@ interface GuardianPrizeResultProps {
    * placement, so it is framed as "Top" rather than claiming this win's rank.
    */
   bestPrizeRank?: number;
-  /**
-   * Owner address (base58) used to build the spectator share link. Optional —
-   * when absent the connected player's key is used, and if neither is known the
-   * win is shared as text only.
-   */
-  owner?: string;
 }
 
 /** The X (Twitter) logo glyph. */
@@ -56,11 +49,9 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   amountLamports,
   periodLabel,
   bestPrizeRank = 0,
-  owner,
 }) => {
   const reduceMotion = useReducedMotion();
   const { playSfx } = useMusicPlayer();
-  const connectedPlayer = useContext(ConnectedPlayerContext);
   const guardian = getZoneGuardian(zoneId);
   const [paying, setPaying] = useState(false);
   const [displayAmount, setDisplayAmount] = useState(
@@ -113,25 +104,19 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
     [],
   );
 
-  const shareOwner = owner ?? connectedPlayer?.publicKey?.toBase58() ?? null;
-  // Honest content built only from the real props: the delivered amount, the
-  // period that paid, and (when we know who won) the spectator deep-link the
-  // app already resolves. No fabricated ranks or numbers.
+  // Honest content built only from the real props: the delivered amount and
+  // period that paid. No fabricated ranks or numbers.
   const shareText = `${guardian.name} just paid me ${formatSolBalanceLamports(amountLamports)} SOL on the zKube ${periodLabel}. ${guardian.emoji}`;
-  const shareUrl = shareOwner
-    ? `${window.location.origin}?player=${encodeURIComponent(shareOwner)}`
-    : undefined;
 
   // Prefilled X post — the share IS the flex.
   const handleShare = useCallback(() => {
     const params = new URLSearchParams({ text: shareText });
-    if (shareUrl) params.set("url", shareUrl);
     window.open(
       `https://x.com/intent/post?${params.toString()}`,
       "_blank",
       "noopener,noreferrer",
     );
-  }, [shareText, shareUrl]);
+  }, [shareText]);
 
   return (
     <Sheet

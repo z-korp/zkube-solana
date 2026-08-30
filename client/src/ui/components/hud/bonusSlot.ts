@@ -13,9 +13,10 @@ export interface BonusSlot {
   name: string;
   description: string;
   triggerDescription: string; // e.g. "Chain 4 combos"
-  lineProgress?: {
+  triggerProgress?: {
     current: number;
     threshold: number;
+    suffix?: string;
   };
   totemTarget?: {
     width: number;

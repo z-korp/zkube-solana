@@ -12,7 +12,7 @@ describe("runDisplay", () => {
       [3, 0, 12, "Clear 12 lines"],
       [4, 2, 4, "Make 4 exact 2-line combos"],
       [5, 30, 3, "Make 3 moves worth 30+ points"],
-      [6, 0, 3, "Wake the guardian 3 times"],
+      [6, 0, 3, "Fire the realm trigger 3 times"],
       [7, 0, 3, "Clear 3 bonus lines"],
       [8, 0, 10, "Smash 10 blocks with bonuses"],
       [9, 4, 1, "Clear 4 lines at once"],

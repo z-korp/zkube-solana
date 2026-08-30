@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Flame, LockKeyhole, Pencil, Share2 } from "lucide-react";
+import { Flame, LockKeyhole, Pencil } from "lucide-react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useFeaturedEmblemController } from "@/chain/useFeaturedEmblemController";
@@ -22,7 +22,6 @@ import type { ZoneProgressData } from "@/config/profileData";
 import { useDaily } from "@/contexts/daily";
 import { usePlayerProfile } from "@/hooks/usePlayerProfile";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
-import ShareCardSheet from "@/ui/components/profile/ShareCardSheet";
 import {
   EmblemBadge,
   GuardianFaceBlock,
@@ -87,7 +86,6 @@ const ProfilePage: React.FC = () => {
   const daily = useDaily();
   const themeColors = useThemeColors();
 
-  const [shareOpen, setShareOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
 
@@ -161,11 +159,6 @@ const ProfilePage: React.FC = () => {
     currentTier,
   );
   const atTopTier = isTopLadderTier(currentTier);
-  // The better of the two boards: a card brags with one number, not two.
-  const bestRankAcrossBoards = records
-    .map(({ record }) => record.bestPrizeRank)
-    .filter((rank) => rank > 0)
-    .reduce((best, rank) => (best === 0 ? rank : Math.min(best, rank)), 0);
   const hasEntryStreak = profile.entryStreakDays > 0;
 
   const saveName = () => {
@@ -191,14 +184,6 @@ const ProfilePage: React.FC = () => {
           the wallet is holding. Everything here is who you are; nothing here
           is a result. */}
       <section className="relative z-10 rounded-2xl p-3.5" style={PANEL_STYLE}>
-        <button
-          type="button"
-          aria-label="Share profile card"
-          onClick={() => setShareOpen(true)}
-          className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg border border-white/[0.12] bg-black/40 text-white/65"
-        >
-          <Share2 size={14} />
-        </button>
         <div className="flex items-center gap-3">
           {/* No mastery star inside the frame — the two ornaments collide on
               the same corner, and the Campaign rack below already carries it
@@ -582,20 +567,6 @@ const ProfilePage: React.FC = () => {
         )}
       </section>
 
-      <ShareCardSheet
-        open={shareOpen}
-        onClose={() => setShareOpen(false)}
-        data={{
-          displayName,
-          featuredEmblem,
-          frameTier: wornFrameTier,
-          ladderPoints: profile.ladderPoints,
-          totalStars,
-          totalEarnedLamports: profile.totalRewardsLamports,
-          entryStreakDays: profile.entryStreakDays,
-          bestPrizeRank: bestRankAcrossBoards,
-        }}
-      />
     </div>
   );
 };

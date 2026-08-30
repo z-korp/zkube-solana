@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import BoardRail from "./BoardRail";
@@ -42,6 +42,68 @@ describe("BoardRail", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("×6")).toBeInTheDocument();
+    expect(screen.getByText(/Every 3 combos/)).toBeInTheDocument();
+  });
+
+  it("explains spending and reroll on first tap or long press", () => {
+    vi.useFakeTimers();
+    try {
+      const hammer = vi.fn();
+      render(
+        <BoardRail
+          themeId="theme-1"
+          activeBonus={0}
+          runId={7n}
+          bonusSlots={[
+            {
+              type: 1,
+              charges: 1,
+              isActive: true,
+              icon: "/hammer.png",
+              name: "Hammer",
+              description: "Destroy a single block",
+              triggerDescription: "Clear exactly 2 lines in a move",
+              triggerProgress: {
+                current: 0,
+                threshold: 2,
+                suffix: "this move",
+              },
+              onClick: hammer,
+            },
+            {
+              type: "reroll",
+              charges: 2,
+              isActive: true,
+              icon: "/reroll.png",
+              name: "Reroll",
+              description:
+                "Replaces the next row · perfect clear awards +1 · hold up to 3",
+              triggerDescription: "Held rerolls",
+              onClick: vi.fn(),
+            },
+          ]}
+          movesRemaining={9}
+          maxMoves={20}
+          onSurrender={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /Hammer: 1 charge/ }));
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Destroy a single block",
+      );
+      expect(hammer).toHaveBeenCalledOnce();
+
+      fireEvent.pointerDown(
+        screen.getByRole("button", { name: /Reroll: 2 charges/ }),
+      );
+      act(() => vi.advanceTimersByTime(550));
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Replaces the next row · perfect clear awards +1 · hold up to 3",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("opens the shared settings sheet and keeps give-up behind two taps", () => {

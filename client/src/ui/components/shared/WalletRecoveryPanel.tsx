@@ -145,7 +145,7 @@ function recoveryContent(
       return {
         title: "This wallet needs Devnet SOL",
         cause:
-          "Your wallet is connected, but the address cannot cover the account rent, device fee allowance, and network fee that enabling a zKube device session pays.",
+          "Your wallet is connected, but the address cannot cover the setup costs and network fee that enabling a zKube device session pays.",
         steps: [
           "Fund the connected address with Devnet SOL at faucet.solana.com.",
           "Return to zKube and retry.",

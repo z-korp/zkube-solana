@@ -23,7 +23,7 @@ import type { GameLevelData } from "@/hooks/useGameLevel";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import ProgressRing from "@/ui/components/shared/ProgressRing";
 import { constraintProgressOf, constraintStatus } from "./constraintDisplay";
-import { boardTier } from "./boardTier";
+import { boardTier, buildTierScale } from "./boardTier";
 import { guardianFrame, type GuardianMood } from "./useGuardianMood";
 
 const FIGURE = "font-sans font-black tabular-nums leading-[0.92]";
@@ -46,9 +46,10 @@ export interface BoardHudProps {
   targetScore: number;
   /** Arcade only — the theme board's metric, and the day's rule. */
   themeScore: number;
-  objectiveName?: string;
+  themeDescription?: string;
   level: number;
   combo: number;
+  streak: number;
   /** The chain length at which a move starts counting for the day. */
   comboThreshold: number;
   pressureScore: number;
@@ -68,9 +69,10 @@ export default function BoardHud({
   score,
   targetScore,
   themeScore,
-  objectiveName,
+  themeDescription,
   level,
   combo,
+  streak,
   comboThreshold,
   pressureScore,
   currentDifficulty,
@@ -87,6 +89,14 @@ export default function BoardHud({
     currentDifficulty,
     pressureScore,
   );
+  const tierScale = buildTierScale(
+    pressureThresholds,
+    pressureScoreMultipliersX100,
+  );
+  const nextTier = tierScale[tier.index + 1];
+  const tierSentence = nextTier
+    ? `${tier.name} ×${tier.multiplier.toFixed(1)} · ${Math.max(0, nextTier.threshold - pressureScore)} to ${nextTier.name}`
+    : `${tier.name} ×${tier.multiplier.toFixed(1)} · top pressure`;
   const shownScore =
     useLerpNumber(score, { duration: 300, integer: true }) ?? 0;
   const shownTheme =
@@ -193,6 +203,7 @@ export default function BoardHud({
         <span className="block text-white/35">
           {isDaily ? `${chainTarget}+ counts` : "feeds both"}
         </span>
+        <span className="mt-0.5 block text-amber-200/70">{streak} streak</span>
       </div>
 
       {/* RIGHT — what the day asks for */}
@@ -202,13 +213,16 @@ export default function BoardHud({
           style={{ ...SEAT, left: 296, top: 52, width: 126, height: 66 }}
         >
           <span className="truncate text-[8.5px] font-bold uppercase tracking-[0.06em] text-[#38BDF8]/85">
-            {objectiveName ?? "Objective"}
+            Today's Theme
           </span>
           <span
             className={`${FIGURE} mt-1 truncate text-[30px] text-[#38BDF8]`}
             style={{ textShadow: STAMP }}
           >
             {shownTheme.toLocaleString("en-US")}
+          </span>
+          <span className="mt-0.5 line-clamp-2 text-[7.5px] font-semibold leading-tight text-white/55">
+            {themeDescription}
           </span>
         </div>
       ) : (
@@ -278,21 +292,21 @@ export default function BoardHud({
       {/* THE CHIN — the only self-lit thing on the screen, because it is the
           only value here that moves on its own. */}
       <div
-        className="absolute grid place-items-center rounded-full font-sans font-black text-[#20140A]"
+        className={`absolute grid place-items-center font-sans font-black text-[#20140A] ${isDaily ? "rounded-full px-3 text-[10px]" : "rounded-full"}`}
         style={{
           left: "50%",
-          marginLeft: -24,
-          top: 140,
-          width: 48,
-          height: 48,
-          fontSize: isDaily ? 15 : 20,
+          marginLeft: isDaily ? -93 : -24,
+          top: isDaily ? 151 : 140,
+          width: isDaily ? 186 : 48,
+          height: isDaily ? 34 : 48,
+          fontSize: isDaily ? 10 : 20,
           letterSpacing: "-0.02em",
           background: `radial-gradient(circle at 34% 28%, #fff, ${isDaily ? tier.color : "#FACC15"} 44%, rgba(0,0,0,0.85) 130%)`,
           boxShadow:
             "0 0 0 3px rgba(107,83,32,0.9), 0 0 0 4.5px rgba(0,0,0,0.7), 0 0 24px rgba(250,204,21,0.4), inset 0 3px 7px rgba(255,255,255,0.55), 0 3px 0 rgba(0,0,0,0.6)",
         }}
       >
-        {isDaily ? `×${tier.multiplier}` : level}
+        {isDaily ? tierSentence : level}
       </div>
     </div>
   );

@@ -17,16 +17,26 @@ export enum ConstraintType {
   BigMove = 14,
   BonusLinesInMove = 15,
   PerfectClear = 16,
+  ClutchClears = 17,
+  CleanClears = 18,
 }
 
 export type ConstraintClass = "cumulative" | "moment";
 
 export function constraintClass(type: ConstraintType): ConstraintClass | null {
   if (type === ConstraintType.None) return null;
-  return type <= ConstraintType.BonusBreaks ? "cumulative" : "moment";
+  return type <= ConstraintType.BonusBreaks ||
+    type === ConstraintType.ClutchClears ||
+    type === ConstraintType.CleanClears
+    ? "cumulative"
+    : "moment";
 }
 
-function count(value: number, singular: string, plural = `${singular}s`): string {
+function count(
+  value: number,
+  singular: string,
+  plural = `${singular}s`,
+): string {
   return `${value} ${value === 1 ? singular : plural}`;
 }
 
@@ -45,16 +55,50 @@ export class Constraint {
     return new Constraint(ConstraintType.None, 0, 0);
   }
 
-  static fromContractValues(type: number, value: number, requiredCount: number): Constraint {
+  static fromContractValues(
+    type: number,
+    value: number,
+    requiredCount: number,
+  ): Constraint {
     return new Constraint(type as ConstraintType, value, requiredCount);
   }
 
   isSatisfied(progress: number): boolean {
-    return this.constraintType !== ConstraintType.None && progress >= this.requiredCount;
+    return (
+      this.constraintType !== ConstraintType.None &&
+      progress >= this.requiredCount
+    );
   }
 
-  getDescription(): string {
+  getDescription(triggerName = "the realm trigger"): string {
     const n = this.requiredCount;
+    // Daily themes reuse the constraint kind and value without a completion
+    // count. In that shape the sentence names the scoring fact rather than a
+    // Campaign target.
+    if (n === 0) {
+      switch (this.constraintType) {
+        case ConstraintType.None:
+          return "No Theme today — the whole pot pays Score";
+        case ConstraintType.CombosOfAtLeast:
+          return `${this.value}+-line combo moves`;
+        case ConstraintType.CombosOfExactly:
+          return `exact ${this.value}-line clears`;
+        case ConstraintType.BreakBlocks:
+          return `width-${this.value} blocks broken`;
+        case ConstraintType.TriggerFired:
+          return `${triggerName} fired`;
+        case ConstraintType.BonusLines:
+          return "lines cleared with a bonus";
+        case ConstraintType.BonusBreaks:
+          return "blocks broken with a bonus";
+        case ConstraintType.ClutchClears:
+          return `clears started at height ${this.value}+`;
+        case ConstraintType.CleanClears:
+          return `clears ending at height ${this.value} or lower`;
+        default:
+          break;
+      }
+    }
     switch (this.constraintType) {
       case ConstraintType.None:
         return "No constraint";
@@ -69,7 +113,7 @@ export class Constraint {
       case ConstraintType.BigMoves:
         return `Make ${n} ${n === 1 ? "move" : "moves"} worth ${this.value}+ points`;
       case ConstraintType.TriggerFired:
-        return `Wake the guardian ${count(n, "time")}`;
+        return `Fire ${triggerName} ${count(n, "time")}`;
       case ConstraintType.BonusLines:
         return `Clear ${count(n, "bonus line")}`;
       case ConstraintType.BonusBreaks:
@@ -92,6 +136,10 @@ export class Constraint {
         return `Clear ${count(this.value, "line")} with one bonus`;
       case ConstraintType.PerfectClear:
         return "Empty the board";
+      case ConstraintType.ClutchClears:
+        return `Make ${count(n, "clear")} from height ${this.value}+`;
+      case ConstraintType.CleanClears:
+        return `Make ${count(n, "clear")} ending at height ${this.value} or lower`;
       default:
         return "Unknown constraint";
     }
@@ -100,4 +148,16 @@ export class Constraint {
   getLabel(): string {
     return this.getDescription();
   }
+}
+
+export function dailyThemeDescription(
+  theme: { kind: number; value: number } | null | undefined,
+  triggerName?: string,
+): string {
+  if (!theme) return "Today's Theme is loading";
+  return Constraint.fromContractValues(
+    theme.kind,
+    theme.value,
+    0,
+  ).getDescription(triggerName);
 }

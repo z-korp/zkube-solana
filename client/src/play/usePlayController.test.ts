@@ -131,9 +131,9 @@ describe("play controller projections", () => {
   });
 
   it("exposes each auto-settlement stage", () => {
-    expect(settleStageLabel("committing")).toBe("Committing to Solana…");
-    expect(settleStageLabel("settling")).toBe("Waiting for base copyback…");
-    expect(settleStageLabel("cleaning")).toBe("Cleaning up settled run…");
+    expect(settleStageLabel("committing")).toBe("Your run is being saved…");
+    expect(settleStageLabel("settling")).toBe("Your run is being saved…");
+    expect(settleStageLabel("cleaning")).toBe("Your run is being saved…");
   });
 
   it("waits for session renewal before committing a delegated terminal run", () => {

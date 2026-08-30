@@ -11,12 +11,13 @@
  * floating under the keys, and it DRAINS: it starts full and empties, in the
  * realm's accent, going red on the last quarter.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Flag, Home, Settings } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getThemeColors, type ThemeId } from "@/config/themes";
 import { useNavigationStore } from "@/stores/navigationStore";
+import { formatCountdown } from "@/utils/time";
 import type { BonusSlot } from "./bonusSlot";
 
 const SEAT: React.CSSProperties = {
@@ -37,6 +38,9 @@ export interface BoardRailProps {
   onHome?: () => void;
   onSurrender: () => void;
   surrenderDisabled?: boolean;
+  runId?: bigint;
+  /** Present only for Arcade, whose run freezes at the Daily deadline. */
+  deadlineSecondsRemaining?: number;
 }
 
 export default function BoardRail({
@@ -50,14 +54,59 @@ export default function BoardRail({
   onHome,
   onSurrender,
   surrenderDisabled = false,
+  runId,
+  deadlineSecondsRemaining,
 }: BoardRailProps) {
   const accent = getThemeColors(themeId).accent;
   const left =
     maxMoves > 0 ? Math.max(0, Math.min(1, movesRemaining / maxMoves)) : 0;
   const meter = left <= 0.25 ? "#EF4444" : left <= 0.5 ? "#F59E0B" : accent;
+  const [help, setHelp] = useState<string | null>(null);
+  const firstBonusTapSeen = useRef(false);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
+  const chargeSlot = bonusSlots.find((slot) => slot.type !== "reroll");
+
+  useEffect(() => {
+    firstBonusTapSeen.current = false;
+    setHelp(null);
+  }, [runId]);
+
+  useEffect(() => {
+    if (!help) return;
+    const timer = window.setTimeout(() => setHelp(null), 3_500);
+    return () => window.clearTimeout(timer);
+  }, [help]);
+
+  useEffect(
+    () => () => {
+      if (longPressTimer.current !== null) {
+        window.clearTimeout(longPressTimer.current);
+      }
+    },
+    [],
+  );
+
+  const startLongPress = (slot: BonusSlot) => {
+    longPressed.current = false;
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+    }
+    longPressTimer.current = window.setTimeout(() => {
+      longPressed.current = true;
+      setHelp(slot.description);
+    }, 550);
+  };
+
+  const stopLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   return (
-    <div className="relative w-full flex-none" style={{ height: 139 }}>
+    <div className="relative w-full flex-none" style={{ height: 164 }}>
       {/* the rail's own lip, and the meter inlaid along it */}
       <div
         className="absolute inset-x-0 top-0 h-px"
@@ -88,6 +137,21 @@ export default function BoardRail({
         </span>
       </div>
 
+      {deadlineSecondsRemaining !== undefined && (
+        <span className="absolute right-4 top-4 font-sans text-[9px] font-bold uppercase tracking-[0.12em] text-white/55">
+          Freezes in {formatCountdown(deadlineSecondsRemaining)}
+        </span>
+      )}
+
+      {help && (
+        <p
+          role="status"
+          className="absolute left-1/2 top-2 z-20 w-[250px] -translate-x-1/2 rounded-lg border border-white/15 bg-black/95 px-2.5 py-1.5 text-center font-sans text-[10px] font-semibold text-white/90"
+        >
+          {help}
+        </p>
+      )}
+
       <button
         type="button"
         aria-label="Home"
@@ -111,7 +175,32 @@ export default function BoardRail({
             <motion.button
               type="button"
               aria-label={`${slot.name}: ${slot.charges} charges${slot.totemTarget ? `; width ${slot.totemTarget.width} removes ${slot.totemTarget.cells} cells` : ""}`}
-              onClick={spent || disabled ? undefined : slot.onClick}
+              onPointerDown={() => startLongPress(slot)}
+              onPointerUp={stopLongPress}
+              onPointerCancel={stopLongPress}
+              onPointerLeave={stopLongPress}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setHelp(slot.description);
+              }}
+              onClick={
+                spent || disabled
+                  ? undefined
+                  : () => {
+                      if (longPressed.current) {
+                        longPressed.current = false;
+                        return;
+                      }
+                      if (
+                        slot.type !== "reroll" &&
+                        !firstBonusTapSeen.current
+                      ) {
+                        firstBonusTapSeen.current = true;
+                        setHelp(slot.description);
+                      }
+                      slot.onClick();
+                    }
+              }
               disabled={spent || disabled}
               key={slot.type}
               animate={
@@ -160,7 +249,7 @@ export default function BoardRail({
               >
                 {slot.charges}
               </span>
-              {slot.lineProgress && (
+              {slot.triggerProgress && (
                 <span
                   className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-[1px] font-sans text-[10px] font-black tabular-nums text-[#FDE68A]"
                   style={{
@@ -168,13 +257,29 @@ export default function BoardRail({
                     boxShadow: "inset 0 0 0 1px rgba(250,204,21,0.32)",
                   }}
                 >
-                  {slot.lineProgress.current}/{slot.lineProgress.threshold}
+                  {slot.triggerProgress.current}/
+                  {slot.triggerProgress.threshold}
                 </span>
               )}
             </motion.button>
           );
         })}
       </div>
+
+      {chargeSlot && (
+        <p className="absolute inset-x-[108px] bottom-2 text-center font-sans text-[9px] font-semibold leading-tight text-amber-100/70">
+          {chargeSlot.triggerDescription}
+          {chargeSlot.triggerProgress && (
+            <span className="ml-1 whitespace-nowrap text-amber-200">
+              {chargeSlot.triggerProgress.current}/
+              {chargeSlot.triggerProgress.threshold}
+              {chargeSlot.triggerProgress.suffix
+                ? ` ${chargeSlot.triggerProgress.suffix}`
+                : " to next"}
+            </span>
+          )}
+        </p>
+      )}
 
       <UtilitySeats
         onSurrender={onSurrender}

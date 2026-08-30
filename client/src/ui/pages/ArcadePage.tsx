@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { getThemeId } from "@/config/themes";
 import { dailyThemeName } from "@/chain/dailyRules";
+import { dailyThemeDescription } from "@/game/constraint";
 import { useDaily } from "@/contexts/daily";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import useAccount from "@/hooks/useAccount";
@@ -251,8 +252,13 @@ const ArcadePage: React.FC = () => {
                     <Plus size={12} className="text-white/45" />
                   </motion.button>
                   {dailyTheme && (
-                    <span className={`${CHIP_CLASS} flex-1 truncate`}>
-                      {dailyThemeName(dailyTheme)}
+                    <span className={`${CHIP_CLASS} min-w-0 flex-1 flex-col`}>
+                      <span className="truncate text-[9px] uppercase tracking-[0.1em] text-white/45">
+                        Today's Theme · {dailyThemeName(dailyTheme)}
+                      </span>
+                      <span className="w-full truncate text-[10px] text-cyan-100/85">
+                        {dailyThemeDescription(dailyTheme)}
+                      </span>
                     </span>
                   )}
                 </div>
@@ -330,6 +336,7 @@ const ArcadePage: React.FC = () => {
           entryLamports={view.entryLamports}
           onConfirm={confirmRanked}
           busy={daily.action === "enter:kredit"}
+          dailyTheme={view.dailyTheme}
         />
       )}
 

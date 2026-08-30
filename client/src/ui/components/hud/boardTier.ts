@@ -6,6 +6,7 @@
  * ladder's own, from green through to the master amber.
  */
 export interface BoardTierStep {
+  index: number;
   name: string;
   color: string;
   threshold: number;
@@ -39,6 +40,7 @@ export function buildTierScale(
   multipliersX100: readonly number[],
 ): BoardTierStep[] {
   return NAMES.map((name, index) => ({
+    index,
     name,
     color: COLORS[index]!,
     threshold:

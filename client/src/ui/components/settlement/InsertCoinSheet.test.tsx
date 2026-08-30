@@ -22,26 +22,25 @@ vi.mock("@/contexts/hooks", async () =>
 beforeAll(() => {
   vi.stubGlobal("React", React);
   // jsdom has no matchMedia; the tooltip primitive queries it for touch detection.
-  vi.stubGlobal(
-    "matchMedia",
-    (query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
-  );
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
 });
 
 afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-function renderSheet(props: Partial<React.ComponentProps<typeof InsertCoinSheet>> = {}) {
+function renderSheet(
+  props: Partial<React.ComponentProps<typeof InsertCoinSheet>> = {},
+) {
   return render(
     <TooltipProvider>
       <InsertCoinSheet
@@ -49,6 +48,7 @@ function renderSheet(props: Partial<React.ComponentProps<typeof InsertCoinSheet>
         onClose={vi.fn()}
         zoneId={2}
         entryLamports={10_000_000n}
+        dailyTheme={{ kind: 2, value: 3 }}
         onConfirm={vi.fn()}
         {...props}
       />
@@ -61,6 +61,9 @@ describe("InsertCoinSheet", () => {
     renderSheet();
 
     expect(screen.getByText("1 Kredit")).toBeInTheDocument();
+    expect(
+      screen.getByText("Today's Theme: width-3 blocks broken"),
+    ).toBeInTheDocument();
     // Today's guardian hosts the entry — you feed it the coin.
     expect(screen.getByLabelText(/Feed Sobek/)).toBeInTheDocument();
     expect(
@@ -117,7 +120,9 @@ describe("InsertCoinSheet", () => {
     const onClose = vi.fn();
     renderSheet({ busy: true, onClose });
 
-    expect(screen.getByRole("button", { name: "Spending Kredit…" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Spending Kredit…" }),
+    ).toBeDisabled();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();
   });

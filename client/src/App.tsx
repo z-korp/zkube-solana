@@ -23,26 +23,28 @@ import { DevFixturesProvider } from "@/dev/DevFixturesProvider";
 import { CapabilityDiagnostics } from "@/dev/CapabilityDiagnostics";
 
 const params = new URLSearchParams(window.location.search);
-const spectatePlayer = params.get("player");
-const spectatePda = params.get("pda");
-if (spectatePlayer || spectatePda) {
-  useNavigationStore.setState({
-    currentPage: "spectate",
-    spectateTarget: {
-      player: spectatePlayer ?? undefined,
-      pda: spectatePda ?? undefined,
-      runId: params.get("run") ?? undefined,
-    },
-  });
-} else {
-  const recoverRun = params.get("recover");
-  if (recoverRun && /^[1-9]\d*$/.test(recoverRun)) {
+if (import.meta.env.DEV) {
+  const spectatePlayer = params.get("player");
+  const spectatePda = params.get("pda");
+  if (spectatePlayer || spectatePda) {
     useNavigationStore.setState({
-      currentPage: "play",
-      gameId: null,
-      recoveryRunId: BigInt(recoverRun),
-      pendingLevelCompletion: null,
+      currentPage: "spectate",
+      spectateTarget: {
+        player: spectatePlayer ?? undefined,
+        pda: spectatePda ?? undefined,
+        runId: params.get("run") ?? undefined,
+      },
     });
+  } else {
+    const recoverRun = params.get("recover");
+    if (recoverRun && /^[1-9]\d*$/.test(recoverRun)) {
+      useNavigationStore.setState({
+        currentPage: "play",
+        gameId: null,
+        recoveryRunId: BigInt(recoverRun),
+        pendingLevelCompletion: null,
+      });
+    }
   }
 }
 

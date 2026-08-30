@@ -10,8 +10,12 @@ import {
 import { useMusicPlayer } from "@/contexts/hooks";
 import { BonusType } from "@/chain/bonusTypes";
 import type { Game } from "@/game/model";
-import { dailyThemeName } from "@/chain/dailyRules";
-import { getBonusType, REROLL_ACTION } from "@/config/mutatorConfig";
+import { dailyThemeDescription } from "@/game/constraint";
+import {
+  getBonusType,
+  getGuardianDef,
+  REROLL_ACTION,
+} from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
 import { canSubmitRunMove } from "@/chain/useRunController";
@@ -24,7 +28,10 @@ import GameBoard from "@/ui/components/GameBoard";
 import GameOverDialog from "@/ui/components/GameOverDialog";
 import LevelCompleteDialog from "@/ui/components/LevelCompleteDialog";
 import VictoryDialog from "@/ui/components/VictoryDialog";
-import { buildTriggerDescription } from "@/ui/components/actionbar/bonusDescription";
+import {
+  buildTriggerDescription,
+  triggerFactProgress,
+} from "@/ui/components/actionbar/bonusDescription";
 import BoardHud from "@/ui/components/hud/BoardHud";
 import BoardRail from "@/ui/components/hud/BoardRail";
 import ScoreChips, {
@@ -47,6 +54,36 @@ import "../../grid.css";
 // HUD sits at the very top of the play surface, so these are viewport points.
 const SCORE_SEAT = { x: 71, y: 85 };
 const OBJECTIVE_SEAT = { x: 359, y: 85 };
+const COACH_MARKS_KEY = "zkube:settings:coach-marks:v1";
+
+type CoachMarks = { move: boolean; charge: boolean; reroll: boolean };
+
+function loadCoachMarks(): CoachMarks {
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(COACH_MARKS_KEY) ?? "{}",
+    );
+    return {
+      move: saved.move === true,
+      charge: saved.charge === true,
+      reroll: saved.reroll === true,
+    };
+  } catch {
+    return { move: false, charge: false, reroll: false };
+  }
+}
+
+function playerFacingRunError(error: string | null): string | null {
+  if (!error) return null;
+  if (
+    /\b(?:MagicBlock|ActiveRun|VRF|oracle|PDA|rent|delegat\w*|Solana base layer)\b/i.test(
+      error,
+    )
+  ) {
+    return "Something interrupted your run. Retry when you are ready.";
+  }
+  return error;
+}
 
 export default function PlayScreen() {
   const pendingBonusEarnRef = useRef(false);
@@ -80,6 +117,15 @@ export default function PlayScreen() {
   const [totemTargetWidth, setTotemTargetWidth] = useState<number | null>(null);
   const [recoveringRun, setRecoveringRun] = useState(false);
   const [nowUnix, setNowUnix] = useState(() => Math.floor(Date.now() / 1_000));
+  const [coachMarks, setCoachMarks] = useState<CoachMarks>(loadCoachMarks);
+  const markCoach = useCallback((mark: keyof CoachMarks) => {
+    setCoachMarks((current) => {
+      if (current[mark]) return current;
+      const next = { ...current, [mark]: true };
+      window.localStorage.setItem(COACH_MARKS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
   // HUD hold: the chain confirms a move while its cascade is still animating.
   // Freeze the values the top bar (and the bonus badge) displays at the
   // pre-move snapshot until the cascade lands, so numbers never jump ahead of
@@ -99,6 +145,7 @@ export default function PlayScreen() {
   const recoverBaseRun = controller.recoverBaseRun;
   const dismissRun = run.dismissRun;
   const recoveryOwner = run.publicKey?.toBase58() ?? "disconnected wallet";
+  const runErrorCopy = playerFacingRunError(run.error);
 
   useEffect(() => {
     if (!activeRun) return;
@@ -171,13 +218,15 @@ export default function PlayScreen() {
         setHeld((prev) => prev ?? { game, charges: activeRun.bonusCharges });
       }
       try {
-        return await onRunMove(row, start, destination);
+        const projection = await onRunMove(row, start, destination);
+        markCoach("move");
+        return projection;
       } catch (error) {
         setHeld(null);
         throw error;
       }
     },
-    [activeRun, game, onRunMove],
+    [activeRun, game, markCoach, onRunMove],
   );
 
   const onBonus = useCallback(
@@ -217,19 +266,14 @@ export default function PlayScreen() {
           activeRun.rules.guardian.trigger,
           activeRun.rules.guardian.threshold,
         ),
-        // Only the cumulative line trigger exposes meaningful progress from
-        // the authoritative receipt counters. Per-move trigger families do
-        // not have a safe "toward next" value between actions.
-        lineProgress:
-          activeRun.rules.guardian.trigger === 2 &&
-          activeRun.rules.guardian.threshold > 0
-            ? {
-                current:
-                  activeRun.levelLinesCleared %
-                  activeRun.rules.guardian.threshold,
-                threshold: activeRun.rules.guardian.threshold,
-              }
-            : undefined,
+        triggerProgress:
+          triggerFactProgress({
+            triggerType: activeRun.rules.guardian.trigger,
+            triggerThreshold: activeRun.rules.guardian.threshold,
+            levelLinesCleared: activeRun.levelLinesCleared,
+            comboCounter: activeRun.comboCounter,
+            streak: activeRun.streak,
+          }) ?? undefined,
         totemTarget:
           type === BonusType.Totem &&
           activeBonus === BonusType.Totem &&
@@ -254,18 +298,26 @@ export default function PlayScreen() {
       isActive: true,
       icon: REROLL_ACTION.icon,
       name: REROLL_ACTION.name,
-      description: REROLL_ACTION.description,
-      triggerDescription:
-        activeRun.mode === "daily"
-          ? "Start with 1 · perfect clear awards +1 · hold up to 3"
-          : "Start with 1 · Perfect clear awards +1 · hold up to 3",
+      description:
+        "Replaces the next row · perfect clear awards +1 · hold up to 3",
+      triggerDescription: "Held rerolls",
       onClick: () => {
         if (activeRun.rerollCharges <= 0) return;
-        void onRunReroll().catch(() => undefined);
+        void onRunReroll()
+          .then(() => markCoach("reroll"))
+          .catch(() => undefined);
       },
     });
     return slots;
-  }, [activeBonus, activeRun, game, held, onRunReroll, totemTargetWidth]);
+  }, [
+    activeBonus,
+    activeRun,
+    game,
+    held,
+    markCoach,
+    onRunReroll,
+    totemTargetWidth,
+  ]);
 
   // New run/level snapshot changes identity: never carry a hold across runs.
   const gameId = game?.id;
@@ -335,9 +387,10 @@ export default function PlayScreen() {
     if (pendingBonusEarnRef.current) {
       pendingBonusEarnRef.current = false;
       setBonusEarnSignal((value) => value + 1);
+      markCoach("charge");
       playSfx("coin");
     }
-  }, [game, held, onCascadeCompleteFromController, playSfx]);
+  }, [game, held, markCoach, onCascadeCompleteFromController, playSfx]);
 
   // He answers the board, so the board is what he is given: the ceiling rows,
   // the live chain, and a counter that only moves on a perfect clear.
@@ -452,10 +505,10 @@ export default function PlayScreen() {
             />
           ) : (
             <p className="max-w-md text-center text-xs text-white/65">
-              {run.error ??
+              {runErrorCopy ??
                 (attachedRun
-                  ? "A local run session is already attached. Return Home and resume or forget that run before using public recovery."
-                  : `Recovery verifies connected wallet ${recoveryOwner} and uses the enabled device session for terminal run consumption and cleanup.`)}
+                  ? "A run is already open. Return to Arcade and resume it before recovering another result."
+                  : `This recovery belongs to ${recoveryOwner}. Your enabled device can finish saving it.`)}
             </p>
           )}
           {!resolving && (
@@ -465,7 +518,7 @@ export default function PlayScreen() {
                 onClick={() => navigate("arcade")}
                 className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white"
               >
-                Back to Home
+                Back to Arcade
               </button>
               {!attachedRun && (
                 <button
@@ -517,29 +570,23 @@ export default function PlayScreen() {
           {isArcadeReceipt && (
             <div className="text-center text-xs text-cyan-100/80">
               <p>
-                Engine {receipt.score} · Challenge +{dailyBonus} · Pressure{" "}
+                Score {receipt.score} · Theme +{dailyBonus} · Pressure{" "}
                 {receipt.pressureScore}
-              </p>
-              <p>
-                Final tier {receipt.finalPressureTier}/7
-                {receipt.finalPressureTier === 7
-                  ? " · Master pressure reached"
-                  : ""}
               </p>
             </div>
           )}
           {controller.settledCleanupStatus === "running" && (
             <p className="text-center text-xs text-cyan-200">
-              Recovering ActiveRun rent…
+              Your run is being saved…
             </p>
           )}
           {controller.settledCleanupStatus === "idle" && (
             <p className="text-center text-xs text-cyan-200">
-              Preparing ActiveRun cleanup…
+              Your run is being saved…
             </p>
           )}
-          {run.error && (
-            <p className="text-center text-xs text-red-200">{run.error}</p>
+          {runErrorCopy && (
+            <p className="text-center text-xs text-red-200">{runErrorCopy}</p>
           )}
           {controller.settledCleanupStatus === "failed" && (
             <button
@@ -564,14 +611,11 @@ export default function PlayScreen() {
   }
 
   if (!game || !activeRun || !gameLevel) {
-    // "resolving" = delegate confirmed on base, ER still cloning the account.
-    // It self-heals via the watcher; show a spinner + a manual retry, never a
-    // dead-end.
     const resolving =
       run.phase === "resolving" || run.watchStatus?.phase === "resolving";
     const preparing = run.busy || resolving;
     const title = resolving
-      ? "Resolving MagicBlock run…"
+      ? "Loading your run…"
       : preparing
         ? "Preparing game"
         : "Run unavailable";
@@ -587,8 +631,8 @@ export default function PlayScreen() {
               />
               {resolving && (
                 <p className="max-w-sm text-center text-xs text-white/55">
-                  The run is delegated on Solana and the MagicBlock validator is
-                  catching up. This usually clears in a few seconds.
+                  Your saved run is catching up. This usually takes only a few
+                  seconds.
                 </p>
               )}
             </>
@@ -604,11 +648,6 @@ export default function PlayScreen() {
                     {described?.headline ??
                       "Choose a campaign level or Daily attempt to begin."}
                   </p>
-                  {described?.detail && (
-                    <p className="max-w-sm break-all text-center text-[10px] text-white/30">
-                      {described.detail}
-                    </p>
-                  )}
                 </>
               );
             })()
@@ -629,7 +668,7 @@ export default function PlayScreen() {
                 onClick={() => navigate("arcade")}
                 className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white"
               >
-                Back to Home
+                Back to Arcade
               </button>
             )}
             {(run.phase === "missing" || resolving) && (
@@ -638,7 +677,7 @@ export default function PlayScreen() {
                 onClick={handleForgetLocally}
                 className="rounded-xl border border-red-300/30 bg-red-950/60 px-6 py-2 font-sans text-sm font-bold text-red-100"
               >
-                {run.phase === "missing" ? "Forget missing run" : "Abandon"}
+                {run.phase === "missing" ? "Return to Arcade" : "Abandon"}
               </button>
             )}
           </div>
@@ -660,8 +699,8 @@ export default function PlayScreen() {
       <PlaySurface>
         <StatePanel title="Daily window closed">
           <p className="max-w-sm text-center text-sm text-white/70">
-            Your current on-chain score is frozen. The keeper is closing the run
-            at its recorded deadline and the result will settle automatically.
+            Your last accepted score is frozen. The result will finish saving
+            automatically.
           </p>
         </StatePanel>
       </PlaySurface>
@@ -723,6 +762,18 @@ export default function PlayScreen() {
   // every other rule two lines is the point a chain starts being a chain.
   const dailyComboThreshold =
     activeRun.dailyTheme?.kind === 3 ? Number(activeRun.dailyTheme.value) : 2;
+  const themeSentence = dailyThemeDescription(
+    activeRun.dailyTheme,
+    getGuardianDef(activeRun.rules.activeMutatorId).name,
+  );
+  const guardianSlot = bonusSlots.find((slot) => slot.type !== "reroll");
+  const coachText = !coachMarks.move
+    ? "Swipe a block to move it"
+    : !coachMarks.charge && guardianSlot
+      ? `Earn a charge · ${guardianSlot.triggerDescription}`
+      : !coachMarks.reroll
+        ? "Reroll replaces the next row"
+        : null;
 
   return (
     <PlaySurface>
@@ -732,7 +783,7 @@ export default function PlayScreen() {
           onClose={controller.closeOutcome}
           closeDisabled={controller.settlementStatus !== "complete"}
           settlementFailed={controller.settlementStatus === "failed"}
-          settlementError={run.error}
+          settlementError={runErrorCopy}
           onRetrySettlement={controller.retrySettlement}
           game={game}
           colors={getThemeColors(themeTemplate as ThemeId)}
@@ -776,11 +827,10 @@ export default function PlayScreen() {
         score={game.mode === 1 ? hudGame.totalScore : hudGame.levelScore}
         targetScore={gameLevel.pointsRequired}
         themeScore={hudGame.challengeBonus}
-        objectiveName={
-          game.mode === 1 ? dailyThemeName(activeRun.dailyTheme) : undefined
-        }
+        themeDescription={game.mode === 1 ? themeSentence : undefined}
         level={hudGame.level}
         combo={hudGame.combo}
+        streak={activeRun.streak ?? 0}
         comboThreshold={dailyComboThreshold}
         pressureScore={hudGame.pressureScore}
         currentDifficulty={hudGame.currentDifficulty}
@@ -794,7 +844,7 @@ export default function PlayScreen() {
 
       {run.error && (
         <div className="bg-red-950/85 px-3 py-1 text-center font-sans text-xs text-red-200">
-          {run.error}
+          {runErrorCopy}
         </div>
       )}
 
@@ -802,6 +852,11 @@ export default function PlayScreen() {
           decided by width alone, so any inset here is taken straight out of the
           blocks. GameBoard reserves exactly the frame it draws. */}
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden">
+        {coachText && (
+          <p className="pointer-events-none absolute left-1/2 top-3 z-40 w-max max-w-[82%] -translate-x-1/2 rounded-full border border-cyan-200/25 bg-black/90 px-3 py-1.5 text-center font-sans text-xs font-bold text-cyan-100 shadow-lg">
+            {coachText}
+          </p>
+        )}
         <div
           className={`relative flex h-full min-h-0 w-full flex-col items-center ${locked ? "pointer-events-none" : ""}`}
           style={BOARD_WELL}
@@ -842,11 +897,11 @@ export default function PlayScreen() {
                 : basePhase
                   ? preparedBase
                     ? run.busy
-                      ? "Resuming on MagicBlock…"
-                      : "Preparation is complete. Continue this run or abandon it."
+                      ? "Loading your run…"
+                      : "Your run is ready. Continue or abandon it."
                     : run.phase === "settleable"
-                      ? "Finalizing settlement on Solana…"
-                      : "Result copied to the Solana base layer…"
+                      ? "Your run is being saved…"
+                      : "Your result is ready to save…"
                   : controller.settlingLabel}
             </p>
             {!run.sessionAuthorized && run.phase === "delegated" ? (
@@ -867,7 +922,7 @@ export default function PlayScreen() {
                   onClick={handleForgetLocally}
                   className="rounded-xl border border-white/20 bg-white/10 px-5 py-2 font-sans text-xs font-bold text-white disabled:opacity-50"
                 >
-                  Forget run locally
+                  Return to Arcade
                 </button>
               </div>
             ) : run.error && run.phase === "delegated" && terminal ? (
@@ -914,11 +969,10 @@ export default function PlayScreen() {
         {waitingForOpening && (
           <div className="absolute inset-x-4 bottom-4 z-50 rounded-2xl border border-cyan-300/30 bg-black/90 p-4 text-center backdrop-blur-xl">
             <p className="font-display text-xl text-cyan-200">
-              Preparing verified opening…
+              Waiting for the next row…
             </p>
             <p className="mt-1 font-sans text-xs text-white/65">
-              The randomness request is confirmed. zKube will continue here as
-              soon as the MagicBlock oracle callback arrives.
+              Your run will continue here as soon as the row arrives.
             </p>
           </div>
         )}
@@ -947,7 +1001,7 @@ export default function PlayScreen() {
                 onClick={handleForgetLocally}
                 className="rounded-xl border border-white/20 bg-white/10 px-6 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
               >
-                Forget run locally
+                Return to Arcade
               </button>
             </div>
           </div>
@@ -965,6 +1019,12 @@ export default function PlayScreen() {
         disabled={chainTerminal || basePhase || !run.sessionAuthorized}
         movesRemaining={movesDisplay}
         maxMoves={gameLevel.maxMoves}
+        runId={activeRun.runId}
+        deadlineSecondsRemaining={
+          game.mode === 1 && activeRun.deadlineAt
+            ? Math.max(0, activeRun.deadlineAt - nowUnix)
+            : undefined
+        }
         onHome={
           chainTerminal || basePhase || run.busy
             ? undefined

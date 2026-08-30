@@ -10,6 +10,7 @@ import type { ThemeColors } from "@/config/themes";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 import type { MapNodeData } from "@/hooks/useMapData";
 import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
+import { getGuardianDef } from "@/config/mutatorConfig";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 
 interface LevelPreviewProps {
@@ -50,6 +51,7 @@ const DIFFICULTY_LABELS = [
 
 function constraintDescriptions(
   level: GameLevelData | null,
+  triggerName: string,
 ): Array<{ type: ConstraintType; icon: string | null; text: string }> {
   if (!level) return [];
   return [
@@ -68,7 +70,9 @@ function constraintDescriptions(
     .map(({ type, value, count }) => ({
       type,
       icon: CONSTRAINT_ICON_MAP[type],
-      text: Constraint.fromContractValues(type, value, count).getDescription(),
+      text: Constraint.fromContractValues(type, value, count).getDescription(
+        triggerName,
+      ),
     }));
 }
 
@@ -95,7 +99,14 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
   // exact rule snapshot is authoritative for the preview.
   const levelData =
     gameLevel?.level === levelNum ? gameLevel : node.levelConfig;
-  const constraints = constraintDescriptions(levelData);
+  const triggerName = getGuardianDef(19 + zoneId * 2).name;
+  const constraints = constraintDescriptions(levelData, triggerName);
+  const starRules = levelData
+    ? [
+        { icon: null, text: `Reach ${levelData.pointsRequired} Score` },
+        ...constraints,
+      ]
+    : [];
   const canPlay =
     node.state === "current" ||
     node.state === "available" ||
@@ -217,13 +228,7 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
           {levelData && (
             <div className="mt-3 space-y-2">
               <div className="flex gap-2">
-                <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2.5 text-center">
-                  <p className="font-sans text-lg font-bold text-white">
-                    {levelData.pointsRequired}
-                  </p>
-                  <p className="font-sans text-[10px] text-white/40">Target</p>
-                </div>
-                <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2.5 text-center">
+                <div className="flex-1 rounded-xl bg-white/[0.05] px-3 py-2 text-center">
                   <p className="font-sans text-lg font-bold text-white">
                     {levelData.maxMoves}
                   </p>
@@ -231,16 +236,21 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({
                 </div>
               </div>
 
-
               {/* Constraints — objectives to clear, side by side with their
                   in-game icons so they read as goals, not flavor. */}
-              {constraints.length > 0 && (
-                <div className="flex gap-1.5">
-                  {constraints.map((constraint) => (
+              {starRules.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="font-sans text-[10px] font-semibold text-white/45">
+                    Star rules latch in any order
+                  </p>
+                  {starRules.map((constraint, index) => (
                     <div
-                      key={constraint.text}
-                      className="flex flex-1 items-center gap-2 rounded-lg border border-amber-400/15 bg-amber-500/8 px-2.5 py-1.5"
+                      key={`${index}:${constraint.text}`}
+                      className="flex items-center gap-2 rounded-lg border border-amber-400/15 bg-amber-500/8 px-2.5 py-1.5"
                     >
+                      <span className="w-8 flex-none font-sans text-[11px] font-black text-yellow-300">
+                        {"★".repeat(index + 1)}
+                      </span>
                       {constraint.icon && (
                         <img
                           src={constraint.icon}

@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 
 import type { DailyLeaderboardView } from "@/chain/dailyClient";
 import { dailyThemeName } from "@/chain/dailyRules";
+import { dailyThemeDescription } from "@/game/constraint";
 import type { DailyThemeView } from "@/chain/dailyRules";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
@@ -75,7 +76,8 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
   // one the lobby's figures are quoted from.
   const payouts = view
     ? computeRankPayouts(
-        dailyBoardPools(view.dailyPotLamports, view.themeQualifiedPlayers).score,
+        dailyBoardPools(view.dailyPotLamports, view.themeQualifiedPlayers)
+          .score,
         view.scoreQualifiedPlayers,
       ).payouts
     : [];
@@ -182,9 +184,14 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
         {/* What today actually asks of you. Without it the realm name is a
             mood and the objective only appears once you are already inside. */}
         {view?.dailyTheme && (
-          <p className="font-mono text-[11px] font-semibold text-white/55">
-            {dailyThemeName(view.dailyTheme)}
-          </p>
+          <div>
+            <p className="font-mono text-[11px] font-semibold text-white/55">
+              Today's Theme · {dailyThemeName(view.dailyTheme)}
+            </p>
+            <p className="mt-0.5 font-sans text-[11px] font-semibold text-cyan-100/75">
+              {dailyThemeDescription(view.dailyTheme)}
+            </p>
+          </div>
         )}
 
         {view && (
@@ -223,9 +230,7 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
                 {row(0, myIndex === 0)}
                 {/* Your own standing, which is the only row you can change.
                     Absent until you enter, where the absence is the message. */}
-                {address !== null &&
-                  myIndex > 0 &&
-                  row(myIndex, true)}
+                {address !== null && myIndex > 0 && row(myIndex, true)}
                 {address !== null && myIndex < 0 && (
                   <p className="px-2.5 py-2 font-sans text-[12px] font-semibold text-white/45">
                     You are not in today's arena yet
