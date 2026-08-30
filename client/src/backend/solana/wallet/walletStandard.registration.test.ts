@@ -42,7 +42,7 @@ vi.mock("@wallet-standard/app", () => ({
   getWallets: mocks.getWallets,
 }));
 
-vi.mock("./capabilities", () => ({
+vi.mock("@/platform/capabilities", () => ({
   currentPlatformCapabilities: () => mocks.capabilities,
 }));
 

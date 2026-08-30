@@ -4,7 +4,7 @@ import {
   type VersionedTransaction,
 } from "@solana/web3.js";
 
-import type { WalletLike } from "./sessionWallet.js";
+import type { WalletLike } from "../session/sessionWallet.js";
 
 /** Anchor only needs a public key for account decoding. This boundary makes
  * accidental signing from spectator/read paths fail closed. */

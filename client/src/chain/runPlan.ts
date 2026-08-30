@@ -43,7 +43,10 @@ import {
   getDelegationRecord,
 } from "./constants.js";
 import { saveRunSession, type RunSlot } from "./runSessionStore.js";
-import { SessionWallet, type WalletLike } from "./sessionWallet.js";
+import {
+  SessionWallet,
+  type WalletLike,
+} from "../backend/solana/session/sessionWallet.js";
 import {
   deriveArenaPlayerPda,
   deriveMapCatalogPda,
@@ -61,8 +64,8 @@ import {
 import {
   assertDeviceSignerCanPay,
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
-} from "./deviceSessionFunding.js";
-import { deriveSessionTokenV2Pda } from "./sessionV2.js";
+} from "../backend/solana/session/deviceSessionFunding.js";
+import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2.js";
 import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated.js";
 import {
   coreBuildRunConfig,

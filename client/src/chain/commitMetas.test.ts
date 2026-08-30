@@ -7,13 +7,13 @@ import { ZKUBE_PROGRAM_ID } from "./constants";
 import { deriveRunAddresses } from "./pdas";
 import { buildCommitRunPlan } from "./runPlan";
 import { buildCommitDailyRunPlan } from "./dailyClient";
-import { SessionWallet } from "./sessionWallet";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import {
   buildCreateSessionV2Instruction,
   CREATE_SESSION_V2_DISCRIMINATOR,
   deriveSessionTokenV2Pda,
   SESSION_KEYS_PROGRAM_ID,
-} from "./sessionV2";
+} from "../backend/solana/session/sessionV2";
 
 describe("commit meta invariants", () => {
   it("pins the session-keys 3.1.1 V2 discriminator and account order", () => {

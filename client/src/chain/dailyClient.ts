@@ -49,8 +49,8 @@ import {
   type DailyPressureProfileView,
   type DailyThemeView,
 } from "../core/dailyRules.js";
-import { fetchPlayerLabels } from "./playerLabelClient.js";
-import type { WalletLike } from "./sessionWallet.js";
+import { fetchPlayerLabels } from "../backend/solana/identity/playerLabelClient.js";
+import type { WalletLike } from "../backend/solana/session/sessionWallet.js";
 import {
   coreDailyPairIndex,
   corePayoutForRank as payoutForRank,

@@ -102,7 +102,7 @@ vi.mock("@/platform/capabilities", () => ({
   }),
 }));
 
-vi.mock("@/platform/walletStandard", () => ({
+vi.mock("@/backend/solana/wallet/walletStandard", () => ({
   getWalletAvailabilityState: () => fixtures.walletAvailability,
   subscribeWalletAvailability: () => () => undefined,
   clearMobileWalletAuthorizationCache:

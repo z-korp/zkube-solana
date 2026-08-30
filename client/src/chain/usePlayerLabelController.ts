@@ -9,9 +9,9 @@ import {
   fetchPlayerLabel,
   invalidatePlayerLabel,
   type PlayerLabelView,
-} from "./playerLabelClient";
+} from "../backend/solana/identity/playerLabelClient";
 import { submitVersionedTransactionPlan } from "./runPlan";
-import { SessionWallet } from "./sessionWallet";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { applyDevPlayerLabel } from "@/dev/fixtures";

@@ -30,7 +30,7 @@ import {
   deriveProtocolConfigPda,
 } from "../../src/chain/pdas";
 import { SECONDS_PER_DAY } from "../../src/core/protocolVersions.generated";
-import { createReadOnlyWallet } from "../../src/chain/readOnlyWallet";
+import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnlyWallet";
 import type { TransactionPlan } from "../../src/chain/runPlan";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 

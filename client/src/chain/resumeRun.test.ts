@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deriveRunAddresses } from "./pdas";
 import { resolvePersistedRun } from "./resumeRun";
 import { loadRunSession, saveRunSession } from "./runSessionStore";
-import { deriveSessionTokenV2Pda } from "./sessionV2";
-import { SessionWallet } from "./sessionWallet";
+import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
 
 describe("persisted run resolution", () => {

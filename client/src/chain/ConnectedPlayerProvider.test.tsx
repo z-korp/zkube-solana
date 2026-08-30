@@ -18,11 +18,14 @@ import {
   vi,
 } from "vitest";
 
-import type { WalletConnector } from "@/platform/walletStandard";
+import type { WalletConnector } from "@/backend/solana/wallet/walletStandard";
 import { ConnectedPlayerProvider } from "./ConnectedPlayerProvider";
 import { useConnectedPlayer } from "./connectedPlayerContext";
-import { saveLastWallet, loadLastWallet } from "./lastWalletStore";
-import type { DeviceSession } from "./deviceSessionStore";
+import {
+  saveLastWallet,
+  loadLastWallet,
+} from "../backend/solana/identity/lastWalletStore";
+import type { DeviceSession } from "../backend/solana/session/deviceSessionStore";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 
 interface Subscription {
@@ -51,7 +54,7 @@ const mocks = vi.hoisted(() => ({
   protocolFetch: vi.fn(async () => ({})),
 }));
 
-vi.mock("@/platform/walletStandard", () => ({
+vi.mock("@/backend/solana/wallet/walletStandard", () => ({
   discoverWalletConnectors: () => mocks.connectors,
   walletRegistry: () => ({
     get: () => mocks.connectors.map((connector) => connector.wallet),
@@ -80,22 +83,31 @@ vi.mock("./connectionContext", () => ({
   useSolanaConnection: () => ({ connection: mocks.connection }),
 }));
 
-vi.mock("./deviceSessionStore", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./deviceSessionStore")>();
-  return {
-    ...actual,
-    clearDeviceSession: mocks.clearDeviceSession,
-    loadDeviceSession: mocks.loadDeviceSession,
-  };
-});
+vi.mock(
+  "../backend/solana/session/deviceSessionStore",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../backend/solana/session/deviceSessionStore")
+      >();
+    return {
+      ...actual,
+      clearDeviceSession: mocks.clearDeviceSession,
+      loadDeviceSession: mocks.loadDeviceSession,
+    };
+  },
+);
 
 vi.mock("./runSessionStore", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./runSessionStore")>();
   return { ...actual, clearRunSession: mocks.clearRunSession };
 });
 
-vi.mock("./sessionV2", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./sessionV2")>();
+vi.mock("../backend/solana/session/sessionV2", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../backend/solana/session/sessionV2")
+    >();
   return {
     ...actual,
     decodeSessionTokenV2Account: mocks.decodeSessionTokenV2Account,

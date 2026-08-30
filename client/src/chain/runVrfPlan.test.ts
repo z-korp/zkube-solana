@@ -18,7 +18,7 @@ import {
   decodeActiveRunAccount,
 } from "./runPlan";
 import { IDL } from "../backend/solana/idl";
-import { SessionWallet } from "./sessionWallet";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
 
 describe("atomic action + VRF plans", () => {
   it("keeps move signer/account positions exact and serializes a deterministic seed", async () => {

@@ -6,8 +6,8 @@ import {
   type Connection,
 } from "@solana/web3.js";
 
-import { ZKUBE_PROGRAM_ID } from "./constants.js";
-import type { TransactionPlan } from "./runPlan.js";
+import { ZKUBE_PROGRAM_ID } from "../../../chain/constants.js";
+import type { TransactionPlan } from "../../../chain/runPlan.js";
 import type { WalletLike } from "./sessionWallet.js";
 import {
   decodeSessionTokenV2Account,

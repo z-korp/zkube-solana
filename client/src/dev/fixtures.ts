@@ -28,8 +28,8 @@ import type {
 } from "@/chain/campaignClient";
 import type { ActiveRunRulesView } from "@/core/runProjection";
 import type { ConnectedPlayerValue } from "@/chain/connectedPlayerContext";
-import { createReadOnlyWallet } from "@/chain/readOnlyWallet";
-import type { PlayerLabelView } from "@/chain/playerLabelClient";
+import { createReadOnlyWallet } from "@/backend/solana/identity/readOnlyWallet";
+import type { PlayerLabelView } from "@/backend/solana/identity/playerLabelClient";
 import type { PlayerEmblemView } from "@/chain/playerStateClient";
 import type { PlayerProfileResult } from "@/hooks/usePlayerProfile";
 

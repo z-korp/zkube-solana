@@ -27,7 +27,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "../../src/chain/pdas";
-import { SessionWallet } from "../../src/chain/sessionWallet";
+import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
 
 describe("authority publication client", () => {
   it("initializes the lean protocol with its team destination", async () => {

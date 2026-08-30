@@ -4,7 +4,7 @@ import {
   type StorageLike,
 } from "../platform/browserStorage.js";
 import { deriveRunAddresses, type RunAddresses } from "./pdas.js";
-import { deriveSessionTokenV2Pda } from "./sessionV2.js";
+import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2.js";
 
 export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v3";
 const RUN_SESSION_REFRESH_SKEW_SECONDS = 60;

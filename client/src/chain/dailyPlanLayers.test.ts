@@ -31,7 +31,7 @@ import {
   ARCADE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
 } from "../core/protocolVersions.generated";
-import { SessionWallet } from "./sessionWallet";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
 
 const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
 

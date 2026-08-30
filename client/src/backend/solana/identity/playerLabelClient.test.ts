@@ -13,8 +13,8 @@ import {
   derivePlayerLabelPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "./pdas";
-import { SessionWallet } from "./sessionWallet";
+} from "../../../chain/pdas";
+import { SessionWallet } from "../session/sessionWallet";
 
 describe("cosmetic player label client", () => {
   it("validates the contract's case-preserving ASCII label", () => {

@@ -7,15 +7,18 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 
-import { ZKUBE_PROGRAM_ID } from "./constants.js";
+import { ZKUBE_PROGRAM_ID } from "../../../chain/constants.js";
 import {
   derivePlayerLabelPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "./pdas.js";
-import { PLAYER_LABEL_ACCOUNT_VERSION } from "../core/protocolVersions.generated.js";
-import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
-import type { WalletLike } from "./sessionWallet.js";
+} from "../../../chain/pdas.js";
+import { PLAYER_LABEL_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated.js";
+import {
+  zkubeProgram,
+  type TransactionPlan,
+} from "../../../chain/runPlan.js";
+import type { WalletLike } from "../session/sessionWallet.js";
 
 const PLAYER_LABEL_CACHE_MS = 60_000;
 const labelCache = new Map<

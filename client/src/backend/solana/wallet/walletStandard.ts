@@ -6,7 +6,9 @@ import {
   type AuthorizationCache,
 } from "@solana-mobile/wallet-standard-mobile";
 import {
+  SolanaSignMessage,
   SolanaSignTransaction,
+  type SolanaSignMessageFeature,
   type SolanaSignTransactionFeature,
 } from "@solana/wallet-standard-features";
 import { getWallets } from "@wallet-standard/app";
@@ -21,11 +23,11 @@ import {
 } from "@wallet-standard/features";
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 
-import type { WalletLike } from "@/chain/sessionWallet";
+import type { WalletLike } from "../session/sessionWallet";
 import {
   currentPlatformCapabilities,
   type PlatformCapabilities,
-} from "./capabilities";
+} from "../../../platform/capabilities";
 
 const DEVNET_CHAIN = "solana:devnet" as const;
 const WALLET_NOT_FOUND_MESSAGE =
@@ -188,6 +190,40 @@ export function createWalletStandardWallet(
   account: WalletAccount,
 ): WalletLike {
   return new WalletStandardWallet(wallet, account);
+}
+
+export async function signWalletStandardMessage(
+  wallet: Wallet,
+  account: WalletAccount,
+  message: Uint8Array,
+): Promise<Uint8Array> {
+  assertSolanaAccount(account);
+  const feature = wallet.features[SolanaSignMessage] as
+    | SolanaSignMessageFeature[typeof SolanaSignMessage]
+    | undefined;
+  if (!feature || !account.features.includes(SolanaSignMessage)) {
+    throw new Error(`${wallet.name} does not allow message signing.`);
+  }
+  const outputs = await feature.signMessage({ account, message });
+  const output = outputs[0];
+  if (outputs.length !== 1 || !output) {
+    throw new Error("Wallet returned an unexpected message signature count");
+  }
+  assertBytesEqual(
+    message,
+    output.signedMessage,
+    "Wallet changed the signed message",
+  );
+  if (output.signature.length !== 64) {
+    throw new Error("Wallet returned an invalid Ed25519 message signature");
+  }
+  if (
+    output.signatureType !== undefined &&
+    output.signatureType !== "ed25519"
+  ) {
+    throw new Error("Wallet returned a non-Ed25519 message signature");
+  }
+  return output.signature;
 }
 
 export async function disconnectWalletStandard(

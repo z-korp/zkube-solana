@@ -22,7 +22,7 @@ import {
   canonicalCampaignMap,
 } from "../../src/core/campaignCatalog";
 import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
-import type { WalletLike } from "../../src/chain/sessionWallet";
+import type { WalletLike } from "../../src/backend/solana/session/sessionWallet";
 import BN from "bn.js";
 import { dailyContentFromPairIndex } from "../../src/core/dailyRules";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";

@@ -38,10 +38,10 @@ import {
   zkubeProgram,
   type TransactionPlan,
 } from "./runPlan";
-import { SessionWallet } from "./sessionWallet";
-import { deriveSessionTokenV2Pda } from "./sessionV2";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
+import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2";
 import * as router from "./router";
-import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "./deviceSessionFunding";
+import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "../backend/solana/session/deviceSessionFunding";
 import { makeFakeConnection } from "@/test/mocks/connection";
 
 describe("native SOL transaction boundaries", () => {

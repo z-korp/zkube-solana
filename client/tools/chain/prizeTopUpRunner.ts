@@ -33,7 +33,7 @@ import {
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
 } from "../../src/core/protocolVersions.generated";
-import { createReadOnlyWallet } from "../../src/chain/readOnlyWallet";
+import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnlyWallet";
 import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
 
 type PrizeTopUpMode = "plan" | "execute";

@@ -46,7 +46,7 @@ import {
   ENTRY_DAILY_LAMPORTS,
   ENTRY_OPERATOR_LAMPORTS,
 } from "../../src/core/protocolVersions.generated";
-import { createReadOnlyWallet } from "../../src/chain/readOnlyWallet";
+import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnlyWallet";
 import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
 import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 

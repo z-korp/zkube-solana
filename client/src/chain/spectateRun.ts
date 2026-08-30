@@ -1,7 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { INITIAL_RUN_ID, ZKUBE_PROGRAM_ID } from "./constants";
 import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
-import { createReadOnlyWallet } from "./readOnlyWallet";
+import { createReadOnlyWallet } from "../backend/solana/identity/readOnlyWallet";
 import { getDelegationStatus } from "./router";
 import {
   fetchActiveRun,

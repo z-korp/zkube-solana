@@ -26,7 +26,7 @@ import {
   type UnclaimedRewardView,
 } from "@/chain/dailyClient";
 import { derivePlayerStatePda } from "@/chain/pdas";
-import { SessionWallet } from "@/chain/sessionWallet";
+import { SessionWallet } from "@/backend/solana/session/sessionWallet";
 import {
   detectSettlementEvents,
   PERIOD_LABELS,

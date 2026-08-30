@@ -1,9 +1,9 @@
 import { createContext, useContext } from "react";
 import type { PublicKey } from "@solana/web3.js";
 
-import type { WalletConnector } from "@/platform/walletStandard";
-import type { DeviceSession } from "./deviceSessionStore";
-import type { WalletLike } from "./sessionWallet";
+import type { WalletConnector } from "@/backend/solana/wallet/walletStandard";
+import type { DeviceSession } from "../backend/solana/session/deviceSessionStore";
+import type { WalletLike } from "../backend/solana/session/sessionWallet";
 
 export type PlayerConnectionStatus =
   | "disconnected"

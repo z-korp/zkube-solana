@@ -19,7 +19,7 @@ import {
   clearMobileWalletAuthorizationCache,
   getWalletAvailabilityState,
   subscribeWalletAvailability,
-} from "@/platform/walletStandard";
+} from "@/backend/solana/wallet/walletStandard";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
 import WalletRecoveryPanel from "@/ui/components/shared/WalletRecoveryPanel";

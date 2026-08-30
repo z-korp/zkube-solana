@@ -7,12 +7,12 @@ import {
 import {
   describeWalletCapabilities,
   type WalletCapabilityDiagnostic,
-} from "@/platform/walletDiagnostics";
+} from "@/backend/solana/wallet/walletDiagnostics";
 import {
   getMobileWalletRegistrationState,
   walletRegistry,
   type MobileWalletRegistrationState,
-} from "@/platform/walletStandard";
+} from "@/backend/solana/wallet/walletStandard";
 
 interface CapabilitySnapshot {
   platform: PlatformCapabilities;

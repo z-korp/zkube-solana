@@ -13,7 +13,7 @@ import {
 } from "./campaignClient.js";
 import { derivePlayerStatePda } from "./pdas.js";
 import { zkubeProgram, type TransactionPlan } from "./runPlan.js";
-import type { WalletLike } from "./sessionWallet.js";
+import type { WalletLike } from "../backend/solana/session/sessionWallet.js";
 
 export type { CompetitionRecord, PlayerStateView } from "./campaignClient.js";
 

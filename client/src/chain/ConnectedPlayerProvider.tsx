@@ -26,7 +26,7 @@ import {
   subscribeWalletAccounts,
   walletRegistry,
   type WalletConnector,
-} from "@/platform/walletStandard";
+} from "@/backend/solana/wallet/walletStandard";
 import { errorMessage, isWalletRejection } from "@/utils/errors";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import {
@@ -36,12 +36,12 @@ import {
   requireCurrentDeviceSession,
   saveDeviceSession,
   type DeviceSession,
-} from "./deviceSessionStore";
+} from "../backend/solana/session/deviceSessionStore";
 import {
   clearLastWallet,
   loadLastWallet,
   saveLastWallet,
-} from "./lastWalletStore";
+} from "../backend/solana/identity/lastWalletStore";
 import {
   ConnectedPlayerContext,
   type ConnectedPlayerValue,
@@ -54,9 +54,9 @@ import {
   buildCreateSessionV2Instruction,
   decodeSessionTokenV2Account,
   deriveSessionTokenV2Pda,
-} from "./sessionV2";
-import type { WalletLike } from "./sessionWallet";
-import { createReadOnlyWallet } from "./readOnlyWallet";
+} from "../backend/solana/session/sessionV2";
+import type { WalletLike } from "../backend/solana/session/sessionWallet";
+import { createReadOnlyWallet } from "../backend/solana/identity/readOnlyWallet";
 import { derivePlayerStatePda } from "./pdas";
 import { withPinnedWalletComputeBudget, zkubeProgram } from "./runPlan";
 import {
@@ -64,7 +64,7 @@ import {
   deviceSignerTopUpLamports,
   validatedDeviceSignerBalance,
   validateDeviceSignerFunding,
-} from "./deviceSessionFunding";
+} from "../backend/solana/session/deviceSessionFunding";
 import {
   buildDeviceSessionRefillInstructions,
   buildDeviceSignerReclaimInstruction,
@@ -73,8 +73,8 @@ import {
   DEVICE_SESSION_EXPIRED_MESSAGE,
   DEVICE_SESSION_READY_SKEW_SECONDS,
   withSigningDeadline,
-} from "./deviceSessionLifecycle";
-import { buildRevokeExpiredSessionInstruction } from "./sessionCleanup";
+} from "../backend/solana/session/deviceSessionLifecycle";
+import { buildRevokeExpiredSessionInstruction } from "../backend/solana/session/sessionCleanup";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;

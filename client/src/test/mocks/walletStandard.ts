@@ -1,8 +1,11 @@
 import {
   SolanaSignAndSendTransaction,
+  SolanaSignMessage,
   SolanaSignTransaction,
   type SolanaSignAndSendTransactionInput,
   type SolanaSignAndSendTransactionOutput,
+  type SolanaSignMessageInput,
+  type SolanaSignMessageOutput,
   type SolanaSignTransactionInput,
   type SolanaSignTransactionOutput,
   type SolanaTransactionVersion,
@@ -12,7 +15,7 @@ import type { Wallet, WalletAccount } from "@wallet-standard/base";
 import { StandardConnect } from "@wallet-standard/features";
 import { vi } from "vitest";
 
-import type { WalletConnector } from "@/platform/walletStandard";
+import type { WalletConnector } from "@/backend/solana/wallet/walletStandard";
 
 type SignTransactionResponder = (
   inputs: readonly SolanaSignTransactionInput[],
@@ -26,6 +29,12 @@ type SignAndSendTransactionResponder = (
   | readonly SolanaSignAndSendTransactionOutput[]
   | Promise<readonly SolanaSignAndSendTransactionOutput[]>;
 
+type SignMessageResponder = (
+  inputs: readonly SolanaSignMessageInput[],
+) =>
+  | readonly SolanaSignMessageOutput[]
+  | Promise<readonly SolanaSignMessageOutput[]>;
+
 export interface FakeWalletStandardOptions {
   keypair?: Keypair;
   name?: string;
@@ -37,6 +46,8 @@ export interface FakeWalletStandardOptions {
   signTransactionOutputs?: SignTransactionResponder;
   signAndSendTransactionVersions?: readonly SolanaTransactionVersion[] | null;
   signAndSendTransactionOutputs?: SignAndSendTransactionResponder;
+  signMessageEnabled?: boolean;
+  signMessageOutputs?: SignMessageResponder;
 }
 
 export interface FakeWalletStandardHarness {
@@ -47,6 +58,7 @@ export interface FakeWalletStandardHarness {
   connect: ReturnType<typeof vi.fn>;
   signTransaction: ReturnType<typeof vi.fn>;
   signAndSendTransaction: ReturnType<typeof vi.fn>;
+  signMessage: ReturnType<typeof vi.fn>;
 }
 
 /**
@@ -69,6 +81,7 @@ export function createFakeWalletStandard(
     ...(signAndSendTransactionVersions === null
       ? []
       : [SolanaSignAndSendTransaction]),
+    ...(options.signMessageEnabled ? [SolanaSignMessage] : []),
   ];
   const account: WalletAccount = {
     address: keypair.publicKey.toBase58(),
@@ -90,6 +103,16 @@ export function createFakeWalletStandard(
         ? options.signAndSendTransactionOutputs(inputs)
         : inputs.map(() => ({ signature: new Uint8Array(64).fill(1) })),
   );
+  const signMessage = vi.fn(
+    async (...inputs: readonly SolanaSignMessageInput[]) =>
+      options.signMessageOutputs
+        ? options.signMessageOutputs(inputs)
+        : inputs.map(({ message }) => ({
+            signedMessage: message,
+            signature: new Uint8Array(64).fill(2),
+            signatureType: "ed25519" as const,
+          })),
+  );
   const features: Wallet["features"] = {
     [StandardConnect]: {
       version: "1.0.0",
@@ -108,6 +131,12 @@ export function createFakeWalletStandard(
       version: "1.0.0",
       supportedTransactionVersions: signAndSendTransactionVersions,
       signAndSendTransaction,
+    };
+  }
+  if (options.signMessageEnabled) {
+    features[SolanaSignMessage] = {
+      version: "1.0.0",
+      signMessage,
     };
   }
   const wallet = {
@@ -137,6 +166,7 @@ export function createFakeWalletStandard(
     connect,
     signTransaction,
     signAndSendTransaction,
+    signMessage,
   };
 }
 

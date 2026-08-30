@@ -1,5 +1,5 @@
 import { PublicKey, type AccountInfo, type Connection } from "@solana/web3.js";
-import type { WalletLike } from "./sessionWallet.js";
+import type { WalletLike } from "../backend/solana/session/sessionWallet.js";
 import {
   deriveMapCatalogPda,
   derivePlayerStatePda,

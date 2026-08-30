@@ -1,10 +1,10 @@
 import { SystemProgram, type AccountInfo } from "@solana/web3.js";
-import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "../core/runStartError.js";
+import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "../../../core/runStartError.js";
 
 export {
   DEVICE_SESSION_RENEWAL_ERROR_CODE,
   isDeviceSessionRenewalError,
-} from "../core/runStartError.js";
+} from "../../../core/runStartError.js";
 
 /** Owner-funded allowance assigned to each origin-scoped device signer. */
 export const DEVICE_FEE_ALLOWANCE_LAMPORTS = 5_000_000;

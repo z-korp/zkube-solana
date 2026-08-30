@@ -3,7 +3,7 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   browserLocalStorage,
   type StorageLike,
-} from "@/platform/browserStorage";
+} from "../../../platform/browserStorage";
 import {
   deviceSessionExpiryDelayMs,
   DeviceSessionExpiredError,

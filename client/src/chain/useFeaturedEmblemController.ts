@@ -9,7 +9,7 @@ import {
   invalidatePlayerEmblems,
 } from "./playerStateClient";
 import { submitVersionedTransactionPlan } from "./runPlan";
-import { SessionWallet } from "./sessionWallet";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import { createChainTraceId, emitChainMetric } from "./telemetry";
 
 /**

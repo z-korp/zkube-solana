@@ -10,14 +10,14 @@ import {
   saveDeviceSession,
   type DeviceSession,
 } from "./deviceSessionStore";
-import { deriveRunAddresses } from "./pdas";
+import { deriveRunAddresses } from "../../../chain/pdas";
 import {
   RUN_SESSION_STORAGE_KEY,
   clearRunSession,
   isRunSessionFresh,
   loadRunSession,
   saveRunSession,
-} from "./runSessionStore";
+} from "../../../chain/runSessionStore";
 import { deriveSessionTokenV2Pda } from "./sessionV2";
 import type { StorageLike } from "@/platform/browserStorage";
 

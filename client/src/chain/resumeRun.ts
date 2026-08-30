@@ -13,9 +13,9 @@ import {
   zkubeProgram,
 } from "./runPlan";
 import { getDelegationStatus, type DelegationStatus } from "./router";
-import type { WalletLike } from "./sessionWallet";
+import type { WalletLike } from "../backend/solana/session/sessionWallet";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
-import type { DeviceSession } from "./deviceSessionStore";
+import type { DeviceSession } from "../backend/solana/session/deviceSessionStore";
 import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
 import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
 

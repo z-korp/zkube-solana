@@ -5,7 +5,7 @@ import { Keypair, type PublicKey } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import { ActiveRunObserver } from "./activeRunObserver";
 import { PersistedRunWatcher, type RunWatchStatus } from "./runWatcher";
-import { SessionWallet } from "./sessionWallet";
+import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import {
   buildApplyBonusPlan,
   buildCommitRunPlan,
@@ -51,7 +51,7 @@ import {
   type RunSlot,
   type RunSessionMarker,
 } from "./runSessionStore";
-import { loadDeviceSession } from "./deviceSessionStore";
+import { loadDeviceSession } from "../backend/solana/session/deviceSessionStore";
 import { deriveRunAddresses, type RunAddresses } from "./pdas";
 import {
   buildCommitDailyRunPlan,
@@ -70,7 +70,7 @@ import {
   isActiveRunConflict,
   runDiscoveryPendingError,
 } from "../core/runStartError";
-import { isDeviceSessionRenewalError } from "./deviceSessionFunding";
+import { isDeviceSessionRenewalError } from "../backend/solana/session/deviceSessionFunding";
 
 const plog = (
   traceId: string,

@@ -5,7 +5,7 @@ import type {
 import { Transaction } from "@solana/web3.js";
 import { errorMessage } from "@/utils/errors";
 import type { TransactionPlan } from "./runPlan.js";
-import type { WalletLike } from "./sessionWallet.js";
+import type { WalletLike } from "../backend/solana/session/sessionWallet.js";
 
 const BLOCKHASH_CACHE_MS = 10_000;
 

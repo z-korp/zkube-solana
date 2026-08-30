@@ -3,7 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 import {
   browserLocalStorage,
   type StorageLike,
-} from "@/platform/browserStorage";
+} from "../../../platform/browserStorage";
 
 export const LAST_WALLET_STORAGE_KEY = "zkube:last-wallet:v1";
 const MAX_CONNECTOR_ID_LENGTH = 512;
