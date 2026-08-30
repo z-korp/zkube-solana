@@ -18,7 +18,8 @@ import {
   ARENA_ENTRY_LAMPORTS,
 } from "@/core/protocolVersions.generated";
 import { coreRunSummary } from "@/core/zkubeCore";
-import { browserLocalStorage } from "@/platform/browserStorage";
+import { appStorage } from "@/platform/storage";
+import { subscribeNativeResume } from "@/platform/nativeShell";
 import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { errorMessage } from "@/utils/errors";
@@ -394,6 +395,15 @@ function useRunSlot(
     });
   }, [connected, resume, sessionAuthorized]);
 
+  useEffect(
+    () =>
+      subscribeNativeResume(() => {
+        if (!connected || !sessionAuthorized) return;
+        void resume().catch((cause) => setError(errorMessage(cause)));
+      }),
+    [connected, resume, sessionAuthorized],
+  );
+
   const runAction = useCallback(
     async (action: RunAction) => {
       if (!activeRun) throw new Error("No active run");
@@ -629,7 +639,7 @@ function receiptFromRun(run: ClientRunView): ClientRunReceipt {
 }
 
 function saveSelection(runId: string, selection: RunSelection): void {
-  const storage = browserLocalStorage();
+  const storage = appStorage();
   if (!storage) return;
   try {
     const values = JSON.parse(storage.getItem(SELECTION_KEY) ?? "{}") as Record<
@@ -644,7 +654,7 @@ function saveSelection(runId: string, selection: RunSelection): void {
 }
 
 function loadSelection(runId: string): RunSelection | null {
-  const storage = browserLocalStorage();
+  const storage = appStorage();
   if (!storage) return null;
   try {
     const value = (

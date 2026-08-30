@@ -1,9 +1,4 @@
-import {
-  default as React,
-  useEffect,
-  useRef,
-  type ReactNode,
-} from "react";
+import { createElement, useEffect, useRef, type ReactNode } from "react";
 import { ManagedRuntime } from "effect";
 
 import {
@@ -38,9 +33,9 @@ export function BackendProvider({
     };
   }, []);
 
-  return (
-    <BackendRuntimeContext.Provider value={runtimeRef.current}>
-      <BackendClientState>{children}</BackendClientState>
-    </BackendRuntimeContext.Provider>
+  return createElement(
+    BackendRuntimeContext.Provider,
+    { value: runtimeRef.current },
+    createElement(BackendClientState, null, children),
   );
 }

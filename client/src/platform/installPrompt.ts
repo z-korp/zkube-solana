@@ -1,3 +1,5 @@
+import { isNativePlatform } from "./nativeShell";
+
 /**
  * One-shot capture of Chromium's `beforeinstallprompt` event so the connect
  * surface can offer PWA installation from an Android browser. The event can
@@ -22,7 +24,7 @@ let capturing = false;
 const installPromptListeners = new Set<() => void>();
 
 export function captureInstallPrompt(): void {
-  if (capturing || typeof window === "undefined") return;
+  if (capturing || typeof window === "undefined" || isNativePlatform()) return;
   capturing = true;
   window.addEventListener("beforeinstallprompt", (event) => {
     // Deferring suppresses Chromium's own mini-infobar and keeps the install

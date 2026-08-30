@@ -1,8 +1,8 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import {
-  browserLocalStorage,
+  appStorage,
   type StorageLike,
-} from "../../../platform/browserStorage.js";
+} from "../../../platform/storage.js";
 import { deriveRunAddresses, type RunAddresses } from "../pdas.js";
 import { deriveSessionTokenV2Pda } from "../session/sessionV2.js";
 
@@ -45,7 +45,7 @@ function sessionKey(owner: PublicKey, slot: RunSlot): string {
 
 export function saveRunSession(
   marker: RunSessionMarker,
-  storage = browserLocalStorage(),
+  storage = appStorage(),
 ): void {
   if (!storage) return;
   const sessions = loadStoredSessions(storage);
@@ -73,7 +73,7 @@ export function loadRunSession(
   options: { storage?: StorageLike | null } = {},
 ): RunSessionMarker | null {
   const storage =
-    options.storage === undefined ? browserLocalStorage() : options.storage;
+    options.storage === undefined ? appStorage() : options.storage;
   if (!storage) return null;
   const sessions = loadStoredSessions(storage);
   const key = sessionKey(owner, slot);
@@ -97,7 +97,7 @@ export function isRunSessionFresh(
 export function clearRunSession(
   owner: PublicKey,
   slot?: RunSlot,
-  storage = browserLocalStorage(),
+  storage = appStorage(),
 ): void {
   if (!storage) return;
   const sessions = loadStoredSessions(storage);

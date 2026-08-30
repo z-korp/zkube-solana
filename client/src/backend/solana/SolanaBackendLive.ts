@@ -32,14 +32,13 @@ export function makeSolanaBackendLive(
       // implementation; BackendProvider exposes exactly the six public tags.
       Effect.map((context) =>
         Context.pick(
-          context,
           Identity,
           Session,
           Runs,
           Content,
           Boards,
           Economy,
-        ),
+        )(context),
       ),
     ),
   );

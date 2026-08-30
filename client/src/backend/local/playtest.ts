@@ -1,4 +1,5 @@
 import { DAILY_THEMES } from "@/core/dailyRules.generated";
+import { appStorage } from "@/platform/storage";
 import type { DailyContent } from "../views";
 
 export const PLAYTEST_BUILD_SENTINEL = "zkube_owner_playtest_v1";
@@ -33,7 +34,7 @@ export function updatePlaytestSettings(
   const next = validateSettings({ ...snapshot, ...update });
   snapshot = next;
   try {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    appStorage()?.setItem(SETTINGS_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event(CHANGE_EVENT));
   } catch {
     // The in-memory owner build remains playable when storage is denied.
@@ -74,7 +75,7 @@ export function playtestToday(): DailyContent {
 export function readPlaytestName(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    const name = window.localStorage.getItem(NAME_KEY)?.trim() ?? "";
+    const name = appStorage()?.getItem(NAME_KEY)?.trim() ?? "";
     return name.length > 0 ? name : null;
   } catch {
     return null;
@@ -85,7 +86,7 @@ export function storePlaytestName(name: string): string {
   const normalized = name.trim().slice(0, 24);
   if (!normalized) throw new Error("Enter a name");
   try {
-    window.localStorage.setItem(NAME_KEY, normalized);
+    appStorage()?.setItem(NAME_KEY, normalized);
   } catch {
     // A storage-denied preview keeps the name for this mounted runtime.
   }
@@ -96,7 +97,7 @@ function loadSettings(): PlaytestSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const stored = JSON.parse(
-      window.localStorage.getItem(SETTINGS_KEY) ?? "null",
+      appStorage()?.getItem(SETTINGS_KEY) ?? "null",
     ) as Partial<PlaytestSettings> | null;
     return validateSettings({ ...DEFAULT_SETTINGS, ...stored });
   } catch {

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">zKube</string>
+    <string name="title_activity_main">zKube</string>
+    <string name="package_name">com.zkorp.zkube</string>
+    <string name="custom_url_scheme">com.zkorp.zkube</string>
+</resources>

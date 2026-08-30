@@ -1,3 +1,5 @@
+import { appStorage } from "@/platform/storage";
+
 /**
  * DEV-ONLY wallet-bypass flag.
  *
@@ -6,10 +8,10 @@
  * Every consumer guards with `import.meta.env.DEV && DEV_BYPASS_ACTIVE`, so in
  * production the branch folds to `false`, the guarded code (and this module,
  * plus everything under `src/dev/`) is dead-code-eliminated, and there is no
- * runtime path — query param or localStorage — that can activate the bypass.
+ * runtime path — query param or persisted browser state — that can activate the bypass.
  *
  * Opt-in on the dev server by appending `?dev=1` to the URL. The choice is
- * persisted to localStorage under `zkube:dev-bypass` and honoured on later
+ * persisted under `zkube:dev-bypass` and honoured on later
  * loads; `?dev=0` clears it. Without the opt-in the dev server behaves exactly
  * like production and shows the real ConnectScreen.
  */
@@ -20,14 +22,14 @@ function resolveDevBypass(): boolean {
   try {
     const flag = new URLSearchParams(window.location.search).get("dev");
     if (flag === "1") {
-      window.localStorage.setItem(DEV_BYPASS_STORAGE_KEY, "1");
+      appStorage()?.setItem(DEV_BYPASS_STORAGE_KEY, "1");
       return true;
     }
     if (flag === "0") {
-      window.localStorage.removeItem(DEV_BYPASS_STORAGE_KEY);
+      appStorage()?.removeItem(DEV_BYPASS_STORAGE_KEY);
       return false;
     }
-    return window.localStorage.getItem(DEV_BYPASS_STORAGE_KEY) === "1";
+    return appStorage()?.getItem(DEV_BYPASS_STORAGE_KEY) === "1";
   } catch {
     // A sandboxed / storage-denied context is never a reason to bypass.
     return false;

@@ -121,7 +121,14 @@ export default function BoardHud({
   const chainFill = Math.min(1, combo / chainTarget);
 
   return (
-    <div className="relative w-full" style={{ height: 194 }}>
+    <div
+      className="relative w-full flex-none"
+      style={{ height: "calc(194px + env(safe-area-inset-top))" }}
+    >
+      <div
+        className="relative w-full"
+        style={{ height: 194, top: "env(safe-area-inset-top)" }}
+      >
       {/* The guardian. He stops at the rail's edge and never overlaps the
           board: the top row is the row that ends the run, and nothing
           decorative may sit in front of it. */}
@@ -289,6 +296,7 @@ export default function BoardHud({
         }}
       >
         {isDaily ? tierSentence : level}
+      </div>
       </div>
     </div>
   );

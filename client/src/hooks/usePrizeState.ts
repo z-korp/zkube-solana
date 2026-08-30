@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useClientState } from "@/backend/client";
-import { browserLocalStorage } from "@/platform/browserStorage";
+import { appStorage } from "@/platform/storage";
 
 export type PrizeLabel = "Score" | "Theme" | "Daily";
 
@@ -24,7 +24,7 @@ export function usePrizeCeremony() {
 
   useEffect(() => {
     if (!identity.address) return;
-    const storage = browserLocalStorage();
+    const storage = appStorage();
     if (!storage) return;
     const key = `${REWARDS_SEEN_KEY_PREFIX}${identity.address}`;
     const previous = storage.getItem(key);
@@ -71,7 +71,7 @@ function notificationPermission(): NotificationPermissionState {
 export function useNotificationPreference() {
   const [permission, setPermission] = useState(notificationPermission);
   const [preferenceEnabled, setPreferenceEnabled] = useState(
-    () => browserLocalStorage()?.getItem(NOTIFICATIONS_ENABLED_KEY) === "1",
+    () => appStorage()?.getItem(NOTIFICATIONS_ENABLED_KEY) === "1",
   );
   const requestAndEnable = useCallback(async () => {
     if (notificationPermission() === "unsupported") return;
@@ -81,12 +81,12 @@ export function useNotificationPreference() {
     setPermission(next);
     if (next === "granted") {
       setPreferenceEnabled(true);
-      browserLocalStorage()?.setItem(NOTIFICATIONS_ENABLED_KEY, "1");
+      appStorage()?.setItem(NOTIFICATIONS_ENABLED_KEY, "1");
     }
   }, []);
   const disable = useCallback(() => {
     setPreferenceEnabled(false);
-    browserLocalStorage()?.setItem(NOTIFICATIONS_ENABLED_KEY, "0");
+    appStorage()?.setItem(NOTIFICATIONS_ENABLED_KEY, "0");
   }, []);
   return {
     supported: permission !== "unsupported",

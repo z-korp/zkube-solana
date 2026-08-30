@@ -1,9 +1,9 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 
 import {
-  browserLocalStorage,
+  appStorage,
   type StorageLike,
-} from "../../../platform/browserStorage";
+} from "../../../platform/storage";
 import {
   deviceSessionExpiryDelayMs,
   DeviceSessionExpiredError,
@@ -12,8 +12,8 @@ import { deriveSessionTokenV2Pda } from "./sessionV2";
 
 const DEVICE_SESSION_STORAGE_KEY = "zkube:device-sessions:v1";
 
-// localStorage is best-effort origin storage across Chrome, installed PWAs,
-// and TWAs; the browser or user may clear or evict it without notice. Losing
+// Device storage is best-effort across browser and native shells; the runtime
+// or user may clear or evict it without notice. Losing
 // this time-bounded device key therefore fails closed and requires owner
 // reauthorization. It never removes or transfers the owner's payment authority.
 interface StoredDeviceSession {
@@ -34,7 +34,7 @@ export interface DeviceSession {
 }
 
 export function assertDeviceSessionStorageAvailable(): void {
-  if (!browserLocalStorage()) {
+  if (!appStorage()) {
     throw new Error(
       "Browser storage is unavailable; zKube cannot persist a device session.",
     );
@@ -64,7 +64,7 @@ export function requireCurrentDeviceSession(
 
 export function saveDeviceSession(
   session: DeviceSession,
-  storage = browserLocalStorage(),
+  storage = appStorage(),
 ): void {
   if (!storage) {
     throw new Error(
@@ -85,7 +85,7 @@ export function saveDeviceSession(
 
 export function loadDeviceSession(
   owner: PublicKey,
-  storage = browserLocalStorage(),
+  storage = appStorage(),
 ): DeviceSession | null {
   if (!storage) return null;
   const stored = loadAll(storage)[owner.toBase58()];
@@ -116,7 +116,7 @@ export function loadDeviceSession(
 
 export function clearDeviceSession(
   owner: PublicKey,
-  storage = browserLocalStorage(),
+  storage = appStorage(),
 ): void {
   if (!storage) return;
   const all = loadAll(storage);

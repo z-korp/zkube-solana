@@ -106,7 +106,11 @@ export default function BoardRail({
   };
 
   return (
-    <div className="relative w-full flex-none" style={{ height: 164 }}>
+    <div
+      className="relative w-full flex-none"
+      style={{ height: "calc(164px + env(safe-area-inset-bottom))" }}
+    >
+      <div className="relative w-full" style={{ height: 164 }}>
       {/* the rail's own lip, and the meter inlaid along it */}
       <div
         className="absolute inset-x-0 top-0 h-px"
@@ -281,10 +285,11 @@ export default function BoardRail({
         </p>
       )}
 
-      <UtilitySeats
-        onSurrender={onSurrender}
-        surrenderDisabled={surrenderDisabled}
-      />
+        <UtilitySeats
+          onSurrender={onSurrender}
+          surrenderDisabled={surrenderDisabled}
+        />
+      </div>
     </div>
   );
 }

@@ -117,16 +117,20 @@ export function makeSolanaContentBoardsLive(
               dayId,
             });
             if (!daily) throw new Error(`Daily ${dayId} is unavailable`);
-            const accounts = await Promise.all(
-              (["score", "theme"] as const).map((kind) =>
-                fetchDailyBoardAccount(
-                  options.connection,
-                  daily.address,
-                  dayId,
-                  kind,
-                ),
+            const accounts = await Promise.all([
+              fetchDailyBoardAccount(
+                options.connection,
+                daily.address,
+                dayId,
+                "score",
               ),
-            );
+              fetchDailyBoardAccount(
+                options.connection,
+                daily.address,
+                dayId,
+                "theme",
+              ),
+            ]);
             const decorations = await fetchPlayerBoardDecorations({
               connection: options.connection,
               wallet: readOnly(),
@@ -170,7 +174,7 @@ export function makeSolanaContentBoardsLive(
               ),
       };
 
-      return Layer.merge(
+      return yield* Layer.merge(
         Layer.succeed(Content, content),
         Layer.succeed(Boards, boards),
       ).pipe(Layer.build);

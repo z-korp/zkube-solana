@@ -256,7 +256,7 @@ export function makeLocalBackendLive(
           }),
         fund: (lamports) =>
           SubscriptionRef.modify(sessionRef, (state) => {
-            const next = {
+            const next: SessionState = {
               ...state,
               floatLamports: state.floatLamports + lamports,
             };
@@ -267,7 +267,7 @@ export function makeLocalBackendLive(
             status: "none",
             expiresAt: 0,
             floatLamports: 0n,
-          }),
+          } satisfies SessionState),
         state: sessionRef.changes,
       };
 

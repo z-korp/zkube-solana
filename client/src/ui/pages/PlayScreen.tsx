@@ -15,6 +15,7 @@ import { getGuardianDef } from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
 import { canSubmitRunMove } from "@/play/runState";
+import { appStorage } from "@/platform/storage";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import {
   useNavigationStore,
@@ -61,7 +62,7 @@ type CoachMarks = { move: boolean; charge: boolean; reroll: boolean };
 function loadCoachMarks(): CoachMarks {
   try {
     const saved = JSON.parse(
-      window.localStorage.getItem(COACH_MARKS_KEY) ?? "{}",
+      appStorage()?.getItem(COACH_MARKS_KEY) ?? "{}",
     );
     return {
       move: saved.move === true,
@@ -122,7 +123,7 @@ export default function PlayScreen() {
     setCoachMarks((current) => {
       if (current[mark]) return current;
       const next = { ...current, [mark]: true };
-      window.localStorage.setItem(COACH_MARKS_KEY, JSON.stringify(next));
+      appStorage()?.setItem(COACH_MARKS_KEY, JSON.stringify(next));
       return next;
     });
   }, []);

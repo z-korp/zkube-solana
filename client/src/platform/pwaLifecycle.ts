@@ -1,3 +1,5 @@
+import { isNativePlatform } from "./nativeShell";
+
 export type PwaUpdateState =
   | "idle"
   | "available"
@@ -35,8 +37,10 @@ export function subscribePwaLifecycle(listener: () => void): () => void {
   };
 }
 
-export function initializePwaLifecycle(): void {
-  if (initialized || typeof window === "undefined") return;
+export function initializePwaLifecycle(
+  nativePlatform = isNativePlatform(),
+): void {
+  if (initialized || typeof window === "undefined" || nativePlatform) return;
   initialized = true;
 
   const updateOnlineState = () => {
@@ -83,7 +87,7 @@ export function initializePwaLifecycle(): void {
 
 /**
  * Requests activation only after an explicit UI action. Cache activation never
- * clears localStorage, run markers, or the time-bounded device authorization.
+ * clears persisted settings, run markers, or the time-bounded device authorization.
  */
 export function activateWaitingPwaUpdate(): boolean {
   if (snapshot.update === "activation-failed" && snapshot.online) {

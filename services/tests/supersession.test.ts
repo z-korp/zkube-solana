@@ -145,7 +145,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
-      /\bMutatorRules\b|\bpassive\b|line_clear_bonus|perfect_clear_bonus|neutral baseline|Calm Tides|Foundation Stone|Frozen Rage|Marble Discipline|Imperial Scale|Geometric Flow|Bushido|Jungle Altar|Primal Pulse|Altitude/,
+      /\bMutatorRules\b|\bpassive\s+(?:pairing|score|scoring|bonus|map|mutator|line-clear|perfect-clear)\b|line_clear_bonus|perfect_clear_bonus|neutral baseline|Calm Tides|Foundation Stone|Frozen Rage|Marble Discipline|Imperial Scale|Geometric Flow|Bushido|Jungle Altar|Primal Pulse|Altitude/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:
       "one Guardian value replaced realm scoring fields and the Daily mode exception",

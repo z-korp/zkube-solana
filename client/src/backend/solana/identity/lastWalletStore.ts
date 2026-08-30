@@ -1,9 +1,9 @@
 import { PublicKey } from "@solana/web3.js";
 
 import {
-  browserLocalStorage,
+  appStorage,
   type StorageLike,
-} from "../../../platform/browserStorage";
+} from "../../../platform/storage";
 
 export const LAST_WALLET_STORAGE_KEY = "zkube:last-wallet:v1";
 const MAX_CONNECTOR_ID_LENGTH = 512;
@@ -25,7 +25,7 @@ export interface LastWallet {
  */
 export function saveLastWallet(
   entry: LastWallet,
-  storage: StorageLike | null = browserLocalStorage(),
+  storage: StorageLike | null = appStorage(),
 ): void {
   if (!storage || !isLastWallet(entry)) return;
   try {
@@ -37,7 +37,7 @@ export function saveLastWallet(
 }
 
 export function loadLastWallet(
-  storage: StorageLike | null = browserLocalStorage(),
+  storage: StorageLike | null = appStorage(),
 ): LastWallet | null {
   if (!storage) return null;
   try {
@@ -56,7 +56,7 @@ export function loadLastWallet(
 }
 
 export function clearLastWallet(
-  storage: StorageLike | null = browserLocalStorage(),
+  storage: StorageLike | null = appStorage(),
 ): void {
   if (!storage) return;
   removeStoredWallet(storage);

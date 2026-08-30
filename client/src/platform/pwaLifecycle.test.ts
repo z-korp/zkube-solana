@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 describe("PWA network lifecycle", () => {
+  it("shell_registers_no_service_worker", async () => {
+    vi.resetModules();
+    const lifecycle = await import("./pwaLifecycle");
+    const addEventListener = vi.spyOn(window, "addEventListener");
+
+    lifecycle.initializePwaLifecycle(true);
+
+    expect(addEventListener).not.toHaveBeenCalled();
+  });
+
   it("publishes offline and restored-online transitions", async () => {
     vi.resetModules();
     Object.defineProperty(navigator, "onLine", {

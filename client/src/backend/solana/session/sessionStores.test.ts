@@ -19,7 +19,7 @@ import {
   saveRunSession,
 } from "../runs/runSessionStore";
 import { deriveSessionTokenV2Pda } from "./sessionV2";
-import type { StorageLike } from "@/platform/browserStorage";
+import type { StorageLike } from "@/platform/storage";
 
 class MemoryStorage implements StorageLike {
   private readonly values = new Map<string, string>();

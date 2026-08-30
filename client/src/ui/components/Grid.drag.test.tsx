@@ -102,6 +102,21 @@ describe("Grid drag interactions", () => {
 
   beforeEach(() => vi.clearAllMocks());
 
+  it("keeps the WKWebView drag surface non-scrolling with passive document listeners", () => {
+    const addEventListener = vi.spyOn(document, "addEventListener");
+    const { container } = render(<Grid {...baseProps} />);
+    const surface = container.querySelector("svg") as SVGSVGElement;
+
+    expect(surface).toHaveClass("touch-none");
+    for (const eventName of ["pointermove", "pointerup", "pointercancel"]) {
+      expect(addEventListener).toHaveBeenCalledWith(
+        eventName,
+        expect.any(Function),
+        { passive: true },
+      );
+    }
+  });
+
   it("desktop drag remains responsive after a no-move click", () => {
     const { container } = render(<Grid {...baseProps} />);
     const block = container.querySelector(".svg-block") as SVGGElement;

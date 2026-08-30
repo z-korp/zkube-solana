@@ -12,6 +12,7 @@ import {
   THEME_IDS,
   type ThemeId,
 } from "@/config/themes";
+import { appStorage } from "@/platform/storage";
 
 type Theme = "dark" | "light" | "system";
 
@@ -48,7 +49,7 @@ export function ThemeProvider({
   ...props
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
+    () => (appStorage()?.getItem(storageKey) as Theme) || defaultTheme,
   );
   const [themeTemplate, setThemeTemplateState] = useState<ThemeId>(() => {
     const stored = loadThemeTemplate();
@@ -81,7 +82,7 @@ export function ThemeProvider({
   // themeTemplate flip → "Maximum update depth exceeded" (React #185).
   const setTheme = useCallback(
     (next: Theme) => {
-      localStorage.setItem(storageKey, next);
+      appStorage()?.setItem(storageKey, next);
       setThemeState(next);
     },
     [storageKey],

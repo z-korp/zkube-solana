@@ -45,6 +45,10 @@ test-ledger/
 client/twa/signing/
 *.jks
 *.keystore
+*.p12
+*.mobileprovision
+*.cer
+keystore.properties
 *.pem
 *.key
 *.crt

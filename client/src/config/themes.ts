@@ -1,4 +1,5 @@
 import { darken, lighten } from "@/utils/colour";
+import { appStorage } from "@/platform/storage";
 
 export const THEME_IDS = [
   "theme-1",
@@ -634,7 +635,7 @@ const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
 
 export function loadAudioSettings(): AudioSettings {
   try {
-    const raw = localStorage.getItem(AUDIO_STORAGE_KEY);
+    const raw = appStorage()?.getItem(AUDIO_STORAGE_KEY);
     if (!raw) return DEFAULT_AUDIO_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<AudioSettings>;
     return {
@@ -655,12 +656,12 @@ export function loadAudioSettings(): AudioSettings {
 }
 
 export function saveAudioSettings(settings: AudioSettings): void {
-  localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify(settings));
+  appStorage()?.setItem(AUDIO_STORAGE_KEY, JSON.stringify(settings));
 }
 
 export function loadThemeTemplate(): ThemeId {
   try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    const stored = appStorage()?.getItem(THEME_STORAGE_KEY);
     if (stored && THEME_IDS.includes(stored as ThemeId)) {
       return stored as ThemeId;
     }
@@ -671,7 +672,7 @@ export function loadThemeTemplate(): ThemeId {
 }
 
 export function saveThemeTemplate(themeId: ThemeId): void {
-  localStorage.setItem(THEME_STORAGE_KEY, themeId);
+  appStorage()?.setItem(THEME_STORAGE_KEY, themeId);
 }
 
 function clamp(value: number, min: number, max: number): number {

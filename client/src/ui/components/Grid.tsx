@@ -516,9 +516,9 @@ const Grid: React.FC<GridProps> = ({
   useEffect(() => {
     const move = (e: PointerEvent) => onDragMoveRef.current(e.clientX);
     const end = () => endDragRef.current();
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", end);
-    document.addEventListener("pointercancel", end);
+    document.addEventListener("pointermove", move, { passive: true });
+    document.addEventListener("pointerup", end, { passive: true });
+    document.addEventListener("pointercancel", end, { passive: true });
     return () => {
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", end);

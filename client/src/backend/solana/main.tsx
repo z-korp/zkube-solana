@@ -13,6 +13,7 @@ import { MusicPlayerProvider } from "@/contexts/music";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { captureInstallPrompt } from "@/platform/installPrompt";
 import { initializePwaLifecycle } from "@/platform/pwaLifecycle";
+import { initializeNativeShell } from "@/platform/nativeShell";
 import { PwaLifecycleBanner } from "@/ui/components/shared/PwaLifecycleBanner";
 import { ThemeProvider } from "@/ui/elements/theme-provider";
 import "@/index.css";
@@ -23,6 +24,7 @@ import { initializeZkubeCore } from "@/core/zkubeCore";
 captureInstallPrompt();
 initializePwaLifecycle();
 await initializeZkubeCore();
+await initializeNativeShell();
 
 let backendLayer: BackendLayer;
 if (PLAYTEST_ACTIVE || (import.meta.env.DEV && DEV_BYPASS_ACTIVE)) {

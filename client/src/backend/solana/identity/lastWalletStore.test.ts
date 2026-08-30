@@ -2,7 +2,7 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import type { StorageLike } from "@/platform/browserStorage";
+import type { StorageLike } from "@/platform/storage";
 import {
   LAST_WALLET_STORAGE_KEY,
   clearLastWallet,
