@@ -30,7 +30,7 @@ Source implements v5 partially. Current state:
 | `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and Daily draw | Built — prepaid purchase/spend paths and protocol-derived realm × objective selection |
-| Points ladder | Built — integer Q64 `ln` in the core, streak-neutral points applied in the Daily profile-sync pass |
+| Points ladder | Built — integer Q64 `ln` in the core, streak-neutral points applied atomically with each Daily claim |
 
 ## Product truth
 
@@ -242,7 +242,7 @@ ladder tier boundaries, and the flat qualifying credit.
   verifies every row against its `ArenaPlayer`, enforces ordering and uniqueness
   across the persisted cursor, and seals only the program-computed count. Claims
   remain disabled until sealing, then locate the owner's position and recompute
-  its payout directly. Dynamic claimed and profile-sync bitmaps live beside the
+  its payout directly. A dynamic claimed bitmap lives beside the
   rows in each board account. A reward stays claimable for **thirty days from
   its board's sealing**; after archival and both independent windows, unclaimed
   rewards expire into the next daily pot, never into operator revenue.
@@ -293,14 +293,14 @@ ladder tier boundaries, and the flat qualifying credit.
   thousand, so farming the quietest days does not pay. Do not reintroduce Elo,
   a keeper-computed rating, a published commitment hash, or a K-factor.
 - **The ladder is computed on chain, not by the keeper.** Points are a pure
-  function of a sealed board, so the existing Daily profile-sync instruction
-  that already recomputes a rank from its board position adds them in the same
-  pass, riding the same per-period winner-position bitmask for idempotence.
+  function of a sealed board, so the Daily claim that recomputes a rank from its
+  board position adds them in the same instruction, riding the claimed bit for
+  idempotence.
   Integer Q64 `ln` lives in `zkube-core` with its own golden vectors because the
   value must be identical in native Rust, WASM, and the program; floating point
   is prohibited there as everywhere else in the payout and metric paths. Points
-  may never be added twice, and a failed or missing profile sync may never
-  delay, cancel, repeat, or affect a SOL transfer.
+  may never be added twice: `ladder_points_are_credited_once_per_claim` guards
+  the atomic payout-and-profile transition. A failed claim changes neither.
 - **A ladder reset is a decision, not a date, and is always announced weeks
   ahead.** A reset compresses totals toward the mean at roughly k=0.6 rather
   than wiping, and a player's highest tier ever achieved is permanent on their
@@ -367,7 +367,7 @@ themes, and starting guardian charges are superseded as well.
   ceilings, 0.1 SOL simulated spend per pass, and a 0.1 SOL reserve floor. The
   schema-1 source release currently declares six general writes, thirty-two
   board-construction writes, one participant closure, two expired-session
-  closures, and at most 1,804,936,800 lamports of recyclable board rent per
+  closures, and at most 1,802,208,480 lamports of recyclable board rent per
   pass; those numbers are a proposal until approved, not inherited permission.
 - Governance, initial competition seeding, manual reimbursement, terms/rules
   changes, funding, withdrawals, deployment, initial keeper enablement, and all
@@ -651,11 +651,10 @@ nothing above it ever is: a rank is earned once, and a later reset must not
 take back a border a player chose. Both are display only and carry no monetary
 effect.
 
-Payouts are settled before profile metadata synchronizes. A permissionless Daily
-profile-sync instruction recomputes the exact settled payout from the finalized
-board and ledger, then uses a per-period winner-position bitmask for idempotence.
-A missing or failed profile sync can never delay, cancel, repeat, or affect a SOL
-transfer.
+A Daily claim settles its payout and profile metadata in one instruction. It
+recomputes the exact payout from the finalized board and ledger, then uses the
+claimed-position bit for idempotence. A failed claim changes neither;
+`ladder_points_are_credited_once_per_claim` guards the boundary.
 
 The featured emblem and ladder border are owner- or device-session-selectable. ID 0 automatically
 chooses the strongest unlocked emblem; IDs 1-10 are zone guardians, 11 is Realm
@@ -703,7 +702,7 @@ the System program; the committed IDL regression test rejects the unsafe older
 ### Archival
 
 Finalized cadence accounts close back to the cadence funding PDA only after
-winner profile synchronization and every required rollup completes. Before the
+every required rollup completes. Before the
 on-chain account is committed and closed, the Devnet keeper atomically writes and
 re-reads the complete canonical result JSON on its persistent Fly volume. The
 small program-owned Arcade archive then advances one sequential rolling
@@ -716,8 +715,8 @@ reader, no supported-version list, and files are append-only and never
 rewritten. Each file carries the canonical result JSON, `resultDataBase64`, and
 the complete raw Score and Theme board accounts beside the raw Daily account.
 The exact immutable Borsh projection committed by `resultHash` and the rolling
-root therefore includes both board headers and every verified row, while mutable
-claim and profile-sync bitmaps remain point-in-time evidence. Closure reprojects
+root therefore includes both board headers and every verified row, while the
+mutable claim bitmap remains point-in-time evidence. Closure reprojects
 the stored evidence through the checked-in IDL and verifies the stored
 accounts, cadence, program, result hash, root, and immutable projection exactly.
 It does not require current raw-byte equality after permitted metadata changes.
@@ -726,8 +725,8 @@ archive plan is quarantined while independent keeper plans continue.
 
 ### Keeper scope
 
-The keeper is not privileged for most of what it does. Board construction,
-claims, and profile synchronization take a plain `caller: Signer` with no
+The keeper is not privileged for most of what it does. Board construction takes
+a plain `caller: Signer` with no
 authority constraint, so anyone may drive them. The instructions that do take an
 `authority` are governance — initialization, rules publication, revenue
 withdrawal — and are owner work, not keeper work.
@@ -760,7 +759,6 @@ relationships before decoding or planning a write. It reconciles:
 - deterministic expiry and orphan recovery;
 - Daily finalization, verified Score/Theme board construction, direct-claim
   expiry, and rollover;
-- post-settlement Daily profile synchronization;
 - full canonical cadence snapshots, sequential on-chain archive commitments,
   and safe cadence-account closure back to the cadence funding PDA;
 - resolved run and expired session cleanup;
@@ -774,7 +772,7 @@ The release fingerprint also pins Devnet genesis, deployed ProgramData hash,
 program ID, keeper signer, rules/replay/schema/IDL hashes, instruction
 allowlist, a six-write general limit, a separate 32-write board construction
 limit, two-session cleanup limit, 0.1 SOL simulated spend ceiling, a separate
-1,804,936,800-lamport recyclable board-rent ceiling, a separate
+1,802,208,480-lamport recyclable board-rent ceiling, a separate
 one-participant-account closure limit, and a 0.1 SOL keeper reserve floor. An
 optional image digest copied from `fly machine status --json` is attested by the
 operator at fingerprint time and carried into the fingerprint; the worker does
@@ -788,13 +786,12 @@ It quarantines a typed per-cadence
 archive-integrity failure without blocking an independent Daily or Campaign
 plan. Global chain readiness, policy, materialization, storage
 configuration, and release errors remain fatal. A preparation/integrity failure
-or archive-transaction failure suppresses only the same cadence's profile sync,
-cadence close, and participant cleanup writes for that pass. Quarantined and
+or archive-transaction failure suppresses only the same cadence's close and
+participant cleanup writes for that pass. Quarantined and
 suppressed plans consume neither the general nor board-construction write window
 nor its session/participant closure quotas, so later eligible recovery and
 unrelated-cadence work backfills the same pass. The enforced cadence ordering is
-finalize, construct both boards, archive, expire unclaimed rewards, profile sync,
-then close.
+finalize, construct both boards, archive, expire unclaimed rewards, then close.
 
 ## Operator procedures
 

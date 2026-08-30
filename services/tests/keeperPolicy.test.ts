@@ -105,24 +105,6 @@ describe("v5 keeper semantic policy", () => {
       .toThrow("conservation");
   });
 
-  it("limits profile sync to canonical Daily winner bits", () => {
-    const owner = Keypair.generate().publicKey;
-    expect(() => policy(validationOnlyPlan("sync_daily_profile", {
-      competition: "daily",
-      dayId: DAY,
-      owner,
-      boardKind: "score",
-      winnerPositionMask: 0x10n,
-    }))).not.toThrow();
-    expect(() => policy(validationOnlyPlan("sync_daily_profile", {
-      competition: "daily",
-      dayId: DAY,
-      owner,
-      boardKind: "score",
-      winnerPositionMask: 1n << 1_536n,
-    }))).toThrow("profile sync");
-  });
-
   it("pins sequential Daily archive and closure bytes", () => {
     const archive = archiveContext(false);
     expect(() => policy(validationOnlyPlan("archive_arena_daily", archive)))
@@ -212,8 +194,6 @@ function archiveContext(committed: boolean): KeeperPlanContext {
     archiveResultHash: cadenceResultHash("daily", resultData),
     archiveCommitted: committed,
     claimsExpired: committed,
-    requiredScoreProfileSyncMask: 0n,
-    requiredThemeProfileSyncMask: 0n,
     closeEligibleAt: DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
   };
 }

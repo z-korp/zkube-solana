@@ -244,7 +244,7 @@ export async function fetchDailyView(args: {
   };
 }
 
-const ARENA_BOARD_HEADER_BYTES = 129;
+const ARENA_BOARD_HEADER_BYTES = 125;
 const ARENA_BOARD_ENTRY_BYTES = 84;
 const ARENA_BOARD_CAPACITY = 1_536;
 const MAX_AUTO_CLAIMS_PER_ENTRY = 2;
@@ -282,7 +282,7 @@ async function fetchDailyBoardEntries(
   const expectedSize =
     ARENA_BOARD_HEADER_BYTES +
     payoutCount * ARENA_BOARD_ENTRY_BYTES +
-    2 * bitmapBytes;
+    bitmapBytes;
   if (
     payoutCount > ARENA_BOARD_CAPACITY ||
     cursor > payoutCount ||
@@ -576,7 +576,7 @@ function unclaimedBoardReward(
     sealedAt <= 0 ||
     denominator === 0n ||
     nowUnix > sealedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS ||
-    data.length !== rowsEnd + 2 * bitmapBytes
+    data.length !== rowsEnd + bitmapBytes
   )
     return null;
   const position = Array.from(

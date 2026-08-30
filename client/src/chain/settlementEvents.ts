@@ -1,6 +1,6 @@
 import type { CompetitionRecord, PlayerStateView } from "./campaignClient.js";
 
-/** The two Daily boards, matching `competitionProfileSynced.board`. */
+/** The two Daily boards, matching `dailyPrizeClaimed.board`. */
 export type PeriodKind = 0 | 1;
 
 export type PeriodLabel = "Score" | "Theme";
@@ -15,8 +15,7 @@ const PERIOD_KINDS: readonly PeriodKind[] = [0, 1];
 /**
  * A single, precise profile-prize signal: one Daily board's competition
  * record whose lifetime `rewardsLamports` grew between two confirmed PlayerState
- * snapshots. This is durable awarded-prize metadata, independent of whether the
- * owner has submitted the corresponding claim.
+ * snapshots. This is durable metadata written by the successful claim.
  */
 export interface SettlementEvent {
   periodKind: PeriodKind;
@@ -31,7 +30,7 @@ export interface SettlementEvent {
    * This is the LIFETIME-best rank carried on PlayerState, which equals this
    * placement only on a player's first prize for the period; a repeat winner who
    * previously placed higher keeps that better rank here. The exact per-event
-   * rank lives only in the `competitionProfileSynced` program event
+   * rank lives only in the `dailyPrizeClaimed` program event
    * ({ owner, board, rank:u16, rewardLamports:u64}); we deliberately do not
    * scrape program logs for it (no existing log-decode surface in the client, and
    * flaky signature scraping is explicitly out of scope). Treat this as the honest

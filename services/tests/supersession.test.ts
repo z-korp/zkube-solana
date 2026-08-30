@@ -136,6 +136,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "one Run and one codec drive both gameplay modes",
   },
   {
+    pattern: /sync_daily_profile|syncDailyProfile|ProfileSynced|profile[- ]sync/i,
+    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    reversal: "a Daily claim atomically settles its payout and profile",
+  },
+  {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:

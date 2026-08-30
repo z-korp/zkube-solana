@@ -766,7 +766,7 @@ fn attached_claim_position<'info>(
     );
     let prize = ranked_prize(&board, board_info, ctx.accounts.owner_authority.key())?;
     require!(
-        !board_bitmap_is_set(board_info, &board, BoardBitmap::Claimed, prize.position)?,
+        !board_bitmap_is_set(board_info, &board, prize.position)?,
         ErrorCode::PrizeAlreadyClaimed
     );
     validate_wallet(
@@ -1317,6 +1317,7 @@ pub struct ClaimDailyPrize<'info> {
     )]
     pub arena_board: Box<Account<'info, ArenaBoard>>,
     #[account(
+        mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
         bump = player_state.bump,
         constraint = player_state.schema_valid() @ ErrorCode::InvalidVersion,
@@ -1386,12 +1387,7 @@ fn claim_daily_prize(
         )?,
     };
     require!(
-        !board_bitmap_is_set(
-            &board_info,
-            &ctx.accounts.arena_board,
-            BoardBitmap::Claimed,
-            prize.position,
-        )?,
+        !board_bitmap_is_set(&board_info, &ctx.accounts.arena_board, prize.position)?,
         ErrorCode::PrizeAlreadyClaimed
     );
     let source = ctx.accounts.arena_daily.to_account_info();
@@ -1408,13 +1404,18 @@ fn claim_daily_prize(
         claimed_lamports <= ctx.accounts.arena_board.paid_lamports,
         ErrorCode::AccountingInvariant
     );
+    let points = zkube_core::ladder_points(
+        ctx.accounts.arena_board.qualified_count,
+        u32::from(prize.rank),
+    )
+    .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
+    ctx.accounts
+        .player_state
+        .daily_record_mut(board)
+        .record_prize(prize.rank, prize.amount)?;
+    let points_earned = ctx.accounts.player_state.record_ladder_points(points)?;
     move_program_lamports(&source, &destination, prize.amount)?;
-    set_board_bitmap(
-        &board_info,
-        &ctx.accounts.arena_board,
-        BoardBitmap::Claimed,
-        prize.position,
-    )?;
+    set_board_bitmap(&board_info, &ctx.accounts.arena_board, prize.position)?;
     ctx.accounts.arena_board.claimed_lamports = claimed_lamports;
     ctx.accounts.arena_board.claimed_count = ctx
         .accounts
@@ -1428,6 +1429,9 @@ fn claim_daily_prize(
         board,
         rank: prize.rank,
         reward_lamports: prize.amount,
+        points_earned,
+        ladder_points: ctx.accounts.player_state.ladder_points,
+        highest_ladder_tier: ctx.accounts.player_state.highest_ladder_tier,
     });
     Ok(())
 }
@@ -1701,9 +1705,7 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
             && Clock::get()?.unix_timestamp
                 > daily_claim_deadline(&ctx.accounts.score_board, &ctx.accounts.theme_board,)?
             && ctx.accounts.score_board.sealed
-            && ctx.accounts.theme_board.sealed
-            && ctx.accounts.score_board.profile_sync_count == ctx.accounts.score_board.payout_count
-            && ctx.accounts.theme_board.profile_sync_count == ctx.accounts.theme_board.payout_count,
+            && ctx.accounts.theme_board.sealed,
         ErrorCode::InvalidState
     );
     Ok(())
@@ -1723,6 +1725,9 @@ pub struct DailyPrizeClaimed {
     pub board: DailyBoardKind,
     pub rank: u16,
     pub reward_lamports: u64,
+    pub points_earned: u32,
+    pub ladder_points: u64,
+    pub highest_ladder_tier: u8,
 }
 
 #[event]

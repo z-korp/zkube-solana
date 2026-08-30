@@ -27,7 +27,7 @@ export interface PrizeDelta {
    * Best payout-bearing rank on the period record (0 = none). This is the
    * lifetime-best rank carried on PlayerState, which equals this placement only
    * on a first prize; a repeat winner keeps a better prior rank. The exact
-   * per-event rank would need the `competitionProfileSynced` program event,
+   * per-event rank would need the `dailyPrizeClaimed` program event,
    * which is deliberately not scraped — so this is the honest best-known rank,
    * not a claim about this specific win.
    */
@@ -58,9 +58,9 @@ export interface PrizeDeltaTrigger {
  * Precise, real-time celebration trigger for the guardian-delivers moment.
  *
  * Driven by `useSettlementResult`, which subscribes to the connected player's
- * PlayerState and surfaces a landed board award the instant the
- * post-settlement profile sync credits it (not at a render poll). That sync is
- * the only way a period's lifetime `rewardsLamports` grows, so an increase is
+ * PlayerState and surfaces a landed board award the instant the successful
+ * claim credits it (not at a render poll). A claim is the only way a period's
+ * lifetime `rewardsLamports` grows, so an increase is
  * always a real award — never a fabricated "scored vs expired" outcome (that
  * per-run distinction is not on PlayerState; see `useSettlementResult`).
  *

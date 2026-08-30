@@ -17,16 +17,16 @@ import {
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "aecc84b24727fd319d1f0d3a52dccd00fd283608736d20d74efd8701c2f0adb4";
+  "798fe549d0332dd12d068f04b6a7c1ac70ccb7afd2649fdf1bde7a639a4615c5";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = Exclude<KeeperOperation, "revoke_expired_session">;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 53 instructions and 12 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 52 instructions and 12 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(53);
+    expect(idl.instructions).toHaveLength(52);
     expect(idl.accounts).toHaveLength(12);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
@@ -123,8 +123,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         dayId: DAY,
         followingDayId: DAY + 1,
       }, "expire_daily_claims"],
-      ["sync_daily_profile", { dayId: DAY, owner, boardKind: "score" },
-        "sync_daily_profile"],
       ["archive_arena_daily", { dayId: DAY }, "archive_arena_daily"],
       ["close_arena_daily", { dayId: DAY }, "close_arena_daily"],
       ["close_arena_player", {

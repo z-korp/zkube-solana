@@ -1971,9 +1971,8 @@ fn board_fixture(
     qualified_count: u32,
     pool_lamports: u64,
     entries: &[ArenaBoardEntry],
-    masks: (&[u32], &[u32]),
+    claimed_positions: &[u32],
 ) -> (Pubkey, ArenaBoard, Account, BoardPayoutPlan) {
-    let (claimed_positions, profile_synced_positions) = masks;
     let (address, bump) =
         Pubkey::find_program_address(&[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()], &zkube::ID);
     let plan = board_payout_plan(pool_lamports, qualified_count).unwrap();
@@ -1997,7 +1996,6 @@ fn board_fixture(
         sealed_at: i64::from(day_id) * ARCADE_SECONDS_PER_DAY + ARENA_RUNS_CLOSE_OFFSET,
         claimed_lamports: 0,
         claimed_count: u32::try_from(claimed_positions.len()).unwrap(),
-        profile_sync_count: u32::try_from(profile_synced_positions.len()).unwrap(),
         bump,
     };
     board.claimed_lamports = claimed_positions
@@ -2015,14 +2013,9 @@ fn board_fixture(
     }
     let mask_start =
         ArenaBoard::HEADER_SIZE + usize::try_from(plan.count).unwrap() * ARENA_BOARD_ENTRY_SIZE;
-    let bitmap_size = ArenaBoard::bitmap_size(plan.count).unwrap();
     for position in claimed_positions {
         let position = usize::try_from(*position).unwrap();
         account.data[mask_start + position / 8] |= 1 << (position % 8);
-    }
-    for position in profile_synced_positions {
-        let position = usize::try_from(*position).unwrap();
-        account.data[mask_start + bitmap_size + position / 8] |= 1 << (position % 8);
     }
     (address, board, account, plan)
 }
@@ -2079,7 +2072,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
         5,
         claim_pool,
         &claim_entries,
-        (&[], &[]),
+        &[],
     );
     claim_daily_state.ledger = PoolLedger {
         seeded_lamports: claim_pool,
@@ -2099,7 +2092,7 @@ fn sbf_funded_entry_after_the_old_cutoff_spends_a_kredit_and_resolves_both_paths
         5,
         claim_pool,
         &claim_entries,
-        (&[0], &[]),
+        &[0],
     );
     duplicate_daily_state.ledger = PoolLedger {
         seeded_lamports: claim_pool,
@@ -2545,7 +2538,7 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
         qualified_count,
         pools.score,
         &entries,
-        (&[], &[]),
+        &[],
     );
     let (theme_board, theme_board_state, theme_board_account, theme_plan) = board_fixture(
         claim_daily,
@@ -2554,7 +2547,7 @@ fn sbf_funded_entry_with_two_maximum_boards_stays_below_client_compute_pin() {
         qualified_count,
         pools.theme,
         &entries,
-        (&[], &[]),
+        &[],
     );
     assert_eq!(score_plan.count, qualified_count);
     assert_eq!(theme_plan.count, qualified_count);
@@ -3017,154 +3010,6 @@ fn sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges() {
 }
 
 #[test]
-fn sbf_daily_profile_sync_is_permissionless_idempotent_and_moves_no_sol() {
-    let owner = Pubkey::new_unique();
-    let caller = Pubkey::new_unique();
-    let arcade = Pubkey::new_unique();
-    let (daily, mut daily_state) = daily_fixture(32, arcade, PeriodStatus::Finalized, true);
-    let mut players = vec![owner];
-    players.extend((0..4).map(|_| Pubkey::new_unique()));
-    let entries = players
-        .iter()
-        .enumerate()
-        .map(|(index, player)| ArenaBoardEntry {
-            player: *player,
-            score: 100 - index as u32,
-            ..ArenaBoardEntry::default()
-        })
-        .collect::<Vec<_>>();
-    daily_state.score_qualified_players = 5;
-    daily_state.theme_qualified_players = 5;
-    let board_pool = 101_990_000;
-    let (score_board, score_board_state, score_board_account, plan) = board_fixture(
-        daily,
-        daily_state.day_id,
-        DailyBoardKind::Score,
-        5,
-        board_pool,
-        &entries,
-        (&[], &[]),
-    );
-    let theme_entries = (0..5)
-        .map(|index| ArenaBoardEntry {
-            player: Pubkey::new_unique(),
-            objective_total: 100 - index,
-            ..ArenaBoardEntry::default()
-        })
-        .collect::<Vec<_>>();
-    let (theme_board, _, theme_board_account, theme_plan) = board_fixture(
-        daily,
-        daily_state.day_id,
-        DailyBoardKind::Theme,
-        5,
-        board_pool,
-        &theme_entries,
-        (&[], &[]),
-    );
-    daily_state.ledger = PoolLedger {
-        seeded_lamports: board_pool * 2,
-        payout_lamports: plan.paid_lamports + theme_plan.paid_lamports,
-        rollover_out_lamports: plan.rollover_lamports + theme_plan.rollover_lamports,
-        ..PoolLedger::default()
-    };
-    let (player, player_state) = player_fixture(owner);
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::SyncDailyProfile {
-            caller,
-            arena_daily: daily,
-            arena_board: score_board,
-            player_state: player,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::SyncDailyProfile {
-            board: DailyBoardKind::Score,
-        }
-        .data(),
-    };
-    let accounts = vec![
-        (caller, system_account(ACCOUNT_LAMPORTS)),
-        (
-            daily,
-            program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
-        ),
-        (score_board, score_board_account),
-        (
-            player,
-            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
-        ),
-    ];
-    let result = mollusk().process_instruction(&instruction, &accounts);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let board_after: ArenaBoard = decode(resulting_account(&result, &score_board));
-    let player_after: PlayerState = decode(resulting_account(&result, &player));
-    assert_eq!(board_after.profile_sync_count, 1);
-    assert_eq!(player_after.score_record.best_prize_rank, 1);
-    assert_eq!(player_after.score_record.podiums, 1);
-    assert_eq!(player_after.score_record.wins, 1);
-    // A Score placement is recorded on the Score board alone.
-    assert_eq!(player_after.theme_record, CompetitionRecord::default());
-    let expected_points = zkube_core::ladder_points(5, 1).unwrap();
-    assert_eq!(player_after.ladder_points, u64::from(expected_points));
-    assert_eq!(player_after.highest_ladder_tier, 0);
-    assert_eq!(
-        player_after.score_record.rewards_lamports,
-        score_board_state.payout_for_position(0).unwrap()
-    );
-    assert_eq!(
-        resulting_account(&result, &daily).lamports,
-        ACCOUNT_LAMPORTS
-    );
-    assert_eq!(
-        resulting_account(&result, &player).lamports,
-        ACCOUNT_LAMPORTS
-    );
-
-    let duplicate = mollusk().process_instruction(
-        &instruction,
-        &[
-            (caller, system_account(ACCOUNT_LAMPORTS)),
-            (daily, resulting_account(&result, &daily).clone()),
-            (
-                score_board,
-                resulting_account(&result, &score_board).clone(),
-            ),
-            (player, resulting_account(&result, &player).clone()),
-        ],
-    );
-    assert!(duplicate.program_result.is_err());
-    let duplicate_player: PlayerState = decode(resulting_account(&duplicate, &player));
-    assert_eq!(duplicate_player.ladder_points, u64::from(expected_points));
-
-    let theme_instruction = anchor_lang::solana_program::instruction::Instruction {
-        accounts: zkube::accounts::SyncDailyProfile {
-            caller,
-            arena_daily: daily,
-            arena_board: theme_board,
-            player_state: player,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::SyncDailyProfile {
-            board: DailyBoardKind::Theme,
-        }
-        .data(),
-        ..instruction
-    };
-    let theme_result = mollusk().process_instruction(
-        &theme_instruction,
-        &[
-            (caller, system_account(ACCOUNT_LAMPORTS)),
-            (daily, resulting_account(&result, &daily).clone()),
-            (theme_board, theme_board_account),
-            (player, resulting_account(&result, &player).clone()),
-        ],
-    );
-    assert!(theme_result.program_result.is_err());
-    let one_board_player: PlayerState = decode(resulting_account(&theme_result, &player));
-    assert_eq!(one_board_player.ladder_points, u64::from(expected_points));
-}
-
-#[test]
 fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards() {
     fn submitted(entry: ArenaBoardEntry) -> SubmittedBoardEntry {
         SubmittedBoardEntry {
@@ -3274,7 +3119,6 @@ fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boar
             sealed_at: 0,
             claimed_lamports: 0,
             claimed_count: 0,
-            profile_sync_count: 0,
             bump,
         };
         let empty_board =
@@ -3434,7 +3278,7 @@ fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boar
 }
 
 #[test]
-fn sbf_daily_claim_uses_its_board_seal_time_and_rejects_duplicates_and_nonwinners() {
+fn ladder_points_are_credited_once_per_claim() {
     let owner = Pubkey::new_unique();
     let outsider = Pubkey::new_unique();
     let arcade = Pubkey::new_unique();
@@ -3454,15 +3298,8 @@ fn sbf_daily_claim_uses_its_board_seal_time_and_rejects_duplicates_and_nonwinner
     daily_state.score_qualified_players = 5;
     daily_state.finalized_at = daily_state.runs_close_at;
     let pool = 101_990_000;
-    let (score_board, score_board_state, score_board_account, plan) = board_fixture(
-        daily,
-        day_id,
-        DailyBoardKind::Score,
-        5,
-        pool,
-        &entries,
-        (&[], &[]),
-    );
+    let (score_board, score_board_state, score_board_account, plan) =
+        board_fixture(daily, day_id, DailyBoardKind::Score, 5, pool, &entries, &[]);
     daily_state.ledger = PoolLedger {
         seeded_lamports: pool,
         payout_lamports: plan.paid_lamports,
@@ -3523,8 +3360,16 @@ fn sbf_daily_claim_uses_its_board_seal_time_and_rejects_duplicates_and_nonwinner
         owner_before + expected
     );
     let claimed_board: ArenaBoard = decode(resulting_account(&claimed, &score_board));
+    let claimed_player: PlayerState = decode(resulting_account(&claimed, &player));
     assert_eq!(claimed_board.claimed_count, 1);
     assert_eq!(claimed_board.claimed_lamports, expected);
+    assert_eq!(claimed_player.score_record.best_prize_rank, 2);
+    assert_eq!(claimed_player.score_record.podiums, 1);
+    assert_eq!(claimed_player.score_record.wins, 0);
+    assert_eq!(claimed_player.score_record.rewards_lamports, expected);
+    assert_eq!(claimed_player.theme_record, CompetitionRecord::default());
+    let expected_points = zkube_core::ladder_points(5, 2).unwrap();
+    assert_eq!(claimed_player.ladder_points, u64::from(expected_points));
 
     let duplicate = runtime.process_instruction(
         &instruction,
@@ -3547,6 +3392,9 @@ fn sbf_daily_claim_uses_its_board_seal_time_and_rejects_duplicates_and_nonwinner
         resulting_account(&duplicate, &owner).lamports,
         owner_before + expected
     );
+    let duplicate_player: PlayerState = decode(resulting_account(&duplicate, &player));
+    assert_eq!(duplicate_player.ladder_points, u64::from(expected_points));
+    assert_eq!(duplicate_player.score_record.rewards_lamports, expected);
 
     let (outsider_state, outsider_player) = player_fixture(outsider);
     let outsider_instruction = anchor_lang::solana_program::instruction::Instruction {
@@ -3682,10 +3530,10 @@ fn sbf_expiry_rolls_exact_unclaimed_prizes_into_the_next_unopened_daily() {
         5,
         pool,
         &entries,
-        (&[0], &[]),
+        &[0],
     );
     let (theme_board, _, theme_board_account, _) =
-        board_fixture(daily, day_id, DailyBoardKind::Theme, 0, 0, &[], (&[], &[]));
+        board_fixture(daily, day_id, DailyBoardKind::Theme, 0, 0, &[], &[]);
     daily_state.ledger = PoolLedger {
         seeded_lamports: pool,
         payout_lamports: plan.paid_lamports,
@@ -3780,9 +3628,9 @@ fn sbf_daily_archive_and_close_return_only_rent_to_cadence_funding() {
     let day_id = 20_651;
     let (daily, daily_state) = daily_fixture(day_id, arcade, PeriodStatus::Finalized, true);
     let (score_board, score_board_state, score_board_account, _) =
-        board_fixture(daily, day_id, DailyBoardKind::Score, 0, 0, &[], (&[], &[]));
+        board_fixture(daily, day_id, DailyBoardKind::Score, 0, 0, &[], &[]);
     let (theme_board, theme_board_state, theme_board_account, _) =
-        board_fixture(daily, day_id, DailyBoardKind::Theme, 0, 0, &[], (&[], &[]));
+        board_fixture(daily, day_id, DailyBoardKind::Theme, 0, 0, &[], &[]);
     let (archive, archive_bump) = Pubkey::find_program_address(&[ARCADE_ARCHIVE_SEED], &zkube::ID);
     let archive_state = ArcadeArchive::initialize(arcade, day_id, archive_bump).unwrap();
     let archive_instruction = anchor_lang::solana_program::instruction::Instruction {

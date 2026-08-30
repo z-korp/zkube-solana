@@ -13,7 +13,7 @@ import { useSettlementWatcher } from "./useSettlementWatcher";
 export type { PeriodKind, PeriodLabel } from "@/chain/settlementEvents";
 
 export interface PeriodSettlement {
-  /** Which Daily board — matches `competitionProfileSynced.board`. */
+  /** Which Daily board — matches `dailyPrizeClaimed.board`. */
   periodKind: PeriodKind;
   label: PeriodLabel;
   /** Best payout-bearing rank ever reached (0 = none). */
@@ -79,10 +79,9 @@ function toPeriod(
 /**
  * Real-time settlement summary for the connected player, derived from the
  * live-subscribed Score and Theme competition records on PlayerState (via
- * `useSettlementWatcher`). Profile synchronization may be late; the account
- * updates whenever a profile sync confirms, so this reflects the latest
- * settled prize state — including the most recent award as `latestEvent` —
- * the instant it lands, without gating on money.
+ * `useSettlementWatcher`). The claim updates the profile and transfers the
+ * payout atomically, so this reflects the latest settled prize state — including
+ * the most recent award as `latestEvent` — the instant it lands.
  */
 export function useSettlementResult(): SettlementResult {
   const { view, latestEvent, loading, error, refresh } = useSettlementWatcher();

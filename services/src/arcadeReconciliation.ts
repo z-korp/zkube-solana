@@ -68,7 +68,6 @@ export interface BoardConstructionSnapshot {
   sealedAt: number;
   claimedLamports: bigint;
   claimedCount: number;
-  profileSyncCount: number;
   capacityLimited: boolean;
 }
 
@@ -89,8 +88,6 @@ export interface DailySnapshot {
   /** Finalized payout positions already reflected in durable PlayerState profiles. */
   scoreClaimedMask: bigint;
   themeClaimedMask: bigint;
-  scoreProfileSyncMask: bigint;
-  themeProfileSyncMask: bigint;
   claimsExpired: boolean;
   scoreSources?: readonly BoardSourceSnapshot[];
   themeSources?: readonly BoardSourceSnapshot[];
@@ -140,8 +137,6 @@ export interface CadenceArchiveCandidate {
   canonicalJson?: string;
   fileSha256?: string;
   resultHash: string;
-  requiredScoreProfileSyncMask: bigint;
-  requiredThemeProfileSyncMask: bigint;
   claimsExpired: boolean;
   committed: boolean;
   closeEligible: boolean;
@@ -155,8 +150,6 @@ export interface ProtocolSnapshot {
   suspendedUntilDay: number;
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
-  /** Relationship-checked canonical PlayerState owners available for profile sync. */
-  playerStateOwners: readonly PublicKey[];
   arenaPlayerClosures: readonly ArenaPlayerClosureSnapshot[];
   /** Present only when the deployed archive ABI has been fully validated. */
   archiveState?: ArcadeArchiveSnapshot;
@@ -181,7 +174,6 @@ export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   suspendedUntilDay: 0,
   dailies: Object.freeze([]),
   runs: Object.freeze([]),
-  playerStateOwners: Object.freeze([]),
   arenaPlayerClosures: Object.freeze([]),
   archiveCandidates: Object.freeze([]),
 });
@@ -198,9 +190,6 @@ export function discoverReconciliation(args: {
   const today = currentDayId(args.nowUnix);
   const oldestKeeperDay = Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES);
   const dailyById = new Map(args.snapshot.dailies.map((daily) => [daily.dayId, daily]));
-  const playerStateOwners = new Set(
-    args.snapshot.playerStateOwners.map((owner) => owner.toBase58()),
-  );
   const isQuarantined = (id: number) =>
     quarantines.some((quarantine) => quarantine.id === id);
 
@@ -300,7 +289,6 @@ export function discoverReconciliation(args: {
         .sort((left, right) => left - right)[0],
     );
     appendBoardConstructionPlans(plans, daily);
-    appendProfileSyncPlans(plans, daily, playerStateOwners);
   }
 
   for (const candidate of args.snapshot.arenaPlayerClosures) {
@@ -384,8 +372,6 @@ function appendCadenceArchivePlan(
     archiveResultHash: candidate.resultHash,
     archiveCommitted: candidate.committed,
     claimsExpired: candidate.claimsExpired,
-    requiredScoreProfileSyncMask: candidate.requiredScoreProfileSyncMask,
-    requiredThemeProfileSyncMask: candidate.requiredThemeProfileSyncMask,
     closeEligibleAt: candidate.closeEligibleAt,
   });
   const nextArchive = ordered.find((candidate) =>
@@ -495,7 +481,6 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
   }
   assertUnique(snapshot.dailies.map(({ dayId }) => dayId), "Daily id");
   assertUnique(snapshot.runs.map(({ owner, runId }) => `${owner.toBase58()}:${runId}`), "run");
-  assertUnique(snapshot.playerStateOwners.map((owner) => owner.toBase58()), "PlayerState owner");
   assertUnique(
     snapshot.arenaPlayerClosures.map(({ dayId, owner }) => `${dayId}:${owner.toBase58()}`),
     "ArenaPlayer closure",
@@ -549,8 +534,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
             board.cursor > board.payoutCount ||
             board.sealed !== (board.cursor === board.payoutCount) ||
             board.sealed !== (board.sealedAt > 0) ||
-            board.claimedCount > board.payoutCount ||
-            board.profileSyncCount > board.payoutCount) {
+            board.claimedCount > board.payoutCount) {
           throw new Error(`Daily ${label} board construction is invalid`);
         }
       }
@@ -589,16 +573,6 @@ function collectDomainQuarantines(snapshot: ProtocolSnapshot): DomainQuarantine[
         daily.potLamports,
         daily.scoreQualifiedPlayers,
         daily.themeQualifiedPlayers,
-        daily.settlement,
-      );
-      validateProfileSyncMask(
-        "score",
-        daily.scoreProfileSyncMask,
-        daily.settlement,
-      );
-      validateProfileSyncMask(
-        "theme",
-        daily.themeProfileSyncMask,
         daily.settlement,
       );
       validateClaimMask("score", daily.scoreClaimedMask, daily.settlement);
@@ -663,8 +637,6 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
     }
     const daily = snapshot.dailies.find(({ dayId }) => dayId === candidate.cadenceId);
     if (!daily || daily.status !== "finalized" ||
-        !validPayoutMask(candidate.requiredScoreProfileSyncMask) ||
-        !validPayoutMask(candidate.requiredThemeProfileSyncMask) ||
         typeof candidate.claimsExpired !== "boolean") {
       throw new Error("cadence archive candidate is not terminal");
     }
@@ -677,9 +649,7 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
       throw new Error("Daily archive claim-close time is invalid");
     }
     if (candidate.closeEligible && (!candidate.committed ||
-        !candidate.claimsExpired ||
-        daily.scoreProfileSyncMask !== candidate.requiredScoreProfileSyncMask ||
-        daily.themeProfileSyncMask !== candidate.requiredThemeProfileSyncMask)) {
+        !candidate.claimsExpired)) {
       throw new Error("uncommitted cadence archive cannot be close eligible");
     }
   }
@@ -776,56 +746,6 @@ function appendFinalizationPlan(
     rolloverLamports: daily.settlement.rolloverLamports,
     cadenceFunding: cadenceFundingPda(),
   }));
-}
-
-function appendProfileSyncPlans(
-  plans: KeeperInstructionPlan[],
-  daily: DailySnapshot,
-  playerStateOwners: ReadonlySet<string>,
-): void {
-  if (daily.status !== "finalized" || !daily.settlement ||
-      !daily.scoreBoard?.sealed || !daily.themeBoard?.sealed) return;
-  for (const board of ["score", "theme"] as const) {
-    const syncedMask = board === "score"
-      ? daily.scoreProfileSyncMask
-      : daily.themeProfileSyncMask;
-    for (const winner of daily.settlement.winners) {
-      if (winner.board !== board || winner.payoutLamports === 0n ||
-          !playerStateOwners.has(winner.owner.toBase58())) continue;
-      const bit = winnerPositionBit(winner);
-      if ((syncedMask & bit) !== 0n) continue;
-      plans.push(validationOnlyPlan("sync_daily_profile", {
-        competition: "daily",
-        boardKind: board,
-        dayId: daily.dayId,
-        owner: winner.owner,
-        winnerPositionMask: bit,
-      }));
-    }
-  }
-}
-
-function validateProfileSyncMask(
-  board: DailyBoardKind,
-  syncedMask: bigint,
-  settlement: SettlementSnapshot | undefined,
-): void {
-  if (!validPayoutMask(syncedMask)) {
-    throw new Error("daily profile sync mask is invalid");
-  }
-  if (syncedMask === 0n) return;
-  if (!settlement) {
-    throw new Error("daily profile sync mask has no finalized settlement");
-  }
-  const winnerMask = settlement.winners.reduce(
-    (mask, winner) => winner.board === board && winner.payoutLamports > 0n
-      ? mask | winnerPositionBit(winner)
-      : mask,
-    0n,
-  );
-  if ((syncedMask & ~winnerMask) !== 0n) {
-    throw new Error("daily profile sync mask references a non-winner");
-  }
 }
 
 function validateClaimMask(

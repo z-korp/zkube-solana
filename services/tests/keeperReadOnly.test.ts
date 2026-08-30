@@ -35,7 +35,7 @@ const DAY = 20_651;
 const PASS_NOW = DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET + 1;
 
 describe("keeper read-only planning", () => {
-  it("keeps a Daily backlog inside the six-write release bound", async () => {
+  it("does not create per-winner writes after board settlement", async () => {
     const keeper = Keypair.generate().publicKey;
     const owners = Array.from({ length: 8 }, () => Keypair.generate().publicKey);
     const dailies = [
@@ -51,17 +51,16 @@ describe("keeper read-only planning", () => {
       protocolSnapshot: snapshot({
         launchDayId: DAY - 7,
         dailies,
-        playerStateOwners: owners,
       }),
       protocolMaterializer: { materialize },
     });
     expect(result).toMatchObject({
       writes: 0,
-      plannedWrites: 6,
+      plannedWrites: 0,
       maxWrites: 6,
-      backlog: 2,
+      backlog: 0,
     });
-    expect(materialize).toHaveBeenCalledTimes(6);
+    expect(materialize).not.toHaveBeenCalled();
   });
 
   it("slices unsealed Score and Theme boards at ten rows and resumes at the cursor", () => {
@@ -231,7 +230,6 @@ describe("keeper read-only planning", () => {
           finalizedDaily(DAY, independentOwner, DAY - 1),
           fundingDaily(DAY + 1, DAY - 1),
         ],
-        playerStateOwners: [archivedOwner, independentOwner],
         archiveState: {
           address: arcadeArchivePda(),
           cadenceFunding: cadenceFundingPda(),
@@ -248,60 +246,9 @@ describe("keeper read-only planning", () => {
       ok: false,
       archiveQuarantines: 1,
       operationFailures: 1,
-      plannedWrites: 1,
+      plannedWrites: 0,
     });
-    expect(materialize).toHaveBeenCalledTimes(1);
-    expect(materialize.mock.calls[0]?.[0]).toMatchObject({
-      operation: "sync_daily_profile",
-      context: { dayId: DAY, owner: independentOwner },
-    });
-  });
-
-  it("does not charge the general quota for archive quarantine or its suppressed sync", async () => {
-    const keeper = Keypair.generate().publicKey;
-    const archivedOwner = Keypair.generate().publicKey;
-    const archived = finalizedDaily(DAY - 1, archivedOwner, DAY - 1);
-    const independent = constructingDaily(DAY, DAY - 1);
-    sealBoard(independent, "score");
-    sealBoard(independent, "theme");
-    const owners = independent.scoreSources!.slice(0, 6).map(({ owner }) => owner);
-    const prepare = vi.fn(async () => {
-      throw new ArchiveIntegrityError(
-        "existing_archive_invalid",
-        "daily",
-        DAY - 1,
-        "invalid archive",
-      );
-    });
-    const materialize = vi.fn(materializer(keeper));
-    const result = await runKeeperPass({
-      connection: connection(),
-      keeper: { publicKey: keeper },
-      now: () => PASS_NOW * 1_000,
-      protocolSnapshot: snapshot({
-        launchDayId: DAY - 1,
-        dailies: [archived, independent, fundingDaily(DAY + 1, DAY - 1)],
-        playerStateOwners: [archivedOwner, ...owners],
-        archiveState: {
-          address: arcadeArchivePda(),
-          cadenceFunding: cadenceFundingPda(),
-          firstDailyId: DAY - 1,
-          lastDailyId: DAY - 2,
-          dailyRoot: "00".repeat(32),
-        },
-        archiveCandidates: [archiveCandidate(DAY - 1, false, false)],
-      }),
-      protocolMaterializer: { materialize },
-      archiveStore: { prepare },
-    });
-    expect(result).toMatchObject({
-      operationFailures: 1,
-      archiveQuarantines: 1,
-      plannedWrites: 6,
-    });
-    expect(materialize).toHaveBeenCalledTimes(6);
-    expect(materialize.mock.calls.every(([plan]) =>
-      plan.operation === "sync_daily_profile" && plan.context.dayId === DAY)).toBe(true);
+    expect(materialize).not.toHaveBeenCalled();
   });
 
   it("keeps a poisoned cadence local while unrelated Daily and Campaign work proceeds", async () => {
@@ -338,7 +285,6 @@ describe("keeper read-only planning", () => {
           acceptedActions: 1,
           reservationActive: true,
         }],
-        playerStateOwners: [poisonedOwner, independentOwner],
         arenaPlayerClosures: [{
           dayId: DAY - 1,
           owner: poisonedOwner,
@@ -357,7 +303,7 @@ describe("keeper read-only planning", () => {
     });
     expect(result).toMatchObject({
       ok: true,
-      plannedWrites: 2,
+      plannedWrites: 1,
       backlog: 0,
     });
     expect(materialize.mock.calls.map(([plan]) => ({
@@ -370,15 +316,9 @@ describe("keeper read-only planning", () => {
         dayId: undefined,
         owner: campaignOwner,
       },
-      {
-        operation: "sync_daily_profile",
-        dayId: DAY,
-        owner: independentOwner,
-      },
     ]);
     expect(materialize.mock.calls.some(([plan]) =>
       plan.context.dayId === DAY - 1 && [
-        "sync_daily_profile",
         "close_arena_daily",
         "close_arena_player",
       ].includes(plan.operation))).toBe(false);
@@ -393,7 +333,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot>): ProtocolSnapshot {
     suspendedUntilDay: 0,
     dailies: [],
     runs: [],
-    playerStateOwners: [],
     arenaPlayerClosures: [],
     archiveCandidates: [],
     ...overrides,
@@ -421,8 +360,6 @@ function finalizedDaily(
     themeQualifiedPlayers: 0,
     scoreClaimedMask: 0n,
     themeClaimedMask: 0n,
-    scoreProfileSyncMask: 0n,
-    themeProfileSyncMask: 0n,
     claimsExpired: false,
     scoreBoard: board("score", owner ? 1 : 0, dayId),
     themeBoard: board("theme", 0, dayId),
@@ -475,8 +412,6 @@ function constructingDaily(dayId: number, launchDayId: number): DailySnapshot {
     themeQualifiedPlayers: 25,
     scoreClaimedMask: 0n,
     themeClaimedMask: 0n,
-    scoreProfileSyncMask: 0n,
-    themeProfileSyncMask: 0n,
     claimsExpired: false,
     scoreSources: sources,
     themeSources: sources,
@@ -514,7 +449,6 @@ function constructionBoard(kind: "score" | "theme", payoutCount: number) {
     sealedAt: 0,
     claimedLamports: 0n,
     claimedCount: 0,
-    profileSyncCount: 0,
     capacityLimited: false,
   };
 }
@@ -558,7 +492,6 @@ function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
     sealedAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
     claimedLamports: 0n,
     claimedCount: 0,
-    profileSyncCount: 0,
     capacityLimited: false,
   };
 }
@@ -580,8 +513,6 @@ function fundingDaily(dayId: number, launchDayId: number): DailySnapshot {
     themeQualifiedPlayers: 0,
     scoreClaimedMask: 0n,
     themeClaimedMask: 0n,
-    scoreProfileSyncMask: 0n,
-    themeProfileSyncMask: 0n,
     claimsExpired: false,
   };
 }
@@ -610,8 +541,6 @@ function archiveCandidate(cadenceId: number, committed: boolean, closeEligible: 
       fileSha256: createHash("sha256").update(canonicalJson).digest("hex"),
     }),
     resultHash: cadenceResultHash("daily", resultData),
-    requiredScoreProfileSyncMask: 0n,
-    requiredThemeProfileSyncMask: 0n,
     claimsExpired: false,
     committed,
     closeEligible,

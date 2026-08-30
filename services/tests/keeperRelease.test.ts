@@ -36,14 +36,13 @@ describe("keeper release binding", () => {
       reserveFloorLamports: 100_000_000,
       archiveContractVersion: 1,
       maximumBoardWritesPerPass: 32,
-      maximumBoardRentLamportsPerPass: 1_804_936_800,
+      maximumBoardRentLamportsPerPass: 1_802_208_480,
       keeperImageReference: input.keeperImageReference,
       keeperImageDigest: input.keeperImageDigest,
     });
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("finalize_arena_daily");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("skip_suspended_arena_daily");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("expire_daily_claims");
-    expect(KEEPER_RELEASE_POLICY.allowlist).toContain("sync_daily_profile");
     expect(KEEPER_RELEASE_POLICY.allowlist).toContain("close_arena_player");
     expect(KEEPER_RELEASE_POLICY.allowlist).not.toContain("finalize_season");
     expect(KEEPER_RELEASE_POLICY.allowlist).not.toContain("consume_practice_run");

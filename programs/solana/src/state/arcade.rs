@@ -315,7 +315,6 @@ pub struct ArenaBoard {
     pub sealed_at: i64,
     pub claimed_lamports: u64,
     pub claimed_count: u32,
-    pub profile_sync_count: u32,
     pub bump: u8,
 }
 
@@ -339,9 +338,7 @@ impl ArenaBoard {
             .map_err(|_| ErrorCode::ArithmeticOverflow)?
             .checked_mul(ARENA_BOARD_ENTRY_SIZE)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
-        let masks = Self::bitmap_size(payout_count)?
-            .checked_mul(2)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        let masks = Self::bitmap_size(payout_count)?;
         Self::HEADER_SIZE
             .checked_add(rows)
             .and_then(|value| value.checked_add(masks))
@@ -369,7 +366,6 @@ impl ArenaBoard {
                 && self.sealed == (self.cursor == self.payout_count)
                 && ((!self.sealed && self.sealed_at == 0) || (self.sealed && self.sealed_at > 0))
                 && self.claimed_count <= self.payout_count
-                && self.profile_sync_count <= self.payout_count
                 && data_len == Self::account_space(self.payout_count)?,
             ErrorCode::AccountingInvariant
         );
@@ -658,7 +654,6 @@ pub(crate) fn initialize_arena_board(
         sealed_at: if plan.count == 0 { finalized_at } else { 0 },
         claimed_lamports: 0,
         claimed_count: 0,
-        profile_sync_count: 0,
         bump,
     };
 }
@@ -768,31 +763,15 @@ pub fn write_board_entry(
     Ok(())
 }
 
-#[derive(Clone, Copy)]
-pub enum BoardBitmap {
-    Claimed,
-    ProfileSynced,
-}
-
-fn board_bitmap_offset(
-    board: &ArenaBoard,
-    bitmap: BoardBitmap,
-    position: u32,
-) -> Result<(usize, u8)> {
+fn board_bitmap_offset(board: &ArenaBoard, position: u32) -> Result<(usize, u8)> {
     require!(position < board.payout_count, ErrorCode::NoPrize);
     let rows = usize::try_from(board.payout_count)
         .map_err(|_| ErrorCode::ArithmeticOverflow)?
         .checked_mul(ARENA_BOARD_ENTRY_SIZE)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let bitmap_size = ArenaBoard::bitmap_size(board.payout_count)?;
-    let domain_offset = match bitmap {
-        BoardBitmap::Claimed => 0,
-        BoardBitmap::ProfileSynced => bitmap_size,
-    };
     let position = usize::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
     let offset = ArenaBoard::HEADER_SIZE
         .checked_add(rows)
-        .and_then(|value| value.checked_add(domain_offset))
         .and_then(|value| value.checked_add(position / 8))
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     Ok((offset, 1u8 << (position % 8)))
@@ -801,21 +780,15 @@ fn board_bitmap_offset(
 pub fn board_bitmap_is_set(
     info: &AccountInfo<'_>,
     board: &ArenaBoard,
-    bitmap: BoardBitmap,
     position: u32,
 ) -> Result<bool> {
-    let (offset, bit) = board_bitmap_offset(board, bitmap, position)?;
+    let (offset, bit) = board_bitmap_offset(board, position)?;
     let data = info.try_borrow_data()?;
     Ok(data.get(offset).is_some_and(|value| value & bit != 0))
 }
 
-pub fn set_board_bitmap(
-    info: &AccountInfo<'_>,
-    board: &ArenaBoard,
-    bitmap: BoardBitmap,
-    position: u32,
-) -> Result<()> {
-    let (offset, bit) = board_bitmap_offset(board, bitmap, position)?;
+pub fn set_board_bitmap(info: &AccountInfo<'_>, board: &ArenaBoard, position: u32) -> Result<()> {
+    let (offset, bit) = board_bitmap_offset(board, position)?;
     let mut data = info.try_borrow_mut_data()?;
     let value = data.get_mut(offset).ok_or(ErrorCode::AccountingInvariant)?;
     require!(*value & bit == 0, ErrorCode::AlreadySubmitted);
@@ -1347,11 +1320,11 @@ mod tests {
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
         assert_eq!(daily_bytes.len(), 225);
-        assert_eq!(ArenaBoard::INIT_SPACE, 121);
-        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_537);
+        assert_eq!(ArenaBoard::INIT_SPACE, 117);
+        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_341);
         assert_eq!(
             Rent::default().minimum_balance(ArenaBoard::account_space(1_536).unwrap()),
-            902_468_400
+            901_104_240
         );
         for size in [
             ArcadeConfig::INIT_SPACE,
@@ -1401,8 +1374,8 @@ mod tests {
         let prize = ranked_prize(&board, &info, player).unwrap();
         assert_eq!(prize.position, count - 1);
         assert_eq!(prize.amount, board.payout_for_position(count - 1).unwrap());
-        set_board_bitmap(&info, &board, BoardBitmap::Claimed, count - 1).unwrap();
-        assert!(board_bitmap_is_set(&info, &board, BoardBitmap::Claimed, count - 1).unwrap());
+        set_board_bitmap(&info, &board, count - 1).unwrap();
+        assert!(board_bitmap_is_set(&info, &board, count - 1).unwrap());
     }
 
     fn score_source(entry: ArenaBoardEntry) -> ArenaPlayer {

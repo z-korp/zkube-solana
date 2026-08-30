@@ -543,6 +543,7 @@ export type Solana = {
         },
         {
           "name": "playerState",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -663,6 +664,7 @@ export type Solana = {
         },
         {
           "name": "playerState",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -4883,120 +4885,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "syncDailyProfile",
-      "discriminator": [
-        35,
-        146,
-        149,
-        125,
-        173,
-        65,
-        199,
-        49
-      ],
-      "accounts": [
-        {
-          "name": "caller",
-          "signer": true
-        },
-        {
-          "name": "arenaDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaBoard",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "arg",
-                "path": "board"
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerState",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "player_state.owner",
-                "account": "playerState"
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "board",
-          "type": {
-            "defined": {
-              "name": "dailyBoardKind"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "topUpArenaDaily",
       "discriminator": [
         254,
@@ -5526,19 +5414,6 @@ export type Solana = {
         108,
         217,
         107
-      ]
-    },
-    {
-      "name": "competitionProfileSynced",
-      "discriminator": [
-        119,
-        50,
-        140,
-        56,
-        141,
-        91,
-        185,
-        106
       ]
     },
     {
@@ -6359,10 +6234,6 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "profileSyncCount",
-            "type": "u32"
-          },
-          {
             "name": "bump",
             "type": "u8"
           }
@@ -6748,46 +6619,6 @@ export type Solana = {
       }
     },
     {
-      "name": "competitionProfileSynced",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "board",
-            "type": {
-              "defined": {
-                "name": "dailyBoardKind"
-              }
-            }
-          },
-          {
-            "name": "rank",
-            "type": "u16"
-          },
-          {
-            "name": "rewardLamports",
-            "type": "u64"
-          },
-          {
-            "name": "pointsEarned",
-            "type": "u32"
-          },
-          {
-            "name": "ladderPoints",
-            "type": "u64"
-          },
-          {
-            "name": "highestLadderTier",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "competitionRecord",
       "type": {
         "kind": "struct",
@@ -6975,6 +6806,18 @@ export type Solana = {
           {
             "name": "rewardLamports",
             "type": "u64"
+          },
+          {
+            "name": "pointsEarned",
+            "type": "u32"
+          },
+          {
+            "name": "ladderPoints",
+            "type": "u64"
+          },
+          {
+            "name": "highestLadderTier",
+            "type": "u8"
           }
         ]
       }
@@ -7424,7 +7267,7 @@ export type Solana = {
           {
             "name": "ladderPoints",
             "docs": [
-              "Monotonic, non-monetary points accumulated by Daily profile sync."
+              "Monotonic, non-monetary points accumulated by qualification and claims."
             ],
             "type": "u64"
           },

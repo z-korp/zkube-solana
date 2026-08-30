@@ -537,6 +537,7 @@
         },
         {
           "name": "player_state",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -657,6 +658,7 @@
         },
         {
           "name": "player_state",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -4877,120 +4879,6 @@
       ]
     },
     {
-      "name": "sync_daily_profile",
-      "discriminator": [
-        35,
-        146,
-        149,
-        125,
-        173,
-        65,
-        199,
-        49
-      ],
-      "accounts": [
-        {
-          "name": "caller",
-          "signer": true
-        },
-        {
-          "name": "arena_daily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily"
-              },
-              {
-                "kind": "arg",
-                "path": "board"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "player_state.owner",
-                "account": "PlayerState"
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "board",
-          "type": {
-            "defined": {
-              "name": "DailyBoardKind"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "top_up_arena_daily",
       "discriminator": [
         254,
@@ -5520,19 +5408,6 @@
         108,
         217,
         107
-      ]
-    },
-    {
-      "name": "CompetitionProfileSynced",
-      "discriminator": [
-        119,
-        50,
-        140,
-        56,
-        141,
-        91,
-        185,
-        106
       ]
     },
     {
@@ -6353,10 +6228,6 @@
             "type": "u32"
           },
           {
-            "name": "profile_sync_count",
-            "type": "u32"
-          },
-          {
             "name": "bump",
             "type": "u8"
           }
@@ -6742,46 +6613,6 @@
       }
     },
     {
-      "name": "CompetitionProfileSynced",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "board",
-            "type": {
-              "defined": {
-                "name": "DailyBoardKind"
-              }
-            }
-          },
-          {
-            "name": "rank",
-            "type": "u16"
-          },
-          {
-            "name": "reward_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "points_earned",
-            "type": "u32"
-          },
-          {
-            "name": "ladder_points",
-            "type": "u64"
-          },
-          {
-            "name": "highest_ladder_tier",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "CompetitionRecord",
       "type": {
         "kind": "struct",
@@ -6969,6 +6800,18 @@
           {
             "name": "reward_lamports",
             "type": "u64"
+          },
+          {
+            "name": "points_earned",
+            "type": "u32"
+          },
+          {
+            "name": "ladder_points",
+            "type": "u64"
+          },
+          {
+            "name": "highest_ladder_tier",
+            "type": "u8"
           }
         ]
       }
@@ -7418,7 +7261,7 @@
           {
             "name": "ladder_points",
             "docs": [
-              "Monotonic, non-monetary points accumulated by Daily profile sync."
+              "Monotonic, non-monetary points accumulated by qualification and claims."
             ],
             "type": "u64"
           },

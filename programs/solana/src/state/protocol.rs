@@ -85,7 +85,7 @@ pub struct PlayerState {
     pub campaign_active_run_id: u64,
     /// One-way prepaid entries owned by this wallet identity.
     pub kredit_balance: u64,
-    /// Monotonic, non-monetary points accumulated by Daily profile sync.
+    /// Monotonic, non-monetary points accumulated by qualification and claims.
     pub ladder_points: u64,
     /// Highest placeholder tier ever reached; it never decreases.
     pub highest_ladder_tier: u8,

@@ -116,9 +116,6 @@ export function assertKeeperPlanPolicy(input: KeeperPlanPolicyInput): void {
     case "submit_arena_board_chunk":
       assertBoardChunk(context, today);
       return;
-    case "sync_daily_profile":
-      assertProfileSync(context, today);
-      return;
     case "archive_arena_daily":
       assertCadenceArchive(context, today, "archive", input.nowUnix);
       return;
@@ -178,8 +175,6 @@ function assertCadenceArchive(
       !context.cadenceFunding?.equals(cadenceFundingPda()) ||
       !/^[0-9a-f]{64}$/.test(context.archiveResultHash ?? "") ||
       !/^[0-9a-f]{64}$/.test(context.archiveCurrentRoot ?? "") ||
-      !validPayoutMask(context.requiredScoreProfileSyncMask) ||
-      !validPayoutMask(context.requiredThemeProfileSyncMask) ||
       !Number.isSafeInteger(context.closeEligibleAt) ||
       context.closeEligibleAt === undefined || context.closeEligibleAt < 0) {
     throw new Error("keeper policy rejects cadence archive identity");
@@ -256,15 +251,6 @@ function assertParticipantClosure(context: KeeperPlanContext, today: number): vo
       !context.rentRecipient.equals(playerFundingPda(context.owner))) {
     throw new Error("keeper policy rejects ArenaPlayer cleanup recipient");
   }
-}
-
-function assertProfileSync(context: KeeperPlanContext, today: number): void {
-  if (!context.owner || context.competition !== "daily" ||
-      (context.boardKind !== "score" && context.boardKind !== "theme") ||
-      !validPayoutMask(context.winnerPositionMask) || context.winnerPositionMask === 0n) {
-    throw new Error("keeper policy rejects profile sync context");
-  }
-  assertRecentDaily(context.dayId, today, "Daily");
 }
 
 function assertSessionCleanupPlan(
@@ -480,11 +466,6 @@ function assertDailyContent(context: KeeperPlanContext): void {
       context.realmMapId !== selected.realmMapId) {
     throw new Error("keeper policy rejects Daily content selection");
   }
-}
-
-function validPayoutMask(mask: bigint | undefined): mask is bigint {
-  return mask !== undefined && mask >= 0n &&
-    mask < (1n << BigInt(ARENA_BOARD_CAPACITY));
 }
 
 function assertAmount(value: bigint | undefined, label: string): void {

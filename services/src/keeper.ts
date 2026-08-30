@@ -36,7 +36,7 @@ export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
 export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 100_000_000;
 const MAX_WRITES = 6;
 const MAX_BOARD_WRITES = 32;
-const MAX_BOARD_RENT_LAMPORTS = 1_804_936_800;
+const MAX_BOARD_RENT_LAMPORTS = 1_802_208_480;
 const MAX_EXPIRED_SESSION_REVOKES = 2;
 const MAX_PARTICIPANT_CLOSURES = 1;
 
@@ -646,7 +646,6 @@ export function operationPriority(operation: string): number {
     submit_arena_board_chunk: 7,
     archive_arena_daily: 10,
     expire_daily_claims: 11,
-    sync_daily_profile: 13,
     close_arena_daily: 14,
     cleanup_orphan_active_run: 15,
     close_arena_player: 16,
@@ -709,7 +708,6 @@ function dependentArchiveCadence(
 ): CadenceDependency | undefined {
   switch (plan.operation) {
     case "expire_daily_claims":
-    case "sync_daily_profile":
     case "close_arena_daily":
     case "close_arena_player":
       return exactCadence(plan, "daily", plan.context?.dayId);

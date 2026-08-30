@@ -228,10 +228,6 @@ pub mod solana {
         instructions::arcade_instructions::handler_expire_daily_claims(ctx)
     }
 
-    pub fn sync_daily_profile(ctx: Context<SyncDailyProfile>, board: DailyBoardKind) -> Result<()> {
-        instructions::profile_instructions::handler_sync_daily_profile(ctx, board)
-    }
-
     pub fn close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> {
         instructions::arcade_instructions::handler_close_arena_player(ctx)
     }

@@ -62,7 +62,6 @@ export type KeeperOperation =
   | "finalize_arena_daily"
   | "submit_arena_board_chunk"
   | "expire_daily_claims"
-  | "sync_daily_profile"
   | "archive_arena_daily"
   | "close_arena_daily"
   | "close_arena_player"
@@ -111,8 +110,6 @@ export interface KeeperPlanContext {
   sealBoard?: boolean;
   payoutTotalLamports?: bigint;
   rolloverLamports?: bigint;
-  /** Canonical payout-position bits this profile sync is expected to consume. */
-  winnerPositionMask?: bigint;
   boardKind?: DailyBoardKind;
   rentRecipient?: PublicKey;
   cadenceFunding?: PublicKey;
@@ -125,8 +122,6 @@ export interface KeeperPlanContext {
   archiveResultHash?: string;
   archiveCommitted?: boolean;
   claimsExpired?: boolean;
-  requiredScoreProfileSyncMask?: bigint;
-  requiredThemeProfileSyncMask?: bigint;
   claimCloseAt?: number;
   unclaimedLamports?: bigint;
   closeEligibleAt?: number;

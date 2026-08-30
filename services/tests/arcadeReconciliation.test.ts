@@ -241,28 +241,6 @@ describe("v5 Daily keeper reconciliation", () => {
     });
   });
 
-  it("syncs only outstanding payout-bearing positions", () => {
-    const owners = [Keypair.generate().publicKey, Keypair.generate().publicKey];
-    const finalized = daily(DAY, "finalized", owners);
-    finalized.scoreProfileSyncMask = 0b01n;
-    const plans = discoverReconciliationPlans({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [finalized],
-        playerStateOwners: owners,
-      }),
-      nowUnix: NOW,
-    });
-    expect(plans.filter(({ operation }) => operation === "sync_daily_profile"))
-      .toEqual([expect.objectContaining({
-        context: expect.objectContaining({
-          boardKind: "score",
-          owner: owners[1],
-          winnerPositionMask: 2n,
-        }),
-      })]);
-  });
-
   it("quarantines a snapshot-time integrity failure without blocking preparation", () => {
     const poisoned = daily(DAY, "finalized", [Keypair.generate().publicKey]);
     poisoned.integrityFailure = "score board does not retain every claimable winner";
@@ -398,14 +376,12 @@ describe("v5 Daily keeper reconciliation", () => {
     expect(plans.map(({ operation }) => operation)).toContain("close_arena_player");
   });
 
-  it("keeps monetary, archive, sync, and cleanup ordering stable", () => {
+  it("keeps monetary, archive, and cleanup ordering stable", () => {
     expect(operationPriority("finalize_arena_daily"))
       .toBeLessThan(operationPriority("archive_arena_daily"));
     expect(operationPriority("archive_arena_daily"))
       .toBeLessThan(operationPriority("expire_daily_claims"));
     expect(operationPriority("expire_daily_claims"))
-      .toBeLessThan(operationPriority("sync_daily_profile"));
-    expect(operationPriority("sync_daily_profile"))
       .toBeLessThan(operationPriority("close_arena_daily"));
     expect(operationPriority("close_arena_daily"))
       .toBeLessThan(operationPriority("close_arena_player"));
@@ -420,7 +396,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
     suspendedUntilDay: 0,
     dailies: [],
     runs: [],
-    playerStateOwners: [],
     arenaPlayerClosures: [],
     archiveCandidates: [],
     ...overrides,
@@ -454,8 +429,6 @@ function daily(
     themeQualifiedPlayers: 0,
     scoreClaimedMask: 0n,
     themeClaimedMask: 0n,
-    scoreProfileSyncMask: 0n,
-    themeProfileSyncMask: 0n,
     claimsExpired: false,
     ...(status === "finalized" ? {
       scoreBoard: board("score", owners.length, dayId),
@@ -491,7 +464,6 @@ function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
     sealedAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
     claimedLamports: 0n,
     claimedCount: 0,
-    profileSyncCount: 0,
     capacityLimited: false,
   };
 }
@@ -526,8 +498,6 @@ function candidate(cadenceId: number, committed: boolean, closeEligible: boolean
       fileSha256: "01".repeat(32),
     }),
     resultHash: "02".repeat(32),
-    requiredScoreProfileSyncMask: 0n,
-    requiredThemeProfileSyncMask: 0n,
     claimsExpired: closeEligible,
     committed,
     closeEligible,

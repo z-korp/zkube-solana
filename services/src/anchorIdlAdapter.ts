@@ -72,7 +72,7 @@ import {
 import { type ProtocolInstructionMaterializer } from "./planMaterializer.js";
 import { getDelegationStatus } from "./router.js";
 
-const ARENA_BOARD_HEADER_BYTES = 129;
+const ARENA_BOARD_HEADER_BYTES = 125;
 const MAX_PROGRAM_ACCOUNT_BYTES = 129_538;
 // Anchor 1.0.2's public type encoder hardcodes a 1,000-byte scratch buffer.
 // Build the same pinned IDL layout directly so production-sized cadence
@@ -84,7 +84,7 @@ const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "aecc84b24727fd319d1f0d3a52dccd00fd283608736d20d74efd8701c2f0adb4";
+  "798fe549d0332dd12d068f04b6a7c1ac70ccb7afd2649fdf1bde7a639a4615c5";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -107,7 +107,6 @@ const REQUIRED_INSTRUCTIONS = [
   "fundedFinalizeArenaDaily",
   "submitArenaBoardChunk",
   "expireDailyClaims",
-  "syncDailyProfile",
   "closeArenaPlayer",
 ] as const;
 const REQUIRED_INSTRUCTION_ALTERNATIVES = [
@@ -137,7 +136,6 @@ interface LoadedBoardSnapshot {
   construction: BoardConstructionSnapshot;
   entries: BoardSourceSnapshot[];
   claimedMask: bigint;
-  profileSyncMask: bigint;
 }
 
 interface PlayerStateRecord {
@@ -315,7 +313,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       suspendedUntilDay,
       dailies: dailies.map(({ snapshot }) => snapshot),
       runs,
-      playerStateOwners: playerStates.map(({ owner }) => owner),
       arenaPlayerClosures: participantClosures.arenaPlayers,
       ...(archive ? {
         archiveState: archive.state,
@@ -489,8 +486,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         input.cadenceId,
         resultHash,
       );
-    const requiredScoreProfileSyncMask = profileSyncMask(input.period, "score");
-    const requiredThemeProfileSyncMask = profileSyncMask(input.period, "theme");
     const closeEligibleAt = Math.max(
       input.period.scoreBoard!.sealedAt,
       input.period.themeBoard!.sealedAt,
@@ -520,16 +515,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           .digest("hex"),
       }),
       resultHash,
-      requiredScoreProfileSyncMask,
-      requiredThemeProfileSyncMask,
       claimsExpired: input.period.claimsExpired,
       committed,
       closeEligible:
         committed &&
         input.period.claimsExpired &&
         this.input.nowUnix > closeEligibleAt &&
-        input.period.scoreProfileSyncMask === requiredScoreProfileSyncMask &&
-        input.period.themeProfileSyncMask === requiredThemeProfileSyncMask &&
         !input.participantAccountsRemain,
       closeEligibleAt,
     };
@@ -904,21 +895,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           },
         };
         }
-      case "sync_daily_profile": {
-        const player = requiredOwner(owner);
-        const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
-        const board = requiredBoardKind(context.boardKind);
-        return {
-          name: "syncDailyProfile",
-          args: { board: dailyBoardKind(board) },
-          accounts: {
-            caller: keeper,
-            arenaDaily: daily,
-            arenaBoard: arenaBoardPda(daily, board),
-            playerState: playerStatePda(player),
-          },
-        };
-      }
       case "archive_arena_daily":
         {
           const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
@@ -1090,8 +1066,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       const claimsExpired = boolean(item.value.claimsExpired, "ArenaDaily claim expiry");
       let scoreClaimedMask = 0n;
       let themeClaimedMask = 0n;
-      let scoreProfileSyncMask = 0n;
-      let themeProfileSyncMask = 0n;
       let scoreBoard: LoadedBoardSnapshot | undefined;
       let themeBoard: LoadedBoardSnapshot | undefined;
       let settlement: SettlementSnapshot | undefined;
@@ -1114,8 +1088,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         );
         scoreClaimedMask = scoreBoard.claimedMask;
         themeClaimedMask = themeBoard.claimedMask;
-        scoreProfileSyncMask = scoreBoard.profileSyncMask;
-        themeProfileSyncMask = themeBoard.profileSyncMask;
         if (scoreBoard.construction.sealed && themeBoard.construction.sealed) {
           try {
             settlement = this.rankedSettlement(
@@ -1161,8 +1133,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         ),
         scoreClaimedMask,
         themeClaimedMask,
-        scoreProfileSyncMask,
-        themeProfileSyncMask,
         claimsExpired,
         ...(scoreBoard ? {
           scoreBoard: scoreBoard.construction,
@@ -1207,13 +1177,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       loaded.value.claimedCount,
       `ArenaBoard ${kind} claimed count`,
     );
-    const profileSyncCount = u32(
-      loaded.value.profileSyncCount,
-      `ArenaBoard ${kind} profile sync count`,
-    );
     const bitmapBytes = Math.ceil(payoutCount / 8);
     const expectedSize = ARENA_BOARD_HEADER_BYTES +
-      payoutCount * ARENA_BOARD_ENTRY_SIZE + 2 * bitmapBytes;
+      payoutCount * ARENA_BOARD_ENTRY_SIZE + bitmapBytes;
     const plan = rankWeightedPayoutPlan(
       poolLamports,
       qualifiedCount,
@@ -1236,7 +1202,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         bigint(loaded.value.rolloverLamports, `ArenaBoard ${kind} rollover`) !==
           plan.rolloverLamports || capacityLimited !== plan.capacityLimited ||
         cursor > payoutCount || claimedCount > payoutCount ||
-        profileSyncCount > payoutCount || loaded.account.data.length !== expectedSize) {
+        loaded.account.data.length !== expectedSize) {
       throw new Error(`${kind} ArenaBoard header is not canonical`);
     }
     const entries: BoardSourceSnapshot[] = [];
@@ -1258,14 +1224,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const claimedMask = littleEndianMask(
       loaded.account.data.subarray(masksOffset, masksOffset + bitmapBytes),
     );
-    const profileSyncMask = littleEndianMask(
-      loaded.account.data.subarray(
-        masksOffset + bitmapBytes,
-        masksOffset + 2 * bitmapBytes,
-      ),
-    );
-    if (popcount(claimedMask) !== claimedCount ||
-        popcount(profileSyncMask) !== profileSyncCount) {
+    if (popcount(claimedMask) !== claimedCount) {
       throw new Error(`${kind} ArenaBoard bitmap counters do not match`);
     }
     const sealed = boolean(loaded.value.sealed, `ArenaBoard ${kind} sealed`);
@@ -1299,12 +1258,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         sealedAt,
         claimedLamports,
         claimedCount,
-        profileSyncCount,
         capacityLimited,
       },
       entries,
       claimedMask,
-      profileSyncMask,
     };
   }
 
@@ -2027,23 +1984,6 @@ function encodeSelectedType(
     );
   }
   return Buffer.from(buffer.subarray(0, encodedLength));
-}
-
-function profileSyncMask(
-  period: DailySnapshot,
-  board: "score" | "theme",
-): bigint {
-  let mask = 0n;
-  for (const winner of period.settlement?.winners ?? []) {
-    if (winner.board !== board || winner.payoutLamports === 0n) continue;
-    const bit = winner.rank - 1;
-    if (!Number.isSafeInteger(bit) ||
-        bit < 0 || bit >= ARENA_BOARD_CAPACITY) {
-      throw new Error("cadence payout position is invalid");
-    }
-    mask |= 1n << BigInt(bit);
-  }
-  return mask;
 }
 
 function rankedCadenceFromDeadline(

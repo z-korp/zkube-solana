@@ -89,7 +89,7 @@ function claimableBoard(
   dayId: number,
   owner: PublicKey,
 ): AccountInfo<Buffer> {
-  const data = Buffer.alloc(129 + 84 + 2);
+  const data = Buffer.alloc(125 + 84 + 1);
   coder.accountDiscriminator("arenaBoard").copy(data);
   data.writeUInt8(ARCADE_ACCOUNT_VERSION, 8);
   writePublicKey(data, 9, daily);
@@ -106,7 +106,7 @@ function claimableBoard(
   data.writeUInt32LE(1, 99);
   data.writeUInt8(1, 103);
   data.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1_000)), 104);
-  writePublicKey(data, 129, owner);
+  writePublicKey(data, 125, owner);
   return {
     data,
     executable: false,
