@@ -124,6 +124,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
+      /\bderive_randomness\b|\bCAMPAIGN_LEVEL_MODE_TAG\b|OpeningLayout\.hash_blocks/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Campaign stays on the ER and every row comes from a verified VRF output",
+  },
+  {
+    pattern:
       /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "the visible entry streak does not multiply ladder points",

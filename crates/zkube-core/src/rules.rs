@@ -391,6 +391,41 @@ impl LevelRules {
     }
 }
 
+/// The three Campaign-only sources that may latch during a shared run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StarRules {
+    pub points_required: u32,
+    pub primary: Constraint,
+    pub secondary: Constraint,
+}
+
+impl From<LevelRules> for StarRules {
+    fn from(level: LevelRules) -> Self {
+        Self {
+            points_required: level.points_required,
+            primary: level.primary,
+            secondary: level.secondary,
+        }
+    }
+}
+
+impl StarRules {
+    #[must_use]
+    pub const fn earnable_sources_mask(self) -> u8 {
+        STAR_SOURCE_SCORE
+            | if self.primary.is_present() {
+                STAR_SOURCE_PRIMARY
+            } else {
+                0
+            }
+            | if self.secondary.is_present() {
+                STAR_SOURCE_SECONDARY
+            } else {
+                0
+            }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Guardian {
     pub bonus: Bonus,
@@ -421,40 +456,6 @@ pub const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) 
         0 | 6 => threshold == 0,
         1 | 2 | 4 | 7 | 8 | 9 => threshold > 0,
         _ => false,
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EndlessRules {
-    /// Score at which each difficulty tier 1..7 begins. Tier 0 begins at zero.
-    pub thresholds: [u32; 7],
-    /// Integer x100 score multipliers for tiers 0..7.
-    pub score_multipliers_x100: [u16; 8],
-    /// Applies before selecting the tier; 100 is neutral.
-    pub ramp_multiplier_x100: u16,
-}
-
-impl Default for EndlessRules {
-    fn default() -> Self {
-        Self {
-            thresholds: [25, 75, 150, 300, 600, 1_200, 2_400],
-            score_multipliers_x100: [100, 110, 125, 140, 160, 180, 210, 250],
-            ramp_multiplier_x100: 100,
-        }
-    }
-}
-
-impl EndlessRules {
-    pub fn difficulty_for_score(self, score: u32) -> u8 {
-        let ramped = scale(score, self.ramp_multiplier_x100);
-        self.thresholds
-            .iter()
-            .take_while(|threshold| ramped >= **threshold)
-            .count() as u8
-    }
-
-    pub fn score_multiplier(self, difficulty: u8) -> u16 {
-        self.score_multipliers_x100[difficulty.min(7) as usize]
     }
 }
 
@@ -635,13 +636,37 @@ impl RunEngine {
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
+        self.play_run_move(
+            expected_move,
+            row,
+            start,
+            destination,
+            level.max_moves,
+            Some(level.into()),
+            guardian,
+            action_score_multiplier_x100,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn play_run_move(
+        &mut self,
+        expected_move: u16,
+        row: u8,
+        start: u8,
+        destination: u8,
+        max_moves: u16,
+        stars: Option<StarRules>,
+        guardian: Guardian,
+        action_score_multiplier_x100: u16,
+    ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
             return Err(RunError::InvalidPhase);
         }
         if self.moves != expected_move {
             return Err(RunError::InvalidExpectedMove);
         }
-        if self.moves >= level.max_moves {
+        if self.moves >= max_moves {
             return Err(RunError::MoveLimitReached);
         }
         let next_row = self.next_row.take().ok_or(RunError::MissingNextRow)?;
@@ -662,7 +687,7 @@ impl RunEngine {
         }
         let (first_lines, first_points) = self.grid.settle();
         if self.grid.is_full() {
-            return Ok(self.finish_move_with_multiplier(
+            return Ok(self.finish_run_move_with_multiplier(
                 ActionContext {
                     height_before,
                     // The preview was consumed but never entered the grid, so
@@ -672,7 +697,8 @@ impl RunEngine {
                     base_point_parts: [first_points, 0],
                     row_insertion_blocked: true,
                 },
-                level,
+                max_moves,
+                stars,
                 guardian,
                 action_score_multiplier_x100,
             ));
@@ -683,7 +709,7 @@ impl RunEngine {
         // action. The inserted row can complete another line, which must keep
         // climbing the same triangular score curve instead of restarting at 1.
         let (second_lines, second_points) = self.grid.settle_after(first_lines);
-        let report = self.finish_move_with_multiplier(
+        let report = self.finish_run_move_with_multiplier(
             ActionContext {
                 height_before,
                 block_cells_before: block_cells_with_preview,
@@ -691,7 +717,8 @@ impl RunEngine {
                 base_point_parts: [first_points, second_points],
                 row_insertion_blocked: false,
             },
-            level,
+            max_moves,
+            stars,
             guardian,
             action_score_multiplier_x100,
         );
@@ -703,6 +730,25 @@ impl RunEngine {
         row: u8,
         column: u8,
         level: LevelRules,
+        guardian: Guardian,
+        action_score_multiplier_x100: u16,
+    ) -> Result<MoveReport, RunError> {
+        self.apply_run_bonus(
+            row,
+            column,
+            level.max_moves,
+            Some(level.into()),
+            guardian,
+            action_score_multiplier_x100,
+        )
+    }
+
+    pub(crate) fn apply_run_bonus(
+        &mut self,
+        row: u8,
+        column: u8,
+        max_moves: u16,
+        stars: Option<StarRules>,
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
@@ -719,7 +765,7 @@ impl RunEngine {
         self.grid.apply_bonus(bonus, row, column)?;
         self.bonus_charges -= 1;
         let (lines, base_points) = self.grid.settle();
-        let report = self.finish_action_with_multiplier(
+        let report = self.finish_run_action_with_multiplier(
             ActionContext {
                 height_before,
                 block_cells_before,
@@ -727,18 +773,17 @@ impl RunEngine {
                 base_point_parts: [base_points, 0],
                 row_insertion_blocked: false,
             },
-            level,
+            max_moves,
+            stars,
             guardian,
             action_score_multiplier_x100,
             false,
             true,
         );
         if report.perfect_clear && self.phase == RunPhase::Playing {
-            let preview = self.next_row.take().ok_or(RunError::MissingNextRow)?;
-            self.grid.insert_bottom_row(preview)?;
-            // VRF rows always contain a hole, so this is a gravity-only
-            // continuation and cannot create unreported score.
-            let _ = self.grid.settle();
+            // A perfect clear leaves the board empty in both action paths.
+            // The next verified output derives one seed row and one preview.
+            self.next_row = None;
             self.phase = RunPhase::AwaitingVrf;
         }
         Ok(report)
@@ -785,6 +830,10 @@ impl RunEngine {
         self.latched_star_sources == rules.earnable_sources_mask()
     }
 
+    fn star_sources_satisfied(&self, stars: StarRules) -> bool {
+        self.latched_star_sources == stars.earnable_sources_mask()
+    }
+
     #[must_use]
     pub const fn latched_star_count(&self) -> u8 {
         self.latched_star_sources.count_ones() as u8
@@ -800,6 +849,7 @@ impl RunEngine {
         self.finish_move_with_multiplier(context, level, guardian, 100)
     }
 
+    #[cfg(test)]
     fn finish_move_with_multiplier(
         &mut self,
         context: ActionContext,
@@ -807,10 +857,28 @@ impl RunEngine {
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> MoveReport {
-        self.moves = self.moves.saturating_add(1);
-        self.finish_action_with_multiplier(
+        self.finish_run_move_with_multiplier(
             context,
-            level,
+            level.max_moves,
+            Some(level.into()),
+            guardian,
+            action_score_multiplier_x100,
+        )
+    }
+
+    fn finish_run_move_with_multiplier(
+        &mut self,
+        context: ActionContext,
+        max_moves: u16,
+        stars: Option<StarRules>,
+        guardian: Guardian,
+        action_score_multiplier_x100: u16,
+    ) -> MoveReport {
+        self.moves = self.moves.saturating_add(1);
+        self.finish_run_action_with_multiplier(
+            context,
+            max_moves,
+            stars,
             guardian,
             action_score_multiplier_x100,
             true,
@@ -849,10 +917,33 @@ impl RunEngine {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[cfg(test)]
     fn finish_action_with_multiplier(
         &mut self,
         context: ActionContext,
         level: LevelRules,
+        guardian: Guardian,
+        action_score_multiplier_x100: u16,
+        needs_next_row: bool,
+        action_was_bonus: bool,
+    ) -> MoveReport {
+        self.finish_run_action_with_multiplier(
+            context,
+            level.max_moves,
+            Some(level.into()),
+            guardian,
+            action_score_multiplier_x100,
+            needs_next_row,
+            action_was_bonus,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn finish_run_action_with_multiplier(
+        &mut self,
+        context: ActionContext,
+        max_moves: u16,
+        stars: Option<StarRules>,
         guardian: Guardian,
         action_score_multiplier_x100: u16,
         needs_next_row: bool,
@@ -952,19 +1043,22 @@ impl RunEngine {
             .bonus_charges
             .saturating_add(charges.min(u16::from(u8::MAX)) as u8)
             .min(BONUS_CHARGE_CAP);
-        self.primary_progress = level.primary.update(self.primary_progress, &report);
-        self.secondary_progress = level.secondary.update(self.secondary_progress, &report);
+        if let Some(stars) = stars {
+            self.primary_progress = stars.primary.update(self.primary_progress, &report);
+            self.secondary_progress = stars.secondary.update(self.secondary_progress, &report);
 
-        // Each authored source latches independently after all action facts
-        // and constraint progress are current. `None` is never a source.
-        if self.score >= level.points_required {
-            self.latched_star_sources |= STAR_SOURCE_SCORE;
-        }
-        if level.primary.is_present() && level.primary.is_satisfied(self.primary_progress) {
-            self.latched_star_sources |= STAR_SOURCE_PRIMARY;
-        }
-        if level.secondary.is_present() && level.secondary.is_satisfied(self.secondary_progress) {
-            self.latched_star_sources |= STAR_SOURCE_SECONDARY;
+            // Daily rules carry no star sources, so only Campaign runs execute
+            // the independent latch machine.
+            if self.score >= stars.points_required {
+                self.latched_star_sources |= STAR_SOURCE_SCORE;
+            }
+            if stars.primary.is_present() && stars.primary.is_satisfied(self.primary_progress) {
+                self.latched_star_sources |= STAR_SOURCE_PRIMARY;
+            }
+            if stars.secondary.is_present() && stars.secondary.is_satisfied(self.secondary_progress)
+            {
+                self.latched_star_sources |= STAR_SOURCE_SECONDARY;
+            }
         }
 
         if report.perfect_clear {
@@ -980,9 +1074,9 @@ impl RunEngine {
         // and still cannot insert its visible preview row (the attempted
         // eleventh row). Completion takes precedence when that same action
         // satisfies the level.
-        if self.level_satisfied(level) {
+        if stars.is_some_and(|sources| self.star_sources_satisfied(sources)) {
             self.phase = RunPhase::LevelComplete;
-        } else if row_insertion_blocked || self.moves >= level.max_moves {
+        } else if row_insertion_blocked || self.moves >= max_moves {
             self.phase = RunPhase::Finished;
         } else if needs_next_row {
             self.phase = RunPhase::AwaitingVrf;
@@ -1797,7 +1891,7 @@ mod tests {
     }
 
     #[test]
-    fn bonus_perfect_clear_consumes_preview_without_spending_a_move() {
+    fn perfect_clear_continuation_is_one_rule_for_move_and_bonus() {
         let source = grid(&[(0, [1, 0, 0, 0, 0, 0, 0, 0])]);
         let preview = [2, 2, 0, 0, 0, 0, 0, 0];
         let mut run = RunEngine::start(source, preview).unwrap();
@@ -1822,8 +1916,27 @@ mod tests {
         assert_eq!(run.moves, 0);
         assert_eq!(run.phase, RunPhase::AwaitingVrf);
         assert_eq!(run.next_row, None);
-        assert_eq!(run.grid.row(0).unwrap(), &preview);
+        assert!(run.grid.is_empty());
         assert_eq!(run.bonus_charges, 0);
+
+        let mut move_run = RunEngine {
+            phase: RunPhase::Playing,
+            next_row: None,
+            ..RunEngine::default()
+        };
+        let move_report = move_run.finish_move(
+            ActionContext::default(),
+            LevelRules {
+                points_required: u32::MAX,
+                max_moves: 20,
+                ..LevelRules::default()
+            },
+            Guardian::default(),
+        );
+        assert!(move_report.perfect_clear);
+        assert_eq!(move_run.phase, RunPhase::AwaitingVrf);
+        assert_eq!(move_run.next_row, None);
+        assert!(move_run.grid.is_empty());
     }
 
     #[test]
@@ -2331,34 +2444,6 @@ mod tests {
                 STAR_SOURCE_SCORE | STAR_SOURCE_PRIMARY
             )
         );
-    }
-
-    #[test]
-    fn endless_difficulty_uses_configured_thresholds_and_ramp() {
-        let mut rules = EndlessRules::default();
-        assert_eq!(rules.difficulty_for_score(24), 0);
-        assert_eq!(rules.difficulty_for_score(25), 1);
-        assert_eq!(rules.score_multiplier(1), 110);
-        rules.ramp_multiplier_x100 = 200;
-        assert_eq!(rules.difficulty_for_score(13), 1);
-    }
-
-    #[test]
-    fn shared_golden_endless_cases_match_rust_domain() {
-        let fixtures: Value =
-            serde_json::from_str(include_str!("../../../fixtures/game-parity.json")).unwrap();
-        for fixture in fixtures["endlessCases"].as_array().unwrap() {
-            let rules = EndlessRules {
-                ramp_multiplier_x100: fixture["rampMultiplierX100"].as_u64().unwrap() as u16,
-                ..EndlessRules::default()
-            };
-            let difficulty = rules.difficulty_for_score(fixture["score"].as_u64().unwrap() as u32);
-            assert_eq!(difficulty, fixture["difficulty"].as_u64().unwrap() as u8);
-            assert_eq!(
-                rules.score_multiplier(difficulty),
-                fixture["scoreMultiplierX100"].as_u64().unwrap() as u16
-            );
-        }
     }
 
     #[test]

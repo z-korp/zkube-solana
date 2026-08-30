@@ -1,14 +1,187 @@
 use crate::BoundaryError;
 use zkube_core::{
-    BONUS_CHARGE_CAP, Bonus, CampaignEndReason, CampaignRules, CampaignSimulation,
-    CampaignSimulationConfig, Constraint, ConstraintKind, Grid, Guardian, LevelRules, MoveReport,
-    RunEngine, RunPhase,
+    BONUS_CHARGE_CAP, Bonus, Constraint, ConstraintKind, Grid, Guardian, LevelRules, MoveReport,
+    ReplayCommitment, RulesHash, Run, RunConfig, RunEndReason, RunEngine, RunPhase, RunRules,
+    StarRules, TierPolicy,
 };
 
 pub const CAMPAIGN_SIMULATION_CONFIG_LEN: usize = 97;
 pub const CAMPAIGN_SIMULATION_STATE_LEN: usize = 187;
 const CONFIG_VERSION: u8 = 7;
 const STATE_VERSION: u8 = 6;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CampaignRules {
+    pub level: LevelRules,
+    pub guardian: Guardian,
+    pub starting_height: u8,
+    pub level_difficulty: u8,
+}
+
+impl CampaignRules {
+    fn run_rules(self) -> RunRules {
+        RunRules {
+            guardian: self.guardian,
+            starting_height: self.starting_height,
+            max_moves: self.level.max_moves,
+            tier: TierPolicy::Fixed(self.level_difficulty),
+            stars: Some(StarRules::from(self.level)),
+            objective: None,
+        }
+    }
+
+    fn is_valid(self) -> bool {
+        self.run_rules().is_valid()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CampaignSimulationConfig {
+    pub content_version: u32,
+    pub content_hash: [u8; 32],
+    pub map_id: u8,
+    pub level_id: u8,
+    pub attempt: u64,
+    pub seed: [u8; 32],
+    pub rules: CampaignRules,
+}
+
+/// Temporary compatibility token for the old JavaScript names. Its state is
+/// driven exclusively through the core [`Run`] and is removed in Part 4.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CampaignSimulation {
+    pub content_version: u32,
+    pub content_hash: [u8; 32],
+    pub map_id: u8,
+    pub level_id: u8,
+    pub attempt: u64,
+    pub engine: RunEngine,
+    pub action_counter: u32,
+    pub row_counter: u32,
+    pub current_difficulty: u8,
+    pub end_reason: Option<RunEndReason>,
+    pub last_report: MoveReport,
+}
+
+impl CampaignSimulation {
+    fn new(config: CampaignSimulationConfig) -> Result<Self, zkube_core::RunTransitionError> {
+        let rules = config.rules.run_rules();
+        let mut run = Run::new(RunConfig {
+            rules_hash: RulesHash(config.content_hash),
+            rules,
+            initial_replay: ReplayCommitment(config.seed),
+        })?;
+        run.apply_vrf(rules, 1, config.seed)?;
+        Ok(Self::from_run(config, run, MoveReport::default()))
+    }
+
+    fn into_run(self, config: CampaignSimulationConfig) -> Run {
+        Run {
+            engine: self.engine,
+            action_counter: self.action_counter,
+            daily_score: 0,
+            objective_total: 0,
+            pressure_score: 0,
+            current_tier: self.current_difficulty,
+            last_vrf_counter: self.row_counter,
+            replay: ReplayCommitment(config.seed),
+            rules_hash: RulesHash(config.content_hash),
+            rules_snapshot_hash: config.rules.run_rules().snapshot_hash(),
+            end_reason: self.end_reason,
+        }
+    }
+
+    fn from_run(config: CampaignSimulationConfig, run: Run, last_report: MoveReport) -> Self {
+        Self {
+            content_version: config.content_version,
+            content_hash: config.content_hash,
+            map_id: config.map_id,
+            level_id: config.level_id,
+            attempt: config.attempt,
+            engine: run.engine,
+            action_counter: run.action_counter,
+            row_counter: run.last_vrf_counter,
+            current_difficulty: run.current_tier,
+            end_reason: run.end_reason,
+            last_report,
+        }
+    }
+
+    fn settle_pending_vrf(
+        config: CampaignSimulationConfig,
+        run: &mut Run,
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        if run.engine.phase == RunPhase::AwaitingVrf {
+            let counter = run.last_vrf_counter.saturating_add(1);
+            run.apply_vrf(config.rules.run_rules(), counter, config.seed)?;
+        }
+        Ok(())
+    }
+
+    fn play_move(
+        &mut self,
+        config: CampaignSimulationConfig,
+        expected_move: u16,
+        row: u8,
+        start: u8,
+        destination: u8,
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        let mut run = self.into_run(config);
+        let report = run.play_move(
+            config.rules.run_rules(),
+            self.action_counter,
+            expected_move,
+            row,
+            start,
+            destination,
+        )?;
+        Self::settle_pending_vrf(config, &mut run)?;
+        *self = Self::from_run(config, run, report);
+        Ok(())
+    }
+
+    fn apply_bonus(
+        &mut self,
+        config: CampaignSimulationConfig,
+        row: u8,
+        column: u8,
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        let mut run = self.into_run(config);
+        let report = run.apply_bonus(config.rules.run_rules(), self.action_counter, row, column)?;
+        Self::settle_pending_vrf(config, &mut run)?;
+        *self = Self::from_run(config, run, report);
+        Ok(())
+    }
+
+    fn request_reroll(
+        &mut self,
+        config: CampaignSimulationConfig,
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        let mut run = self.into_run(config);
+        run.request_reroll(config.rules.run_rules(), self.action_counter)?;
+        Self::settle_pending_vrf(config, &mut run)?;
+        *self = Self::from_run(config, run, MoveReport::default());
+        Ok(())
+    }
+
+    fn abandon(
+        &mut self,
+        config: CampaignSimulationConfig,
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        let mut run = self.into_run(config);
+        run.finish(config.rules.run_rules(), RunEndReason::Abandoned)?;
+        *self = Self::from_run(config, run, MoveReport::default());
+        Ok(())
+    }
+
+    fn matches_config(self, config: CampaignSimulationConfig) -> bool {
+        self.content_version == config.content_version
+            && self.content_hash == config.content_hash
+            && self.map_id == config.map_id
+            && self.level_id == config.level_id
+            && self.attempt == config.attempt
+    }
+}
 
 #[must_use]
 pub fn encode_campaign_simulation_config(
@@ -104,7 +277,7 @@ pub fn encode_campaign_simulation_state(
     writer.write(&simulation.engine.score.to_le_bytes());
     writer.write(simulation.engine.grid.cells());
     writer.write(&simulation.engine.next_row.unwrap_or([0; 8]));
-    writer.write(&[simulation.end_reason.map_or(0, CampaignEndReason::tag)]);
+    writer.write(&[simulation.end_reason.map_or(0, end_reason_tag)]);
     encode_report(&mut writer, simulation.last_report);
     writer.finish()
 }
@@ -204,20 +377,19 @@ fn campaign_state_shape_is_valid(
     phase: RunPhase,
     latched_star_sources: u8,
     has_next_row: bool,
-    end_reason: Option<CampaignEndReason>,
+    end_reason: Option<RunEndReason>,
 ) -> bool {
     let partial = latched_star_sources <= 0b111 && latched_star_sources != 0b111;
     match end_reason {
         None => phase == RunPhase::Playing && partial && has_next_row,
-        Some(CampaignEndReason::Completed) => {
+        Some(RunEndReason::Completed) => {
             phase == RunPhase::LevelComplete && latched_star_sources == 0b111
         }
-        Some(CampaignEndReason::Exhausted) => {
-            phase == RunPhase::Finished && partial && !has_next_row
-        }
-        Some(CampaignEndReason::Abandoned) => {
+        Some(RunEndReason::Exhausted) => phase == RunPhase::Finished && partial && !has_next_row,
+        Some(RunEndReason::Abandoned) => {
             phase == RunPhase::Finished && latched_star_sources == 0 && !has_next_row
         }
+        Some(RunEndReason::Deadline) => false,
     }
 }
 
@@ -298,7 +470,7 @@ pub fn campaign_simulation_latched_star_sources(state: &[u8]) -> Result<u8, Boun
 pub fn campaign_simulation_end_reason(state: &[u8]) -> Result<u8, BoundaryError> {
     Ok(decode_campaign_simulation_state(state)?
         .end_reason
-        .map_or(0, CampaignEndReason::tag))
+        .map_or(0, end_reason_tag))
 }
 
 fn decode_for_transition(
@@ -447,12 +619,21 @@ fn decode_bonus(tag: u8) -> Result<Option<Bonus>, BoundaryError> {
     }
 }
 
-fn decode_end_reason(tag: u8) -> Result<Option<CampaignEndReason>, BoundaryError> {
+const fn end_reason_tag(reason: RunEndReason) -> u8 {
+    match reason {
+        RunEndReason::Completed => 1,
+        RunEndReason::Exhausted => 2,
+        RunEndReason::Abandoned => 3,
+        RunEndReason::Deadline => 4,
+    }
+}
+
+fn decode_end_reason(tag: u8) -> Result<Option<RunEndReason>, BoundaryError> {
     match tag {
         0 => Ok(None),
-        1 => Ok(Some(CampaignEndReason::Completed)),
-        2 => Ok(Some(CampaignEndReason::Exhausted)),
-        3 => Ok(Some(CampaignEndReason::Abandoned)),
+        1 => Ok(Some(RunEndReason::Completed)),
+        2 => Ok(Some(RunEndReason::Exhausted)),
+        3 => Ok(Some(RunEndReason::Abandoned)),
         _ => Err(BoundaryError::InvalidEncoding),
     }
 }

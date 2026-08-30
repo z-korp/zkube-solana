@@ -1,9 +1,8 @@
 use crate::BoundaryError;
 use zkube_core::{
-    BONUS_CHARGE_CAP, Bonus, CANONICAL_DAILY_RULES_LEN, ChainDomain, ChallengeId, ConstraintKind,
-    DailyPressureRules, DailyRunRules, DailySimulation, DailySimulationConfig, DailyTheme, Grid,
-    Guardian, PlayerId, ReplayCommitment, ReplayMode, RulesHash, RunEngine, RunMetrics, RunPhase,
-    derive_player_id,
+    BONUS_CHARGE_CAP, Bonus, CANONICAL_RUN_RULES_LEN, ChainDomain, ChallengeId, ConstraintKind,
+    DailyTheme, Grid, Guardian, PlayerId, ReplayCommitment, ReplayMode, RulesHash, Run, RunConfig,
+    RunEndReason, RunEngine, RunMetrics, RunPhase, RunRules, TierPolicy, derive_player_id,
 };
 
 /// Versioned fixed encoding consumed by the stateless WASM transition API.
@@ -11,7 +10,7 @@ use zkube_core::{
 /// Layout: chain domain (32), challenge (32), raw account (32), run ID LE (8),
 /// replay mode (1), finalized Daily rules hash (32), then the canonical
 /// canonical [`DailyRunRules`] snapshot encoding.
-pub const DAILY_SIMULATION_CONFIG_LEN: usize = 162;
+pub const DAILY_SIMULATION_CONFIG_LEN: usize = 160;
 /// Versioned state layout returned by every transition.
 ///
 /// The first byte is version 2, followed by engine flags/counters, the 80-byte
@@ -20,6 +19,168 @@ pub const DAILY_SIMULATION_CONFIG_LEN: usize = 162;
 /// use generated decoders for display; the chain remains authoritative.
 pub const DAILY_SIMULATION_STATE_LEN: usize = 316;
 const STATE_VERSION: u8 = 6;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailySimulationConfig {
+    pub chain_domain: ChainDomain,
+    pub challenge: ChallengeId,
+    pub raw_account: [u8; 32],
+    pub run_id: u64,
+    pub mode: ReplayMode,
+    pub rules_hash: RulesHash,
+    pub rules: RunRules,
+}
+
+/// Compatibility token for the pre-unified JavaScript export names. Every
+/// transition delegates to the core [`Run`]; Part 4 removes this wrapper.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailySimulation {
+    pub engine: RunEngine,
+    pub metrics: RunMetrics,
+    pub action_counter: u32,
+    pub daily_score: u32,
+    pub objective_total: u64,
+    pub pressure_score: u32,
+    pub current_difficulty: u8,
+    pub last_vrf_counter: u32,
+    pub replay: ReplayCommitment,
+    pub player_id: PlayerId,
+    pub rules_hash: RulesHash,
+    pub rules_snapshot_hash: RulesHash,
+    pub deadline_finished: bool,
+}
+
+impl DailySimulation {
+    fn new(config: DailySimulationConfig) -> Result<Self, zkube_core::RunTransitionError> {
+        let player_id = derive_player_id(config.chain_domain, config.raw_account);
+        let initial_replay = ReplayCommitment::initial(
+            config.chain_domain,
+            config.challenge,
+            config.rules_hash,
+            player_id,
+            config.run_id,
+            config.mode,
+        );
+        let run = Run::new(RunConfig {
+            rules_hash: config.rules_hash,
+            rules: config.rules,
+            initial_replay,
+        })?;
+        Ok(Self::from_run(run, player_id, RunMetrics::default()))
+    }
+
+    fn into_run(self) -> Run {
+        Run {
+            engine: self.engine,
+            action_counter: self.action_counter,
+            daily_score: self.daily_score,
+            objective_total: self.objective_total,
+            pressure_score: self.pressure_score,
+            current_tier: self.current_difficulty,
+            last_vrf_counter: self.last_vrf_counter,
+            replay: self.replay,
+            rules_hash: self.rules_hash,
+            rules_snapshot_hash: self.rules_snapshot_hash,
+            end_reason: if self.deadline_finished {
+                Some(RunEndReason::Deadline)
+            } else {
+                match self.engine.phase {
+                    RunPhase::LevelComplete => Some(RunEndReason::Completed),
+                    RunPhase::Finished => Some(RunEndReason::Exhausted),
+                    _ => None,
+                }
+            },
+        }
+    }
+
+    fn from_run(run: Run, player_id: PlayerId, metrics: RunMetrics) -> Self {
+        Self {
+            engine: run.engine,
+            metrics,
+            action_counter: run.action_counter,
+            daily_score: run.daily_score,
+            objective_total: run.objective_total,
+            pressure_score: run.pressure_score,
+            current_difficulty: run.current_tier,
+            last_vrf_counter: run.last_vrf_counter,
+            replay: run.replay,
+            player_id,
+            rules_hash: run.rules_hash,
+            rules_snapshot_hash: run.rules_snapshot_hash,
+            deadline_finished: run.end_reason == Some(RunEndReason::Deadline),
+        }
+    }
+
+    fn replace_run(&mut self, run: Run) {
+        *self = Self::from_run(run, self.player_id, self.metrics);
+    }
+
+    fn apply_vrf(
+        &mut self,
+        rules: RunRules,
+        counter: u32,
+        output: [u8; 32],
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        let mut run = self.into_run();
+        run.apply_vrf(rules, counter, output)?;
+        self.replace_run(run);
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn play_move(
+        &mut self,
+        rules: RunRules,
+        action: u32,
+        expected_move: u16,
+        row: u8,
+        start: u8,
+        destination: u8,
+    ) -> Result<zkube_core::MoveReport, zkube_core::RunTransitionError> {
+        let mut run = self.into_run();
+        let report = run.play_move(rules, action, expected_move, row, start, destination)?;
+        self.replace_run(run);
+        Ok(report)
+    }
+
+    fn apply_bonus(
+        &mut self,
+        rules: RunRules,
+        action: u32,
+        row: u8,
+        column: u8,
+    ) -> Result<zkube_core::MoveReport, zkube_core::RunTransitionError> {
+        let mut run = self.into_run();
+        let report = run.apply_bonus(rules, action, row, column)?;
+        self.replace_run(run);
+        Ok(report)
+    }
+
+    fn request_reroll(
+        &mut self,
+        rules: RunRules,
+        action: u32,
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        let mut run = self.into_run();
+        run.request_reroll(rules, action)?;
+        self.replace_run(run);
+        Ok(())
+    }
+
+    fn finish_at_deadline(
+        &mut self,
+        rules: RunRules,
+    ) -> Result<(), zkube_core::RunTransitionError> {
+        let mut run = self.into_run();
+        run.finish(rules, RunEndReason::Deadline)?;
+        self.replace_run(run);
+        Ok(())
+    }
+
+    const fn is_score_eligible(&self) -> bool {
+        self.action_counter > 0
+    }
+}
 
 /// Encode a typed configuration for the frontend WASM boundary.
 #[must_use]
@@ -303,8 +464,8 @@ pub fn simulation_request_reroll(
 ///
 /// Returns an encoding or simulation transition error.
 pub fn simulation_finish_deadline(config: &[u8], state: &[u8]) -> Result<Vec<u8>, BoundaryError> {
-    let (_, mut simulation) = decode_for_transition(config, state)?;
-    simulation.finish_at_deadline()?;
+    let (config, mut simulation) = decode_for_transition(config, state)?;
+    simulation.finish_at_deadline(config.rules)?;
     Ok(encode_daily_simulation_state(simulation).to_vec())
 }
 
@@ -334,7 +495,7 @@ fn decode_for_transition(
     Ok((config, simulation))
 }
 
-fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError> {
+fn decode_rules(reader: &mut Reader<'_>) -> Result<RunRules, BoundaryError> {
     let max_moves = reader.u16()?;
     let guardian = Guardian {
         bonus: decode_bonus(reader.u8()?)?.ok_or(BoundaryError::InvalidEncoding)?,
@@ -342,24 +503,33 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<DailyRunRules, BoundaryError>
         threshold: reader.u16()?,
     };
     let starting_height = reader.u8()?;
-    let objective_tag = reader.u8()?;
-    let objective_parameter = reader.u8()?;
-    let objective = DailyTheme {
-        kind: ConstraintKind::from_tag(objective_tag).ok_or(BoundaryError::InvalidEncoding)?,
-        value: objective_parameter,
+    let tier = match (reader.u8()?, reader.u8()?) {
+        (1, 0) => TierPolicy::Pressure,
+        _ => return Err(BoundaryError::InvalidEncoding),
     };
-    let mut score_multipliers_x100 = [0; 8];
-    for multiplier in &mut score_multipliers_x100 {
-        *multiplier = reader.u16()?;
+    if reader.array::<11>()? != [0; 11] {
+        return Err(BoundaryError::InvalidEncoding);
     }
-    Ok(DailyRunRules {
+    let objective = match reader.u8()? {
+        0 => {
+            if reader.array::<2>()? != [0; 2] {
+                return Err(BoundaryError::InvalidEncoding);
+            }
+            None
+        }
+        1 => Some(DailyTheme {
+            kind: ConstraintKind::from_tag(reader.u8()?).ok_or(BoundaryError::InvalidEncoding)?,
+            value: reader.u8()?,
+        }),
+        _ => return Err(BoundaryError::InvalidEncoding),
+    };
+    Ok(RunRules {
         max_moves,
         guardian,
         starting_height,
+        tier,
+        stars: None,
         objective,
-        pressure: DailyPressureRules {
-            score_multipliers_x100,
-        },
     })
 }
 
@@ -514,22 +684,23 @@ impl<'a> Reader<'a> {
     }
 }
 
-const _: () = assert!(DAILY_SIMULATION_CONFIG_LEN == 137 + CANONICAL_DAILY_RULES_LEN);
+const _: () = assert!(DAILY_SIMULATION_CONFIG_LEN == 137 + CANONICAL_RUN_RULES_LEN);
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn rules() -> DailyRunRules {
-        DailyRunRules {
+    fn rules() -> RunRules {
+        RunRules {
             max_moves: 100,
             guardian: Guardian {
                 bonus: Bonus::Wave,
                 ..Guardian::default()
             },
             starting_height: 4,
-            objective: zkube_core::DAILY_THEMES[1],
-            pressure: DailyPressureRules::canonical(),
+            tier: TierPolicy::Pressure,
+            stars: None,
+            objective: Some(zkube_core::DAILY_THEMES[1]),
         }
     }
 
@@ -548,7 +719,7 @@ mod tests {
                 2,
                 rules.guardian,
                 rules.starting_height,
-                rules.objective,
+                rules.objective.unwrap(),
             ),
             rules,
         }
@@ -633,7 +804,7 @@ mod tests {
         state = simulation_apply_vrf(&config_bytes, &state, 2, &[0x22; 32]).unwrap();
         assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
 
-        expected.finish_at_deadline().unwrap();
+        expected.finish_at_deadline(config.rules).unwrap();
         state = simulation_finish_deadline(&config_bytes, &state).unwrap();
         assert_eq!(decode_daily_simulation_state(&state).unwrap(), expected);
         assert!(simulation_score_eligible(&state).unwrap());
@@ -662,7 +833,7 @@ mod tests {
             2,
             config.rules.guardian,
             config.rules.starting_height,
-            config.rules.objective,
+            config.rules.objective.unwrap(),
         );
         let config_bytes = encode_daily_simulation_config(config);
         let mut expected = DailySimulation::new(config).unwrap();

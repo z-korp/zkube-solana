@@ -93,12 +93,6 @@
       "expectedRows": []
     }
   ],
-  "endlessCases": [
-    { "score": 24, "rampMultiplierX100": 100, "difficulty": 0, "scoreMultiplierX100": 100 },
-    { "score": 25, "rampMultiplierX100": 100, "difficulty": 1, "scoreMultiplierX100": 110 },
-    { "score": 13, "rampMultiplierX100": 200, "difficulty": 1, "scoreMultiplierX100": 110 },
-    { "score": 2400, "rampMultiplierX100": 100, "difficulty": 7, "scoreMultiplierX100": 250 }
-  ],
   "engineCases": [
     {
       "name": "ordinary-level-clear",

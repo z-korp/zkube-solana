@@ -21,7 +21,7 @@
       "score_multipliers_x100": [100, 150, 200, 250, 300, 350, 400, 450]
     }
   },
-  "rules_snapshot_hash_hex": "a9ec866f9867a01388809976e394d7a2f327b6df94fcc80ba152c6dd3694dea8",
+  "rules_snapshot_hash_hex": "a44e7ca102c2fcc5cfc0b459646a873882846d65c7172a2037f186986d74f500",
   "day_id": 42,
   "content_version": 2,
   "rules_hash_hex": "621e99c25618674c29fbc47807b591fd2f929248bd8a67e7f0993ca12a84b9da",
@@ -37,7 +37,7 @@
   ],
   "expected": {
     "phase": "finished",
-    "deadline_finished": true,
+    "end_reason": "deadline",
     "score_eligible": false,
     "final_grid": [
       0, 2, 2, 1, 1, 3, 3, 3,
@@ -56,7 +56,7 @@
     "daily_score": 0,
     "objective_total": 0,
     "pressure_score": 0,
-    "current_difficulty": 0,
+    "current_tier": 0,
     "moves": 0,
     "action_counter": 0,
     "last_vrf_counter": 1,
@@ -67,18 +67,6 @@
     "level_lines_cleared": 0,
     "bonus": "wave",
     "bonus_charges": 0,
-    "starting_height_target": 0,
-    "metrics": {
-      "maximum_combo": 0,
-      "combo_scoring_actions": 0,
-      "total_combo_derived_score": 0,
-      "highest_action_score": 0,
-      "most_lines_in_action": 0,
-      "most_blocks_destroyed_in_action": 0,
-      "total_lines": 0,
-      "total_blocks_destroyed": 0,
-      "perfect_clears": 0
-    },
     "final_replay_hash_hex": "5eee3634df4b9f6a62202d8e7c3bdee264ef6e742feae654cda1522100888488"
   }
 }

@@ -584,8 +584,11 @@ star array.
 
 `zkube-core` is the deterministic source for grid state, blocks, guardians,
 scoring, pressure, metrics, period math, payout math, canonical encoding, and
-the replay commitment schedule. Native Rust, WASM, and the Solana program must
-pass the same committed golden vectors before an ABI is releasable.
+the replay commitment schedule. One mode-agnostic `Run` owns every Campaign
+and Daily transition; optional star sources and an optional objective select
+only the rules each consumer needs. `one_run_drives_campaign_and_daily` guards
+that shared driver. Native Rust, WASM, and the Solana program must pass the same
+committed golden vectors before an ABI is releasable.
 
 Replay v2 binds the chain domain, challenge, rules hash, player, run ID, and
 mode, then folds ordered VRF, action, bonus, abandon, and deadline events with
@@ -599,12 +602,12 @@ identity; `daily_rules_hash_binds_day_realm_objective_and_protocol_constants`
 guards every input.
 
 After a perfect clear, one domain-separated VRF output deterministically derives
-both the one-row board reseed and the next visible preview. The committed
-continuation vector prevents a run stranded between two oracle requests or
-accepting a stale move without a preview. The program, Daily simulation, and
-offline Campaign simulation all call the same `continuation_from_vrf`
-implementation; `campaign_perfect_clear_reseeds_board_and_preview_from_one_output`
-guards the Campaign boundary.
+both the one-row board reseed and the next visible preview. A move or guardian
+bonus that empties the board enters the same continuation state and never
+consumes the stale preview into that board. The committed continuation vector
+prevents a run stranded between two oracle requests or accepting a stale move
+without a preview; `perfect_clear_continuation_is_one_rule_for_move_and_bonus`
+guards the engine boundary.
 
 At the run deadline the resolved ER freezes the last fully accepted state and
 adds a replay deadline event. A run with at least one accepted action is scored
@@ -671,13 +674,11 @@ signatures are rejected.
 
 Solana Base, the MagicBlock Router, and the Router-resolved ER are separate
 connections. Delegation placement resolves through `getDelegationStatus`;
-regional ER endpoints are never hardcoded. PlayerState v3 has one durable
+regional ER endpoints are never hardcoded. Player state has one durable
 Campaign run slot and one durable Arcade run slot, so one run of each may coexist
 while overlap within either mode is rejected across devices. Both slots allocate
 from one monotonic run-ID sequence. A separate Arcade orphan reservation prevents
-an unreachable delegated run from racing a replacement. The byte-compatible v2
-migration moves a legacy shared pointer into the slot selected by its stored
-immutable mode.
+an unreachable delegated run from racing a replacement.
 
 The program pins `ephemeral-rollups-sdk` 0.16.2 or newer. Its generated
 undelegation callback must constrain the canonical `undelegate-buffer` PDA and

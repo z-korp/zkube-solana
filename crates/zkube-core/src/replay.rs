@@ -108,16 +108,6 @@ impl CanonicalEventBytes {
     pub fn as_slice(&self) -> &[u8] {
         &self.bytes[..usize::from(self.len)]
     }
-
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.len as usize
-    }
-
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
 }
 
 impl ReplayEvent {
@@ -315,7 +305,7 @@ mod tests {
     #[test]
     fn canonical_event_tags_and_layouts_are_stable() {
         let events = fixture_events();
-        assert_eq!(events[0].canonical_bytes().len(), 37);
+        assert_eq!(events[0].canonical_bytes().as_slice().len(), 37);
         assert_eq!(
             events[1].canonical_bytes().as_slice(),
             [2, 0, 0, 0, 0, 1, 2, 7, 2, 5]

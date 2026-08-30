@@ -6,12 +6,11 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use zkube_core::{
     ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_ENTRY_LAMPORTS, Bonus,
-    CampaignRules, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT,
-    DAILY_PAIR_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, DailyPressureRules,
-    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, LevelRules,
-    PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP,
-    PROTOCOL_ACCOUNT_VERSION, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider,
-    SoftwareSha256,
+    Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT, DAILY_PAIR_SELECTION_SEED,
+    DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, DailyPressureRules, ENTRY_DAILY_LAMPORTS,
+    ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_LABEL_ACCOUNT_VERSION, PLAYER_STATE_ACCOUNT_VERSION,
+    PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS,
+    Sha256Provider, SoftwareSha256, StarRules, TierPolicy,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -228,7 +227,8 @@ fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
                     level_index + 1
                 ));
             }
-            if !rules.level.primary.is_present() || !rules.level.secondary.is_present() {
+            let stars = rules.stars.expect("Campaign rules carry star sources");
+            if !stars.primary.is_present() || !stars.secondary.is_present() {
                 return Err(format!(
                     "map {} level {} must author both primary and secondary constraints",
                     map.map_id,
@@ -254,7 +254,7 @@ fn campaign_rules(
     map: &CampaignMap,
     level: &(u32, u16, u8, [u8; 3], [u8; 3]),
     weights: &[[u16; 5]],
-) -> Result<CampaignRules, String> {
+) -> Result<RunRules, String> {
     let difficulty = usize::from(level.2);
     if difficulty >= weights.len() {
         return Err(format!(
@@ -268,13 +268,7 @@ fn campaign_rules(
         3 => Bonus::Wave,
         value => return Err(format!("map {} has unknown bonus {value}", map.map_id)),
     };
-    Ok(CampaignRules {
-        level: LevelRules {
-            points_required: level.0,
-            max_moves: level.1,
-            primary: constraint(level.3)?,
-            secondary: constraint(level.4)?,
-        },
+    Ok(RunRules {
         guardian: Guardian {
             bonus,
             trigger: u8::try_from(map.rules[1])
@@ -283,7 +277,14 @@ fn campaign_rules(
         },
         starting_height: u8::try_from(map.rules[3])
             .map_err(|_| format!("map {} starting rows exceed u8", map.map_id))?,
-        level_difficulty: level.2,
+        max_moves: level.1,
+        tier: TierPolicy::Fixed(level.2),
+        stars: Some(StarRules {
+            points_required: level.0,
+            primary: constraint(level.3)?,
+            secondary: constraint(level.4)?,
+        }),
+        objective: None,
     })
 }
 

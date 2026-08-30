@@ -47,8 +47,7 @@ pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use campaign::{
     CAMPAIGN_LEVELS_PER_MAP, CAMPAIGN_MAP_COUNT, CAMPAIGN_MAX_STARS, CAMPAIGN_STAR_BYTES,
-    CAMPAIGN_TOTAL_LEVELS, CampaignEndReason, CampaignError, CampaignRules, CampaignSimulation,
-    CampaignSimulationConfig, CampaignStars, CampaignStarsError,
+    CAMPAIGN_TOTAL_LEVELS, CampaignStars, CampaignStarsError,
 };
 pub use daily_content::{
     DAILY_PAIR_COUNT, DAILY_PAIR_SELECTION_SEED, DAILY_THEMES, DailyTheme, OBJECTIVE_COUNT,
@@ -81,12 +80,12 @@ pub use replay::{
     ReplayMode, RulesHash, derive_player_id, derive_player_id_with,
 };
 pub use rules::{
-    BONUS_CHARGE_CAP, Constraint, ConstraintClass, ConstraintKind, EndlessRules, Guardian,
-    LevelRules, MoveReport, RunEngine, RunError, RunPhase, STAR_SOURCE_PRIMARY, STAR_SOURCE_SCORE,
-    STAR_SOURCE_SECONDARY, bonus_trigger_threshold_is_valid,
+    BONUS_CHARGE_CAP, Constraint, ConstraintClass, ConstraintKind, Guardian, LevelRules,
+    MoveReport, RunEngine, RunError, RunPhase, STAR_SOURCE_PRIMARY, STAR_SOURCE_SCORE,
+    STAR_SOURCE_SECONDARY, StarRules, bonus_trigger_threshold_is_valid,
 };
 pub use simulation::{
-    CANONICAL_DAILY_RULES_LEN, CanonicalDailyRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,
-    DailyRunRules, DailySimulation, DailySimulationConfig, PRESSURE_STEP, RULES_VERSION,
-    SimulationError, daily_rules_hash, daily_rules_hash_with,
+    CANONICAL_RUN_RULES_LEN, CanonicalRunRulesBytes, DAILY_MAX_MOVES, DailyPressureRules,
+    PRESSURE_STEP, RULES_VERSION, Run, RunConfig, RunEndReason, RunRules, RunTransitionError,
+    TierPolicy, daily_rules_hash, daily_rules_hash_with,
 };

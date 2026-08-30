@@ -54,22 +54,9 @@ enum GoldenEvent {
 }
 
 #[derive(Deserialize)]
-struct GoldenMetrics {
-    maximum_combo: u32,
-    combo_scoring_actions: u32,
-    total_combo_derived_score: u64,
-    highest_action_score: u64,
-    most_lines_in_action: u32,
-    most_blocks_destroyed_in_action: u32,
-    total_lines: u64,
-    total_blocks_destroyed: u64,
-    perfect_clears: u32,
-}
-
-#[derive(Deserialize)]
 struct GoldenExpected {
     phase: String,
-    deadline_finished: bool,
+    end_reason: String,
     score_eligible: bool,
     final_grid: Vec<u8>,
     next_row: Option<[u8; 8]>,
@@ -77,7 +64,7 @@ struct GoldenExpected {
     daily_score: u32,
     objective_total: u64,
     pressure_score: u32,
-    current_difficulty: u8,
+    current_tier: u8,
     moves: u16,
     action_counter: u32,
     last_vrf_counter: u32,
@@ -88,8 +75,6 @@ struct GoldenExpected {
     level_lines_cleared: u16,
     bonus: String,
     bonus_charges: u8,
-    starting_height_target: u8,
-    metrics: GoldenMetrics,
     final_replay_hash_hex: String,
 }
 
@@ -131,7 +116,7 @@ fn bonus(value: &str) -> Option<Bonus> {
     }
 }
 
-fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
+fn fixture_rules(value: &GoldenRules) -> RunRules {
     let kind = match value.objective.kind.as_str() {
         "classic" => ConstraintKind::None,
         "combos_of_at_least" => ConstraintKind::CombosOfAtLeast,
@@ -144,21 +129,20 @@ fn fixture_rules(value: &GoldenRules) -> DailyRunRules {
         "clean_clears" => ConstraintKind::CleanClears,
         _ => panic!("unknown objective"),
     };
-    DailyRunRules {
-        max_moves: value.max_moves,
+    RunRules {
         guardian: Guardian {
             bonus: bonus(&value.guardian.bonus).unwrap(),
             trigger: value.guardian.trigger,
             threshold: value.guardian.threshold,
         },
         starting_height: value.starting_height,
-        objective: DailyTheme {
+        max_moves: value.max_moves,
+        tier: TierPolicy::Pressure,
+        stars: None,
+        objective: (kind != ConstraintKind::None).then_some(DailyTheme {
             kind,
             value: value.objective.parameter,
-        },
-        pressure: DailyPressureRules {
-            score_multipliers_x100: value.pressure.score_multipliers_x100,
-        },
+        }),
     }
 }
 
@@ -168,6 +152,10 @@ fn verify_daily_run_vector(json: &str) {
     assert_eq!(fixture.version, 2);
     let rules = fixture_rules(&fixture.rules);
     assert_eq!(
+        value_pressure(&fixture.rules),
+        DailyPressureRules::canonical()
+    );
+    assert_eq!(
         rules.snapshot_hash().to_bytes(),
         decode_32(&fixture.rules_snapshot_hash_hex)
     );
@@ -176,27 +164,37 @@ fn verify_daily_run_vector(json: &str) {
         fixture.content_version,
         rules.guardian,
         rules.starting_height,
-        rules.objective,
+        DailyTheme {
+            kind: rules
+                .objective
+                .map_or(ConstraintKind::None, |theme| theme.kind),
+            value: rules.objective.map_or(0, |theme| theme.value),
+        },
     );
     assert_eq!(rules_hash.to_bytes(), decode_32(&fixture.rules_hash_hex));
-    let config = DailySimulationConfig {
-        chain_domain: ChainDomain(decode_32(&fixture.chain_domain_hex)),
-        challenge: ChallengeId(decode_32(&fixture.challenge_id_hex)),
-        raw_account: decode_32(&fixture.raw_account_hex),
-        run_id: fixture.run_id.parse().unwrap(),
-        mode: match fixture.mode.as_str() {
-            "ranked" => ReplayMode::Ranked,
-            _ => panic!("unknown mode"),
-        },
+    let domain = ChainDomain(decode_32(&fixture.chain_domain_hex));
+    let challenge = ChallengeId(decode_32(&fixture.challenge_id_hex));
+    let player_id = derive_player_id(domain, decode_32(&fixture.raw_account_hex));
+    let mode = match fixture.mode.as_str() {
+        "ranked" => ReplayMode::Ranked,
+        _ => panic!("unknown mode"),
+    };
+    let initial_replay = ReplayCommitment::initial(
+        domain,
+        challenge,
+        rules_hash,
+        player_id,
+        fixture.run_id.parse().unwrap(),
+        mode,
+    );
+    let config = RunConfig {
         rules_hash,
         rules,
+        initial_replay,
     };
-    let mut simulation = DailySimulation::new(config).unwrap();
+    let mut simulation = Run::new(config).unwrap();
     assert_eq!(simulation.rules_hash.to_bytes(), rules_hash.to_bytes());
-    assert_eq!(
-        simulation.player_id.to_bytes(),
-        decode_32(&fixture.player_id_hex)
-    );
+    assert_eq!(player_id.to_bytes(), decode_32(&fixture.player_id_hex));
     assert_eq!(
         simulation.replay.to_bytes(),
         decode_32(&fixture.initial_replay_hash_hex)
@@ -230,7 +228,7 @@ fn verify_daily_run_vector(json: &str) {
             }
             GoldenEvent::DailyDeadline { action } => {
                 assert_eq!(action, simulation.action_counter);
-                simulation.finish_at_deadline().unwrap();
+                simulation.finish(rules, RunEndReason::Deadline).unwrap();
             }
         }
     }
@@ -238,7 +236,8 @@ fn verify_daily_run_vector(json: &str) {
     let expected = fixture.expected;
     assert_eq!(expected.phase, "finished");
     assert_eq!(simulation.engine.phase, RunPhase::Finished);
-    assert_eq!(simulation.deadline_finished, expected.deadline_finished);
+    assert_eq!(expected.end_reason, "deadline");
+    assert_eq!(simulation.end_reason, Some(RunEndReason::Deadline));
     assert_eq!(simulation.is_score_eligible(), expected.score_eligible);
     assert_eq!(
         simulation.engine.grid.cells(),
@@ -249,7 +248,7 @@ fn verify_daily_run_vector(json: &str) {
     assert_eq!(simulation.daily_score, expected.daily_score);
     assert_eq!(simulation.objective_total, expected.objective_total);
     assert_eq!(simulation.pressure_score, expected.pressure_score);
-    assert_eq!(simulation.current_difficulty, expected.current_difficulty);
+    assert_eq!(simulation.current_tier, expected.current_tier);
     assert_eq!(simulation.engine.moves, expected.moves);
     assert_eq!(simulation.action_counter, expected.action_counter);
     assert_eq!(simulation.last_vrf_counter, expected.last_vrf_counter);
@@ -270,27 +269,15 @@ fn verify_daily_run_vector(json: &str) {
     assert_eq!(simulation.engine.bonus, bonus(&expected.bonus));
     assert_eq!(simulation.engine.bonus_charges, expected.bonus_charges);
     assert_eq!(
-        simulation.engine.starting_height_target,
-        expected.starting_height_target
-    );
-    assert_eq!(
-        simulation.metrics,
-        RunMetrics {
-            maximum_combo: expected.metrics.maximum_combo,
-            combo_scoring_actions: expected.metrics.combo_scoring_actions,
-            total_combo_derived_score: expected.metrics.total_combo_derived_score,
-            highest_action_score: expected.metrics.highest_action_score,
-            most_lines_in_action: expected.metrics.most_lines_in_action,
-            most_blocks_destroyed_in_action: expected.metrics.most_blocks_destroyed_in_action,
-            total_lines: expected.metrics.total_lines,
-            total_blocks_destroyed: expected.metrics.total_blocks_destroyed,
-            perfect_clears: expected.metrics.perfect_clears,
-        }
-    );
-    assert_eq!(
         simulation.replay.to_bytes(),
         decode_32(&expected.final_replay_hash_hex)
     );
+}
+
+fn value_pressure(value: &GoldenRules) -> DailyPressureRules {
+    DailyPressureRules {
+        score_multipliers_x100: value.pressure.score_multipliers_x100,
+    }
 }
 
 #[test]

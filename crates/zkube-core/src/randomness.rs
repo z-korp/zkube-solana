@@ -54,8 +54,6 @@ pub enum RandomnessError {
 pub struct OpeningLayout {
     pub grid: Grid,
     pub preview: Row,
-    /// Hash blocks consumed by the deterministic draw stream.
-    pub hash_blocks: u8,
 }
 
 /// A one-row board reseed plus the next visible preview, derived from one
@@ -112,10 +110,6 @@ impl<H: Sha256Provider> DrawStream<H> {
                 .try_into()
                 .expect("draw block contains eight u32 words"),
         )
-    }
-
-    fn hash_blocks(&self) -> u8 {
-        self.block_index.min(u32::from(u8::MAX)) as u8
     }
 }
 
@@ -192,11 +186,7 @@ pub fn opening_from_vrf_with<H: Sha256Provider>(
     }
 
     let preview = packed_row(&mut stream, weights);
-    Ok(OpeningLayout {
-        grid,
-        preview,
-        hash_blocks: stream.hash_blocks(),
-    })
+    Ok(OpeningLayout { grid, preview })
 }
 
 /// Rebuild a playable one-row board and preview after a perfect clear.
@@ -231,11 +221,7 @@ pub fn continuation_from_vrf_with<H: Sha256Provider>(
     // cannot clear the reseeded board or invent score.
     let _ = grid.settle();
     let preview = packed_row(&mut stream, weights);
-    Ok(ContinuationLayout {
-        grid,
-        preview,
-        hash_blocks: stream.hash_blocks(),
-    })
+    Ok(ContinuationLayout { grid, preview })
 }
 
 /// Convert one verified VRF result into exactly one playable row.
@@ -488,10 +474,6 @@ mod tests {
         );
         assert_eq!(layout.preview, decode_row(&fixture["preview_row"]));
         assert_eq!(
-            layout.hash_blocks,
-            u8::try_from(fixture["hash_blocks"].as_u64().unwrap()).unwrap()
-        );
-        assert_eq!(
             layout,
             continuation_from_vrf(output, request_counter, rules_hash, weights).unwrap()
         );
@@ -536,7 +518,6 @@ mod tests {
                 let first = opening_from_vrf(args.0, args.1, args.2, args.3, args.4).unwrap();
                 let replay = opening_from_vrf(args.0, args.1, args.2, args.3, args.4).unwrap();
                 assert_eq!(first, replay);
-                assert!(first.hash_blocks <= 20);
                 assert_stable(first, height);
             }
         }

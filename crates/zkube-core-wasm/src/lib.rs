@@ -29,21 +29,14 @@ pub enum BoundaryError {
     InvalidLength,
     InvalidMode,
     InvalidEncoding,
-    Simulation(zkube_core::SimulationError),
-    Campaign(zkube_core::CampaignError),
+    Run(zkube_core::RunTransitionError),
     Randomness(zkube_core::RandomnessError),
     Ladder(zkube_core::LadderError),
 }
 
-impl From<zkube_core::SimulationError> for BoundaryError {
-    fn from(error: zkube_core::SimulationError) -> Self {
-        Self::Simulation(error)
-    }
-}
-
-impl From<zkube_core::CampaignError> for BoundaryError {
-    fn from(error: zkube_core::CampaignError) -> Self {
-        Self::Campaign(error)
+impl From<zkube_core::RunTransitionError> for BoundaryError {
+    fn from(error: zkube_core::RunTransitionError) -> Self {
+        Self::Run(error)
     }
 }
 
@@ -182,8 +175,7 @@ mod wasm {
             BoundaryError::InvalidLength => JsError::new("invalid byte length"),
             BoundaryError::InvalidMode => JsError::new("replay mode must be 0 (ranked)"),
             BoundaryError::InvalidEncoding => JsError::new("invalid simulation encoding"),
-            BoundaryError::Simulation(_) => JsError::new("simulation transition rejected"),
-            BoundaryError::Campaign(_) => JsError::new("Campaign transition rejected"),
+            BoundaryError::Run(_) => JsError::new("run transition rejected"),
             BoundaryError::Randomness(_) => JsError::new("randomness transition rejected"),
             BoundaryError::Ladder(_) => JsError::new("ladder rank is invalid"),
         }
