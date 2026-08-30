@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
+import type { ClientCampaignMap } from "@/backend/client";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
@@ -23,7 +23,7 @@ const rule: ActiveRunRulesView = {
   guardian: { bonus: 0, trigger: 0, threshold: 0 },
 };
 
-const map = (overrides: Partial<CampaignMapView> = {}): CampaignMapView => ({
+const map = (overrides: Partial<ClientCampaignMap> = {}): ClientCampaignMap => ({
   mapId: 2,
   themeId: 7,
   enabled: true,

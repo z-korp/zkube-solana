@@ -29,8 +29,8 @@ import {
   type SessionState,
   type WalletChoice,
 } from "../views";
-import { ZKUBE_PROGRAM_ID } from "../../chain/constants";
-import { derivePlayerLabelPda, derivePlayerStatePda } from "../../chain/pdas";
+import { ZKUBE_PROGRAM_ID } from "./constants";
+import { derivePlayerLabelPda, derivePlayerStatePda } from "./pdas";
 import {
   submitVersionedTransactionPlan,
   withPinnedWalletComputeBudget,

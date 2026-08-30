@@ -11,6 +11,7 @@ import {
   type BackendLayer,
   type BackendRuntime,
 } from "./runtime";
+import { BackendClientState } from "./client";
 
 /** Owns exactly one scoped Effect runtime for the lifetime of this provider. */
 export function BackendProvider({
@@ -39,7 +40,7 @@ export function BackendProvider({
 
   return (
     <BackendRuntimeContext.Provider value={runtimeRef.current}>
-      {children}
+      <BackendClientState>{children}</BackendClientState>
     </BackendRuntimeContext.Provider>
   );
 }

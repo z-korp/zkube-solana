@@ -4,7 +4,7 @@ import {
   deriveMapCatalogPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "@/chain/pdas.js";
+} from "../pdas.js";
 import { zkubeProgram } from "../runs/runPlan.js";
 import {
   mapLevelRuleSnapshot,

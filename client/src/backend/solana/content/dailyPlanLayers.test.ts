@@ -16,9 +16,9 @@ import {
   buildPrepareDailyRunPlan,
   buildPurchaseKreditsPlan,
   type DailyView,
-} from "../backend/solana/content/dailyClient";
-import { ZKUBE_PROGRAM_ID } from "./constants";
-import { IDL } from "../backend/solana/idl";
+} from "./dailyClient";
+import { ZKUBE_PROGRAM_ID } from "../constants";
+import { IDL } from "../idl";
 import {
   deriveArcadeConfigPda,
   deriveArenaBoardPda,
@@ -26,12 +26,12 @@ import {
   deriveCreditVaultPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
-} from "./pdas";
+} from "../pdas";
 import {
   ARCADE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
-} from "../core/protocolVersions.generated";
-import { SessionWallet } from "../backend/solana/session/sessionWallet";
+} from "../../../core/protocolVersions.generated";
+import { SessionWallet } from "../session/sessionWallet";
 
 const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
 

@@ -28,11 +28,11 @@ import {
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
-} from "../../src/chain/pdas";
+} from "../../src/backend/solana/pdas";
 import { SECONDS_PER_DAY } from "../../src/core/protocolVersions.generated";
 import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnlyWallet";
 import type { TransactionPlan } from "../../src/backend/solana/runs/runPlan";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/backend/solana/constants";
 
 const BASE_CONTENT_VERSION = 1;
 const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;

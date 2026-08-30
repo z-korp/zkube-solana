@@ -7,12 +7,12 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 
-import { ZKUBE_PROGRAM_ID } from "../../../chain/constants.js";
+import { ZKUBE_PROGRAM_ID } from "../constants.js";
 import {
   derivePlayerLabelPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "../../../chain/pdas.js";
+} from "../pdas.js";
 import { PLAYER_LABEL_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated.js";
 import {
   zkubeProgram,

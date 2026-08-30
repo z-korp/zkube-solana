@@ -5,11 +5,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Game } from "@/game/model";
 import GameOverDialog from "./GameOverDialog";
 
-vi.mock("@/contexts/daily", () => ({
+vi.mock("@/backend/client", () => ({
   useDaily: () => ({ daily: null }),
-}));
-vi.mock("@/chain/connectedPlayerContext", () => ({
   useConnectedPlayer: () => ({ publicKey: null }),
+  useClientState: () => ({ economy: { profile: { bestScore: 0 } } }),
 }));
 vi.mock("@/ui/elements/theme-provider/hooks", async () =>
   (await import("@/test/mocks/theme")).themeHooksMock(),

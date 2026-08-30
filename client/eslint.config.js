@@ -60,4 +60,31 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/backend/solana/**",
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "src/test/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex:
+                "^(@solana(?:-mobile)?/|@anchor-lang/|@magicblock-labs/|@wallet-standard/)",
+              message: "Solana packages belong behind backend/solana.",
+            },
+            {
+              regex: "(^|/)backend/solana(/|$)|(^|/)chain(/|$)|(^|/)idl(/|$)",
+              message: "Runtime consumers use the six backend services and public views.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

@@ -1,4 +1,4 @@
-import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
+import type { ClientRunView } from "@/backend/client";
 import { Game } from "@/game/model";
 
 export const PLAYTEST_ACTION_EVENT = "zkube_playtest_action_v1";
@@ -39,8 +39,8 @@ export interface PlaytestActionRecord {
 }
 
 export function buildPlaytestActionRecord(
-  before: ActiveRunView,
-  after: ActiveRunView,
+  before: ClientRunView,
+  after: ClientRunView,
   action: PlaytestActionKind,
 ): PlaytestActionRecord | null {
   if (after.actionCounter <= before.actionCounter) return null;

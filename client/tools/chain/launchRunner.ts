@@ -40,7 +40,7 @@ import {
   deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
-} from "../../src/chain/pdas";
+} from "../../src/backend/solana/pdas";
 import {
   ARENA_ENTRY_LAMPORTS,
   ENTRY_DAILY_LAMPORTS,
@@ -48,7 +48,7 @@ import {
 } from "../../src/core/protocolVersions.generated";
 import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnlyWallet";
 import { zkubeProgram, type TransactionPlan } from "../../src/backend/solana/runs/runPlan";
-import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
+import { ZKUBE_PROGRAM_ID } from "../../src/backend/solana/constants";
 
 type LaunchMode = "plan" | "stage" | "resume" | "activate";
 

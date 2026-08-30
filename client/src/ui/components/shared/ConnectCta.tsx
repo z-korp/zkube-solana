@@ -5,7 +5,7 @@ import {
   type WalletErrorClassification,
 } from "@/utils/errors";
 
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { useConnectedPlayer } from "@/backend/client";
 import {
   currentPlatformCapabilities,
   type PlatformCapabilities,
@@ -15,11 +15,6 @@ import {
   promptInstall,
   subscribeInstallPrompt,
 } from "@/platform/installPrompt";
-import {
-  clearMobileWalletAuthorizationCache,
-  getWalletAvailabilityState,
-  subscribeWalletAvailability,
-} from "@/backend/solana/wallet/walletStandard";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
 import WalletRecoveryPanel from "@/ui/components/shared/WalletRecoveryPanel";
@@ -66,10 +61,6 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
   const [localError, setLocalError] = useState<LocalWalletError | null>(null);
   const capabilities = useMemo(() => currentPlatformCapabilities(), []);
   const platform = capabilities.kind;
-  const walletAvailability = useSyncExternalStore(
-    subscribeWalletAvailability,
-    getWalletAvailabilityState,
-  );
   const installReady = useSyncExternalStore(
     subscribeInstallPrompt,
     installPromptAvailable,
@@ -79,13 +70,7 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
     player.connectionStatus === "connected" && player.publicKey !== null;
   const ready = connected && player.sessionStatus === "ready";
   const busy = busyLocal || player.connectionStatus === "connecting";
-  const supportedConnectors = player.connectors.filter(
-    (connector) => connector.supportsV0Signing,
-  );
-  const availabilityError =
-    walletAvailability.status === "unavailable"
-      ? walletAvailability.error
-      : null;
+  const supportedConnectors = player.connectors;
   const providerRecoveryError = player.error
     ? classifyWalletError(player.error)
     : null;
@@ -99,16 +84,10 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
       : null) ??
     (!connected && providerRecoveryError?.kind === "account-mismatch"
       ? providerRecoveryError
-      : null) ??
-    (!connected && availabilityError
-      ? classifyWalletError(availabilityError)
       : null);
   const retryConnectorId =
     localError?.connectorId ??
     (connected ? player.connector?.id : undefined) ??
-    player.connectors.find(
-      (connector) => connector.kind === "mobile-wallet-adapter",
-    )?.id ??
     (supportedConnectors.length === 1 ? supportedConnectors[0]?.id : undefined);
 
   if (ready) return null;
@@ -119,21 +98,10 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
     try {
       await player.connectAndEnable(connectorId);
     } catch (cause) {
-      const classification = classifyWalletError(cause);
-      // MWA 0.5.3 short-circuits authorization from its cache, so a cached
-      // token the wallet no longer honors makes the wallet open with nothing to
-      // approve and every retry fail identically. Only `disconnect()` cleared
-      // that cache, which a player who never connected cannot reach. Drop it
-      // here so the next attempt performs a fresh authorization. A plain
-      // decline leaves the cache alone: nothing is stale in that case.
-      if (
-        player.connectors.find((candidate) => candidate.id === connectorId)
-          ?.kind === "mobile-wallet-adapter" &&
-        classification.kind !== "user-rejection"
-      ) {
-        await clearMobileWalletAuthorizationCache().catch(() => false);
-      }
-      setLocalError({ classification, connectorId });
+      setLocalError({
+        classification: classifyWalletError(cause),
+        connectorId,
+      });
     } finally {
       setBusyLocal(false);
     }
@@ -155,8 +123,7 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
   const handleRecoveryRetry = () => {
     setLocalError(null);
     const connector = player.connectors.find(
-      (candidate) =>
-        candidate.id === retryConnectorId && candidate.supportsV0Signing,
+      (candidate) => candidate.id === retryConnectorId,
     );
     if (connector) {
       void onboard(connector.id);
@@ -220,31 +187,18 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
             <button
               key={connector.id}
               type="button"
-              disabled={busy || !connector.supportsV0Signing}
+              disabled={busy}
               onClick={() => {
                 setPickerOpen(false);
                 void onboard(connector.id);
               }}
               className="flex items-center gap-3 rounded-2xl border border-white/[0.12] bg-white/[0.06] px-4 py-3 text-left transition-colors hover:bg-white/[0.1] disabled:opacity-45"
             >
-              {connector.icon ? (
-                <img
-                  src={connector.icon}
-                  alt=""
-                  className="h-8 w-8 rounded-lg"
-                />
-              ) : (
-                <Gamepad2 size={24} className="text-white/70" />
-              )}
+              <Gamepad2 size={24} className="text-white/70" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-sans text-sm font-extrabold text-white">
                   {connector.name}
                 </span>
-                {!connector.supportsV0Signing && (
-                  <span className="block font-sans text-[11px] font-semibold text-amber-200/80">
-                    Versioned transactions unsupported
-                  </span>
-                )}
               </span>
               <ChevronRight size={16} className="text-white/40" />
             </button>

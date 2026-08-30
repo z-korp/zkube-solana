@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
+import type { ClientCampaignMap } from "@/backend/client";
 import { campaignMapsToZones } from "./useZoneProgress";
 
-const map = (overrides: Partial<CampaignMapView> = {}): CampaignMapView => ({
+const map = (overrides: Partial<ClientCampaignMap> = {}): ClientCampaignMap => ({
   mapId: 3,
   themeId: 8,
   enabled: true,

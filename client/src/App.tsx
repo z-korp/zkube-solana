@@ -1,6 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { useCampaign } from "@/contexts/campaign";
+import {
+  useCampaign,
+  useConnectedPlayer,
+  useRun,
+} from "@/backend/client";
 import { useNavigationStore, type PageId } from "@/stores/navigationStore";
 import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
@@ -13,14 +17,9 @@ import ProfilePage from "@/ui/pages/ProfilePage";
 import SettingsSheet from "@/ui/components/settings/SettingsSheet";
 import SpectatorScreen from "@/ui/pages/SpectatorScreen";
 import { getToastPlacement } from "@/utils/toast";
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { usePlayerStateSync } from "@/chain/usePlayerStateSync";
-import { RewardsProvider } from "@/hooks/useRewards";
 import BootReveal from "@/ui/components/shared/BootReveal";
 import ConnectScreen from "@/ui/screens/ConnectScreen";
 import { DEV_BYPASS_ACTIVE, devBoardModeFromUrl } from "@/dev/devBypass";
-import { DevFixturesProvider } from "@/dev/DevFixturesProvider";
-import { CapabilityDiagnostics } from "@/dev/CapabilityDiagnostics";
 
 const params = new URLSearchParams(window.location.search);
 if (import.meta.env.DEV) {
@@ -72,7 +71,6 @@ export default function App() {
   const { campaign, error, loaded } = useCampaign();
   // One PlayerState watch keeps Arcade progression and Campaign completion in
   // agreement without mixing their presentation surfaces.
-  usePlayerStateSync();
   // Hold first paint behind the themed Loading screen until the initial
   // campaign snapshot resolves (which decides the resume theme, so the app
   // opens on the correct background). Spectator/recovery deep-links don't
@@ -98,12 +96,9 @@ export default function App() {
   // branch (and everything it imports under src/dev/) is dead-code-eliminated.
   if (import.meta.env.DEV && DEV_BYPASS_ACTIVE) {
     return (
-      <DevFixturesProvider>
-        <ClientSurface
-          currentPage={currentPage}
-          showDiagnostics={devBoardModeFromUrl() === null}
-        />
-      </DevFixturesProvider>
+      <DevBackendBootstrap>
+        <ClientSurface currentPage={currentPage} />
+      </DevBackendBootstrap>
     );
   }
   // Whether this player lands in the app rather than on the connect screen.
@@ -143,25 +138,61 @@ export default function App() {
 
 function ClientSurface({
   currentPage,
-  showDiagnostics = false,
   overlay = null,
 }: {
   currentPage: PageId;
-  showDiagnostics?: boolean;
   overlay?: ReactNode;
 }) {
   return (
     <TooltipProvider>
-      <RewardsProvider>
-        <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
-        <SettingsSheet />
-        {/* The diagnostics drawer is pinned to the bottom edge, which is
-            exactly where the in-run action bar lives — hide it while a board
-            is staged so the bar can be judged. */}
-        {showDiagnostics && <CapabilityDiagnostics />}
-        <Toaster position={getToastPlacement()} />
-        {overlay}
-      </RewardsProvider>
+      <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
+      <SettingsSheet />
+      <Toaster position={getToastPlacement()} />
+      {overlay}
     </TooltipProvider>
   );
+}
+
+/** Connects and stages the query-selected board through LocalBackendLive. */
+function DevBackendBootstrap({ children }: { children: ReactNode }) {
+  const player = useConnectedPlayer();
+  const run = useRun();
+  const started = useRef(false);
+  const mode = devBoardModeFromUrl();
+
+  useEffect(() => {
+    if (player.connectionStatus === "disconnected") {
+      void player.connectAndEnable("local");
+    } else if (
+      player.connectionStatus === "connected" &&
+      player.sessionStatus !== "ready"
+    ) {
+      void player.enable();
+    }
+  }, [player]);
+
+  useEffect(() => {
+    if (
+      !mode ||
+      started.current ||
+      player.sessionStatus !== "ready" ||
+      run.activeRun
+    ) {
+      return;
+    }
+    started.current = true;
+    const start =
+      mode === "campaign"
+        ? run.campaign.startCampaignRun(8, 4)
+        : run.arcade.startDailyRun();
+    void start.then((active) => {
+      useNavigationStore.setState({
+        currentPage: "play",
+        previousPage: mode === "campaign" ? "map" : "arcade",
+        gameId: active.runId,
+      });
+    });
+  }, [mode, player.sessionStatus, run]);
+
+  return children;
 }

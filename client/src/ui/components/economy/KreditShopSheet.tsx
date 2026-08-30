@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 
-import { KREDIT_PACK_SIZES, kreditPackLamports } from "@/config/kreditPacks";
+import {
+  KREDIT_PACK_SIZES,
+  kreditPackLamports,
+  type KreditPackSize,
+} from "@/config/kreditPacks";
 import KreditCoin from "@/ui/components/economy/KreditCoin";
 import SolMark from "@/ui/components/economy/SolMark";
 import { MONEY_GOLD, mixHex } from "@/ui/components/economy/tokens";
@@ -18,7 +22,7 @@ interface KreditShopSheetProps {
   /** Protocol unit price; the program refuses any other. */
   unitLamports: bigint;
   /** Owner-signed purchase of exactly `kredits` entries. */
-  onBuy: (kredits: number) => void;
+  onBuy: (kredits: KreditPackSize) => void;
   /** True while a purchase is being signed. */
   busy?: boolean;
 }
@@ -44,11 +48,13 @@ const KreditShopSheet: React.FC<KreditShopSheetProps> = ({
   onBuy,
   busy = false,
 }) => {
-  const [selected, setSelected] = useState(KREDIT_PACK_SIZES[0] ?? 1);
+  const [selected, setSelected] = useState<KreditPackSize>(
+    KREDIT_PACK_SIZES[0],
+  );
 
   // A re-opened shop always starts on the smallest pack.
   useEffect(() => {
-    if (open) setSelected(KREDIT_PACK_SIZES[0] ?? 1);
+    if (open) setSelected(KREDIT_PACK_SIZES[0]);
   }, [open]);
 
   const totalLamports = kreditPackLamports(selected, unitLamports);

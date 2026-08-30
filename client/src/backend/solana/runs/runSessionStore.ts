@@ -3,7 +3,7 @@ import {
   browserLocalStorage,
   type StorageLike,
 } from "../../../platform/browserStorage.js";
-import { deriveRunAddresses, type RunAddresses } from "../../../chain/pdas.js";
+import { deriveRunAddresses, type RunAddresses } from "../pdas.js";
 import { deriveSessionTokenV2Pda } from "../session/sessionV2.js";
 
 export const RUN_SESSION_STORAGE_KEY = "zkube:run-sessions:v3";

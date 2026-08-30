@@ -1,4 +1,4 @@
-import { Effect, Layer, Stream, SubscriptionRef } from "effect";
+import { Duration, Effect, Layer, Schedule, Stream, SubscriptionRef } from "effect";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 import { RunsRejected, RunsUnavailable, type RunsError } from "../../errors";
@@ -13,7 +13,8 @@ import type {
 import {
   buildCommitDailyRunPlan,
   buildPrepareDailyRunPlan,
-  type DailyView,
+  currentDailyDayId,
+  fetchDailyView,
 } from "../content/dailyClient";
 import { projectRunFromLocalState } from "../../../core/runProjection";
 import {
@@ -33,7 +34,6 @@ import { SolanaWalletDriver } from "../wallet/SolanaWalletDriver";
 import { watchAccount } from "../watch";
 import { ActiveRunObserver } from "./activeRunObserver";
 import { submitErTransactionPlan } from "./erTransport";
-import { withTransientErRetry } from "./erRetry";
 import { resolvePersistedRun } from "./resumeRun";
 import {
   buildApplyBonusPlan,
@@ -64,8 +64,6 @@ import { resolveSpectatedRun } from "./spectateRun";
 
 export interface SolanaRunsOptions {
   readonly connection: Connection;
-  /** Replaced by the Content service when the complete backend is composed. */
-  readonly loadDaily: () => Promise<DailyView>;
 }
 
 interface AttachedRun {
@@ -240,7 +238,13 @@ export function makeSolanaRunsLive(
           ),
         enterDaily: () =>
           runEffect(async () => {
-            const daily = await options.loadDaily();
+            const { readOnly } = requireActor(identitySession);
+            const daily = await fetchDailyView({
+              connection: options.connection,
+              wallet: readOnly,
+              dayId: currentDailyDayId(),
+            });
+            if (!daily) throw new Error("Today's Daily is unavailable");
             return launch("arcade", (owner, wallet, device) =>
               buildPrepareDailyRunPlan({
                 connection: options.connection,
@@ -326,7 +330,7 @@ async function act(args: {
       wallet,
       sessionToken: device.sessionToken,
     });
-    await withTransientErRetry(() =>
+    await submitWithErRetry(() =>
       submitErTransactionPlan({
         transactionPlan: plan,
         wallet,
@@ -597,7 +601,7 @@ async function hydrateRows(args: {
         activeRun: args.prepared.addresses.activeRun,
         erConnection: args.connection,
       });
-      await withTransientErRetry(() =>
+      await submitWithErRetry(() =>
         submitErTransactionPlan({
           transactionPlan: request,
           wallet: args.wallet,
@@ -734,6 +738,26 @@ function publish(
 
 function runEffect<A>(action: () => Promise<A>): Effect.Effect<A, RunsError> {
   return Effect.tryPromise({ try: action, catch: asRunsError });
+}
+
+function submitWithErRetry<A>(action: () => Promise<A>): Promise<A> {
+  const schedule = Schedule.exponential(Duration.millis(400)).pipe(
+    Schedule.modifyDelay((_, delay) =>
+      Duration.min(delay, Duration.seconds(3)),
+    ),
+  );
+  return Effect.runPromise(
+    Effect.tryPromise({ try: action, catch: (cause) => cause }).pipe(
+      Effect.retry({
+        times: 5,
+        schedule,
+        while: (cause) =>
+          /cloner|pending request owner|account.*not found|blockhash not found/i.test(
+            message(cause),
+          ),
+      }),
+    ),
+  );
 }
 
 function asRunsError(cause: unknown): RunsError {

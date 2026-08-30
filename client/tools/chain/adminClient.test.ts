@@ -26,7 +26,7 @@ import {
   deriveArenaDailyPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "../../src/chain/pdas";
+} from "../../src/backend/solana/pdas";
 import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
 
 describe("authority publication client", () => {

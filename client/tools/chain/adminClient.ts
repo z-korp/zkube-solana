@@ -15,7 +15,7 @@ import {
   deriveOperatorRevenueVaultPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "../../src/chain/pdas";
+} from "../../src/backend/solana/pdas";
 import {
   CANONICAL_CAMPAIGN_MAP_COUNT,
   MAX_CAMPAIGN_MAPS,

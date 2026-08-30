@@ -22,7 +22,7 @@ const fixture = vi.hoisted(() => ({
 fixture.run.campaign = fixture.run;
 fixture.run.arcade = fixture.run;
 
-vi.mock("@/contexts/run", async () =>
+vi.mock("@/backend/client", async () =>
   (await import("@/test/mocks/contexts")).runContextMock(fixture.run),
 );
 

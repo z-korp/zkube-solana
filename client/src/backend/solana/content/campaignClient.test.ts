@@ -11,7 +11,7 @@ import {
   fetchCampaignView,
   unpackCompactLevelStars,
 } from "./campaignClient";
-import { ZKUBE_PROGRAM_ID } from "@/chain/constants";
+import { ZKUBE_PROGRAM_ID } from "../constants";
 import { CAMPAIGN_CONTENT_VERSION } from "@/core/campaignCatalog";
 import { PROTOCOL_ACCOUNT_VERSION } from "@/core/protocolVersions.generated";
 

@@ -1,13 +1,13 @@
-import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
+import type { ClientCampaignMap } from "@/backend/client";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
 } from "@/core/campaignCatalog";
 import { mapLevelRuleSnapshot } from "@/core/runProjection";
 
-let initialMap1: CampaignMapView | undefined;
+let initialMap1: ClientCampaignMap | undefined;
 
-export function uninitializedMap1(): CampaignMapView {
+export function uninitializedMap1(): ClientCampaignMap {
   if (initialMap1) return initialMap1;
   const authored = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
   initialMap1 = {
@@ -36,7 +36,7 @@ export function uninitializedMap1(): CampaignMapView {
 
 // A new identity has no PlayerState account yet. Map 1 remains playable,
 // and its preview uses the same authored catalog that is published on-chain.
-export function unavailableMap(mapId: number): CampaignMapView {
+export function unavailableMap(mapId: number): ClientCampaignMap {
   return {
     ...uninitializedMap1(),
     mapId,
@@ -48,10 +48,10 @@ export function unavailableMap(mapId: number): CampaignMapView {
 }
 
 export function resolveCampaignMap(
-  maps: readonly CampaignMapView[] | null,
+  maps: readonly ClientCampaignMap[] | null,
   mapId: number,
   loading: boolean,
-): CampaignMapView | undefined {
+): ClientCampaignMap | undefined {
   const current = maps?.find((map) => map.mapId === mapId);
   if (current) return current;
   if (!loading && maps === null && mapId === 1) return uninitializedMap1();

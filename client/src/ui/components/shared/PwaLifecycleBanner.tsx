@@ -1,7 +1,7 @@
 import { RefreshCw, WifiOff } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
-import { useRun } from "@/contexts/run";
+import { useRun } from "@/backend/client";
 import {
   activateWaitingPwaUpdate,
   getPwaLifecycleSnapshot,

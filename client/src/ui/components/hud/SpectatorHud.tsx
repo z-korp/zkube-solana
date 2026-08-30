@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import type { ActiveRunConstraintView } from "@/core/runProjection";
-import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
+import type { ClientRunView } from "@/backend/client";
 import {
   HUD_BAR,
   HudBarSvg,
@@ -18,7 +18,7 @@ export default function SpectatorHud({
   run,
   onBack,
 }: {
-  run: ActiveRunView;
+  run: ClientRunView;
   onBack: () => void;
 }) {
   const guardian = getZoneGuardian(run.mapId);

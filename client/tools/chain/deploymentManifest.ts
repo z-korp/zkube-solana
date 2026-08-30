@@ -5,10 +5,10 @@ import {
   MAGIC_PROGRAM_ID,
   SOLANA_DEVNET_GENESIS_HASH,
   ZKUBE_PROGRAM_ID,
-} from "../../src/chain/constants";
+} from "../../src/backend/solana/constants";
 import { VRF_QUEUE } from "../../src/backend/solana/runs/runPlan";
 import { CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
-import { deriveOperatorRevenueVaultPda } from "../../src/chain/pdas";
+import { deriveOperatorRevenueVaultPda } from "../../src/backend/solana/pdas";
 import { SECONDS_PER_DAY } from "../../src/core/protocolVersions.generated";
 
 type DeploymentCluster = "localnet" | "devnet";

@@ -1,14 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
+import type { ClientRunView } from "@/backend/client";
 import { useGrid } from "./useGrid";
 
 const fixtures = vi.hoisted(() => ({
-  activeRun: null as ActiveRunView | null,
+  activeRun: null as ClientRunView | null,
 }));
 
-vi.mock("@/contexts/run", async () =>
+vi.mock("@/backend/client", async () =>
   (await import("@/test/mocks/contexts")).runContextMock(() => ({
     activeRun: fixtures.activeRun,
   })),
@@ -16,14 +16,14 @@ vi.mock("@/contexts/run", async () =>
 
 const projectedRun = (
   runId: bigint,
-  lifecycle: ActiveRunView["lifecycle"],
+  lifecycle: ClientRunView["lifecycle"],
   firstCell: number,
-): ActiveRunView =>
+): ClientRunView =>
   ({
     runId,
     lifecycle,
     grid: [firstCell, ...Array<number>(79).fill(0)],
-  }) as ActiveRunView;
+  }) as ClientRunView;
 
 describe("useGrid", () => {
   beforeEach(() => {

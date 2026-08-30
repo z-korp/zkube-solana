@@ -17,7 +17,7 @@ import {
   inspectUpgradeableProgram,
   prepareZkubeDevnetDeployment,
 } from "./deploymentRunner";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/backend/solana/constants";
 
 const directories: string[] = [];
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");

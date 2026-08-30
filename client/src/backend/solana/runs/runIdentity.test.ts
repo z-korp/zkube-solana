@@ -2,15 +2,15 @@
 
 import { Keypair, type AccountInfo, type Connection } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
-import invariants from "../../../fixtures/protocol-invariants.json";
-import { INITIAL_RUN_ID } from "./constants";
-import { deriveRunAddresses } from "./pdas";
+import invariants from "../../../../../fixtures/protocol-invariants.json";
+import { INITIAL_RUN_ID } from "../constants";
+import { deriveRunAddresses } from "../pdas";
 import {
   activeRunIdForSlot,
   assertPreparedRunAddressesAvailable,
   resolvePreparedRunAddresses,
 } from "@/backend/solana/runs/runPlan";
-import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated";
 
 function collisionConnection(
   occupiedIndexes: number[],

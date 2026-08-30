@@ -13,7 +13,7 @@ import {
 } from "@solana/web3.js";
 
 import { buildDepositArenaDailyPlan, type PrizePoolKind } from "./adminClient";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/backend/solana/constants";
 import {
   isZkubeDeploymentManifest,
   type ZkubeDeploymentManifest,
@@ -24,7 +24,7 @@ import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveProtocolConfigPda,
-} from "../../src/chain/pdas";
+} from "../../src/backend/solana/pdas";
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,

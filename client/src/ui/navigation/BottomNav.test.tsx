@@ -2,8 +2,6 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PublicKey } from "@solana/web3.js";
-
 import { useNavigationStore } from "@/stores/navigationStore";
 import BottomNav from "./BottomNav";
 
@@ -11,7 +9,7 @@ const fixtures = vi.hoisted(() => ({
   publicKey: null as unknown,
 }));
 
-vi.mock("@/chain/connectedPlayerContext", async () =>
+vi.mock("@/backend/client", async () =>
   (await import("@/test/mocks/contexts")).connectedPlayerMock(() => ({
     publicKey: fixtures.publicKey,
   })),
@@ -40,7 +38,7 @@ beforeEach(() => {
 
 describe("BottomNav", () => {
   it("renders the one lobby first and keeps Campaign behind its door", () => {
-    fixtures.publicKey = PublicKey.default;
+    fixtures.publicKey = "11111111111111111111111111111111";
     render(<BottomNav />);
 
     const buttons = screen.getAllByRole("button");

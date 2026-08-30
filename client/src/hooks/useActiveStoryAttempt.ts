@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useRun } from "@/contexts/run";
+import { useRun } from "@/backend/client";
 
 export interface ActiveStoryRun {
   gameId: bigint;

@@ -14,7 +14,7 @@ import { dailyThemeDescription } from "@/game/constraint";
 import { getGuardianDef } from "@/config/mutatorConfig";
 import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
-import { canSubmitRunMove } from "@/chain/useRunController";
+import { canSubmitRunMove } from "@/play/runState";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import {
   useNavigationStore,
@@ -144,7 +144,7 @@ export default function PlayScreen() {
   const onRunReroll = controller.onReroll;
   const recoverBaseRun = controller.recoverBaseRun;
   const dismissRun = run.dismissRun;
-  const recoveryOwner = run.publicKey?.toBase58() ?? "disconnected wallet";
+  const recoveryOwner = run.publicKey ?? "disconnected wallet";
   const runErrorCopy = playerFacingRunError(run.error);
 
   useEffect(() => {

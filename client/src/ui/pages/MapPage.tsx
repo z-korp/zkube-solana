@@ -10,7 +10,7 @@ import {
   getThemeId,
   getThemeImages,
 } from "@/config/themes";
-import { useCampaign } from "@/contexts/campaign";
+import { useCampaign } from "@/backend/client";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useGame } from "@/hooks/useGame";

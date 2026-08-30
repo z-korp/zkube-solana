@@ -11,8 +11,7 @@ import {
 } from "vitest";
 
 import PlayScreen from "./PlayScreen";
-import { buildDevActiveRun } from "@/dev/devBoard";
-import { DEV_PLAYER_PUBLIC_KEY } from "@/dev/fixtures";
+import { makeClientRun } from "@/test/fixtures/clientRun";
 import { Game } from "@/game/model";
 
 const fixtures = vi.hoisted(() => ({
@@ -204,7 +203,7 @@ describe("PlayScreen local Run projection", () => {
     fixtures.phase = "delegated";
     fixtures.gameAvailable = true;
     fixtures.sessionAuthorized = true;
-    const activeRun = buildDevActiveRun("arena", DEV_PLAYER_PUBLIC_KEY);
+    const activeRun = makeClientRun();
     fixtures.activeRunOverride = activeRun;
     fixtures.gameOverride = new Game(activeRun) as unknown as Record<
       string,
@@ -213,7 +212,6 @@ describe("PlayScreen local Run projection", () => {
 
     render(<PlayScreen />);
 
-    expect(activeRun.runToken).toBeDefined();
     expect(fixtures.hudProps).toMatchObject({
       score: activeRun.dailyScore,
       themeScore: Number(activeRun.objectiveTotal),

@@ -1,6 +1,5 @@
 import React from "react";
 
-import type { PlayerEmblemView } from "@/chain/playerStateClient";
 import { EmblemBadge, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import { cn } from "@/ui/utils";
 import { formatSolBalanceLamports } from "@/utils/currency";
@@ -10,7 +9,7 @@ interface LeaderboardRowProps {
   /** Display name (callers prefix "You · " themselves). */
   name: string;
   /** Featured emblem for this wallet; a neutral slot renders when absent. */
-  emblem?: PlayerEmblemView;
+  emblem?: { featuredEmblem: number; totalStars: number };
   isYou?: boolean;
   /** Right-aligned primary figure, already formatted (e.g. "1,240" or "3 pts"). */
   primary: string;

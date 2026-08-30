@@ -2,17 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Settings, Timer, Users } from "lucide-react";
 import { motion } from "motion/react";
 
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { useConnectedPlayer, useDaily } from "@/backend/client";
 import { getThemeId } from "@/config/themes";
 import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
-import { useDaily } from "@/contexts/daily";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useCountdown, useNowTick } from "@/hooks/useNowTick";
-import { useRewards } from "@/hooks/useRewards";
+import { usePrizeCeremony } from "@/hooks/usePrizeState";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useNavigationStore } from "@/stores/navigationStore";
 import {
@@ -88,7 +87,7 @@ const ArcadePage: React.FC = () => {
     }
   }, []);
   // Data-available celebration for a grown per-period reward record.
-  const { prize, dismissPrize } = useRewards();
+  const { prize, dismissPrize } = usePrizeCeremony();
 
   const view = daily.daily;
   const zoneId = view?.mapId ?? 1;

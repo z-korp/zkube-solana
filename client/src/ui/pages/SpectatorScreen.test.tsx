@@ -15,12 +15,12 @@ import SpectatorScreen from "./SpectatorScreen";
 const fixtures = vi.hoisted(() => ({
   navigation: {
     navigate: vi.fn(),
-    spectateTarget: { player: "not-a-public-key" },
+    spectateTarget: { pda: "legacy-run-pda" },
   },
-  useSpectatedRun: vi.fn(() => ({ run: null, status: null })),
+  useSpectatedRun: vi.fn(() => ({ run: null, error: null, loading: false })),
 }));
 
-vi.mock("@/chain/useSpectatedRun", () => ({
+vi.mock("@/backend/client", () => ({
   useSpectatedRun: fixtures.useSpectatedRun,
 }));
 
@@ -48,8 +48,8 @@ describe("SpectatorScreen", () => {
 
     expect(screen.getByText("Cannot spectate")).toBeInTheDocument();
     expect(
-      screen.getByText("Invalid player or run address."),
+      screen.getByText("A player address is required to spectate."),
     ).toBeInTheDocument();
-    expect(fixtures.useSpectatedRun).toHaveBeenCalledWith(null);
+    expect(fixtures.useSpectatedRun).toHaveBeenCalledWith("", "arcade");
   });
 });

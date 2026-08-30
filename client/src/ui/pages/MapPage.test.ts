@@ -1,13 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
+import type { ClientCampaignMap } from "@/backend/client";
 import {
   resolveCampaignMap,
   uninitializedMap1,
 } from "@/ui/components/map/mapLogic";
 
-function campaignMap(mapId: number): CampaignMapView {
+function campaignMap(mapId: number): ClientCampaignMap {
   return {
     ...uninitializedMap1(),
     mapId,

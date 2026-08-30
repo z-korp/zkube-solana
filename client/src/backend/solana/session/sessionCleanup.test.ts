@@ -10,7 +10,7 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { ZKUBE_PROGRAM_ID } from "../../../chain/constants";
+import { ZKUBE_PROGRAM_ID } from "../constants";
 import {
   buildRevokeExpiredSessionPlan,
   fetchExpiredZkubeSessions,

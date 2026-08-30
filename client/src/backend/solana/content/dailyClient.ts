@@ -16,7 +16,7 @@ import {
   MAGIC_CONTEXT_ID,
   MAGIC_PROGRAM_ID,
   ZKUBE_PROGRAM_ID,
-} from "@/chain/constants.js";
+} from "../constants.js";
 import {
   deriveArcadeArchivePda,
   deriveArcadeConfigPda,
@@ -30,7 +30,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-} from "@/chain/pdas.js";
+} from "../pdas.js";
 import {
   activeRunIdForSlot,
   assertPreparedRunAddressesAvailable,

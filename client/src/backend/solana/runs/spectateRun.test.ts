@@ -2,9 +2,9 @@
 
 import { Connection, Keypair } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
-import { deriveRunAddresses } from "../../../chain/pdas";
+import { deriveRunAddresses } from "../pdas";
 import { resolveSpectatedRun } from "./spectateRun";
-import { ZKUBE_PROGRAM_ID } from "../../../chain/constants";
+import { ZKUBE_PROGRAM_ID } from "../constants";
 import { makeFakeConnection } from "@/test/mocks/connection";
 
 const activeRunStub = (owner: Keypair, runId: bigint) => ({

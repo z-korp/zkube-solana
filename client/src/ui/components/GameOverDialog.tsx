@@ -1,16 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { useClientState, useConnectedPlayer, useDaily } from "@/backend/client";
 import { getZoneGuardian } from "@/config/bossCharacters";
-import {
-  computeRankPayouts,
-  dailyBoardPools,
-} from "@/ui/components/economy";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
-import { useDaily } from "@/contexts/daily";
 import { Game } from "@/game/model";
 import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
@@ -70,6 +65,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
 }) => {
   const [phase, setPhase] = useState(0);
   const daily = useDaily();
+  const { economy } = useClientState();
   const owner = useConnectedPlayer().publicKey;
   const guardian = getZoneGuardian(game.zoneId);
 
@@ -87,25 +83,21 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   // Rank is read from the current standing; it firms up once the just-finished
   // run settles and the board refreshes.
   const rank = useMemo(() => {
-    const board = daily.daily?.leaderboard ?? [];
+    const board =
+      daily.daily?.boards.find((candidate) => candidate.kind === "score")
+        ?.rows ?? [];
     if (!owner) return null;
-    const index = board.findIndex((entry) => entry.player.equals(owner));
+    const index = board.findIndex((entry) => entry.address === owner);
     // Sealed board rows are already in the program's verified order and each
     // position has its own payout, so the one-based position is the rank.
     return index >= 0 ? index + 1 : null;
-  }, [daily.daily?.leaderboard, owner]);
+  }, [daily.daily?.boards, owner]);
 
-  const previousBest = daily.daily?.player?.bestDailyScore ?? 0;
+  const previousBest = economy.profile.bestScore;
   const isNewBest = game.totalScore > previousBest;
-  const paidScorePlaces = daily.daily
-    ? computeRankPayouts(
-        dailyBoardPools(
-          daily.daily.dailyPotLamports,
-          daily.daily.themeQualifiedPlayers,
-        ).score,
-        daily.daily.scoreQualifiedPlayers,
-      ).winnerCount
-    : 0;
+  const paidScorePlaces =
+    daily.daily?.boards.find((candidate) => candidate.kind === "score")?.rows
+      .length ?? 0;
   // A personal best genuinely startles the guardian; a ranked run outside the
   // Daily's paid places gets the consolation, anything else the even-handed
   // daily line.

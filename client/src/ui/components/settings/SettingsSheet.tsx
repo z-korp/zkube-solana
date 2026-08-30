@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import { Check, Copy, ExternalLink, Music2, Volume2 } from "lucide-react";
 
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { useConnectedPlayer } from "@/backend/client";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { useRewards } from "@/hooks/useRewards";
+import { useNotificationPreference } from "@/hooks/usePrizeState";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { MONEY_GOLD, mixHex, SolMark } from "@/ui/components/economy";
 import ConnectCta from "@/ui/components/shared/ConnectCta";
@@ -57,14 +57,14 @@ const SettingsSheet: React.FC = () => {
   const player = useConnectedPlayer();
   const { musicVolume, effectsVolume, setMusicVolume, setEffectsVolume } =
     useMusicPlayer();
-  const { notifications } = useRewards();
+  const notifications = useNotificationPreference();
   const [copied, setCopied] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletStatus, setWalletStatus] = useState("");
   // Level each channel returns to when its mute key is tapped back on.
   const lastMusic = useRef(AUDIO_ON_LEVEL);
   const lastEffects = useRef(AUDIO_ON_LEVEL);
-  const address = player.publicKey?.toBase58() ?? "";
+  const address = player.publicKey ?? "";
 
   const runWalletAction = async (
     action: () => Promise<unknown>,

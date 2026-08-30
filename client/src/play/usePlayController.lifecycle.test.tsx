@@ -16,17 +16,13 @@ const fixtures = vi.hoisted(() => ({
   recoveryRunId: null as bigint | null,
 }));
 
-vi.mock("@/contexts/run", async () =>
-  (await import("@/test/mocks/contexts")).runContextMock(() => fixtures.run),
-);
-vi.mock("@/contexts/campaign", () => ({
+vi.mock("@/backend/client", () => ({
+  useRun: () => fixtures.run,
   useCampaign: () => ({
     campaign: { maps: [] },
     loading: false,
     refresh: fixtures.campaignRefresh,
   }),
-}));
-vi.mock("@/contexts/daily", () => ({
   useDaily: () => ({ refresh: fixtures.dailyRefresh }),
 }));
 vi.mock("@/contexts/hooks", async () =>

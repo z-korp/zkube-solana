@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useRun } from "@/contexts/run";
+import { useRun } from "@/backend/client";
 import { toDisplayGrid } from "@/game/model";
 import useDeepMemo from "./useDeepMemo";
 

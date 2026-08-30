@@ -17,8 +17,8 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
-import { IDL } from "../backend/solana/idl";
+import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "../constants";
+import { IDL } from "../idl";
 import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
@@ -28,7 +28,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-} from "./pdas";
+} from "../pdas";
 import {
   combinePreparedAndDelegatePlan,
   compileWalletTransactionPlan,
@@ -38,10 +38,10 @@ import {
   zkubeProgram,
   type TransactionPlan,
 } from "@/backend/solana/runs/runPlan";
-import { SessionWallet } from "../backend/solana/session/sessionWallet";
-import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2";
+import { SessionWallet } from "../session/sessionWallet";
+import { deriveSessionTokenV2Pda } from "../session/sessionV2";
 import * as router from "@/backend/solana/runs/router";
-import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "../backend/solana/session/deviceSessionFunding";
+import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "../session/deviceSessionFunding";
 import { makeFakeConnection } from "@/test/mocks/connection";
 
 describe("native SOL transaction boundaries", () => {

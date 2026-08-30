@@ -10,7 +10,7 @@ import {
   saveDeviceSession,
   type DeviceSession,
 } from "./deviceSessionStore";
-import { deriveRunAddresses } from "../../../chain/pdas";
+import { deriveRunAddresses } from "../pdas";
 import {
   RUN_SESSION_STORAGE_KEY,
   clearRunSession,

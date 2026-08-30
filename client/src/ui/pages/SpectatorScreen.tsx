@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronUp, Eye } from "lucide-react";
-import { PublicKey } from "@solana/web3.js";
 
+import { useSpectatedRun } from "@/backend/client";
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { toDisplayGrid } from "@/game/model";
-import type { SpectateTarget } from "@/backend/solana/runs/spectateRun";
-import { useSpectatedRun } from "@/chain/useSpectatedRun";
 import { useNavigationStore } from "@/stores/navigationStore";
 import NextLine from "@/ui/components/NextLine";
 import SpectatorGrid from "@/ui/components/SpectatorGrid";
@@ -21,28 +19,17 @@ export default function SpectatorScreen() {
   const navigate = useNavigationStore((state) => state.navigate);
   const rawTarget = useNavigationStore((state) => state.spectateTarget);
 
-  const parsed = useMemo<{
-    target: SpectateTarget | null;
-    error: string | null;
-  }>(() => {
-    if (!rawTarget) return { target: null, error: null };
-    try {
-      const target: SpectateTarget = {};
-      if (rawTarget.pda) target.pda = new PublicKey(rawTarget.pda);
-      if (rawTarget.player) target.player = new PublicKey(rawTarget.player);
-      if (rawTarget.runId !== undefined && rawTarget.runId !== null) {
-        target.runId = BigInt(rawTarget.runId);
-      }
-      if (!target.pda && !target.player) {
-        return { target: null, error: "No spectate target provided." };
-      }
-      return { target, error: null };
-    } catch {
-      return { target: null, error: "Invalid player or run address." };
-    }
-  }, [rawTarget]);
+  const parsed = useMemo(() => ({
+    address: rawTarget?.player ?? "",
+    error: rawTarget?.player
+      ? null
+      : "A player address is required to spectate.",
+  }), [rawTarget]);
 
-  const { run, status } = useSpectatedRun(parsed.target);
+  const { run, error: watchError, loading } = useSpectatedRun(
+    parsed.address,
+    "arcade",
+  );
 
   // Board sizing (spectator layout mirrors the play screen)
   const boardRef = useRef<HTMLDivElement | null>(null);
@@ -62,8 +49,7 @@ export default function SpectatorScreen() {
     Math.min(52, Math.floor((boardHeight - 90) / 11)),
   );
 
-  const live = run && (run.phase === "delegated" || run.phase === "base");
-  const activeRun = live ? run.activeRun : null;
+  const activeRun = run;
   const themeId = getThemeId(activeRun?.mapId ?? 1);
   const colors = getThemeColors(themeId);
   const images = getThemeImages(themeId);
@@ -100,16 +86,10 @@ export default function SpectatorScreen() {
         <div className="flex items-center justify-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/60">
           <Eye size={12} />
           <span>
-            {run?.phase === "delegated"
-              ? "Live · Rollup"
-              : run?.phase === "base"
-                ? "Live · Base"
-                : "Spectating"}
+            {activeRun ? "Live" : "Spectating"}
           </span>
           <span className="font-mono text-white/40">{watchedLabel}</span>
-          {status?.phase === "reconnecting" && (
-            <span className="text-amber-300">reconnecting…</span>
-          )}
+          {loading && <span className="text-amber-300">resolving…</span>}
         </div>
 
         {parsed.error && (
@@ -120,7 +100,7 @@ export default function SpectatorScreen() {
           </Panel>
         )}
 
-        {!parsed.error && run?.phase === "not-found" && (
+        {!parsed.error && !loading && !activeRun && !watchError && (
           <Panel>
             <h2 className="text-xl font-black">No run found</h2>
             <p className="text-center text-sm text-white/60">
@@ -131,23 +111,19 @@ export default function SpectatorScreen() {
           </Panel>
         )}
 
-        {!parsed.error && run?.phase === "archived" && (
-          <Panel>
-            <h2 className="text-xl font-black">Run settled and archived</h2>
-            <p className="text-center text-sm text-white/60">
-              Run {run.runId.toString()} finished, settled, and its on-chain
-              accounts were cleaned up. Its results live on in the player's
-              progression and the leaderboard.
-            </p>
-            <BackButton onClick={() => navigate("arcade")} />
-          </Panel>
-        )}
-
-        {!parsed.error && !run && !status?.error && (
+        {!parsed.error && loading && (
           <Panel>
             <p className="animate-pulse text-lg font-bold text-cyan-300">
               Resolving run…
             </p>
+          </Panel>
+        )}
+
+        {!parsed.error && watchError && (
+          <Panel>
+            <h2 className="text-xl font-black text-red-300">Cannot spectate</h2>
+            <p className="text-center text-sm text-white/60">{watchError}</p>
+            <BackButton onClick={() => navigate("arcade")} />
           </Panel>
         )}
 

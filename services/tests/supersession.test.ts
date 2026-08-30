@@ -219,6 +219,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Daily pressure names the one competitive profile and the core owns pair selection",
   },
   {
+    pattern:
+      /connectedPlayerContext|useRunController|\berRetry\b|awaitAccountCondition|RewardsProvider|DailyProvider|CampaignProvider/,
+    trees: [CLIENT],
+    reversal:
+      "the six Effect services and one BackendProvider replaced the client chain-context stack",
+  },
+  {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:

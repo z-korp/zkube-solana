@@ -5,7 +5,7 @@
 //   level (`levelComplete`) flows through the level-completion path.
 // - `zoneCleared` marks a completed guardian trial (level 10 of a map).
 // - scores are per-run: levelScore === totalScore === score.
-import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
+import type { ClientRunView } from "@/backend/client";
 import { isBossLevel } from "@/game/constants";
 
 const ROWS = 10;
@@ -29,10 +29,10 @@ export class Game {
   public maxCombo: number;
   public over: boolean;
 
-  private readonly view: ActiveRunView;
+  private readonly view: ClientRunView;
   private readonly levelStars: readonly number[];
 
-  constructor(view: ActiveRunView, levelStars: readonly number[] = []) {
+  constructor(view: ClientRunView, levelStars: readonly number[] = []) {
     this.view = view;
     this.levelStars = levelStars;
     this.id = view.runId;

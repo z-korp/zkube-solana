@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useCampaign } from "@/contexts/campaign";
-import { useDaily } from "@/contexts/daily";
+import {
+  useCampaign,
+  useDaily,
+  useRun,
+  type ClientRunReceipt as RunResultView,
+  type ClientRunView,
+  type SettleStage,
+} from "@/backend/client";
 import { useMusicPlayer } from "@/contexts/hooks";
-import { useRun } from "@/contexts/run";
 import { Game } from "@/game/model";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
-import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
-import type { RunResultView } from "@/backend/solana/runs/resumeRun";
-import type { SettleStage } from "@/chain/useRunController";
 import { toDisplayGrid } from "@/game/model";
 import {
   useNavigationStore,
@@ -19,7 +21,7 @@ import type { ReceiptProjection } from "@/ui/components/Grid";
 export { describeRunStartError } from "@/core/runStartError";
 
 export interface TerminalRunSnapshot {
-  activeRun: ActiveRunView;
+  activeRun: ClientRunView;
   game: Game;
   gameLevel: GameLevelData;
   isBoss: boolean;
@@ -66,7 +68,7 @@ function isTerminalLifecycle(lifecycle: string): boolean {
   return lifecycle === "levelComplete" || lifecycle === "finished";
 }
 
-export function projectRunResult(activeRun: ActiveRunView): ReceiptProjection {
+export function projectRunResult(activeRun: ClientRunView): ReceiptProjection {
   return {
     blocks: toDisplayGrid(activeRun.grid),
     nextRow: activeRun.nextRow ?? [],
@@ -75,7 +77,7 @@ export function projectRunResult(activeRun: ActiveRunView): ReceiptProjection {
 }
 
 export function pendingCompletionFromRun(
-  activeRun: ActiveRunView,
+  activeRun: ClientRunView,
 ): PendingLevelCompletion {
   const gameLevel = rulesToGameLevelData(
     activeRun.rules,
@@ -98,7 +100,6 @@ export function settleStageLabel(stage: SettleStage | null): string {
   switch (stage) {
     case "abandoning":
       return "Abandoning run…";
-    case "delegating":
       return "Loading your run…";
     case "committing":
       return "Your run is being saved…";
@@ -116,8 +117,8 @@ export function settleStageLabel(stage: SettleStage | null): string {
 }
 
 export function bonusEarnReceipt(
-  before: ActiveRunView,
-  after: ActiveRunView,
+  before: ClientRunView,
+  after: ClientRunView,
   source: ActionReceipt["source"],
 ): ActionReceipt | null {
   const expectedCharges =
@@ -139,7 +140,7 @@ export function bonusEarnReceipt(
 }
 
 function snapshotRun(
-  activeRun: ActiveRunView,
+  activeRun: ClientRunView,
   levelStars: readonly number[],
 ): TerminalRunSnapshot {
   void levelStars;
@@ -203,7 +204,7 @@ export function usePlayController(options: PlayControllerOptions = {}) {
     ) ?? 0;
 
   const rememberTerminal = useCallback(
-    (activeRun: ActiveRunView) => {
+    (activeRun: ClientRunView) => {
       const levelStars =
         activeRun.mode !== "campaign"
           ? []
@@ -537,7 +538,8 @@ export function usePlayController(options: PlayControllerOptions = {}) {
 
   const recoverOrphanedBaseRun = useCallback(
     async (runId: bigint) => {
-      const signature = await recoverBaseRun(runId);
+      void runId;
+      const signature = await recoverBaseRun();
       await Promise.allSettled([campaignRefresh(), dailyRefresh()]);
       setRecoveryRunId(null);
       navigate("map");

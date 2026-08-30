@@ -1,4 +1,4 @@
-import type { DailyStatus } from "@/backend/solana/content/dailyClient";
+import type { ClientDailyView } from "@/backend/client";
 
 /**
  * The presentational lifecycle states of the Arcade home. The
@@ -15,7 +15,7 @@ export type ArcadeLifecycle =
 
 interface DailyTiming {
   dayId: number;
-  status: DailyStatus;
+  status: ClientDailyView["status"];
   opensAt: number;
   runsCloseAt: number;
 }

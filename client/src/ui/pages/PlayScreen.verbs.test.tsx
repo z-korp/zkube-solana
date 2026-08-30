@@ -2,8 +2,7 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildDevActiveRun } from "@/dev/devBoard";
-import { DEV_PLAYER_PUBLIC_KEY } from "@/dev/fixtures";
+import { makeClientRun } from "@/test/fixtures/clientRun";
 import { Game } from "@/game/model";
 import { rulesToGameLevelData } from "@/hooks/useGameLevel";
 import PlayScreen from "./PlayScreen";
@@ -11,7 +10,7 @@ import PlayScreen from "./PlayScreen";
 Object.assign(globalThis, { React });
 
 const fixtures = vi.hoisted(() => ({
-  activeRun: null as ReturnType<typeof buildDevActiveRun> | null,
+  activeRun: null as ReturnType<typeof makeClientRun> | null,
   game: null as Game | null,
   gameLevel: null as ReturnType<typeof rulesToGameLevelData> | null,
 }));
@@ -24,7 +23,7 @@ vi.mock("@/play/usePlayController", () => ({
       error: null,
       watchStatus: null,
       sessionAuthorized: true,
-      publicKey: DEV_PLAYER_PUBLIC_KEY,
+      publicKey: "local:zkube-player",
       dismissRun: vi.fn(),
       abandonRun: vi.fn(),
       resumePreparedRun: vi.fn(),
@@ -88,7 +87,7 @@ vi.mock("@/ui/components/LevelCompleteDialog", () => ({
 
 beforeEach(() => {
   window.localStorage.clear();
-  fixtures.activeRun = buildDevActiveRun("arena", DEV_PLAYER_PUBLIC_KEY);
+  fixtures.activeRun = makeClientRun();
   fixtures.game = new Game(fixtures.activeRun);
   fixtures.gameLevel = rulesToGameLevelData(
     fixtures.activeRun.rules,

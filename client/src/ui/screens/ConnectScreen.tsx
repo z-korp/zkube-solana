@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { getThemeId } from "@/config/themes";
-import { useDaily } from "@/contexts/daily";
+import { useDaily } from "@/backend/client";
 import CampaignDoor from "@/ui/components/arcade/CampaignDoor";
 import DailyMarquee from "@/ui/components/arcade/DailyMarquee";
 import { MONEY_GOLD } from "@/ui/components/economy";

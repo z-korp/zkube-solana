@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useRun } from "@/contexts/run";
+import { useRun } from "@/backend/client";
 import { ConstraintType } from "@/game/constraint";
 import type { ActiveRunRulesView } from "@/core/runProjection";
 

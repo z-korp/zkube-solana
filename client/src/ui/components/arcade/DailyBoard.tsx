@@ -1,9 +1,8 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
 
-import type { DailyView } from "@/backend/solana/content/dailyClient";
+import type { ClientDailyView } from "@/backend/client";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { tierFrameInnerSize } from "@/config/tierFrames";
-import { useLeaderboardEmblems } from "@/hooks/useLeaderboardEmblems";
 import { PaidCutLine, RankBadge } from "@/ui/components/arena/LeaderboardRow";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import {
@@ -11,8 +10,6 @@ import {
   MONEY_GOLD,
   SolMark,
   TierFrame,
-  computeRankPayouts,
-  dailyBoardPools,
 } from "@/ui/components/economy";
 import { formatSolBalanceLamports } from "@/utils/currency";
 
@@ -33,7 +30,7 @@ const YOU_RING: React.CSSProperties = {
 const AVATAR_BOX = 46;
 
 interface DailyBoardProps {
-  view: DailyView;
+  view: ClientDailyView;
   /** Connected wallet base58, for the gold ring and your below-cut row. */
   address: string | null;
 }
@@ -54,32 +51,25 @@ interface DailyBoardProps {
  */
 const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
   const [board, setBoard] = useState<"score" | "theme">("score");
-  const pools = dailyBoardPools(view.dailyPotLamports, view.themeQualifiedPlayers);
-  const qualified = board === "score"
-    ? view.scoreQualifiedPlayers
-    : view.themeQualifiedPlayers;
-  const plan = computeRankPayouts(pools[board], qualified);
-  const payouts = plan.payouts;
-  const rows = board === "score" ? view.leaderboard : view.themeLeaderboard;
-  const myIndex = address
-    ? rows.findIndex((entry) => entry.player.toBase58() === address)
-    : -1;
-  const owners = useMemo(
-    () =>
-      [...view.leaderboard, ...view.themeLeaderboard].map(
-        (entry) => entry.player,
-      ),
-    [view.leaderboard, view.themeLeaderboard],
+  const state = view.boards.find((candidate) => candidate.kind === board);
+  const paidRows = state?.rows ?? [];
+  const hasSeparateYourRow = Boolean(
+    state?.yourRow &&
+      !paidRows.some((entry) => entry.address === state.yourRow?.address),
   );
-  const emblems = useLeaderboardEmblems(owners);
+  const rows = hasSeparateYourRow
+    ? [...paidRows, state!.yourRow!]
+    : paidRows;
+  const myIndex = address
+    ? rows.findIndex((entry) => entry.address === address)
+    : -1;
 
   const rowFor = (index: number, withDivider: boolean) => {
     const entry = rows[index];
-    const rank = index + 1;
+    const rank = entry?.rank ?? index + 1;
     const isYou = index === myIndex;
-    const prize = payouts[index] ?? 0n;
-    const emblem = entry ? emblems.get(entry.player.toBase58()) : undefined;
-    const tier = emblem?.featuredFrameTier ?? 0;
+    const prize = entry?.payoutLamports ?? 0n;
+    const tier = entry?.tier ?? 0;
     const inner = tierFrameInnerSize(tier, AVATAR_BOX);
     return (
       <div
@@ -97,11 +87,11 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
           className="relative flex flex-none items-center justify-center"
           style={{ width: AVATAR_BOX, height: AVATAR_BOX }}
         >
-          {emblem ? (
+          {entry?.emblem ? (
             <TierFrame tier={tier} size={inner}>
-              {emblem.featuredEmblem >= 1 && emblem.featuredEmblem <= 10 ? (
+              {entry.emblem >= 1 && entry.emblem <= 10 ? (
                 <GuardianFaceBlock
-                  zoneId={emblem.featuredEmblem}
+                  zoneId={entry.emblem}
                   size={inner}
                   framed
                 />
@@ -137,11 +127,10 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
             {isYou
               ? "You"
               : entry
-                ? (entry.playerName ??
-                  playerLabelWithWallet(null, entry.player.toBase58()))
+                ? playerLabelWithWallet(entry.label ?? null, entry.address)
                 : "—"}
           </span>
-          {emblem && (
+          {entry?.tier !== undefined && (
             <span
               className="font-sans text-[9px] font-bold uppercase tracking-[0.14em]"
               style={{ color: ladderTierColor(tier) }}
@@ -152,9 +141,7 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
         </span>
 
         <span className="w-[68px] flex-none text-right font-mono text-[15px] font-bold tabular-nums text-white">
-          {entry
-            ? (board === "score" ? entry.dailyScore : entry.objectiveTotal).toLocaleString()
-            : ""}
+          {entry ? entry.metric.toLocaleString() : ""}
         </span>
         <span className="flex w-[72px] flex-none items-center justify-end gap-1">
           {prize > 0n && (
@@ -192,19 +179,19 @@ const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
       </div>
 
       <div className="mt-2.5">
-        {Array.from({ length: plan.winnerCount }, (_, index) =>
+        {Array.from({ length: paidRows.length }, (_, index) =>
           rowFor(index, index > 0),
         )}
 
-        {myIndex >= plan.winnerCount && (
+        {hasSeparateYourRow && (
           <Fragment>
             <PaidCutLine />
-            {rowFor(myIndex, false)}
+            {rowFor(paidRows.length, false)}
           </Fragment>
         )}
       </div>
 
-      {rows.length === 0 && (
+      {paidRows.length === 0 && !hasSeparateYourRow && (
         <p className="mt-1 border-t border-white/[0.05] px-2 pt-2 text-center font-sans text-xs font-semibold text-white/50">
           No entries yet — rank 1 is open.
         </p>

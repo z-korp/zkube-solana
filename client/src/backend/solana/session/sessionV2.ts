@@ -4,7 +4,7 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { ZKUBE_PROGRAM_ID } from "../../../chain/constants.js";
+import { ZKUBE_PROGRAM_ID } from "../constants.js";
 
 export const SESSION_KEYS_PROGRAM_ID = new PublicKey(
   "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",

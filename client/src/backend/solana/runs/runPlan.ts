@@ -41,7 +41,7 @@ import {
   SOLANA_ENDPOINT,
   ZKUBE_PROGRAM_ID,
   getDelegationRecord,
-} from "../../../chain/constants.js";
+} from "../constants.js";
 import { saveRunSession, type RunSlot } from "./runSessionStore.js";
 import { SessionWallet, type WalletLike } from "../session/sessionWallet.js";
 import {
@@ -51,7 +51,7 @@ import {
   deriveProtocolConfigPda,
   deriveRunAddresses,
   type RunAddresses,
-} from "../../../chain/pdas.js";
+} from "../pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
 import {
   CANONICAL_DAILY_PRESSURE,

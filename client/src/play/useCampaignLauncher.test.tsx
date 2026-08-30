@@ -9,7 +9,7 @@ const fixtures = vi.hoisted(() => ({
   showToast: vi.fn(),
 }));
 
-vi.mock("@/contexts/run", async () =>
+vi.mock("@/backend/client", async () =>
   (await import("@/test/mocks/contexts")).runContextMock(() => ({
     campaign: fixtures.run,
   })),

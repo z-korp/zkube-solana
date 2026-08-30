@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { INITIAL_RUN_ID, ZKUBE_PROGRAM_ID } from "../../../chain/constants";
-import { derivePlayerStatePda, deriveRunAddresses } from "../../../chain/pdas";
+import { INITIAL_RUN_ID, ZKUBE_PROGRAM_ID } from "../constants";
+import { derivePlayerStatePda, deriveRunAddresses } from "../pdas";
 import { createReadOnlyWallet } from "../identity/readOnlyWallet";
 import { getDelegationStatus } from "./router";
 import { fetchActiveRun, zkubeProgram, type ActiveRunView } from "./runPlan";

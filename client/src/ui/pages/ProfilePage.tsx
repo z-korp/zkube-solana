@@ -1,16 +1,19 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Flame, LockKeyhole, Pencil } from "lucide-react";
 
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
-import { useFeaturedEmblemController } from "@/chain/useFeaturedEmblemController";
-import { usePlayerLabelController } from "@/chain/usePlayerLabelController";
+import {
+  useClientState,
+  useConnectedPlayer,
+  useDaily,
+  useIdentityActions,
+} from "@/backend/client";
+import type { CompetitionRecord } from "@/backend/views";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import {
   resolveAutoEmblemId,
   resolveEmblemStates,
   type EmblemZoneInput,
 } from "@/config/emblems";
-import type { CompetitionRecord } from "@/backend/solana/content/campaignClient";
 import {
   LADDER_TIER_THRESHOLDS,
   isTopLadderTier,
@@ -19,7 +22,6 @@ import {
   ladderTierProgress,
 } from "@/config/ladderTiers";
 import type { ZoneProgressData } from "@/config/profileData";
-import { useDaily } from "@/contexts/daily";
 import { usePlayerProfile } from "@/hooks/usePlayerProfile";
 import { useZoneProgress } from "@/hooks/useZoneProgress";
 import {
@@ -78,11 +80,11 @@ function masteryForZone(
  */
 const ProfilePage: React.FC = () => {
   const player = useConnectedPlayer();
-  const address = player.publicKey?.toBase58() ?? "";
+  const address = player.publicKey ?? "";
   const profile = usePlayerProfile();
   const { zones, totalStars } = useZoneProgress(address);
-  const playerLabel = usePlayerLabelController();
-  const emblem = useFeaturedEmblemController();
+  const playerLabel = usePlayerLabelEditor();
+  const emblem = useWornIdentityEditor();
   const daily = useDaily();
   const themeColors = useThemeColors();
 
@@ -572,5 +574,56 @@ const ProfilePage: React.FC = () => {
     </div>
   );
 };
+
+function usePlayerLabelEditor() {
+  const { identity } = useClientState();
+  const actions = useIdentityActions();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = useCallback(async (label: string) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await actions.setLabel(label);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      throw cause;
+    } finally {
+      setSaving(false);
+    }
+  }, [actions]);
+  return {
+    label: identity.label ? { displayName: identity.label } : null,
+    saving,
+    error,
+    save,
+  };
+}
+
+function useWornIdentityEditor() {
+  const { economy } = useClientState();
+  const actions = useIdentityActions();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = useCallback(async (emblem: number, border: number) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await actions.setWorn(emblem, border);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      throw cause;
+    } finally {
+      setSaving(false);
+    }
+  }, [actions]);
+  return {
+    featuredEmblem: economy.profile.wornEmblem,
+    featuredFrameTier: economy.profile.wornBorder,
+    saving,
+    error,
+    save,
+  };
+}
 
 export default ProfilePage;

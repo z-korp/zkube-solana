@@ -27,7 +27,6 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { getThemeColors, getThemeImages, type ThemeId } from "@/config/themes";
 import useGridAnimations from "@/hooks/useGridAnimations";
-import { useMoveStore } from "@/stores/moveTxStore";
 import { calculateFallDistance } from "@/utils/gridPhysics";
 import useTransitionBlocks from "@/hooks/useTransitionBlocks";
 import { boardTone } from "@/ui/theme/boardTone";
@@ -91,7 +90,6 @@ const sameBlockGeometry = (a: Block[], b: Block[]): boolean => {
 };
 
 const Grid: React.FC<GridProps> = ({
-  gameId,
   initialData,
   nextLineData,
   setNextLineHasBeenConsumed,
@@ -138,6 +136,8 @@ const Grid: React.FC<GridProps> = ({
   const draggedXRef = useRef(0);
   const gameStateRef = useRef<GameState>(GameState.WAITING);
   const endDragRef = useRef<() => void>(() => undefined);
+  const awaitingAuthorityRef = useRef(false);
+  const failedInputRef = useRef<Block[] | null>(null);
 
   // ==================== State ====================
   const [blocks, setBlocks] = useState<Block[]>(initialData);
@@ -159,10 +159,14 @@ const Grid: React.FC<GridProps> = ({
   // Bumped per perfect clear so a repeat replays both banner and burst.
   const [perfectClears, setPerfectClears] = useState(0);
   const { playExplode, playSwipe, playSfx } = useMusicPlayer();
+  const [pendingMove, setPendingMove] = useState<{
+    rowIndex: number;
+    startIndex: number;
+    finalIndex: number;
+  } | null>(null);
+  const [processingMove, setProcessingMove] = useState(false);
 
   // ==================== Custom Hooks ====================
-  const queue = useMoveStore((state) => state.queue);
-  const isQueueProcessing = useMoveStore((state) => state.isQueueProcessing);
   const { shouldBounce, animateText, resetAnimateText, setAnimateText } =
     useGridAnimations(lineExplodedCount);
   const {
@@ -170,15 +174,6 @@ const Grid: React.FC<GridProps> = ({
     handleTransitionBlockStart,
     handleTransitionBlockEnd,
   } = useTransitionBlocks();
-
-  const queueForGame = useMemo(
-    () => queue.filter((item) => item.gameId === gameId),
-    [queue, gameId],
-  );
-  const nextQueuedMove = useMemo(
-    () => queueForGame.find((item) => item.status === "queued"),
-    [queueForGame],
-  );
 
   // ==================== Constants ====================
   const gravitySpeed = 100;
@@ -288,7 +283,12 @@ const Grid: React.FC<GridProps> = ({
   useEffect(() => {
     if (gameStateRef.current !== GameState.WAITING) return;
     if (draggingRef.current) return;
-    if (useMoveStore.getState().queue.some((m) => m.gameId === gameId)) return;
+    if (pendingMove || processingMove) return;
+    if (awaitingAuthorityRef.current) {
+      if (failedInputRef.current === initialData) return;
+      awaitingAuthorityRef.current = false;
+      failedInputRef.current = null;
+    }
     setBlocks((prev) =>
       sameBlockGeometry(prev, initialData) ? prev : initialData,
     );
@@ -296,7 +296,7 @@ const Grid: React.FC<GridProps> = ({
       sameBlockGeometry(prev, nextLineData) ? prev : nextLineData,
     );
     setSaveGridStateblocks(initialData);
-  }, [initialData, nextLineData, gameId]);
+  }, [initialData, nextLineData, pendingMove, processingMove]);
 
   // =================== DRAG & DROP ===================
   //
@@ -545,18 +545,20 @@ const Grid: React.FC<GridProps> = ({
       setIsMoving(false);
       setExplodingRows(new Set());
       setBlockBonus(null);
+      awaitingAuthorityRef.current = true;
+      failedInputRef.current = initialData;
       gameStateRef.current = GameState.WAITING;
       setGameState(GameState.WAITING);
       setIsTxProcessing(false);
       isTxProcessingRef.current = false;
       toast.error(message);
     },
-    [resetDragRefs, setIsTxProcessing],
+    [initialData, resetDragRefs, setIsTxProcessing],
   );
 
   const triggerLocalGameOver = useCallback(() => {
     pendingReceiptRef.current = null;
-    useMoveStore.getState().clearQueueForGame(gameId);
+    setPendingMove(null);
     setcurrentMove(null);
     setIsMoving(false);
     gameStateRef.current = GameState.CASCADE_COMPLETE;
@@ -564,7 +566,7 @@ const Grid: React.FC<GridProps> = ({
     isTxProcessingRef.current = false;
     setIsTxProcessing(false);
     onLocalGameOver?.();
-  }, [gameId, onLocalGameOver, setIsTxProcessing]);
+  }, [onLocalGameOver, setIsTxProcessing]);
 
   // =================== MOVE TX ===================
 
@@ -572,14 +574,13 @@ const Grid: React.FC<GridProps> = ({
     async (rowIndex: number, startColIndex: number, finalColIndex: number) => {
       if (startColIndex === finalColIndex) return;
       playSwipe();
-      useMoveStore.getState().enqueueMove({
-        gameId,
+      setPendingMove({
         rowIndex: gridHeight - 1 - rowIndex,
         startIndex: Math.trunc(startColIndex),
         finalIndex: Math.trunc(finalColIndex),
       });
     },
-    [gameId, gridHeight, playSwipe],
+    [gridHeight, playSwipe],
   );
 
   // Unmount-only flag. The drain effect's own cleanup fires on every dep
@@ -595,24 +596,18 @@ const Grid: React.FC<GridProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!nextQueuedMove || isQueueProcessing) return;
+    if (!pendingMove || processingMove) return;
+    const move = pendingMove;
+    setPendingMove(null);
+    setProcessingMove(true);
 
-    const processQueuedMove = async () => {
-      const store = useMoveStore.getState();
-      const stillQueued = store.queue.some(
-        (item) => item.id === nextQueuedMove.id && item.status === "queued",
-      );
-      if (!stillQueued || store.isQueueProcessing) return;
-      store.setQueueProcessing(true);
-      store.markSubmitting(nextQueuedMove.id);
-
+    const submitMove = async () => {
       try {
         const solanaState = await onMove(
-          nextQueuedMove.rowIndex,
-          nextQueuedMove.startIndex,
-          nextQueuedMove.finalIndex,
+          move.rowIndex,
+          move.startIndex,
+          move.finalIndex,
         );
-        store.markConfirmed(nextQueuedMove.id);
         if (solanaState) {
           if (gameStateRef.current === GameState.CASCADE_COMPLETE) {
             applyReceipt(solanaState);
@@ -624,23 +619,21 @@ const Grid: React.FC<GridProps> = ({
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Move transaction failed.";
-        store.markFailed(nextQueuedMove.id, message);
-        store.clearQueueForGame(gameId);
         if (!unmountedRef.current) {
-          recoverMoveFailure(
-            "Move failed to confirm — syncing with the chain…",
-          );
+          recoverMoveFailure(`${message} — syncing with the chain…`);
         }
       } finally {
-        store.setQueueProcessing(false);
+        setProcessingMove(false);
       }
     };
 
-    processQueuedMove();
+    void submitMove();
   }, [
-    nextQueuedMove,
-    isQueueProcessing,
-    gameId,
+    pendingMove,
+    processingMove,
+    onMove,
+    onCascadeComplete,
+    recoverMoveFailure,
     resetDragRefs,
     setIsTxProcessing,
   ]);

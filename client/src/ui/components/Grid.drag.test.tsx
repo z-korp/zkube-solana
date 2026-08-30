@@ -2,9 +2,9 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import type { HTMLAttributes } from "react";
+import { toast } from "sonner";
 import Grid, { type ReceiptProjection } from "./Grid";
 import { BonusType } from "../../core/bonusTypes";
-import { useMoveStore } from "../../stores/moveTxStore";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
@@ -100,13 +100,7 @@ describe("Grid drag interactions", () => {
     onBonus: vi.fn(async () => undefined),
   };
 
-  beforeEach(() => {
-    useMoveStore.setState({
-      queue: [],
-      isQueueProcessing: false,
-      lastFailedMoveError: null,
-    });
-  });
+  beforeEach(() => vi.clearAllMocks());
 
   it("desktop drag remains responsive after a no-move click", () => {
     const { container } = render(<Grid {...baseProps} />);
@@ -151,7 +145,7 @@ describe("Grid drag interactions", () => {
   });
 });
 
-describe("Grid move queue", () => {
+describe("Grid move submission", () => {
   const receipt = (): ReceiptProjection => ({
     blocks: Array.from({ length: 10 }, (_, y) =>
       y === 9 ? [0, 0, 1, 0, 0, 0, 0, 0] : Array(8).fill(0),
@@ -187,13 +181,7 @@ describe("Grid move queue", () => {
     onBonus: vi.fn(async () => undefined),
   };
 
-  beforeEach(() => {
-    useMoveStore.setState({
-      queue: [],
-      isQueueProcessing: false,
-      lastFailedMoveError: null,
-    });
-  });
+  beforeEach(() => vi.clearAllMocks());
 
   it("clears the queue and unlocks (no stale snapback) when the move tx fails", async () => {
     const onMove = vi.fn(async () => {
@@ -206,14 +194,7 @@ describe("Grid move queue", () => {
 
     dragBlockTo(container, 50);
 
-    await waitFor(() =>
-      expect(useMoveStore.getState().lastFailedMoveError).toBe(
-        "ER rejected the move",
-      ),
-    );
-    // No stuck "submitting" entry may survive the failure.
-    expect(useMoveStore.getState().queue).toHaveLength(0);
-    expect(useMoveStore.getState().isQueueProcessing).toBe(false);
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
     // Recovery unlocks the grid; it does NOT snap back to a stale local
     // snapshot (the idle-resync effect reconciles from authoritative props).
     await waitFor(() =>
@@ -237,7 +218,6 @@ describe("Grid move queue", () => {
     dragBlockTo(container, 50);
 
     await waitFor(() => expect(onMove).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(useMoveStore.getState().queue).toHaveLength(0));
     // The receipt must land and unlock the board (WAITING) even though no
     // next line was inserted — a second drag must still respond.
     await waitFor(() => {

@@ -6,18 +6,18 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import { decodePlayerStateAccount } from "../backend/solana/content/campaignClient";
-import { ZKUBE_PROGRAM_ID } from "./constants";
-import { derivePlayerStatePda } from "./pdas";
+import { decodePlayerStateAccount } from "../content/campaignClient";
+import { ZKUBE_PROGRAM_ID } from "../constants";
+import { derivePlayerStatePda } from "../pdas";
 import {
   fetchPlayerEmblems,
   fetchPlayerStateView,
 } from "./playerStateClient";
 import {
   PLAYER_STATE_ACCOUNT_VERSION,
-} from "../core/protocolVersions.generated";
+} from "../../../core/protocolVersions.generated";
 import { zkubeProgram } from "@/backend/solana/runs/runPlan";
-import { SessionWallet } from "../backend/solana/session/sessionWallet";
+import { SessionWallet } from "../session/sessionWallet";
 
 // The IDL playerState account discriminator (BorshAccountsCoder rejects any
 // buffer whose first eight bytes do not match, so the fixture must carry it).

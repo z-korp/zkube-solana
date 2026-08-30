@@ -1,13 +1,14 @@
 // @vitest-environment node
 
 import { Schema } from "effect";
+import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import {
   coreRankPayoutPlan,
   initializeZkubeCore,
 } from "@/core/zkubeCore";
-import { buildDevDailyView } from "@/dev/fixtures";
+import { CANONICAL_DAILY_PRESSURE } from "@/core/dailyRules";
 import {
   BoardState,
   CampaignCatalog,
@@ -15,6 +16,7 @@ import {
   TierTable,
 } from "../../views";
 import type { CampaignView } from "./campaignClient";
+import type { DailyView } from "./dailyClient";
 import {
   projectSolanaBoards,
   projectSolanaCatalog,
@@ -25,7 +27,7 @@ import {
 describe("Solana Content and Boards projections", () => {
   it("solana_backend_projects_every_view_field", async () => {
     await initializeZkubeCore();
-    const daily = buildDevDailyView();
+    const daily = dailyFixture();
     daily.dailyPotLamports = 100_000_000n;
     daily.themeQualifiedPlayers = 1;
     const plan = coreRankPayoutPlan(50_000_000n, 1);
@@ -99,6 +101,64 @@ describe("Solana Content and Boards projections", () => {
     expect(tiers.blockWeights).toHaveLength(8);
   });
 });
+
+function dailyFixture(): DailyView {
+  const player = Keypair.generate().publicKey;
+  const row = {
+    player,
+    playerName: "Player",
+    runId: 1n,
+    dailyScore: 42,
+    objectiveTotal: 12n,
+    engineScore: 30,
+    moves: 8,
+    finalizedAttempts: 1,
+    score: 42,
+    submittedAt: 1_000,
+    replayHash: new Uint8Array(32),
+  };
+  return {
+    address: Keypair.generate().publicKey,
+    dayId: 1,
+    followingDayId: 2,
+    status: "finalized",
+    mapId: 1,
+    opensAt: 0,
+    runsCloseAt: 1_000,
+    settlementGraceCloseAt: 1_100,
+    recoveryDeadlineAt: 1_100,
+    finalizedAt: 1_000,
+    entryLamports: 10_000_000n,
+    dailyPotLamports: 100_000_000n,
+    followingDailyLamports: 0n,
+    kreditBalance: 1n,
+    uniquePlayers: 1,
+    attemptsStarted: 1n,
+    runsFinalized: 1n,
+    entriesExpired: 0n,
+    rulesHash: new Uint8Array(32),
+    nextRunId: 2n,
+    activeRunId: 0n,
+    player: null,
+    leaderboard: [row],
+    themeLeaderboard: [row],
+    scoreQualifiedPlayers: 1,
+    themeQualifiedPlayers: 1,
+    rules: {
+      pointsRequired: 0,
+      maxMoves: CANONICAL_DAILY_PRESSURE.maxMoves,
+      difficulty: 0,
+      primary: { kind: 0, value: 0, requiredCount: 0 },
+      secondary: { kind: 0, value: 0, requiredCount: 0 },
+      activeMutatorId: 1,
+      bossId: 0,
+      guardian: { bonus: 1, trigger: 1, threshold: 2 },
+      startingRows: 4,
+    },
+    dailyTheme: { kind: 1, value: 2 },
+    pressure: CANONICAL_DAILY_PRESSURE,
+  };
+}
 
 function campaignFixture(): CampaignView {
   return {

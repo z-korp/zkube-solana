@@ -10,12 +10,12 @@ import {
   campaignTotalStars,
   decodePlayerStateAccount,
   type PlayerStateView,
-} from "../backend/solana/content/campaignClient.js";
-import { derivePlayerStatePda } from "./pdas.js";
-import { zkubeProgram, type TransactionPlan } from "@/backend/solana/runs/runPlan.js";
-import type { WalletLike } from "../backend/solana/session/sessionWallet.js";
+} from "../content/campaignClient.js";
+import { derivePlayerStatePda } from "../pdas.js";
+import { zkubeProgram, type TransactionPlan } from "../runs/runPlan.js";
+import type { WalletLike } from "../session/sessionWallet.js";
 
-export type { CompetitionRecord, PlayerStateView } from "../backend/solana/content/campaignClient.js";
+export type { CompetitionRecord, PlayerStateView } from "../content/campaignClient.js";
 
 /** Compact leaderboard emblem projection: owner + stored emblem + total stars. */
 export interface PlayerEmblemView {

@@ -21,7 +21,7 @@ export function runContextMock<T>(run: ValueOrGetter<T>) {
   return { useRun: () => resolveValue(run) };
 }
 
-/** Mock module for "@/chain/connectedPlayerContext". */
+/** Mock module for the public identity hook. */
 export function connectedPlayerMock<T>(player: ValueOrGetter<T>) {
   return { useConnectedPlayer: () => resolveValue(player) };
 }

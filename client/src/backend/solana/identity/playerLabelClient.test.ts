@@ -13,7 +13,7 @@ import {
   derivePlayerLabelPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "../../../chain/pdas";
+} from "../pdas";
 import { SessionWallet } from "../session/sessionWallet";
 
 describe("cosmetic player label client", () => {

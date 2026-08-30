@@ -3,17 +3,17 @@
 import { createHash } from "node:crypto";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
-import { ZKUBE_PROGRAM_ID } from "./constants";
-import { deriveRunAddresses } from "./pdas";
+import { ZKUBE_PROGRAM_ID } from "../constants";
+import { deriveRunAddresses } from "../pdas";
 import { buildCommitRunPlan } from "@/backend/solana/runs/runPlan";
-import { buildCommitDailyRunPlan } from "../backend/solana/content/dailyClient";
-import { SessionWallet } from "../backend/solana/session/sessionWallet";
+import { buildCommitDailyRunPlan } from "../content/dailyClient";
+import { SessionWallet } from "../session/sessionWallet";
 import {
   buildCreateSessionV2Instruction,
   CREATE_SESSION_V2_DISCRIMINATOR,
   deriveSessionTokenV2Pda,
   SESSION_KEYS_PROGRAM_ID,
-} from "../backend/solana/session/sessionV2";
+} from "../session/sessionV2";
 
 describe("commit meta invariants", () => {
   it("pins the session-keys 3.1.1 V2 discriminator and account order", () => {

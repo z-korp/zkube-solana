@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
+import { useConnectedPlayer } from "@/backend/client";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
 import { DockArcadeIcon, DockProfileIcon } from "./dockIcons";

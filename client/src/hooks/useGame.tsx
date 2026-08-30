@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
-import { useCampaign } from "@/contexts/campaign";
-import { useRun } from "@/contexts/run";
+import { useCampaign, useRun } from "@/backend/client";
 import { Game } from "@/game/model";
 
 export const useGame = (options: {

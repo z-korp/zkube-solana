@@ -1,8 +1,8 @@
 import { Effect, Layer, Schedule, Stream } from "effect";
 import { PublicKey, type Connection } from "@solana/web3.js";
 
-import { ZKUBE_PROGRAM_ID } from "@/chain/constants";
-import { deriveArenaBoardPda, deriveArenaDailyPda } from "@/chain/pdas";
+import { ZKUBE_PROGRAM_ID } from "../constants";
+import { deriveArenaBoardPda, deriveArenaDailyPda } from "../pdas";
 import {
   CAMPAIGN_CONTENT_VERSION,
   CANONICAL_CAMPAIGN_MAP_COUNT,

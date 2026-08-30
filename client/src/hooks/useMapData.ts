@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { getThemeId, type ThemeId } from "@/config/themes";
-import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
+import type { ClientCampaignMap } from "@/backend/client";
 import { rulesToGameLevelData, type GameLevelData } from "./useGameLevel";
 
 type NodeType = "classic" | "boss";
@@ -36,7 +36,7 @@ export interface MapData {
 }
 
 export interface UseMapDataParams {
-  map: CampaignMapView;
+  map: ClientCampaignMap;
   activeStoryNode?: ActiveStoryNode | null;
 }
 

@@ -8,7 +8,7 @@ import {
   SystemProgram,
 } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
-import { ZKUBE_PROGRAM_ID, getDelegationRecord } from "./constants";
+import { ZKUBE_PROGRAM_ID, getDelegationRecord } from "../constants";
 import {
   ACTIVE_RUN_FIELD_PROJECTIONS,
   VRF_QUEUE,
@@ -17,8 +17,8 @@ import {
   buildRequestRerollPlan,
   decodeActiveRunAccount,
 } from "@/backend/solana/runs/runPlan";
-import { IDL } from "../backend/solana/idl";
-import { SessionWallet } from "../backend/solana/session/sessionWallet";
+import { IDL } from "../idl";
+import { SessionWallet } from "../session/sessionWallet";
 
 describe("atomic action + VRF plans", () => {
   it("keeps move signer/account positions exact and serializes a deterministic seed", async () => {

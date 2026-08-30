@@ -2,7 +2,7 @@
 
 import { Connection, Keypair } from "@solana/web3.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { deriveRunAddresses } from "../../../chain/pdas";
+import { deriveRunAddresses } from "../pdas";
 import { resolvePersistedRun } from "./resumeRun";
 import { loadRunSession, saveRunSession } from "./runSessionStore";
 import { deriveSessionTokenV2Pda } from "../session/sessionV2";
@@ -10,7 +10,7 @@ import { SessionWallet } from "../session/sessionWallet";
 import {
   DELEGATION_PROGRAM_ID,
   ZKUBE_PROGRAM_ID,
-} from "../../../chain/constants";
+} from "../constants";
 
 describe("persisted run resolution", () => {
   beforeEach(() => {

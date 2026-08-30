@@ -2,14 +2,12 @@ import type { ReactNode } from "react";
 import { Timer, Users } from "lucide-react";
 import { motion } from "motion/react";
 
-import type { DailyLeaderboardView } from "@/backend/solana/content/dailyClient";
+import type { ClientDailyView } from "@/backend/client";
 import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
-import type { DailyThemeView } from "@/core/dailyRules";
 import { getZoneGuardian } from "@/config/bossCharacters";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { tierFrameInnerSize } from "@/config/tierFrames";
-import { useLeaderboardEmblems } from "@/hooks/useLeaderboardEmblems";
 import { RankBadge } from "@/ui/components/arena/LeaderboardRow";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import {
@@ -17,23 +15,13 @@ import {
   MONEY_GOLD,
   SolMark,
   TierFrame,
-  computeRankPayouts,
-  dailyBoardPools,
 } from "@/ui/components/economy";
 import { useCountdown } from "@/hooks/useNowTick";
 import { formatSolBalanceLamports } from "@/utils/currency";
 import { formatCountdown } from "@/utils/time";
 
 /** The public face of today's Daily — every field readable without a wallet. */
-export interface DailyMarqueeView {
-  dailyPotLamports: bigint;
-  runsCloseAt: number;
-  uniquePlayers: number;
-  leaderboard: readonly DailyLeaderboardView[];
-  dailyTheme: DailyThemeView | null;
-  scoreQualifiedPlayers: number;
-  themeQualifiedPlayers: number;
-}
+export type DailyMarqueeView = ClientDailyView;
 
 const AVATAR_BOX = 38;
 
@@ -65,31 +53,19 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
 }) => {
   const guardian = getZoneGuardian(zoneId);
   const entrySeconds = useCountdown(view?.runsCloseAt);
-  const rows = view?.leaderboard ?? [];
-  const owners = rows.map((entry) => entry.player);
-  const emblems = useLeaderboardEmblems(owners);
+  const rows = view?.boards.find((board) => board.kind === "score")?.rows ?? [];
 
   const myIndex = address
-    ? rows.findIndex((entry) => entry.player.toBase58() === address)
+    ? rows.findIndex((entry) => entry.address === address)
     : -1;
-  // What a place pays if the board froze now — the Score board, which is the
-  // one the lobby's figures are quoted from.
-  const payouts = view
-    ? computeRankPayouts(
-        dailyBoardPools(view.dailyPotLamports, view.themeQualifiedPlayers)
-          .score,
-        view.scoreQualifiedPlayers,
-      ).payouts
-    : [];
 
   const row = (index: number, isYou: boolean) => {
     const entry = rows[index];
     if (!entry) return null;
     const rank = index + 1;
-    const emblem = emblems.get(entry.player.toBase58());
-    const tier = emblem?.featuredFrameTier ?? 0;
+    const tier = entry.tier ?? 0;
     const inner = tierFrameInnerSize(tier, AVATAR_BOX);
-    const prize = payouts[index] ?? 0n;
+    const prize = entry.payoutLamports;
     return (
       <div
         className={`flex items-center gap-2.5 px-2.5 py-1.5 ${
@@ -108,12 +84,10 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
           className="relative flex flex-none items-center justify-center"
           style={{ width: AVATAR_BOX, height: AVATAR_BOX }}
         >
-          {emblem &&
-          emblem.featuredEmblem >= 1 &&
-          emblem.featuredEmblem <= 10 ? (
+          {entry.emblem && entry.emblem >= 1 && entry.emblem <= 10 ? (
             <TierFrame tier={tier} size={inner}>
               <GuardianFaceBlock
-                zoneId={emblem.featuredEmblem}
+                zoneId={entry.emblem}
                 size={inner}
                 framed
               />
@@ -134,10 +108,9 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
         <span className="min-w-0 flex-1 truncate text-left font-sans text-[13px] font-bold text-white/85">
           {isYou
             ? "You"
-            : (entry.playerName ??
-              playerLabelWithWallet(null, entry.player.toBase58()))}
+            : playerLabelWithWallet(entry.label ?? null, entry.address)}
         </span>
-        {emblem && (
+        {entry.tier !== undefined && (
           <span
             className="flex-none font-sans text-[9px] font-bold uppercase tracking-[0.14em]"
             style={{ color: ladderTierColor(tier) }}
@@ -146,7 +119,7 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
           </span>
         )}
         <span className="font-mono text-[13px] font-bold tabular-nums text-white">
-          {entry.dailyScore.toLocaleString()}
+          {entry.metric.toLocaleString()}
         </span>
         {prize > 0n && (
           <span

@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 
-import { useCampaign } from "@/contexts/campaign";
+import { useCampaign, useConnectedPlayer, type ClientCampaignMap } from "@/backend/client";
 import type { ZoneProgressData } from "@/config/profileData";
-import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
-import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 
 export interface ZoneProgressResult {
   zones: ZoneProgressData[];
@@ -12,14 +10,14 @@ export interface ZoneProgressResult {
 }
 
 export function campaignMapsToZones(
-  maps: readonly CampaignMapView[] | null,
+  maps: readonly ClientCampaignMap[] | null,
 ): ZoneProgressData[] {
   const source =
     maps && maps.length > 0
       ? maps.filter((map) => map.enabled)
       : Array.from(
           { length: 10 },
-          (_, index): CampaignMapView => ({
+          (_, index): ClientCampaignMap => ({
             mapId: index + 1,
             themeId: index + 1,
             enabled: true,
@@ -51,7 +49,7 @@ export const useZoneProgress = (
   const { campaign, loading } = useCampaign();
   const { publicKey } = useConnectedPlayer();
   const isCurrentPlayer =
-    Boolean(publicKey && (!playerAddress || playerAddress === publicKey.toBase58()));
+    Boolean(publicKey && (!playerAddress || playerAddress === publicKey));
   return useMemo(() => {
     if (!isCurrentPlayer) {
       return { zones: [], totalStars: 0, isLoading: false };
