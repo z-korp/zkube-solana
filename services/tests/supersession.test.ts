@@ -14,6 +14,7 @@ const AGENT_RULES = join(ROOT, "AGENTS.md");
 const README = join(ROOT, "README.md");
 const CLIENT = join(ROOT, "client/src");
 const CLIENT_TOOLS = join(ROOT, "client/tools");
+const CLIENT_PACKAGE = join(ROOT, "client/package.json");
 const CLIENT_CONSTRAINT_COPY = [join(CLIENT, "config"), join(CLIENT, "game")];
 const CORE = join(ROOT, "crates/zkube-core/src");
 const CORE_WASM = join(ROOT, "crates/zkube-core-wasm/src");
@@ -342,7 +343,7 @@ async function sourceFiles(dir: string): Promise<string[]> {
     const path = join(dir, entry.name);
     if (SKIPPED.some((skipped) => path.startsWith(skipped))) continue;
     if (entry.isDirectory()) files.push(...(await sourceFiles(path)));
-    else if (/\.(ts|tsx|rs)$/.test(entry.name)) files.push(path);
+    else if (/\.(mjs|ts|tsx|rs)$/.test(entry.name)) files.push(path);
   }
   return files;
 }
@@ -383,5 +384,25 @@ describe("supersession", () => {
   it("keeps the deleted single-reroll model out of public product copy", async () => {
     const readme = await readFile(README, "utf8");
     expect(readme).not.toMatch(/carries one reroll/i);
+  });
+
+  it("keeps the retired Android wrapper vocabulary out of authored surfaces", async () => {
+    const files = [
+      AGENT_RULES,
+      README,
+      CLIENT_PACKAGE,
+      ...(await sourceFiles(CLIENT)),
+      ...(await sourceFiles(CLIENT_TOOLS)),
+    ];
+    const violations: string[] = [];
+    for (const file of files) {
+      const lines = (await readFile(file, "utf8")).split("\n");
+      lines.forEach((line, index) => {
+        if (/\bTWA\b|\bBubblewrap\b|twa-manifest|assetlinks/i.test(line)) {
+          violations.push(`${file}:${index + 1}`);
+        }
+      });
+    }
+    expect(violations).toEqual([]);
   });
 });

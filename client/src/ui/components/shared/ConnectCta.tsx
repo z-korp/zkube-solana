@@ -209,12 +209,6 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
   );
 };
 
-/**
- * Zero-connector copy per platform. Only Android Chrome, the installed PWA,
- * and desktop Wallet Standard are claimed surfaces; iOS, other Android
- * browsers, and unidentified runtimes get honest untested-surface guidance
- * instead of a compatibility claim.
- */
 function noWalletGuidance(capabilities: PlatformCapabilities): string {
   if (capabilities.mobileWalletAdapterSupportReason === "insecure-context") {
     return "Wallet connection requires a trusted HTTPS page. Reopen this zKube build over HTTPS, then retry.";
@@ -232,10 +226,13 @@ function noWalletGuidance(capabilities: PlatformCapabilities): string {
     case "android-browser":
       return `No compatible wallet was found. ${SEEKER_WALLET_HINT} If connecting keeps failing in this browser, Android Chrome is the supported Android browser; desktop also works.`;
     case "android-pwa":
-    case "twa":
       return `No compatible wallet was found. ${SEEKER_WALLET_HINT} Install or open one, then try again.`;
-    case "ios":
-      return "No wallet is available in this browser, and iOS isn't a supported zKube surface yet. Use Android Chrome or a desktop browser.";
+    case "android-native":
+      return `The Android wallet bridge did not find a compatible wallet. ${SEEKER_WALLET_HINT} Open or install one, then try again.`;
+    case "ios-browser":
+      return "No wallet is available in this iOS browser. Use the zKube iOS app, Android Chrome, or a desktop browser.";
+    case "ios-native":
+      return "No compatible iOS wallet answered. Install or open Phantom or Solflare, then try again.";
     case "unknown":
       return "No compatible wallet was found, and this browser isn't a verified zKube surface. Use Android Chrome or a desktop browser with a Wallet Standard wallet such as Phantom or Solflare.";
   }

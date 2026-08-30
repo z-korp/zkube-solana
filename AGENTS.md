@@ -76,7 +76,7 @@ Source implements v5 partially. Current state:
   share one monotonic run-ID sequence. Base, Router, and resolved ER connections
   remain separate; resolve ER placement with `getDelegationStatus`.
 - Fly runs only the independently funded Daily keeper, which has no inbound
-  HTTP surface. The web client is static PWA/TWA code with no server signer.
+  HTTP surface. The web client and Capacitor shells have no server signer.
   There is no keeper push stack. Client notification controls remain parked;
   a reward is collectable in the app for thirty days regardless, so any future
   notification can only ever be a courtesy.
@@ -687,7 +687,7 @@ Emblems are identity display only with no monetary effect.
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
 | Solana program | Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
-| Static PWA/TWA | Wallet, Campaign, and Arcade UI; runs the core engine through WASM | No server signer or paymaster |
+| Static web/PWA and Capacitor shells | Wallet, Campaign, and Arcade UI; runs the core engine through WASM | No server signer or paymaster |
 
 Each `ActiveRun` and `ArenaPlayer` stores the signer that paid its rent, and every
 close returns rent to that exact address even when another device resumes the

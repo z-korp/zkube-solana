@@ -32,7 +32,6 @@
     "cap:sync": "cap sync",
     "cap:sync:android": "cap sync android",
     "cap:sync:ios": "cap sync ios",
-    "twa:configure-links": "node tools/configure-twa-links.mjs",
     "lint": "cd .. && client/node_modules/.bin/eslint \"client/src/**/*.{ts,tsx}\" \"client/tools/**/*.{ts,mjs}\" \"client/*.{ts,js,mjs}\" \"services/src/**/*.ts\" \"services/tests/**/*.ts\" --config client/eslint.config.js --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",

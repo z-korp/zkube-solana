@@ -168,12 +168,12 @@ function localNetworkRecovery(platform: PlatformKind): RecoveryContent {
     cause:
       "This Android surface reported that the private local connection used to reach your wallet was denied.",
   } as const;
-  if (platform === "twa") {
+  if (platform === "android-native") {
     return {
       ...common,
       steps: [
-        "Open zKube's Android app or site permissions and allow Local network access if it is listed.",
-        "If that permission is unavailable, open the same trusted HTTPS URL in Android Chrome and retry there.",
+        "Open zKube's Android app permissions and allow Local network access if it is listed.",
+        "Return to zKube and retry the wallet handoff.",
       ],
     };
   }
@@ -216,11 +216,20 @@ function unknownRecovery(
       ],
     };
   }
-  if (platform === "ios") {
+  if (platform === "ios-browser") {
     return {
       title: "Connection unavailable",
-      cause: "iOS is not a supported zKube surface yet.",
-      steps: ["Use Android Chrome or a desktop Wallet Standard extension."],
+      cause: "This iOS browser cannot complete the wallet handoff.",
+      steps: ["Use the zKube iOS app or a desktop Wallet Standard extension."],
+    };
+  }
+  if (platform === "ios-native") {
+    return {
+      title: "Wallet handoff did not finish",
+      cause: "The iOS wallet did not return to zKube.",
+      steps: [
+        "Open and unlock Phantom or Solflare, then return to zKube and retry.",
+      ],
     };
   }
   return {

@@ -1,9 +1,12 @@
+import { Capacitor } from "@capacitor/core";
+
 export type PlatformKind =
   | "desktop"
   | "android-browser"
   | "android-pwa"
-  | "twa"
-  | "ios"
+  | "android-native"
+  | "ios-browser"
+  | "ios-native"
   | "unknown";
 
 export interface PlatformEnvironment {
@@ -13,12 +16,13 @@ export interface PlatformEnvironment {
   secureContext: boolean;
   displayModeStandalone: boolean;
   navigatorStandalone: boolean;
-  referrer: string;
+  nativePlatform: "android" | "ios" | null;
 }
 
 export type MobileWalletAdapterSupportReason =
   | "available"
   | "not-android"
+  | "native-wallet-driver"
   | "insecure-context"
   | "unsupported-android-webview";
 
@@ -26,14 +30,12 @@ export interface PlatformCapabilities {
   kind: PlatformKind;
   secureContext: boolean;
   displayModeStandalone: boolean;
-  twaSignal: boolean;
   androidWebView: boolean;
   solanaMobileWebShell: boolean;
   mobileWalletAdapterSupported: boolean;
   mobileWalletAdapterSupportReason: MobileWalletAdapterSupportReason;
 }
 
-const ANDROID_APP_REFERRER = /^android-app:\/\/[a-z0-9_.]+\/?$/i;
 // Keep these predicates aligned with wallet-standard-mobile@0.5.3. That
 // package silently declines local MWA registration in a generic Android
 // WebView, but explicitly permits Solana Mobile WebShell.
@@ -41,18 +43,13 @@ const ANDROID_WEBVIEW =
   /(WebView|Version\/.+(Chrome)\/(\d+)\.(\d+)\.(\d+)\.(\d+)|; wv\).+(Chrome)\/(\d+)\.(\d+)\.(\d+)\.(\d+))/i;
 const SOLANA_MOBILE_WEB_SHELL = "Solana Mobile Web Shell";
 
-/**
- * Classifies only observable browser capabilities. TWA detection deliberately
- * requires Android, standalone display mode, and an android-app referrer so a
- * normal Android browser or installed PWA is never promoted on user agent
- * alone.
- */
 export function classifyPlatform(
   environment: PlatformEnvironment,
 ): PlatformKind {
+  if (environment.nativePlatform === "android") return "android-native";
+  if (environment.nativePlatform === "ios") return "ios-native";
   const android = /Android/i.test(environment.userAgent);
   if (android) {
-    if (hasConservativeTwaSignal(environment)) return "twa";
     return environment.displayModeStandalone
       ? "android-pwa"
       : "android-browser";
@@ -63,7 +60,7 @@ export function classifyPlatform(
     (environment.navigatorPlatform === "MacIntel" &&
       environment.maxTouchPoints > 1)
   ) {
-    return "ios";
+    return "ios-browser";
   }
 
   if (/Windows NT|Macintosh|CrOS|X11|Linux/i.test(environment.userAgent)) {
@@ -73,19 +70,10 @@ export function classifyPlatform(
   return "unknown";
 }
 
-export function hasConservativeTwaSignal(
-  environment: PlatformEnvironment,
-): boolean {
-  return (
-    /Android/i.test(environment.userAgent) &&
-    environment.displayModeStandalone &&
-    ANDROID_APP_REFERRER.test(environment.referrer)
-  );
-}
-
 export function mobileWalletAdapterSupportReason(
   environment: PlatformEnvironment,
 ): MobileWalletAdapterSupportReason {
+  if (environment.nativePlatform !== null) return "native-wallet-driver";
   if (!/Android/i.test(environment.userAgent)) return "not-android";
   if (!environment.secureContext) return "insecure-context";
   if (
@@ -114,7 +102,6 @@ export function platformCapabilities(
     kind,
     secureContext: environment.secureContext,
     displayModeStandalone: environment.displayModeStandalone,
-    twaSignal: hasConservativeTwaSignal(environment),
     androidWebView: isAndroidWebView(environment.userAgent),
     solanaMobileWebShell: isSolanaMobileWebShell(environment.userAgent),
     mobileWalletAdapterSupported: supportReason === "available",
@@ -129,6 +116,7 @@ export function readPlatformEnvironment(): PlatformEnvironment {
   const standaloneNavigator = browserNavigator as
     | (Navigator & { standalone?: boolean })
     | undefined;
+  const capacitorPlatform = Capacitor.getPlatform();
 
   return {
     userAgent: browserNavigator?.userAgent ?? "",
@@ -139,7 +127,13 @@ export function readPlatformEnvironment(): PlatformEnvironment {
       browserWindow?.matchMedia?.("(display-mode: standalone)").matches ??
       false,
     navigatorStandalone: standaloneNavigator?.standalone === true,
-    referrer: typeof document === "undefined" ? "" : document.referrer,
+    nativePlatform: Capacitor.isNativePlatform()
+      ? capacitorPlatform === "android"
+        ? "android"
+        : capacitorPlatform === "ios"
+          ? "ios"
+          : null
+      : null,
   };
 }
 

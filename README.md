@@ -142,7 +142,7 @@ before.
 | `programs/solana` | Anchor program: Campaign stars, competitive records, accounting, boards, settlement |
 | MagicBlock ER | Active gameplay and per-row VRF, on a Router-resolved validator |
 | `services` | Keeper worker: Daily cadence and last-resort permissionless recovery |
-| `client` | Static PWA/TWA — wallet, Campaign, and Arcade UI, with no server signer |
+| `client` | Static web/PWA plus Capacitor Android and iOS shells for the wallet, Campaign, and Arcade UI; no server signer |
 
 The engine is the single source of truth for game rules, and native Rust, WASM,
 and the on-chain program must all agree on the same committed golden vectors
@@ -174,7 +174,7 @@ version, and PDA derivation before decoding anything.
 crates/      deterministic engine (core, WASM bindings, codegen)
 programs/    Anchor program — state, instructions, game rules
 services/    keeper worker and chain services
-client/      React PWA/TWA
+client/      React web/PWA and Capacitor mobile shells
 fixtures/    committed golden vectors and chain fixtures
 artifacts/   frozen build artifacts
 validate.sh  program validation entry point
@@ -214,22 +214,24 @@ competitive records.
 
 | Surface | Status | Wallet path |
 | --- | --- | --- |
-| Desktop browser | Supported | Wallet Standard extension |
-| Android Chrome | Supported | Mobile Wallet Adapter |
-| Chrome-installed PWA | Supported | Mobile Wallet Adapter |
-| TWA (dApp Store / Seeker) | Target | Mobile Wallet Adapter |
-| iOS | Not claimed supported | — |
+| Desktop browser | Development preview | Wallet Standard extension |
+| Android Chrome | Development preview | Mobile Wallet Adapter |
+| Chrome-installed PWA | Development preview | Mobile Wallet Adapter |
+| Capacitor Android (dApp Store / Seeker) | Target | Native Mobile Wallet Adapter bridge |
+| Capacitor iOS (App Store) | Target, pending distribution review | Phantom or Solflare wallet links |
+| iOS browser | Not claimed supported | — |
 | Other Android browsers | Not claimed supported | — |
 
 Seed Vault Wallet is Seeker's built-in wallet and the reference MWA target;
-Phantom and Solflare on Android also work but are not requirements. iOS and
-non-Chrome Android browsers are untested rather than deliberately blocked.
+Phantom and Solflare on Android also work but are not requirements. The iOS
+shell uses sign-only wallet links; paid Arcade distribution remains subject to
+the counsel and distribution review stated above.
 
 `client/src/platform/capabilities.ts` classifies observable browser signals
-only, and MWA registration follows that classification, so a desktop or iOS
-browser never registers the mobile connector. TWA detection requires Android,
-standalone display mode, and an `android-app://` referrer together, so a plain
-Android browser or installed PWA is never promoted on user agent alone.
+and the native runtime before choosing a wallet path. Browser MWA registration
+is limited to supported Android web surfaces. The Android shell uses its Kotlin
+bridge, while the iOS shell returns from wallet links through Capacitor's app
+lifecycle; neither native shell relies on browser connector registration.
 
 Signing is sign-only by design: the client requires
 `solana:signTransaction` at transaction version `0`, rejects wallets that can
@@ -241,9 +243,10 @@ message enhancement.
 
 ### Local device testing over HTTPS
 
-The dev preview exposes a read-only capability panel, but a physical device must
-load it from a trusted HTTPS origin: plain HTTP on a LAN address is not a secure
-context, and the pinned MWA package will not register.
+The web dev preview exposes a read-only capability panel, but a physical browser
+must load it from a trusted HTTPS origin: plain HTTP on a LAN address is not a
+secure context, and the browser MWA package will not register. Capacitor builds
+package the same Vite output and use their native wallet paths instead.
 
 Create a development certificate **outside this repository** with a locally
 trusted CA such as `mkcert`, include the workstation LAN IP or test hostname,

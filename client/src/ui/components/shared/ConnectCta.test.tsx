@@ -83,10 +83,12 @@ describe("ConnectCta backend boundary", () => {
   it("keeps unsupported-platform guidance chain-neutral", () => {
     fixtures.player = player({ connectors: [] });
     fixtures.platform = {
-      kind: "ios",
+      kind: "ios-browser",
       mobileWalletAdapterSupportReason: "not-android",
     };
     render(<ConnectCta />);
-    expect(screen.getByText(/iOS isn't a supported zKube surface yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/No wallet is available in this iOS browser/i),
+    ).toBeInTheDocument();
   });
 });

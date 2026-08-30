@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyPlatform,
-  hasConservativeTwaSignal,
   isAndroidWebView,
   isSolanaMobileWebShell,
   mobileWalletAdapterSupportReason,
@@ -32,7 +31,7 @@ function environment(
     secureContext: true,
     displayModeStandalone: false,
     navigatorStandalone: false,
-    referrer: "",
+    nativePlatform: null,
     ...overrides,
   };
 }
@@ -45,7 +44,6 @@ describe("platform capability classification", () => {
       kind: "desktop",
       secureContext: true,
       displayModeStandalone: false,
-      twaSignal: false,
       androidWebView: false,
       solanaMobileWebShell: false,
       mobileWalletAdapterSupported: false,
@@ -142,23 +140,25 @@ describe("platform capability classification", () => {
     expect(capabilities.mobileWalletAdapterSupportReason).toBe("available");
   });
 
-  it("requires a standalone android-app referrer for the TWA signal", () => {
-    const installedPwa = environment({
-      userAgent: CHROME_ANDROID,
-      displayModeStandalone: true,
-      referrer: "https://zkube.gg/",
+  it("classifies native shells before their embedded browser user agent", () => {
+    const android = environment({
+      userAgent: ANDROID_WEBVIEW,
+      nativePlatform: "android",
     });
-    const twa = environment({
-      userAgent: CHROME_ANDROID,
-      displayModeStandalone: true,
-      referrer: "android-app://gg.zkube.app/",
+    const ios = environment({
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
+      nativePlatform: "ios",
     });
 
-    expect(hasConservativeTwaSignal(installedPwa)).toBe(false);
-    expect(classifyPlatform(installedPwa)).toBe("android-pwa");
-    expect(hasConservativeTwaSignal(twa)).toBe(true);
-    expect(classifyPlatform(twa)).toBe("twa");
-    expect(platformCapabilities(twa).mobileWalletAdapterSupported).toBe(true);
+    expect(classifyPlatform(android)).toBe("android-native");
+    expect(classifyPlatform(ios)).toBe("ios-native");
+    expect(platformCapabilities(android).mobileWalletAdapterSupported).toBe(
+      false,
+    );
+    expect(platformCapabilities(android).mobileWalletAdapterSupportReason).toBe(
+      "native-wallet-driver",
+    );
   });
 
   it("classifies iPhone and touch-based iPadOS without enabling MWA", () => {
@@ -176,8 +176,8 @@ describe("platform capability classification", () => {
       maxTouchPoints: 5,
     });
 
-    expect(classifyPlatform(iphone)).toBe("ios");
-    expect(classifyPlatform(ipad)).toBe("ios");
+    expect(classifyPlatform(iphone)).toBe("ios-browser");
+    expect(classifyPlatform(ipad)).toBe("ios-browser");
     expect(mobileWalletAdapterSupportReason(iphone)).toBe("not-android");
   });
 

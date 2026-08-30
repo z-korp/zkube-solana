@@ -47,10 +47,6 @@ describe("service-worker cache routing", () => {
     ["cross-origin RPC", { url: "https://rpc.example", destination: "" }],
     ["same-origin API", { url: `${ORIGIN}/api/account`, destination: "" }],
     ["same-origin RPC", { url: `${ORIGIN}/rpc`, destination: "" }],
-    [
-      "wallet association",
-      { url: `${ORIGIN}/.well-known/assetlinks.json`, destination: "" },
-    ],
     ["POST", { method: "POST", destination: "" }],
     ["authorized asset", { hasAuthorization: true }],
     ["ranged asset", { hasRange: true }],

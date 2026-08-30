@@ -17,7 +17,6 @@ const NETWORK_ONLY_PATH_PREFIXES = [
   "/api/",
   "/rpc/",
   "/wallet/",
-  "/.well-known/",
 ];
 
 export type RequestRoute = "asset" | "navigation" | "network";
