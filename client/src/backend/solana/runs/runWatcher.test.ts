@@ -23,7 +23,11 @@ describe("PersistedRunWatcher", () => {
     } as ResumedRun;
     const resolve = vi.fn().mockResolvedValue(state);
     const onState = vi.fn();
-    const watcher = new PersistedRunWatcher({ resolve, onState, pollMs: 60_000 });
+    const watcher = new PersistedRunWatcher({
+      resolve,
+      onState,
+      pollMs: 60_000,
+    });
     watcher.start();
     await vi.waitFor(() => expect(onState).toHaveBeenCalledOnce());
 
@@ -36,7 +40,8 @@ describe("PersistedRunWatcher", () => {
   it("reports reconnect attempts and recovers on the next poll", async () => {
     vi.useFakeTimers();
     const statuses: string[] = [];
-    const resolve = vi.fn()
+    const resolve = vi
+      .fn()
       .mockRejectedValueOnce(new Error("router offline"))
       .mockResolvedValue({ phase: "none" } satisfies ResumedRun);
     const watcher = new PersistedRunWatcher({
@@ -70,20 +75,30 @@ describe("PersistedRunWatcher", () => {
       onAccountChange: vi.fn(() => 22),
       removeAccountChangeListener: secondRemove,
     } as unknown as Connection;
-    const state = (connection: Connection) => ({
-      phase: "delegated",
-      connection,
-      marker: { addresses: { activeRun: {} } },
-    }) as ResumedRun;
-    const resolve = vi.fn()
+    const state = (connection: Connection) =>
+      ({
+        phase: "delegated",
+        connection,
+        marker: { addresses: { activeRun: {} } },
+      }) as ResumedRun;
+    const resolve = vi
+      .fn()
       .mockResolvedValueOnce(state(firstConnection))
       .mockResolvedValue(state(secondConnection));
-    const watcher = new PersistedRunWatcher({ resolve, onState: vi.fn(), pollMs: 60_000 });
+    const watcher = new PersistedRunWatcher({
+      resolve,
+      onState: vi.fn(),
+      pollMs: 60_000,
+    });
     watcher.start();
-    await vi.waitFor(() => expect(firstConnection.onAccountChange).toHaveBeenCalledOnce());
+    await vi.waitFor(() =>
+      expect(firstConnection.onAccountChange).toHaveBeenCalledOnce(),
+    );
 
     firstCallback();
-    await vi.waitFor(() => expect(secondConnection.onAccountChange).toHaveBeenCalledOnce());
+    await vi.waitFor(() =>
+      expect(secondConnection.onAccountChange).toHaveBeenCalledOnce(),
+    );
     expect(firstRemove).toHaveBeenCalledWith(11);
     await watcher.stop();
     expect(secondRemove).toHaveBeenCalledWith(22);
@@ -107,13 +122,20 @@ describe("PersistedRunWatcher", () => {
     const second = new Promise<ResumedRun>((resolve) => {
       releaseSecond = resolve;
     });
-    const resolve = vi.fn()
+    const resolve = vi
+      .fn()
       .mockResolvedValueOnce(state)
       .mockReturnValueOnce(second)
       .mockResolvedValue(state);
-    const watcher = new PersistedRunWatcher({ resolve, onState: vi.fn(), pollMs: 60_000 });
+    const watcher = new PersistedRunWatcher({
+      resolve,
+      onState: vi.fn(),
+      pollMs: 60_000,
+    });
     watcher.start();
-    await vi.waitFor(() => expect(connection.onAccountChange).toHaveBeenCalledOnce());
+    await vi.waitFor(() =>
+      expect(connection.onAccountChange).toHaveBeenCalledOnce(),
+    );
 
     accountCallback();
     await vi.waitFor(() => expect(resolve).toHaveBeenCalledTimes(2));
@@ -129,7 +151,8 @@ describe("PersistedRunWatcher", () => {
   it("caps repeated reconnect backoff and eventually recovers", async () => {
     vi.useFakeTimers();
     const attempts: number[] = [];
-    const resolve = vi.fn()
+    const resolve = vi
+      .fn()
       .mockRejectedValueOnce(new Error("router offline 1"))
       .mockRejectedValueOnce(new Error("router offline 2"))
       .mockRejectedValueOnce(new Error("router offline 3"))

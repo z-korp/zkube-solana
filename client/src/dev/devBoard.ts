@@ -13,7 +13,7 @@ import {
   mapLevelRuleSnapshot,
   type ActiveRunRulesView,
 } from "@/core/runProjection";
-import { type ActiveRunView } from "@/chain/runPlan";
+import { type ActiveRunView } from "@/backend/solana/runs/runPlan";
 import {
   coreApplyRunBonus,
   coreApplyRunVrf,

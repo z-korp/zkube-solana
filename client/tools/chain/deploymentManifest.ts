@@ -6,7 +6,7 @@ import {
   SOLANA_DEVNET_GENESIS_HASH,
   ZKUBE_PROGRAM_ID,
 } from "../../src/chain/constants";
-import { VRF_QUEUE } from "../../src/chain/runPlan";
+import { VRF_QUEUE } from "../../src/backend/solana/runs/runPlan";
 import { CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
 import { deriveOperatorRevenueVaultPda } from "../../src/chain/pdas";
 import { SECONDS_PER_DAY } from "../../src/core/protocolVersions.generated";

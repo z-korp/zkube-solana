@@ -45,7 +45,7 @@ vi.mock("@/chain/campaignClient", () => ({
   },
 }));
 
-vi.mock("@/chain/runPlan", () => ({
+vi.mock("@/backend/solana/runs/runPlan", () => ({
   zkubeProgram: () => ({}),
   submitVersionedTransactionPlan: vi.fn(),
 }));

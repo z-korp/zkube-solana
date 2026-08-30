@@ -3,8 +3,8 @@ import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
 import { Keypair, type PublicKey } from "@solana/web3.js";
 import { ZKUBE_PROGRAM_ID } from "./constants";
-import { ActiveRunObserver } from "./activeRunObserver";
-import { PersistedRunWatcher, type RunWatchStatus } from "./runWatcher";
+import { ActiveRunObserver } from "@/backend/solana/runs/activeRunObserver";
+import { PersistedRunWatcher, type RunWatchStatus } from "@/backend/solana/runs/runWatcher";
 import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import {
   buildApplyBonusPlan,
@@ -24,7 +24,7 @@ import {
   submitVersionedTransactionPlan,
   type ActiveRunView,
   type PreparedRunPlan,
-} from "./runPlan";
+} from "@/backend/solana/runs/runPlan";
 import { projectRunFromLocalState } from "../core/runProjection";
 import {
   coreApplyRunBonus,
@@ -37,20 +37,20 @@ import {
   prewarmErTransport,
   submitErTransactionPlan,
   type ErSubmissionResult,
-} from "./erTransport";
+} from "@/backend/solana/runs/erTransport";
 import {
   resolvePersistedRun,
   type ResumedRun,
   type RunResultView,
-} from "./resumeRun";
-import { getDelegationStatus } from "./router";
+} from "@/backend/solana/runs/resumeRun";
+import { getDelegationStatus } from "@/backend/solana/runs/router";
 import {
   clearRunSession,
   loadRunSession,
   saveRunSession,
   type RunSlot,
   type RunSessionMarker,
-} from "./runSessionStore";
+} from "@/backend/solana/runs/runSessionStore";
 import { loadDeviceSession } from "../backend/solana/session/deviceSessionStore";
 import { deriveRunAddresses, type RunAddresses } from "./pdas";
 import {
@@ -58,14 +58,14 @@ import {
   buildPrepareDailyRunPlan,
   type DailyView,
 } from "./dailyClient";
-import { withTransientErRetry } from "./erRetry";
+import { withTransientErRetry } from "../backend/solana/runs/erRetry";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { awaitAccountCondition } from "./awaitAccountCondition";
 import {
   createChainTraceId,
   emitChainMetric,
   type ChainMetricLayer,
-} from "./telemetry";
+} from "@/backend/solana/runs/telemetry";
 import {
   isActiveRunConflict,
   runDiscoveryPendingError,

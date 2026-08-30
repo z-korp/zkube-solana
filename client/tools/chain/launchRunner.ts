@@ -47,7 +47,7 @@ import {
   ENTRY_OPERATOR_LAMPORTS,
 } from "../../src/core/protocolVersions.generated";
 import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnlyWallet";
-import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
+import { zkubeProgram, type TransactionPlan } from "../../src/backend/solana/runs/runPlan";
 import { ZKUBE_PROGRAM_ID } from "../../src/chain/constants";
 
 type LaunchMode = "plan" | "stage" | "resume" | "activate";

@@ -1,8 +1,12 @@
 import type { Connection, PublicKey } from "@solana/web3.js";
-import { errorMessage } from "@/utils/errors";
+import { errorMessage } from "../../../utils/errors";
 import type { ResumedRun } from "./resumeRun";
 
-export type RunWatchPhase = "resolving" | "subscribed" | "reconnecting" | "stopped";
+export type RunWatchPhase =
+  | "resolving"
+  | "subscribed"
+  | "reconnecting"
+  | "stopped";
 
 export interface RunWatchStatus {
   phase: RunWatchPhase;
@@ -95,11 +99,7 @@ export class PersistedRunWatcher<T = ResumedRun> {
     } catch (error) {
       if (this.stopped) return;
       this.attempt += 1;
-      this.emit(
-        "reconnecting",
-        this.attempt,
-        errorMessage(error),
-      );
+      this.emit("reconnecting", this.attempt, errorMessage(error));
       const backoff = Math.min(
         (this.options.pollMs ?? 5_000) * 2 ** Math.min(this.attempt - 1, 4),
         this.options.maxBackoffMs ?? 30_000,
@@ -135,7 +135,9 @@ export class PersistedRunWatcher<T = ResumedRun> {
     this.subscription = null;
     if (!subscription) return;
     try {
-      await subscription.connection.removeAccountChangeListener(subscription.id);
+      await subscription.connection.removeAccountChangeListener(
+        subscription.id,
+      );
     } catch {
       // A dead websocket is exactly why the router reconciliation loop exists.
     }

@@ -11,7 +11,7 @@ import {
   fetchDailyView,
   type DailyView,
 } from "./dailyClient";
-import { submitVersionedTransactionPlan } from "./runPlan";
+import { submitVersionedTransactionPlan } from "@/backend/solana/runs/runPlan";
 
 export function useDailyController() {
   const { connection } = useSolanaConnection();

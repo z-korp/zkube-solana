@@ -1,4 +1,4 @@
-import type { ActiveRunView } from "@/chain/runPlan";
+import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
 import { Game } from "@/game/model";
 
 export const PLAYTEST_ACTION_EVENT = "zkube_playtest_action_v1";

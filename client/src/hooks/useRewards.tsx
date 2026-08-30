@@ -39,7 +39,7 @@ import {
 import {
   submitVersionedTransactionPlan,
   zkubeProgram,
-} from "@/chain/runPlan";
+} from "@/backend/solana/runs/runPlan";
 import { useDaily } from "@/contexts/daily";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { devUnclaimedRewards } from "@/dev/fixtures";

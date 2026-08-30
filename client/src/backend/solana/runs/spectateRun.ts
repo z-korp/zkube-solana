@@ -1,13 +1,9 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { INITIAL_RUN_ID, ZKUBE_PROGRAM_ID } from "./constants";
-import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
-import { createReadOnlyWallet } from "../backend/solana/identity/readOnlyWallet";
+import { INITIAL_RUN_ID, ZKUBE_PROGRAM_ID } from "../../../chain/constants";
+import { derivePlayerStatePda, deriveRunAddresses } from "../../../chain/pdas";
+import { createReadOnlyWallet } from "../identity/readOnlyWallet";
 import { getDelegationStatus } from "./router";
-import {
-  fetchActiveRun,
-  zkubeProgram,
-  type ActiveRunView,
-} from "./runPlan";
+import { fetchActiveRun, zkubeProgram, type ActiveRunView } from "./runPlan";
 const READ_ONLY_WALLET = createReadOnlyWallet();
 
 export interface SpectateTarget {
@@ -45,7 +41,11 @@ export async function resolveSpectatedRun(args: {
   dependencies?: SpectateRunDependencies;
 }): Promise<SpectatedRun> {
   const deps = args.dependencies ?? {};
-  const resolved = await resolveAddresses(args.baseConnection, args.target, deps);
+  const resolved = await resolveAddresses(
+    args.baseConnection,
+    args.target,
+    deps,
+  );
   if (!resolved) return { phase: "not-found" };
   const { activeRunPda } = resolved;
 

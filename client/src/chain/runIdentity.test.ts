@@ -9,7 +9,7 @@ import {
   activeRunIdForSlot,
   assertPreparedRunAddressesAvailable,
   resolvePreparedRunAddresses,
-} from "./runPlan";
+} from "@/backend/solana/runs/runPlan";
 import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
 
 function collisionConnection(

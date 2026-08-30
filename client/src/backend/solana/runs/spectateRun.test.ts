@@ -2,9 +2,9 @@
 
 import { Connection, Keypair } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
-import { deriveRunAddresses } from "./pdas";
+import { deriveRunAddresses } from "../../../chain/pdas";
 import { resolveSpectatedRun } from "./spectateRun";
-import { ZKUBE_PROGRAM_ID } from "./constants";
+import { ZKUBE_PROGRAM_ID } from "../../../chain/constants";
 import { makeFakeConnection } from "@/test/mocks/connection";
 
 const activeRunStub = (owner: Keypair, runId: bigint) => ({
@@ -26,16 +26,17 @@ describe("spectated run resolution", () => {
     const erConnection = makeFakeConnection({
       getAccountInfo: vi.fn().mockResolvedValue({ owner: ZKUBE_PROGRAM_ID }),
     });
-    const fetchRun = vi
-      .fn()
-      .mockResolvedValue(activeRunStub(owner, 4n));
+    const fetchRun = vi.fn().mockResolvedValue(activeRunStub(owner, 4n));
     const result = await resolveSpectatedRun({
       baseConnection: {} as Connection,
       target: { player: owner.publicKey, runId: 4n },
       dependencies: {
         getStatus: vi
           .fn()
-          .mockResolvedValue({ isDelegated: true, fqdn: "https://er.example/" }),
+          .mockResolvedValue({
+            isDelegated: true,
+            fqdn: "https://er.example/",
+          }),
         makeErConnection: () => erConnection,
         fetchRun,
       },
@@ -109,7 +110,10 @@ describe("spectated run resolution", () => {
         dependencies: {
           getStatus: vi
             .fn()
-            .mockResolvedValue({ isDelegated: true, fqdn: "https://er.example/" }),
+            .mockResolvedValue({
+              isDelegated: true,
+              fqdn: "https://er.example/",
+            }),
           makeErConnection: () => erConnection,
         },
       }),

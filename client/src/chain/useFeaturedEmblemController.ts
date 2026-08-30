@@ -8,9 +8,9 @@ import {
   fetchPlayerStateView,
   invalidatePlayerEmblems,
 } from "./playerStateClient";
-import { submitVersionedTransactionPlan } from "./runPlan";
+import { submitVersionedTransactionPlan } from "@/backend/solana/runs/runPlan";
 import { SessionWallet } from "../backend/solana/session/sessionWallet";
-import { createChainTraceId, emitChainMetric } from "./telemetry";
+import { createChainTraceId, emitChainMetric } from "@/backend/solana/runs/telemetry";
 
 /**
  * Owner-authorized featured-emblem controller. This is the only emblem write

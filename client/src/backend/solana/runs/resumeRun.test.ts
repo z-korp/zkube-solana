@@ -2,12 +2,15 @@
 
 import { Connection, Keypair } from "@solana/web3.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { deriveRunAddresses } from "./pdas";
+import { deriveRunAddresses } from "../../../chain/pdas";
 import { resolvePersistedRun } from "./resumeRun";
 import { loadRunSession, saveRunSession } from "./runSessionStore";
-import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2";
-import { SessionWallet } from "../backend/solana/session/sessionWallet";
-import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
+import { deriveSessionTokenV2Pda } from "../session/sessionV2";
+import { SessionWallet } from "../session/sessionWallet";
+import {
+  DELEGATION_PROGRAM_ID,
+  ZKUBE_PROGRAM_ID,
+} from "../../../chain/constants";
 
 describe("persisted run resolution", () => {
   beforeEach(() => {
@@ -73,8 +76,11 @@ describe("persisted run resolution", () => {
     expect(result.phase === "delegated" && result.marker.runId).toBe(12n);
     expect(result.phase === "delegated" && result.marker.mode).toBe("daily");
     expect(result.phase === "delegated" && result.sessionAuthorized).toBe(true);
-    expect(loadRunSession(owner.publicKey, "arcade")?.session.publicKey.equals(deviceSigner.publicKey))
-      .toBe(true);
+    expect(
+      loadRunSession(owner.publicKey, "arcade")?.session.publicKey.equals(
+        deviceSigner.publicKey,
+      ),
+    ).toBe(true);
   });
 
   it("discovers a prepared base run without a browser marker", async () => {
@@ -370,12 +376,17 @@ describe("persisted run resolution", () => {
       slot: "campaign",
       wallet: new SessionWallet(owner),
       baseConnection: {
-        getAccountInfo: vi.fn().mockResolvedValue({ data: new Uint8Array([1]) }),
+        getAccountInfo: vi
+          .fn()
+          .mockResolvedValue({ data: new Uint8Array([1]) }),
       } as unknown as Connection,
       dependencies: {
         getStatus: vi
           .fn()
-          .mockResolvedValue({ isDelegated: true, fqdn: "https://er.example/" }),
+          .mockResolvedValue({
+            isDelegated: true,
+            fqdn: "https://er.example/",
+          }),
         makeErConnection: () =>
           ({
             getAccountInfo: vi.fn().mockResolvedValue(null),

@@ -5,7 +5,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
-import { zkubeProgram } from "./runPlan.js";
+import { zkubeProgram } from "@/backend/solana/runs/runPlan.js";
 import {
   mapLevelRuleSnapshot,
   type ActiveRunRulesView,

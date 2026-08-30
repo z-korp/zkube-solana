@@ -42,7 +42,7 @@ vi.mock("@/chain/connectedPlayerContext", async () =>
   })),
 );
 
-vi.mock("@/chain/runPlan", () => ({
+vi.mock("@/backend/solana/runs/runPlan", () => ({
   submitVersionedTransactionPlan: vi.fn(),
 }));
 

@@ -35,7 +35,7 @@ import {
   submitVersionedTransactionPlan,
   withPinnedWalletComputeBudget,
   zkubeProgram,
-} from "../../chain/runPlan";
+} from "./runs/runPlan";
 import { createReadOnlyWallet } from "./identity/readOnlyWallet";
 import {
   buildCreatePlayerLabelPlan,
@@ -96,6 +96,16 @@ export interface SolanaIdentitySessionOptions {
   readonly discoverWallets?: () => WalletConnector[];
 }
 
+export interface SolanaIdentitySessionStateService {
+  readonly binding: () => SolanaWalletBinding | null;
+  readonly deviceSession: () => DeviceSession | null;
+}
+
+/** Private state shared only by Solana service layers. */
+export class SolanaIdentitySessionState extends Context.Tag(
+  "zkube/backend/solana/SolanaIdentitySessionState",
+)<SolanaIdentitySessionState, SolanaIdentitySessionStateService>() {}
+
 interface InspectedSession {
   readonly session: DeviceSession;
   readonly balanceLamports: number;
@@ -109,7 +119,9 @@ interface InspectedSession {
  */
 export function makeSolanaIdentitySessionLive(
   options: SolanaIdentitySessionOptions,
-): Layer.Layer<Identity | Session | SolanaWalletDriver> {
+): Layer.Layer<
+  Identity | Session | SolanaWalletDriver | SolanaIdentitySessionState
+> {
   return Layer.scopedContext(
     Effect.gen(function* () {
       const identityRef = yield* SubscriptionRef.make<IdentityState>({
@@ -448,6 +460,11 @@ export function makeSolanaIdentitySessionLive(
         Context.make(Identity, identity),
         Context.make(Session, session),
         Context.make(SolanaWalletDriver, driver),
+        Context.make(SolanaIdentitySessionState, {
+          binding: () => binding,
+          deviceSession: () =>
+            binding ? loadDeviceSession(binding.wallet.publicKey) : null,
+        }),
       );
     }),
   );

@@ -7,17 +7,16 @@ import {
   saveRunSession,
   type RunSlot,
 } from "./runSessionStore";
-import {
-  fetchActiveRun,
-  type ActiveRunView,
-  zkubeProgram,
-} from "./runPlan";
+import { fetchActiveRun, type ActiveRunView, zkubeProgram } from "./runPlan";
 import { getDelegationStatus, type DelegationStatus } from "./router";
-import type { WalletLike } from "../backend/solana/session/sessionWallet";
-import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID } from "./constants";
-import type { DeviceSession } from "../backend/solana/session/deviceSessionStore";
-import { derivePlayerStatePda, deriveRunAddresses } from "./pdas";
-import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
+import type { WalletLike } from "../session/sessionWallet";
+import {
+  DELEGATION_PROGRAM_ID,
+  ZKUBE_PROGRAM_ID,
+} from "../../../chain/constants";
+import type { DeviceSession } from "../session/deviceSessionStore";
+import { derivePlayerStatePda, deriveRunAddresses } from "../../../chain/pdas";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated";
 
 export type ResumedRun =
   | { phase: "none" }
@@ -219,12 +218,17 @@ async function discoverActiveRunMarker(args: {
   dependencies?: ResumeRunDependencies;
 }): Promise<RunSessionMarker | null> {
   if (!args.deviceSession.owner.equals(args.owner)) {
-    throw new Error("The device session owner does not match the connected wallet");
+    throw new Error(
+      "The device session owner does not match the connected wallet",
+    );
   }
   const dependencies = args.dependencies ?? {};
-  const runId = await (
-    dependencies.fetchActiveRunId ?? fetchActiveRunId
-  )(args.baseConnection, args.wallet, args.owner, args.slot);
+  const runId = await (dependencies.fetchActiveRunId ?? fetchActiveRunId)(
+    args.baseConnection,
+    args.wallet,
+    args.owner,
+    args.slot,
+  );
   if (runId === 0n) return null;
 
   const addresses = deriveRunAddresses(args.owner, runId);
@@ -246,7 +250,10 @@ async function discoverActiveRunMarker(args: {
     const connection = (dependencies.makeErConnection ?? defaultErConnection)(
       status.fqdn,
     );
-    const info = await connection.getAccountInfo(addresses.activeRun, "confirmed");
+    const info = await connection.getAccountInfo(
+      addresses.activeRun,
+      "confirmed",
+    );
     if (!info) return null;
     if (!info.owner.equals(ZKUBE_PROGRAM_ID)) {
       throw new Error("The discovered ER ActiveRun is not owned by zKube");
@@ -279,7 +286,9 @@ async function discoverActiveRunMarker(args: {
     !activeRun.owner.equals(args.owner) ||
     activeRun.runId !== runId
   ) {
-    throw new Error("The discovered ActiveRun does not match its owner and run id");
+    throw new Error(
+      "The discovered ActiveRun does not match its owner and run id",
+    );
   }
   const mode = activeRun.mode === "daily" ? "daily" : "campaign";
   if (runSlotForMode(mode) !== args.slot) {
@@ -314,10 +323,11 @@ async function fetchActiveRunId(
   ) {
     throw new Error("PlayerState has an invalid owner or data length");
   }
-  const profile = (await program.account.playerState.fetch(profileAddress)) as
-    Awaited<ReturnType<typeof program.account.playerState.fetch>> & {
-      campaignActiveRunId?: { toString(): string };
-    };
+  const profile = (await program.account.playerState.fetch(
+    profileAddress,
+  )) as Awaited<ReturnType<typeof program.account.playerState.fetch>> & {
+    campaignActiveRunId?: { toString(): string };
+  };
   if (!profile.owner.equals(owner)) {
     throw new Error("PlayerState owner does not match the connected wallet");
   }
@@ -345,8 +355,7 @@ function matchesMarker(
   return (
     activeRun.owner.equals(marker.owner) &&
     activeRun.runId === marker.runId &&
-    runSlotForMode(
-      activeRun.mode === "daily" ? "daily" : "campaign",
-    ) === runSlotForMode(marker.mode)
+    runSlotForMode(activeRun.mode === "daily" ? "daily" : "campaign") ===
+      runSlotForMode(marker.mode)
   );
 }

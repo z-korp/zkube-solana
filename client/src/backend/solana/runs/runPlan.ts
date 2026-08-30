@@ -33,7 +33,7 @@ import {
   type Signer,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { IDL, type ZkubeProgram } from "../backend/solana/idl/index.js";
+import { IDL, type ZkubeProgram } from "../idl/index.js";
 import {
   INITIAL_RUN_ID,
   MAGIC_CONTEXT_ID,
@@ -41,12 +41,9 @@ import {
   SOLANA_ENDPOINT,
   ZKUBE_PROGRAM_ID,
   getDelegationRecord,
-} from "./constants.js";
+} from "../../../chain/constants.js";
 import { saveRunSession, type RunSlot } from "./runSessionStore.js";
-import {
-  SessionWallet,
-  type WalletLike,
-} from "../backend/solana/session/sessionWallet.js";
+import { SessionWallet, type WalletLike } from "../session/sessionWallet.js";
 import {
   deriveArenaPlayerPda,
   deriveMapCatalogPda,
@@ -54,30 +51,30 @@ import {
   deriveProtocolConfigPda,
   deriveRunAddresses,
   type RunAddresses,
-} from "./pdas.js";
+} from "../../../chain/pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
 import {
   CANONICAL_DAILY_PRESSURE,
   type DailyPressureProfileView,
   type DailyThemeView,
-} from "../core/dailyRules.js";
+} from "../../../core/dailyRules.js";
 import {
   assertDeviceSignerCanPay,
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
-} from "../backend/solana/session/deviceSessionFunding.js";
-import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2.js";
-import { PLAYER_STATE_ACCOUNT_VERSION } from "../core/protocolVersions.generated.js";
+} from "../session/deviceSessionFunding.js";
+import { deriveSessionTokenV2Pda } from "../session/sessionV2.js";
+import { PLAYER_STATE_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated.js";
 import {
   coreBuildRunConfig,
   coreReconcileRunState,
   type CoreRunPhase,
   type CoreRunToken,
-} from "../core/zkubeCore.js";
+} from "../../../core/zkubeCore.js";
 import {
   mapLevelRuleSnapshot,
   projectCoreRun,
   type ActiveRunRulesView,
-} from "../core/runProjection.js";
+} from "../../../core/runProjection.js";
 
 /** Pin the complete budget before wallet approval so Phantom has no missing
  * priority-fee field to inject into the exact message. */

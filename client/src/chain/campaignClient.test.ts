@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   decode: vi.fn(),
 }));
 
-vi.mock("./runPlan", async () => ({
+vi.mock("@/backend/solana/runs/runPlan", async () => ({
   zkubeProgram: () => ({
     programId: ZKUBE_PROGRAM_ID,
     account: {

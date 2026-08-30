@@ -49,7 +49,7 @@ import {
   type PlayerSessionStatus,
 } from "./connectedPlayerContext";
 import { useSolanaConnection } from "./connectionContext";
-import { clearRunSession } from "./runSessionStore";
+import { clearRunSession } from "@/backend/solana/runs/runSessionStore";
 import {
   buildCreateSessionV2Instruction,
   decodeSessionTokenV2Account,
@@ -58,7 +58,7 @@ import {
 import type { WalletLike } from "../backend/solana/session/sessionWallet";
 import { createReadOnlyWallet } from "../backend/solana/identity/readOnlyWallet";
 import { derivePlayerStatePda } from "./pdas";
-import { withPinnedWalletComputeBudget, zkubeProgram } from "./runPlan";
+import { withPinnedWalletComputeBudget, zkubeProgram } from "@/backend/solana/runs/runPlan";
 import {
   DEVICE_FEE_ALLOWANCE_LAMPORTS,
   deviceSignerTopUpLamports,
@@ -75,7 +75,7 @@ import {
   withSigningDeadline,
 } from "../backend/solana/session/deviceSessionLifecycle";
 import { buildRevokeExpiredSessionInstruction } from "../backend/solana/session/sessionCleanup";
-import { createChainTraceId, emitChainMetric } from "./telemetry";
+import { createChainTraceId, emitChainMetric } from "@/backend/solana/runs/telemetry";
 
 const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 

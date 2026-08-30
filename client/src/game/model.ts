@@ -5,7 +5,7 @@
 //   level (`levelComplete`) flows through the level-completion path.
 // - `zoneCleared` marks a completed guardian trial (level 10 of a map).
 // - scores are per-run: levelScore === totalScore === score.
-import type { ActiveRunView } from "@/chain/runPlan";
+import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
 import { isBossLevel } from "@/game/constants";
 
 const ROWS = 10;

@@ -6,8 +6,8 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { useRun } from "@/contexts/run";
 import { Game } from "@/game/model";
 import { rulesToGameLevelData, type GameLevelData } from "@/hooks/useGameLevel";
-import type { ActiveRunView } from "@/chain/runPlan";
-import type { RunResultView } from "@/chain/resumeRun";
+import type { ActiveRunView } from "@/backend/solana/runs/runPlan";
+import type { RunResultView } from "@/backend/solana/runs/resumeRun";
 import type { SettleStage } from "@/chain/useRunController";
 import { toDisplayGrid } from "@/game/model";
 import {

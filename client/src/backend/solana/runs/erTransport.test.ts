@@ -13,7 +13,7 @@ import {
   submitErTransactionPlan,
 } from "./erTransport";
 import type { TransactionPlan } from "./runPlan";
-import { SessionWallet } from "../backend/solana/session/sessionWallet";
+import { SessionWallet } from "../session/sessionWallet";
 
 const blockhash = "11111111111111111111111111111111";
 

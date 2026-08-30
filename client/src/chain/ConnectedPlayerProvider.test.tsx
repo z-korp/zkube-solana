@@ -98,8 +98,8 @@ vi.mock(
   },
 );
 
-vi.mock("./runSessionStore", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./runSessionStore")>();
+vi.mock("@/backend/solana/runs/runSessionStore", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/backend/solana/runs/runSessionStore")>();
   return { ...actual, clearRunSession: mocks.clearRunSession };
 });
 
@@ -114,8 +114,8 @@ vi.mock("../backend/solana/session/sessionV2", async (importOriginal) => {
   };
 });
 
-vi.mock("./runPlan", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./runPlan")>();
+vi.mock("@/backend/solana/runs/runPlan", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/backend/solana/runs/runPlan")>();
   return {
     ...actual,
     zkubeProgram: () => ({
@@ -132,7 +132,7 @@ vi.mock("./pdas", async (importOriginal) => {
   };
 });
 
-vi.mock("./telemetry", () => ({
+vi.mock("@/backend/solana/runs/telemetry", () => ({
   createChainTraceId: () => "provider-test",
   emitChainMetric: vi.fn(),
 }));

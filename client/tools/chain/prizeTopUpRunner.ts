@@ -34,7 +34,7 @@ import {
   SECONDS_PER_DAY,
 } from "../../src/core/protocolVersions.generated";
 import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnlyWallet";
-import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
+import { zkubeProgram, type TransactionPlan } from "../../src/backend/solana/runs/runPlan";
 
 type PrizeTopUpMode = "plan" | "execute";
 type CadenceSelector = "current" | "following" | number;

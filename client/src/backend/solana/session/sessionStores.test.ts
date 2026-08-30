@@ -17,7 +17,7 @@ import {
   isRunSessionFresh,
   loadRunSession,
   saveRunSession,
-} from "../../../chain/runSessionStore";
+} from "../runs/runSessionStore";
 import { deriveSessionTokenV2Pda } from "./sessionV2";
 import type { StorageLike } from "@/platform/browserStorage";
 

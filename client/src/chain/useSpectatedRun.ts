@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useSolanaConnection } from "./connectionContext";
-import { PersistedRunWatcher, type RunWatchStatus } from "./runWatcher";
+import { PersistedRunWatcher, type RunWatchStatus } from "@/backend/solana/runs/runWatcher";
 import {
   resolveSpectatedRun,
   type SpectatedRun,
   type SpectateTarget,
-} from "./spectateRun";
+} from "@/backend/solana/runs/spectateRun";
 
 export interface SpectatedRunState {
   run: SpectatedRun | null;

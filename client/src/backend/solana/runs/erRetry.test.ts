@@ -1,20 +1,20 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
+
 import { isTransientErError, withTransientErRetry } from "./erRetry";
 
 describe("MagicBlock transient retry", () => {
-  it("retries cloner lag with bounded exponential backoff", async () => {
+  it("retries cloner lag on the bounded Effect schedule", async () => {
     const action = vi
       .fn<() => Promise<string>>()
       .mockRejectedValueOnce(new Error("Cloner error"))
       .mockRejectedValueOnce(new Error("pending request owner failed"))
       .mockResolvedValue("ready");
-    const sleep = vi.fn(async () => undefined);
     await expect(
-      withTransientErRetry(action, { sleep, baseDelayMs: 100 }),
+      withTransientErRetry(action, { baseDelayMs: 0 }),
     ).resolves.toBe("ready");
-    expect(sleep.mock.calls.map(([delay]) => delay)).toEqual([100, 200]);
+    expect(action).toHaveBeenCalledTimes(3);
   });
 
   it("never retries deterministic program errors", async () => {
@@ -22,7 +22,7 @@ describe("MagicBlock transient retry", () => {
       throw new Error("AnchorError: InvalidMove");
     });
     await expect(
-      withTransientErRetry(action, { sleep: async () => undefined }),
+      withTransientErRetry(action, { baseDelayMs: 0 }),
     ).rejects.toThrow("InvalidMove");
     expect(action).toHaveBeenCalledTimes(1);
     expect(isTransientErError(new Error("Blockhash not found"))).toBe(true);

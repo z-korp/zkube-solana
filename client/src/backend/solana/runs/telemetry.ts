@@ -30,8 +30,14 @@ export function createChainTraceId(): string {
   return crypto.randomUUID();
 }
 
-export function emitChainMetric(metric: Omit<ChainMetric, "schemaVersion" | "event">): void {
-  const mode = (import.meta.env.VITE_PUBLIC_ZKUBE_TELEMETRY ?? "console").trim();
+export function emitChainMetric(
+  metric: Omit<ChainMetric, "schemaVersion" | "event">,
+): void {
+  const mode = (
+    import.meta.env.VITE_PUBLIC_ZKUBE_TELEMETRY ?? "console"
+  ).trim();
   if (mode === "off") return;
-  console.info(JSON.stringify({ schemaVersion: 1, event: "run_metric", ...metric }));
+  console.info(
+    JSON.stringify({ schemaVersion: 1, event: "run_metric", ...metric }),
+  );
 }

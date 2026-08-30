@@ -21,7 +21,7 @@ import {
   MAX_CAMPAIGN_MAPS,
   canonicalCampaignMap,
 } from "../../src/core/campaignCatalog";
-import { zkubeProgram, type TransactionPlan } from "../../src/chain/runPlan";
+import { zkubeProgram, type TransactionPlan } from "../../src/backend/solana/runs/runPlan";
 import type { WalletLike } from "../../src/backend/solana/session/sessionWallet";
 import BN from "bn.js";
 import { dailyContentFromPairIndex } from "../../src/core/dailyRules";

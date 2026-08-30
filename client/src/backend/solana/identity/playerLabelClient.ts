@@ -17,7 +17,7 @@ import { PLAYER_LABEL_ACCOUNT_VERSION } from "../../../core/protocolVersions.gen
 import {
   zkubeProgram,
   type TransactionPlan,
-} from "../../../chain/runPlan.js";
+} from "../runs/runPlan.js";
 import type { WalletLike } from "../session/sessionWallet.js";
 
 const PLAYER_LABEL_CACHE_MS = 60_000;

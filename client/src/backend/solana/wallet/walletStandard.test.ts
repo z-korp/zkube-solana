@@ -17,7 +17,7 @@ import {
   WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT,
   WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
   withPinnedWalletComputeBudget,
-} from "@/chain/runPlan";
+} from "@/backend/solana/runs/runPlan";
 import { ARENA_ENTRY_LAMPORTS } from "@/core/protocolVersions.generated";
 import {
   createFakeWalletStandard,

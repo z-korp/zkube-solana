@@ -17,7 +17,7 @@ import {
   validateDeploymentManifest,
   type ZkubeDeploymentManifest,
 } from "./deploymentManifest";
-import { VRF_QUEUE } from "../../src/chain/runPlan";
+import { VRF_QUEUE } from "../../src/backend/solana/runs/runPlan";
 import { deriveOperatorRevenueVaultPda } from "../../src/chain/pdas";
 
 describe("zKube deployment manifest v6", () => {

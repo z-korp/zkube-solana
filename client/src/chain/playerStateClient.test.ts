@@ -16,7 +16,7 @@ import {
 import {
   PLAYER_STATE_ACCOUNT_VERSION,
 } from "../core/protocolVersions.generated";
-import { zkubeProgram } from "./runPlan";
+import { zkubeProgram } from "@/backend/solana/runs/runPlan";
 import { SessionWallet } from "../backend/solana/session/sessionWallet";
 
 // The IDL playerState account discriminator (BorshAccountsCoder rejects any

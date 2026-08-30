@@ -37,7 +37,7 @@ import {
   zkubeProgram,
   type PreparedRunPlan,
   type TransactionPlan,
-} from "./runPlan.js";
+} from "@/backend/solana/runs/runPlan.js";
 import {
   mapLevelRuleSnapshot,
   type ActiveRunRulesView,

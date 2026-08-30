@@ -16,7 +16,7 @@ import {
   buildPlayMovePlan,
   buildRequestRerollPlan,
   decodeActiveRunAccount,
-} from "./runPlan";
+} from "@/backend/solana/runs/runPlan";
 import { IDL } from "../backend/solana/idl";
 import { SessionWallet } from "../backend/solana/session/sessionWallet";
 

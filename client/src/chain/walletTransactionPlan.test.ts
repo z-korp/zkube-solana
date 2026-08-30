@@ -37,10 +37,10 @@ import {
   withPinnedWalletComputeBudget,
   zkubeProgram,
   type TransactionPlan,
-} from "./runPlan";
+} from "@/backend/solana/runs/runPlan";
 import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import { deriveSessionTokenV2Pda } from "../backend/solana/session/sessionV2";
-import * as router from "./router";
+import * as router from "@/backend/solana/runs/router";
 import { DEVICE_SESSION_RENEWAL_ERROR_CODE } from "../backend/solana/session/deviceSessionFunding";
 import { makeFakeConnection } from "@/test/mocks/connection";
 

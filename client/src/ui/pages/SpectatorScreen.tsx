@@ -4,7 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import { getThemeColors, getThemeId, getThemeImages } from "@/config/themes";
 import { toDisplayGrid } from "@/game/model";
-import type { SpectateTarget } from "@/chain/spectateRun";
+import type { SpectateTarget } from "@/backend/solana/runs/spectateRun";
 import { useSpectatedRun } from "@/chain/useSpectatedRun";
 import { useNavigationStore } from "@/stores/navigationStore";
 import NextLine from "@/ui/components/NextLine";
