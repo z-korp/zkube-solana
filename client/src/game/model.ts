@@ -129,14 +129,6 @@ export class Game {
     return this.view.currentDifficulty;
   }
 
-  public get pressureThresholds(): readonly number[] {
-    return this.view.pressureThresholds;
-  }
-
-  public get pressureScoreMultipliersX100(): readonly number[] {
-    return this.view.pressureScoreMultipliersX100;
-  }
-
   public get levelCompleted(): boolean {
     return this.view.lifecycle === "levelComplete";
   }

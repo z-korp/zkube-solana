@@ -23,7 +23,7 @@ import type { GameLevelData } from "@/hooks/useGameLevel";
 import { useLerpNumber } from "@/hooks/useLerpNumber";
 import ProgressRing from "@/ui/components/shared/ProgressRing";
 import { constraintProgressOf, constraintStatus } from "./constraintDisplay";
-import { boardTier, buildTierScale } from "./boardTier";
+import { boardTier } from "./boardTier";
 import { guardianFrame, type GuardianMood } from "./useGuardianMood";
 
 const FIGURE = "font-sans font-black tabular-nums leading-[0.92]";
@@ -53,9 +53,6 @@ export interface BoardHudProps {
   /** The chain length at which a move starts counting for the day. */
   comboThreshold: number;
   pressureScore: number;
-  currentDifficulty: number;
-  pressureThresholds: readonly number[];
-  pressureScoreMultipliersX100: readonly number[];
   gameLevel: GameLevelData | null;
   constraintProgress: number;
   constraint2Progress: number;
@@ -75,28 +72,13 @@ export default function BoardHud({
   streak,
   comboThreshold,
   pressureScore,
-  currentDifficulty,
-  pressureThresholds,
-  pressureScoreMultipliersX100,
   gameLevel,
   constraintProgress,
   constraint2Progress,
   latchedStarSources,
 }: BoardHudProps) {
-  const tier = boardTier(
-    pressureThresholds,
-    pressureScoreMultipliersX100,
-    currentDifficulty,
-    pressureScore,
-  );
-  const tierScale = buildTierScale(
-    pressureThresholds,
-    pressureScoreMultipliersX100,
-  );
-  const nextTier = tierScale[tier.index + 1];
-  const tierSentence = nextTier
-    ? `${tier.name} ×${tier.multiplier.toFixed(1)} · ${Math.max(0, nextTier.threshold - pressureScore)} to ${nextTier.name}`
-    : `${tier.name} ×${tier.multiplier.toFixed(1)} · top pressure`;
+  const tier = boardTier(pressureScore);
+  const tierSentence = `${tier.name} · ×${tier.multiplier.toFixed(1)} · ${tier.pointsToNext} to ×${tier.nextMultiplier.toFixed(1)}`;
   const shownScore =
     useLerpNumber(score, { duration: 300, integer: true }) ?? 0;
   const shownTheme =

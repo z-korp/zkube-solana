@@ -5969,15 +5969,6 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "score_multipliers_x100",
-            "type": {
-              "array": [
-                "u16",
-                8
-              ]
-            }
-          },
-          {
             "name": "max_moves",
             "type": "u16"
           }

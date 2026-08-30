@@ -141,11 +141,14 @@ ladder tier boundaries, and the flat qualifying credit.
   same row. No account, level snapshot, or run snapshot stores block weights;
   `campaign_and_daily_draw_from_one_tier_table` and the codegen check guard the
   boundary.
-- **Daily pressure is one step and one score ramp.** The pressure tier is
-  `min(7, pressure_score / 20)`, and its action multipliers are
-  1.0/1.5/2.0/2.5/3.0/3.5/4.0/4.5. Objective increments never feed pressure.
-  Every selected pair uses that profile and the fixed 100-move limit; there is
-  no authored threshold array or per-content pressure copy.
+- **Daily pressure is one uncapped score ramp and one clamped draw table.** The
+  pressure tier is `pressure_score / 15`, its action multiplier is
+  `1.0 + 0.5 × tier`, and only the block-row lookup clamps the tier to the
+  authored table's top row. Objective increments never feed pressure. Every
+  selected pair uses that formula and the fixed 100-move limit; there is no
+  authored threshold array, multiplier array, or per-content pressure copy.
+  `pressure_multiplier_is_uncapped_and_the_draw_clamps_at_the_top_row` guards
+  the boundary.
 - **A realm has one guardian rule in both modes.** `Guardian { bonus, trigger,
   threshold }` is the complete realm-specific gameplay rule, and the same
   bytes reach Campaign and Arcade. Scoring is triangular action score alone,

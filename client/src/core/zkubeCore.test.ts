@@ -114,11 +114,11 @@ describe("generated zkube-core WASM boundary", () => {
     state = corePlayRunMove({
       config,
       state,
-      action: 0,
-      expectedMove: 0,
-      row: 0,
-      start: 3,
-      destination: 0,
+      action: golden.events[1].action!,
+      expectedMove: golden.events[1].expected_move!,
+      row: golden.events[1].row!,
+      start: golden.events[1].start!,
+      destination: golden.events[1].destination!,
     });
     state = coreApplyRunVrf({
       config,
@@ -141,7 +141,7 @@ describe("generated zkube-core WASM boundary", () => {
         primaryProgress: golden.expected.primary_progress,
         secondaryProgress: golden.expected.secondary_progress,
         latchedStarSources: 0,
-        streak: 0,
+        streak: golden.expected.streak,
         chargesEarned: 0,
         currentTier: golden.expected.current_tier,
         levelLinesCleared: golden.expected.level_lines_cleared,

@@ -79,8 +79,6 @@ vi.mock("@/play/usePlayController", () => ({
         activeMutatorId: 0,
         guardian: { bonus: 1, trigger: 2, threshold: 3 },
       },
-      pressureThresholds: [1, 2, 3, 4, 5, 6, 7],
-      pressureScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
     };
     return {
       run: {
@@ -221,7 +219,6 @@ describe("PlayScreen local Run projection", () => {
       themeScore: Number(activeRun.objectiveTotal),
       combo: activeRun.comboCounter,
       pressureScore: activeRun.pressureScore,
-      currentDifficulty: activeRun.currentTier,
       constraintProgress: activeRun.primaryProgress,
       constraint2Progress: activeRun.secondaryProgress,
       latchedStarSources: activeRun.latchedStarSources,

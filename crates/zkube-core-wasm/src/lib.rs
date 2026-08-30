@@ -742,8 +742,8 @@ mod tests {
         native.apply_vrf(rules, 1, [0x11; 32]).unwrap();
         state = run_apply_vrf(&config_bytes, &state, 1, &[0x11; 32]).unwrap();
         assert_eq!(decode_run_state(&state).unwrap(), native);
-        native.play_move(rules, 0, 0, 0, 3, 0).unwrap();
-        state = run_play_move(&config_bytes, &state, 0, 0, 0, 3, 0).unwrap();
+        native.play_move(rules, 0, 0, 0, 0, 0).unwrap();
+        state = run_play_move(&config_bytes, &state, 0, 0, 0, 0, 0).unwrap();
         assert_eq!(decode_run_state(&state).unwrap(), native);
         native.apply_vrf(rules, 2, [0x22; 32]).unwrap();
         state = run_apply_vrf(&config_bytes, &state, 2, &[0x22; 32]).unwrap();

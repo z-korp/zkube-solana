@@ -2,10 +2,8 @@
 import { PublicKey } from "@solana/web3.js";
 
 import { BonusType } from "@/chain/bonusTypes";
-import {
-  CANONICAL_DAILY_PRESSURE,
-  dailyPressureThresholds,
-} from "@/chain/dailyRules";
+import { CANONICAL_DAILY_PRESSURE } from "@/chain/dailyRules";
+import { PRESSURE_STEP } from "@/chain/protocolVersions.generated";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,
@@ -150,7 +148,7 @@ export function buildDevActiveRun(
     latchedStarSources: 0,
     streak: 0,
     chargesEarned: 0,
-    currentTier: isArena ? 4 : rules.difficulty,
+    currentTier: isArena ? Math.floor(80 / PRESSURE_STEP) : rules.difficulty,
     levelLinesCleared: 11,
     moves,
     actionCounter: moves + 1,
@@ -207,8 +205,6 @@ export function buildDevActiveRun(
     nextRow: null,
     pendingVrfCounter: 0,
     vrfRequestCounter: 0,
-    pressureThresholds: dailyPressureThresholds(),
-    pressureScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
   };
   return projectRunFromLocalState(base, state);
 }

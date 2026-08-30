@@ -22,9 +22,6 @@ describe("BoardHud", () => {
         streak={0}
         comboThreshold={2}
         pressureScore={0}
-        currentDifficulty={0}
-        pressureThresholds={[1, 2, 3, 4, 5, 6, 7]}
-        pressureScoreMultipliersX100={[100, 100, 100, 100, 100, 100, 100, 100]}
         gameLevel={{
           gameId: 1n,
           level: 2,
@@ -67,11 +64,6 @@ describe("BoardHud", () => {
         streak={2}
         comboThreshold={2}
         pressureScore={25}
-        currentDifficulty={1}
-        pressureThresholds={[10, 40, 80, 150, 280, 500, 900]}
-        pressureScoreMultipliersX100={[
-          100, 150, 200, 300, 400, 600, 800, 1_000,
-        ]}
         gameLevel={null}
         constraintProgress={0}
         constraint2Progress={0}
@@ -81,6 +73,30 @@ describe("BoardHud", () => {
 
     expect(screen.getByText("width-3 blocks broken")).toBeInTheDocument();
     expect(screen.getByText("2 streak")).toBeInTheDocument();
-    expect(screen.getByText("Easy ×1.5 · 15 to Medium")).toBeInTheDocument();
+    expect(screen.getByText("Easy · ×1.5 · 5 to ×2.0")).toBeInTheDocument();
+  });
+
+  it("holds the top row name while the score multiplier keeps climbing", () => {
+    render(
+      <BoardHud
+        isDaily
+        zoneId={2}
+        mood="idle"
+        score={4_200}
+        targetScore={0}
+        themeScore={0}
+        level={1}
+        combo={0}
+        streak={0}
+        comboThreshold={2}
+        pressureScore={183}
+        gameLevel={null}
+        constraintProgress={0}
+        constraint2Progress={0}
+        latchedStarSources={0}
+      />,
+    );
+
+    expect(screen.getByText("Master · ×7.0 · 12 to ×7.5")).toBeInTheDocument();
   });
 });

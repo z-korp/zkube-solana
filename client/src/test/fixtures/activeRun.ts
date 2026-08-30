@@ -53,8 +53,6 @@ export function makeActiveRun(
     totalLinesCleared: 0,
     bonusUses: 0,
     currentDifficulty: 1,
-    pressureThresholds: [1, 2, 3, 4, 5, 6, 7],
-    pressureScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
     bonusType: 0,
     bonusCharges: 0,
     rerollCharges: 1,

@@ -105,7 +105,7 @@ describe("PlayScreen explanations", () => {
     expect(
       screen.getByText(/Every 4 lines cleared by moves/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Hard ×3\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/Very Hard · ×3\.5 · 10 to ×4\.0/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Hammer: 2 charges/ }));
     expect(screen.getByRole("status")).toHaveTextContent(

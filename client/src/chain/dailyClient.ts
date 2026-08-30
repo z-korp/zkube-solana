@@ -37,12 +37,10 @@ import {
   mapLevelRuleSnapshot,
   zkubeProgram,
   type ActiveRunRulesView,
-  type DailyPressureRulesView,
   type PreparedRunPlan,
   type TransactionPlan,
 } from "./runPlan.js";
 import {
-  dailyPressureThresholds,
   mapDailyPressureProfile,
   dailyContentFromPairIndex,
   nextScheduledDaily,
@@ -101,7 +99,7 @@ export function parseDailyStatus(value: unknown): DailyStatus {
     : "unknown";
 }
 
-export interface DailyView extends DailyPressureRulesView {
+export interface DailyView {
   address: PublicKey;
   dayId: number;
   followingDayId: number | null;
@@ -242,8 +240,6 @@ export async function fetchDailyView(args: {
       value: Number(challenge.dailyTheme.value),
     },
     pressure,
-    pressureThresholds: dailyPressureThresholds(),
-    pressureScoreMultipliersX100: pressure.scoreMultipliersX100,
   };
 }
 

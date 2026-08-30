@@ -7,57 +7,11 @@ use crate::{
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v3";
-pub const RULES_VERSION: u32 = 3;
+pub const RULES_VERSION: u32 = 4;
 const CAMPAIGN_REPLAY_FOLD_DOMAIN: &[u8] = b"zkube-campaign-replay-fold-v1";
 pub const CANONICAL_RUN_RULES_LEN: usize = 23;
 pub const DAILY_MAX_MOVES: u16 = 100;
-pub const PRESSURE_STEP: u32 = 20;
-const PRESSURE_TIER_COUNT: usize = 8;
-
-/// The protocol-owned score multiplier ramp for a Daily run.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DailyPressureRules {
-    pub score_multipliers_x100: [u16; PRESSURE_TIER_COUNT],
-}
-
-impl DailyPressureRules {
-    #[must_use]
-    pub const fn canonical() -> Self {
-        Self {
-            score_multipliers_x100: [100, 150, 200, 250, 300, 350, 400, 450],
-        }
-    }
-
-    #[must_use]
-    pub fn is_valid(self) -> bool {
-        self.score_multipliers_x100
-            .iter()
-            .all(|multiplier| *multiplier > 0)
-    }
-
-    #[must_use]
-    pub fn difficulty_for_score(self, pressure_score: u32) -> u8 {
-        u8::try_from((pressure_score / PRESSURE_STEP).min(7)).unwrap_or(7)
-    }
-
-    #[must_use]
-    pub fn multiplier(self, difficulty: u8) -> u16 {
-        self.score_multipliers_x100[usize::from(difficulty.min(7))]
-    }
-
-    #[must_use]
-    pub fn weights(self, difficulty: u8) -> BlockWeights {
-        BlockWeights {
-            values: crate::TIER_BLOCK_WEIGHTS[usize::from(difficulty.min(7))],
-        }
-    }
-}
-
-impl Default for DailyPressureRules {
-    fn default() -> Self {
-        Self::canonical()
-    }
-}
+pub const PRESSURE_STEP: u32 = 15;
 
 /// Exactly one tier policy drives a run. Campaign fixes a tier; Daily derives
 /// it from neutral pressure score.
@@ -124,9 +78,7 @@ impl RunRules {
     pub fn current_tier(self, pressure_score: u32) -> u8 {
         match self.tier {
             TierPolicy::Fixed(tier) => tier.min(7),
-            TierPolicy::Pressure => {
-                DailyPressureRules::canonical().difficulty_for_score(pressure_score)
-            }
+            TierPolicy::Pressure => u8::try_from(pressure_score / PRESSURE_STEP).unwrap_or(u8::MAX),
         }
     }
 
@@ -139,7 +91,7 @@ impl RunRules {
 
     fn action_score_multiplier(self, tier: u8) -> u16 {
         if self.is_pressure() {
-            DailyPressureRules::canonical().multiplier(tier)
+            100u16.saturating_add(u16::from(tier).saturating_mul(50))
         } else {
             100
         }
@@ -954,6 +906,17 @@ mod tests {
     fn daily_runs_start_without_guardian_charges() {
         let simulation = Run::new(config()).unwrap();
         assert_eq!(simulation.engine.bonus_charges, 0);
+    }
+
+    #[test]
+    fn pressure_multiplier_is_uncapped_and_the_draw_clamps_at_the_top_row() {
+        let rules = rules();
+        let pressure_score = 12 * PRESSURE_STEP;
+        let tier = rules.current_tier(pressure_score);
+        assert_eq!(tier, 12);
+        assert_eq!(rules.action_score_multiplier(tier), 700);
+        assert_eq!(rules.weights(tier).values, crate::TIER_BLOCK_WEIGHTS[7]);
+        assert_eq!(rules.current_tier(u32::MAX), u8::MAX);
     }
 
     #[test]

@@ -833,9 +833,6 @@ export default function PlayScreen() {
         streak={activeRun.streak ?? 0}
         comboThreshold={dailyComboThreshold}
         pressureScore={hudGame.pressureScore}
-        currentDifficulty={hudGame.currentDifficulty}
-        pressureThresholds={activeRun.pressureThresholds}
-        pressureScoreMultipliersX100={activeRun.pressureScoreMultipliersX100}
         gameLevel={gameLevel}
         constraintProgress={hudGame.constraintProgress}
         constraint2Progress={hudGame.constraint2Progress}

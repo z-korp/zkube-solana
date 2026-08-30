@@ -56,7 +56,6 @@ import {
 import { getClosestValidator, waitForDelegation } from "./router.js";
 import {
   CANONICAL_DAILY_PRESSURE,
-  dailyPressureThresholds,
   type DailyPressureProfileView,
   type DailyThemeView,
 } from "./dailyRules.js";
@@ -143,33 +142,7 @@ export interface PreparedRunPlan {
   transactionPlan: TransactionPlan;
 }
 
-type DailyPressureThresholdsView = [
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-];
-
-type DailyPressureMultipliersX100View = [
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-  number,
-];
-
-export interface DailyPressureRulesView {
-  pressureThresholds: DailyPressureThresholdsView;
-  pressureScoreMultipliersX100: DailyPressureMultipliersX100View;
-}
-
-export interface ActiveRunView extends DailyPressureRulesView {
+export interface ActiveRunView {
   /** Opaque deterministic state/config pair that drives every local view. */
   runToken?: CoreRunToken;
   version?: number;
@@ -1070,8 +1043,6 @@ export function reconcileRunFromChain(
     deadlineAt: Number(account.deadlineAt),
     dailyTheme,
     dailyPressure,
-    pressureThresholds: dailyPressureThresholds(),
-    pressureScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
     ...projectCoreRun(token),
     lifecycle,
     finishReason,

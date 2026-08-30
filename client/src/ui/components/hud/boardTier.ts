@@ -1,16 +1,19 @@
 /**
  * The pressure tier the run is on, and what it multiplies by.
  *
- * The run climbs on the higher of its two pressures: the difficulty the engine
- * has stepped to, and the pressure score it has accumulated. Colours are the
- * ladder's own, from green through to the master amber.
+ * The score multiplier keeps climbing after the authored row danger reaches
+ * its top name and colour.
  */
+import { PRESSURE_STEP } from "@/chain/protocolVersions.generated";
+
 export interface BoardTierStep {
   index: number;
   name: string;
   color: string;
   threshold: number;
   multiplier: number;
+  pointsToNext: number;
+  nextMultiplier: number;
 }
 
 const NAMES = [
@@ -35,37 +38,18 @@ const COLORS = [
   "#f59e0b",
 ] as const;
 
-export function buildTierScale(
-  thresholds: readonly number[],
-  multipliersX100: readonly number[],
-): BoardTierStep[] {
-  return NAMES.map((name, index) => ({
+export function boardTier(pressureScore: number): BoardTierStep {
+  const score = Math.max(0, Math.floor(pressureScore));
+  const index = Math.floor(score / PRESSURE_STEP);
+  const namedIndex = Math.min(index, NAMES.length - 1);
+  const multiplier = 1 + index * 0.5;
+  return {
     index,
-    name,
-    color: COLORS[index]!,
-    threshold:
-      index === 0 ? 0 : (thresholds[index - 1] ?? Number.MAX_SAFE_INTEGER),
-    multiplier: (multipliersX100[index] ?? 100) / 100,
-  }));
-}
-
-export function boardTier(
-  thresholds: readonly number[],
-  multipliersX100: readonly number[],
-  currentDifficulty: number,
-  pressureScore: number,
-): BoardTierStep {
-  const scale = buildTierScale(thresholds, multipliersX100);
-  const byDifficulty = Math.max(
-    0,
-    Math.min(currentDifficulty, scale.length - 1),
-  );
-  let byPressure = 0;
-  for (let index = scale.length - 1; index >= 0; index -= 1) {
-    if (pressureScore >= scale[index]!.threshold) {
-      byPressure = index;
-      break;
-    }
-  }
-  return scale[Math.max(byDifficulty, byPressure)]!;
+    name: NAMES[namedIndex]!,
+    color: COLORS[namedIndex]!,
+    threshold: index * PRESSURE_STEP,
+    multiplier,
+    pointsToNext: (index + 1) * PRESSURE_STEP - score,
+    nextMultiplier: multiplier + 0.5,
+  };
 }

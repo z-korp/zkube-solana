@@ -111,6 +111,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "one generated tier table and one pressure step replaced stored weight and threshold copies",
   },
   {
+    pattern:
+      /score_multipliers_x100|scoreMultipliersX100|1\.0\/1\.5\/2\.0\/2\.5\/3\.0\/3\.5\/4\.0\/4\.5/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Daily score pressure is an uncapped formula rather than a stored multiplier array",
+  },
+  {
     pattern: /bonus_trigger_type\s*:\s*3\b|triggerType\s*===?\s*3\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal: "bonus trigger type 3 is unsupported",

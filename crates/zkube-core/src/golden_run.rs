@@ -16,17 +16,11 @@ struct GoldenObjective {
 }
 
 #[derive(Deserialize)]
-struct GoldenPressure {
-    score_multipliers_x100: [u16; 8],
-}
-
-#[derive(Deserialize)]
 struct GoldenRules {
     max_moves: u16,
     guardian: GoldenGuardian,
     starting_height: u8,
     objective: GoldenObjective,
-    pressure: GoldenPressure,
 }
 
 #[derive(Deserialize)]
@@ -69,6 +63,7 @@ struct GoldenExpected {
     action_counter: u32,
     last_vrf_counter: u32,
     combo_counter: u8,
+    streak: u8,
     maximum_engine_combo: u8,
     primary_progress: u8,
     secondary_progress: u8,
@@ -151,10 +146,6 @@ fn verify_daily_run_vector(json: &str) {
     let fixture: GoldenDailyRun = serde_json::from_str(json).unwrap();
     assert_eq!(fixture.version, 2);
     let rules = fixture_rules(&fixture.rules);
-    assert_eq!(
-        value_pressure(&fixture.rules),
-        DailyPressureRules::canonical()
-    );
     assert_eq!(
         rules.snapshot_hash().to_bytes(),
         decode_32(&fixture.rules_snapshot_hash_hex)
@@ -253,6 +244,7 @@ fn verify_daily_run_vector(json: &str) {
     assert_eq!(simulation.action_counter, expected.action_counter);
     assert_eq!(simulation.last_vrf_counter, expected.last_vrf_counter);
     assert_eq!(simulation.engine.combo_counter, expected.combo_counter);
+    assert_eq!(simulation.engine.streak, expected.streak);
     assert_eq!(simulation.engine.max_combo, expected.maximum_engine_combo);
     assert_eq!(
         simulation.engine.primary_progress,
@@ -272,12 +264,6 @@ fn verify_daily_run_vector(json: &str) {
         simulation.replay.to_bytes(),
         decode_32(&expected.final_replay_hash_hex)
     );
-}
-
-fn value_pressure(value: &GoldenRules) -> DailyPressureRules {
-    DailyPressureRules {
-        score_multipliers_x100: value.pressure.score_multipliers_x100,
-    }
 }
 
 #[test]

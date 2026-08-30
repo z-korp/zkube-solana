@@ -1,8 +1,5 @@
 import {
   DAILY_MAX_MOVES,
-  DAILY_PRESSURE_SCORE_MULTIPLIERS_X100,
-  PRESSURE_STEP,
-  TIER_BLOCK_WEIGHTS,
 } from "./protocolVersions.generated";
 import {
   DAILY_PAIR_COUNT,
@@ -61,43 +58,22 @@ function assertDayId(dayId: number): void {
   }
 }
 
-type DailyPressureThresholds = [number, number, number, number, number, number, number];
-type DailyPressureMultipliers = [number, number, number, number, number, number, number, number];
-type DailyBlockWeights = [number, number, number, number, number];
-
 export interface DailyPressureProfileView {
-  scoreMultipliersX100: DailyPressureMultipliers;
   maxMoves: number;
 }
 
 export interface RawDailyPressureProfile {
-  scoreMultipliersX100: readonly unknown[];
   maxMoves: unknown;
 }
 
 export const CANONICAL_DAILY_PRESSURE: DailyPressureProfileView = {
-  scoreMultipliersX100: [...DAILY_PRESSURE_SCORE_MULTIPLIERS_X100],
   maxMoves: DAILY_MAX_MOVES,
 };
-
-export const DAILY_TIER_BLOCK_WEIGHTS = TIER_BLOCK_WEIGHTS.map(
-  (weights) => [...weights] as DailyBlockWeights,
-);
-
-export function dailyPressureThresholds(): DailyPressureThresholds {
-  return Array.from({ length: 7 }, (_, index) => PRESSURE_STEP * (index + 1)) as DailyPressureThresholds;
-}
 
 export function mapDailyPressureProfile(
   pressure: RawDailyPressureProfile,
 ): DailyPressureProfileView {
-  if (pressure.scoreMultipliersX100.length !== 8) {
-    throw new Error("Decoded Daily pressure must contain exactly 8 tiers");
-  }
   return {
-    scoreMultipliersX100: pressure.scoreMultipliersX100.map(
-      Number,
-    ) as DailyPressureMultipliers,
     maxMoves: Number(pressure.maxMoves),
   };
 }

@@ -40,7 +40,6 @@ impl DailyThemeSnapshot {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, InitSpace, PartialEq, Eq)]
 pub struct DailyPressureProfile {
-    pub score_multipliers_x100: [u16; 8],
     pub max_moves: u16,
 }
 
@@ -53,27 +52,13 @@ impl Default for DailyPressureProfile {
 impl DailyPressureProfile {
     pub const fn canonical() -> Self {
         Self {
-            score_multipliers_x100: zkube_core::DailyPressureRules::canonical()
-                .score_multipliers_x100,
             max_moves: DAILY_MAX_MOVES,
         }
     }
 
     pub fn validate(self) -> Result<()> {
-        require!(
-            self.score_multipliers_x100.iter().all(|value| *value > 0)
-                && self.max_moves == DAILY_MAX_MOVES,
-            ErrorCode::InvalidLevel
-        );
+        require!(self.max_moves == DAILY_MAX_MOVES, ErrorCode::InvalidLevel);
         Ok(())
-    }
-
-    #[must_use]
-    pub fn difficulty_for_score(self, pressure_score: u32) -> u8 {
-        zkube_core::DailyPressureRules {
-            score_multipliers_x100: self.score_multipliers_x100,
-        }
-        .difficulty_for_score(pressure_score)
     }
 }
 

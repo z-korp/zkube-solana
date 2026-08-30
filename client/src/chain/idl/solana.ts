@@ -5975,15 +5975,6 @@ export type Solana = {
         "kind": "struct",
         "fields": [
           {
-            "name": "scoreMultipliersX100",
-            "type": {
-              "array": [
-                "u16",
-                8
-              ]
-            }
-          },
-          {
             "name": "maxMoves",
             "type": "u16"
           }

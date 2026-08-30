@@ -355,7 +355,6 @@ pub fn decode_run_state(bytes: &[u8]) -> Result<Run, BoundaryError> {
     if !phase_matches_end
         || (phase == RunPhase::Playing && next_row.is_none())
         || reroll_charges > BONUS_CHARGE_CAP
-        || current_tier > 7
         || latched_star_sources & !0b111 != 0
     {
         return Err(BoundaryError::InvalidEncoding);
