@@ -74,11 +74,15 @@ import {
 } from "./session/sessionV2";
 import { SessionWallet } from "./session/sessionWallet";
 import {
+  activeSolanaWalletDriver,
   browserSolanaWalletDriver,
   SolanaWalletDriver,
   type SolanaWalletBinding,
   type SolanaWalletDriverService,
 } from "./wallet/SolanaWalletDriver";
+import { androidMwaIdentityConnectors } from "./wallet/androidMwaWallet";
+import { iosDeepLinkIdentityConnectors } from "./wallet/iosDeepLinkWallet";
+import type { SolanaIdentityConnector } from "./wallet/nativeWallet";
 import {
   connectWalletStandard,
   disconnectWalletStandard,
@@ -133,7 +137,16 @@ export function makeSolanaIdentitySessionLive(
       const discover = options.discoverWallets ?? discoverWalletConnectors;
       let binding: SolanaWalletBinding | null = null;
       let unsubscribeAccounts: (() => void) | null = null;
-      const driver = browserSolanaWalletDriver(() => binding);
+      const driver = activeSolanaWalletDriver(() => binding);
+      const connectors = () => {
+        const native = [
+          ...androidMwaIdentityConnectors(),
+          ...iosDeepLinkIdentityConnectors(),
+        ];
+        return native.length > 0
+          ? native
+          : discover().map(browserIdentityConnector);
+      };
 
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
@@ -154,31 +167,14 @@ export function makeSolanaIdentitySessionLive(
       };
 
       const finishConnection = async (
-        connector: WalletConnector,
-        connected: Awaited<ReturnType<typeof connectWalletStandard>>,
+        connected: SolanaWalletBinding,
       ): Promise<void> => {
         const address = connected.wallet.publicKey.toBase58();
-        binding = {
-          connector,
-          account: connected.account,
-          wallet: connected.wallet,
-          standardWallet: connector.wallet,
-        };
+        binding = connected;
         unsubscribeAccounts?.();
-        unsubscribeAccounts = subscribeWalletAccounts(
-          connector.wallet,
-          (accounts) => {
-            const account = accounts.find(
-              (candidate) => candidate.address === address,
-            );
-            if (!account || !binding) {
-              publishDisconnected();
-              return;
-            }
-            binding = { ...binding, account };
-          },
-        );
-        saveLastWallet({ connectorId: connector.id, address });
+        unsubscribeAccounts =
+          connected.subscribeDisconnected(publishDisconnected);
+        saveLastWallet({ connectorId: connected.choice.id, address });
         const label = await fetchPlayerLabel({
           connection: options.connection,
           wallet: createReadOnlyWallet(connected.wallet.publicKey),
@@ -190,7 +186,7 @@ export function makeSolanaIdentitySessionLive(
             projectSolanaIdentityState({
               address,
               label: label?.displayName,
-              wallet: walletChoice(connector),
+              wallet: connected.choice,
             }),
           ),
         );
@@ -205,7 +201,7 @@ export function makeSolanaIdentitySessionLive(
       const identity: IdentityService = {
         wallets: () =>
           Effect.try({
-            try: () => discover().map(walletChoice),
+            try: () => connectors().map((connector) => connector.choice),
             catch: identityUnavailable,
           }),
         connect: (walletId) =>
@@ -216,20 +212,21 @@ export function makeSolanaIdentitySessionLive(
                   "Disconnect the current wallet before choosing another",
                 );
               }
-              const connector = discover().find((item) => item.id === walletId);
+              const connector = connectors().find(
+                (item) => item.choice.id === walletId,
+              );
               if (!connector)
                 throw new Error(`Wallet ${walletId} is unavailable`);
               Effect.runSync(
                 SubscriptionRef.set(identityRef, {
                   status: "connecting",
-                  wallet: walletChoice(connector),
+                  wallet: connector.choice,
                 }),
               );
               try {
-                await finishConnection(
-                  connector,
-                  await connectWalletStandard(connector),
-                );
+                const connected = await connector.connect();
+                if (!connected) throw new Error("Wallet did not connect");
+                await finishConnection(connected);
               } catch (cause) {
                 publishDisconnected();
                 throw cause;
@@ -243,23 +240,22 @@ export function makeSolanaIdentitySessionLive(
               if (binding) return;
               const remembered = loadLastWallet();
               if (!remembered) return;
-              const connector = discover().find(
-                (item) => item.id === remembered.connectorId,
+              const connector = connectors().find(
+                (item) => item.choice.id === remembered.connectorId,
               );
               if (!connector) return;
-              const connected = await connectWalletStandard(connector, {
+              const connected = await connector.connect({
                 silent: true,
               });
+              if (!connected) return;
               if (
                 connected.wallet.publicKey.toBase58() !== remembered.address
               ) {
                 clearLastWallet();
-                await disconnectWalletStandard(connector.wallet).catch(
-                  () => undefined,
-                );
+                await connected.disconnect().catch(() => undefined);
                 throw new Error("The remembered wallet account changed");
               }
-              await finishConnection(connector, connected);
+              await finishConnection(connected);
             },
             catch: identityUnavailable,
           }),
@@ -270,12 +266,7 @@ export function makeSolanaIdentitySessionLive(
               if (current) clearDeviceSession(current.wallet.publicKey);
               clearLastWallet();
               publishDisconnected();
-              if (current) {
-                await disconnectWalletStandard(current.standardWallet, {
-                  clearMobileAuthorizationCache:
-                    current.connector.kind === "mobile-wallet-adapter",
-                });
-              }
+              if (current) await current.disconnect();
             },
             catch: identityUnavailable,
           }),
@@ -664,6 +655,46 @@ async function submitOwnerTransaction(args: {
   if (confirmation.value.err)
     throw new Error(`${args.label} was not confirmed`);
   return signature;
+}
+
+function browserIdentityConnector(
+  connector: WalletConnector,
+): SolanaIdentityConnector {
+  return {
+    choice: walletChoice(connector),
+    connect: async (options) => {
+      const connected = await connectWalletStandard(connector, options);
+      let account = connected.account;
+      const driver = browserSolanaWalletDriver(() => ({
+        connector,
+        account,
+        wallet: connected.wallet,
+        standardWallet: connector.wallet,
+      }));
+      return {
+        choice: walletChoice(connector),
+        wallet: connected.wallet,
+        driver,
+        disconnect: () =>
+          disconnectWalletStandard(connector.wallet, {
+            clearMobileAuthorizationCache:
+              connector.kind === "mobile-wallet-adapter",
+          }),
+        subscribeDisconnected: (listener) =>
+          subscribeWalletAccounts(connector.wallet, (accounts) => {
+            const next = accounts.find(
+              (candidate) =>
+                candidate.address === connected.wallet.publicKey.toBase58(),
+            );
+            if (!next) {
+              listener();
+              return;
+            }
+            account = next;
+          }),
+      };
+    },
+  };
 }
 
 function walletChoice(connector: WalletConnector): WalletChoice {

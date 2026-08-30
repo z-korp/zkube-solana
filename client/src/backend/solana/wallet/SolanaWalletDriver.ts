@@ -2,6 +2,7 @@ import { Context, Effect, Schema } from "effect";
 import { VersionedTransaction } from "@solana/web3.js";
 import type { WalletAccount, Wallet } from "@wallet-standard/base";
 
+import type { WalletChoice } from "../../views";
 import type { WalletLike } from "../session/sessionWallet";
 import {
   signWalletStandardMessage,
@@ -13,11 +14,19 @@ export class SolanaWalletDriverError extends Schema.TaggedError<SolanaWalletDriv
   { message: Schema.String },
 ) {}
 
-export interface SolanaWalletBinding {
+interface WalletStandardBinding {
   readonly connector: WalletConnector;
   readonly account: WalletAccount;
   readonly wallet: WalletLike;
   readonly standardWallet: Wallet;
+}
+
+export interface SolanaWalletBinding {
+  readonly choice: WalletChoice;
+  readonly wallet: WalletLike;
+  readonly driver: SolanaWalletDriverService;
+  readonly disconnect: () => Promise<void>;
+  readonly subscribeDisconnected: (listener: () => void) => () => void;
 }
 
 export interface SolanaWalletDriverService {
@@ -34,7 +43,7 @@ export class SolanaWalletDriver extends Context.Tag(
 )<SolanaWalletDriver, SolanaWalletDriverService>() {}
 
 export function browserSolanaWalletDriver(
-  current: () => SolanaWalletBinding | null,
+  current: () => WalletStandardBinding | null,
 ): SolanaWalletDriverService {
   const binding = () => {
     const value = current();
@@ -66,6 +75,22 @@ export function browserSolanaWalletDriver(
         },
         catch: walletDriverError,
       }),
+  };
+}
+
+export function activeSolanaWalletDriver(
+  current: () => SolanaWalletBinding | null,
+): SolanaWalletDriverService {
+  const active = () => {
+    const binding = current();
+    if (!binding) throw new Error("No Solana wallet is connected");
+    return binding.driver;
+  };
+  return {
+    signTransaction: (transaction) =>
+      Effect.suspend(() => active().signTransaction(transaction)),
+    signMessage: (message) =>
+      Effect.suspend(() => active().signMessage(message)),
   };
 }
 

@@ -74,6 +74,9 @@ importers:
       bn.js:
         specifier: 5.2.2
         version: 5.2.2
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
@@ -110,6 +113,9 @@ importers:
       tailwindcss-animate:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@4.1.18)
+      tweetnacl:
+        specifier: ^1.0.3
+        version: 1.0.3
       vite-plugin-top-level-await:
         specifier: ^1.4.4
         version: 1.6.0(@swc/helpers@0.5.17)(rollup@4.53.2)(vite@7.3.1(@types/node@22.19.11)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))
