@@ -82,6 +82,28 @@ validate_frontend() {
   NO_DNA=1 pnpm run lint
 }
 
+validate_mobile() {
+  cd "$root/client"
+  NO_DNA=1 pnpm install --frozen-lockfile
+  NO_DNA=1 pnpm run build
+  NO_DNA=1 node tools/validate-mobile-config.mjs
+  NO_DNA=1 ruby -c fastlane/Fastfile
+
+  local mobile_tmp
+  mobile_tmp="$(mktemp -d)"
+  cp -a capacitor.config.ts package.json pnpm-lock.yaml dist android ios "$mobile_tmp/"
+  ln -s "$root/client/node_modules" "$mobile_tmp/node_modules"
+  if ! (
+    cd "$mobile_tmp"
+    NO_DNA=1 "$root/client/node_modules/.bin/cap" sync android
+    NO_DNA=1 "$root/client/node_modules/.bin/cap" sync ios
+  ); then
+    rm -rf "$mobile_tmp"
+    return 1
+  fi
+  rm -rf "$mobile_tmp"
+}
+
 validate_documentation_layout
 
 case "$scope" in
@@ -94,12 +116,16 @@ case "$scope" in
   frontend)
     validate_frontend
     ;;
+  mobile)
+    validate_mobile
+    ;;
   all)
     validate_program
     validate_frontend
+    validate_mobile
     ;;
   *)
-    echo "usage: $0 [program|program-sbf|frontend|all]" >&2
+    echo "usage: $0 [program|program-sbf|frontend|mobile|all]" >&2
     exit 2
     ;;
 esac

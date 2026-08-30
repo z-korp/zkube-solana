@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "packageName": "com.zkorp.zkube",
+  "publisherNft": null,
+  "appNft": null,
+  "releaseNft": null,
+  "cli": {
+    "package": "@solana-mobile/dapp-store-cli",
+    "version": "1.0.0"
+  },
+  "approvalEnvironment": "solana-dapp-store-publish"
+}

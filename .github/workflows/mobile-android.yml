@@ -1,0 +1,115 @@
+name: Mobile Android beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Request the separately approved dApp Store publishing job
+        required: true
+        default: false
+        type: boolean
+      whats_new:
+        description: Public release note used only when publishing
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: client
+    env:
+      NO_DNA: "1"
+      BUNDLE_GEMFILE: ${{ github.workspace }}/client/Gemfile
+      ZKUBE_ANDROID_VERSION_CODE: ${{ github.run_number }}
+      ZKUBE_ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
+      ZKUBE_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/zkube-dapp-store.jks
+      ZKUBE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ZKUBE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ZKUBE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 10.22.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24.13.0
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - name: Install locked web dependencies
+        run: NO_DNA=1 pnpm install --frozen-lockfile
+      - name: Build web assets
+        run: NO_DNA=1 pnpm build
+      - name: Sync Android shell
+        run: NO_DNA=1 pnpm cap:sync:android
+      - name: Materialize ephemeral Android signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ZKUBE_ANDROID_KEYSTORE_PATH"
+      - name: Build signed review APK
+        run: NO_DNA=1 bundle exec fastlane android beta
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: zkube-android-beta
+          path: client/build/mobile/android/zkube.apk
+          if-no-files-found: error
+
+  publish:
+    if: ${{ inputs.publish }}
+    needs: beta
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: solana-dapp-store-publish
+    defaults:
+      run:
+        working-directory: client
+    env:
+      NO_DNA: "1"
+      DAPP_STORE_API_KEY: ${{ secrets.DAPP_STORE_API_KEY }}
+      WHATS_NEW: ${{ inputs.whats_new }}
+      PUBLISHER_KEYPAIR_PATH: ${{ runner.temp }}/dapp-store-publisher.json
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 10.22.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24.13.0
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: zkube-android-beta
+          path: client/build/mobile/android
+      - name: Require release note and materialize publisher key
+        env:
+          DAPP_STORE_PUBLISHER_KEYPAIR_BASE64: ${{ secrets.DAPP_STORE_PUBLISHER_KEYPAIR_BASE64 }}
+        run: |
+          test -n "$WHATS_NEW"
+          printf '%s' "$DAPP_STORE_PUBLISHER_KEYPAIR_BASE64" | base64 --decode > "$PUBLISHER_KEYPAIR_PATH"
+      - name: Publish through the approval-gated dApp Store portal
+        run: |
+          cli_package="$(node -p "const c=require('./dapp-store/publishing.json'); c.cli.package+'@'+c.cli.version")"
+          NO_DNA=1 pnpm dlx "$cli_package" \
+            --apk-file build/mobile/android/zkube.apk \
+            --keypair "$PUBLISHER_KEYPAIR_PATH" \
+            --whats-new "$WHATS_NEW" \
+            --idempotency-key "github-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
