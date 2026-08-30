@@ -144,8 +144,8 @@ export function buildDevDailyView(): DailyView {
     rules: DEV_RUN_RULES,
     dailyTheme,
     pressure: CANONICAL_DAILY_PRESSURE,
-    endlessThresholds: dailyPressureThresholds(),
-    endlessScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
+    pressureThresholds: dailyPressureThresholds(),
+    pressureScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
   };
 }
 

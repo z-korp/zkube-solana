@@ -1,4 +1,4 @@
-import { Keypair, PublicKey, type Connection } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,18 +6,15 @@ import {
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RUN_CLOSE_OFFSET,
   SECONDS_PER_DAY,
-  ZKUBE_PROGRAM_ID,
   arcadeArchivePda,
   cadenceFundingPda,
 } from "../src/arcadeChain";
 import {
-  discoverReconciliation,
   discoverReconciliationPlans,
   type DailySnapshot,
   type ProtocolSnapshot,
 } from "../src/arcadeReconciliation";
 import { operationPriority } from "../src/keeper";
-import { assertKeeperPlanPolicy } from "../src/keeperPolicy";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
@@ -81,6 +78,7 @@ describe("v5 Daily keeper reconciliation", () => {
         runs: [
           {
             owner: campaignOwner,
+            rentPayer: Keypair.generate().publicKey,
             runId: 1n,
             mode: "campaign",
             arenaPlayerExists: false,
@@ -102,10 +100,7 @@ describe("v5 Daily keeper reconciliation", () => {
     ]);
   });
 
-  it("emits run plans the keeper policy accepts, for every run operation", () => {
-    // The plan emitter and the policy are two hand-maintained mirrors of the
-    // same rules; the Campaign-orphan dead path existed because nothing made
-    // them agree. Every run operation must be producible AND accepted.
+  it("validates every emitted recovery plan inside discovery", () => {
     const plans = discoverReconciliationPlans({
       snapshot: snapshot({
         launchDayId: DAY,
@@ -113,6 +108,7 @@ describe("v5 Daily keeper reconciliation", () => {
         runs: [
           {
             owner: Keypair.generate().publicKey,
+            rentPayer: Keypair.generate().publicKey,
             runId: 1n,
             mode: "campaign",
             arenaPlayerExists: false,
@@ -123,6 +119,7 @@ describe("v5 Daily keeper reconciliation", () => {
           },
           {
             owner: Keypair.generate().publicKey,
+            rentPayer: Keypair.generate().publicKey,
             runId: 3n,
             mode: "campaign",
             arenaPlayerExists: false,
@@ -154,18 +151,8 @@ describe("v5 Daily keeper reconciliation", () => {
     ]);
     const runPlans = plans.filter(({ operation }) => runOperations.has(operation));
     expect(new Set(runPlans.map(({ operation }) => operation))).toEqual(runOperations);
-    const keeper = Keypair.generate().publicKey;
-    for (const plan of runPlans) {
-      expect(() =>
-        assertKeeperPlanPolicy({
-          plan,
-          keeper,
-          programId: ZKUBE_PROGRAM_ID,
-          connection: {} as Connection,
-          nowUnix: NOW,
-        }),
-      ).not.toThrow();
-    }
+    expect(runPlans.every(({ execution }) => execution === "validation_only"))
+      .toBe(true);
   });
 
   it("cleans an orphaned Campaign run that has no recovery deadline", () => {
@@ -176,6 +163,7 @@ describe("v5 Daily keeper reconciliation", () => {
         runs: [
           {
             owner: Keypair.generate().publicKey,
+            rentPayer: Keypair.generate().publicKey,
             runId: 1n,
             mode: "campaign",
             arenaPlayerExists: false,
@@ -238,44 +226,6 @@ describe("v5 Daily keeper reconciliation", () => {
       rolloverLamports: 1_500_000n,
       potLamports: 101_500_000n,
     });
-  });
-
-  it("quarantines a snapshot-time integrity failure without blocking preparation", () => {
-    const poisoned = daily(DAY, "finalized", [Keypair.generate().publicKey]);
-    poisoned.integrityFailure = "score board does not retain every claimable winner";
-    const discovery = discoverReconciliation({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [poisoned],
-      }),
-      nowUnix: NOW,
-    });
-    expect(discovery.quarantines).toEqual([
-      expect.objectContaining({
-        kind: "daily",
-        id: DAY,
-        reason: "score board does not retain every claimable winner",
-      }),
-    ]);
-    expect(discovery.plans.map(({ operation }) => operation))
-      .toEqual(["prepare_arena_daily"]);
-  });
-
-  it("quarantines a noncanonical Daily payout without blocking preparation", () => {
-    const bad = daily(DAY, "finalized", [Keypair.generate().publicKey]);
-    bad.settlement!.winners[0]!.payoutLamports = 44_000_000n;
-    const discovery = discoverReconciliation({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [bad],
-      }),
-      nowUnix: NOW,
-    });
-    expect(discovery.quarantines).toEqual([
-      expect.objectContaining({ kind: "daily", id: DAY }),
-    ]);
-    expect(discovery.plans.map(({ operation }) => operation))
-      .toEqual(["prepare_arena_daily"]);
   });
 
   it("archives sequentially and closes only a committed Daily", () => {
@@ -346,33 +296,7 @@ describe("v5 Daily keeper reconciliation", () => {
     });
 
     expect(plans.find(({ operation }) => operation === "expire_daily_claims")?.context)
-      .toMatchObject({ dayId: DAY, previousCadenceId: DAY + 1 });
-  });
-
-  it("closes one resolved ArenaPlayer to its persisted rent payer", () => {
-    const owner = Keypair.generate().publicKey;
-    const finalized = daily(DAY, "finalized");
-    const plans = discoverReconciliationPlans({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [finalized],
-        arenaPlayerClosures: [{
-          dayId: DAY,
-          owner,
-          rentRecipient: Keypair.generate().publicKey,
-        }],
-        archiveState: {
-          address: arcadeArchivePda(),
-          cadenceFunding: cadenceFundingPda(),
-          firstDailyId: DAY,
-          lastDailyId: DAY,
-          dailyRoot: "44".repeat(32),
-        },
-        archiveCandidates: [candidate(DAY, true, false)],
-      }),
-      nowUnix: NOW,
-    });
-    expect(plans.map(({ operation }) => operation)).toContain("close_arena_player");
+      .toMatchObject({ dayId: DAY });
   });
 
   it("keeps monetary, archive, and cleanup ordering stable", () => {
@@ -382,8 +306,6 @@ describe("v5 Daily keeper reconciliation", () => {
       .toBeLessThan(operationPriority("expire_daily_claims"));
     expect(operationPriority("expire_daily_claims"))
       .toBeLessThan(operationPriority("close_arena_daily"));
-    expect(operationPriority("close_arena_daily"))
-      .toBeLessThan(operationPriority("close_arena_player"));
   });
 });
 
@@ -395,7 +317,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
     suspendedUntilDay: 0,
     dailies: [],
     runs: [],
-    arenaPlayerClosures: [],
     archiveCandidates: [],
     ...overrides,
   };
@@ -474,6 +395,7 @@ function rankedRun(
 ) {
   return {
     owner,
+    rentPayer: Keypair.generate().publicKey,
     runId: 2n,
     mode: "ranked" as const,
     challengeDayId: DAY,
@@ -490,16 +412,9 @@ function rankedRun(
 
 function candidate(cadenceId: number, committed: boolean, closeEligible: boolean) {
   return {
-    competition: "daily" as const,
     cadenceId,
-    ...(committed ? {} : {
-      canonicalJson: "{}",
-      fileSha256: "01".repeat(32),
-    }),
-    resultHash: "02".repeat(32),
     claimsExpired: closeEligible,
     committed,
-    closeEligible,
     closeEligibleAt: cadenceId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET +
       DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   };

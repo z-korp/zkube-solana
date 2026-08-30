@@ -80,7 +80,7 @@ describe("base-run recovery validation", () => {
 
   it("rejects non-campaign modes and nonterminal lifecycles", () => {
     expect(() =>
-      validate({ activeRun: activeRun({ mode: "endless" }) }),
+      validate({ activeRun: activeRun({ mode: "daily" }) }),
     ).toThrow(/cannot use campaign base-run recovery/i);
     expect(() => validate({ activeRun: activeRun({ mode: "daily" }) })).toThrow(
       /cannot use campaign base-run recovery/i,

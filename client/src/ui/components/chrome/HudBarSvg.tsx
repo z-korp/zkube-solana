@@ -4,12 +4,12 @@ const { viewBox: vb, panel: p, sockets: s } = HUD_BAR;
 
 interface HudBarSvgProps {
   latchedStarSources?: number;
-  endless?: boolean;
+  daily?: boolean;
 }
 
 const HudBarSvg: React.FC<HudBarSvgProps> = ({
   latchedStarSources = 0,
-  endless = false,
+  daily = false,
 }) => {
   return (
     <svg
@@ -133,7 +133,7 @@ const HudBarSvg: React.FC<HudBarSvgProps> = ({
       />
 
       {/* ─── Stars or Infinity ─── */}
-      {endless ? (
+      {daily ? (
         <text
           x={s.stars.x + s.stars.width / 2}
           y={s.stars.y + s.stars.height / 2 + 1}

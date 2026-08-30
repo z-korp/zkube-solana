@@ -141,7 +141,7 @@ before.
 | `crates/zkube-core-wasm` | WASM build of the same engine for the client |
 | `programs/solana` | Anchor program: Campaign stars, competitive records, accounting, boards, settlement |
 | MagicBlock ER | Active gameplay and per-row VRF, on a Router-resolved validator |
-| `services` | Keeper worker: Daily preparation, recovery, settlement, archival, cleanup |
+| `services` | Keeper worker: Daily cadence and last-resort permissionless recovery |
 | `client` | Static PWA/TWA — wallet, Campaign, and Arcade UI, with no server signer |
 
 The engine is the single source of truth for game rules, and native Rust, WASM,

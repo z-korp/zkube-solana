@@ -10,8 +10,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ZKUBE_PROGRAM_ID,
   activeRunPda,
+  arenaBoardPda,
   arenaDailyPda,
-  arenaPlayerPda,
+  cadenceFundingPda,
   type KeeperInstructionPlan,
 } from "../src/arcadeChain";
 import {
@@ -98,26 +99,25 @@ describe("keeper bounds", () => {
       .rejects.toThrow("does not match");
   });
 
-  it("re-verifies a closed ArenaPlayer and its persisted rent recipient", async () => {
-    const owner = Keypair.generate().publicKey;
+  it("re-verifies every account closed by Daily cadence cleanup", async () => {
     const dayId = 20_651;
     const daily = arenaDailyPda(dayId);
-    const arenaPlayer = arenaPlayerPda(daily, owner);
-    const rentRecipient = Keypair.generate().publicKey;
+    const score = arenaBoardPda(daily, "score");
+    const theme = arenaBoardPda(daily, "theme");
     const instruction = new TransactionInstruction({
       programId: ZKUBE_PROGRAM_ID,
-      keys: [
-        { pubkey: daily, isSigner: false, isWritable: false },
-        { pubkey: arenaPlayer, isSigner: false, isWritable: true },
-        { pubkey: rentRecipient, isSigner: false, isWritable: true },
-      ],
+      keys: [daily, score, theme, cadenceFundingPda()].map((pubkey) => ({
+        pubkey,
+        isSigner: false,
+        isWritable: true,
+      })),
       data: Buffer.alloc(8),
     });
     const plan: KeeperInstructionPlan = {
-      operation: "close_arena_player",
+      operation: "close_arena_daily",
       execution: "instruction",
       connection: "base",
-      context: { dayId, owner, rentRecipient },
+      context: { dayId },
       instruction,
       instructions: [instruction],
     };
@@ -127,12 +127,24 @@ describe("keeper bounds", () => {
       }),
       getMultipleAccountsInfo: vi.fn().mockResolvedValue([
         null,
+        null,
+        null,
         systemAccount(),
       ]),
     } as never;
     await expect(verifyConfirmedWrite(plan, connection, "signature"))
       .resolves.toBeUndefined();
+
+    connection.getMultipleAccountsInfo.mockResolvedValueOnce([
+      null,
+      systemAccount(),
+      null,
+      systemAccount(),
+    ]);
+    await expect(verifyConfirmedWrite(plan, connection, "signature"))
+      .rejects.toThrow("does not match");
   });
+
 });
 
 function systemAccount(): AccountInfo<Buffer> {

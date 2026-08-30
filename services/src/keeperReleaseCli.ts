@@ -5,21 +5,18 @@ const [
   keeperPublicKey,
   deployedProgramDataSha256,
   keeperImageReference,
-  replayDomainHex,
   idlHash,
   rawLaunchDayId,
-  keeperImageDigest,
 ] = process.argv.slice(2);
 const launchDayId = Number(rawLaunchDayId);
 
 if (!programId || !keeperPublicKey || !deployedProgramDataSha256 ||
-    !keeperImageReference || !replayDomainHex || !idlHash ||
+    !keeperImageReference || !idlHash ||
     !Number.isSafeInteger(launchDayId)) {
   throw new Error(
     "usage: keeperReleaseCli <program-id> <keeper-public-key> " +
       "<deployed-programdata-sha256> <keeper-image-reference> " +
-      "<replay-domain-hex> <idl-hash> <launch-day-id> " +
-      "[keeper-image-sha256:digest]",
+      "<idl-hash> <launch-day-id>",
   );
 }
 
@@ -28,8 +25,6 @@ process.stdout.write(`${JSON.stringify(keeperReleaseRecord({
   keeperPublicKey,
   deployedProgramDataSha256,
   keeperImageReference,
-  ...(keeperImageDigest === undefined ? {} : { keeperImageDigest }),
-  replayDomainHex,
   idlHash,
   launchDayId,
 }), null, 2)}\n`);

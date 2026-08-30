@@ -6,13 +6,9 @@ import {
 } from "./protocolVersions.generated";
 import {
   DAILY_PAIR_COUNT,
-  DAILY_PAIR_SELECTION_SEED,
   DAILY_THEMES,
 } from "./dailyRules.generated";
 
-const DAILY_PAIR_DRAW_DOMAIN = new TextEncoder().encode(
-  "zkube-daily-pair-draw-v1",
-);
 export const DAILY_OBJECTIVE_COUNT = DAILY_THEMES.length;
 
 export interface DailyThemeView {
@@ -40,53 +36,23 @@ export function nextScheduledDaily(
   return candidate;
 }
 
-export async function dailyContentSelection(
+export function dailyContentFromPairIndex(
   dayId: number,
-): Promise<{
+  pairIndex: number,
+): {
   pairIndex: number;
   realmMapId: number;
   objective: DailyThemeView;
-}> {
+} {
   assertDayId(dayId);
-  const permutation = Array.from(
-    { length: DAILY_PAIR_COUNT },
-    (_, index) => index,
-  );
-  const cycleIndex = Math.floor(dayId / DAILY_PAIR_COUNT);
-  for (let index = DAILY_PAIR_COUNT - 1; index > 0; index -= 1) {
-    const swap = Number(
-      (await pairHashU64(cycleIndex, index)) % BigInt(index + 1),
-    );
-    [permutation[index], permutation[swap]] = [
-      permutation[swap]!,
-      permutation[index]!,
-    ];
+  if (!Number.isInteger(pairIndex) || pairIndex < 0 || pairIndex >= DAILY_PAIR_COUNT) {
+    throw new Error("Daily pair index is outside the protocol product");
   }
-  const pairIndex = permutation[dayId % DAILY_PAIR_COUNT]!;
   return {
     pairIndex,
     realmMapId: Math.floor(pairIndex / DAILY_OBJECTIVE_COUNT) + 1,
     objective: DAILY_THEMES[pairIndex % DAILY_OBJECTIVE_COUNT]!,
   };
-}
-
-async function pairHashU64(cycleIndex: number, index: number): Promise<bigint> {
-  const input = new Uint8Array(DAILY_PAIR_DRAW_DOMAIN.length + 32 + 4 + 1);
-  let offset = 0;
-  for (const bytes of [
-    DAILY_PAIR_DRAW_DOMAIN,
-    Uint8Array.from(DAILY_PAIR_SELECTION_SEED),
-  ]) {
-    input.set(bytes, offset);
-    offset += bytes.length;
-  }
-  new DataView(input.buffer).setUint32(offset, cycleIndex, true);
-  offset += 4;
-  input[offset] = index;
-  const digest = new Uint8Array(
-    await globalThis.crypto.subtle.digest("SHA-256", input),
-  );
-  return new DataView(digest.buffer).getBigUint64(0, true);
 }
 
 function assertDayId(dayId: number): void {

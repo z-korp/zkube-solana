@@ -24,6 +24,10 @@ import {
   runScoreEligible,
 } from "./generated/zkube_core";
 import wasmUrl from "./generated/zkube_core_bg.wasm?url";
+import {
+  ARENA_ENTRY_LAMPORTS,
+  SOL_PAYOUT_UNIT_LAMPORTS,
+} from "../chain/protocolVersions.generated";
 
 export type ReplayMode = "ranked";
 export type RunFinishReason = "abandon" | "deadline";
@@ -268,6 +272,79 @@ export const coreProtocol = {
   payoutForRank,
 } as const;
 
+export interface CoreRankPayoutPlan {
+  payouts: bigint[];
+  winnerCount: number;
+  widthWinnerCount: number;
+  denominator: bigint;
+  capacityLimited: boolean;
+  paidLamports: bigint;
+  rolloverLamports: bigint;
+}
+
+export async function coreDailyPairIndex(dayId: number): Promise<number> {
+  await initializeZkubeCore();
+  assertU32(dayId, "dayId");
+  return dailyPairIndex(dayId);
+}
+
+export function coreDailyBoardPools(
+  potLamports: bigint,
+  themeQualifiedPlayers: number,
+): { score: bigint; theme: bigint } {
+  assertInitialized();
+  const bytes = dailyBoardPools(potLamports, themeQualifiedPlayers);
+  requireLength(bytes, 16, "Daily board pools");
+  return { score: readU64(bytes, 0), theme: readU64(bytes, 8) };
+}
+
+export function coreRankPayoutPlan(
+  potLamports: bigint,
+  qualifiedPlayers: number,
+  capacity = qualifiedPlayers,
+): CoreRankPayoutPlan {
+  assertInitialized();
+  const bytes = payoutPlan(
+    potLamports,
+    qualifiedPlayers,
+    capacity,
+    ARENA_ENTRY_LAMPORTS,
+    SOL_PAYOUT_UNIT_LAMPORTS,
+  );
+  if (bytes.length < 41 || (bytes.length - 41) % 8 !== 0) {
+    throw new Error("core returned a malformed payout plan");
+  }
+  const winnerCount = readU32(bytes, 0);
+  const payouts = Array.from({ length: (bytes.length - 41) / 8 }, (_, index) =>
+    readU64(bytes, 41 + index * 8));
+  if (payouts.length !== winnerCount) {
+    throw new Error("core payout count does not match its encoded plan");
+  }
+  return {
+    payouts,
+    winnerCount,
+    widthWinnerCount: readU32(bytes, 4),
+    denominator: readU128(bytes, 8),
+    capacityLimited: bytes[24] === 1,
+    paidLamports: readU64(bytes, 25),
+    rolloverLamports: readU64(bytes, 33),
+  };
+}
+
+export function corePayoutForRank(
+  poolLamports: bigint,
+  denominator: bigint,
+  rank: number,
+): bigint {
+  assertInitialized();
+  return payoutForRank(
+    poolLamports,
+    writeU128(denominator),
+    rank,
+    SOL_PAYOUT_UNIT_LAMPORTS,
+  );
+}
+
 export function decodeHex(value: string): Uint8Array {
   if (value.length % 2 !== 0 || !/^[0-9a-f]*$/i.test(value)) {
     throw new Error("hex value is malformed");
@@ -299,4 +376,33 @@ function assertUnsigned(value: number, maximum: number, label: string): void {
 
 function assertInitialized(): void {
   if (!initialized) throw new Error("zkube-core WASM is not initialized");
+}
+
+function readU32(bytes: Uint8Array, offset: number): number {
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    .getUint32(offset, true);
+}
+
+function readU64(bytes: Uint8Array, offset: number): bigint {
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    .getBigUint64(offset, true);
+}
+
+function readU128(bytes: Uint8Array, offset: number): bigint {
+  return readU64(bytes, offset) | (readU64(bytes, offset + 8) << 64n);
+}
+
+function writeU128(value: bigint): Uint8Array {
+  if (value < 0n || value > (1n << 128n) - 1n) {
+    throw new Error("payout denominator is outside u128");
+  }
+  const bytes = new Uint8Array(16);
+  const view = new DataView(bytes.buffer);
+  view.setBigUint64(0, value & ((1n << 64n) - 1n), true);
+  view.setBigUint64(8, value >> 64n, true);
+  return bytes;
+}
+
+function requireLength(bytes: Uint8Array, length: number, label: string): void {
+  if (bytes.length !== length) throw new Error(`${label} encoding is invalid`);
 }

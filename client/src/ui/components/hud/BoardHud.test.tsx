@@ -22,8 +22,8 @@ describe("BoardHud", () => {
         comboThreshold={2}
         pressureScore={0}
         currentDifficulty={0}
-        endlessThresholds={[1, 2, 3, 4, 5, 6, 7]}
-        endlessScoreMultipliersX100={[100, 100, 100, 100, 100, 100, 100, 100]}
+        pressureThresholds={[1, 2, 3, 4, 5, 6, 7]}
+        pressureScoreMultipliersX100={[100, 100, 100, 100, 100, 100, 100, 100]}
         gameLevel={{
           gameId: 1n,
           level: 2,

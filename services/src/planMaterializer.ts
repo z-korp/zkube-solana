@@ -1,18 +1,14 @@
-import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import {
   type KeeperInstructionPlan,
   type KeeperOperation,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
-import {
-  REVOKE_SESSION_V2_DISCRIMINATOR,
-  SESSION_KEYS_PROGRAM_ID,
-} from "./sessionCleanup.js";
 
 export interface ProtocolInstructionMaterializer {
   materialize(input: {
-    operation: Exclude<KeeperOperation, "revoke_expired_session">;
+    operation: KeeperOperation;
     context: KeeperPlanContext;
     programId: PublicKey;
     keeper: PublicKey;
@@ -33,9 +29,7 @@ export async function materializeKeeperPlan(
       !plan.context) {
     throw new Error("only a validated semantic plan can be materialized");
   }
-  const instructions = plan.operation === "revoke_expired_session"
-    ? [revokeExpiredSessionInstruction(plan.context)]
-    : [...await config.protocol.materialize({
+  const instructions = [...await config.protocol.materialize({
       operation: plan.operation,
       context: plan.context,
       programId: config.programId,
@@ -61,10 +55,7 @@ export function assertMaterializedKeeperPlan(
     throw new Error("materialized keeper plan is incomplete or non-atomic");
   }
   const instruction = plan.instruction;
-  const expectedProgram = plan.operation === "revoke_expired_session"
-    ? SESSION_KEYS_PROGRAM_ID
-    : config.programId;
-  if (!instruction.programId.equals(expectedProgram)) {
+  if (!instruction.programId.equals(config.programId)) {
     throw new Error("materialized keeper plan targets a program outside the allowlist");
   }
   for (const account of instruction.keys) {
@@ -80,26 +71,25 @@ export function assertMaterializedKeeperPlan(
   }
 }
 
-function revokeExpiredSessionInstruction(
-  context: KeeperPlanContext,
-): TransactionInstruction {
-  const session = context.sessionAddress;
-  const authority = context.owner;
-  if (!session || !authority) {
-    throw new Error("expired session context is incomplete");
-  }
-  return new TransactionInstruction({
-    programId: SESSION_KEYS_PROGRAM_ID,
-    keys: [
-      { pubkey: session, isSigner: false, isWritable: true },
-      { pubkey: authority, isSigner: false, isWritable: true },
-      { pubkey: authority, isSigner: false, isWritable: false },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    ],
-    data: REVOKE_SESSION_V2_DISCRIMINATOR,
-  });
-}
-
 function usesEphemeralRollup(operation: KeeperOperation): boolean {
-  return operation === "finish_run" || operation === "commit_run";
+  switch (operation) {
+    case "finish_run":
+    case "commit_run":
+      return true;
+    case "prepare_arena_daily":
+    case "activate_arena_daily":
+    case "skip_suspended_arena_daily":
+    case "consume_campaign_run":
+    case "consume_arena_run":
+    case "expire_unresolved_arena_run":
+    case "cleanup_orphan_active_run":
+    case "finalize_arena_daily":
+    case "submit_arena_board_chunk":
+    case "expire_daily_claims":
+    case "archive_arena_daily":
+    case "close_arena_daily":
+      return false;
+    default:
+      throw new Error(`keeper operation is outside the exact allowlist: ${String(operation)}`);
+  }
 }

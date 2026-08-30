@@ -22,12 +22,9 @@ describe("deployed keeper config", () => {
     expect(env("MIN_KEEPER_LAMPORTS")).toBe(
       String(KEEPER_RELEASE_POLICY.reserveFloorLamports),
     );
-    expect(env("ZKUBE_ARCHIVE_DIRECTORY")).toBe(
-      KEEPER_RELEASE_POLICY.archiveDirectory,
-    );
-    // Fly supplies only the unique deployment tag at runtime. A digest may be
-    // operator-attested while fingerprinting, but this config must not present
-    // one as though the worker had verified it against the Machines API.
+    expect(toml).not.toContain("[[mounts]]");
+    expect(env("ZKUBE_ARCHIVE_DIRECTORY")).toBeUndefined();
     expect(env("ZKUBE_KEEPER_IMAGE_DIGEST")).toBeUndefined();
+    expect(env("ZKUBE_REPLAY_DOMAIN_HEX")).toBeUndefined();
   });
 });

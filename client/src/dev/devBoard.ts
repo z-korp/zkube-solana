@@ -163,7 +163,7 @@ export function buildDevActiveRun(
     nextRow: [...NEXT_ROW],
     pendingVrfCounter: 0,
     vrfRequestCounter: 12,
-    endlessThresholds: dailyPressureThresholds(),
-    endlessScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
+    pressureThresholds: dailyPressureThresholds(),
+    pressureScoreMultipliersX100: CANONICAL_DAILY_PRESSURE.scoreMultipliersX100,
   };
 }

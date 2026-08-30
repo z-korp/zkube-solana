@@ -136,7 +136,7 @@ export interface PreparedRunPlan {
   transactionPlan: TransactionPlan;
 }
 
-type EndlessThresholdsView = [
+type DailyPressureThresholdsView = [
   number,
   number,
   number,
@@ -146,7 +146,7 @@ type EndlessThresholdsView = [
   number,
 ];
 
-type EndlessScoreMultipliersX100View = [
+type DailyPressureMultipliersX100View = [
   number,
   number,
   number,
@@ -157,12 +157,12 @@ type EndlessScoreMultipliersX100View = [
   number,
 ];
 
-export interface EndlessRulesView {
-  endlessThresholds: EndlessThresholdsView;
-  endlessScoreMultipliersX100: EndlessScoreMultipliersX100View;
+export interface DailyPressureRulesView {
+  pressureThresholds: DailyPressureThresholdsView;
+  pressureScoreMultipliersX100: DailyPressureMultipliersX100View;
 }
 
-export interface ActiveRunView extends EndlessRulesView {
+export interface ActiveRunView extends DailyPressureRulesView {
   version?: number;
   owner: PublicKey;
   rentPayer: PublicKey;
@@ -1026,9 +1026,9 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     currentTier: Number(account.currentTier),
     currentDifficulty: Number(account.currentTier),
     // Presentation aliases retained while the HUD terminology migrates from
-    // the old Cairo endless mode to Daily pressure tiers.
-    endlessThresholds: dailyPressureThresholds(),
-    endlessScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
+    // the old Cairo arcade mode to Daily pressure tiers.
+    pressureThresholds: dailyPressureThresholds(),
+    pressureScoreMultipliersX100: dailyPressure.scoreMultipliersX100,
     bonusType: Number(account.bonusType),
     bonusCharges: Number(account.bonusCharges),
     rerollCharges: account.rerollCharges,

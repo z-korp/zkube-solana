@@ -30,7 +30,7 @@ describe("GameOverDialog settlement recovery", () => {
     const game = {
       mode: 1,
       currentDifficulty: 7,
-      endlessScoreMultipliersX100: [100, 125, 150, 175, 200, 225, 250, 250],
+      pressureScoreMultipliersX100: [100, 125, 150, 175, 200, 225, 250, 250],
       totalScore: 304,
       engineScore: 106,
       challengeBonus: 198,

@@ -11,34 +11,26 @@ import {
 import {
   ZKUBE_PROGRAM_ID,
   activeRunPda,
+  arenaBoardPda,
   cadenceFundingPda,
   arenaDailyPda,
-  arenaPlayerPda,
-  type CompetitionKind,
   type KeeperInstructionPlan,
+  type KeeperOperation,
 } from "./arcadeChain.js";
-import {
-  ArchiveIntegrityError,
-  type KeeperArchiveStore,
-} from "./archiveStore.js";
 import {
   discoverReconciliation,
   type ProtocolSnapshot,
 } from "./arcadeReconciliation.js";
-import { assertKeeperPlanPolicy } from "./keeperPolicy.js";
 import {
   materializeKeeperPlan,
   type ProtocolInstructionMaterializer,
 } from "./planMaterializer.js";
-import { discoverExpiredSessionPlans } from "./sessionCleanup.js";
 
 export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
 export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 100_000_000;
 const MAX_WRITES = 6;
 const MAX_BOARD_WRITES = 32;
 const MAX_BOARD_RENT_LAMPORTS = 1_802_208_480;
-const MAX_EXPIRED_SESSION_REVOKES = 2;
-const MAX_PARTICIPANT_CLOSURES = 1;
 
 export interface KeeperLogEvent {
   schemaVersion: 1;
@@ -46,17 +38,9 @@ export interface KeeperLogEvent {
     | "keeper_pass"
     | "keeper_operation"
     | "keeper_plan"
-    | "keeper_readiness"
-    | "keeper_domain_quarantine"
-    | "keeper_archive_quarantine"
-    | "keeper_dependency_suppressed";
+    | "keeper_readiness";
   traceId: string;
   operation?: string;
-  competition?: "daily";
-  cadenceId?: number;
-  archiveIntegrityCode?: string;
-  archiveFailureStage?: "preparation" | "transaction";
-  archiveQuarantines?: number;
   ok: boolean;
   writes?: number;
   plannedWrites?: number;
@@ -75,7 +59,6 @@ export interface KeeperPassResult {
   plannedWrites: number;
   writeEnabled: boolean;
   operationFailures: number;
-  archiveQuarantines: number;
   maxWrites: number;
   backlog: number;
   balanceLamports: number;
@@ -94,7 +77,6 @@ export interface KeeperDependencies {
   maximumSpendLamports?: number;
   protocolSnapshot?: ProtocolSnapshot;
   protocolMaterializer?: ProtocolInstructionMaterializer;
-  archiveStore?: KeeperArchiveStore;
   resolveEphemeralConnection?: (plan: KeeperInstructionPlan) => Promise<Connection>;
   verifyAfterWrite?: (
     plan: KeeperInstructionPlan,
@@ -151,122 +133,28 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     snapshot: input.protocolSnapshot,
     nowUnix,
   });
-  for (const quarantine of reconciliation.quarantines) {
-    log({
-      schemaVersion: 1,
-      event: "keeper_domain_quarantine",
-      traceId,
-      competition: quarantine.kind,
-      cadenceId: quarantine.id,
-      ok: false,
-      error: quarantine.reason,
-    });
-  }
-  const expiredSessionPlans = await discoverExpiredSessionPlans({
-    connection: input.connection,
-    keeper: input.keeper.publicKey,
-    targetProgramId: ZKUBE_PROGRAM_ID,
-    nowUnix,
-  });
-  const plans = [...reconciliation.plans, ...expiredSessionPlans].sort(
+  const plans = [...reconciliation.plans].sort(
     (left, right) => operationPriority(left.operation) - operationPriority(right.operation),
   );
 
   let writes = 0;
   let plannedWrites = 0;
-  let failures = 0;
-  let archiveQuarantines = 0;
+  let failures = reconciliation.rejectedPlans;
   let spentLamports = 0;
   let attemptedWrites = 0;
   let attemptedBoardWrites = 0;
   let boardRentLamports = 0;
   let resolvedPlans = 0;
-  let sessionRevokes = 0;
-  let participantClosures = 0;
-  const quarantinedArchiveDependencies = new Set<string>();
   for (const plan of plans) {
     const boardWrite = plan.operation === "submit_arena_board_chunk";
     if (boardWrite
       ? attemptedBoardWrites >= MAX_BOARD_WRITES
       : attemptedWrites >= maxWrites) continue;
-    assertKeeperPlanPolicy({
-      plan,
-      keeper: input.keeper.publicKey,
-      programId: ZKUBE_PROGRAM_ID,
-      connection: input.connection,
-      nowUnix,
-    });
-    const dependentCadence = dependentArchiveCadence(plan);
-    if (dependentCadence &&
-        quarantinedArchiveDependencies.has(cadenceDependencyKey(dependentCadence))) {
-      log({
-        schemaVersion: 1,
-        event: "keeper_dependency_suppressed",
-        traceId,
-        operation: plan.operation,
-        competition: dependentCadence.competition,
-        cadenceId: dependentCadence.cadenceId,
-        ok: false,
-        error: "suppressed after same-cadence archive failure",
-      });
-      resolvedPlans += 1;
-      continue;
-    }
-    if (plan.operation === "revoke_expired_session" &&
-        sessionRevokes >= MAX_EXPIRED_SESSION_REVOKES) {
-      continue;
-    }
-    if (isParticipantClosure(plan.operation) &&
-        participantClosures >= MAX_PARTICIPANT_CLOSURES) {
-      continue;
-    }
-    if (usesArchiveStorage(plan.operation)) {
-      if (!input.archiveStore) {
-        throw new Error("verified cadence archive storage is not configured");
-      }
-      try {
-        await input.archiveStore.prepare(plan);
-      } catch (error) {
-        if (!(error instanceof ArchiveIntegrityError)) throw error;
-        const cadence = requiredArchiveStorageCadence(plan);
-        if (cadence.competition !== error.competition ||
-            cadence.cadenceId !== error.cadenceId) {
-          throw new Error("archive integrity failure identity does not match its plan");
-        }
-        failures += 1;
-        const dependencyKey = cadenceDependencyKey(cadence);
-        if (!quarantinedArchiveDependencies.has(dependencyKey)) {
-          quarantinedArchiveDependencies.add(dependencyKey);
-          archiveQuarantines += 1;
-        }
-        log({
-          schemaVersion: 1,
-          event: "keeper_archive_quarantine",
-          traceId,
-          operation: plan.operation,
-          competition: error.competition,
-          cadenceId: error.cadenceId,
-          archiveIntegrityCode: error.code,
-          archiveFailureStage: "preparation",
-          ok: false,
-          error: safeError(error),
-        });
-        resolvedPlans += 1;
-        continue;
-      }
-    }
-    // Charge every bound only after runtime quarantine and archive preparation
-    // establish that this plan is eligible. A submitted write still owns its
-    // slot even when confirmation or post-write verification later fails.
+    // A submitted write owns its slot even when confirmation or post-write
+    // verification later fails.
     if (boardWrite) attemptedBoardWrites += 1;
     else attemptedWrites += 1;
     resolvedPlans += 1;
-    if (plan.operation === "revoke_expired_session") {
-      sessionRevokes += 1;
-    }
-    if (isParticipantClosure(plan.operation)) {
-      participantClosures += 1;
-    }
     const materialized = await materializeKeeperPlan(plan, {
       programId: ZKUBE_PROGRAM_ID,
       keeper: input.keeper.publicKey,
@@ -390,25 +278,6 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       });
     } catch (error) {
       failures += 1;
-      const archiveCadence = archiveTransactionCadence(plan);
-      if (archiveCadence) {
-        const dependencyKey = cadenceDependencyKey(archiveCadence);
-        if (!quarantinedArchiveDependencies.has(dependencyKey)) {
-          quarantinedArchiveDependencies.add(dependencyKey);
-          archiveQuarantines += 1;
-        }
-        log({
-          schemaVersion: 1,
-          event: "keeper_archive_quarantine",
-          traceId,
-          operation: plan.operation,
-          competition: archiveCadence.competition,
-          cadenceId: archiveCadence.cadenceId,
-          archiveFailureStage: "transaction",
-          ok: false,
-          error: safeError(error),
-        });
-      }
       log({
         schemaVersion: 1,
         event: "keeper_operation",
@@ -427,7 +296,6 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     plannedWrites,
     writeEnabled,
     operationFailures: failures,
-    archiveQuarantines,
     maxWrites,
     backlog: Math.max(0, plans.length - resolvedPlans),
     balanceLamports,
@@ -443,7 +311,6 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     writes,
     plannedWrites,
     writeEnabled,
-    archiveQuarantines,
     spentLamports,
     maximumSpendLamports,
   });
@@ -497,13 +364,6 @@ export async function verifyConfirmedWrite(
 
 function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string> {
   const closed = new Set<string>();
-  if (plan.operation === "revoke_expired_session") {
-    if (!plan.context?.sessionAddress) {
-      throw new Error("session cleanup verification is missing its account");
-    }
-    closed.add(plan.context.sessionAddress.toBase58());
-    return closed;
-  }
   if (plan.operation === "consume_campaign_run" ||
       plan.operation === "consume_arena_run" ||
       plan.operation === "cleanup_orphan_active_run") {
@@ -521,19 +381,14 @@ function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string
     }
     closed.add(activeRun.pubkey.toBase58());
   }
-  if (plan.operation === "close_arena_player") {
-    const owner = plan.context?.owner;
-    const dayId = plan.context?.dayId;
-    if (!owner || dayId === undefined) {
-      throw new Error("ArenaPlayer cleanup verification is missing its identity");
-    }
-    closed.add(arenaPlayerPda(arenaDailyPda(dayId), owner).toBase58());
-  }
   if (plan.operation === "close_arena_daily") {
     if (plan.context?.dayId === undefined) {
       throw new Error("Daily closure verification is missing its identity");
     }
-    closed.add(arenaDailyPda(plan.context.dayId).toBase58());
+    const daily = arenaDailyPda(plan.context.dayId);
+    closed.add(daily.toBase58());
+    closed.add(arenaBoardPda(daily, "score").toBase58());
+    closed.add(arenaBoardPda(daily, "theme").toBase58());
   }
   return closed;
 }
@@ -633,103 +488,23 @@ function safeError(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 240);
 }
 
-export function operationPriority(operation: string): number {
-  const priority: Record<string, number> = {
-    prepare_arena_daily: 0,
-    activate_arena_daily: 1,
-    finish_run: 2,
-    commit_run: 3,
-    consume_campaign_run: 4,
-    consume_arena_run: 4,
-    expire_unresolved_arena_run: 5,
-    finalize_arena_daily: 6,
-    submit_arena_board_chunk: 7,
-    archive_arena_daily: 10,
-    expire_daily_claims: 11,
-    close_arena_daily: 14,
-    cleanup_orphan_active_run: 15,
-    close_arena_player: 16,
-    revoke_expired_session: 17,
-  };
-  return priority[operation] ?? Number.MAX_SAFE_INTEGER;
-}
-
-function usesArchiveStorage(operation: string): boolean {
-  return operation.startsWith("archive_") ||
-    operation === "expire_daily_claims" ||
-    operation === "close_arena_daily";
-}
-
-interface CadenceDependency {
-  competition: CompetitionKind;
-  cadenceId: number;
-}
-
-function cadenceDependencyKey(dependency: CadenceDependency): string {
-  return `${dependency.competition}:${dependency.cadenceId}`;
-}
-
-function requiredArchiveStorageCadence(
-  plan: KeeperInstructionPlan,
-): CadenceDependency {
-  const dependency = archiveStorageCadence(plan);
-  if (!dependency) {
-    throw new Error("archive storage operation is missing its cadence identity");
-  }
-  return dependency;
-}
-
-function archiveStorageCadence(
-  plan: KeeperInstructionPlan,
-): CadenceDependency | undefined {
-  switch (plan.operation) {
-    case "archive_arena_daily":
-    case "expire_daily_claims":
-    case "close_arena_daily":
-      return exactCadence(plan, "daily", plan.context?.dayId);
+export function operationPriority(operation: KeeperOperation): number {
+  switch (operation) {
+    case "prepare_arena_daily": return 0;
+    case "activate_arena_daily": return 1;
+    case "skip_suspended_arena_daily": return 2;
+    case "finish_run": return 3;
+    case "commit_run": return 4;
+    case "consume_campaign_run": return 5;
+    case "consume_arena_run": return 6;
+    case "expire_unresolved_arena_run": return 7;
+    case "finalize_arena_daily": return 8;
+    case "submit_arena_board_chunk": return 9;
+    case "archive_arena_daily": return 10;
+    case "expire_daily_claims": return 11;
+    case "close_arena_daily": return 12;
+    case "cleanup_orphan_active_run": return 13;
     default:
-      return undefined;
+      throw new Error(`keeper operation is outside the exact allowlist: ${String(operation)}`);
   }
-}
-
-function archiveTransactionCadence(
-  plan: KeeperInstructionPlan,
-): CadenceDependency | undefined {
-  switch (plan.operation) {
-    case "archive_arena_daily":
-      return exactCadence(plan, "daily", plan.context?.dayId);
-    default:
-      return undefined;
-  }
-}
-
-function dependentArchiveCadence(
-  plan: KeeperInstructionPlan,
-): CadenceDependency | undefined {
-  switch (plan.operation) {
-    case "expire_daily_claims":
-    case "close_arena_daily":
-    case "close_arena_player":
-      return exactCadence(plan, "daily", plan.context?.dayId);
-    default:
-      return undefined;
-  }
-}
-
-function exactCadence(
-  plan: KeeperInstructionPlan,
-  competition: CompetitionKind,
-  cadenceId: number | undefined,
-): CadenceDependency {
-  if (!Number.isSafeInteger(cadenceId) || cadenceId === undefined ||
-      cadenceId < 0 || cadenceId > 0xffff_ffff ||
-      (plan.context?.competition !== undefined &&
-        plan.context.competition !== competition)) {
-    throw new Error(`${plan.operation} has an invalid cadence dependency`);
-  }
-  return { competition, cadenceId };
-}
-
-function isParticipantClosure(operation: string): boolean {
-  return operation === "close_arena_player";
 }

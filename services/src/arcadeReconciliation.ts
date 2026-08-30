@@ -7,7 +7,9 @@ import {
   KEEPER_RECENT_DAILY_CADENCES,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_CHUNK_CAPACITY,
+  ARENA_ENTRY_LAMPORTS,
   SECONDS_PER_DAY,
+  SOL_PAYOUT_UNIT_LAMPORTS,
   arcadeArchivePda,
   assertCadenceId,
   assertLamports,
@@ -18,12 +20,12 @@ import {
   dailyContentSelection,
   nextScheduledDaily,
   validationOnlyPlan,
-  type CompetitionKind,
   type DailyBoardKind,
+  type KeeperPlanContext,
   type KeeperInstructionPlan,
   type RunMode,
 } from "./arcadeChain.js";
-import { dailyBoardPools, rankWeightedPayoutPlan } from "./arcadeEconomy.js";
+import { dailyBoardPools, payoutPlan } from "./zkubeCore.js";
 
 export type PeriodStatus = "funding" | "open" | "finalized";
 export type RunLifecycle =
@@ -93,15 +95,6 @@ export interface DailySnapshot {
   scoreBoard?: BoardConstructionSnapshot;
   themeBoard?: BoardConstructionSnapshot;
   settlement?: SettlementSnapshot;
-  /** A cadence-local integrity failure recorded at snapshot time: quarantines
-   *  this Daily's plans instead of killing the whole pass. */
-  integrityFailure?: string;
-}
-
-export interface ArenaPlayerClosureSnapshot {
-  dayId: number;
-  owner: PublicKey;
-  rentRecipient: PublicKey;
 }
 
 export interface RunSnapshot {
@@ -132,14 +125,9 @@ export interface ArcadeArchiveSnapshot {
 }
 
 export interface CadenceArchiveCandidate {
-  competition: CompetitionKind;
   cadenceId: number;
-  canonicalJson?: string;
-  fileSha256?: string;
-  resultHash: string;
   claimsExpired: boolean;
   committed: boolean;
-  closeEligible: boolean;
   closeEligibleAt: number;
 }
 
@@ -150,21 +138,14 @@ export interface ProtocolSnapshot {
   suspendedUntilDay: number;
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
-  arenaPlayerClosures: readonly ArenaPlayerClosureSnapshot[];
   /** Present only when the deployed archive ABI has been fully validated. */
   archiveState?: ArcadeArchiveSnapshot;
   archiveCandidates?: readonly CadenceArchiveCandidate[];
 }
 
-export interface DomainQuarantine {
-  kind: CompetitionKind;
-  id: number;
-  reason: string;
-}
-
 export interface ReconciliationDiscovery {
   plans: KeeperInstructionPlan[];
-  quarantines: DomainQuarantine[];
+  rejectedPlans: number;
 }
 
 export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
@@ -174,7 +155,6 @@ export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   suspendedUntilDay: 0,
   dailies: Object.freeze([]),
   runs: Object.freeze([]),
-  arenaPlayerClosures: Object.freeze([]),
   archiveCandidates: Object.freeze([]),
 });
 
@@ -185,20 +165,15 @@ export function discoverReconciliation(args: {
 }): ReconciliationDiscovery {
   assertSafeTimestamp(args.nowUnix);
   validateProtocolSnapshot(args.snapshot);
-  const quarantines = collectDomainQuarantines(args.snapshot);
   const plans: KeeperInstructionPlan[] = [];
   const today = currentDayId(args.nowUnix);
   const oldestKeeperDay = Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES);
   const dailyById = new Map(args.snapshot.dailies.map((daily) => [daily.dayId, daily]));
-  const isQuarantined = (id: number) =>
-    quarantines.some((quarantine) => quarantine.id === id);
-
   appendCadenceArchivePlan(
     plans,
     args.snapshot,
     today,
     args.nowUnix,
-    isQuarantined,
   );
 
   if (!args.snapshot.paused) {
@@ -277,7 +252,7 @@ export function discoverReconciliation(args: {
   }
 
   for (const daily of args.snapshot.dailies) {
-    if (daily.dayId < oldestKeeperDay || isQuarantined(daily.dayId)) continue;
+    if (daily.dayId < oldestKeeperDay) continue;
     const resolved = daily.entriesScored + daily.entriesExpired;
     appendFinalizationPlan(
       plans,
@@ -291,19 +266,19 @@ export function discoverReconciliation(args: {
     appendBoardConstructionPlans(plans, daily);
   }
 
-  for (const candidate of args.snapshot.arenaPlayerClosures) {
-    if (candidate.dayId < oldestKeeperDay || isQuarantined(candidate.dayId)) continue;
-    plans.push(validationOnlyPlan("close_arena_player", {
-      dayId: candidate.dayId,
-      competition: "daily",
-      owner: candidate.owner,
-      rentRecipient: candidate.rentRecipient,
-    }));
+  const validated: KeeperInstructionPlan[] = [];
+  let rejectedPlans = 0;
+  for (const plan of plans) {
+    try {
+      validateKeeperPlan(plan, args.nowUnix);
+      validated.push(plan);
+    } catch {
+      rejectedPlans += 1;
+    }
   }
-
   return {
-    plans: plans.filter((plan) => !planTouchesQuarantine(plan, quarantines)),
-    quarantines,
+    plans: validated,
+    rejectedPlans,
   };
 }
 
@@ -321,8 +296,7 @@ function appendBoardConstructionPlans(
       Math.min(board.payoutCount, board.cursor + ARENA_BOARD_CHUNK_CAPACITY),
     );
     if (entries.length === 0) {
-      // The integrity quarantine already reported this cadence; never plan a
-      // write that cannot advance the board.
+      // A malformed source window cannot advance the board.
       continue;
     }
     plans.push(validationOnlyPlan("submit_arena_board_chunk", {
@@ -344,12 +318,183 @@ export function discoverReconciliationPlans(args: {
   return discoverReconciliation(args).plans;
 }
 
+/** The one semantic validation boundary between discovery and materialization. */
+function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void {
+  if (plan.execution !== "validation_only" || plan.instruction ||
+      plan.instructions || !plan.context) {
+    throw new Error("keeper discovery produced executable or incomplete plan data");
+  }
+  const context = plan.context;
+  const today = currentDayId(nowUnix);
+  switch (plan.operation) {
+    case "prepare_arena_daily": {
+      requireCadenceFunding(context);
+      if (context.followingDayId === undefined || context.dayId === undefined ||
+          context.followingDayId <= context.dayId ||
+          context.followingDayId > nextScheduledDaily(today, context.suspendedUntilDay ?? 0)) {
+        throw new Error("Daily preparation is not the exact missing successor");
+      }
+      const selected = dailyContentSelection(context.followingDayId);
+      if (context.pairIndex !== selected.pairIndex ||
+          context.realmMapId !== selected.realmMapId) {
+        throw new Error("Daily preparation content is not core-derived");
+      }
+      return;
+    }
+    case "activate_arena_daily":
+      if (context.dayId === undefined || context.dayId < 0 ||
+          context.dayId > today + 1) {
+        throw new Error("Daily activation is outside the cadence boundary");
+      }
+      return;
+    case "skip_suspended_arena_daily":
+      requireCadenceFunding(context);
+      if (context.dayId === undefined || context.followingDayId === undefined ||
+          context.suspendedUntilDay === undefined ||
+          context.dayId >= context.suspendedUntilDay ||
+          context.followingDayId !== context.suspendedUntilDay) {
+        throw new Error("suspended Daily skip is not exact");
+      }
+      return;
+    case "finish_run":
+      requireRunContext(context, "ranked");
+      if (context.runLocation !== "ephemeral_rollup" ||
+          context.deadlineAt === undefined || context.deadlineAt > nowUnix) {
+        throw new Error("deadline finish timing or routing is invalid");
+      }
+      return;
+    case "commit_run":
+      requireRunContext(context);
+      if (context.runLocation !== "ephemeral_rollup") {
+        throw new Error("run commit routing is invalid");
+      }
+      return;
+    case "consume_campaign_run":
+      requireRunContext(context, "campaign");
+      requireRentRecipient(context);
+      if (context.runLocation !== "base" || context.includeArenaPlayer) {
+        throw new Error("Campaign consumption routing is invalid");
+      }
+      return;
+    case "consume_arena_run":
+      requireRunContext(context, "ranked");
+      requireRentRecipient(context);
+      if (context.runLocation !== "base" || context.includeArenaPlayer !== true) {
+        throw new Error("Arena consumption routing is invalid");
+      }
+      return;
+    case "expire_unresolved_arena_run":
+      requireRunContext(context, "ranked");
+      if (context.runLocation === "ephemeral_rollup" ||
+          context.recoveryDeadlineAt === undefined ||
+          context.recoveryDeadlineAt > nowUnix) {
+        throw new Error("unresolved run expiry is invalid");
+      }
+      return;
+    case "cleanup_orphan_active_run":
+      requireRunContext(context);
+      requireRentRecipient(context);
+      if (context.runLocation !== "base" ||
+          (context.runMode === "ranked" &&
+            (context.recoveryDeadlineAt === undefined ||
+              context.recoveryDeadlineAt > nowUnix))) {
+        throw new Error("orphan cleanup timing or routing is invalid");
+      }
+      return;
+    case "finalize_arena_daily":
+      requireCadenceFunding(context);
+      requireRecentDay(context.dayId, today);
+      if (context.followingDayId === undefined ||
+          context.followingDayId <= context.dayId! ||
+          context.payoutTotalLamports === undefined ||
+          context.rolloverLamports === undefined ||
+          context.potLamports !== context.payoutTotalLamports + context.rolloverLamports) {
+        throw new Error("Daily finalization does not conserve its pot");
+      }
+      return;
+    case "submit_arena_board_chunk":
+      requireRecentDay(context.dayId, today);
+      if ((context.boardKind !== "score" && context.boardKind !== "theme") ||
+          context.boardCursor === undefined || context.boardPayoutCount === undefined ||
+          !context.boardEntries || context.boardEntries.length < 1 ||
+          context.boardEntries.length > ARENA_BOARD_CHUNK_CAPACITY ||
+          context.boardCursor + context.boardEntries.length > context.boardPayoutCount ||
+          context.sealBoard !==
+            (context.boardCursor + context.boardEntries.length === context.boardPayoutCount)) {
+        throw new Error("Daily board chunk is invalid");
+      }
+      return;
+    case "archive_arena_daily":
+      requireArchiveContext(context, today);
+      if (context.archiveCommitted !== false) {
+        throw new Error("Daily root append is already committed");
+      }
+      return;
+    case "expire_daily_claims":
+      requireArchiveContext(context, today);
+      if (!context.archiveCommitted || context.claimsExpired ||
+          context.claimCloseAt === undefined || context.claimCloseAt >= nowUnix ||
+          context.followingDayId !==
+            nextScheduledDaily(today, context.suspendedUntilDay ?? 0)) {
+        throw new Error("Daily claim expiry is invalid");
+      }
+      return;
+    case "close_arena_daily":
+      requireArchiveContext(context, today);
+      if (!context.archiveCommitted || !context.claimsExpired ||
+          context.claimCloseAt === undefined || context.claimCloseAt >= nowUnix) {
+        throw new Error("Daily closure is not root-gated and expired");
+      }
+      return;
+    default:
+      throw new Error(`keeper operation is outside the exact allowlist: ${String(plan.operation)}`);
+  }
+}
+
+function requireRunContext(
+  context: KeeperPlanContext,
+  mode?: RunMode,
+): void {
+  if (!context.owner || context.owner.equals(PublicKey.default) ||
+      context.runId === undefined || context.runId < 1n ||
+      (mode !== undefined && context.runMode !== mode)) {
+    throw new Error("keeper run identity is invalid");
+  }
+}
+
+function requireRentRecipient(context: KeeperPlanContext): void {
+  if (!context.rentRecipient || context.rentRecipient.equals(PublicKey.default)) {
+    throw new Error("keeper close recipient is invalid");
+  }
+}
+
+function requireCadenceFunding(context: KeeperPlanContext): void {
+  if (!context.cadenceFunding?.equals(cadenceFundingPda())) {
+    throw new Error("keeper cadence funding identity is invalid");
+  }
+}
+
+function requireArchiveContext(context: KeeperPlanContext, today: number): void {
+  requireRecentDay(context.dayId, today);
+  if (context.competition !== "daily" ||
+      !context.arcadeArchive?.equals(arcadeArchivePda()) ||
+      !context.cadenceFunding?.equals(cadenceFundingPda())) {
+    throw new Error("keeper Daily root identity is invalid");
+  }
+}
+
+function requireRecentDay(dayId: number | undefined, today: number): void {
+  if (dayId === undefined || dayId > today ||
+      dayId < Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES)) {
+    throw new Error("keeper Daily is outside its bounded window");
+  }
+}
+
 function appendCadenceArchivePlan(
   plans: KeeperInstructionPlan[],
   snapshot: ProtocolSnapshot,
   today: number,
   nowUnix: number,
-  isQuarantined: (id: number) => boolean,
 ): void {
   const state = snapshot.archiveState;
   if (!state) return;
@@ -362,23 +507,16 @@ function appendCadenceArchivePlan(
   const contextFor = (candidate: CadenceArchiveCandidate) => ({
     competition: "daily" as const,
     dayId: candidate.cadenceId,
-    previousCadenceId: state.lastDailyId,
-    archiveFirstCadenceId: state.firstDailyId,
-    archiveCurrentRoot: state.dailyRoot,
     cadenceFunding: state.cadenceFunding,
     arcadeArchive: state.address,
-    archiveCanonicalJson: candidate.canonicalJson,
-    archiveFileSha256: candidate.fileSha256,
-    archiveResultHash: candidate.resultHash,
     archiveCommitted: candidate.committed,
     claimsExpired: candidate.claimsExpired,
-    closeEligibleAt: candidate.closeEligibleAt,
+    claimCloseAt: candidate.closeEligibleAt,
   });
   const nextArchive = ordered.find((candidate) =>
     !candidate.committed && candidate.cadenceId === nextArchiveId
   );
-  if (nextArchive && nextArchive.cadenceId <= today &&
-      !isQuarantined(nextArchive.cadenceId)) {
+  if (nextArchive && nextArchive.cadenceId <= today) {
     plans.push(validationOnlyPlan(
       "archive_arena_daily",
       contextFor(nextArchive),
@@ -386,8 +524,7 @@ function appendCadenceArchivePlan(
   }
 
   for (const candidate of ordered) {
-    if (!candidate.committed || candidate.cadenceId > today ||
-        isQuarantined(candidate.cadenceId)) continue;
+    if (!candidate.committed || candidate.cadenceId > today) continue;
     const context = contextFor(candidate);
     if (!candidate.claimsExpired && nowUnix > candidate.closeEligibleAt) {
       const followingDayId = nextScheduledDaily(
@@ -402,11 +539,9 @@ function appendCadenceArchivePlan(
           ...context,
           followingDayId,
           suspendedUntilDay: snapshot.suspendedUntilDay,
-          claimCloseAt: candidate.closeEligibleAt,
-          unclaimedLamports: unclaimedPayoutLamports(daily),
         }));
       }
-    } else if (candidate.closeEligible) {
+    } else if (candidate.claimsExpired && nowUnix > candidate.closeEligibleAt) {
       plans.push(validationOnlyPlan("close_arena_daily", context));
     }
   }
@@ -482,10 +617,6 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
   }
   assertUnique(snapshot.dailies.map(({ dayId }) => dayId), "Daily id");
   assertUnique(snapshot.runs.map(({ owner, runId }) => `${owner.toBase58()}:${runId}`), "run");
-  assertUnique(
-    snapshot.arenaPlayerClosures.map(({ dayId, owner }) => `${dayId}:${owner.toBase58()}`),
-    "ArenaPlayer closure",
-  );
   validateArchiveSnapshot(snapshot);
 
   for (const daily of snapshot.dailies) {
@@ -539,66 +670,22 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
           throw new Error(`Daily ${label} board construction is invalid`);
         }
       }
+      if (daily.entriesScored + daily.entriesExpired !== daily.entriesPaid) {
+        throw new Error("finalized Daily retains unresolved paid entries");
+      }
     } else if (daily.scoreBoard || daily.themeBoard) {
       throw new Error("non-finalized Daily has payout board accounts");
     }
+    validateSettlement(
+      daily.potLamports,
+      daily.scoreQualifiedPlayers,
+      daily.themeQualifiedPlayers,
+      daily.settlement,
+    );
+    validateClaimMask("score", daily.scoreClaimedMask, daily.settlement);
+    validateClaimMask("theme", daily.themeClaimedMask, daily.settlement);
   }
   for (const run of snapshot.runs) validateRun(snapshot, run);
-  validateParticipantClosures(snapshot);
-}
-
-function collectDomainQuarantines(snapshot: ProtocolSnapshot): DomainQuarantine[] {
-  const quarantines: DomainQuarantine[] = [];
-  for (const daily of snapshot.dailies) {
-    try {
-      if (daily.integrityFailure) {
-        throw new Error(daily.integrityFailure);
-      }
-      if (daily.status === "finalized" &&
-          daily.entriesScored + daily.entriesExpired !== daily.entriesPaid) {
-        throw new Error("finalized Daily retains unresolved paid entries");
-      }
-      for (const kind of ["score", "theme"] as const) {
-        const board = kind === "score" ? daily.scoreBoard : daily.themeBoard;
-        const sources = kind === "score" ? daily.scoreSources : daily.themeSources;
-        if (!board || board.sealed || !sources) continue;
-        const window = sources.slice(
-          board.cursor,
-          Math.min(board.payoutCount, board.cursor + ARENA_BOARD_CHUNK_CAPACITY),
-        );
-        if (window.length === 0) {
-          throw new Error(`${kind} board cannot advance to its computed width`);
-        }
-      }
-      validateSettlement(
-        daily.potLamports,
-        daily.scoreQualifiedPlayers,
-        daily.themeQualifiedPlayers,
-        daily.settlement,
-      );
-      validateClaimMask("score", daily.scoreClaimedMask, daily.settlement);
-      validateClaimMask("theme", daily.themeClaimedMask, daily.settlement);
-    } catch (error) {
-      quarantines.push({
-        kind: "daily",
-        id: daily.dayId,
-        reason: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-  return quarantines;
-}
-
-function planTouchesQuarantine(
-  plan: KeeperInstructionPlan,
-  quarantines: readonly DomainQuarantine[],
-): boolean {
-  if (plan.operation.startsWith("prepare_") || plan.operation.startsWith("activate_")) {
-    return false;
-  }
-  if (!plan.context || plan.context.runMode === "campaign") return false;
-  return quarantines.some(({ id }) =>
-    plan.context?.dayId === id || plan.context?.challengeDayId === id);
 }
 
 function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
@@ -617,25 +704,6 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
   assertUnique(candidates.map(({ cadenceId }) => cadenceId), "cadence archive");
   for (const candidate of candidates) {
     assertCadenceId(candidate.cadenceId, "archive cadence id");
-    if (candidate.competition !== "daily" ||
-        !/^[0-9a-f]{64}$/.test(candidate.resultHash) ||
-        (candidate.committed
-          ? candidate.canonicalJson !== undefined || candidate.fileSha256 !== undefined
-          : candidate.canonicalJson === undefined ||
-            !/^[0-9a-f]{64}$/.test(candidate.fileSha256 ?? ""))) {
-      throw new Error("cadence archive identity or hashes are invalid");
-    }
-    if (candidate.canonicalJson !== undefined) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(candidate.canonicalJson);
-      } catch {
-        throw new Error("cadence archive JSON is invalid");
-      }
-      if (JSON.stringify(sortJson(parsed)) !== candidate.canonicalJson) {
-        throw new Error("cadence archive JSON is not canonical");
-      }
-    }
     const daily = snapshot.dailies.find(({ dayId }) => dayId === candidate.cadenceId);
     if (!daily || daily.status !== "finalized" ||
         typeof candidate.claimsExpired !== "boolean") {
@@ -649,21 +717,7 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
     if (candidate.closeEligibleAt !== boardClaimCloseAt) {
       throw new Error("Daily archive claim-close time is invalid");
     }
-    if (candidate.closeEligible && (!candidate.committed ||
-        !candidate.claimsExpired)) {
-      throw new Error("uncommitted cadence archive cannot be close eligible");
-    }
   }
-}
-
-function sortJson(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortJson);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, sortJson(child)]));
-  }
-  return value;
 }
 
 function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
@@ -698,29 +752,6 @@ function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
   }
 }
 
-function validateParticipantClosures(snapshot: ProtocolSnapshot): void {
-  for (const closure of snapshot.arenaPlayerClosures) {
-    assertCadenceId(closure.dayId, "ArenaPlayer closure day");
-    validateClosureRecipient(closure.owner, closure.rentRecipient, "ArenaPlayer");
-    const daily = snapshot.dailies.find(({ dayId }) => dayId === closure.dayId);
-    const candidate = snapshot.archiveCandidates?.find(({ cadenceId }) =>
-      cadenceId === closure.dayId);
-    if (!daily || daily.status !== "finalized" || !candidate?.committed) {
-      throw new Error("ArenaPlayer closure is not archive eligible");
-    }
-  }
-}
-
-function validateClosureRecipient(
-  owner: PublicKey,
-  rentRecipient: PublicKey,
-  label: string,
-): void {
-  if (!(owner instanceof PublicKey) || owner.equals(PublicKey.default) ||
-      !(rentRecipient instanceof PublicKey) || rentRecipient.equals(PublicKey.default)) {
-    throw new Error(`${label} closure rent recipient is invalid`);
-  }
-}
 
 function appendFinalizationPlan(
   plans: KeeperInstructionPlan[],
@@ -774,18 +805,6 @@ function winnerPositionBit(winner: WinnerSnapshot): bigint {
   return 1n << BigInt(winner.rank - 1);
 }
 
-function unclaimedPayoutLamports(daily: DailySnapshot): bigint {
-  if (!daily.settlement) return 0n;
-  return daily.settlement.winners.reduce((sum, winner) => {
-    const claimedMask = winner.board === "score"
-      ? daily.scoreClaimedMask
-      : daily.themeClaimedMask;
-    return (claimedMask & winnerPositionBit(winner)) === 0n
-      ? sum + winner.payoutLamports
-      : sum;
-  }, 0n);
-}
-
 function validateSettlement(
   potLamports: bigint,
   scoreQualifiedPlayers: number,
@@ -806,10 +825,12 @@ function validateSettlement(
     assertUnique(ordered.map(({ owner }) => owner.toBase58()), `${board} board winner`);
     assertContiguousRanks(ordered);
     const qualified = board === "score" ? scoreQualifiedPlayers : themeQualifiedPlayers;
-    const plan = rankWeightedPayoutPlan(
+    const plan = payoutPlan(
       pools[board],
       qualified,
       ARENA_BOARD_CAPACITY,
+      ARENA_ENTRY_LAMPORTS,
+      SOL_PAYOUT_UNIT_LAMPORTS,
     );
     if (ordered.length !== plan.winnerCount) {
       throw new Error(`${board} winner count does not match the canonical board width`);

@@ -10,6 +10,7 @@ import {
 } from "../src/anchorIdlAdapter";
 import {
   ZKUBE_PROGRAM_ID,
+  KEEPER_PLAN_INSTRUCTION,
   arenaDailyPda,
   type KeeperOperation,
   type KeeperPlanContext,
@@ -20,7 +21,7 @@ const SOURCE_IDL_SHA256 =
 const DAY = 20_651;
 const RUN_ID = 42n;
 
-type ProtocolOperation = Exclude<KeeperOperation, "revoke_expired_session">;
+type ProtocolOperation = KeeperOperation;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
   it("locks the fresh-bootstrap interface at 45 instructions and 12 accounts", async () => {
@@ -125,14 +126,10 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       }, "expire_daily_claims"],
       ["archive_arena_daily", { dayId: DAY }, "archive_arena_daily"],
       ["close_arena_daily", { dayId: DAY }, "close_arena_daily"],
-      ["close_arena_player", {
-        dayId: DAY,
-        owner,
-        rentRecipient: Keypair.generate().publicKey,
-      }, "close_arena_player"],
     ];
     const idl = readIdl();
     for (const [operation, context, expectedName] of cases) {
+      expect(KEEPER_PLAN_INSTRUCTION[operation]).toBe(expectedName);
       const [instruction] = await adapter.materialize({
         operation,
         context,
@@ -145,6 +142,16 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       expect(instruction?.keys.filter(({ isSigner }) => isSigner)
         .every(({ pubkey }) => pubkey.equals(keeper))).toBe(true);
     }
+  });
+
+  it("fails closed for an operation outside the exact keeper plans", async () => {
+    const adapter = await createAdapter();
+    await expect(adapter.materialize({
+      operation: "unknown_keeper_write" as KeeperOperation,
+      context: {},
+      programId: ZKUBE_PROGRAM_ID,
+      keeper: Keypair.generate().publicKey,
+    })).rejects.toThrow("outside the exact allowlist");
   });
 
   it("materializes Arena consumption without a removed Weekly account", async () => {

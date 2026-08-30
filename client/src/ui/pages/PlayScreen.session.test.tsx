@@ -73,8 +73,8 @@ vi.mock("@/play/usePlayController", () => ({
         activeMutatorId: 0,
         guardian: { bonus: 1, trigger: 2, threshold: 3 },
       },
-      endlessThresholds: [1, 2, 3, 4, 5, 6, 7],
-      endlessScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
+      pressureThresholds: [1, 2, 3, 4, 5, 6, 7],
+      pressureScoreMultipliersX100: [100, 100, 100, 100, 100, 100, 100, 100],
     };
     return {
       run: {

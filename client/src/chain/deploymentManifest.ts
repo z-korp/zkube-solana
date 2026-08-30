@@ -75,7 +75,6 @@ export interface ZkubeDeploymentManifest {
   keeper: {
     signer: string;
     releaseFingerprint: string;
-    imageDigest: string;
   };
 }
 
@@ -102,7 +101,6 @@ export interface DeploymentBindingValidation {
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const FINGERPRINT_PATTERN = /^[0-9a-f]{16}$/;
 const RELEASE_FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/;
-const IMAGE_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const SECRET_KEY_PATTERN =
   /(secret|private|mnemonic|keypair|seedphrase|secretkey|privatekey)/i;
 
@@ -198,7 +196,6 @@ export function deploymentManifestFromEnv(
         env,
         "ZKUBE_KEEPER_RELEASE_FINGERPRINT",
       ).toLowerCase(),
-      imageDigest: required(env, "ZKUBE_KEEPER_IMAGE_DIGEST").toLowerCase(),
     },
   };
   const validation = validateDeploymentManifest(manifest);
@@ -365,9 +362,8 @@ export function validateDeploymentManifest(
       validPublicKey(keeper?.signer) &&
         RELEASE_FINGERPRINT_PATTERN.test(
           string(keeper?.releaseFingerprint) ?? "",
-        ) &&
-        IMAGE_DIGEST_PATTERN.test(string(keeper?.imageDigest) ?? ""),
-      "Keeper signer, 64-hex release fingerprint, or image digest is invalid",
+        ),
+      "Keeper signer or 64-hex release fingerprint is invalid",
     ),
     check(
       "sanitized",
@@ -428,7 +424,6 @@ export function deploymentManifestMismatches(
     ["ZKUBE_LAUNCH_PLAN_FINGERPRINT", manifest.launch.planFingerprint],
     ["ZKUBE_KEEPER_PUBLIC_KEY", manifest.keeper.signer],
     ["ZKUBE_KEEPER_RELEASE_FINGERPRINT", manifest.keeper.releaseFingerprint],
-    ["ZKUBE_KEEPER_IMAGE_DIGEST", manifest.keeper.imageDigest],
   ];
   return pairs.flatMap(([key, expected]) => {
     const actual = env[key];

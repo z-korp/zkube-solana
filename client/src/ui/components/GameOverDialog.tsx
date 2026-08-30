@@ -6,7 +6,7 @@ import { getZoneGuardian } from "@/config/bossCharacters";
 import {
   computeRankPayouts,
   dailyBoardPools,
-} from "@/ui/components/economy/payout";
+} from "@/ui/components/economy";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";

@@ -37,21 +37,24 @@ import {
   mapLevelRuleSnapshot,
   zkubeProgram,
   type ActiveRunRulesView,
-  type EndlessRulesView,
+  type DailyPressureRulesView,
   type PreparedRunPlan,
   type TransactionPlan,
 } from "./runPlan.js";
 import {
   dailyPressureThresholds,
   mapDailyPressureProfile,
-  dailyContentSelection,
+  dailyContentFromPairIndex,
   nextScheduledDaily,
   type DailyPressureProfileView,
   type DailyThemeView,
 } from "./dailyRules.js";
 import { fetchPlayerLabels } from "./playerLabelClient.js";
 import type { WalletLike } from "./sessionWallet.js";
-import { payoutForRank } from "@/ui/components/economy/payout";
+import {
+  coreDailyPairIndex,
+  corePayoutForRank as payoutForRank,
+} from "../core/zkubeCore";
 import { formatSolBalanceLamports } from "@/utils/currency";
 import { IDL } from "./idl/index.js";
 import {
@@ -98,7 +101,7 @@ export function parseDailyStatus(value: unknown): DailyStatus {
     : "unknown";
 }
 
-export interface DailyView extends EndlessRulesView {
+export interface DailyView extends DailyPressureRulesView {
   address: PublicKey;
   dayId: number;
   followingDayId: number | null;
@@ -239,8 +242,8 @@ export async function fetchDailyView(args: {
       value: Number(challenge.dailyTheme.value),
     },
     pressure,
-    endlessThresholds: dailyPressureThresholds(),
-    endlessScoreMultipliersX100: pressure.scoreMultipliersX100,
+    pressureThresholds: dailyPressureThresholds(),
+    pressureScoreMultipliersX100: pressure.scoreMultipliersX100,
   };
 }
 
@@ -893,7 +896,10 @@ export async function buildOpenDailyChallengePlan(args: {
   const protocol = await program.account.protocolConfig.fetch(
     deriveProtocolConfigPda(),
   );
-  const content = await dailyContentSelection(dayId);
+  const content = dailyContentFromPairIndex(
+    dayId,
+    await coreDailyPairIndex(dayId),
+  );
   const contentVersion = Number(protocol.contentVersion);
   const instruction = await program.methods
     .prepareArenaDaily(dayId)

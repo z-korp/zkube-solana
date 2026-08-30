@@ -14,7 +14,6 @@ kill_timeout = "240s"
   SOLANA_DEVNET_RPC_URL = "https://rpc.magicblock.app/devnet"
   SOLANA_EXPECTED_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
   ZKUBE_KEEPER_PUBLIC_KEY = "6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg"
-  ZKUBE_REPLAY_DOMAIN_HEX = "0565f52607a6ee4b1efa50aa63e0060316e37e620cab63f1954315be4dfadd3c"
   ZKUBE_LAUNCH_DAY_ID = "20656"
   KEEPER_ENABLED = "true"
   # Production writes require exact write=true and release-fingerprint secret
@@ -24,15 +23,8 @@ kill_timeout = "240s"
   KEEPER_MAX_WRITES = "6"
   KEEPER_MAX_SPEND_LAMPORTS_PER_PASS = "100000000"
   MIN_KEEPER_LAMPORTS = "100000000"
-  ZKUBE_ARCHIVE_DIRECTORY = "/data/zkube-archives"
 
-# No [http_service]: the keeper has no inbound surface at all. Prize push is
-# parked (see the note at the top of src/keeperWorker.ts), so this process still
-# only reads chain and writes its volume.
-
-[[mounts]]
-  source = "zkube_archives"
-  destination = "/data/zkube-archives"
+# No [http_service]: the keeper has no inbound surface.
 
 [[restart]]
   policy = "always"

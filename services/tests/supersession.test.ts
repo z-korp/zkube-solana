@@ -155,6 +155,33 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "the owner-funded device session pays player account rent and stored rent_payer receives every refund",
   },
   {
+    pattern:
+      /archive contract|resultDataBase64|verifyCommittedChain|archive-integrity|quarantin/i,
+    trees: [SERVICES],
+    reversal:
+      "the on-chain rolling root is the archive; no volume contract or quarantine gates closure",
+  },
+  {
+    pattern:
+      /archiveDirectory|archiveContractVersion|maximumCadenceResultBytes|materializedInstructionAllowlist|keeperImageDigest/i,
+    trees: [SERVICES],
+    reversal:
+      "the keeper fingerprint retains only fields checked by a runtime path",
+  },
+  {
+    pattern:
+      /arcadeEconomy|economy\/payout(?:\.ts)?|webPush|pushSubscriptions|pushServer|prizeNotifier|revoke_expired_session|revokeSessionV2|close_arena_player|closeArenaPlayer/i,
+    trees: [SERVICES],
+    reversal:
+      "the keeper owns cadence and last-resort run recovery only; mirrors, push, and account sweeps were removed",
+  },
+  {
+    pattern: /\bEndless\b|dailyContentSelection/i,
+    trees: [CLIENT],
+    reversal:
+      "Daily pressure names the one competitive profile and the core owns pair selection",
+  },
+  {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:

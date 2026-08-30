@@ -44,7 +44,7 @@ export default function SpectatorHud({
     <div className="relative mx-auto w-full max-w-[560px] shrink-0 px-1 pt-1">
       <HudBarSvg
         latchedStarSources={run.latchedStarSources}
-        endless={run.mode === "daily"}
+        daily={run.mode === "daily"}
       />
       <div className="absolute inset-x-1 top-1 aspect-[500/152]">
         <button

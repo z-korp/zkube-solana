@@ -3,18 +3,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  dailyContentSelection,
+  dailyContentFromPairIndex,
   dailyIsScheduled,
   nextScheduledDaily,
 } from "./dailyRules";
 import { DAILY_PAIR_COUNT } from "./dailyRules.generated";
+import { coreDailyPairIndex } from "../core/zkubeCore";
 
 describe("v5 Daily realm and objective draw", () => {
   it("draws a full reproducible product cycle anchored to absolute days", async () => {
     const startsDay = 32_000;
     const selected = await Promise.all(
       Array.from({ length: DAILY_PAIR_COUNT }, (_, offset) =>
-        dailyContentSelection(startsDay + offset),
+        coreDailyPairIndex(startsDay + offset).then((pairIndex) =>
+          dailyContentFromPairIndex(startsDay + offset, pairIndex)),
       ),
     );
     expect(selected.slice(0, 20).map(({ pairIndex }) => pairIndex)).toEqual([
@@ -24,7 +26,10 @@ describe("v5 Daily realm and objective draw", () => {
     expect(new Set(selected.map(({ pairIndex }) => pairIndex)).size).toBe(
       DAILY_PAIR_COUNT,
     );
-    expect(await dailyContentSelection(startsDay + 1)).toEqual(selected[1]);
+    expect(dailyContentFromPairIndex(
+      startsDay + 1,
+      await coreDailyPairIndex(startsDay + 1),
+    )).toEqual(selected[1]);
   });
 
   it("uses the explicit suspension boundary", () => {

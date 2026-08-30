@@ -4,11 +4,6 @@ import { fileURLToPath } from "node:url";
 
 import { createDevnetConnection } from "./serviceReadiness.js";
 import {
-  DEFAULT_ARCHIVE_DIRECTORY,
-  FileKeeperArchiveStore,
-  archiveDirectoryFromEnv,
-} from "./archiveStore.js";
-import {
   AnchorKeeperAdapter,
   KEEPER_EXPECTED_IDL_SHA256,
 } from "./anchorIdlAdapter.js";
@@ -32,23 +27,6 @@ import {
 import { ZKUBE_PROGRAM_ID, protocolPda } from "./arcadeChain.js";
 import { keeperReleaseRecord } from "./keeperRelease.js";
 
-/*
- * Prize push is parked and deliberately not wired here.
- *
- * `webPush.ts`, `pushSubscriptions.ts`, `pushServer.ts` and `prizeNotifier.ts`
- * are written — `webPush.ts` carries the only tests; the rest stay
- * unexercised until a revival decision — and nothing in this worker imports
- * them: a keeper
- * that serves an inbound HTTP port is a bigger process to reason about than one
- * that only reads chain and writes its volume, and a notification is polish
- * against a reward that is already collectable in the app for thirty days.
- *
- * Before reviving it, check whether Seeker or MagicBlock already deliver device
- * notifications — plugging into a platform that ships this beats owning VAPID
- * keys, a subscription store and a public port on the process that holds the
- * signer.
- */
-
 const DEFAULT_INTERVAL_MS = 60 * 1_000;
 const RAPID_RERUN_DELAY_MS = 1_000;
 const MAX_RAPID_RERUNS = 4;
@@ -59,12 +37,7 @@ const MAX_MAX_WRITES = 6;
 export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
   "9fcc24a56c5e1fae8fb92f4df7b11ce9267a187a7fee7413e2f2682fdddc553e";
 
-/**
- * Fly injects a unique deployment tag through `FLY_IMAGE_REF`; that tag is the
- * image identity the worker can verify at runtime. An optional digest may be
- * carried into the fingerprint as an operator attestation captured from the
- * Machines API, but this process does not claim to verify that digest itself.
- */
+/** Fly injects the unique deployment tag checked by the release fingerprint. */
 export function keeperWriteEnabledFromEnv(
   env: Record<string, string | undefined>,
 ): boolean {
@@ -82,12 +55,6 @@ export function keeperReleaseFromEnv(
   env: Record<string, string | undefined>,
 ) {
   const flyImageRef = requiredReleaseValue(env.FLY_IMAGE_REF, "FLY_IMAGE_REF");
-  const keeperImageDigest = env.ZKUBE_KEEPER_IMAGE_DIGEST === undefined
-    ? undefined
-    : requiredReleaseValue(
-      env.ZKUBE_KEEPER_IMAGE_DIGEST,
-      "ZKUBE_KEEPER_IMAGE_DIGEST",
-    );
   const launchDayId = releaseU32(env.ZKUBE_LAUNCH_DAY_ID, "launch day", 4);
   return keeperReleaseRecord({
     programId: ZKUBE_PROGRAM_ID.toBase58(),
@@ -97,11 +64,6 @@ export function keeperReleaseFromEnv(
     ),
     deployedProgramDataSha256: KEEPER_EXPECTED_DEPLOYED_SBF_SHA256,
     keeperImageReference: flyImageRef,
-    ...(keeperImageDigest === undefined ? {} : { keeperImageDigest }),
-    replayDomainHex: requiredReleaseValue(
-      env.ZKUBE_REPLAY_DOMAIN_HEX,
-      "ZKUBE_REPLAY_DOMAIN_HEX",
-    ),
     idlHash: KEEPER_EXPECTED_IDL_SHA256,
     launchDayId,
   });
@@ -217,10 +179,6 @@ async function runConfiguredKeeperPass(
 
   const release = keeperReleaseFromEnv(env);
   const writeEnabled = keeperWriteEnabledFromEnv(env);
-  const archiveDirectory = archiveDirectoryFromEnv(env);
-  if (writeEnabled && archiveDirectory !== DEFAULT_ARCHIVE_DIRECTORY) {
-    throw new Error("write-enabled archive directory does not match the release");
-  }
   const protocolInfo = await connection.getAccountInfo(protocolPda(), "confirmed");
   if (!protocolInfo) {
     log({
@@ -239,7 +197,6 @@ async function runConfiguredKeeperPass(
     nowUnix: Math.floor(nowMilliseconds / 1_000),
     routerEndpoint,
     release: {
-      replayDomainHex: release.record.replayDomainHex,
       launchDayId: release.record.launchDayId,
     },
   });
@@ -277,16 +234,6 @@ async function runConfiguredKeeperPass(
     ),
     protocolSnapshot,
     protocolMaterializer: adapter,
-    archiveStore: new FileKeeperArchiveStore(
-      archiveDirectory,
-      (competition, accountData, scoreBoardData, themeBoardData) =>
-        adapter.projectArchiveResultData(
-          competition,
-          accountData,
-          scoreBoardData,
-          themeBoardData,
-        ),
-    ),
     resolveEphemeralConnection: (plan) => resolveEphemeralConnectionForPlan({
       plan,
       programId: ZKUBE_PROGRAM_ID,

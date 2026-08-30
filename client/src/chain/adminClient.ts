@@ -24,7 +24,8 @@ import {
 import { zkubeProgram, type TransactionPlan } from "./runPlan";
 import type { WalletLike } from "./sessionWallet";
 import BN from "bn.js";
-import { dailyContentSelection } from "./dailyRules";
+import { dailyPairIndex as coreDailyPairIndex } from "../../../services/zkube-core/zkube_core.js";
+import { dailyContentFromPairIndex } from "./dailyRules";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
@@ -322,7 +323,7 @@ export async function buildPrepareLaunchPeriodPlans(args: {
   const plans: TransactionPlan[] = [];
   for (const dayId of [args.dayId, args.dayId + 1]) {
     assertU32(dayId, "dayId");
-    const content = await dailyContentSelection(dayId);
+    const content = dailyContentFromPairIndex(dayId, coreDailyPairIndex(dayId));
     const instruction = await program.methods
       .prepareArenaDaily(dayId)
       .accountsPartial({

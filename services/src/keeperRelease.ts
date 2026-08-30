@@ -6,26 +6,20 @@ import {
   ARENA_BOARD_CAPACITY,
   ARENA_ENTRY_LAMPORTS,
   ENTRY_SPLIT_LAMPORTS,
+  KEEPER_INSTRUCTION_ALLOWLIST,
   KEEPER_RECENT_DAILY_CADENCES,
   SOL_PAYOUT_UNIT_LAMPORTS,
-  ZKUBE_PROGRAM_ID,
 } from "./arcadeChain.js";
-import {
-  KEEPER_EXPECTED_IDL_SHA256,
-  MAX_CADENCE_RESULT_BYTES,
-} from "./anchorIdlAdapter.js";
-import { CURRENT_ARCHIVE_SCHEMA_VERSION } from "./archiveContract.js";
-import { SESSION_KEYS_PROGRAM_ID } from "./sessionCleanup.js";
+import { KEEPER_EXPECTED_IDL_SHA256 } from "./anchorIdlAdapter.js";
+import { SOLANA_DEVNET_GENESIS_HASH } from "./serviceReadiness.js";
 
-export const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
-const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
+export const DEVNET_GENESIS_HASH = SOLANA_DEVNET_GENESIS_HASH;
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v5-sol-keeper-release",
   schemaVersion: 1,
   cluster: "devnet",
   genesisHash: DEVNET_GENESIS_HASH,
-  sessionKeysProgramId: SESSION_KEYS_PROGRAM_ID.toBase58(),
   entryLamports: ARENA_ENTRY_LAMPORTS.toString(),
   entrySplitLamports: {
     followingDaily: ENTRY_SPLIT_LAMPORTS.followingDaily.toString(),
@@ -33,68 +27,17 @@ export const KEEPER_RELEASE_POLICY = {
   },
   payoutUnitLamports: SOL_PAYOUT_UNIT_LAMPORTS.toString(),
   arenaBoardCapacity: ARENA_BOARD_CAPACITY,
-  maximumCadenceResultBytes: MAX_CADENCE_RESULT_BYTES,
   replayVersion: 2,
   maximumWritesPerPass: 6,
   maximumBoardWritesPerPass: 32,
   maximumBoardRentLamportsPerPass: 1_802_208_480,
-  maximumExpiredSessionClosuresPerPass: 2,
-  maximumParticipantClosuresPerPass: 1,
   recentCadenceWindow: {
     dailies: KEEPER_RECENT_DAILY_CADENCES,
   },
   maximumSpendLamportsPerPass: 100_000_000,
   reserveFloorLamports: 100_000_000,
-  archiveDirectory: "/data/zkube-archives",
-  archiveContractVersion: CURRENT_ARCHIVE_SCHEMA_VERSION,
   maximumRapidReruns: 4,
-  allowlist: [
-    "prepare_arena_daily",
-    "activate_arena_daily",
-    "skip_suspended_arena_daily",
-    "finish_run",
-    "commit_run",
-    "consume_campaign_run",
-    "consume_arena_run",
-    "expire_unresolved_arena_run",
-    "cleanup_orphan_active_run",
-    "finalize_arena_daily",
-    "submit_arena_board_chunk",
-    "archive_arena_daily",
-    "expire_daily_claims",
-    "close_arena_daily",
-    "close_arena_player",
-    "revoke_session_v2",
-  ],
-  materializedInstructionAllowlist: [
-    "fundedPrepareArenaDaily",
-    "activateArenaDaily",
-    "skipSuspendedArenaDaily",
-    "finishRun",
-    "commitRun",
-    "consumeCampaignRun",
-    "consumeArenaRun",
-    "expireUnresolvedArenaRun",
-    "cleanupOrphanActiveRun",
-    "fundedFinalizeArenaDaily",
-    "submitArenaBoardChunk",
-    "archiveArenaDaily",
-    "expireDailyClaims",
-    "closeArenaDaily",
-    "closeArenaPlayer",
-    "revokeSessionV2",
-  ],
-  denied: [
-    "deploy_or_upgrade",
-    "initialize_or_bootstrap",
-    "initial_competition_seed",
-    "governance",
-    "incident_or_refund",
-    "manual_reimbursement",
-    "withdraw_operator_revenue",
-    "arbitrary_transfer_or_swap_cpi",
-    "mainnet",
-  ],
+  allowlist: KEEPER_INSTRUCTION_ALLOWLIST,
 } as const;
 
 export interface KeeperReleaseInput {
@@ -102,26 +45,8 @@ export interface KeeperReleaseInput {
   keeperPublicKey: string;
   deployedProgramDataSha256: string;
   keeperImageReference: string;
-  /**
-   * Optional operator attestation copied from `fly machine status --json`
-   * when the release is fingerprinted. The worker cannot verify the Machines
-   * API digest at runtime; its runtime image identity remains `FLY_IMAGE_REF`.
-   */
-  keeperImageDigest?: string;
-  replayDomainHex: string;
   idlHash: string;
   launchDayId: number;
-}
-
-/** Stable across upgrades while remaining unique to this cluster and program. */
-export function canonicalDevnetReplayDomainHex(
-  programId: PublicKey = ZKUBE_PROGRAM_ID,
-): string {
-  return createHash("sha256")
-    .update(REPLAY_DOMAIN_TAG)
-    .update(new PublicKey(DEVNET_GENESIS_HASH).toBuffer())
-    .update(programId.toBuffer())
-    .digest("hex");
 }
 
 export function keeperReleaseRecord(input: KeeperReleaseInput) {
@@ -132,14 +57,6 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
     input.keeperImageReference,
   )) {
     throw new Error("keeper image reference must be the Fly deployment tag");
-  }
-  if (input.keeperImageDigest !== undefined &&
-      !/^sha256:[0-9a-f]{64}$/.test(input.keeperImageDigest)) {
-    throw new Error("keeper image digest must be sha256:<lowercase hex>");
-  }
-  assertHash(input.replayDomainHex, "replay domain");
-  if (input.replayDomainHex !== canonicalDevnetReplayDomainHex(programId)) {
-    throw new Error("replay domain does not match the canonical Devnet deployment domain");
   }
   assertHash(input.idlHash, "IDL hash");
   if (input.idlHash !== KEEPER_EXPECTED_IDL_SHA256) {
@@ -155,10 +72,6 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
     keeper: keeper.toBase58(),
     deployedProgramDataSha256: input.deployedProgramDataSha256,
     keeperImageReference: input.keeperImageReference,
-    ...(input.keeperImageDigest === undefined
-      ? {}
-      : { keeperImageDigest: input.keeperImageDigest }),
-    replayDomainHex: input.replayDomainHex,
     idlHash: input.idlHash,
     launchDayId: input.launchDayId,
   };

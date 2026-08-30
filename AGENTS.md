@@ -68,8 +68,8 @@ Source implements v5 partially. Current state:
   Neither mode grants SOL, entries, prize eligibility, or mint odds.
 - The owner funds the device session's recyclable fee-and-rent allowance
   directly. A separately seeded System-owned zero-data
-  cadence funding PDA recycles Daily account rent after finalized results are
-  durably archived. The cadence funding PDA signs only narrow self-CPI rent paths; there is
+  cadence funding PDA recycles Daily account rent after the on-chain archive
+  root commits each finalized result. The cadence funding PDA signs only narrow self-CPI rent paths; there is
   no Kora or generic paymaster.
 - Separate durable Campaign and Arcade run slots prevent overlap within either
   mode and support cross-device recovery while allowing one run of each. They
@@ -77,9 +77,8 @@ Source implements v5 partially. Current state:
   remain separate; resolve ER placement with `getDelegationStatus`.
 - Fly runs only the independently funded Daily keeper, which has no inbound
   HTTP surface. The web client is static PWA/TWA code with no server signer.
-  Prize push is built but parked and wired to nothing; before reviving it,
-  check whether Seeker or MagicBlock already deliver device notifications. A
-  reward is collectable in the app for thirty days regardless, so a
+  There is no keeper push stack. Client notification controls remain parked;
+  a reward is collectable in the app for thirty days regardless, so any future
   notification can only ever be a courtesy.
 - Mainnet requires counsel, economic, and distribution review. Nothing in this
   document authorizes it.
@@ -209,7 +208,7 @@ ladder tier boundaries, and the flat qualifying credit.
   systems bound.** The entry-price rule computes the full width and denominator
   without narrowing rank or winner count to a byte. `ARENA_BOARD_CAPACITY`
   bounds the on-chain rows and payable places; if the width exceeds it, the
-  finalized result and archive record that condition and the dropped shares are
+  finalized result records that condition and the dropped shares are
   rollover without renormalization.
 - **A reroll is an accepted action.** It increments the action counter and
   folds its own replay event, so a run holding a pending or completed reroll
@@ -284,7 +283,7 @@ ladder tier boundaries, and the flat qualifying credit.
   construction.** It rides the same first-qualification transition that already
   increments the board's qualified-player count when a result is recorded, so it
   needs no new instruction, no new idempotence marker, and no coupling to
-  participant-account cleanup. It is never per entry: buying twenty entries
+  `ArenaPlayer` cleanup. It is never per entry: buying twenty entries
   earns it exactly once, so the ladder cannot be bought. Its value is balance
   and belongs in a named constant.
 - **The consecutive-entry streak is visible attendance, not a points
@@ -372,11 +371,10 @@ themes, and starting guardian charges are superseded as well.
   release approved before 2026-08-08 died with the abandoned deployment. A new
   one requires a separately approved fingerprinted release enforcing Devnet
   genesis, deployed ProgramData hash, exact signer, current/recent cadence PDAs,
-  canonical instruction allowlist, the release's own declared write and closure
-  ceilings, 0.1 SOL simulated spend per pass, and a 0.1 SOL reserve floor. The
-  schema-1 source release currently declares six general writes, thirty-two
-  board-construction writes, one participant closure, two expired-session
-  closures, and at most 1,802,208,480 lamports of recyclable board rent per
+  canonical instruction allowlist, the release's two declared write ceilings,
+  0.1 SOL simulated spend per pass, and a 0.1 SOL reserve floor. The schema-1
+  source release currently declares six general writes, thirty-two
+  board-construction writes, and at most 1,802,208,480 lamports of recyclable board rent per
   pass; those numbers are a proposal until approved, not inherited permission.
 - Governance, initial competition seeding, manual reimbursement, terms/rules
   changes, funding, withdrawals, deployment, initial keeper enablement, and all
@@ -411,8 +409,8 @@ check. Do not bump it per change or per phase. The `coreVersion` assertion in
 the fixtures only fires when the version moves and the vectors are not
 regenerated; the golden vector values catch logic changes. Keep `1.0.0` until a
 deployment or a genuine compatibility boundary requires a version change.
-Protocol identity is carried by the account versions, keeper release schema,
-and archive contract version — those numbers must stay truthful.
+Protocol identity is carried by the account versions and keeper release schema;
+those numbers must stay truthful.
 
 ## Validation gates
 
@@ -673,11 +671,11 @@ Emblems are identity display only with no monetary effect.
 | --- | --- | --- |
 | Owner wallet | Durable identity and paid entry | Signs every 0.01 SOL entry |
 | Device session | Approximately seven days of safe gameplay | Owner-funded fee/rent float; never signs entry payment |
-| Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation only |
+| Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation and finalization only |
 | Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
 | Solana program | Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
-| Fly keeper | Period preparation, recovery, rollup, settlement, cleanup | Independent bounded signer |
+| Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
 | Static PWA/TWA | Wallet, Campaign, and Arcade UI; runs the core engine through WASM | No server signer or paymaster |
 
 Each `ActiveRun` and `ArenaPlayer` stores the signer that paid its rent, and every
@@ -708,97 +706,49 @@ the System program; the committed IDL regression test rejects the unsafe older
 
 ### Archival
 
-Finalized cadence accounts close back to the cadence funding PDA only after
-every required rollup completes. Before the
-on-chain account is committed and closed, the Devnet keeper atomically writes and
-re-reads the complete canonical result JSON on its persistent Fly volume. The
-small program-owned Arcade archive then advances one sequential rolling
-commitment per Daily. Devnet volume storage is a recovery
-aid, not the Mainnet durability design; Mainnet requires replicated public
-archive storage.
-
-Archive contract v1 is the single supported contract; there is no legacy
-reader, no supported-version list, and files are append-only and never
-rewritten. Each file carries the canonical result JSON, `resultDataBase64`, and
-the complete raw Score and Theme board accounts beside the raw Daily account.
-The exact immutable Borsh projection committed by `resultHash` and the rolling
-root therefore includes both board headers and every verified row, while the
-mutable claim bitmap remains point-in-time evidence. Closure reprojects
-the stored evidence through the checked-in IDL and verifies the stored
-accounts, cadence, program, result hash, root, and immutable projection exactly.
-It does not require current raw-byte equality after permitted metadata changes.
-A missing or invalid committed file is never re-materialized; that cadence
-archive plan is quarantined while independent keeper plans continue.
+The program-owned `ArcadeArchive` advances one sequential rolling commitment
+per finalized Daily, and `close_arena_daily` requires that root to cover the
+day before returning rent to the cadence funding PDA. The Devnet volume archive
+is retired; the Solana ledger is the record. Mainnet indexing is a separate
+deployment decision. `keeper_allowlist_is_exactly_its_plans` keeps the root
+append and root-gated closure in the keeper's exact cadence plan set.
 
 ### Keeper scope
 
-The keeper is not privileged for most of what it does. Board construction takes
-a plain `caller: Signer` with no
-authority constraint, so anyone may drive them. The instructions that do take an
-`authority` are governance — initialization, rules publication, revenue
-withdrawal — and are owner work, not keeper work.
+The keeper has two responsibility classes. Cadence work prepares, activates or
+skips, finalizes, constructs boards, advances the on-chain root, expires claims,
+and closes a Daily. Last-resort work finishes deadline runs, commits and consumes
+terminal runs, expires unresolved Arena runs, and cleans orphaned runs. Every
+instruction is permissionless or funded through the narrow cadence PDA wrappers;
+governance remains owner work. `keeper_allowlist_is_exactly_its_plans` pins the
+fourteen instructions to the plan producers.
 
-That leaves the keeper two irreducible jobs and one role:
-
-- **Prepare and activate the next Daily**, funded from the cadence PDA.
-- **Write the durable archive** to its volume before an account is committed and
-  closed. This is the only responsibility that touches storage off chain and the
-  only one nobody else can perform.
-- **Be the actor of last resort** for permissionless work no one is motivated to
-  pay for: expiring unclaimed rewards, closing finalized accounts, recovering
-  expired or orphaned runs, cleaning up participants, and building a board when
-  no winner bothers to.
-
-The consequence worth designing around: a keeper outage is a degradation, not a
-stoppage. Winners can still claim, and an interested party can still seal a
-board. Only preparation and archival genuinely stop. Resist moving work into the
-keeper's privileged set — every addition is a write ceiling, an allowlist entry,
-a policy line, and a new way for one worker's failure to become everyone's.
+A keeper outage is a degradation, not a loss of player authority: winners can
+still claim, interested callers can drive permissionless work, and no off-chain
+file gates settlement or closure. Every added keeper responsibility costs an
+allowlist entry and bounded write capacity.
 
 ### Keeper safety
 
 The keeper validates cluster genesis, program and ProgramData identity, account
 owner, bounded length, discriminator, version, PDA, and stored account
-relationships before decoding or planning a write. It reconciles:
-
-- current and following Daily preparation;
-- terminal or deadline Arena and Campaign runs;
-- deterministic expiry and orphan recovery;
-- Daily finalization, verified Score/Theme board construction, direct-claim
-  expiry, and rollover;
-- full canonical cadence snapshots, sequential on-chain archive commitments,
-  and safe cadence-account closure back to the cadence funding PDA;
-- resolved run and expired session cleanup;
-- bounded post-rollup participant-account closure, with rent returned only to
-  each account's persisted original payer.
+relationships before decoding or planning a write. Discovery performs the one
+semantic plan validation inside each plan's isolation boundary; malformed plans
+are rejected without aborting independent work. Both materialization switches
+fail closed on an unknown operation.
 
 The recurring signer cannot deploy, initialize, seed pots, change rules,
 withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. The
 runtime identity check pins Fly's unique deployment tag from `FLY_IMAGE_REF`.
-The release fingerprint also pins Devnet genesis, deployed ProgramData hash,
-program ID, keeper signer, rules/replay/schema/IDL hashes, instruction
-allowlist, a six-write general limit, a separate 32-write board construction
-limit, two-session cleanup limit, 0.1 SOL simulated spend ceiling, a separate
-1,802,208,480-lamport recyclable board-rent ceiling, a separate
-one-participant-account closure limit, and a 0.1 SOL keeper reserve floor. An
-optional image digest copied from `fly machine status --json` is attested by the
-operator at fingerprint time and carried into the fingerprint; the worker does
-not verify that digest at runtime.
-
-Keeper release-policy source schema v1 fingerprints the single archive contract
-v1, the 1,536-row board bound, and the keeper's 300,000-byte fail-closed
-cadence-result encoding bound. There is no legacy archive reader or
-supported-contract list.
-It quarantines a typed per-cadence
-archive-integrity failure without blocking an independent Daily or Campaign
-plan. Global chain readiness, policy, materialization, storage
-configuration, and release errors remain fatal. A preparation/integrity failure
-or archive-transaction failure suppresses only the same cadence's close and
-participant cleanup writes for that pass. Quarantined and
-suppressed plans consume neither the general nor board-construction write window
-nor its session/participant closure quotas, so later eligible recovery and
-unrelated-cadence work backfills the same pass. The enforced cadence ordering is
-finalize, construct both boards, archive, expire unclaimed rewards, then close.
+The release fingerprint pins every field checked at runtime: Devnet genesis,
+deployed ProgramData hash, program ID, keeper signer, schema and IDL identity,
+entry economics, the fourteen-instruction allowlist, a six-write general limit,
+a separate 32-write board-construction limit, the 1,536-row board bound, the
+1,802,208,480-lamport recyclable board-rent ceiling, a 0.1 SOL simulated spend
+ceiling, a 0.1 SOL reserve floor, and Fly's unique deployment image reference.
+The replay domain is derived from genesis and program identity rather than
+stored in the fingerprint. The enforced cadence ordering is finalize, construct
+both boards, append the on-chain root, expire unclaimed rewards, then close.
 
 ## Operator procedures
 
@@ -812,7 +762,7 @@ live value from its own read-only observations.
 Manifest schema v6 binds the deployed ProgramData and allocation, Campaign
 content catalog, exact launch day and seed plan, and keeper release. The v5
 dependency is one-way: frozen SBF and observed ProgramData, unique Fly release
-tag and optional operator-attested image digest, keeper fingerprint,
+tag, keeper fingerprint,
 launch-plan fingerprint, then the final manifest. Fly exposes a unique
 `deployment-<ULID>` release tag to the worker; any later Fly deploy invalidates
 write authority. No v4 manifest, fingerprint, account, or approval is reusable.

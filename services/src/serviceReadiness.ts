@@ -3,7 +3,9 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 import { ZKUBE_PROGRAM_ID } from "./arcadeChain.js";
 
-const SOLANA_DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+export const SOLANA_DEVNET_GENESIS_HASH =
+  "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 const UPGRADEABLE_LOADER_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
@@ -12,6 +14,15 @@ const UPGRADEABLE_LOADER_ID = new PublicKey(
 export interface ChainReadinessResult {
   ok: boolean;
   error?: string;
+}
+
+/** Derived protocol identity; never supplied through the release fingerprint. */
+export function canonicalDevnetReplayDomainHex(): string {
+  return createHash("sha256")
+    .update(REPLAY_DOMAIN_TAG)
+    .update(new PublicKey(SOLANA_DEVNET_GENESIS_HASH).toBuffer())
+    .update(ZKUBE_PROGRAM_ID.toBuffer())
+    .digest("hex");
 }
 
 export function expectedGenesisHashFromEnv(

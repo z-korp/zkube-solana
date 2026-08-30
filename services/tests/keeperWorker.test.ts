@@ -9,8 +9,6 @@ import {
   keeperWriteEnabledFromEnv,
   runKeeperWorker,
 } from "../src/keeperWorker";
-import { canonicalDevnetReplayDomainHex } from "../src/keeperRelease";
-import { ZKUBE_PROGRAM_ID } from "../src/arcadeChain";
 
 describe("keeper worker scheduling", () => {
   it("defaults to a one-minute normal cadence", () => {
@@ -144,7 +142,6 @@ function releaseEnvironment(): Record<string, string> {
     FLY_IMAGE_REF:
       "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
     ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58(),
-    ZKUBE_REPLAY_DOMAIN_HEX: canonicalDevnetReplayDomainHex(ZKUBE_PROGRAM_ID),
     ZKUBE_LAUNCH_DAY_ID: "20656",
   };
 }

@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
@@ -18,6 +16,7 @@ import {
   DAILY_PAIR_SELECTION_SEED,
   DAILY_THEMES,
 } from "./dailyRules.generated.js";
+import { dailyPairIndex as coreDailyPairIndex } from "./zkubeCore.js";
 
 export {
   ARCADE_ACCOUNT_VERSION,
@@ -43,29 +42,33 @@ export const KEEPER_RECENT_DAILY_CADENCES = 84;
 export const ARENA_BOARD_CAPACITY = 1_536;
 export const ARENA_BOARD_CHUNK_CAPACITY = 10;
 export const ARENA_BOARD_ENTRY_SIZE = 84;
-const DAILY_PAIR_DRAW_DOMAIN = Buffer.from("zkube-daily-pair-draw-v1", "utf8");
 export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
   followingDaily: ENTRY_DAILY_LAMPORTS,
   operator: ENTRY_OPERATOR_LAMPORTS,
 });
 
-export type KeeperOperation =
-  | "prepare_arena_daily"
-  | "activate_arena_daily"
-  | "skip_suspended_arena_daily"
-  | "finish_run"
-  | "commit_run"
-  | "consume_campaign_run"
-  | "consume_arena_run"
-  | "expire_unresolved_arena_run"
-  | "cleanup_orphan_active_run"
-  | "finalize_arena_daily"
-  | "submit_arena_board_chunk"
-  | "expire_daily_claims"
-  | "archive_arena_daily"
-  | "close_arena_daily"
-  | "close_arena_player"
-  | "revoke_expired_session";
+export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
+  prepare_arena_daily: "funded_prepare_arena_daily",
+  activate_arena_daily: "activate_arena_daily",
+  skip_suspended_arena_daily: "skip_suspended_arena_daily",
+  finalize_arena_daily: "funded_finalize_arena_daily",
+  submit_arena_board_chunk: "submit_arena_board_chunk",
+  archive_arena_daily: "archive_arena_daily",
+  expire_daily_claims: "expire_daily_claims",
+  close_arena_daily: "close_arena_daily",
+  finish_run: "finish_run",
+  commit_run: "commit_run",
+  consume_arena_run: "consume_arena_run",
+  consume_campaign_run: "consume_campaign_run",
+  expire_unresolved_arena_run: "expire_unresolved_arena_run",
+  cleanup_orphan_active_run: "cleanup_orphan_active_run",
+} as const);
+
+export type KeeperOperation = keyof typeof KEEPER_PLAN_INSTRUCTION;
+
+export const KEEPER_INSTRUCTION_ALLOWLIST = Object.freeze(
+  Object.values(KEEPER_PLAN_INSTRUCTION),
+);
 
 export type CompetitionKind = "daily";
 export type DailyBoardKind = "score" | "theme";
@@ -114,20 +117,9 @@ export interface KeeperPlanContext {
   rentRecipient?: PublicKey;
   cadenceFunding?: PublicKey;
   arcadeArchive?: PublicKey;
-  archiveFirstCadenceId?: number;
-  previousCadenceId?: number;
-  archiveCurrentRoot?: string;
-  archiveCanonicalJson?: string;
-  archiveFileSha256?: string;
-  archiveResultHash?: string;
   archiveCommitted?: boolean;
   claimsExpired?: boolean;
   claimCloseAt?: number;
-  unclaimedLamports?: bigint;
-  closeEligibleAt?: number;
-  sessionSigner?: PublicKey;
-  sessionAddress?: PublicKey;
-  sessionValidUntil?: number;
 }
 
 /**
@@ -236,31 +228,12 @@ export function dailyContentSelection(
   dayId: number,
 ): { pairIndex: number; realmMapId: number; objective: { kind: number; value: number } } {
   assertCadenceId(dayId, "day id");
-  const permutation = Array.from({ length: DAILY_PAIR_COUNT }, (_, index) => index);
-  const cycleIndex = Math.floor(dayId / DAILY_PAIR_COUNT);
-  for (let index = DAILY_PAIR_COUNT - 1; index > 0; index -= 1) {
-    const swap = Number(pairHashU64(cycleIndex, index) % BigInt(index + 1));
-    [permutation[index], permutation[swap]] = [permutation[swap]!, permutation[index]!];
-  }
-  const pairIndex = permutation[dayId % DAILY_PAIR_COUNT]!;
+  const pairIndex = coreDailyPairIndex(dayId);
   return {
     pairIndex,
     realmMapId: Math.floor(pairIndex / DAILY_THEMES.length) + 1,
     objective: DAILY_THEMES[pairIndex % DAILY_THEMES.length]!,
   };
-}
-
-function pairHashU64(
-  cycleIndex: number,
-  index: number,
-): bigint {
-  const digest = createHash("sha256")
-    .update(DAILY_PAIR_DRAW_DOMAIN)
-    .update(Uint8Array.from(DAILY_PAIR_SELECTION_SEED))
-    .update(u32(cycleIndex))
-    .update(Uint8Array.from([index]))
-    .digest();
-  return digest.readBigUInt64LE(0);
 }
 
 export function u32(value: number): Buffer {

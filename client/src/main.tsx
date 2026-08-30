@@ -12,11 +12,13 @@ import { initializePwaLifecycle } from "./platform/pwaLifecycle";
 import { PwaLifecycleBanner } from "./ui/components/shared/PwaLifecycleBanner";
 import { ThemeProvider } from "./ui/elements/theme-provider";
 import "./index.css";
+import { initializeZkubeCore } from "./core/zkubeCore";
 
 // `beforeinstallprompt` can fire before React mounts and never fires again,
 // so the capture must start ahead of the first render.
 captureInstallPrompt();
 initializePwaLifecycle();
+await initializeZkubeCore();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -6,8 +6,8 @@ export { default as Coin } from "./Coin";
 export { default as KreditCoin } from "./KreditCoin";
 export { default as KreditShopSheet } from "./KreditShopSheet";
 export {
-  computeRankPayouts,
-  dailyBoardPools,
-  payoutForRank,
-} from "./payout";
+  coreRankPayoutPlan as computeRankPayouts,
+  coreDailyBoardPools as dailyBoardPools,
+  corePayoutForRank as payoutForRank,
+} from "@/core/zkubeCore";
 export { MONEY_GOLD, PLATE_STYLE, mixHex } from "./tokens";

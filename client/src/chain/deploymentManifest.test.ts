@@ -204,7 +204,6 @@ function candidate(): ZkubeDeploymentManifest {
     keeper: {
       signer: Keypair.generate().publicKey.toBase58(),
       releaseFingerprint: "f".repeat(64),
-      imageDigest: `sha256:${"1".repeat(64)}`,
     },
   };
 }
@@ -240,6 +239,5 @@ function environment(
     ZKUBE_LAUNCH_PLAN_FINGERPRINT: manifest.launch.planFingerprint,
     ZKUBE_KEEPER_PUBLIC_KEY: manifest.keeper.signer,
     ZKUBE_KEEPER_RELEASE_FINGERPRINT: manifest.keeper.releaseFingerprint,
-    ZKUBE_KEEPER_IMAGE_DIGEST: manifest.keeper.imageDigest,
   };
 }

@@ -53,8 +53,8 @@ export interface BoardHudProps {
   comboThreshold: number;
   pressureScore: number;
   currentDifficulty: number;
-  endlessThresholds: readonly number[];
-  endlessScoreMultipliersX100: readonly number[];
+  pressureThresholds: readonly number[];
+  pressureScoreMultipliersX100: readonly number[];
   gameLevel: GameLevelData | null;
   constraintProgress: number;
   constraint2Progress: number;
@@ -74,16 +74,16 @@ export default function BoardHud({
   comboThreshold,
   pressureScore,
   currentDifficulty,
-  endlessThresholds,
-  endlessScoreMultipliersX100,
+  pressureThresholds,
+  pressureScoreMultipliersX100,
   gameLevel,
   constraintProgress,
   constraint2Progress,
   latchedStarSources,
 }: BoardHudProps) {
   const tier = boardTier(
-    endlessThresholds,
-    endlessScoreMultipliersX100,
+    pressureThresholds,
+    pressureScoreMultipliersX100,
     currentDifficulty,
     pressureScore,
   );

@@ -113,16 +113,16 @@ export class Game {
     return this.view.currentDifficulty;
   }
 
-  public get endlessDepth(): number {
+  public get pressureDepth(): number {
     return this.view.currentDifficulty;
   }
 
-  public get endlessThresholds(): readonly number[] {
-    return this.view.endlessThresholds;
+  public get pressureThresholds(): readonly number[] {
+    return this.view.pressureThresholds;
   }
 
-  public get endlessScoreMultipliersX100(): readonly number[] {
-    return this.view.endlessScoreMultipliersX100;
+  public get pressureScoreMultipliersX100(): readonly number[] {
+    return this.view.pressureScoreMultipliersX100;
   }
 
   public get levelCompleted(): boolean {
@@ -145,7 +145,7 @@ export class Game {
     return this.view.bonusCharges;
   }
 
-  /** 0 = story/campaign, 1 = endless (Daily Arena). */
+  /** 0 = Campaign, 1 = Daily Arena. */
   public get mode(): number {
     return this.view.mode === "daily" ? 1 : 0;
   }
