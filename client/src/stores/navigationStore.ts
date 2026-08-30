@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
-type TabId = "home" | "arcade" | "campaign" | "profile";
+type TabId = "arcade" | "profile";
 type OverlayId = "play" | "map" | "spectate";
 export type PageId = TabId | OverlayId;
 
@@ -51,21 +51,16 @@ interface NavigationState {
   spectateTarget: SpectateTargetParams | null;
 }
 
-const getBackTarget = (page: PageId): PageId => {
-  switch (page) {
-    case "play":
-      return "map";
-    case "spectate":
-      return "arcade";
-    case "map":
-      return "campaign";
-    default:
-      return "home";
-  }
+export const BACK_TARGETS: Readonly<Record<PageId, PageId>> = {
+  arcade: "arcade",
+  map: "arcade",
+  play: "map",
+  profile: "arcade",
+  spectate: "arcade",
 };
 
 export const useNavigationStore = create<NavigationState>((set, get) => ({
-  currentPage: "home",
+  currentPage: "arcade",
   previousPage: null,
   isTransitioning: false,
   transitionDirection: null,
@@ -103,7 +98,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
     set({
       previousPage: currentPage,
-      currentPage: getBackTarget(currentPage),
+      currentPage: BACK_TARGETS[currentPage],
       transitionDirection: "back",
       isTransitioning: true,
       recoveryRunId: null,

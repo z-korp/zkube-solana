@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
@@ -24,7 +24,6 @@ import {
 import { useMapLayout } from "@/hooks/useMapLayout";
 import { useCampaignLauncher } from "@/play/useCampaignLauncher";
 import { useNavigationStore } from "@/stores/navigationStore";
-import LevelCompleteDialog from "@/ui/components/LevelCompleteDialog";
 import GuardianGreeting from "@/ui/components/map/GuardianGreeting";
 import LevelPreview from "@/ui/components/map/LevelPreview";
 import ZoneBackground from "@/ui/components/map/ZoneBackground";
@@ -33,6 +32,8 @@ import {
   unavailableMap,
 } from "@/ui/components/map/mapLogic";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
+import { GuardianFaceBlock, MONEY_GOLD } from "@/ui/components/economy";
+import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import {
   Tooltip,
   TooltipContent,
@@ -93,12 +94,6 @@ const MapPage: React.FC = () => {
   const rawMapZoneId = useNavigationStore((state) => state.mapZoneId);
   const mapZoneId = Math.min(10, Math.max(1, rawMapZoneId));
   const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
-  const pendingLevelCompletion = useNavigationStore(
-    (state) => state.pendingLevelCompletion,
-  );
-  const setPendingLevelCompletion = useNavigationStore(
-    (state) => state.setPendingLevelCompletion,
-  );
   const greetedZones = useNavigationStore((state) => state.greetedZones);
   const markZoneGreeted = useNavigationStore((state) => state.markZoneGreeted);
   const { setThemeTemplate } = useTheme();
@@ -214,12 +209,7 @@ const MapPage: React.FC = () => {
   }, [map]);
 
   useEffect(() => {
-    if (
-      !dataStabilized ||
-      alreadyGreeted ||
-      pendingLevelCompletion ||
-      !map?.unlocked
-    ) {
+    if (!dataStabilized || alreadyGreeted || !map?.unlocked) {
       return;
     }
     if (isFirstVisit) {
@@ -233,7 +223,6 @@ const MapPage: React.FC = () => {
     map?.unlocked,
     mapZoneId,
     markZoneGreeted,
-    pendingLevelCompletion,
   ]);
 
   const firstPlayable = useMemo(() => {
@@ -241,6 +230,37 @@ const MapPage: React.FC = () => {
     const firstUncleared = map.levelStars.findIndex((stars) => stars === 0);
     return firstUncleared < 0 ? 10 : firstUncleared + 1;
   }, [map]);
+  const currentNode =
+    nodes.find((node) => node.state === "playing") ??
+    nodes.find((node) => node.state === "current") ??
+    nodes.find((node) => node.state !== "locked") ??
+    null;
+  const resumeHere = activeStoryRun?.zoneId === mapZoneId;
+  const currentActionLabel = resumeHere
+    ? "Resume"
+    : zoneStars > 0
+      ? "Continue"
+      : "Enter";
+  const chooseRealm = (direction: -1 | 1) => {
+    setSelectedNode(null);
+    setShowGreeting(false);
+    setMapZoneId(
+      direction === -1
+        ? mapZoneId === 1
+          ? 10
+          : mapZoneId - 1
+        : mapZoneId === 10
+          ? 1
+          : mapZoneId + 1,
+    );
+  };
+  const openCurrentNode = () => {
+    if (resumeHere && activeStoryRun) {
+      navigate("play", activeStoryRun.gameId);
+      return;
+    }
+    if (currentNode) setSelectedNode(currentNode);
+  };
 
   return (
     <div className="relative flex h-full flex-col">
@@ -253,18 +273,43 @@ const MapPage: React.FC = () => {
         transition={{ duration: 0.3 }}
         className="pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-[clamp(12px,3vw,20px)] pb-1 pt-[clamp(12px,3vw,20px)]"
       >
-        {/* Left: back + zone name */}
-        <div className="pointer-events-auto flex items-center gap-[clamp(6px,1.5vw,12px)]">
+        <div className="pointer-events-auto">
           <button
             onClick={goBack}
+            aria-label="Back to Arcade"
             className="flex h-[clamp(32px,7vw,44px)] w-[clamp(32px,7vw,44px)] shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/30 backdrop-blur-md"
             style={{ color: colors.accent }}
           >
             <ChevronLeft className="h-[50%] w-[50%]" />
           </button>
-          <span className="font-display text-[clamp(18px,4.5vw,28px)] font-black text-white drop-shadow-md">
-            {zoneName}
+        </div>
+
+        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/15 bg-black/45 px-2 py-1.5 backdrop-blur-md">
+          <button
+            type="button"
+            aria-label="Previous realm"
+            onClick={() => chooseRealm(-1)}
+            className="grid h-8 w-8 place-items-center rounded-xl text-white/75"
+          >
+            <ChevronLeft size={19} />
+          </button>
+          <GuardianFaceBlock zoneId={mapZoneId} size={36} />
+          <span className="min-w-[92px] text-center">
+            <span className="block font-display text-base leading-none text-white">
+              {guardian.name}
+            </span>
+            <span className="mt-1 block font-sans text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">
+              {zoneName} · ★ {zoneStars}/30
+            </span>
           </span>
+          <button
+            type="button"
+            aria-label="Next realm"
+            onClick={() => chooseRealm(1)}
+            className="grid h-8 w-8 place-items-center rounded-xl text-white/75"
+          >
+            <ChevronRight size={19} />
+          </button>
         </div>
 
         {/* Right: stars + perfect-reward infotip */}
@@ -277,12 +322,6 @@ const MapPage: React.FC = () => {
                   className="flex items-center gap-1.5"
                   aria-label="Zone completion reward"
                 >
-                  <span
-                    className="font-display text-[clamp(14px,3.5vw,22px)] font-black drop-shadow-md"
-                    style={{ color: colors.accent }}
-                  >
-                    {zoneStars}/30 ★
-                  </span>
                   <Info className="h-[clamp(12px,3vw,16px)] w-[clamp(12px,3vw,16px)] text-white/60" />
                 </button>
               </TooltipTrigger>
@@ -630,7 +669,7 @@ const MapPage: React.FC = () => {
           </svg>
         </div>
 
-        {selectedNode && !pendingLevelCompletion && map && (
+        {selectedNode && map && (
           <LevelPreview
             node={selectedNode}
             game={game}
@@ -643,25 +682,6 @@ const MapPage: React.FC = () => {
             onClose={() => {
               if (!launching) setSelectedNode(null);
             }}
-          />
-        )}
-
-        {pendingLevelCompletion && (
-          <LevelCompleteDialog
-            isOpen
-            onClose={() => {
-              // Land on the plain map — no next level pre-selected.
-              setPendingLevelCompletion(null);
-            }}
-            level={pendingLevelCompletion.level}
-            levelMoves={pendingLevelCompletion.levelMoves}
-            prevTotalScore={pendingLevelCompletion.prevTotalScore}
-            totalScore={pendingLevelCompletion.totalScore}
-            latchedStarSources={pendingLevelCompletion.latchedStarSources}
-            gameLevel={pendingLevelCompletion.gameLevel}
-            zoneId={mapZoneId}
-            colors={colors}
-            isIncomplete={pendingLevelCompletion.isIncomplete}
           />
         )}
 
@@ -686,6 +706,18 @@ const MapPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {!selectedNode && !showGreeting && (
+        <div className="relative z-30 px-4 pb-4">
+          <ArcadeButton
+            onClick={openCurrentNode}
+            disabled={!map?.unlocked || currentNode === null}
+            accentOverride={MONEY_GOLD}
+          >
+            {currentActionLabel}
+          </ArcadeButton>
+        </div>
+      )}
     </div>
   );
 };

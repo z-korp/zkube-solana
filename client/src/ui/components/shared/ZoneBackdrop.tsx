@@ -16,7 +16,7 @@ interface ZoneBackdropProps {
  * Shared menu-page background layer. Renders the active zone's painted art over
  * a solid base, then a LIGHT gradient veil — so the opaque menu panels stack on
  * top of a painting that stays clearly visible around them. This replaces the
- * old HomePage approach (a dim opacity-25 image under a near-opaque veil that
+ * old lobby approach (a dim opacity-25 image under a near-opaque veil that
  * buried the art). The in-run play board never uses this; it keeps its own
  * chrome.
  *

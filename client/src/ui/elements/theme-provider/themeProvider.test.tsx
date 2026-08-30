@@ -1,6 +1,14 @@
 import React, { useContext, useEffect } from "react";
 import { render, waitFor } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { ThemeProvider, ThemeProviderContext } from ".";
 
@@ -24,9 +32,9 @@ afterEach(() => localStorage.clear());
 
 /**
  * Reproduces the Arcade→Play transition: while AnimatePresence keeps both
- * screens mounted, HomePage drives the theme to today's zone and PlayScreen
+ * screens mounted, the Arcade lobby drives the theme to today's zone and PlayScreen
  * drives it to a different run zone. Their effects mirror the real ones —
- * HomePage keys on its zone id, PlayScreen guards on the live themeTemplate.
+ * the lobby keys on its zone id, PlayScreen guards on the live themeTemplate.
  *
  * With an unstable provider value, `setThemeTemplate` changed identity on every
  * render, both effects re-fired on every theme change, and the two targets
@@ -68,9 +76,8 @@ describe("ThemeProvider stability", () => {
     const setters = new Set<unknown>();
 
     const Probe: React.FC = () => {
-      const { themeTemplate, setThemeTemplate } = useContext(
-        ThemeProviderContext,
-      );
+      const { themeTemplate, setThemeTemplate } =
+        useContext(ThemeProviderContext);
       setters.add(setThemeTemplate);
       useEffect(() => {
         if (themeTemplate !== "theme-4") setThemeTemplate("theme-4" as never);

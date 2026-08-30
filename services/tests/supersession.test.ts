@@ -25,6 +25,11 @@ const SKIPPED = [join(CLIENT, "core/generated"), join(CLIENT, "chain/idl")];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /\bHomePage\b|\bCampaignPage\b/,
+    trees: [CLIENT],
+    reversal: "Arcade is the one lobby and Map is the one Campaign chooser",
+  },
+  {
     pattern:
       /push(?:ed|es)? automatically|payouts are pushed|push confirms|pushed prize/i,
     trees: [CLIENT, SERVICES, PROGRAM],
@@ -136,7 +141,8 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "one Run and one codec drive both gameplay modes",
   },
   {
-    pattern: /sync_daily_profile|syncDailyProfile|ProfileSynced|profile[- ]sync/i,
+    pattern:
+      /sync_daily_profile|syncDailyProfile|ProfileSynced|profile[- ]sync/i,
     trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
     reversal: "a Daily claim atomically settles its payout and profile",
   },

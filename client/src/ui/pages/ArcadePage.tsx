@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Plus, Timer, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Settings, Timer, Users } from "lucide-react";
 import { motion } from "motion/react";
 
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
@@ -9,7 +9,9 @@ import { useDaily } from "@/contexts/daily";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
+import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useCountdown, useNowTick } from "@/hooks/useNowTick";
+import { useZoneProgress } from "@/hooks/useZoneProgress";
 import { useNavigationStore } from "@/stores/navigationStore";
 import {
   DailyStatusPanel,
@@ -17,6 +19,7 @@ import {
   formatUtcClock,
 } from "@/ui/components/arcade";
 import EnterCoinKey from "@/ui/components/arcade/EnterCoinKey";
+import CampaignDoor from "@/ui/components/arcade/CampaignDoor";
 import InfoTip from "@/ui/components/shared/InfoTip";
 import {
   KreditCoin,
@@ -58,10 +61,14 @@ const CHIP_CLASS =
  */
 const ArcadePage: React.FC = () => {
   const navigate = useNavigationStore((state) => state.navigate);
+  const openSettings = useNavigationStore((state) => state.openSettings);
+  const setMapZoneId = useNavigationStore((state) => state.setMapZoneId);
   const player = useConnectedPlayer();
   const { address } = useAccount();
   const daily = useDaily();
   const activeDaily = useActiveDailyAttempt();
+  const activeStory = useActiveStoryAttempt();
+  const { totalStars, zones } = useZoneProgress(address);
   const { setThemeTemplate } = useTheme();
 
   // Spending an already-owner-funded Kredit is device-session authorized.
@@ -84,6 +91,18 @@ const ArcadePage: React.FC = () => {
 
   const view = daily.daily;
   const zoneId = view?.mapId ?? 1;
+  const campaignZoneId = useMemo(() => {
+    if (activeStory) return activeStory.zoneId;
+    return zones.reduce(
+      (highest, zone) =>
+        zone.unlocked ? Math.max(highest, zone.zoneId) : highest,
+      1,
+    );
+  }, [activeStory, zones]);
+  const openCampaign = () => {
+    setMapZoneId(campaignZoneId);
+    navigate("map");
+  };
 
   // Tint the whole app surface with today's zone accent (never persisted).
   useEffect(() => {
@@ -100,8 +119,7 @@ const ArcadePage: React.FC = () => {
   const dailyTheme = view?.dailyTheme ?? null;
   const runsCloseLabel = view ? formatUtcClock(view.runsCloseAt) : "23:59 UTC";
   const busy = daily.action !== null;
-  const arcadeDiscoveryReady =
-    daily.run.watchStatus?.phase === "subscribed";
+  const arcadeDiscoveryReady = daily.run.watchStatus?.phase === "subscribed";
 
   const enterRanked = async () => {
     const active = await daily.enter();
@@ -163,98 +181,120 @@ const ArcadePage: React.FC = () => {
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-7">
       <ZoneBackdrop zoneId={zoneId} />
 
-      {/* The crown title, like every tab page. */}
-      <h1
-        className="relative z-10 text-center font-display text-[46px] leading-none"
-        style={{ color: "#FFF4D7", textShadow: "0 4px 20px rgba(0,0,0,0.7)" }}
-      >
-        Arcade
-      </h1>
+      <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] items-center px-4">
+        <span />
+        <h1
+          className="text-center font-display text-[46px] leading-none"
+          style={{
+            color: "#FFF4D7",
+            textShadow: "0 4px 20px rgba(0,0,0,0.7)",
+          }}
+        >
+          Arcade
+        </h1>
+        <button
+          type="button"
+          aria-label="Settings"
+          onClick={openSettings}
+          className="grid h-9 w-9 justify-self-end place-items-center rounded-xl border border-white/10 bg-black/40 text-white/70"
+        >
+          <Settings size={15} />
+        </button>
+      </div>
 
       <div className="relative z-10 mx-4 mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pb-4 hide-scrollbar">
         <>
-            {view && lifecycle !== "delayed" && lifecycle !== "stale" ? (
-              <>
-                {/* The floor header: chips, not sentences. */}
-                <section className="rounded-2xl p-3.5" style={PANEL_STYLE}>
-                  <div className="flex items-center gap-2.5">
-                    <GuardianFaceBlock zoneId={zoneId} size={44} />
-                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                      <span
-                        className="money flex-none font-display text-[32px] leading-none tabular-nums"
-                        style={{ color: MONEY_GOLD }}
-                      >
-                        {formatSolBalanceLamports(view.dailyPotLamports)}
-                      </span>
-                      <SolMark size={15} />
-                      <span className="ml-1 truncate font-sans text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">
-                        daily pot
-                      </span>
-                    </div>
-                    <span className={CHIP_CLASS}>
-                      <Timer size={12} className="text-white/50" />
-                      {entrySeconds > 0
-                        ? formatCountdown(entrySeconds)
-                        : "Closed"}
-                    </span>
-                    <InfoTip label="Daily rules">
-                      Score and Theme split the pot equally. Rank-weighted
-                      places extend while the last payout covers one Kredit.
-                    </InfoTip>
-                  </div>
-                  <div className="mt-2.5 flex gap-1.5">
-                    <span className={`${CHIP_CLASS} flex-1`}>
-                      <Users size={12} className="text-white/50" />
-                      {view.uniquePlayers}
-                    </span>
-                    <motion.button
-                      type="button"
-                      onClick={() => setShopOpen(true)}
-                      whileTap={{ y: 2 }}
-                      className={`${CHIP_CLASS} flex-1`}
+          {view && lifecycle !== "delayed" && lifecycle !== "stale" ? (
+            <>
+              {/* The floor header: chips, not sentences. */}
+              <section className="rounded-2xl p-3.5" style={PANEL_STYLE}>
+                <div className="flex items-center gap-2.5">
+                  <GuardianFaceBlock zoneId={zoneId} size={44} />
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span
+                      className="money flex-none font-display text-[32px] leading-none tabular-nums"
                       style={{ color: MONEY_GOLD }}
-                      aria-label="Buy Kredits"
                     >
-                      <KreditCoin size={15} />
-                      {view.kreditBalance.toString()}
-                      <Plus size={12} className="text-white/45" />
-                    </motion.button>
-                    {dailyTheme && (
-                      <span className={`${CHIP_CLASS} flex-1 truncate`}>
-                        {dailyThemeName(dailyTheme)}
-                      </span>
-                    )}
+                      {formatSolBalanceLamports(view.dailyPotLamports)}
+                    </span>
+                    <SolMark size={15} />
+                    <span className="ml-1 truncate font-sans text-[9px] font-bold uppercase tracking-[0.2em] text-white/40">
+                      daily pot
+                    </span>
                   </div>
+                  <span className={CHIP_CLASS}>
+                    <Timer size={12} className="text-white/50" />
+                    {entrySeconds > 0
+                      ? formatCountdown(entrySeconds)
+                      : "Closed"}
+                  </span>
+                  <InfoTip label="Daily rules">
+                    Score and Theme split the pot equally. Rank-weighted places
+                    extend while the last payout covers one Kredit.
+                  </InfoTip>
+                </div>
+                <div className="mt-2.5 flex gap-1.5">
+                  <span className={`${CHIP_CLASS} flex-1`}>
+                    <Users size={12} className="text-white/50" />
+                    {view.uniquePlayers}
+                  </span>
+                  <motion.button
+                    type="button"
+                    onClick={() => setShopOpen(true)}
+                    whileTap={{ y: 2 }}
+                    className={`${CHIP_CLASS} flex-1`}
+                    style={{ color: MONEY_GOLD }}
+                    aria-label="Buy Kredits"
+                  >
+                    <KreditCoin size={15} />
+                    {view.kreditBalance.toString()}
+                    <Plus size={12} className="text-white/45" />
+                  </motion.button>
+                  {dailyTheme && (
+                    <span className={`${CHIP_CLASS} flex-1 truncate`}>
+                      {dailyThemeName(dailyTheme)}
+                    </span>
+                  )}
+                </div>
+              </section>
+
+              {lifecycle === "entries-closed" && (
+                <section className="rounded-2xl p-3" style={PANEL_STYLE}>
+                  <p className={SECTION_CLASS}>Settling</p>
+                  <p className="mt-1 font-sans text-xs font-semibold text-white/60">
+                    Runs score {runsCloseLabel} · rewards collectable for 30
+                    days
+                  </p>
                 </section>
+              )}
 
-                {lifecycle === "entries-closed" && (
-                  <section className="rounded-2xl p-3" style={PANEL_STYLE}>
-                    <p className={SECTION_CLASS}>Settling</p>
-                    <p className="mt-1 font-sans text-xs font-semibold text-white/60">
-                      Runs score {runsCloseLabel} · rewards collectable for 30 days
-                    </p>
-                  </section>
-                )}
+              {/* The board IS the prize surface: priced rungs into ranks. */}
+              <DailyBoard view={view} address={address ?? null} />
+            </>
+          ) : (
+            <DailyStatusPanel
+              lifecycle={lifecycle}
+              onPlayCampaign={openCampaign}
+            />
+          )}
 
-                {/* The board IS the prize surface: priced rungs into ranks. */}
-                <DailyBoard view={view} address={address ?? null} />
-              </>
-            ) : (
-              <DailyStatusPanel
-                lifecycle={lifecycle}
-                onPlayCampaign={() => navigate("campaign")}
-              />
-            )}
-
-            {daily.error && (
-              <p
-                role="alert"
-                className="text-center text-xs font-semibold text-red-300"
-              >
-                {daily.error}
-              </p>
-            )}
+          {daily.error && (
+            <p
+              role="alert"
+              className="text-center text-xs font-semibold text-red-300"
+            >
+              {daily.error}
+            </p>
+          )}
         </>
+      </div>
+
+      <div className="relative z-20 px-4 pb-2">
+        <CampaignDoor
+          zoneId={campaignZoneId}
+          totalStars={totalStars}
+          onClick={openCampaign}
+        />
       </div>
 
       <div className="relative z-20 px-4 pb-3">
@@ -303,7 +343,6 @@ const ArcadePage: React.FC = () => {
           bestPrizeRank={prize.bestPrizeRank}
         />
       )}
-
     </div>
   );
 };

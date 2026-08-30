@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useNavigationStore } from "./navigationStore";
+import { BACK_TARGETS, useNavigationStore } from "./navigationStore";
 
 describe("navigation recovery intent", () => {
   beforeEach(() => {
@@ -60,5 +60,16 @@ describe("navigation recovery intent", () => {
       currentPage: "arcade",
       settingsOpen: false,
     });
+  });
+
+  it("navigation_has_one_lobby_and_one_map", () => {
+    expect(Object.keys(BACK_TARGETS).sort()).toEqual([
+      "arcade",
+      "map",
+      "play",
+      "profile",
+      "spectate",
+    ]);
+    expect(BACK_TARGETS.map).toBe("arcade");
   });
 });

@@ -16,7 +16,10 @@ import { getThemeColors, getThemeId, type ThemeId } from "@/config/themes";
 import { useGrid } from "@/hooks/useGrid";
 import { canSubmitRunMove } from "@/chain/useRunController";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
-import { useNavigationStore } from "@/stores/navigationStore";
+import {
+  useNavigationStore,
+  type PendingLevelCompletion,
+} from "@/stores/navigationStore";
 import GameBoard from "@/ui/components/GameBoard";
 import GameOverDialog from "@/ui/components/GameOverDialog";
 import LevelCompleteDialog from "@/ui/components/LevelCompleteDialog";
@@ -63,6 +66,13 @@ export default function PlayScreen() {
   const { run, game, gameLevel, activeRun } = controller;
   const navigate = useNavigationStore((state) => state.navigate);
   const recoveryRunId = useNavigationStore((state) => state.recoveryRunId);
+  const pendingLevelCompletion = useNavigationStore(
+    (state) => state.pendingLevelCompletion,
+  );
+  const setPendingLevelCompletion = useNavigationStore(
+    (state) => state.setPendingLevelCompletion,
+  );
+  const mapZoneId = useNavigationStore((state) => state.mapZoneId);
   const { themeTemplate, setThemeTemplate } = useTheme();
   const { setMusicMood, playSfx } = useMusicPlayer();
   const images = ImageAssets(themeTemplate);
@@ -215,7 +225,8 @@ export default function PlayScreen() {
           activeRun.rules.guardian.threshold > 0
             ? {
                 current:
-                  activeRun.levelLinesCleared % activeRun.rules.guardian.threshold,
+                  activeRun.levelLinesCleared %
+                  activeRun.rules.guardian.threshold,
                 threshold: activeRun.rules.guardian.threshold,
               }
             : undefined,
@@ -475,6 +486,22 @@ export default function PlayScreen() {
     );
   }
 
+  if (pendingLevelCompletion) {
+    return (
+      <PlaySurface>
+        <LevelCompletionCard
+          completion={pendingLevelCompletion}
+          zoneId={mapZoneId}
+          colors={getThemeColors(themeTemplate as ThemeId)}
+          onClose={() => {
+            setPendingLevelCompletion(null);
+            navigate("map");
+          }}
+        />
+      </PlaySurface>
+    );
+  }
+
   if (controller.settledReceipt) {
     const receipt = controller.settledReceipt;
     const isArcadeReceipt = receipt.mode !== "campaign";
@@ -695,9 +722,7 @@ export default function PlayScreen() {
   // The chain the day actually pays for. Only the combo family names one; for
   // every other rule two lines is the point a chain starts being a chain.
   const dailyComboThreshold =
-    activeRun.dailyTheme?.kind === 3
-      ? Number(activeRun.dailyTheme.value)
-      : 2;
+    activeRun.dailyTheme?.kind === 3 ? Number(activeRun.dailyTheme.value) : 2;
 
   return (
     <PlaySurface>
@@ -724,21 +749,21 @@ export default function PlayScreen() {
         />
       )}
       {controller.showLevelCard && controller.terminalSnapshot && (
-        <LevelCompleteDialog
-          isOpen
+        <LevelCompletionCard
           onClose={controller.continueFromTerminal}
           continueDisabled={controller.settlementStatus !== "complete"}
-          level={controller.terminalSnapshot.activeRun.level}
-          levelMoves={controller.terminalSnapshot.activeRun.moves}
-          prevTotalScore={0}
-          totalScore={controller.terminalSnapshot.activeRun.score}
-          latchedStarSources={
-            controller.terminalSnapshot.activeRun.latchedStarSources
-          }
-          gameLevel={controller.terminalSnapshot.gameLevel}
+          completion={{
+            level: controller.terminalSnapshot.activeRun.level,
+            levelMoves: controller.terminalSnapshot.activeRun.moves,
+            prevTotalScore: 0,
+            totalScore: controller.terminalSnapshot.activeRun.score,
+            latchedStarSources:
+              controller.terminalSnapshot.activeRun.latchedStarSources,
+            gameLevel: controller.terminalSnapshot.gameLevel,
+            isIncomplete: !controller.terminalSnapshot.completed,
+          }}
           zoneId={controller.terminalSnapshot.game.zoneId}
           colors={getThemeColors(themeTemplate as ThemeId)}
-          isIncomplete={!controller.terminalSnapshot.completed}
         />
       )}
 
@@ -752,9 +777,7 @@ export default function PlayScreen() {
         targetScore={gameLevel.pointsRequired}
         themeScore={hudGame.challengeBonus}
         objectiveName={
-          game.mode === 1
-            ? dailyThemeName(activeRun.dailyTheme)
-            : undefined
+          game.mode === 1 ? dailyThemeName(activeRun.dailyTheme) : undefined
         }
         level={hudGame.level}
         combo={hudGame.combo}
@@ -953,6 +976,37 @@ export default function PlayScreen() {
         }
       />
     </PlaySurface>
+  );
+}
+
+function LevelCompletionCard({
+  completion,
+  zoneId,
+  colors,
+  onClose,
+  continueDisabled = false,
+}: {
+  completion: PendingLevelCompletion;
+  zoneId: number;
+  colors: ReturnType<typeof getThemeColors>;
+  onClose: () => void;
+  continueDisabled?: boolean;
+}) {
+  return (
+    <LevelCompleteDialog
+      isOpen
+      onClose={onClose}
+      continueDisabled={continueDisabled}
+      level={completion.level}
+      levelMoves={completion.levelMoves}
+      prevTotalScore={completion.prevTotalScore}
+      totalScore={completion.totalScore}
+      latchedStarSources={completion.latchedStarSources}
+      gameLevel={completion.gameLevel}
+      zoneId={zoneId}
+      colors={colors}
+      isIncomplete={completion.isIncomplete}
+    />
   );
 }
 

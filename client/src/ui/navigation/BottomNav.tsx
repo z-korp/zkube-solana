@@ -3,21 +3,14 @@ import { motion } from "motion/react";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
-import {
-  DockArcadeIcon,
-  DockCampaignIcon,
-  DockHomeIcon,
-  DockProfileIcon,
-} from "./dockIcons";
+import { DockArcadeIcon, DockProfileIcon } from "./dockIcons";
 
 const TABS: {
   id: PageId;
   icon: React.FC<{ size?: number }>;
   label: string;
 }[] = [
-  { id: "home", icon: DockHomeIcon, label: "Home" },
   { id: "arcade", icon: DockArcadeIcon, label: "Arcade" },
-  { id: "campaign", icon: DockCampaignIcon, label: "Campaign" },
   { id: "profile", icon: DockProfileIcon, label: "Profile" },
 ];
 

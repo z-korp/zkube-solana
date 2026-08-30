@@ -12,20 +12,11 @@
  * realm's accent, going red on the last quarter.
  */
 import { useEffect, useState } from "react";
-import { Flag, Home, Settings, Volume2, VolumeX } from "lucide-react";
+import { Flag, Home, Settings } from "lucide-react";
 import { motion } from "motion/react";
 
-import { useMusicPlayer } from "@/contexts/hooks";
 import { getThemeColors, type ThemeId } from "@/config/themes";
-import { Button } from "@/ui/elements/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/ui/elements/dialog";
-import { Slider } from "@/ui/elements/slider";
+import { useNavigationStore } from "@/stores/navigationStore";
 import type { BonusSlot } from "./bonusSlot";
 
 const SEAT: React.CSSProperties = {
@@ -185,7 +176,7 @@ export default function BoardRail({
         })}
       </div>
 
-      <SettingsSeat
+      <UtilitySeats
         onSurrender={onSurrender}
         surrenderDisabled={surrenderDisabled}
       />
@@ -193,22 +184,14 @@ export default function BoardRail({
   );
 }
 
-function SettingsSeat({
+function UtilitySeats({
   onSurrender,
   surrenderDisabled,
 }: {
   onSurrender: () => void;
   surrenderDisabled: boolean;
 }) {
-  const {
-    isPlaying,
-    playTheme,
-    stopTheme,
-    musicVolume,
-    setMusicVolume,
-    effectsVolume,
-    setEffectsVolume,
-  } = useMusicPlayer();
+  const openSettings = useNavigationStore((state) => state.openSettings);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -218,83 +201,33 @@ function SettingsSeat({
   }, [confirming]);
 
   return (
-    <Dialog>
-      <DialogTrigger
+    <>
+      <button
         type="button"
         aria-label="Settings"
+        onClick={openSettings}
         className="absolute grid place-items-center rounded-full border-0 text-white/70 transition-transform active:translate-y-[1px]"
         style={{ ...SEAT, right: 34, top: 54, width: 44, height: 44 }}
       >
         <Settings size={16} />
-      </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold">Settings</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 rounded-lg border p-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() => (isPlaying ? stopTheme() : playTheme())}
-            >
-              {isPlaying ? (
-                <Volume2 className="h-4 w-4" />
-              ) : (
-                <VolumeX className="h-4 w-4" />
-              )}
-            </Button>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">Music</span>
-              <Slider
-                value={[musicVolume]}
-                onValueChange={(value) => setMusicVolume(value[0])}
-                max={1}
-                step={0.05}
-              />
-            </div>
-            <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-              {Math.round(musicVolume * 100)}%
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 shrink-0" />
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">Effects</span>
-              <Slider
-                value={[effectsVolume]}
-                onValueChange={(value) => setEffectsVolume(value[0])}
-                max={1}
-                step={0.05}
-              />
-            </div>
-            <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-              {Math.round(effectsVolume * 100)}%
-            </span>
-          </div>
-        </div>
-
-        {/* Terminal and irreversible, so it asks — and it lives in here rather
-            than on a button the thumb rests beside for a whole run. */}
-        <button
-          type="button"
-          disabled={surrenderDisabled}
-          onClick={() => {
-            if (confirming) {
-              onSurrender();
-              return;
-            }
-            setConfirming(true);
-          }}
-          className="flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-950/40 px-4 py-3 font-sans text-sm font-bold text-red-200 disabled:opacity-40"
-        >
-          <Flag size={15} />
-          {confirming
-            ? "Give up — this ends the run for good"
-            : "Give up this run"}
-        </button>
-      </DialogContent>
-    </Dialog>
+      </button>
+      <button
+        type="button"
+        aria-label={confirming ? "Confirm give up" : "Give up this run"}
+        title={confirming ? "Tap again to give up" : "Give up this run"}
+        disabled={surrenderDisabled}
+        onClick={() => {
+          if (confirming) {
+            onSurrender();
+            return;
+          }
+          setConfirming(true);
+        }}
+        className="absolute grid place-items-center rounded-full border border-red-300/20 text-red-200/80 transition-transform active:translate-y-[1px] disabled:opacity-30"
+        style={{ ...SEAT, right: 84, top: 61, width: 32, height: 32 }}
+      >
+        <Flag size={13} />
+      </button>
+    </>
   );
 }

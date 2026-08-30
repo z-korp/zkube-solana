@@ -38,20 +38,12 @@ export function RunProvider({ children }: { children: ReactNode }) {
     const selected =
       campaignOwnsSelectedRun ||
       (!arcadeOwnsSelectedRun &&
-        (currentPage === "campaign" ||
-          currentPage === "map" ||
-          (currentPage === "play" &&
-            (previousPage === "campaign" || previousPage === "map"))))
+        (currentPage === "map" ||
+          (currentPage === "play" && previousPage === "map")))
         ? campaign
         : arcade;
     return { ...selected, campaign, arcade };
-  }, [
-    arcade,
-    campaign,
-    currentPage,
-    previousPage,
-    selectedRunId,
-  ]);
+  }, [arcade, campaign, currentPage, previousPage, selectedRunId]);
   return <RunContext.Provider value={run}>{children}</RunContext.Provider>;
 }
 

@@ -37,7 +37,8 @@ const initialState: ThemeProviderState = {
   setThemeTemplate: () => {},
 };
 
-export const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+export const ThemeProviderContext =
+  createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
@@ -73,7 +74,7 @@ export function ThemeProvider({
   }, [theme, themeTemplate]);
 
   // Stable setter identities. A fresh function every render would land in the
-  // dependency arrays of consumer theme effects (HomePage, PlayScreen, …),
+  // dependency arrays of consumer theme effects (Arcade, PlayScreen, …),
   // re-firing them on every provider render. When two mounted screens target
   // different zone themes (e.g. Arcade→Play during the AnimatePresence
   // transition into a different run), that turns into an unbounded

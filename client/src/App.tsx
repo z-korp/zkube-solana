@@ -6,9 +6,7 @@ import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
 import Loading from "@/ui/screens/Loading";
 import PageNavigator from "@/ui/navigation/PageNavigator";
-import HomePage from "@/ui/pages/HomePage";
 import ArcadePage from "@/ui/pages/ArcadePage";
-import CampaignPage from "@/ui/pages/CampaignPage";
 import MapPage from "@/ui/pages/MapPage";
 import PlayScreen from "@/ui/pages/PlayScreen";
 import ProfilePage from "@/ui/pages/ProfilePage";
@@ -52,16 +50,14 @@ if (spectatePlayer || spectatePda) {
 // Guarded by DEV_BYPASS_ACTIVE (import.meta.env.DEV) — dead-code-eliminated in prod.
 if (DEV_BYPASS_ACTIVE) {
   const devPage = params.get("page");
-  const devPages = ["home", "arcade", "campaign", "profile", "map", "play"];
+  const devPages = ["arcade", "profile", "map", "play"];
   if (devPage && devPages.includes(devPage)) {
     useNavigationStore.setState({ currentPage: devPage as PageId });
   }
 }
 
 const pageComponents: Record<PageId, ReactNode> = {
-  home: <HomePage />,
   arcade: <ArcadePage />,
-  campaign: <CampaignPage />,
   profile: <ProfilePage />,
   play: <PlayScreen />,
   map: <MapPage />,
@@ -108,15 +104,10 @@ export default function App() {
   if (import.meta.env.DEV && DEV_BYPASS_ACTIVE) {
     return (
       <DevFixturesProvider>
-        <TooltipProvider>
-          <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
-          <SettingsSheet />
-          {/* The diagnostics drawer is pinned to the bottom edge, which is
-              exactly where the in-run action bar lives — hide it while a board
-              is staged so the bar can be judged. */}
-          {devBoardModeFromUrl() === null && <CapabilityDiagnostics />}
-          <Toaster position={getToastPlacement()} />
-        </TooltipProvider>
+        <ClientSurface
+          currentPage={currentPage}
+          showDiagnostics={devBoardModeFromUrl() === null}
+        />
       </DevFixturesProvider>
     );
   }
@@ -152,12 +143,28 @@ export default function App() {
     );
   }
 
+  return <ClientSurface currentPage={currentPage} overlay={reveal} />;
+}
+
+function ClientSurface({
+  currentPage,
+  showDiagnostics = false,
+  overlay = null,
+}: {
+  currentPage: PageId;
+  showDiagnostics?: boolean;
+  overlay?: ReactNode;
+}) {
   return (
     <TooltipProvider>
       <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
       <SettingsSheet />
+      {/* The diagnostics drawer is pinned to the bottom edge, which is
+          exactly where the in-run action bar lives — hide it while a board
+          is staged so the bar can be judged. */}
+      {showDiagnostics && <CapabilityDiagnostics />}
       <Toaster position={getToastPlacement()} />
-      {reveal}
+      {overlay}
     </TooltipProvider>
   );
 }

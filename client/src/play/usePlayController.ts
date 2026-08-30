@@ -508,6 +508,9 @@ export function usePlayController(options: PlayControllerOptions = {}) {
           : null,
         isIncomplete: !settledReceipt.completed,
       });
+      setSettledReceiptSnapshot(null);
+      setSettledCleanupStatus("idle");
+      return;
     }
 
     setSettledReceiptSnapshot(null);
