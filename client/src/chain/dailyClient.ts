@@ -156,18 +156,8 @@ export async function fetchDailyView(args: {
     program.account.arcadeConfig.fetch(deriveArcadeConfigPda()),
     status === "finalized"
       ? Promise.all([
-          fetchDailyBoardEntries(
-            args.connection,
-            address,
-            dayId,
-            "score",
-          ),
-          fetchDailyBoardEntries(
-            args.connection,
-            address,
-            dayId,
-            "theme",
-          ),
+          fetchDailyBoardEntries(args.connection, address, dayId, "score"),
+          fetchDailyBoardEntries(args.connection, address, dayId, "theme"),
         ])
       : Promise.resolve([[], []] as const),
   ]);
@@ -220,10 +210,16 @@ export async function fetchDailyView(args: {
           bestRunId: player.hasScoreBest
             ? BigInt(player.scoreBestRunId.toString())
             : 0n,
-          bestDailyScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
-          bestEngineScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
+          bestDailyScore: player.hasScoreBest
+            ? Number(player.scoreBestEntry.score)
+            : 0,
+          bestEngineScore: player.hasScoreBest
+            ? Number(player.scoreBestEntry.score)
+            : 0,
           bestMoves: 0,
-          bestScore: player.hasScoreBest ? Number(player.scoreBestEntry.score) : 0,
+          bestScore: player.hasScoreBest
+            ? Number(player.scoreBestEntry.score)
+            : 0,
           activePaidRunId: BigInt(player.activePaidRunId.toString()),
         }
       : null,
@@ -237,7 +233,7 @@ export async function fetchDailyView(args: {
     })),
     scoreQualifiedPlayers: Number(challenge.scoreQualifiedPlayers),
     themeQualifiedPlayers: Number(challenge.themeQualifiedPlayers),
-    rules: mapLevelRuleSnapshot(challenge.rules),
+    rules: mapLevelRuleSnapshot(challenge.rules, Number(challenge.mapId), 1),
     dailyTheme: {
       kind: Number(challenge.dailyTheme.kind),
       value: Number(challenge.dailyTheme.value),
@@ -264,7 +260,8 @@ async function fetchDailyBoardEntries(
   const info = await connection.getAccountInfo(address, "confirmed");
   if (!info) return [];
   const data = Buffer.from(info.data);
-  const discriminator = rankedDependencyCoder.accountDiscriminator("arenaBoard");
+  const discriminator =
+    rankedDependencyCoder.accountDiscriminator("arenaBoard");
   if (
     info.executable ||
     !info.owner.equals(ZKUBE_PROGRAM_ID) ||
@@ -289,7 +286,7 @@ async function fetchDailyBoardEntries(
   if (
     payoutCount > ARENA_BOARD_CAPACITY ||
     cursor > payoutCount ||
-    sealed !== (sealedAt > 0) ||
+    sealed !== sealedAt > 0 ||
     data.length !== expectedSize
   ) {
     throw new Error(`${kind} Daily board allocation is invalid`);
@@ -299,7 +296,8 @@ async function fetchDailyBoardEntries(
   if (!sealed || cursor !== payoutCount) return [];
 
   return Array.from({ length: payoutCount }, (_, position) => {
-    const offset = ARENA_BOARD_HEADER_BYTES + position * ARENA_BOARD_ENTRY_BYTES;
+    const offset =
+      ARENA_BOARD_HEADER_BYTES + position * ARENA_BOARD_ENTRY_BYTES;
     const row = data.subarray(offset, offset + ARENA_BOARD_ENTRY_BYTES);
     const score = row.readUInt32LE(32);
     return {
@@ -448,10 +446,11 @@ async function scanUnclaimedBoards(args: {
     return reward === null ? [] : [{ ...identity, ...reward }];
   });
   // Oldest window first: the one closest to expiring is the one worth doing.
-  candidates.sort((left, right) =>
-    left.sealedAt - right.sealedAt ||
-    left.dayId - right.dayId ||
-    left.kind.localeCompare(right.kind)
+  candidates.sort(
+    (left, right) =>
+      left.sealedAt - right.sealedAt ||
+      left.dayId - right.dayId ||
+      left.kind.localeCompare(right.kind),
   );
   return candidates;
 }
@@ -548,7 +547,8 @@ function unclaimedBoardReward(
   nowUnix: number,
 ): UnclaimedBoardReward | null {
   const data = Buffer.from(info.data);
-  const discriminator = rankedDependencyCoder.accountDiscriminator("arenaBoard");
+  const discriminator =
+    rankedDependencyCoder.accountDiscriminator("arenaBoard");
   if (
     info.executable ||
     !info.owner.equals(ZKUBE_PROGRAM_ID) ||
@@ -558,7 +558,8 @@ function unclaimedBoardReward(
     !new PublicKey(data.subarray(9, 41)).equals(daily) ||
     data.readUInt32LE(41) !== dayId ||
     data.readUInt8(45) !== (kind === "score" ? 0 : 1)
-  ) return null;
+  )
+    return null;
   const payoutCount = data.readUInt32LE(54);
   const denominator = readU128LE(data, 58);
   const poolLamports = data.readBigUInt64LE(74);
@@ -566,7 +567,8 @@ function unclaimedBoardReward(
   const sealed = data.readUInt8(103) !== 0;
   const sealedAt = Number(data.readBigInt64LE(104));
   const bitmapBytes = Math.ceil(payoutCount / 8);
-  const rowsEnd = ARENA_BOARD_HEADER_BYTES + payoutCount * ARENA_BOARD_ENTRY_BYTES;
+  const rowsEnd =
+    ARENA_BOARD_HEADER_BYTES + payoutCount * ARENA_BOARD_ENTRY_BYTES;
   if (
     payoutCount > ARENA_BOARD_CAPACITY ||
     cursor !== payoutCount ||
@@ -575,15 +577,18 @@ function unclaimedBoardReward(
     denominator === 0n ||
     nowUnix > sealedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS ||
     data.length !== rowsEnd + 2 * bitmapBytes
-  ) return null;
-  const position = Array.from({ length: payoutCount }, (_, index) => index)
-    .find((index) => {
-      const offset = ARENA_BOARD_HEADER_BYTES + index * ARENA_BOARD_ENTRY_BYTES;
-      return new PublicKey(data.subarray(offset, offset + 32)).equals(owner);
-    });
+  )
+    return null;
+  const position = Array.from(
+    { length: payoutCount },
+    (_, index) => index,
+  ).find((index) => {
+    const offset = ARENA_BOARD_HEADER_BYTES + index * ARENA_BOARD_ENTRY_BYTES;
+    return new PublicKey(data.subarray(offset, offset + 32)).equals(owner);
+  });
   if (position === undefined) return null;
-  const claimed = (data[rowsEnd + Math.floor(position / 8)] ?? 0) &
-    (1 << (position % 8));
+  const claimed =
+    (data[rowsEnd + Math.floor(position / 8)] ?? 0) & (1 << (position % 8));
   if (claimed !== 0) return null;
   // The board's own stored pool and denominator, so the quoted amount is the
   // one the program will pay rather than a re-derived width.
@@ -596,8 +601,7 @@ function unclaimedBoardReward(
 
 function readU128LE(data: Buffer, offset: number): bigint {
   return (
-    data.readBigUInt64LE(offset) |
-    (data.readBigUInt64LE(offset + 8) << 64n)
+    data.readBigUInt64LE(offset) | (data.readBigUInt64LE(offset + 8) << 64n)
   );
 }
 
@@ -607,17 +611,17 @@ export async function buildPurchaseKreditsPlan(args: {
   kreditCount: number;
   expectedUnitLamports?: bigint;
 }): Promise<TransactionPlan> {
-  if (!Number.isInteger(args.kreditCount) ||
-      args.kreditCount < 1 || args.kreditCount > 0xffff_ffff) {
+  if (
+    !Number.isInteger(args.kreditCount) ||
+    args.kreditCount < 1 ||
+    args.kreditCount > 0xffff_ffff
+  ) {
     throw new Error("Kredit count must be a positive u32");
   }
   const unitLamports = args.expectedUnitLamports ?? 10_000_000n;
   const owner = args.ownerWallet.publicKey;
   const instruction = await zkubeProgram(args.connection, args.ownerWallet)
-    .methods.purchaseKredits(
-      args.kreditCount,
-      new BN(unitLamports.toString()),
-    )
+    .methods.purchaseKredits(args.kreditCount, new BN(unitLamports.toString()))
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
@@ -731,11 +735,7 @@ export async function assertRankedEntryDependencies(args: {
   assertVersion(arcadeConfigInfo!, ARCADE_ACCOUNT_VERSION, "Arcade config");
   assertVersion(currentDailyInfo!, ARCADE_ACCOUNT_VERSION, "current Daily");
   assertVersion(followingDailyInfo!, ARCADE_ACCOUNT_VERSION, "following Daily");
-  assertVersion(
-    creditVaultInfo!,
-    ARCADE_ACCOUNT_VERSION,
-    "credit vault",
-  );
+  assertVersion(creditVaultInfo!, ARCADE_ACCOUNT_VERSION, "credit vault");
 
   assertPubkeyAt(arcadeConfigInfo!, 9, protocol, "Arcade config protocol");
   assertU64At(
@@ -754,12 +754,7 @@ export async function assertRankedEntryDependencies(args: {
     arcadeConfig,
     label: "following Daily",
   });
-  assertPubkeyAt(
-    creditVaultInfo!,
-    9,
-    protocol,
-    "credit vault protocol",
-  );
+  assertPubkeyAt(creditVaultInfo!, 9, protocol, "credit vault protocol");
 
   // The program object is deliberately constructed here, even though the
   // fixed-prefix verifier does not decode variable tails: it binds the
@@ -897,10 +892,7 @@ export async function buildOpenDailyChallengePlan(args: {
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
       arcadeArchive: deriveArcadeArchivePda(),
-      realmMapCatalog: deriveMapCatalogPda(
-        contentVersion,
-        content.realmMapId,
-      ),
+      realmMapCatalog: deriveMapCatalogPda(contentVersion, content.realmMapId),
       arenaDaily: challenge,
       payer: args.payer ?? args.wallet.publicKey,
       caller: args.wallet.publicKey,
@@ -961,9 +953,12 @@ export async function buildFinalizeDailyChallengePlan(args: {
       zkubeProgram: ZKUBE_PROGRAM_ID,
     })
     .instruction();
-  return basePlan("Finalize Arena prizes", args.connection, args.wallet.publicKey, [
-    instruction,
-  ]);
+  return basePlan(
+    "Finalize Arena prizes",
+    args.connection,
+    args.wallet.publicKey,
+    [instruction],
+  );
 }
 
 function requireFollowingDaily(daily: DailyView): number {

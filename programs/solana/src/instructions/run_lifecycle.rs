@@ -15,10 +15,7 @@ use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuild
 use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 
 use crate::error::ErrorCode;
-use crate::game::{
-    opening_from_vrf, reroll_row_from_vrf, row_from_vrf, sha256v, BlockWeights, Bonus, Constraint,
-    ConstraintKind, Grid, Guardian, LevelRules, MoveReport, RunEngine, RunError, RunPhase,
-};
+use crate::game::{sha256v, Bonus, Constraint, ConstraintKind, Grid, RunEngine, RunPhase};
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
@@ -269,97 +266,13 @@ pub fn handler_fulfill_row_vrf(
     );
     let request_counter = active.pending_vrf_counter;
     require_matching_vrf_callback(request_counter, expected_request_counter)?;
-    let row_weights = generation_weights(active);
-    let mut engine = engine_from_active(active)?;
-    engine.phase = RunPhase::AwaitingVrf;
-    let opening = request_counter == 1;
-    provide_verified_vrf_rows(
-        &mut engine,
-        randomness,
-        request_counter,
-        active.rules_hash,
-        BlockWeights {
-            values: row_weights,
-        },
-        opening,
-    )?;
-    fold_replay_event(
-        active,
-        zkube_core::ReplayEvent::Vrf {
-            request_counter,
-            output: randomness,
-        },
-    );
-    write_engine(active, &engine);
+    let rules = run_rules(active)?;
+    let mut run = run_from_active(active, rules)?;
+    run.apply_vrf_with::<SolanaSha256>(rules, request_counter, randomness)
+        .map_err(map_transition_error)?;
+    write_run(active, &run, 0)?;
     active.pending_vrf_counter = 0;
-    active.lifecycle = lifecycle_from_phase(engine.phase);
     Ok(())
-}
-
-/// Select the weights for the row being fulfilled now. Daily accounting
-/// advances `current_difficulty` before it enqueues the next VRF request, so a
-/// threshold-crossing action immediately affects the next unseen row. Campaign
-/// runs keep their authored level snapshot for their full lifetime.
-fn generation_weights(active: &ActiveRun) -> [u16; 5] {
-    let tier = if active.mode == RunMode::Daily {
-        active.current_difficulty
-    } else {
-        active.rules.difficulty
-    };
-    zkube_core::TIER_BLOCK_WEIGHTS[usize::from(tier.min(7))]
-}
-
-fn provide_verified_vrf_rows(
-    engine: &mut RunEngine,
-    randomness: [u8; 32],
-    request_counter: u32,
-    rules_hash: [u8; 32],
-    weights: BlockWeights,
-    opening: bool,
-) -> Result<u8> {
-    if opening {
-        let height = engine.starting_height_target;
-        let layout = opening_from_vrf(randomness, request_counter, rules_hash, height, weights)
-            .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
-        engine.grid = layout.grid;
-        engine.next_row = Some(layout.preview);
-        engine.starting_height_target = 0;
-        engine.phase = RunPhase::Playing;
-        return Ok(height.saturating_add(1));
-    }
-
-    // A pending reroll is the one fulfillment that arrives while a preview is
-    // still visible — every other request follows a consumed preview — and it
-    // draws from its own committed domain, never the ordinary row stream.
-    if engine.reroll_pending() {
-        let row = reroll_row_from_vrf(randomness, request_counter, rules_hash, weights)
-            .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
-        engine.provide_reroll_row(row).map_err(map_run_error)?;
-        return Ok(1);
-    }
-
-    // Clearing the board consumes the old preview as the action's inserted
-    // row. One subsequent VRF must therefore provide both a new seed row and
-    // an independent visible preview, or the run would remain AwaitingVrf
-    // with no pending request. The shared core fixes the derivation schedule.
-    if engine.grid == Grid::EMPTY {
-        let layout = zkube_core::continuation_from_vrf_with::<SolanaSha256>(
-            randomness,
-            request_counter,
-            rules_hash,
-            weights,
-        )
-        .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
-        engine.grid = layout.grid;
-        engine.next_row = Some(layout.preview);
-        engine.phase = RunPhase::Playing;
-        return Ok(2);
-    }
-
-    let row = row_from_vrf(randomness, request_counter, weights)
-        .map_err(|_| error!(ErrorCode::InvalidBlockWeights))?;
-    engine.provide_vrf_row(row).map_err(map_run_error)?;
-    Ok(1)
 }
 
 #[vrf]
@@ -427,42 +340,19 @@ pub fn handler_play_move(
         active.action_counter == expected_action,
         ErrorCode::InvalidMoveOrder
     );
-    let level = level_rules(&active.rules)?;
-    let difficulty_at_action = active.current_difficulty;
-    let (guardian, pressure_multiplier_x100) = action_guardian(active)?;
-    let combo_before = active.combo_counter;
-    let mut engine = engine_from_active(active)?;
-    let mut report = engine
-        .play_move(
-            expected_move,
-            row,
-            start,
-            destination,
-            level,
-            guardian,
-            pressure_multiplier_x100,
-        )
-        .map_err(map_run_error)?;
-    fold_replay_event(
-        active,
-        zkube_core::ReplayEvent::Move {
-            action: expected_action,
-            expected_move,
-            row,
-            start,
-            destination,
-        },
-    );
-    report.difficulty_at_action = difficulty_at_action;
-    let terminal_at = terminal_action_timestamp(engine.phase)?;
-    record_action_accounting(
-        active,
-        &engine,
-        &report,
-        combo_before,
-        ActionKind::Move,
-        terminal_at,
-    )?;
+    let rules = run_rules(active)?;
+    let mut run = run_from_active(active, rules)?;
+    run.play_move_with::<SolanaSha256>(
+        rules,
+        expected_action,
+        expected_move,
+        row,
+        start,
+        destination,
+    )
+    .map_err(map_transition_error)?;
+    let terminal_at = terminal_action_timestamp(run.engine.phase)?;
+    write_run(active, &run, terminal_at)?;
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -544,32 +434,12 @@ pub fn handler_apply_bonus(
         active.action_counter == expected_action,
         ErrorCode::InvalidMoveOrder
     );
-    let level = level_rules(&active.rules)?;
-    let difficulty_at_action = active.current_difficulty;
-    let (guardian, pressure_multiplier_x100) = action_guardian(active)?;
-    let combo_before = active.combo_counter;
-    let mut engine = engine_from_active(active)?;
-    let mut report = engine
-        .apply_bonus(row, column, level, guardian, pressure_multiplier_x100)
-        .map_err(map_run_error)?;
-    fold_replay_event(
-        active,
-        zkube_core::ReplayEvent::Bonus {
-            action: expected_action,
-            row,
-            column,
-        },
-    );
-    report.difficulty_at_action = difficulty_at_action;
-    let terminal_at = terminal_action_timestamp(engine.phase)?;
-    record_action_accounting(
-        active,
-        &engine,
-        &report,
-        combo_before,
-        ActionKind::Bonus,
-        terminal_at,
-    )?;
+    let rules = run_rules(active)?;
+    let mut run = run_from_active(active, rules)?;
+    run.apply_bonus_with::<SolanaSha256>(rules, expected_action, row, column)
+        .map_err(map_transition_error)?;
+    let terminal_at = terminal_action_timestamp(run.engine.phase)?;
+    write_run(active, &run, terminal_at)?;
     if action_needs_row_vrf(active.lifecycle) {
         let validator =
             delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
@@ -634,37 +504,12 @@ pub fn handler_request_reroll(
 /// reroll with no move still scores at the deadline. The old preview remains
 /// visible until the callback lands.
 fn apply_reroll_request(active: &mut ActiveRun, expected_action: u32) -> Result<()> {
-    let mut engine = engine_from_active(active)?;
-    engine.request_reroll().map_err(map_run_error)?;
-    fold_replay_event(
-        active,
-        zkube_core::ReplayEvent::Reroll {
-            action: expected_action,
-        },
-    );
-    write_engine(active, &engine);
-    active.action_counter = active
-        .action_counter
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    active.lifecycle = lifecycle_from_phase(engine.phase);
+    let rules = run_rules(active)?;
+    let mut run = run_from_active(active, rules)?;
+    run.request_reroll_with::<SolanaSha256>(rules, expected_action)
+        .map_err(map_transition_error)?;
+    write_run(active, &run, 0)?;
     Ok(())
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ActionKind {
-    Move,
-    Bonus,
-}
-
-fn action_guardian(active: &ActiveRun) -> Result<(Guardian, u16)> {
-    let guardian = active.rules.guardian.to_core()?;
-    if active.mode != RunMode::Daily {
-        return Ok((guardian, 100));
-    }
-    let pressure_multiplier_x100 =
-        active.daily_pressure.score_multipliers_x100[usize::from(active.current_difficulty.min(7))];
-    Ok((guardian, pressure_multiplier_x100))
 }
 
 fn terminal_action_timestamp(phase: RunPhase) -> Result<i64> {
@@ -672,141 +517,6 @@ fn terminal_action_timestamp(phase: RunPhase) -> Result<i64> {
         return Ok(Clock::get()?.unix_timestamp);
     }
     Ok(0)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn record_action_accounting(
-    active: &mut ActiveRun,
-    engine: &RunEngine,
-    report: &MoveReport,
-    combo_before: u8,
-    kind: ActionKind,
-    terminal_at: i64,
-) -> Result<()> {
-    require!(active.version == ACCOUNT_VERSION, ErrorCode::InvalidVersion);
-    write_engine(active, engine);
-    active.total_lines_cleared = active
-        .total_lines_cleared
-        .checked_add(u16::from(report.lines_cleared))
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    record_destroyed_blocks(active, report.blocks_destroyed_by_size)?;
-    let blocks_destroyed =
-        report
-            .blocks_destroyed_by_size
-            .into_iter()
-            .try_fold(0u32, |sum, amount| {
-                sum.checked_add(u32::from(amount))
-                    .ok_or(ErrorCode::ArithmeticOverflow)
-            })?;
-    let combo_derived_score = if report.combo_counter > combo_before {
-        u64::from(report.points_earned)
-    } else {
-        0
-    };
-    let mut canonical = zkube_core::RunMetrics {
-        maximum_combo: active.arcade_metrics.max_combo,
-        combo_scoring_actions: active.arcade_metrics.combo_scoring_actions,
-        total_combo_derived_score: active.arcade_metrics.combo_derived_score,
-        highest_action_score: active.arcade_metrics.highest_action_score,
-        most_lines_in_action: active.arcade_metrics.most_lines_single_action,
-        most_blocks_destroyed_in_action: active.arcade_metrics.most_blocks_single_action,
-        total_lines: active.arcade_metrics.total_lines,
-        total_blocks_destroyed: active.arcade_metrics.total_blocks,
-        perfect_clears: active.arcade_metrics.perfect_clears,
-    };
-    canonical
-        .record_action(zkube_core::ActionMetrics {
-            score: u64::from(report.points_earned),
-            lines: u32::from(report.lines_cleared),
-            blocks_destroyed,
-            combo: if report.combo_counter > combo_before {
-                u32::from(report.lines_cleared)
-            } else {
-                0
-            },
-            combo_derived_score,
-            perfect_clear: report.perfect_clear,
-        })
-        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))?;
-    active.arcade_metrics = crate::state::arcade::RunMetrics {
-        max_combo: canonical.maximum_combo,
-        combo_scoring_actions: canonical.combo_scoring_actions,
-        combo_derived_score: canonical.total_combo_derived_score,
-        highest_action_score: canonical.highest_action_score,
-        most_lines_single_action: canonical.most_lines_in_action,
-        most_blocks_single_action: canonical.most_blocks_destroyed_in_action,
-        total_lines: canonical.total_lines,
-        total_blocks: canonical.total_blocks_destroyed,
-        perfect_clears: canonical.perfect_clears,
-    };
-    if report.lines_cleared >= 2 {
-        active.combo2_hits = active
-            .combo2_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if report.lines_cleared >= 3 {
-        active.combo3_hits = active
-            .combo3_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if report.lines_cleared >= 4 {
-        active.combo4_hits = active
-            .combo4_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if report.perfect_clear {
-        active.perfect_clears = active
-            .perfect_clears
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if combo_before < 10 && report.combo_counter >= 10 {
-        active.high_combo_hits = active
-            .high_combo_hits
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if kind == ActionKind::Bonus {
-        active.bonus_uses = active
-            .bonus_uses
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    if active.mode == RunMode::Daily {
-        let objective_increment = active.daily_theme.to_core()?.action_increment(report);
-        active.pressure_score = active
-            .pressure_score
-            .checked_add(report.neutral_points_earned)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        active.daily_score = active
-            .daily_score
-            .checked_add(report.points_earned)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        active.objective_total = active
-            .objective_total
-            .checked_add(u64::from(objective_increment))
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        active.current_difficulty = active
-            .daily_pressure
-            .difficulty_for_score(active.pressure_score);
-    }
-    active.action_counter = active
-        .action_counter
-        .checked_add(1)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    active.lifecycle = lifecycle_from_phase(engine.phase);
-    if matches!(
-        active.lifecycle,
-        RunLifecycle::LevelComplete | RunLifecycle::Finished
-    ) && active.finished_at == 0
-    {
-        require!(terminal_at > 0, ErrorCode::InvalidState);
-        active.finished_at = terminal_at;
-    }
-    Ok(())
 }
 
 fn fold_replay_event(active: &mut ActiveRun, event: zkube_core::ReplayEvent) {
@@ -1082,16 +792,6 @@ pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<
     Ok(())
 }
 
-#[inline(never)]
-fn record_destroyed_blocks(active: &mut ActiveRun, destroyed: [u8; 4]) -> Result<()> {
-    for (total, amount) in active.blocks_destroyed_by_size.iter_mut().zip(destroyed) {
-        *total = total
-            .checked_add(u16::from(amount))
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-    }
-    Ok(())
-}
-
 #[event]
 pub struct CampaignLevelRewarded {
     pub owner: Pubkey,
@@ -1119,13 +819,34 @@ fn constraint(snapshot: ConstraintSnapshot) -> Result<Constraint> {
     })
 }
 
-fn level_rules(snapshot: &LevelRuleSnapshot) -> Result<LevelRules> {
-    Ok(LevelRules {
-        points_required: snapshot.points_required,
-        max_moves: snapshot.max_moves,
-        primary: constraint(snapshot.primary)?,
-        secondary: constraint(snapshot.secondary)?,
-    })
+fn run_rules(active: &ActiveRun) -> Result<zkube_core::RunRules> {
+    let guardian = active.rules.guardian.to_core()?;
+    let (tier, stars, objective) = match active.mode {
+        RunMode::Campaign => (
+            zkube_core::TierPolicy::Fixed(active.rules.difficulty),
+            Some(zkube_core::StarRules {
+                points_required: active.rules.points_required,
+                primary: constraint(active.rules.primary)?,
+                secondary: constraint(active.rules.secondary)?,
+            }),
+            None,
+        ),
+        RunMode::Daily => {
+            let theme = active.daily_theme.to_core()?;
+            let objective = (theme.kind != ConstraintKind::None).then_some(theme);
+            (zkube_core::TierPolicy::Pressure, None, objective)
+        }
+    };
+    let rules = zkube_core::RunRules {
+        guardian,
+        starting_height: active.rules.starting_rows,
+        max_moves: active.rules.max_moves,
+        tier,
+        stars,
+        objective,
+    };
+    require!(rules.is_valid(), ErrorCode::InvalidLevel);
+    Ok(rules)
 }
 
 fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
@@ -1137,8 +858,9 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         _ => return err!(ErrorCode::InvalidState),
     };
     let phase = match active.lifecycle {
-        RunLifecycle::Prepared | RunLifecycle::Delegated => RunPhase::Ready,
-        RunLifecycle::AwaitingVrf => RunPhase::AwaitingVrf,
+        RunLifecycle::Prepared | RunLifecycle::Delegated | RunLifecycle::AwaitingVrf => {
+            RunPhase::AwaitingVrf
+        }
         RunLifecycle::Playing => RunPhase::Playing,
         RunLifecycle::LevelComplete => RunPhase::LevelComplete,
         RunLifecycle::Finished => RunPhase::Finished,
@@ -1160,7 +882,6 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         bonus,
         bonus_charges: active.bonus_charges,
         reroll_charges: active.reroll_charges,
-        starting_height_target: active.starting_height_target,
     })
 }
 
@@ -1186,12 +907,74 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     };
     active.bonus_charges = engine.bonus_charges;
     active.reroll_charges = engine.reroll_charges;
-    active.starting_height_target = engine.starting_height_target;
+}
+
+fn run_from_active(active: &ActiveRun, rules: zkube_core::RunRules) -> Result<zkube_core::Run> {
+    let last_vrf_counter = if active.pending_vrf_counter > 0 {
+        active
+            .vrf_request_counter
+            .checked_sub(1)
+            .ok_or(ErrorCode::InvalidState)?
+    } else {
+        active.vrf_request_counter
+    };
+    let end_reason = match active.lifecycle {
+        RunLifecycle::LevelComplete => Some(zkube_core::RunEndReason::Completed),
+        RunLifecycle::Finished
+            if active.mode == RunMode::Daily
+                && active.deadline_at > 0
+                && active.finished_at == active.deadline_at =>
+        {
+            Some(zkube_core::RunEndReason::Deadline)
+        }
+        RunLifecycle::Finished => Some(zkube_core::RunEndReason::Exhausted),
+        _ => None,
+    };
+    Ok(zkube_core::Run {
+        engine: engine_from_active(active)?,
+        action_counter: active.action_counter,
+        daily_score: active.daily_score,
+        objective_total: active.objective_total,
+        pressure_score: active.pressure_score,
+        current_tier: if active.mode == RunMode::Daily {
+            active.current_tier
+        } else {
+            rules.current_tier(0)
+        },
+        last_vrf_counter,
+        replay: zkube_core::ReplayCommitment(active.replay_hash),
+        rules_hash: zkube_core::RulesHash(active.rules_hash),
+        rules_snapshot_hash: rules.snapshot_hash_with::<SolanaSha256>(),
+        end_reason,
+    })
+}
+
+fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64) -> Result<()> {
+    write_engine(active, &run.engine);
+    active.action_counter = run.action_counter;
+    active.daily_score = run.daily_score;
+    active.objective_total = run.objective_total;
+    active.pressure_score = run.pressure_score;
+    active.current_tier = if active.mode == RunMode::Daily {
+        run.current_tier
+    } else {
+        0
+    };
+    active.replay_hash = run.replay.to_bytes();
+    active.lifecycle = lifecycle_from_phase(run.engine.phase);
+    if matches!(
+        active.lifecycle,
+        RunLifecycle::LevelComplete | RunLifecycle::Finished
+    ) && active.finished_at == 0
+    {
+        require!(terminal_at > 0, ErrorCode::InvalidState);
+        active.finished_at = terminal_at;
+    }
+    Ok(())
 }
 
 fn lifecycle_from_phase(phase: RunPhase) -> RunLifecycle {
     match phase {
-        RunPhase::Ready => RunLifecycle::Delegated,
         RunPhase::AwaitingVrf => RunLifecycle::AwaitingVrf,
         RunPhase::Playing => RunLifecycle::Playing,
         RunPhase::LevelComplete => RunLifecycle::LevelComplete,
@@ -1199,26 +982,73 @@ fn lifecycle_from_phase(phase: RunPhase) -> RunLifecycle {
     }
 }
 
-fn map_run_error(error: RunError) -> anchor_lang::error::Error {
+fn map_run_error(error: zkube_core::RunError) -> anchor_lang::error::Error {
     match error {
-        RunError::InvalidExpectedMove => error!(ErrorCode::InvalidMoveOrder),
-        RunError::Grid(_) => error!(ErrorCode::InvalidMove),
-        RunError::MoveLimitReached => error!(ErrorCode::GameOver),
-        RunError::InvalidPhase
-        | RunError::MissingNextRow
-        | RunError::RowAlreadyAvailable
-        | RunError::NoBonusCharge
-        | RunError::NoRerollAvailable
-        | RunError::RerollRequiresVrf => error!(ErrorCode::InvalidState),
+        zkube_core::RunError::InvalidExpectedMove => error!(ErrorCode::InvalidMoveOrder),
+        zkube_core::RunError::Grid(_) => error!(ErrorCode::InvalidMove),
+        zkube_core::RunError::MoveLimitReached => error!(ErrorCode::GameOver),
+        zkube_core::RunError::InvalidPhase
+        | zkube_core::RunError::MissingNextRow
+        | zkube_core::RunError::RowAlreadyAvailable
+        | zkube_core::RunError::NoBonusCharge
+        | zkube_core::RunError::NoRerollAvailable
+        | zkube_core::RunError::RerollRequiresVrf => error!(ErrorCode::InvalidState),
+    }
+}
+
+fn map_transition_error(error: zkube_core::RunTransitionError) -> anchor_lang::error::Error {
+    match error {
+        zkube_core::RunTransitionError::Engine(error) => map_run_error(error),
+        zkube_core::RunTransitionError::InvalidActionOrder => {
+            error!(ErrorCode::InvalidMoveOrder)
+        }
+        zkube_core::RunTransitionError::InvalidVrfOrder => {
+            error!(ErrorCode::VrfRequestMismatch)
+        }
+        zkube_core::RunTransitionError::Randomness(_) => {
+            error!(ErrorCode::InvalidBlockWeights)
+        }
+        zkube_core::RunTransitionError::Overflow => error!(ErrorCode::ArithmeticOverflow),
+        zkube_core::RunTransitionError::InvalidRules
+        | zkube_core::RunTransitionError::InvalidPhase => error!(ErrorCode::InvalidState),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
+    use crate::state::arena_rules::DailyThemeSnapshot;
     use anchor_lang::{InstructionData, ToAccountMetas};
-    use serde_json::Value;
+
+    fn daily_active(lifecycle: RunLifecycle) -> ActiveRun {
+        ActiveRun {
+            version: ACCOUNT_VERSION,
+            mode: RunMode::Daily,
+            lifecycle,
+            rules_hash: [7; 32],
+            rules: LevelRuleSnapshot {
+                level: 1,
+                points_required: u32::MAX,
+                max_moves: zkube_core::DAILY_MAX_MOVES,
+                difficulty: 0,
+                primary: ConstraintSnapshot::default(),
+                secondary: ConstraintSnapshot::default(),
+                guardian: GuardianSnapshot {
+                    bonus: 1,
+                    trigger: 1,
+                    threshold: 2,
+                },
+                starting_rows: 4,
+            },
+            daily_theme: DailyThemeSnapshot::from_core(zkube_core::DailyTheme {
+                kind: ConstraintKind::None,
+                value: 0,
+            }),
+            bonus_type: 1,
+            reroll_charges: 1,
+            ..ActiveRun::default()
+        }
+    }
 
     fn delegation_record_bytes(validator: Pubkey) -> Vec<u8> {
         use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
@@ -1323,275 +1153,50 @@ mod tests {
     }
 
     #[test]
-    fn core_constraint_state_round_trips_through_active_run() {
-        let engine = RunEngine {
-            phase: RunPhase::Playing,
-            latched_star_sources: 0b110,
-            streak: 3,
-            charges_earned: 4,
-            ..RunEngine::default()
-        };
-        let mut active = ActiveRun {
-            lifecycle: RunLifecycle::Playing,
-            ..ActiveRun::default()
-        };
-
-        write_engine(&mut active, &engine);
-
-        assert_eq!(active.latched_star_sources, 0b110);
-        assert_eq!(active.streak, 3);
-        assert_eq!(active.charges_earned, 4);
-        let restored = engine_from_active(&active).unwrap();
-        assert_eq!(restored.latched_star_sources, 0b110);
-        assert_eq!(restored.streak, 3);
-        assert_eq!(restored.charges_earned, 4);
-    }
-
-    fn accounting_fixture() -> (ActiveRun, RunEngine, MoveReport) {
-        let active = ActiveRun {
-            version: ACCOUNT_VERSION,
-            mode: RunMode::Daily,
-            lifecycle: RunLifecycle::Playing,
-            daily_theme: DailyThemeSnapshot::from_core(zkube_core::DailyTheme {
-                kind: ConstraintKind::CombosOfExactly,
-                value: 2,
-            }),
-            daily_pressure: DailyPressureProfile::canonical(),
-            ..ActiveRun::default()
-        };
-        let engine = RunEngine {
-            phase: RunPhase::LevelComplete,
-            score: 25,
-            combo_counter: 10,
-            max_combo: 10,
-            ..RunEngine::default()
-        };
-        let report = MoveReport {
-            lines_cleared: 2,
-            points_earned: 25,
-            combo_counter: 10,
-            blocks_destroyed_by_size: [1, 2, 3, 4],
-            neutral_points_earned: 10,
-            ..MoveReport::default()
-        };
-        (active, engine, report)
-    }
-
-    #[test]
-    fn theme_total_is_not_added_to_score() {
-        let (mut move_run, engine, report) = accounting_fixture();
-        let (mut bonus_run, _, mut bonus_report) = accounting_fixture();
-        bonus_report.action_was_bonus = true;
-        record_action_accounting(&mut move_run, &engine, &report, 9, ActionKind::Move, 123)
+    fn program_and_core_score_one_action_identically() {
+        let mut active = daily_active(RunLifecycle::AwaitingVrf);
+        active.vrf_request_counter = 1;
+        active.pending_vrf_counter = 1;
+        let rules = run_rules(&active).unwrap();
+        let mut opened = run_from_active(&active, rules).unwrap();
+        opened
+            .apply_vrf_with::<SolanaSha256>(rules, 1, [19; 32])
             .unwrap();
-        record_action_accounting(
-            &mut bonus_run,
-            &engine,
-            &bonus_report,
-            9,
-            ActionKind::Bonus,
-            123,
-        )
-        .unwrap();
+        write_run(&mut active, &opened, 0).unwrap();
+        active.pending_vrf_counter = 0;
 
-        assert_eq!(move_run.total_lines_cleared, bonus_run.total_lines_cleared);
-        assert_eq!(move_run.blocks_destroyed_by_size, [1, 2, 3, 4]);
-        assert_eq!(
-            move_run.blocks_destroyed_by_size,
-            bonus_run.blocks_destroyed_by_size
-        );
-        assert_eq!((move_run.combo2_hits, move_run.high_combo_hits), (1, 1));
-        assert_eq!(move_run.daily_score, 25);
-        assert_eq!(move_run.objective_total, 1);
-        assert_eq!(bonus_run.objective_total, 0);
-        assert_eq!(move_run.pressure_score, 10);
-        assert_eq!(
-            move_run.current_difficulty,
-            zkube_core::DailyPressureRules::canonical()
-                .difficulty_for_score(move_run.pressure_score)
-        );
-        assert_eq!(move_run.current_difficulty, bonus_run.current_difficulty);
-        assert_eq!(move_run.finished_at, 123);
-        assert_eq!(move_run.lifecycle, RunLifecycle::LevelComplete);
-        assert_eq!((move_run.bonus_uses, bonus_run.bonus_uses), (0, 1));
-    }
-
-    #[test]
-    fn campaign_and_daily_draw_from_one_tier_table() {
-        for tier in 0..8u8 {
-            let campaign = ActiveRun {
-                mode: RunMode::Campaign,
-                rules: LevelRuleSnapshot {
-                    difficulty: tier,
-                    ..LevelRuleSnapshot::default()
-                },
-                ..ActiveRun::default()
-            };
-            let daily = ActiveRun {
-                mode: RunMode::Daily,
-                current_difficulty: tier,
-                daily_pressure: DailyPressureProfile::canonical(),
-                ..ActiveRun::default()
-            };
-            assert_eq!(
-                generation_weights(&campaign),
-                zkube_core::TIER_BLOCK_WEIGHTS[usize::from(tier)]
-            );
-            assert_eq!(generation_weights(&daily), generation_weights(&campaign));
-        }
-    }
-
-    #[test]
-    fn threshold_crossing_bonus_keeps_preview_and_advances_future_row_weights() {
-        let pressure = DailyPressureProfile::canonical();
-        let preview = [2, 2, 0, 3, 3, 3, 0, 0];
-        let mut active = ActiveRun {
-            version: ACCOUNT_VERSION,
-            mode: RunMode::Daily,
-            lifecycle: RunLifecycle::Playing,
-            daily_pressure: pressure,
-            next_row: preview,
-            has_next_row: true,
-            ..ActiveRun::default()
-        };
-        let engine = RunEngine {
-            phase: RunPhase::Playing,
-            next_row: Some(preview),
-            ..RunEngine::default()
-        };
-        let report = MoveReport {
-            neutral_points_earned: zkube_core::PRESSURE_STEP,
-            ..MoveReport::default()
-        };
-
-        record_action_accounting(&mut active, &engine, &report, 0, ActionKind::Bonus, 0).unwrap();
-
-        assert_eq!(active.current_difficulty, 1);
-        assert_eq!(active.next_row, preview);
-        assert!(active.has_next_row);
-        assert_eq!(
-            generation_weights(&active),
-            zkube_core::TIER_BLOCK_WEIGHTS[1]
-        );
-    }
-
-    #[test]
-    fn one_verified_result_builds_the_visible_opening_layout() {
-        let mut engine = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            starting_height_target: 5,
-            ..RunEngine::default()
-        };
-        let rows = provide_verified_vrf_rows(
-            &mut engine,
-            [17u8; 32],
-            1,
-            [4; 32],
-            BlockWeights::default(),
-            true,
-        )
-        .unwrap();
-
-        assert_eq!(rows, 6);
-        assert_eq!(engine.phase, RunPhase::Playing);
-        assert_eq!(engine.grid.occupied_height(), 5);
-        assert!(engine.next_row.is_some());
-    }
-
-    #[test]
-    fn opening_expansion_is_reproducible_and_domain_separated() {
-        let opening = || RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            starting_height_target: 4,
-            ..RunEngine::default()
-        };
-        let mut first = opening();
-        let mut replay = opening();
-        let mut different = opening();
-        let first_result = provide_verified_vrf_rows(
-            &mut first,
-            [29u8; 32],
-            4,
-            [5; 32],
-            BlockWeights::default(),
-            true,
-        )
-        .unwrap();
-        let replay_result = provide_verified_vrf_rows(
-            &mut replay,
-            [29u8; 32],
-            4,
-            [5; 32],
-            BlockWeights::default(),
-            true,
-        )
-        .unwrap();
-        let different_result = provide_verified_vrf_rows(
-            &mut different,
-            [30u8; 32],
-            4,
-            [5; 32],
-            BlockWeights::default(),
-            true,
-        )
-        .unwrap();
-
-        assert_eq!(first, replay);
-        assert_eq!(first_result, replay_result);
-        assert_eq!(different_result, first_result);
-        assert_ne!(first.grid, different.grid);
-    }
-
-    #[test]
-    fn one_callback_reaches_the_maximum_canonical_opening_height() {
-        for seed in 0..=u8::MAX {
-            let mut engine = RunEngine {
-                phase: RunPhase::AwaitingVrf,
-                starting_height_target: 8,
-                ..RunEngine::default()
-            };
-            let rows = provide_verified_vrf_rows(
-                &mut engine,
-                [seed; 32],
-                1,
-                [6; 32],
-                BlockWeights::default(),
-                true,
-            )
-            .unwrap();
-
-            assert_eq!(engine.phase, RunPhase::Playing, "seed {seed}");
-            assert_eq!(rows, 9);
-            assert_eq!(engine.grid.occupied_height(), 8);
-            assert!(engine.next_row.is_some());
-        }
-    }
-
-    #[test]
-    fn ordinary_callback_consumes_exactly_one_fresh_row() {
-        let mut engine = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            grid: Grid::try_from_cells({
-                let mut cells = [0; 80];
-                cells[0] = 1;
-                cells
+        let action = (0..zkube_core::GRID_HEIGHT as u8)
+            .flat_map(|row| {
+                (0..zkube_core::GRID_WIDTH as u8).flat_map(move |start| {
+                    (0..zkube_core::GRID_WIDTH as u8)
+                        .filter(move |destination| *destination != start)
+                        .map(move |destination| (row, start, destination))
+                })
             })
-            .unwrap(),
-            ..RunEngine::default()
-        };
-        let rows = provide_verified_vrf_rows(
-            &mut engine,
-            [41u8; 32],
-            9,
-            [7; 32],
-            BlockWeights::default(),
-            false,
-        )
-        .unwrap();
+            .find(|(row, start, destination)| {
+                let mut candidate = opened;
+                candidate
+                    .play_move(rules, 0, 0, *row, *start, *destination)
+                    .is_ok()
+            })
+            .expect("opening has a legal move");
 
-        assert_eq!(rows, 1);
-        assert_eq!(engine.phase, RunPhase::Playing);
-        assert!(engine.next_row.is_some());
+        let mut expected = opened;
+        expected
+            .play_move(rules, 0, 0, action.0, action.1, action.2)
+            .unwrap();
+        let mut projected = run_from_active(&active, rules).unwrap();
+        projected
+            .play_move_with::<SolanaSha256>(rules, 0, 0, action.0, action.1, action.2)
+            .unwrap();
+        let terminal_at = u64::from(matches!(
+            projected.engine.phase,
+            RunPhase::LevelComplete | RunPhase::Finished
+        )) as i64;
+        write_run(&mut active, &projected, terminal_at).unwrap();
+
+        assert_eq!(projected, expected);
+        assert_eq!(run_from_active(&active, rules).unwrap(), expected);
     }
 
     #[test]
@@ -1618,19 +1223,15 @@ mod tests {
     #[test]
     fn reroll_request_is_an_accepted_action_that_awaits_its_own_vrf() {
         let mut active = ActiveRun {
-            version: ACCOUNT_VERSION,
-            mode: RunMode::Daily,
             lifecycle: RunLifecycle::Playing,
-            bonus_type: 1,
             bonus_charges: 2,
-            reroll_charges: 1,
             has_next_row: true,
             next_row: {
                 let mut row = [0u8; 8];
                 row[0] = 1;
                 row
             },
-            ..ActiveRun::default()
+            ..daily_active(RunLifecycle::Playing)
         };
         let replay_before = active.replay_hash;
         apply_reroll_request(&mut active, 0).unwrap();
@@ -1638,7 +1239,6 @@ mod tests {
         assert_eq!(active.action_counter, 1);
         assert_eq!(active.lifecycle, RunLifecycle::AwaitingVrf);
         assert_eq!(active.bonus_charges, 2);
-        assert_eq!(active.bonus_uses, 0);
         assert_eq!(active.reroll_charges, 0);
         // The old preview stays visible while the replacement is pending.
         assert!(active.has_next_row);
@@ -1650,430 +1250,6 @@ mod tests {
         );
         // Awaiting the callback, and the run's reroll is spent: no second request.
         assert!(apply_reroll_request(&mut active, 1).is_err());
-    }
-
-    #[test]
-    fn reroll_callback_replaces_only_the_preview_with_the_committed_row() {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../../fixtures/replays/golden-reroll-v1.json"
-        ))
-        .unwrap();
-        let bytes32 = |field: &str| -> [u8; 32] {
-            let value = fixture[field].as_str().unwrap();
-            assert_eq!(value.len(), 64);
-            std::array::from_fn(|index| {
-                u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
-            })
-        };
-        let randomness = bytes32("vrf_output_hex");
-        let rules_hash = bytes32("rules_hash_hex");
-        let request_counter = fixture["request_counter"].as_u64().unwrap() as u32;
-        let weights = BlockWeights {
-            values: std::array::from_fn(|index| fixture["weights"][index].as_u64().unwrap() as u16),
-        };
-        let rerolled: [u8; 8] =
-            std::array::from_fn(|index| fixture["rerolled_row"][index].as_u64().unwrap() as u8);
-        let ordinary: [u8; 8] = std::array::from_fn(|index| {
-            fixture["ordinary_next_row"][index].as_u64().unwrap() as u8
-        });
-
-        let mut cells = [0u8; 80];
-        cells[0] = 1;
-        let mut engine = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            bonus: Some(Bonus::Hammer),
-            bonus_charges: 2,
-            reroll_charges: 0,
-            next_row: Some({
-                let mut row = [0u8; 8];
-                row[0] = 1;
-                row
-            }),
-            grid: Grid::try_from_cells(cells).unwrap(),
-            ..RunEngine::default()
-        };
-        let rows = provide_verified_vrf_rows(
-            &mut engine,
-            randomness,
-            request_counter,
-            rules_hash,
-            weights,
-            false,
-        )
-        .unwrap();
-
-        assert_eq!(rows, 1);
-        assert_eq!(engine.phase, RunPhase::Playing);
-        // The board is untouched; only the preview moved, and it came from
-        // the committed reroll domain rather than the ordinary row stream.
-        assert_eq!(engine.grid.cells(), &cells);
-        assert_eq!(engine.next_row, Some(rerolled));
-        assert_ne!(engine.next_row, Some(ordinary));
-    }
-
-    #[test]
-    fn perfect_clear_callback_reseeds_board_and_preview_from_one_vrf() {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../../fixtures/replays/golden-perfect-clear-continuation-v1.json"
-        ))
-        .unwrap();
-        let bytes32 = |field: &str| {
-            let value = fixture[field].as_str().unwrap();
-            assert_eq!(value.len(), 64);
-            std::array::from_fn(|index| {
-                u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
-            })
-        };
-        let randomness = bytes32("vrf_output_hex");
-        let rules_hash = bytes32("rules_hash_hex");
-        let request_counter = fixture["request_counter"].as_u64().unwrap() as u32;
-        let weights = BlockWeights {
-            values: std::array::from_fn(|index| fixture["weights"][index].as_u64().unwrap() as u16),
-        };
-        let seed_row: [u8; 8] =
-            std::array::from_fn(|index| fixture["seed_row"][index].as_u64().unwrap() as u8);
-        let preview_row: [u8; 8] =
-            std::array::from_fn(|index| fixture["preview_row"][index].as_u64().unwrap() as u8);
-        let mut engine = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            grid: Grid::EMPTY,
-            ..RunEngine::default()
-        };
-        let expected = zkube_core::continuation_from_vrf_with::<SolanaSha256>(
-            randomness,
-            request_counter,
-            rules_hash,
-            weights,
-        )
-        .unwrap();
-
-        let rows = provide_verified_vrf_rows(
-            &mut engine,
-            randomness,
-            request_counter,
-            rules_hash,
-            weights,
-            false,
-        )
-        .unwrap();
-
-        assert_eq!(rows, 2);
-        assert_eq!(engine.phase, RunPhase::Playing);
-        assert_eq!(engine.grid, expected.grid);
-        assert_eq!(engine.next_row, Some(expected.preview));
-        assert_eq!(&engine.grid.cells()[..8], seed_row);
-        assert_eq!(engine.next_row, Some(preview_row));
-    }
-
-    fn campaign_v2_fixture() -> Value {
-        serde_json::from_str(include_str!("../../../../fixtures/campaign-v2.json")).unwrap()
-    }
-
-    fn campaign_constraint(value: &Value) -> Constraint {
-        let tuple = value.as_array().unwrap();
-        Constraint {
-            kind: ConstraintKind::from_tag(tuple[0].as_u64().unwrap() as u8)
-                .expect("known Campaign constraint kind"),
-            value: tuple[1].as_u64().unwrap() as u8,
-            required_count: tuple[2].as_u64().unwrap() as u8,
-        }
-    }
-
-    fn campaign_level(value: &Value) -> LevelRules {
-        let tuple = value.as_array().unwrap();
-        LevelRules {
-            points_required: tuple[0].as_u64().unwrap() as u32,
-            max_moves: tuple[1].as_u64().unwrap() as u16,
-            primary: campaign_constraint(&tuple[3]),
-            secondary: campaign_constraint(&tuple[4]),
-        }
-    }
-
-    fn campaign_guardian(value: &Value) -> Guardian {
-        let rules = value.as_array().unwrap();
-        Guardian {
-            bonus: match rules[0].as_u64().unwrap() {
-                1 => Bonus::Hammer,
-                2 => Bonus::Totem,
-                3 => Bonus::Wave,
-                kind => panic!("unknown Campaign bonus kind {kind}"),
-            },
-            trigger: rules[1].as_u64().unwrap() as u8,
-            threshold: rules[2].as_u64().unwrap() as u16,
-        }
-    }
-
-    #[test]
-    fn campaign_v2_fixture_has_valid_weighted_objectives() {
-        let fixture = campaign_v2_fixture();
-        let weights = fixture["difficultyWeights"].as_array().unwrap();
-        let maps = fixture["maps"].as_array().unwrap();
-        assert_eq!(maps.len(), 10);
-        assert_eq!(weights.len(), 8);
-        for tier in weights {
-            assert_eq!(
-                tier.as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|value| value.as_u64().unwrap())
-                    .sum::<u64>(),
-                100
-            );
-        }
-        for (map_index, map) in maps.iter().enumerate() {
-            assert_eq!(map["mapId"].as_u64().unwrap() as usize, map_index + 1);
-            let rules = map["rules"].as_array().unwrap();
-            assert!(
-                (crate::game::MIN_OPENING_HEIGHT..=crate::game::MAX_OPENING_HEIGHT)
-                    .contains(&(rules[3].as_u64().unwrap() as u8))
-            );
-            let levels = map["levels"].as_array().unwrap();
-            assert_eq!(levels.len(), 10);
-            for level in levels {
-                let tuple = level.as_array().unwrap();
-                let difficulty = tuple[2].as_u64().unwrap() as usize;
-                let tier = weights[difficulty].as_array().unwrap();
-                let primary = campaign_constraint(&tuple[3]);
-                let secondary = campaign_constraint(&tuple[4]);
-                assert!(primary.is_valid_primary());
-                assert!(secondary.is_valid_secondary());
-                for constraint in [primary, secondary] {
-                    if matches!(
-                        constraint.kind,
-                        ConstraintKind::BreakBlocks | ConstraintKind::BreakInMove
-                    ) && constraint.value > 0
-                    {
-                        assert!(tier[usize::from(constraint.value)].as_u64().unwrap() > 0);
-                    }
-                }
-            }
-        }
-    }
-
-    /// Deterministic, constraint-aware Campaign balance harness. The greedy
-    /// player is a regression guardrail—not a substitute for skilled play.
-    /// Run with:
-    /// `cargo test -p solana campaign_v2_simulation -- --ignored --nocapture`
-    #[test]
-    #[ignore = "offline Campaign balance simulation"]
-    fn campaign_v2_simulation() {
-        let fixture = campaign_v2_fixture();
-        let seed_count = std::env::var("CAMPAIGN_SIMULATION_SEEDS")
-            .ok()
-            .and_then(|value| value.parse::<u32>().ok())
-            .filter(|value| *value > 0)
-            .unwrap_or(64);
-        println!(
-            "seeds={seed_count}\nmap,level,completed,completion_pct,mean_moves,mean_score,max_score,mean_charges,stuck"
-        );
-        for map in fixture["maps"].as_array().unwrap() {
-            let map_id = map["mapId"].as_u64().unwrap() as u8;
-            for (level_index, level) in map["levels"].as_array().unwrap().iter().enumerate() {
-                let attempts = (0..seed_count)
-                    .map(|seed| simulate_campaign_attempt(&fixture, map, level, seed))
-                    .collect::<Vec<_>>();
-                let completed = attempts.iter().filter(|attempt| attempt.completed).count();
-                let stuck = attempts.iter().filter(|attempt| attempt.stuck).count();
-                let total_moves = attempts
-                    .iter()
-                    .map(|attempt| u64::from(attempt.moves))
-                    .sum::<u64>();
-                let total_score = attempts
-                    .iter()
-                    .map(|attempt| u64::from(attempt.score))
-                    .sum::<u64>();
-                let max_score = attempts
-                    .iter()
-                    .map(|attempt| attempt.score)
-                    .max()
-                    .unwrap_or(0);
-                let total_charges = attempts
-                    .iter()
-                    .map(|attempt| u64::from(attempt.bonus_charges))
-                    .sum::<u64>();
-                assert!(attempts
-                    .iter()
-                    .all(|attempt| attempt.moves <= campaign_level(level).max_moves));
-                println!(
-                    "{map_id},{},{completed},{:.1},{:.1},{:.1},{max_score},{:.1},{stuck}",
-                    level_index + 1,
-                    completed as f64 * 100.0 / attempts.len() as f64,
-                    total_moves as f64 / attempts.len() as f64,
-                    total_score as f64 / attempts.len() as f64,
-                    total_charges as f64 / attempts.len() as f64,
-                );
-            }
-        }
-    }
-
-    #[derive(Clone, Copy)]
-    struct SimulatedCampaignAttempt {
-        completed: bool,
-        moves: u16,
-        score: u32,
-        bonus_charges: u8,
-        stuck: bool,
-    }
-
-    struct CampaignMoveCandidate {
-        engine: RunEngine,
-        quality: (bool, bool, u8, u16, u8, u32),
-    }
-
-    fn campaign_constraint_signal(level: LevelRules, engine: &RunEngine) -> u16 {
-        fn signal(constraint: Constraint, progress: u8) -> u16 {
-            if constraint.kind == ConstraintKind::None {
-                0
-            } else {
-                u16::from(progress) * 16
-            }
-        }
-        signal(level.primary, engine.primary_progress)
-            + signal(level.secondary, engine.secondary_progress)
-    }
-
-    fn simulate_campaign_attempt(
-        fixture: &Value,
-        map: &Value,
-        level_value: &Value,
-        seed: u32,
-    ) -> SimulatedCampaignAttempt {
-        let level = campaign_level(level_value);
-        let level_tuple = level_value.as_array().unwrap();
-        let difficulty = level_tuple[2].as_u64().unwrap() as usize;
-        let weight_values = fixture["difficultyWeights"][difficulty].as_array().unwrap();
-        let weights = std::array::from_fn(|index| weight_values[index].as_u64().unwrap() as u16);
-        let rules = map["rules"].as_array().unwrap();
-        let guardian = campaign_guardian(&map["rules"]);
-        let mut engine = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            bonus: Some(guardian.bonus),
-            bonus_charges: 0,
-            starting_height_target: rules[3].as_u64().unwrap() as u8,
-            ..RunEngine::default()
-        };
-        let mut row_counter = 0u32;
-        while engine.next_row.is_none() {
-            let row = simulated_campaign_vrf_row(seed, row_counter, weights);
-            engine.provide_vrf_row(row).unwrap();
-            row_counter += 1;
-            assert!(
-                row_counter < 96,
-                "Campaign seed stack failed to reach its target height"
-            );
-        }
-
-        let mut stuck = false;
-        let mut bonus_used_since_move = false;
-        while engine.phase == RunPhase::Playing && engine.moves < level.max_moves {
-            if !bonus_used_since_move && engine.bonus_charges > 0 {
-                let signal_before = campaign_constraint_signal(level, &engine);
-                let mut best_bonus: Option<CampaignMoveCandidate> = None;
-                for row in 0..10 {
-                    for column in 0..8 {
-                        let mut candidate = engine;
-                        let Ok(report) = candidate.apply_bonus(row, column, level, guardian, 100)
-                        else {
-                            continue;
-                        };
-                        let signal_after = campaign_constraint_signal(level, &candidate);
-                        if signal_after == signal_before
-                            && report.points_earned == 0
-                            && !candidate.level_satisfied(level)
-                        {
-                            continue;
-                        }
-                        let quality = (
-                            candidate.level_satisfied(level),
-                            candidate.phase != RunPhase::Finished,
-                            u8::MAX - report.height_after,
-                            signal_after,
-                            report.lines_cleared,
-                            report.points_earned,
-                        );
-                        if best_bonus
-                            .as_ref()
-                            .is_none_or(|best| quality > best.quality)
-                        {
-                            best_bonus = Some(CampaignMoveCandidate {
-                                engine: candidate,
-                                quality,
-                            });
-                        }
-                    }
-                }
-                if let Some(best) = best_bonus {
-                    engine = best.engine;
-                    bonus_used_since_move = true;
-                    if engine.phase == RunPhase::AwaitingVrf {
-                        let row = simulated_campaign_vrf_row(seed, row_counter, weights);
-                        engine.provide_vrf_row(row).unwrap();
-                        row_counter += 1;
-                    }
-                    if engine.phase != RunPhase::Playing {
-                        continue;
-                    }
-                }
-            }
-            let mut best: Option<CampaignMoveCandidate> = None;
-            for row in 0..10 {
-                for start in 0..8 {
-                    for destination in 0..8 {
-                        let mut candidate = engine;
-                        let Ok(report) = candidate.play_move(
-                            engine.moves,
-                            row,
-                            start,
-                            destination,
-                            level,
-                            guardian,
-                            100,
-                        ) else {
-                            continue;
-                        };
-                        let quality = (
-                            candidate.level_satisfied(level),
-                            candidate.phase != RunPhase::Finished,
-                            u8::MAX - report.height_after,
-                            campaign_constraint_signal(level, &candidate),
-                            report.lines_cleared,
-                            report.points_earned,
-                        );
-                        if best.as_ref().is_none_or(|best| quality > best.quality) {
-                            best = Some(CampaignMoveCandidate {
-                                engine: candidate,
-                                quality,
-                            });
-                        }
-                    }
-                }
-            }
-            let Some(best) = best else {
-                stuck = true;
-                break;
-            };
-            engine = best.engine;
-            bonus_used_since_move = false;
-            if engine.phase == RunPhase::AwaitingVrf {
-                let row = simulated_campaign_vrf_row(seed, row_counter, weights);
-                engine.provide_vrf_row(row).unwrap();
-                row_counter += 1;
-            }
-        }
-        SimulatedCampaignAttempt {
-            completed: engine.phase == RunPhase::LevelComplete,
-            moves: engine.moves,
-            score: engine.score,
-            bonus_charges: engine.bonus_charges,
-            stuck,
-        }
-    }
-
-    fn simulated_campaign_vrf_row(seed: u32, counter: u32, weights: [u16; 5]) -> [u8; 8] {
-        let seed = seed.to_le_bytes();
-        let counter_bytes = counter.to_le_bytes();
-        let randomness = sha256v(&[b"zkube-campaign-v2-simulation", &seed, &counter_bytes]);
-        crate::game::row_from_vrf(randomness, counter, BlockWeights { values: weights }).unwrap()
     }
 
     #[test]

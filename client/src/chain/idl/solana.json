@@ -6074,14 +6074,6 @@
             }
           },
           {
-            "name": "daily_pressure",
-            "type": {
-              "defined": {
-                "name": "DailyPressureProfile"
-              }
-            }
-          },
-          {
             "name": "action_counter",
             "type": "u32"
           },
@@ -6099,17 +6091,6 @@
           {
             "name": "max_combo",
             "type": "u8"
-          },
-          {
-            "name": "arcade_metrics",
-            "docs": [
-              "Canonical, full-width run metrics retained for deterministic scoring."
-            ],
-            "type": {
-              "defined": {
-                "name": "RunMetrics"
-              }
-            }
           },
           {
             "name": "primary_progress",
@@ -6145,39 +6126,6 @@
             "type": "u16"
           },
           {
-            "name": "total_lines_cleared",
-            "type": "u16"
-          },
-          {
-            "name": "bonus_uses",
-            "type": "u16"
-          },
-          {
-            "name": "combo2_hits",
-            "type": "u16"
-          },
-          {
-            "name": "combo3_hits",
-            "type": "u16"
-          },
-          {
-            "name": "combo4_hits",
-            "type": "u16"
-          },
-          {
-            "name": "high_combo_hits",
-            "type": "u16"
-          },
-          {
-            "name": "blocks_destroyed_by_size",
-            "type": {
-              "array": [
-                "u16",
-                4
-              ]
-            }
-          },
-          {
             "name": "bonus_type",
             "type": "u8"
           },
@@ -6193,18 +6141,10 @@
             "type": "u8"
           },
           {
-            "name": "perfect_clears",
+            "name": "current_tier",
             "docs": [
-              "Number of actual empty-board clears produced during this run."
+              "Ramped tier for Daily; Campaign derives its fixed tier from `rules`."
             ],
-            "type": "u16"
-          },
-          {
-            "name": "starting_height_target",
-            "type": "u8"
-          },
-          {
-            "name": "current_difficulty",
             "type": "u8"
           },
           {
@@ -6789,14 +6729,6 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "active_mutator_id",
-            "type": "u8"
-          },
-          {
-            "name": "boss_id",
-            "type": "u8"
-          },
-          {
             "name": "guardian",
             "type": {
               "defined": {
@@ -7184,14 +7116,6 @@
                 "name": "ConstraintSnapshot"
               }
             }
-          },
-          {
-            "name": "active_mutator_id",
-            "type": "u8"
-          },
-          {
-            "name": "boss_id",
-            "type": "u8"
           },
           {
             "name": "guardian",
@@ -7736,50 +7660,6 @@
           },
           {
             "name": "Finished"
-          }
-        ]
-      }
-    },
-    {
-      "name": "RunMetrics",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "max_combo",
-            "type": "u32"
-          },
-          {
-            "name": "combo_scoring_actions",
-            "type": "u32"
-          },
-          {
-            "name": "combo_derived_score",
-            "type": "u64"
-          },
-          {
-            "name": "highest_action_score",
-            "type": "u64"
-          },
-          {
-            "name": "most_lines_single_action",
-            "type": "u32"
-          },
-          {
-            "name": "most_blocks_single_action",
-            "type": "u32"
-          },
-          {
-            "name": "total_lines",
-            "type": "u64"
-          },
-          {
-            "name": "total_blocks",
-            "type": "u64"
-          },
-          {
-            "name": "perfect_clears",
-            "type": "u32"
           }
         ]
       }

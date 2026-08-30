@@ -342,7 +342,7 @@ impl Run {
         request_counter: u32,
         output: [u8; 32],
     ) -> Result<(), RunTransitionError> {
-        self.require_rules(rules)?;
+        self.require_rules_with::<H>(rules)?;
         if self.engine.phase != RunPhase::AwaitingVrf {
             return Err(RunTransitionError::InvalidPhase);
         }
@@ -429,8 +429,9 @@ impl Run {
         start: u8,
         destination: u8,
     ) -> Result<crate::MoveReport, RunTransitionError> {
-        self.require_action(rules, action)?;
+        self.require_action_with::<H>(rules, action)?;
         let mut next = *self;
+        let trigger_events_before = next.engine.charges_earned;
         let report = next.engine.play_run_move(
             expected_move,
             row,
@@ -441,7 +442,11 @@ impl Run {
             rules.guardian,
             rules.action_score_multiplier(next.current_tier),
         )?;
-        next.record_action(rules, report)?;
+        let trigger_events = next
+            .engine
+            .charges_earned
+            .saturating_sub(trigger_events_before);
+        next.record_action(rules, report, trigger_events)?;
         next.fold_event_with::<H>(
             rules,
             ReplayEvent::Move {
@@ -483,8 +488,9 @@ impl Run {
         row: u8,
         column: u8,
     ) -> Result<crate::MoveReport, RunTransitionError> {
-        self.require_action(rules, action)?;
+        self.require_action_with::<H>(rules, action)?;
         let mut next = *self;
+        let trigger_events_before = next.engine.charges_earned;
         let report = next.engine.apply_run_bonus(
             row,
             column,
@@ -493,7 +499,11 @@ impl Run {
             rules.guardian,
             rules.action_score_multiplier(next.current_tier),
         )?;
-        next.record_action(rules, report)?;
+        let trigger_events = next
+            .engine
+            .charges_earned
+            .saturating_sub(trigger_events_before);
+        next.record_action(rules, report, trigger_events)?;
         next.fold_event_with::<H>(
             rules,
             ReplayEvent::Bonus {
@@ -529,7 +539,7 @@ impl Run {
         rules: RunRules,
         action: u32,
     ) -> Result<(), RunTransitionError> {
-        self.require_action(rules, action)?;
+        self.require_action_with::<H>(rules, action)?;
         let mut next = *self;
         next.engine.request_reroll()?;
         next.action_counter = next
@@ -564,7 +574,7 @@ impl Run {
         rules: RunRules,
         reason: RunEndReason,
     ) -> Result<(), RunTransitionError> {
-        self.require_rules(rules)?;
+        self.require_rules_with::<H>(rules)?;
         if !matches!(reason, RunEndReason::Abandoned | RunEndReason::Deadline)
             || !matches!(self.engine.phase, RunPhase::Playing | RunPhase::AwaitingVrf)
         {
@@ -593,15 +603,22 @@ impl Run {
         Ok(())
     }
 
-    fn require_rules(&self, rules: RunRules) -> Result<(), RunTransitionError> {
-        if !rules.is_valid() || rules.snapshot_hash() != self.rules_snapshot_hash {
+    fn require_rules_with<H: Sha256Provider>(
+        &self,
+        rules: RunRules,
+    ) -> Result<(), RunTransitionError> {
+        if !rules.is_valid() || rules.snapshot_hash_with::<H>() != self.rules_snapshot_hash {
             return Err(RunTransitionError::InvalidRules);
         }
         Ok(())
     }
 
-    fn require_action(&self, rules: RunRules, action: u32) -> Result<(), RunTransitionError> {
-        self.require_rules(rules)?;
+    fn require_action_with<H: Sha256Provider>(
+        &self,
+        rules: RunRules,
+        action: u32,
+    ) -> Result<(), RunTransitionError> {
+        self.require_rules_with::<H>(rules)?;
         if action != self.action_counter {
             return Err(RunTransitionError::InvalidActionOrder);
         }
@@ -612,11 +629,12 @@ impl Run {
         &mut self,
         rules: RunRules,
         report: crate::MoveReport,
+        trigger_events: u8,
     ) -> Result<(), RunTransitionError> {
         if rules.is_pressure() {
-            let objective_increment = rules
-                .objective
-                .map_or(0, |objective| objective.action_increment(&report));
+            let objective_increment = rules.objective.map_or(0, |objective| {
+                objective.action_increment_with_trigger(&report, trigger_events)
+            });
             self.daily_score = self
                 .daily_score
                 .checked_add(report.points_earned)

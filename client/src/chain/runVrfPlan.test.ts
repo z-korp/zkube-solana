@@ -10,12 +10,14 @@ import {
 import { describe, expect, it } from "vitest";
 import { ZKUBE_PROGRAM_ID, getDelegationRecord } from "./constants";
 import {
+  ACTIVE_RUN_FIELD_PROJECTIONS,
   VRF_QUEUE,
   buildApplyBonusPlan,
   buildPlayMovePlan,
   buildRequestRerollPlan,
   decodeActiveRunAccount,
 } from "./runPlan";
+import { IDL } from "./idl";
 import { SessionWallet } from "./sessionWallet";
 
 describe("atomic action + VRF plans", () => {
@@ -99,6 +101,19 @@ describe("atomic action + VRF plans", () => {
     expect(() => decodeActiveRunAccount(bytes, ZKUBE_PROGRAM_ID)).toThrow(
       "account length is invalid",
     );
+  });
+
+  it("active_run_view_projects_every_field", () => {
+    const activeRunType = IDL.types.find(({ name }) => name === "ActiveRun");
+    if (!activeRunType || activeRunType.type.kind !== "struct") {
+      throw new Error("ActiveRun IDL type is missing");
+    }
+    const camelCase = (value: string) =>
+      value.replace(/_([a-z])/g, (_match, letter: string) =>
+        letter.toUpperCase(),
+      );
+    expect(activeRunType.type.fields.map(({ name }) => camelCase(name)).sort())
+      .toEqual(Object.keys(ACTIVE_RUN_FIELD_PROJECTIONS).sort());
   });
 });
 

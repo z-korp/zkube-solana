@@ -136,6 +136,7 @@ export function buildDevActiveRun(
     deadlineAt: isArena ? nowUnix + 4 * 3_600 : 0,
     score,
     dailyScore: isArena ? 24_180 : 0,
+    objectiveTotal: isArena ? 480n : 0n,
     pressureScore: isArena ? 1_240 : 0,
     dailyTheme: { kind: 3, value: 2 },
     dailyPressure: CANONICAL_DAILY_PRESSURE,
@@ -151,6 +152,7 @@ export function buildDevActiveRun(
     levelLinesCleared: 11,
     totalLinesCleared: 11,
     bonusUses: 1,
+    currentTier: isArena ? 4 : 0,
     currentDifficulty: isArena ? 4 : 3,
     // A run carries exactly one bonus type, and an id outside the enum falls
     // back to "None" — which renders an empty slot that reads as a wiring bug.

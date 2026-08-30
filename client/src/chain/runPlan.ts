@@ -34,6 +34,7 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import { IDL, type ZkubeProgram } from "./idl/index.js";
+import { campaignGuardianPresentation } from "./campaignCatalog.js";
 import {
   DELEGATION_PROGRAM_ID,
   INITIAL_RUN_ID,
@@ -56,8 +57,8 @@ import {
 } from "./pdas.js";
 import { getClosestValidator, waitForDelegation } from "./router.js";
 import {
+  CANONICAL_DAILY_PRESSURE,
   dailyPressureThresholds,
-  mapDailyPressureProfile,
   type DailyPressureProfileView,
   type DailyThemeView,
 } from "./dailyRules.js";
@@ -164,6 +165,7 @@ export interface EndlessRulesView {
 }
 
 export interface ActiveRunView extends EndlessRulesView {
+  version?: number;
   owner: PublicKey;
   runId: bigint;
   mode: string;
@@ -179,6 +181,7 @@ export interface ActiveRunView extends EndlessRulesView {
   pressureScore: number;
   dailyTheme: DailyThemeView;
   dailyPressure: DailyPressureProfileView;
+  objectiveTotal: bigint;
   actionCounter: number;
   moves: number;
   comboCounter: number;
@@ -191,6 +194,7 @@ export interface ActiveRunView extends EndlessRulesView {
   levelLinesCleared: number;
   totalLinesCleared: number;
   bonusUses: number;
+  currentTier: number;
   currentDifficulty: number;
   bonusType: number;
   bonusCharges: number;
@@ -199,6 +203,10 @@ export interface ActiveRunView extends EndlessRulesView {
   nextRow: number[] | null;
   pendingVrfCounter: number;
   vrfRequestCounter: number;
+  rulesHash?: number[];
+  replayHash?: number[];
+  finishedAt?: number;
+  bump?: number;
 }
 
 export interface ActiveRunConstraintView {
@@ -225,14 +233,20 @@ export interface RawLevelRuleSnapshot {
   difficulty: unknown;
   primary: RawConstraintSnapshot;
   secondary: RawConstraintSnapshot;
-  activeMutatorId: unknown;
-  bossId: unknown;
+  activeMutatorId?: unknown;
+  bossId?: unknown;
   guardian: RawGuardianSnapshot;
 }
 
 export function mapLevelRuleSnapshot(
   rules: RawLevelRuleSnapshot,
+  mapId = 0,
+  level = 0,
 ): ActiveRunRulesView {
+  const presentation =
+    mapId > 0
+      ? campaignGuardianPresentation(mapId)
+      : { activeMutatorId: 0, bossId: 0 };
   return {
     pointsRequired: Number(rules.pointsRequired),
     maxMoves: Number(rules.maxMoves),
@@ -247,8 +261,16 @@ export function mapLevelRuleSnapshot(
       value: Number(rules.secondary.value),
       requiredCount: Number(rules.secondary.requiredCount),
     },
-    activeMutatorId: Number(rules.activeMutatorId),
-    bossId: Number(rules.bossId),
+    activeMutatorId:
+      rules.activeMutatorId === undefined
+        ? presentation.activeMutatorId
+        : Number(rules.activeMutatorId),
+    bossId:
+      rules.bossId === undefined
+        ? level === 10
+          ? presentation.bossId
+          : 0
+        : Number(rules.bossId),
     guardian: {
       bonus: Number(rules.guardian.bonus),
       trigger: Number(rules.guardian.trigger),
@@ -885,6 +907,50 @@ type DecodedActiveRunAccount = Awaited<
   ReturnType<ReturnType<typeof zkubeProgram>["account"]["activeRun"]["fetch"]>
 >;
 
+/** Every persisted run field must have an explicit client projection. The
+ * exhaustive source-key type and the IDL-backed test make adding storage
+ * without naming its reader a compile- or test-time failure. */
+export const ACTIVE_RUN_FIELD_PROJECTIONS = {
+  version: "version",
+  owner: "owner",
+  dailyChallenge: "dailyChallenge",
+  runId: "runId",
+  mode: "mode",
+  lifecycle: "lifecycle",
+  rulesHash: "rulesHash",
+  deadlineAt: "deadlineAt",
+  mapId: "mapId",
+  level: "level",
+  rules: "rules",
+  grid: "grid",
+  nextRow: "nextRow",
+  hasNextRow: "nextRow",
+  score: "score",
+  dailyScore: "dailyScore",
+  objectiveTotal: "objectiveTotal",
+  pressureScore: "pressureScore",
+  dailyTheme: "dailyTheme",
+  actionCounter: "actionCounter",
+  moves: "moves",
+  comboCounter: "comboCounter",
+  maxCombo: "maxCombo",
+  primaryProgress: "primaryProgress",
+  secondaryProgress: "secondaryProgress",
+  latchedStarSources: "latchedStarSources",
+  streak: "streak",
+  chargesEarned: "chargesEarned",
+  levelLinesCleared: "levelLinesCleared",
+  bonusType: "bonusType",
+  bonusCharges: "bonusCharges",
+  rerollCharges: "rerollCharges",
+  currentTier: "currentTier",
+  vrfRequestCounter: "vrfRequestCounter",
+  pendingVrfCounter: "pendingVrfCounter",
+  replayHash: "replayHash",
+  finishedAt: "finishedAt",
+  bump: "bump",
+} as const satisfies Record<keyof DecodedActiveRunAccount, keyof ActiveRunView>;
+
 // Program clients normalize raw Anchor IDL names to camelCase before building
 // their coder. This standalone decoder must do the same: constructing directly
 // from the raw snake_case JSON produces objects whose fields silently disagree
@@ -914,19 +980,25 @@ export function decodeActiveRunAccount(
 
 function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
   const lifecycle = Object.keys(account.lifecycle)[0] ?? "unknown";
-  const dailyPressure = mapDailyPressureProfile(account.dailyPressure);
+  const dailyPressure = CANONICAL_DAILY_PRESSURE;
   return {
+    version: Number(account.version),
     owner: account.owner,
     runId: BigInt(account.runId.toString()),
     mode: Object.keys(account.mode)[0] ?? "unknown",
     dailyChallenge: account.dailyChallenge,
     mapId: Number(account.mapId),
     level: Number(account.level),
-    rules: mapLevelRuleSnapshot(account.rules),
+    rules: mapLevelRuleSnapshot(
+      account.rules,
+      Number(account.mapId),
+      Number(account.level),
+    ),
     lifecycle,
     deadlineAt: Number(account.deadlineAt),
     score: Number(account.score),
     dailyScore: Number(account.dailyScore),
+    objectiveTotal: BigInt(account.objectiveTotal.toString()),
     pressureScore: Number(account.pressureScore),
     dailyTheme: {
       kind: Number(account.dailyTheme.kind),
@@ -943,9 +1015,10 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     streak: Number(account.streak),
     chargesEarned: Number(account.chargesEarned),
     levelLinesCleared: Number(account.levelLinesCleared),
-    totalLinesCleared: Number(account.totalLinesCleared),
-    bonusUses: Number(account.bonusUses),
-    currentDifficulty: Number(account.currentDifficulty),
+    totalLinesCleared: Number(account.levelLinesCleared),
+    bonusUses: 0,
+    currentTier: Number(account.currentTier),
+    currentDifficulty: Number(account.currentTier),
     // Presentation aliases retained while the HUD terminology migrates from
     // the old Cairo endless mode to Daily pressure tiers.
     endlessThresholds: dailyPressureThresholds(),
@@ -957,6 +1030,10 @@ function mapActiveRunAccount(account: DecodedActiveRunAccount): ActiveRunView {
     nextRow: account.hasNextRow ? [...account.nextRow].map(Number) : null,
     pendingVrfCounter: Number(account.pendingVrfCounter),
     vrfRequestCounter: Number(account.vrfRequestCounter),
+    rulesHash: [...account.rulesHash].map(Number),
+    replayHash: [...account.replayHash].map(Number),
+    finishedAt: Number(account.finishedAt),
+    bump: Number(account.bump),
   };
 }
 

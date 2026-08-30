@@ -31,7 +31,7 @@ interface CampaignMapRulesPublication {
    * Which boss archetype the guardian level fights, not which guardian. The
    * ids index the roster in `fixtures/game-parity.json`; realm identity comes
    * from the map id and its realm-named guardian instead.
-  */
+   */
   bossId: number;
   guardian: GuardianPublication;
   startingRows: number;
@@ -51,6 +51,17 @@ type ConstraintTuple = EncodedLevel[3] | EncodedLevel[4];
 
 const BOSS_ARCHETYPE_IDS = [1, 2, 3, 4, 6, 7, 5, 8, 9, 10] as const;
 
+export function campaignGuardianPresentation(mapId: number): {
+  activeMutatorId: number;
+  bossId: number;
+} {
+  const bossId = BOSS_ARCHETYPE_IDS[mapId - 1];
+  if (bossId === undefined) {
+    throw new Error(`map ${mapId} has no boss archetype`);
+  }
+  return { activeMutatorId: 19 + mapId * 2, bossId };
+}
+
 export function canonicalCampaignMap(
   contentVersion: number,
   mapId: number,
@@ -67,10 +78,7 @@ export function canonicalCampaignMap(
       `mapId must be between 1 and ${CANONICAL_CAMPAIGN_MAP_COUNT}`,
     );
   }
-  const bossId = BOSS_ARCHETYPE_IDS[mapId - 1];
-  if (bossId === undefined) {
-    throw new Error(`map ${mapId} has no boss archetype`);
-  }
+  const { bossId } = campaignGuardianPresentation(mapId);
   return {
     mapId,
     themeId: mapId,
@@ -86,7 +94,7 @@ function publicationRules(
   bossId: number,
 ): CampaignMapRulesPublication {
   const [bonus, trigger, threshold, startingRows] = rules;
-  const activeMutatorId = 19 + mapId * 2;
+  const { activeMutatorId } = campaignGuardianPresentation(mapId);
   return {
     activeMutatorId,
     bossId,

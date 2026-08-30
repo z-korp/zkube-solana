@@ -23,7 +23,6 @@ mod economics;
 mod grid;
 mod hash;
 mod ladder;
-mod metrics;
 #[allow(clippy::missing_errors_doc)]
 mod payouts;
 #[allow(clippy::missing_errors_doc)]
@@ -63,7 +62,6 @@ pub use ladder::{
     LADDER_QUALIFY_POINTS, LADDER_TIER_COUNT, LADDER_TIER_POINT_THRESHOLDS, LadderError,
     ladder_points, ladder_tier_floor, ladder_tier_for_points,
 };
-pub use metrics::{ActionMetrics, MetricsError, RunMetrics};
 pub use payouts::{
     BoardWidth, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS,
     board_width, payout_for_rank, rank_weighted_payouts, sol_rank_weighted_payouts,

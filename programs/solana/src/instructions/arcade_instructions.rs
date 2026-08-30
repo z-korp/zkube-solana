@@ -731,11 +731,8 @@ fn best_effort_auto_claims<'info>(ctx: &Context<'info, EnterArena<'info>>) {
 
 fn attached_board_kind(info: &AccountInfo<'_>) -> Option<DailyBoardKind> {
     let data = info.try_borrow_data().ok()?;
-    match data.get(45).copied()? {
-        0 => Some(DailyBoardKind::Score),
-        1 => Some(DailyBoardKind::Theme),
-        _ => None,
-    }
+    let board = ArenaBoard::try_deserialize(&mut data.as_ref()).ok()?;
+    Some(board.kind)
 }
 
 fn attached_claim_position<'info>(
@@ -823,9 +820,7 @@ fn initialize_arena_run(
         level: 1,
         rules: daily.rules,
         daily_theme: daily.daily_theme,
-        daily_pressure: daily.pressure,
-        starting_height_target: daily.rules.starting_rows,
-        current_difficulty: 0,
+        current_tier: 0,
         reroll_charges: 1,
         replay_hash: canonical_initial_replay(
             replay_domain,
@@ -1845,8 +1840,6 @@ fn daily_level_rules(
         difficulty: 0,
         primary: ConstraintSnapshot::default(),
         secondary: ConstraintSnapshot::default(),
-        active_mutator_id: realm.active_mutator_id,
-        boss_id: 0,
         guardian: realm.guardian,
         starting_rows: realm.starting_rows,
     }
@@ -2015,17 +2008,14 @@ mod tests {
     fn campaign_and_daily_share_guardian_rules() {
         let pressure = DailyPressureProfile::canonical();
         let realm = CampaignMapRuleSnapshot {
-            active_mutator_id: 7,
             guardian: GuardianSnapshot {
                 bonus: 2,
                 trigger: 8,
                 threshold: 12,
             },
             starting_rows: 6,
-            ..CampaignMapRuleSnapshot::default()
         };
         let daily = daily_level_rules(realm, pressure);
-        assert_eq!(daily.active_mutator_id, realm.active_mutator_id);
         assert_eq!(daily.guardian, realm.guardian);
         assert_eq!(daily.starting_rows, realm.starting_rows);
     }

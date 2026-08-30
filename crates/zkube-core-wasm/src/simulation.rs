@@ -2,7 +2,7 @@ use crate::BoundaryError;
 use zkube_core::{
     BONUS_CHARGE_CAP, Bonus, CANONICAL_RUN_RULES_LEN, ChainDomain, ChallengeId, ConstraintKind,
     DailyTheme, Grid, Guardian, PlayerId, ReplayCommitment, ReplayMode, RulesHash, Run, RunConfig,
-    RunEndReason, RunEngine, RunMetrics, RunPhase, RunRules, TierPolicy, derive_player_id,
+    RunEndReason, RunEngine, RunPhase, RunRules, TierPolicy, derive_player_id,
 };
 
 /// Versioned fixed encoding consumed by the stateless WASM transition API.
@@ -14,10 +14,10 @@ pub const DAILY_SIMULATION_CONFIG_LEN: usize = 160;
 /// Versioned state layout returned by every transition.
 ///
 /// The first byte is version 2, followed by engine flags/counters, the 80-byte
-/// grid, optional next row, nine metrics, replay commitment, player ID, and
+/// grid, optional next row, replay commitment, player ID, and
 /// rules hash. Callers should treat these bytes as an opaque preview token and
 /// use generated decoders for display; the chain remains authoritative.
-pub const DAILY_SIMULATION_STATE_LEN: usize = 316;
+pub const DAILY_SIMULATION_STATE_LEN: usize = 263;
 const STATE_VERSION: u8 = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,7 +36,6 @@ pub struct DailySimulationConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DailySimulation {
     pub engine: RunEngine,
-    pub metrics: RunMetrics,
     pub action_counter: u32,
     pub daily_score: u32,
     pub objective_total: u64,
@@ -66,7 +65,7 @@ impl DailySimulation {
             rules: config.rules,
             initial_replay,
         })?;
-        Ok(Self::from_run(run, player_id, RunMetrics::default()))
+        Ok(Self::from_run(run, player_id))
     }
 
     fn into_run(self) -> Run {
@@ -93,10 +92,9 @@ impl DailySimulation {
         }
     }
 
-    fn from_run(run: Run, player_id: PlayerId, metrics: RunMetrics) -> Self {
+    fn from_run(run: Run, player_id: PlayerId) -> Self {
         Self {
             engine: run.engine,
-            metrics,
             action_counter: run.action_counter,
             daily_score: run.daily_score,
             objective_total: run.objective_total,
@@ -112,7 +110,7 @@ impl DailySimulation {
     }
 
     fn replace_run(&mut self, run: Run) {
-        *self = Self::from_run(run, self.player_id, self.metrics);
+        *self = Self::from_run(run, self.player_id);
     }
 
     fn apply_vrf(
@@ -249,7 +247,6 @@ pub fn encode_daily_simulation_state(
     writer.write(&[bonus_tag(simulation.engine.bonus)]);
     writer.write(&[simulation.engine.bonus_charges]);
     writer.write(&[simulation.engine.reroll_charges]);
-    writer.write(&[simulation.engine.starting_height_target]);
     writer.write(&[simulation.current_difficulty]);
     writer.write(&[simulation.engine.combo_counter]);
     writer.write(&[simulation.engine.max_combo]);
@@ -268,7 +265,6 @@ pub fn encode_daily_simulation_state(
     writer.write(&simulation.pressure_score.to_le_bytes());
     writer.write(simulation.engine.grid.cells());
     writer.write(&simulation.engine.next_row.unwrap_or([0; 8]));
-    encode_metrics(&mut writer, simulation.metrics);
     writer.write(simulation.replay.as_bytes());
     writer.write(simulation.player_id.as_bytes());
     writer.write(simulation.rules_hash.as_bytes());
@@ -296,7 +292,6 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
     let bonus = decode_bonus(reader.u8()?)?;
     let bonus_charges = reader.u8()?;
     let reroll_charges = reader.u8()?;
-    let starting_height_target = reader.u8()?;
     let current_difficulty = reader.u8()?;
     let combo_counter = reader.u8()?;
     let max_combo = reader.u8()?;
@@ -324,7 +319,6 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
         }
         None
     };
-    let metrics = decode_metrics(&mut reader)?;
     let replay = ReplayCommitment(reader.array()?);
     let player_id = PlayerId(reader.array()?);
     let rules_hash = RulesHash(reader.array()?);
@@ -357,9 +351,7 @@ pub fn decode_daily_simulation_state(bytes: &[u8]) -> Result<DailySimulation, Bo
             bonus,
             bonus_charges,
             reroll_charges,
-            starting_height_target,
         },
-        metrics,
         action_counter,
         daily_score,
         objective_total,
@@ -533,39 +525,12 @@ fn decode_rules(reader: &mut Reader<'_>) -> Result<RunRules, BoundaryError> {
     })
 }
 
-fn encode_metrics<const N: usize>(writer: &mut Writer<N>, metrics: RunMetrics) {
-    writer.write(&metrics.maximum_combo.to_le_bytes());
-    writer.write(&metrics.combo_scoring_actions.to_le_bytes());
-    writer.write(&metrics.total_combo_derived_score.to_le_bytes());
-    writer.write(&metrics.highest_action_score.to_le_bytes());
-    writer.write(&metrics.most_lines_in_action.to_le_bytes());
-    writer.write(&metrics.most_blocks_destroyed_in_action.to_le_bytes());
-    writer.write(&metrics.total_lines.to_le_bytes());
-    writer.write(&metrics.total_blocks_destroyed.to_le_bytes());
-    writer.write(&metrics.perfect_clears.to_le_bytes());
-}
-
-fn decode_metrics(reader: &mut Reader<'_>) -> Result<RunMetrics, BoundaryError> {
-    Ok(RunMetrics {
-        maximum_combo: reader.u32()?,
-        combo_scoring_actions: reader.u32()?,
-        total_combo_derived_score: reader.u64()?,
-        highest_action_score: reader.u64()?,
-        most_lines_in_action: reader.u32()?,
-        most_blocks_destroyed_in_action: reader.u32()?,
-        total_lines: reader.u64()?,
-        total_blocks_destroyed: reader.u64()?,
-        perfect_clears: reader.u32()?,
-    })
-}
-
 fn array_32(bytes: &[u8]) -> Result<[u8; 32], BoundaryError> {
     bytes.try_into().map_err(|_| BoundaryError::InvalidLength)
 }
 
 const fn phase_tag(phase: RunPhase) -> u8 {
     match phase {
-        RunPhase::Ready => 0,
         RunPhase::Playing => 1,
         RunPhase::AwaitingVrf => 2,
         RunPhase::LevelComplete => 3,
@@ -575,7 +540,6 @@ const fn phase_tag(phase: RunPhase) -> u8 {
 
 fn decode_phase(tag: u8) -> Result<RunPhase, BoundaryError> {
     match tag {
-        0 => Ok(RunPhase::Ready),
         1 => Ok(RunPhase::Playing),
         2 => Ok(RunPhase::AwaitingVrf),
         3 => Ok(RunPhase::LevelComplete),

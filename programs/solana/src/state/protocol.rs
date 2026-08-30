@@ -5,8 +5,8 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::arcade::{DailyBoardKind, RunMetrics as ArcadeRunMetrics};
-use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
+use crate::state::arcade::DailyBoardKind;
+use crate::state::arena_rules::DailyThemeSnapshot;
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
 pub const PLAYER_STATE_SEED: &[u8] = b"player";
@@ -447,8 +447,6 @@ impl MapCatalog {
             difficulty: authored.difficulty,
             primary: authored.primary,
             secondary: authored.secondary,
-            active_mutator_id: map.active_mutator_id,
-            boss_id: u8::from(level == LEVELS_PER_MAP as u8) * map.boss_id,
             guardian: map.guardian,
             starting_rows: map.starting_rows,
         })
@@ -482,8 +480,6 @@ impl GuardianSnapshot {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
 pub struct CampaignMapRuleSnapshot {
-    pub active_mutator_id: u8,
-    pub boss_id: u8,
     pub guardian: GuardianSnapshot,
     pub starting_rows: u8,
 }
@@ -506,8 +502,6 @@ pub struct LevelRuleSnapshot {
     pub difficulty: u8,
     pub primary: ConstraintSnapshot,
     pub secondary: ConstraintSnapshot,
-    pub active_mutator_id: u8,
-    pub boss_id: u8,
     pub guardian: GuardianSnapshot,
     pub starting_rows: u8,
 }
@@ -545,14 +539,11 @@ pub struct ActiveRun {
     pub objective_total: u64,
     pub pressure_score: u32,
     pub daily_theme: DailyThemeSnapshot,
-    pub daily_pressure: DailyPressureProfile,
     pub action_counter: u32,
     pub moves: u16,
     /// Saturating count of player moves that cleared at least two lines.
     pub combo_counter: u8,
     pub max_combo: u8,
-    /// Canonical, full-width run metrics retained for deterministic scoring.
-    pub arcade_metrics: ArcadeRunMetrics,
     pub primary_progress: u8,
     pub secondary_progress: u8,
     /// Bit mask of latched Campaign sources; Daily runs keep this byte at zero.
@@ -562,21 +553,12 @@ pub struct ActiveRun {
     /// Guardian trigger events produced across the run, before inventory caps.
     pub charges_earned: u8,
     pub level_lines_cleared: u16,
-    pub total_lines_cleared: u16,
-    pub bonus_uses: u16,
-    pub combo2_hits: u16,
-    pub combo3_hits: u16,
-    pub combo4_hits: u16,
-    pub high_combo_hits: u16,
-    pub blocks_destroyed_by_size: [u16; 4],
     pub bonus_type: u8,
     pub bonus_charges: u8,
     /// Held preview replacements; every run starts with one.
     pub reroll_charges: u8,
-    /// Number of actual empty-board clears produced during this run.
-    pub perfect_clears: u16,
-    pub starting_height_target: u8,
-    pub current_difficulty: u8,
+    /// Ramped tier for Daily; Campaign derives its fixed tier from `rules`.
+    pub current_tier: u8,
     pub vrf_request_counter: u32,
     pub pending_vrf_counter: u32,
     /// Domain-separated rolling commitment over rules, VRF rows, and actions.
@@ -607,31 +589,20 @@ impl Default for ActiveRun {
             objective_total: 0,
             pressure_score: 0,
             daily_theme: DailyThemeSnapshot::default(),
-            daily_pressure: DailyPressureProfile::default(),
             action_counter: 0,
             moves: 0,
             combo_counter: 0,
             max_combo: 0,
-            arcade_metrics: ArcadeRunMetrics::default(),
             primary_progress: 0,
             secondary_progress: 0,
             latched_star_sources: 0,
             streak: 0,
             charges_earned: 0,
             level_lines_cleared: 0,
-            total_lines_cleared: 0,
-            bonus_uses: 0,
-            combo2_hits: 0,
-            combo3_hits: 0,
-            combo4_hits: 0,
-            high_combo_hits: 0,
-            blocks_destroyed_by_size: [0; 4],
             bonus_type: 0,
             bonus_charges: 0,
             reroll_charges: 0,
-            perfect_clears: 0,
-            starting_height_target: 0,
-            current_difficulty: 0,
+            current_tier: 0,
             vrf_request_counter: 0,
             pending_vrf_counter: 0,
             replay_hash: [0; 32],
@@ -828,7 +799,7 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 418);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 323);
     }
 
     #[test]
@@ -850,10 +821,8 @@ mod tests {
     }
 
     #[test]
-    fn map_catalog_expands_one_identity_across_all_ten_levels() {
+    fn map_catalog_expands_one_guardian_across_all_ten_levels() {
         let map_rules = CampaignMapRuleSnapshot {
-            active_mutator_id: 13,
-            boss_id: 5,
             guardian: GuardianSnapshot {
                 bonus: 1,
                 trigger: 4,
@@ -881,11 +850,9 @@ mod tests {
 
         let first = catalog.expanded_level(1).unwrap();
         let boss = catalog.expanded_level(10).unwrap();
-        assert_eq!(first.active_mutator_id, boss.active_mutator_id);
+        assert_eq!(first.guardian, boss.guardian);
         assert_eq!(first.guardian.trigger, 4);
         assert_eq!(first.guardian.threshold, 3);
-        assert_eq!(first.boss_id, 0);
-        assert_eq!(boss.boss_id, 5);
         assert_eq!(boss.level, 10);
     }
 

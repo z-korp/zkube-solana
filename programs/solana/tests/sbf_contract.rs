@@ -75,7 +75,6 @@ fn decode<T: AccountDeserialize>(account: &Account) -> T {
 
 fn daily_map_rule_fixture() -> CampaignMapRuleSnapshot {
     CampaignMapRuleSnapshot {
-        active_mutator_id: 1,
         guardian: GuardianSnapshot {
             bonus: 1,
             trigger: 1,
@@ -88,7 +87,21 @@ fn daily_map_rule_fixture() -> CampaignMapRuleSnapshot {
 
 fn level_rule_fixture() -> LevelRuleSnapshot {
     LevelRuleSnapshot {
+        level: 1,
+        points_required: 10,
+        max_moves: 20,
+        primary: ConstraintSnapshot {
+            kind: zkube_core::ConstraintKind::ClearLines.tag(),
+            value: 0,
+            required_count: 2,
+        },
+        secondary: ConstraintSnapshot {
+            kind: zkube_core::ConstraintKind::ComboOfAtLeast.tag(),
+            value: 2,
+            required_count: 1,
+        },
         guardian: daily_map_rule_fixture().guardian,
+        starting_rows: daily_map_rule_fixture().starting_rows,
         ..LevelRuleSnapshot::default()
     }
 }
@@ -646,7 +659,6 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
         lifecycle: RunLifecycle::AwaitingVrf,
         rules_hash: [19; 32],
         rules: opening_rules,
-        starting_height_target: opening_rules.starting_rows,
         vrf_request_counter: 1,
         pending_vrf_counter: 1,
         ..ActiveRun::default()
@@ -697,12 +709,10 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
     assert_eq!(opening_grid.occupied_height(), 8);
     assert!(opened.has_next_row);
     assert_eq!(opened.lifecycle, RunLifecycle::Playing);
-    assert_eq!(opened.starting_height_target, 0);
     assert_eq!(opened.pending_vrf_counter, 0);
 
     let daily_run = Pubkey::new_unique();
     let daily_randomness = [91; 32];
-    let pressure = DailyPressureProfile::canonical();
     let mut daily_grid = [0; 80];
     daily_grid[0] = 1;
     let daily_state = ActiveRun {
@@ -710,8 +720,13 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
         mode: RunMode::Daily,
         lifecycle: RunLifecycle::AwaitingVrf,
         grid: daily_grid,
-        daily_pressure: pressure,
-        current_difficulty: 7,
+        rules: LevelRuleSnapshot {
+            max_moves: DAILY_MAX_MOVES,
+            ..level_rule_fixture()
+        },
+        daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
+        bonus_type: 1,
+        current_tier: 7,
         vrf_request_counter: 2,
         pending_vrf_counter: 2,
         deadline_at: i64::MAX,
@@ -837,7 +852,6 @@ fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector()
             max_moves: DAILY_MAX_MOVES,
             ..level_rule_fixture()
         },
-        daily_pressure: DailyPressureProfile::canonical(),
         grid,
         next_row: old_preview,
         has_next_row: true,
@@ -1309,7 +1323,6 @@ fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
     assert_eq!(active.moves, 1);
     assert_eq!(active.score, 10);
     assert_eq!(active.level_lines_cleared, 4);
-    assert_eq!(active.total_lines_cleared, 4);
     assert_eq!(active.combo_counter, 1);
     assert_eq!(active.max_combo, 4);
 }
@@ -1355,7 +1368,6 @@ fn sbf_campaign_perfect_clear_grants_a_held_reroll_that_can_be_requested() {
     assert!(moved.program_result.is_ok(), "{:?}", moved.program_result);
     let awaiting: ActiveRun = decode(resulting_account(&moved, &active_run));
     assert_eq!(awaiting.latched_star_sources, 0);
-    assert_eq!(awaiting.perfect_clears, 1);
     assert_eq!(awaiting.reroll_charges, 2);
     assert_eq!(awaiting.lifecycle, RunLifecycle::AwaitingVrf);
 
@@ -1425,7 +1437,6 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
                 max_moves: DAILY_MAX_MOVES,
                 ..level_rule_fixture()
             },
-            daily_pressure: DailyPressureProfile::canonical(),
             daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
             grid,
             next_row: [0; 8],
@@ -1444,7 +1455,6 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
         granted.program_result
     );
     let after_grant: ActiveRun = decode(resulting_account(&granted, &active_run));
-    assert_eq!(after_grant.perfect_clears, 1);
     assert_eq!(after_grant.reroll_charges, 2);
 
     let capped_owner = Pubkey::new_unique();
@@ -1455,7 +1465,6 @@ fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
         discarded.program_result
     );
     let after_discard: ActiveRun = decode(resulting_account(&discarded, &capped_run));
-    assert_eq!(after_discard.perfect_clears, 1);
     assert_eq!(after_discard.reroll_charges, 3);
 }
 
@@ -1541,11 +1550,6 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
         rules: LevelRuleSnapshot {
             points_required: 1,
             max_moves: 20,
-            primary: ConstraintSnapshot {
-                kind: 1,
-                value: 3,
-                required_count: 1,
-            },
             ..level_rule_fixture()
         },
         score: 1,
@@ -1570,7 +1574,6 @@ fn sbf_blocked_eleventh_row_keeps_and_records_its_latched_star() {
     assert_eq!(active.moves, 1);
     assert_eq!(active.latched_star_sources, zkube_core::STAR_SOURCE_SCORE);
     assert_eq!(active.grid, grid, "blocked insertion must not drop row ten");
-    assert_eq!(active.blocks_destroyed_by_size, [0; 4]);
     assert!(!active.has_next_row);
     assert_eq!(active.vrf_request_counter, 7);
     assert_eq!(active.pending_vrf_counter, 0);
@@ -1639,7 +1642,6 @@ fn sbf_campaign_consume_is_permissionless_atomic_and_recycles_run_rent() {
         lifecycle: RunLifecycle::Finished,
         map_id: 1,
         level: 1,
-        total_lines_cleared: 4,
         finished_at: 1,
         bump: active_bump,
         ..ActiveRun::default()
@@ -2854,10 +2856,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     assert_eq!(after.day_id, missing_day);
     assert_eq!(after.status, PeriodStatus::Funding);
     assert!(!after.predecessor_rollover_applied);
-    assert_eq!(
-        after.rules.active_mutator_id,
-        daily_map_rule_fixture().active_mutator_id
-    );
     assert_eq!(after.rules.guardian, daily_map_rule_fixture().guardian);
     assert_eq!(
         resulting_account(&result, &cadence_funding).lamports

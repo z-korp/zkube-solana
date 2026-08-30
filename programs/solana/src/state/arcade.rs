@@ -267,21 +267,6 @@ impl PoolLedger {
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
-pub struct RunMetrics {
-    pub max_combo: u32,
-    pub combo_scoring_actions: u32,
-    pub combo_derived_score: u64,
-    pub highest_action_score: u64,
-    pub most_lines_single_action: u32,
-    pub most_blocks_single_action: u32,
-    pub total_lines: u64,
-    pub total_blocks: u64,
-    pub perfect_clears: u32,
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
 pub struct ArenaBoardEntry {
     pub player: Pubkey,
     pub score: u32,
@@ -1376,10 +1361,10 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 235);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 233);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 227);
+        assert_eq!(daily_bytes.len(), 225);
         assert_eq!(ArenaBoard::INIT_SPACE, 121);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_537);
         assert_eq!(

@@ -172,6 +172,14 @@ impl Constraint {
     /// same value at their authored `required_count`.
     #[must_use]
     pub fn action_increment(self, report: &MoveReport) -> u8 {
+        self.action_increment_with_trigger(report, 0)
+    }
+
+    pub(crate) fn action_increment_with_trigger(
+        self,
+        report: &MoveReport,
+        trigger_events: u8,
+    ) -> u8 {
         let destroyed = |width: u8| {
             if width == 0 {
                 report.blocks_destroyed_by_size.into_iter().sum()
@@ -197,7 +205,7 @@ impl Constraint {
             ConstraintKind::BigMoves => {
                 u8::from(player_move && report.points_earned >= u32::from(self.value))
             }
-            ConstraintKind::TriggerFired => report.charges_earned,
+            ConstraintKind::TriggerFired => trigger_events,
             ConstraintKind::BonusLines => {
                 if report.action_was_bonus {
                     report.lines_cleared
@@ -249,7 +257,7 @@ impl Constraint {
         }
     }
 
-    fn update(self, current: u8, report: &MoveReport) -> u8 {
+    fn update(self, current: u8, report: &MoveReport, trigger_events: u8) -> u8 {
         match self.kind {
             ConstraintKind::None => current,
             ConstraintKind::ClearLines
@@ -262,7 +270,7 @@ impl Constraint {
             | ConstraintKind::BonusBreaks
             | ConstraintKind::ClutchClears
             | ConstraintKind::CleanClears => current
-                .saturating_add(self.action_increment(report))
+                .saturating_add(self.action_increment_with_trigger(report, trigger_events))
                 .min(self.required_count),
             ConstraintKind::ComboOfAtLeast
             | ConstraintKind::ComboOfExactly
@@ -270,7 +278,7 @@ impl Constraint {
             | ConstraintKind::BigMove
             | ConstraintKind::BonusLinesInMove
             | ConstraintKind::PerfectClear => self
-                .action_increment(report)
+                .action_increment_with_trigger(report, trigger_events)
                 .saturating_mul(self.required_count),
             ConstraintKind::Streak => {
                 if report.action_was_bonus {
@@ -281,7 +289,9 @@ impl Constraint {
                     0
                 }
             }
-            ConstraintKind::BreakInMove => self.action_increment(report).min(self.required_count),
+            ConstraintKind::BreakInMove => self
+                .action_increment_with_trigger(report, trigger_events)
+                .min(self.required_count),
         }
     }
 }
@@ -462,9 +472,8 @@ pub const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RunPhase {
     #[default]
-    Ready,
-    Playing,
     AwaitingVrf,
+    Playing,
     LevelComplete,
     Finished,
 }
@@ -489,18 +498,6 @@ pub struct MoveReport {
     pub blocks_destroyed_by_size: [u8; 4],
     /// Neutral points before the Daily pressure multiplier.
     pub neutral_points_earned: u32,
-    /// Difficulty tier used to score the action.
-    pub difficulty_at_action: u8,
-    /// Charges produced by this transition before the engine's inventory cap.
-    /// The engine also persists their saturating run total.
-    pub charges_earned: u8,
-    /// Whether the consumed preview could not enter after the first settle.
-    /// This distinguishes overflow from move-budget exhaustion in experiments.
-    pub preview_insertion_blocked: bool,
-    /// A mode-specific reroll grant was added to the held inventory.
-    pub reroll_granted: bool,
-    /// A mode-specific reroll grant was due but the inventory was full.
-    pub reroll_grant_discarded: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -554,7 +551,6 @@ pub struct RunEngine {
     pub bonus_charges: u8,
     /// Held preview replacements, independent of guardian bonus identity.
     pub reroll_charges: u8,
-    pub starting_height_target: u8,
 }
 
 impl Default for RunEngine {
@@ -562,7 +558,7 @@ impl Default for RunEngine {
         Self {
             grid: Grid::EMPTY,
             next_row: None,
-            phase: RunPhase::Ready,
+            phase: RunPhase::AwaitingVrf,
             score: 0,
             moves: 0,
             combo_counter: 0,
@@ -576,7 +572,6 @@ impl Default for RunEngine {
             bonus: None,
             bonus_charges: 0,
             reroll_charges: 1,
-            starting_height_target: 0,
         }
     }
 }
@@ -600,28 +595,8 @@ impl RunEngine {
             return Err(RunError::RowAlreadyAvailable);
         }
         Grid::validate_row(&row)?;
-        if self.starting_height_target > 0 {
-            self.grid.insert_bottom_row(row)?;
-            // Settle the seed stack exactly like Cairo's initialize_grid, which
-            // runs assess_game (gravity + line clears) after every add_line.
-            // Without this the independently-generated seed rows leave blocks
-            // hanging over empty cells (floating cubes) and the first move's
-            // settle retroactively collapses/mis-scores the board. Seed-phase
-            // clears are discarded — they never count toward the run.
-            let _ = self.grid.settle();
-            if self.grid.occupied_height() >= self.starting_height_target {
-                self.starting_height_target = 0;
-            }
-            // Keep awaiting until all configured seed rows plus one visible
-            // next row have independently verified VRF callbacks.
-        } else if self.grid.is_empty() {
-            self.grid.insert_bottom_row(row)?;
-            let _ = self.grid.settle();
-            // Keep awaiting: the player must always see exactly one next row.
-        } else {
-            self.next_row = Some(row);
-            self.phase = RunPhase::Playing;
-        }
+        self.next_row = Some(row);
+        self.phase = RunPhase::Playing;
         Ok(())
     }
 
@@ -994,11 +969,6 @@ impl RunEngine {
             action_was_bonus,
             blocks_destroyed_by_size,
             neutral_points_earned: neutral_points,
-            difficulty_at_action: 0,
-            charges_earned: 0,
-            preview_insertion_blocked: row_insertion_blocked,
-            reroll_granted: false,
-            reroll_grant_discarded: false,
         };
         let charges = match guardian.trigger {
             1 if needs_next_row
@@ -1037,15 +1007,23 @@ impl RunEngine {
             9 if needs_next_row && u16::from(self.streak) == guardian.threshold => 1,
             _ => 0,
         };
-        report.charges_earned = charges.min(u16::from(u8::MAX)) as u8;
-        self.charges_earned = self.charges_earned.saturating_add(report.charges_earned);
+        self.charges_earned = self
+            .charges_earned
+            .saturating_add(charges.min(u16::from(u8::MAX)) as u8);
         self.bonus_charges = self
             .bonus_charges
             .saturating_add(charges.min(u16::from(u8::MAX)) as u8)
             .min(BONUS_CHARGE_CAP);
         if let Some(stars) = stars {
-            self.primary_progress = stars.primary.update(self.primary_progress, &report);
-            self.secondary_progress = stars.secondary.update(self.secondary_progress, &report);
+            let trigger_events = charges.min(u16::from(u8::MAX)) as u8;
+            self.primary_progress =
+                stars
+                    .primary
+                    .update(self.primary_progress, &report, trigger_events);
+            self.secondary_progress =
+                stars
+                    .secondary
+                    .update(self.secondary_progress, &report, trigger_events);
 
             // Daily rules carry no star sources, so only Campaign runs execute
             // the independent latch machine.
@@ -1061,13 +1039,8 @@ impl RunEngine {
             }
         }
 
-        if report.perfect_clear {
-            if self.reroll_charges < BONUS_CHARGE_CAP {
-                self.reroll_charges += 1;
-                report.reroll_granted = true;
-            } else {
-                report.reroll_grant_discarded = true;
-            }
+        if report.perfect_clear && self.reroll_charges < BONUS_CHARGE_CAP {
+            self.reroll_charges += 1;
         }
 
         // Occupying row ten is legal. A run ends only when a move has settled
@@ -1527,7 +1500,7 @@ mod tests {
             phase: RunPhase::Playing,
             ..RunEngine::default()
         };
-        let granted = run.finish_action_with_multiplier(
+        run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
             Guardian::default(),
@@ -1536,12 +1509,10 @@ mod tests {
             false,
         );
         assert_eq!(run.reroll_charges, 2);
-        assert!(granted.reroll_granted);
-        assert!(!granted.reroll_grant_discarded);
 
         run.phase = RunPhase::Playing;
         run.reroll_charges = BONUS_CHARGE_CAP;
-        let discarded = run.finish_action_with_multiplier(
+        run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
             Guardian::default(),
@@ -1550,8 +1521,6 @@ mod tests {
             false,
         );
         assert_eq!(run.reroll_charges, BONUS_CHARGE_CAP);
-        assert!(!discarded.reroll_granted);
-        assert!(discarded.reroll_grant_discarded);
     }
 
     #[test]
@@ -1581,71 +1550,6 @@ mod tests {
     }
 
     #[test]
-    fn empty_grid_needs_a_seed_row_and_then_a_visible_next_row() {
-        let mut run = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            ..RunEngine::default()
-        };
-        let row = [1, 0, 0, 0, 0, 0, 0, 0];
-        run.provide_vrf_row(row).unwrap();
-        assert_eq!(run.phase, RunPhase::AwaitingVrf);
-        assert_eq!(run.grid.row(0).unwrap(), &row);
-        run.provide_vrf_row(row).unwrap();
-        assert_eq!(run.phase, RunPhase::Playing);
-        assert_eq!(run.next_row, Some(row));
-    }
-
-    #[test]
-    fn configured_seed_height_is_measured_after_settle() {
-        let mut run = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            starting_height_target: 2,
-            ..RunEngine::default()
-        };
-        run.provide_vrf_row([1, 0, 0, 0, 0, 0, 0, 0]).unwrap();
-        assert_eq!(run.starting_height_target, 2);
-        // This block falls beside the first, so two callbacks still leave a
-        // one-row board and seeding must continue.
-        run.provide_vrf_row([0, 0, 1, 0, 0, 0, 0, 0]).unwrap();
-        assert_eq!(run.grid.occupied_height(), 1);
-        assert_eq!(run.starting_height_target, 2);
-        // A block in an occupied column finally reaches the requested height.
-        run.provide_vrf_row([1, 0, 0, 0, 0, 0, 0, 0]).unwrap();
-        assert_eq!(run.grid.occupied_height(), 2);
-        assert_eq!(run.starting_height_target, 0);
-        assert!(run.next_row.is_none());
-        run.provide_vrf_row([0, 0, 1, 0, 0, 0, 0, 0]).unwrap();
-        assert_eq!(run.phase, RunPhase::Playing);
-        assert_eq!(run.next_row, Some([0, 0, 1, 0, 0, 0, 0, 0]));
-    }
-
-    #[test]
-    fn seed_rows_are_gravity_settled_no_floating_cubes() {
-        let mut run = RunEngine {
-            phase: RunPhase::AwaitingVrf,
-            starting_height_target: 2,
-            ..RunEngine::default()
-        };
-        // Two DISTINCT coherent rows. Inserted raw (the pre-fix behavior) the
-        // col-0 block from the first row would hang over the empty col-0 cell
-        // of the second — a floating cube. Seeding must gravity-settle, exactly
-        // like Cairo's initialize_grid.
-        run.provide_vrf_row([1, 0, 0, 0, 0, 0, 0, 0]).unwrap();
-        run.provide_vrf_row([1, 0, 0, 0, 0, 0, 0, 0]).unwrap();
-        // The seeded board is already gravity-stable (applying gravity again is
-        // a no-op) — the definitive "no floating cubes" assertion.
-        let mut resettled = run.grid;
-        resettled.apply_gravity();
-        assert_eq!(resettled, run.grid, "seed board must be gravity-settled");
-        assert_eq!(run.grid.row(0).unwrap(), &[1, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(run.grid.row(1).unwrap(), &[1, 0, 0, 0, 0, 0, 0, 0]);
-        // The final VRF callback yields the single visible preview row.
-        run.provide_vrf_row([2, 2, 0, 0, 0, 0, 0, 0]).unwrap();
-        assert_eq!(run.phase, RunPhase::Playing);
-        assert_eq!(run.next_row, Some([2, 2, 0, 0, 0, 0, 0, 0]));
-    }
-
-    #[test]
     fn line_threshold_bonus_charges_cross_monotonic_boundaries() {
         let source = grid(&[(0, [1, 1, 1, 1, 1, 1, 0, 1])]);
         let mut run = RunEngine::start(source, [0, 0, 0, 0, 0, 0, 0, 1]).unwrap();
@@ -1669,7 +1573,7 @@ mod tests {
             bonus_charges: BONUS_CHARGE_CAP,
             ..RunEngine::default()
         };
-        let report = run.finish_action(
+        run.finish_action(
             ActionContext {
                 lines: 1,
                 ..ActionContext::default()
@@ -1683,7 +1587,7 @@ mod tests {
             true,
         );
 
-        assert_eq!(report.charges_earned, 1);
+        assert_eq!(run.charges_earned, 1);
         assert_eq!(run.bonus_charges, BONUS_CHARGE_CAP);
     }
 
@@ -1966,14 +1870,12 @@ mod tests {
         };
         let progress =
             |kind, value, count, current, report: &MoveReport, _streak, charges, _lines| {
-                let mut action = *report;
-                action.charges_earned = charges;
                 Constraint {
                     kind,
                     value,
                     required_count: count,
                 }
-                .update(current, &action)
+                .update(current, report, charges)
             };
 
         assert_eq!(progress(ConstraintKind::None, 0, 0, 2, &player, 0, 0, 0), 2);

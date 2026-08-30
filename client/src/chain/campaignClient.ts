@@ -185,11 +185,14 @@ export async function fetchCampaignView(args: {
         ? unpackCompactLevelStars(playerView.campaignStars, index)
         : Array.from({ length: 10 }, () => 0),
       levels: catalog.levels.map((level, levelIndex) =>
-        mapLevelRuleSnapshot({
-          ...level,
-          ...catalog.mapRules,
-          bossId: levelIndex === 9 ? catalog.mapRules.bossId : 0,
-        } as RawLevelRuleSnapshot),
+        mapLevelRuleSnapshot(
+          {
+            ...level,
+            guardian: catalog.mapRules.guardian,
+          } as RawLevelRuleSnapshot,
+          mapId,
+          levelIndex + 1,
+        ),
       ),
     };
   });
@@ -240,9 +243,7 @@ interface RawPlayerState {
 }
 
 function toBigint(value: { toString(): string } | number | bigint): bigint {
-  const parsed = BigInt(
-    typeof value === "bigint" ? value : value.toString(),
-  );
+  const parsed = BigInt(typeof value === "bigint" ? value : value.toString());
   if (parsed < 0n) throw new Error("PlayerState carried a negative u64");
   return parsed;
 }

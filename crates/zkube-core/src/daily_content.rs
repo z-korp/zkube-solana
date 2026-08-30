@@ -22,12 +22,20 @@ impl DailyTheme {
 
     #[must_use]
     pub fn action_increment(self, report: &MoveReport) -> u8 {
+        self.action_increment_with_trigger(report, 0)
+    }
+
+    pub(crate) fn action_increment_with_trigger(
+        self,
+        report: &MoveReport,
+        trigger_events: u8,
+    ) -> u8 {
         Constraint {
             kind: self.kind,
             value: self.value,
             required_count: 1,
         }
-        .action_increment(report)
+        .action_increment_with_trigger(report, trigger_events)
     }
 }
 
@@ -211,5 +219,17 @@ mod tests {
                 campaign.action_increment(&report)
             );
         }
+    }
+
+    #[test]
+    fn trigger_objective_uses_the_resolved_guardian_event_count() {
+        let theme = DailyTheme {
+            kind: ConstraintKind::TriggerFired,
+            value: 0,
+        };
+        assert_eq!(
+            theme.action_increment_with_trigger(&MoveReport::default(), 2),
+            2
+        );
     }
 }

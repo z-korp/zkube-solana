@@ -130,6 +130,12 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       "Campaign stays on the ER and every row comes from a verified VRF output",
   },
   {
+    pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,
+    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    reversal:
+      "Run persists only state consumed by gameplay, settlement, replay, or presentation",
+  },
+  {
     pattern:
       /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],

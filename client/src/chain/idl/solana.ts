@@ -6080,14 +6080,6 @@ export type Solana = {
             }
           },
           {
-            "name": "dailyPressure",
-            "type": {
-              "defined": {
-                "name": "dailyPressureProfile"
-              }
-            }
-          },
-          {
             "name": "actionCounter",
             "type": "u32"
           },
@@ -6105,17 +6097,6 @@ export type Solana = {
           {
             "name": "maxCombo",
             "type": "u8"
-          },
-          {
-            "name": "arcadeMetrics",
-            "docs": [
-              "Canonical, full-width run metrics retained for deterministic scoring."
-            ],
-            "type": {
-              "defined": {
-                "name": "runMetrics"
-              }
-            }
           },
           {
             "name": "primaryProgress",
@@ -6151,39 +6132,6 @@ export type Solana = {
             "type": "u16"
           },
           {
-            "name": "totalLinesCleared",
-            "type": "u16"
-          },
-          {
-            "name": "bonusUses",
-            "type": "u16"
-          },
-          {
-            "name": "combo2Hits",
-            "type": "u16"
-          },
-          {
-            "name": "combo3Hits",
-            "type": "u16"
-          },
-          {
-            "name": "combo4Hits",
-            "type": "u16"
-          },
-          {
-            "name": "highComboHits",
-            "type": "u16"
-          },
-          {
-            "name": "blocksDestroyedBySize",
-            "type": {
-              "array": [
-                "u16",
-                4
-              ]
-            }
-          },
-          {
             "name": "bonusType",
             "type": "u8"
           },
@@ -6199,18 +6147,10 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "perfectClears",
+            "name": "currentTier",
             "docs": [
-              "Number of actual empty-board clears produced during this run."
+              "Ramped tier for Daily; Campaign derives its fixed tier from `rules`."
             ],
-            "type": "u16"
-          },
-          {
-            "name": "startingHeightTarget",
-            "type": "u8"
-          },
-          {
-            "name": "currentDifficulty",
             "type": "u8"
           },
           {
@@ -6795,14 +6735,6 @@ export type Solana = {
         "kind": "struct",
         "fields": [
           {
-            "name": "activeMutatorId",
-            "type": "u8"
-          },
-          {
-            "name": "bossId",
-            "type": "u8"
-          },
-          {
             "name": "guardian",
             "type": {
               "defined": {
@@ -7190,14 +7122,6 @@ export type Solana = {
                 "name": "constraintSnapshot"
               }
             }
-          },
-          {
-            "name": "activeMutatorId",
-            "type": "u8"
-          },
-          {
-            "name": "bossId",
-            "type": "u8"
           },
           {
             "name": "guardian",
@@ -7742,50 +7666,6 @@ export type Solana = {
           },
           {
             "name": "finished"
-          }
-        ]
-      }
-    },
-    {
-      "name": "runMetrics",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "maxCombo",
-            "type": "u32"
-          },
-          {
-            "name": "comboScoringActions",
-            "type": "u32"
-          },
-          {
-            "name": "comboDerivedScore",
-            "type": "u64"
-          },
-          {
-            "name": "highestActionScore",
-            "type": "u64"
-          },
-          {
-            "name": "mostLinesSingleAction",
-            "type": "u32"
-          },
-          {
-            "name": "mostBlocksSingleAction",
-            "type": "u32"
-          },
-          {
-            "name": "totalLines",
-            "type": "u64"
-          },
-          {
-            "name": "totalBlocks",
-            "type": "u64"
-          },
-          {
-            "name": "perfectClears",
-            "type": "u32"
           }
         ]
       }

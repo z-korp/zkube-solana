@@ -9,7 +9,6 @@ use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
-use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
 use crate::state::protocol::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -246,8 +245,6 @@ pub fn handler_write_map_catalog(
 }
 
 fn validate_campaign_map_rules(rules: &CampaignMapRuleSnapshot) -> Result<()> {
-    require!(rules.active_mutator_id > 0, ErrorCode::InvalidLevel);
-    require!(rules.boss_id > 0, ErrorCode::InvalidLevel);
     require!(
         (1..=3).contains(&rules.guardian.bonus),
         ErrorCode::InvalidLevel
@@ -545,50 +542,22 @@ pub fn handler_prepare_campaign_run(
     let rules_hash = hash_rules(ctx.accounts.protocol.content_version, map_id, &rules)?;
     let owner = ctx.accounts.owner_authority.key();
 
-    let active = &mut ctx.accounts.active_run;
-    active.version = ACCOUNT_VERSION;
-    active.owner = owner;
-    active.daily_challenge = Pubkey::default();
-    active.run_id = run_id;
-    active.mode = RunMode::Campaign;
-    active.lifecycle = RunLifecycle::Prepared;
-    active.rules_hash = rules_hash;
-    active.map_id = map_id;
-    active.level = level;
-    active.rules = rules;
-    active.grid = [0; 80];
-    active.next_row = [0; 8];
-    active.has_next_row = false;
-    active.score = 0;
-    active.daily_score = 0;
-    active.objective_total = 0;
-    active.pressure_score = 0;
-    active.daily_theme = DailyThemeSnapshot::default();
-    active.daily_pressure = DailyPressureProfile::default();
-    active.action_counter = 0;
-    active.moves = 0;
-    active.combo_counter = 0;
-    active.max_combo = 0;
-    active.primary_progress = 0;
-    active.secondary_progress = 0;
-    active.latched_star_sources = 0;
-    active.level_lines_cleared = 0;
-    active.total_lines_cleared = 0;
-    active.bonus_uses = 0;
-    active.combo2_hits = 0;
-    active.combo3_hits = 0;
-    active.combo4_hits = 0;
-    active.high_combo_hits = 0;
-    active.blocks_destroyed_by_size = [0; 4];
-    active.bonus_type = rules.guardian.bonus;
-    active.bonus_charges = 0;
-    active.reroll_charges = 1;
-    active.starting_height_target = rules.starting_rows.max(1);
-    active.current_difficulty = rules.difficulty;
-    active.vrf_request_counter = 0;
-    active.pending_vrf_counter = 0;
-    active.finished_at = 0;
-    active.bump = ctx.bumps.active_run;
+    **ctx.accounts.active_run = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        run_id,
+        mode: RunMode::Campaign,
+        lifecycle: RunLifecycle::Prepared,
+        rules_hash,
+        map_id,
+        level,
+        rules,
+        bonus_type: rules.guardian.bonus,
+        reroll_charges: 1,
+        current_tier: rules.difficulty,
+        bump: ctx.bumps.active_run,
+        ..ActiveRun::default()
+    };
 
     ctx.accounts.player_state.reserve_campaign_run(run_id)?;
     Ok(())
@@ -630,10 +599,8 @@ mod tests {
     }
 
     #[test]
-    fn campaign_map_rules_require_a_playable_guardian_identity() {
+    fn campaign_map_rules_require_a_playable_guardian() {
         let valid = CampaignMapRuleSnapshot {
-            active_mutator_id: 1,
-            boss_id: 1,
             guardian: GuardianSnapshot {
                 bonus: 3,
                 trigger: 1,

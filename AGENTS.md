@@ -564,7 +564,7 @@ are retained and recorded in either terminal state.
 `exhausted_runs_keep_latched_stars` and
 `sbf_blocked_eleventh_row_keeps_and_records_its_latched_star` guard the engine
 and program boundaries. Storing the three-bit source mask costs one byte in
-`ActiveRun` and one byte in the Daily simulation codec; its popcount replaces the deleted post-run star
+`ActiveRun` and one byte in the run state codec; its popcount replaces the deleted post-run star
 calculation rather than adding a second rule.
 Move efficiency and an authored star-threshold modifier are not star sources;
 the `supersession > keeps reversed models out of authored source` test prevents
@@ -572,7 +572,7 @@ their code and copy from returning. Removing that model deletes one byte from
 Campaign map rules, level snapshots, `ActiveRun`, and each encoded rules configuration.
 The constraint vocabulary adds one action-origin bit to the Campaign report
 codec and stores one streak byte plus one cumulative-trigger byte in `ActiveRun`
-and both simulation states; `campaign_config_and_state_round_trip`,
+and the run state codec; `campaign_config_and_state_round_trip`,
 `config_and_state_codecs_round_trip_exactly`, and
 `target_accounts_fit_normal_solana_account_limits` pin those costs.
 
@@ -583,12 +583,18 @@ star array.
 ### Replay and determinism
 
 `zkube-core` is the deterministic source for grid state, blocks, guardians,
-scoring, pressure, metrics, period math, payout math, canonical encoding, and
+scoring, pressure, period math, payout math, canonical encoding, and
 the replay commitment schedule. One mode-agnostic `Run` owns every Campaign
 and Daily transition; optional star sources and an optional objective select
 only the rules each consumer needs. `one_run_drives_campaign_and_daily` guards
-that shared driver. Native Rust, WASM, and the Solana program must pass the same
-committed golden vectors before an ABI is releasable.
+that shared driver. The Solana lifecycle reconstructs that `Run` for every VRF,
+move, bonus, and reroll transition rather than maintaining a second accounting
+path; `program_and_core_score_one_action_identically` guards the projection.
+`ActiveRun` stores only fields read by a handler, result row, hash, or client
+view, and its 323-byte account size is pinned by
+`target_accounts_fit_normal_solana_account_limits`. Native Rust, WASM, and the
+Solana program must pass the same committed golden vectors before an ABI is
+releasable.
 
 Replay v2 binds the chain domain, challenge, rules hash, player, run ID, and
 mode, then folds ordered VRF, action, bonus, abandon, and deadline events with

@@ -12,12 +12,12 @@
   },
   "dailySimulationStateEncoding": {
     "version": 6,
-    "length": 316,
+    "length": 263,
     "objectiveTotal": "u64-le"
   },
   "campaignSimulationStateEncoding": {
     "version": 6,
-    "length": 187
+    "length": 183
   },
   "dailyClaimWindowSeconds": 2592000
 }
