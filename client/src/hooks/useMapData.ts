@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { getThemeId, type ThemeId } from "@/config/themes";
-import type { CampaignMapView } from "@/chain/campaignClient";
+import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
 import { rulesToGameLevelData, type GameLevelData } from "./useGameLevel";
 
 type NodeType = "classic" | "boss";

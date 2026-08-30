@@ -3,7 +3,7 @@
 import { PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import type { CompetitionRecord, PlayerStateView } from "./campaignClient";
+import type { CompetitionRecord, PlayerStateView } from "../backend/solana/content/campaignClient";
 import {
   detectSettlementEvents,
   periodRecord,

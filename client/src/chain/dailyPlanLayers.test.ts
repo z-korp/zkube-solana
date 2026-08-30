@@ -16,7 +16,7 @@ import {
   buildPrepareDailyRunPlan,
   buildPurchaseKreditsPlan,
   type DailyView,
-} from "./dailyClient";
+} from "../backend/solana/content/dailyClient";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import { IDL } from "../backend/solana/idl";
 import {

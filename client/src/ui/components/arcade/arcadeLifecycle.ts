@@ -1,4 +1,4 @@
-import type { DailyStatus } from "@/chain/dailyClient";
+import type { DailyStatus } from "@/backend/solana/content/dailyClient";
 
 /**
  * The presentational lifecycle states of the Arcade home. The

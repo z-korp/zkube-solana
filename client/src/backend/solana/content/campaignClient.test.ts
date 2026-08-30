@@ -11,9 +11,9 @@ import {
   fetchCampaignView,
   unpackCompactLevelStars,
 } from "./campaignClient";
-import { ZKUBE_PROGRAM_ID } from "./constants";
-import { CAMPAIGN_CONTENT_VERSION } from "../core/campaignCatalog";
-import { PROTOCOL_ACCOUNT_VERSION } from "../core/protocolVersions.generated";
+import { ZKUBE_PROGRAM_ID } from "@/chain/constants";
+import { CAMPAIGN_CONTENT_VERSION } from "@/core/campaignCatalog";
+import { PROTOCOL_ACCOUNT_VERSION } from "@/core/protocolVersions.generated";
 
 const mocks = vi.hoisted(() => ({
   decode: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("@/backend/solana/runs/runPlan", async () => ({
   }),
 }));
 
-vi.mock("../core/runProjection", () => ({
+vi.mock("@/core/runProjection", () => ({
   mapLevelRuleSnapshot: (value: unknown) => value,
 }));
 

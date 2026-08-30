@@ -1,4 +1,4 @@
-import type { CampaignMapView } from "@/chain/campaignClient";
+import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
 import {
   CAMPAIGN_CONTENT_VERSION,
   canonicalCampaignMap,

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import type { CampaignMapView } from "@/chain/campaignClient";
+import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
 import {
   resolveCampaignMap,
   uninitializedMap1,

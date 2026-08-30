@@ -10,7 +10,7 @@ import {
   currentDailyDayId,
   fetchDailyView,
   type DailyView,
-} from "./dailyClient";
+} from "../backend/solana/content/dailyClient";
 import { submitVersionedTransactionPlan } from "@/backend/solana/runs/runPlan";
 
 export function useDailyController() {

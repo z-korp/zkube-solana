@@ -11,13 +11,13 @@
  */
 import { PublicKey } from "@solana/web3.js";
 
-import { currentDailyDayId } from "@/chain/dailyClient";
-import type { UnclaimedRewardView } from "@/chain/dailyClient";
+import { currentDailyDayId } from "@/backend/solana/content/dailyClient";
+import type { UnclaimedRewardView } from "@/backend/solana/content/dailyClient";
 import type {
   DailyLeaderboardView,
   DailyPlayerView,
   DailyView,
-} from "@/chain/dailyClient";
+} from "@/backend/solana/content/dailyClient";
 import {
   CANONICAL_DAILY_PRESSURE,
 } from "@/core/dailyRules";
@@ -25,7 +25,7 @@ import type {
   CampaignMapView,
   CampaignView,
   CompetitionRecord,
-} from "@/chain/campaignClient";
+} from "@/backend/solana/content/campaignClient";
 import type { ActiveRunRulesView } from "@/core/runProjection";
 import type { ConnectedPlayerValue } from "@/chain/connectedPlayerContext";
 import { createReadOnlyWallet } from "@/backend/solana/identity/readOnlyWallet";

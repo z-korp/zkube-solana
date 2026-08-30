@@ -30,7 +30,7 @@ vi.mock("@/chain/connectionContext", () => ({
   useSolanaConnection: () => ({ connection: fixtures.connection }),
 }));
 
-vi.mock("@/chain/dailyClient", () => ({
+vi.mock("@/backend/solana/content/dailyClient", () => ({
   currentDailyDayId: () => 20,
   fetchDailyView: fixtures.fetchDailyView,
 }));

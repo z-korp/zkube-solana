@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import { deriveRunAddresses } from "./pdas";
 import { buildCommitRunPlan } from "@/backend/solana/runs/runPlan";
-import { buildCommitDailyRunPlan } from "./dailyClient";
+import { buildCommitDailyRunPlan } from "../backend/solana/content/dailyClient";
 import { SessionWallet } from "../backend/solana/session/sessionWallet";
 import {
   buildCreateSessionV2Instruction,

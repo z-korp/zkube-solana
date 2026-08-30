@@ -57,7 +57,7 @@ import {
   buildCommitDailyRunPlan,
   buildPrepareDailyRunPlan,
   type DailyView,
-} from "./dailyClient";
+} from "../backend/solana/content/dailyClient";
 import { withTransientErRetry } from "../backend/solana/runs/erRetry";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 import { awaitAccountCondition } from "./awaitAccountCondition";

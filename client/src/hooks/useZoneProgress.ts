@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useCampaign } from "@/contexts/campaign";
 import type { ZoneProgressData } from "@/config/profileData";
-import type { CampaignMapView } from "@/chain/campaignClient";
+import type { CampaignMapView } from "@/backend/solana/content/campaignClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 
 export interface ZoneProgressResult {

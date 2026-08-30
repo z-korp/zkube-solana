@@ -14,7 +14,7 @@ import {
   buildCommitDailyRunPlan,
   buildPrepareDailyRunPlan,
   type DailyView,
-} from "../../../chain/dailyClient";
+} from "../content/dailyClient";
 import { projectRunFromLocalState } from "../../../core/runProjection";
 import {
   coreApplyRunBonus,

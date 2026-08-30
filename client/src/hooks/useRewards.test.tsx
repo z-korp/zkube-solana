@@ -9,7 +9,7 @@ import { RewardsProvider, useRewards } from "./useRewards";
 const OWNER = PublicKey.unique();
 const OWNER_ADDRESS = OWNER.toBase58();
 
-vi.mock("@/chain/campaignClient", () => ({
+vi.mock("@/backend/solana/content/campaignClient", () => ({
   decodePlayerStateAccount: (
     _program: unknown,
     _address: PublicKeyType,
@@ -50,7 +50,7 @@ vi.mock("@/backend/solana/runs/runPlan", () => ({
   submitVersionedTransactionPlan: vi.fn(),
 }));
 vi.mock("@/chain/pdas", () => ({ derivePlayerStatePda: () => OWNER }));
-vi.mock("@/chain/dailyClient", () => ({
+vi.mock("@/backend/solana/content/dailyClient", () => ({
   currentDailyDayId: () => 1,
   fetchUnclaimedRewards: async () => [],
   buildClaimDailyPrizePlan: vi.fn(),

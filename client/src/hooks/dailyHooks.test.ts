@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import { parseDailyStatus } from "@/chain/dailyClient";
+import { parseDailyStatus } from "@/backend/solana/content/dailyClient";
 
 describe("Daily projection", () => {
   it("rejects unknown decoded Daily status variants", () => {

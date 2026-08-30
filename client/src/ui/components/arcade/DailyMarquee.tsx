@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Timer, Users } from "lucide-react";
 import { motion } from "motion/react";
 
-import type { DailyLeaderboardView } from "@/chain/dailyClient";
+import type { DailyLeaderboardView } from "@/backend/solana/content/dailyClient";
 import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
 import type { DailyThemeView } from "@/core/dailyRules";

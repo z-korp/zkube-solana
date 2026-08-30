@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { CompetitionRecord } from "@/chain/campaignClient";
+import type { CompetitionRecord } from "@/backend/solana/content/campaignClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useSolanaConnection } from "@/chain/connectionContext";
 import {

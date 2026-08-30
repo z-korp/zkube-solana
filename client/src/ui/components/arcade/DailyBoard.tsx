@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 
-import type { DailyView } from "@/chain/dailyClient";
+import type { DailyView } from "@/backend/solana/content/dailyClient";
 import { ladderTierColor, ladderTierName } from "@/config/ladderTiers";
 import { tierFrameInnerSize } from "@/config/tierFrames";
 import { useLeaderboardEmblems } from "@/hooks/useLeaderboardEmblems";

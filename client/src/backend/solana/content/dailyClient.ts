@@ -16,7 +16,7 @@ import {
   MAGIC_CONTEXT_ID,
   MAGIC_PROGRAM_ID,
   ZKUBE_PROGRAM_ID,
-} from "./constants.js";
+} from "@/chain/constants.js";
 import {
   deriveArcadeArchivePda,
   deriveArcadeConfigPda,
@@ -30,7 +30,7 @@ import {
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
-} from "./pdas.js";
+} from "@/chain/pdas.js";
 import {
   activeRunIdForSlot,
   assertPreparedRunAddressesAvailable,
@@ -41,28 +41,28 @@ import {
 import {
   mapLevelRuleSnapshot,
   type ActiveRunRulesView,
-} from "../core/runProjection.js";
+} from "@/core/runProjection.js";
 import {
   mapDailyPressureProfile,
   dailyContentFromPairIndex,
   nextScheduledDaily,
   type DailyPressureProfileView,
   type DailyThemeView,
-} from "../core/dailyRules.js";
-import { fetchPlayerLabels } from "../backend/solana/identity/playerLabelClient.js";
-import type { WalletLike } from "../backend/solana/session/sessionWallet.js";
+} from "@/core/dailyRules.js";
+import { fetchPlayerLabels } from "../identity/playerLabelClient.js";
+import type { WalletLike } from "../session/sessionWallet.js";
 import {
   coreDailyPairIndex,
   corePayoutForRank as payoutForRank,
-} from "../core/zkubeCore";
+} from "@/core/zkubeCore";
 import { formatSolBalanceLamports } from "@/utils/currency";
-import { IDL } from "../backend/solana/idl/index.js";
+import { IDL } from "../idl/index.js";
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PROTOCOL_ACCOUNT_VERSION,
-} from "../core/protocolVersions.generated.js";
+} from "@/core/protocolVersions.generated.js";
 
 export interface DailyLeaderboardView {
   player: PublicKey;
@@ -76,6 +76,16 @@ export interface DailyLeaderboardView {
   score: number;
   submittedAt: number;
   replayHash: Uint8Array;
+}
+
+export interface DailyBoardAccountView {
+  kind: "score" | "theme";
+  payoutCount: number;
+  denominator: bigint;
+  poolLamports: bigint;
+  sealedAt: number;
+  sealed: boolean;
+  rows: DailyLeaderboardView[];
 }
 
 export interface DailyPlayerView {
@@ -137,6 +147,17 @@ export function currentDailyDayId(
   nowUnix = Math.floor(Date.now() / 1_000),
 ): number {
   return Math.max(0, Math.floor(nowUnix / 86_400));
+}
+
+export async function fetchArcadeSuspendedUntilDay(args: {
+  connection: Connection;
+  wallet: WalletLike;
+}): Promise<number> {
+  const arcadeConfig = await zkubeProgram(
+    args.connection,
+    args.wallet,
+  ).account.arcadeConfig.fetch(deriveArcadeConfigPda());
+  return Number(arcadeConfig.suspendedUntilDay);
 }
 
 export async function fetchDailyView(args: {
@@ -256,15 +277,15 @@ const ARENA_BOARD_CAPACITY = 1_536;
 const MAX_AUTO_CLAIMS_PER_ENTRY = 2;
 const AUTO_CLAIM_LOOKBACK_DAYS = 30;
 
-async function fetchDailyBoardEntries(
+export async function fetchDailyBoardAccount(
   connection: Connection,
   daily: PublicKey,
   dayId: number,
   kind: "score" | "theme",
-): Promise<DailyLeaderboardView[]> {
+): Promise<DailyBoardAccountView | null> {
   const address = deriveArenaBoardPda(daily, kind);
   const info = await connection.getAccountInfo(address, "confirmed");
-  if (!info) return [];
+  if (!info) return null;
   const data = Buffer.from(info.data);
   const discriminator =
     rankedDependencyCoder.accountDiscriminator("arenaBoard");
@@ -281,6 +302,8 @@ async function fetchDailyBoardEntries(
     throw new Error(`${kind} Daily board identity is invalid`);
   }
   const payoutCount = data.readUInt32LE(54);
+  const denominator = readU128LE(data, 58);
+  const poolLamports = data.readBigUInt64LE(74);
   const cursor = data.readUInt32LE(99);
   const sealed = data.readUInt8(103) !== 0;
   const sealedAt = Number(data.readBigInt64LE(104));
@@ -292,34 +315,58 @@ async function fetchDailyBoardEntries(
   if (
     payoutCount > ARENA_BOARD_CAPACITY ||
     cursor > payoutCount ||
+    (payoutCount > 0 && denominator === 0n) ||
     sealed !== sealedAt > 0 ||
     data.length !== expectedSize
   ) {
     throw new Error(`${kind} Daily board allocation is invalid`);
   }
-  // A partially constructed board is deliberately not a claimable or public
-  // result. Publish it only after the program has verified and sealed all rows.
-  if (!sealed || cursor !== payoutCount) return [];
+  // A partially constructed board is deliberately not a public result.
+  const rows =
+    sealed && cursor === payoutCount
+      ? Array.from({ length: payoutCount }, (_, position) => {
+          const offset =
+            ARENA_BOARD_HEADER_BYTES + position * ARENA_BOARD_ENTRY_BYTES;
+          const row = data.subarray(
+            offset,
+            offset + ARENA_BOARD_ENTRY_BYTES,
+          );
+          const score = row.readUInt32LE(32);
+          return {
+            player: new PublicKey(row.subarray(0, 32)),
+            playerName: null,
+            runId: 0n,
+            dailyScore: score,
+            objectiveTotal: row.readBigUInt64LE(36),
+            engineScore: score,
+            moves: 0,
+            finalizedAttempts: 0,
+            score,
+            submittedAt: Number(row.readBigInt64LE(44)),
+            replayHash: Uint8Array.from(row.subarray(52, 84)),
+          } satisfies DailyLeaderboardView;
+        })
+      : [];
+  return {
+    kind,
+    payoutCount,
+    denominator,
+    poolLamports,
+    sealedAt,
+    sealed: sealed && cursor === payoutCount,
+    rows,
+  };
+}
 
-  return Array.from({ length: payoutCount }, (_, position) => {
-    const offset =
-      ARENA_BOARD_HEADER_BYTES + position * ARENA_BOARD_ENTRY_BYTES;
-    const row = data.subarray(offset, offset + ARENA_BOARD_ENTRY_BYTES);
-    const score = row.readUInt32LE(32);
-    return {
-      player: new PublicKey(row.subarray(0, 32)),
-      playerName: null,
-      runId: 0n,
-      dailyScore: score,
-      objectiveTotal: row.readBigUInt64LE(36),
-      engineScore: score,
-      moves: 0,
-      finalizedAttempts: 0,
-      score,
-      submittedAt: Number(row.readBigInt64LE(44)),
-      replayHash: Uint8Array.from(row.subarray(52, 84)),
-    };
-  });
+async function fetchDailyBoardEntries(
+  connection: Connection,
+  daily: PublicKey,
+  dayId: number,
+  kind: "score" | "theme",
+): Promise<DailyLeaderboardView[]> {
+  return (
+    await fetchDailyBoardAccount(connection, daily, dayId, kind)
+  )?.rows ?? [];
 }
 
 export async function buildPrepareDailyRunPlan(args: {

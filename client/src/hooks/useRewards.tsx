@@ -16,7 +16,7 @@ import {
   decodePlayerStateAccount,
   type CompetitionRecord,
   type PlayerStateView,
-} from "@/chain/campaignClient";
+} from "@/backend/solana/content/campaignClient";
 import { useConnectedPlayer } from "@/chain/connectedPlayerContext";
 import { useSolanaConnection } from "@/chain/connectionContext";
 import {
@@ -24,7 +24,7 @@ import {
   currentDailyDayId,
   fetchUnclaimedRewards,
   type UnclaimedRewardView,
-} from "@/chain/dailyClient";
+} from "@/backend/solana/content/dailyClient";
 import { derivePlayerStatePda } from "@/chain/pdas";
 import { SessionWallet } from "@/backend/solana/session/sessionWallet";
 import {

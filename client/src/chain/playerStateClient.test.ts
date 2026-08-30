@@ -6,7 +6,7 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import { decodePlayerStateAccount } from "./campaignClient";
+import { decodePlayerStateAccount } from "../backend/solana/content/campaignClient";
 import { ZKUBE_PROGRAM_ID } from "./constants";
 import { derivePlayerStatePda } from "./pdas";
 import {

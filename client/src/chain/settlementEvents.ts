@@ -1,4 +1,4 @@
-import type { CompetitionRecord, PlayerStateView } from "./campaignClient.js";
+import type { CompetitionRecord, PlayerStateView } from "../backend/solana/content/campaignClient.js";
 
 /** The two Daily boards, matching `dailyPrizeClaimed.board`. */
 export type PeriodKind = 0 | 1;

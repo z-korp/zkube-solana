@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "@/utils/errors";
 import { useSolanaConnection } from "./connectionContext";
-import { fetchCampaignView, type CampaignView } from "./campaignClient";
+import { fetchCampaignView, type CampaignView } from "../backend/solana/content/campaignClient";
 import { useConnectedPlayer } from "./connectedPlayerContext";
 
 export function useCampaignController() {

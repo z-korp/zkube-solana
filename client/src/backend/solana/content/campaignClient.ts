@@ -1,21 +1,22 @@
 import { PublicKey, type AccountInfo, type Connection } from "@solana/web3.js";
-import type { WalletLike } from "../backend/solana/session/sessionWallet.js";
+import type { WalletLike } from "../session/sessionWallet.js";
 import {
   deriveMapCatalogPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
-} from "./pdas.js";
-import { zkubeProgram } from "@/backend/solana/runs/runPlan.js";
+} from "@/chain/pdas.js";
+import { zkubeProgram } from "../runs/runPlan.js";
 import {
   mapLevelRuleSnapshot,
   type ActiveRunRulesView,
   type RawLevelRuleSnapshot,
-} from "../core/runProjection.js";
-import { CANONICAL_CAMPAIGN_MAP_COUNT } from "../core/campaignCatalog.js";
+} from "@/core/runProjection.js";
+import { CANONICAL_CAMPAIGN_MAP_COUNT } from "@/core/campaignCatalog.js";
 import {
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
-} from "../core/protocolVersions.generated.js";
+} from "@/core/protocolVersions.generated.js";
+import { coreLadderTier, initializeZkubeCore } from "@/core/zkubeCore.js";
 
 export const CAMPAIGN_LEVEL_COUNT = 100;
 export const CAMPAIGN_STAR_BYTES = 25;
@@ -202,6 +203,49 @@ export async function fetchCampaignView(args: {
     contentVersion,
     maps,
   };
+}
+
+export async function fetchPlayerBoardDecorations(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  owners: readonly PublicKey[];
+}): Promise<Map<string, { emblem: number; tier: number }>> {
+  const unique = [
+    ...new Map(args.owners.map((owner) => [owner.toBase58(), owner])).values(),
+  ];
+  if (unique.length === 0) return new Map();
+  const program = zkubeProgram(args.connection, args.wallet);
+  const addresses = unique.map((owner) => derivePlayerStatePda(owner));
+  const infos = await args.connection.getMultipleAccountsInfo(
+    addresses,
+    "confirmed",
+  );
+  await initializeZkubeCore();
+  return new Map(
+    unique.flatMap((owner, index) => {
+      const info = infos[index];
+      if (!info) return [];
+      try {
+        const profile = decodePlayerStateAccount(
+          program,
+          addresses[index]!,
+          owner,
+          info,
+        );
+        return [
+          [
+            owner.toBase58(),
+            {
+              emblem: profile.featuredEmblem,
+              tier: coreLadderTier(profile.ladderPoints),
+            },
+          ] as const,
+        ];
+      } catch {
+        return [];
+      }
+    }),
+  );
 }
 
 function assertProgramAccount(

@@ -10,7 +10,7 @@ import {
   resolveEmblemStates,
   type EmblemZoneInput,
 } from "@/config/emblems";
-import type { CompetitionRecord } from "@/chain/campaignClient";
+import type { CompetitionRecord } from "@/backend/solana/content/campaignClient";
 import {
   LADDER_TIER_THRESHOLDS,
   isTopLadderTier,
