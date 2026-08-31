@@ -1,24 +1,25 @@
 import { motion } from "motion/react";
 
-import { useConnectedPlayer } from "@/backend/client";
+import { useCampaign, useConnectedPlayer } from "@/backend/client";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
-import { DockArcadeIcon, DockProfileIcon } from "./dockIcons";
+import { DockArcadeIcon, DockCampaignIcon, DockProfileIcon } from "./dockIcons";
 
 const TABS: {
   id: PageId;
   icon: React.FC<{ size?: number }>;
   label: string;
 }[] = [
+  { id: "map", icon: DockCampaignIcon, label: "Campaign" },
   { id: "arcade", icon: DockArcadeIcon, label: "Arcade" },
   { id: "profile", icon: DockProfileIcon, label: "Profile" },
 ];
 
 const DOCK_STYLE: React.CSSProperties = {
   background: "linear-gradient(180deg, #101A2E 0%, #0A1120 100%)",
-  border: "1px solid rgba(255,255,255,0.09)",
+  borderTop: "1px solid rgba(255,255,255,0.09)",
   boxShadow:
-    "0 16px 34px rgba(0,0,0,0.55), inset 0 1.5px 0 rgba(255,255,255,0.08)",
+    "0 -8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)",
 };
 
 /**
@@ -32,6 +33,13 @@ const BottomNav = () => {
   const navigate = useNavigationStore((s) => s.navigate);
   // The menu stays visible but locked until a wallet is connected.
   const connected = useConnectedPlayer().publicKey !== null;
+  const { campaign } = useCampaign();
+  const campaignStars =
+    campaign?.maps.reduce(
+      (total, map) =>
+        total + map.levelStars.reduce((sum, stars) => sum + stars, 0),
+      0,
+    ) ?? 0;
 
   if (FULLSCREEN_PAGES.has(currentPage)) {
     return null;
@@ -39,7 +47,7 @@ const BottomNav = () => {
 
   return (
     <div
-      className="absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] left-1/2 z-50 w-[94%] max-w-[560px] -translate-x-1/2 rounded-[24px] p-1.5"
+      className="absolute inset-x-0 bottom-0 z-50 px-1.5 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]"
       style={DOCK_STYLE}
     >
       <div className="flex items-stretch gap-1">
@@ -78,6 +86,11 @@ const BottomNav = () => {
                 <span className="font-sans text-[10px] font-extrabold uppercase tracking-[0.08em]">
                   {tab.label}
                 </span>
+                {tab.id === "map" && (
+                  <span className="font-mono text-[8px] font-bold leading-none tabular-nums opacity-70">
+                    ★ {campaignStars}/300
+                  </span>
+                )}
               </span>
             </button>
           );
@@ -94,7 +107,7 @@ const BottomNav = () => {
 export const SleepingDock = () => (
   <div
     aria-hidden
-    className="pointer-events-none absolute bottom-[max(0.9rem,env(safe-area-inset-bottom))] left-1/2 z-30 w-[94%] max-w-[560px] -translate-x-1/2 rounded-[24px] p-1.5 opacity-45"
+    className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-1.5 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] opacity-45"
     style={DOCK_STYLE}
   >
     <div className="flex items-stretch gap-1">

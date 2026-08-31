@@ -29,6 +29,21 @@ const SHIELD_D =
   "M12 2.4 L20.4 5.5 V11.9 Q20.4 18.3 12 21.6 Q3.6 18.3 3.6 11.9 V5.5 Z";
 const SHIELD_STAR = starPath(12, 11.6, 4.6);
 
+export const DockCampaignIcon: React.FC<DockIconProps> = ({ size = 20 }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+    <path
+      d="M4 19.5 C7.5 16.5 5.4 12.8 9.3 10.8 C13.5 8.6 10.8 5.5 15.2 4.2"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3.2"
+      strokeLinecap="round"
+      strokeDasharray="1.2 4.2"
+    />
+    <path d={starPath(18, 4.8, 4)} fill="currentColor" />
+    <circle cx="4" cy="19.5" r="2.7" fill="currentColor" />
+  </svg>
+);
+
 export const DockArcadeIcon: React.FC<DockIconProps> = ({ size = 20 }) => {
   const mask = useId();
   return (

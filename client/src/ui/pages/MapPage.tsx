@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 
 import { getGuardianPortrait, getZoneGuardian } from "@/config/bossCharacters";
@@ -35,12 +35,6 @@ import {
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { GuardianFaceBlock, MONEY_GOLD } from "@/ui/components/economy";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/ui/elements/tooltip";
 import { highestClearedLevel } from "@/utils/solanaDisplay";
 import { showToast } from "@/utils/toast";
 
@@ -63,10 +57,7 @@ const getPathType = (
   fromState: NodeState,
   toState: NodeState,
 ): "cleared" | "active" | "locked" => {
-  if (
-    fromState === "cleared" &&
-    toState === "cleared"
-  ) {
+  if (fromState === "cleared" && toState === "cleared") {
     return "cleared";
   }
   if (
@@ -88,7 +79,6 @@ const getLabel = (node: MapNodeData): string => {
 const MapPage: React.FC = () => {
   const campaign = useCampaign();
   const navigate = useNavigationStore((state) => state.navigate);
-  const goBack = useNavigationStore((state) => state.goBack);
   const gameId = useNavigationStore((state) => state.gameId);
   const rawMapZoneId = useNavigationStore((state) => state.mapZoneId);
   const mapZoneId = Math.min(10, Math.max(1, rawMapZoneId));
@@ -120,7 +110,7 @@ const MapPage: React.FC = () => {
   const gameLevel = useGameLevel({ gameId: game?.id });
 
   const zoneLayouts = useMapLayout({
-    totalZones: 1,
+    totalZones: 10,
     nodesPerZone: NODES_PER_ZONE,
   });
 
@@ -179,7 +169,7 @@ const MapPage: React.FC = () => {
   const colors = getThemeColors(themeId);
   const themeImages = getThemeImages(themeId);
   const pathTheme = getMapPathTheme(themeId);
-  const layout = zoneLayouts[0];
+  const layout = zoneLayouts[mapZoneId - 1];
   const nodes = mapData.nodes;
   const zoneName = ZONE_NAMES[mapZoneId] ?? `Zone ${mapZoneId}`;
   const zoneStars = map?.levelStars.reduce((sum, stars) => sum + stars, 0) ?? 0;
@@ -257,25 +247,14 @@ const MapPage: React.FC = () => {
     <div className="relative flex h-full flex-col">
       <ZoneBackground zone={mapZoneId} themeId={themeId} />
 
-      {/* Floating overlay: back + zone name + stars + info */}
+      {/* The header owns its band; the map canvas starts below it. */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="pointer-events-none absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-[clamp(12px,3vw,20px)] pb-1 pt-[clamp(12px,3vw,20px)]"
+        className="relative z-20 flex flex-none items-center justify-center px-[clamp(12px,3vw,20px)] pb-2 pt-[clamp(12px,3vw,20px)]"
       >
-        <div className="pointer-events-auto">
-          <button
-            onClick={goBack}
-            aria-label="Back to Arcade"
-            className="flex h-[clamp(32px,7vw,44px)] w-[clamp(32px,7vw,44px)] shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/30 backdrop-blur-md"
-            style={{ color: colors.accent }}
-          >
-            <ChevronLeft className="h-[50%] w-[50%]" />
-          </button>
-        </div>
-
-        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/15 bg-black/45 px-2 py-1.5 backdrop-blur-md">
+        <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-black/45 px-2 py-1.5 backdrop-blur-md">
           <button
             type="button"
             aria-label="Previous realm"
@@ -301,31 +280,6 @@ const MapPage: React.FC = () => {
           >
             <ChevronRight size={19} />
           </button>
-        </div>
-
-        {/* Right: stars + perfect-reward infotip */}
-        <div className="pointer-events-auto">
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5"
-                  aria-label="Zone completion reward"
-                >
-                  <Info className="h-[clamp(12px,3vw,16px)] w-[clamp(12px,3vw,16px)] text-white/60" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="bottom"
-                className="max-w-[220px] bg-slate-900 border border-slate-500 px-3 py-2 font-sans text-[11px] text-white shadow-lg"
-              >
-                {map?.perfected
-                  ? "Perfect map complete"
-                  : "Earn all 30 Campaign stars"}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         </div>
       </motion.div>
 

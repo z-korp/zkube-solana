@@ -22,7 +22,6 @@ import {
   formatUtcClock,
 } from "@/ui/components/arcade";
 import EnterCoinKey from "@/ui/components/arcade/EnterCoinKey";
-import CampaignDoor from "@/ui/components/arcade/CampaignDoor";
 import InfoTip from "@/ui/components/shared/InfoTip";
 import {
   KreditCoin,
@@ -70,7 +69,7 @@ const ArcadePage: React.FC = () => {
   const daily = useDaily();
   const activeDaily = useActiveDailyAttempt();
   const activeStory = useActiveStoryAttempt();
-  const { totalStars, zones } = useZoneProgress(address);
+  const { zones } = useZoneProgress(address);
   const { setThemeTemplate } = useTheme();
 
   // Spending an already-owner-funded Kredit is device-session authorized.
@@ -180,7 +179,7 @@ const ArcadePage: React.FC = () => {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden pb-[100px] pt-7">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden pt-7">
       <ZoneBackdrop zoneId={zoneId} />
 
       <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] items-center px-4">
@@ -295,14 +294,6 @@ const ArcadePage: React.FC = () => {
             </p>
           )}
         </>
-      </div>
-
-      <div className="relative z-20 px-4 pb-2">
-        <CampaignDoor
-          zoneId={campaignZoneId}
-          totalStars={totalStars}
-          onClick={openCampaign}
-        />
       </div>
 
       <div className="relative z-20 px-4 pb-3">

@@ -9,7 +9,10 @@ interface PageNavigatorProps {
 
 const TRANSITION_DURATION = 0.25;
 const EASE_OUT_CUBIC: [number, number, number, number] = [0.32, 0.72, 0, 1];
-const SLIDE_TRANSITION = { duration: TRANSITION_DURATION, ease: EASE_OUT_CUBIC };
+const SLIDE_TRANSITION = {
+  duration: TRANSITION_DURATION,
+  ease: EASE_OUT_CUBIC,
+};
 
 const PageNavigator: React.FC<PageNavigatorProps> = ({ children }) => {
   const currentPage = useNavigationStore((s) => s.currentPage);
@@ -31,7 +34,11 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ children }) => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: isBack ? "30%" : "-30%" }}
               transition={SLIDE_TRANSITION}
-              className={`absolute inset-0 h-full min-h-0 overflow-x-hidden ${isFullscreenPage ? "overflow-hidden" : "overflow-y-auto"}`}
+              className={`absolute inset-x-0 top-0 min-h-0 overflow-x-hidden ${
+                isFullscreenPage
+                  ? "bottom-0 overflow-hidden"
+                  : "bottom-[calc(64px+env(safe-area-inset-bottom))] overflow-y-auto"
+              }`}
             >
               {children}
             </motion.div>

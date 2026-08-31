@@ -1,13 +1,12 @@
 import { create } from "zustand";
 import type { GameLevelData } from "@/hooks/useGameLevel";
 
-type TabId = "arcade" | "profile";
-type OverlayId = "play" | "map" | "spectate";
+type TabId = "map" | "arcade" | "profile";
+type OverlayId = "play" | "spectate";
 export type PageId = TabId | OverlayId;
 
 export const FULLSCREEN_PAGES: ReadonlySet<PageId> = new Set([
   "play",
-  "map",
   "spectate",
 ]);
 
@@ -53,7 +52,7 @@ interface NavigationState {
 
 export const BACK_TARGETS: Readonly<Record<PageId, PageId>> = {
   arcade: "arcade",
-  map: "arcade",
+  map: "map",
   play: "map",
   profile: "arcade",
   spectate: "arcade",

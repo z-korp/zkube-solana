@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BACK_TARGETS, useNavigationStore } from "./navigationStore";
+import {
+  BACK_TARGETS,
+  FULLSCREEN_PAGES,
+  useNavigationStore,
+} from "./navigationStore";
 
 describe("navigation recovery intent", () => {
   beforeEach(() => {
@@ -62,7 +66,7 @@ describe("navigation recovery intent", () => {
     });
   });
 
-  it("navigation_has_one_lobby_and_one_map", () => {
+  it("navigation_has_three_tabs_and_only_play_surfaces_are_fullscreen", () => {
     expect(Object.keys(BACK_TARGETS).sort()).toEqual([
       "arcade",
       "map",
@@ -70,6 +74,7 @@ describe("navigation recovery intent", () => {
       "profile",
       "spectate",
     ]);
-    expect(BACK_TARGETS.map).toBe("arcade");
+    expect(BACK_TARGETS.map).toBe("map");
+    expect([...FULLSCREEN_PAGES].sort()).toEqual(["play", "spectate"]);
   });
 });
