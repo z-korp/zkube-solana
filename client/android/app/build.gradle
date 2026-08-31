@@ -1,22 +1,25 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
-def releaseKeystorePath = System.getenv('ZKUBE_ANDROID_KEYSTORE_PATH')
-def releaseKeystorePassword = System.getenv('ZKUBE_ANDROID_KEYSTORE_PASSWORD')
-def releaseKeyAlias = System.getenv('ZKUBE_ANDROID_KEY_ALIAS')
-def releaseKeyPassword = System.getenv('ZKUBE_ANDROID_KEY_PASSWORD')
-def releaseSigningReady = [
-    releaseKeystorePath,
-    releaseKeystorePassword,
-    releaseKeyAlias,
-    releaseKeyPassword,
-].every { value -> value != null && !value.isBlank() }
+def solanaSigning = [
+    path: System.getenv('ZKUBE_ANDROID_KEYSTORE_PATH'),
+    storePassword: System.getenv('ZKUBE_ANDROID_KEYSTORE_PASSWORD'),
+    alias: System.getenv('ZKUBE_ANDROID_KEY_ALIAS'),
+    keyPassword: System.getenv('ZKUBE_ANDROID_KEY_PASSWORD'),
+]
+def storeSigning = [
+    path: System.getenv('ZKUBE_ANDROID_STORE_KEYSTORE_PATH'),
+    storePassword: System.getenv('ZKUBE_ANDROID_STORE_KEYSTORE_PASSWORD'),
+    alias: System.getenv('ZKUBE_ANDROID_STORE_KEY_ALIAS'),
+    keyPassword: System.getenv('ZKUBE_ANDROID_STORE_KEY_PASSWORD'),
+]
+
+def signingReady = { values -> values.values().every { value -> value != null && !value.isBlank() } }
 
 android {
     namespace = "com.zkorp.zkube"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.zkorp.zkube"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode Integer.parseInt(System.getenv('ZKUBE_ANDROID_VERSION_CODE') ?: '1')
@@ -29,12 +32,37 @@ android {
         }
     }
     signingConfigs {
-        if (releaseSigningReady) {
-            dappStore {
-                storeFile file(releaseKeystorePath)
-                storePassword releaseKeystorePassword
-                keyAlias releaseKeyAlias
-                keyPassword releaseKeyPassword
+        if (signingReady(solanaSigning)) {
+            solanaRelease {
+                storeFile file(solanaSigning.path)
+                storePassword solanaSigning.storePassword
+                keyAlias solanaSigning.alias
+                keyPassword solanaSigning.keyPassword
+            }
+        }
+        if (signingReady(storeSigning)) {
+            storeRelease {
+                storeFile file(storeSigning.path)
+                storePassword storeSigning.storePassword
+                keyAlias storeSigning.alias
+                keyPassword storeSigning.keyPassword
+            }
+        }
+    }
+    flavorDimensions += "product"
+    productFlavors {
+        solana {
+            dimension "product"
+            applicationId "com.zkorp.zkube"
+            if (signingReady(solanaSigning)) {
+                signingConfig signingConfigs.solanaRelease
+            }
+        }
+        store {
+            dimension "product"
+            applicationId "com.zkorp.zkube.store"
+            if (signingReady(storeSigning)) {
+                signingConfig signingConfigs.storeRelease
             }
         }
     }
@@ -42,9 +70,6 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (releaseSigningReady) {
-                signingConfig signingConfigs.dappStore
-            }
         }
     }
     compileOptions {
@@ -68,7 +93,7 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    implementation 'com.solanamobile:mobile-wallet-adapter-clientlib-ktx:2.0.7'
+    solanaImplementation 'com.solanamobile:mobile-wallet-adapter-clientlib-ktx:2.0.7'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

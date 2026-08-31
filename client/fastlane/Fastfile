@@ -96,18 +96,32 @@ end
 
 platform :android do
   private_lane :signed_apk do
+    flavor = ENV.fetch("ZKUBE_ANDROID_FLAVOR", "solana")
+    UI.user_error!("Android flavor must be solana or store") unless ["solana", "store"].include?(flavor)
+    signing_prefix = flavor == "store" ? "ZKUBE_ANDROID_STORE" : "ZKUBE_ANDROID"
     require_environment!(
-      "ZKUBE_ANDROID_KEYSTORE_PATH",
-      "ZKUBE_ANDROID_KEYSTORE_PASSWORD",
-      "ZKUBE_ANDROID_KEY_ALIAS",
-      "ZKUBE_ANDROID_KEY_PASSWORD",
+      "#{signing_prefix}_KEYSTORE_PATH",
+      "#{signing_prefix}_KEYSTORE_PASSWORD",
+      "#{signing_prefix}_KEY_ALIAS",
+      "#{signing_prefix}_KEY_PASSWORD",
     )
     gradle(
       project_dir: ANDROID_PROJECT,
-      tasks: ["clean", "assembleRelease"],
+      tasks: ["clean", "assemble#{flavor.capitalize}Release"],
     )
-    apk = lane_context[SharedValues::GRADLE_APK_OUTPUT_PATH]
-    UI.user_error!("Gradle did not produce one release APK") if apk.to_s.empty?
+    apk_pattern = File.join(
+      ANDROID_PROJECT,
+      "app",
+      "build",
+      "outputs",
+      "apk",
+      flavor,
+      "release",
+      "*.apk",
+    )
+    apks = Dir[apk_pattern].reject { |path| path.end_with?("-unsigned.apk") }
+    UI.user_error!("Gradle did not produce one #{flavor} release APK") unless apks.length == 1
+    apk = apks.first
     android_home = ENV.fetch("ANDROID_HOME")
     apksigner = Dir[File.join(android_home, "build-tools", "*", "apksigner")].sort.last
     UI.user_error!("Android SDK apksigner is missing") if apksigner.to_s.empty?

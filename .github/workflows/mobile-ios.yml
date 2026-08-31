@@ -19,6 +19,7 @@ jobs:
         working-directory: client
     env:
       NO_DNA: "1"
+      VITE_ZKUBE_BUILD: store
       BUNDLE_GEMFILE: ${{ github.workspace }}/client/Gemfile
       IOS_BUILD_NUMBER: ${{ github.run_number }}
       IOS_CERTIFICATE_PATH: ${{ runner.temp }}/zkube-distribution.p12
@@ -46,9 +47,9 @@ jobs:
       - name: Install locked web dependencies
         run: NO_DNA=1 pnpm install --frozen-lockfile
       - name: Build web assets
-        run: NO_DNA=1 pnpm build
+        run: NO_DNA=1 VITE_ZKUBE_BUILD=store pnpm build
       - name: Sync iOS shell
-        run: NO_DNA=1 pnpm cap:sync:ios
+        run: NO_DNA=1 VITE_ZKUBE_BUILD=store pnpm cap:sync:ios
       - name: Materialize ephemeral signing inputs
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}

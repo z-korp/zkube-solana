@@ -3,6 +3,13 @@ name: Mobile Android beta
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Native product to build
+        required: true
+        type: choice
+        options:
+          - solana
+          - store
       publish:
         description: Request the separately approved dApp Store publishing job
         required: true
@@ -17,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-android-${{ github.ref }}
+  group: mobile-android-${{ inputs.target }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -29,6 +36,8 @@ jobs:
         working-directory: client
     env:
       NO_DNA: "1"
+      VITE_ZKUBE_BUILD: ${{ inputs.target }}
+      ZKUBE_ANDROID_FLAVOR: ${{ inputs.target }}
       BUNDLE_GEMFILE: ${{ github.workspace }}/client/Gemfile
       ZKUBE_ANDROID_VERSION_CODE: ${{ github.run_number }}
       ZKUBE_ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
@@ -36,6 +45,10 @@ jobs:
       ZKUBE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ZKUBE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ZKUBE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ZKUBE_ANDROID_STORE_KEYSTORE_PATH: ${{ runner.temp }}/zkube-store.jks
+      ZKUBE_ANDROID_STORE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STORE_KEYSTORE_PASSWORD }}
+      ZKUBE_ANDROID_STORE_KEY_ALIAS: ${{ secrets.ANDROID_STORE_KEY_ALIAS }}
+      ZKUBE_ANDROID_STORE_KEY_PASSWORD: ${{ secrets.ANDROID_STORE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -57,24 +70,33 @@ jobs:
           bundler-cache: true
       - name: Install locked web dependencies
         run: NO_DNA=1 pnpm install --frozen-lockfile
+      - name: Refuse Play-store publishing through the dApp Store job
+        if: ${{ inputs.target == 'store' && inputs.publish }}
+        run: exit 1
       - name: Build web assets
-        run: NO_DNA=1 pnpm build
+        run: NO_DNA=1 VITE_ZKUBE_BUILD="$VITE_ZKUBE_BUILD" pnpm build
       - name: Sync Android shell
-        run: NO_DNA=1 pnpm cap:sync:android
-      - name: Materialize ephemeral Android signing key
+        run: NO_DNA=1 VITE_ZKUBE_BUILD="$VITE_ZKUBE_BUILD" pnpm cap:sync:android
+      - name: Materialize ephemeral Solana signing key
+        if: ${{ inputs.target == 'solana' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ZKUBE_ANDROID_KEYSTORE_PATH"
+      - name: Materialize ephemeral store signing key
+        if: ${{ inputs.target == 'store' }}
+        env:
+          ANDROID_STORE_KEYSTORE_BASE64: ${{ secrets.ANDROID_STORE_KEYSTORE_BASE64 }}
+        run: printf '%s' "$ANDROID_STORE_KEYSTORE_BASE64" | base64 --decode > "$ZKUBE_ANDROID_STORE_KEYSTORE_PATH"
       - name: Build signed review APK
         run: NO_DNA=1 bundle exec fastlane android beta
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: zkube-android-beta
+          name: zkube-android-${{ inputs.target }}-beta
           path: client/build/mobile/android/zkube.apk
           if-no-files-found: error
 
   publish:
-    if: ${{ inputs.publish }}
+    if: ${{ inputs.publish && inputs.target == 'solana' }}
     needs: beta
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -97,7 +119,7 @@ jobs:
           node-version: 24.13.0
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: zkube-android-beta
+          name: zkube-android-solana-beta
           path: client/build/mobile/android
       - name: Require release note and materialize publisher key
         env:
