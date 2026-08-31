@@ -334,6 +334,13 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal:
       "guardian inventories start empty and Daily starting height comes from its realm",
   },
+  {
+    pattern:
+      /score at ×|perfect clears add|[Ss]tart with .* (?:Totem|Hammer|Wave)/,
+    trees: [CLIENT],
+    reversal:
+      "guardian mechanics copy is derived from the published guardian rule",
+  },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

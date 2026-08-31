@@ -110,18 +110,10 @@ const GuardianGreeting: React.FC<GuardianGreetingProps> = ({
             className="mt-1 min-h-[2.6em] font-sans text-[14px] italic text-white/60"
           />
 
-          {/* The guardian's own scoring hint for its realm. */}
-          <p className="mt-2 font-sans text-[13px] leading-relaxed text-white/70">
-            {guardian.zoneHint}
-          </p>
-
           <div className="mt-2 flex flex-col gap-1.5">
             <p className="font-sans text-[14px] leading-relaxed text-white">
               {guardianRule.icon}{" "}
-              <span
-                className="font-semibold"
-                style={{ color: colors.accent }}
-              >
+              <span className="font-semibold" style={{ color: colors.accent }}>
                 {guardianRule.name}
               </span>{" "}
               {guardianRule.description}
