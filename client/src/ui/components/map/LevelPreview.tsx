@@ -13,7 +13,7 @@ import { CONSTRAINT_ICON_MAP } from "@/config/constraintIcons";
 import { getGuardianDef } from "@/config/mutatorConfig";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import { PlaytestSeedControl } from "@/backend/local/PlaytestControls";
-import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
+import { PLAYTEST_ACTIVE } from "@/buildTarget";
 
 interface LevelPreviewProps {
   node: MapNodeData;

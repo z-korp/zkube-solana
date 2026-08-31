@@ -64,14 +64,6 @@ import {
   type WalletChoice,
 } from "../views";
 import { IdentityRejected, RunsRejected, RunsUnavailable } from "../errors";
-import {
-  playtestSeed,
-  playtestToday,
-  readPlaytestName,
-  storePlaytestName,
-  subscribePlaytestSettings,
-} from "./playtest";
-
 export const LOCAL_BACKEND_SENTINEL = "zkube_local_backend_v1";
 
 const LOCAL_ADDRESS = PlayerAddress.make("local:zkube-player");
@@ -108,10 +100,18 @@ export interface LocalBackendOptions {
   readonly dailyVrfOutputs?: ReadonlyArray<Uint8Array>;
   readonly dailyConfig?: CoreRunConfigInput;
   readonly deadlineAfterAcceptedActions?: number;
-  readonly playtest?: boolean;
+  readonly ownerControls?: LocalOwnerControls;
   readonly nowUnix?: () => number;
   readonly onRuntimeStart?: () => void;
   readonly onRuntimeStop?: () => void;
+}
+
+export interface LocalOwnerControls {
+  readonly seed: () => Uint8Array;
+  readonly today: (nowUnix: number) => DailyContent;
+  readonly readName: () => string | null;
+  readonly storeName: (name: string) => string;
+  readonly subscribe: (listener: () => void) => () => void;
 }
 
 export async function localVrfOutput(
@@ -178,12 +178,14 @@ export function makeLocalBackendLive(
       const catalog = defaultCatalog();
       const nowUnix = options.nowUnix ?? (() => Math.floor(Date.now() / 1_000));
       const synthesizeToday = () =>
-        options.playtest
-          ? localPlaytestToday(catalog, nowUnix())
+        options.ownerControls
+          ? localControlledToday(
+              catalog,
+              options.ownerControls.today(nowUnix()),
+            )
           : defaultToday(catalog, nowUnix());
-      const todayRef = yield* SubscriptionRef.make<DailyContent>(
-        synthesizeToday(),
-      );
+      const todayRef =
+        yield* SubscriptionRef.make<DailyContent>(synthesizeToday());
       const economyRef =
         yield* SubscriptionRef.make<EconomyState>(defaultEconomy());
       const initialToday = yield* SubscriptionRef.get(todayRef);
@@ -217,10 +219,10 @@ export function makeLocalBackendLive(
           return today;
         });
 
-      if (options.playtest) {
+      if (options.ownerControls) {
         yield* Effect.acquireRelease(
           Effect.sync(() =>
-            subscribePlaytestSettings(() => {
+            options.ownerControls!.subscribe(() => {
               Effect.runFork(refreshToday(true));
             }),
           ),
@@ -231,7 +233,7 @@ export function makeLocalBackendLive(
       const localIdentity = (): IdentityState => ({
         status: "connected",
         address: LOCAL_ADDRESS,
-        label: (options.playtest ? readPlaytestName() : null) ?? "Local Player",
+        label: options.ownerControls?.readName() ?? "Local Player",
         wallet: LOCAL_WALLET,
       });
 
@@ -246,14 +248,14 @@ export function makeLocalBackendLive(
                 }),
               ),
         reconnect: () =>
-          options.playtest && readPlaytestName() === null
+          options.ownerControls && options.ownerControls.readName() === null
             ? Effect.void
             : SubscriptionRef.set(identityRef, localIdentity()),
         disconnect: () =>
           SubscriptionRef.set(identityRef, { status: "disconnected" }),
         setLabel: (label) => {
-          const normalized = options.playtest
-            ? storePlaytestName(label)
+          const normalized = options.ownerControls
+            ? options.ownerControls.storeName(label)
             : label;
           return SubscriptionRef.update(identityRef, (state) => ({
             ...state,
@@ -319,9 +321,7 @@ export function makeLocalBackendLive(
             level,
             config: initialized.config,
             state: initialized.state,
-            seed:
-              options.seed ??
-              (options.playtest ? playtestSeed() : DEFAULT_SEED),
+            seed: options.seed ?? options.ownerControls?.seed() ?? DEFAULT_SEED,
             requestCounter: 0,
             events: eventRef,
             recorded: false,
@@ -405,8 +405,7 @@ export function makeLocalBackendLive(
             }
             const summary = coreRunSummary(record.state);
             const terminal =
-              summary.phase === "finished" ||
-              summary.phase === "levelComplete";
+              summary.phase === "finished" || summary.phase === "levelComplete";
             const view = runView(record);
             yield* SubscriptionRef.set(
               activeRefs[record.mode],
@@ -708,10 +707,7 @@ function campaignConfig(
   };
 }
 
-function defaultToday(
-  catalog: CampaignCatalog,
-  nowUnix: number,
-): DailyContent {
+function defaultToday(catalog: CampaignCatalog, nowUnix: number): DailyContent {
   const dayId = currentDailyDayId(nowUnix);
   const realm = requireRealm(catalog, 1);
   return {
@@ -793,11 +789,10 @@ function defaultEconomy(): EconomyState {
   };
 }
 
-function localPlaytestToday(
+function localControlledToday(
   catalog: CampaignCatalog,
-  nowUnix: number,
+  today: DailyContent,
 ): DailyContent {
-  const today = playtestToday(nowUnix);
   const realm = requireRealm(catalog, today.realm);
   return { ...today, startingHeight: realm.startingHeight };
 }

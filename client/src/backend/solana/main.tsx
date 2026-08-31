@@ -2,13 +2,14 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "@/App";
+import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import { BackendProvider } from "@/backend/provider";
-import { makeLocalBackendLive } from "@/backend/local/LocalBackendLive";
 import type { BackendLayer } from "@/backend/runtime";
 import {
-  PLAYTEST_ACTIVE,
-  PLAYTEST_BUILD_SENTINEL,
-} from "@/backend/local/playtest";
+  makeSelectedBackend,
+  SELECTED_BACKEND_SENTINEL,
+  SELECTED_BUILD_SENTINEL,
+} from "@/backend/selected";
 import { MusicPlayerProvider } from "@/contexts/music";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { captureInstallPrompt } from "@/platform/installPrompt";
@@ -27,15 +28,18 @@ await initializeZkubeCore();
 await initializeNativeShell();
 
 let backendLayer: BackendLayer;
-if (PLAYTEST_ACTIVE || (import.meta.env.DEV && DEV_BYPASS_ACTIVE)) {
-  backendLayer = makeLocalBackendLive({ playtest: PLAYTEST_ACTIVE });
+if (import.meta.env.DEV && DEV_BYPASS_ACTIVE) {
+  const { LOCAL_BACKEND_SENTINEL, makeLocalBackendLive } =
+    await import("@/backend/local/LocalBackendLive");
+  backendLayer = makeLocalBackendLive();
+  document.documentElement.dataset.zkubeBackend = LOCAL_BACKEND_SENTINEL;
 } else {
-  const { makeSolanaBackendLive } = await import("./SolanaBackendLive");
-  backendLayer = makeSolanaBackendLive();
+  backendLayer = makeSelectedBackend();
+  document.documentElement.dataset.zkubeBackend = SELECTED_BACKEND_SENTINEL;
 }
 
-if (PLAYTEST_ACTIVE) {
-  document.documentElement.dataset.zkubeBuild = PLAYTEST_BUILD_SENTINEL;
+if (PLAYTEST_ACTIVE && SELECTED_BUILD_SENTINEL) {
+  document.documentElement.dataset.zkubeBuild = SELECTED_BUILD_SENTINEL;
 }
 
 createRoot(document.getElementById("root")!).render(

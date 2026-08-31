@@ -4,7 +4,6 @@ import { appStorage } from "@/platform/storage";
 import type { DailyContent } from "../views";
 
 export const PLAYTEST_BUILD_SENTINEL = "zkube_owner_playtest_v1";
-export const PLAYTEST_ACTIVE = import.meta.env.VITE_ZKUBE_PLAYTEST === "1";
 
 const SETTINGS_KEY = "zkube:playtest:settings:v1";
 const NAME_KEY = "zkube:playtest:name:v1";

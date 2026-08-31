@@ -8,7 +8,7 @@ import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 import { PlaytestDailyControls } from "@/backend/local/PlaytestControls";
-import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
+import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import useAccount from "@/hooks/useAccount";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";

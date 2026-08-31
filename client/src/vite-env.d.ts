@@ -10,7 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_PUBLIC_MAGICBLOCK_ROUTER_RPC?: string;
   readonly VITE_PUBLIC_SOLANA_VRF_QUEUE?: string;
   readonly VITE_PUBLIC_ZKUBE_TELEMETRY?: string;
-  readonly VITE_ZKUBE_PLAYTEST?: string;
+  readonly VITE_ZKUBE_BUILD?: "solana" | "store" | "playtest";
   /** Keeper origin serving prize-notification registration; push is off without it. */
   readonly VITE_PUSH_BASE_URL?: string;
 }

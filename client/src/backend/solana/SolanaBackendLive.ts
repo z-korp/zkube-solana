@@ -9,6 +9,8 @@ import { makeSolanaEconomyLive } from "./economy/SolanaEconomyLive";
 import { makeSolanaIdentitySessionLive } from "./SolanaIdentitySessionLive";
 import { makeSolanaRunsLive } from "./runs/SolanaRunsLive";
 
+export const SOLANA_BACKEND_SENTINEL = "zkube_solana_backend_v1";
+
 export interface SolanaBackendOptions {
   readonly connection?: Connection;
 }

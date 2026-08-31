@@ -107,10 +107,10 @@ describe("LocalBackendLive", () => {
     }
   });
 
-  it("playtest_daily_is_open_on_the_shared_current_utc_day", async () => {
+  it("local_daily_is_open_on_the_shared_current_utc_day", async () => {
     const nowUnix = Date.UTC(2026, 7, 31, 12, 30) / 1_000;
     const runtime = ManagedRuntime.make(
-      makeLocalBackendLive({ playtest: true, nowUnix: () => nowUnix }),
+      makeLocalBackendLive({ nowUnix: () => nowUnix }),
     );
     try {
       const today = await runtime.runPromise(

@@ -14,6 +14,35 @@ const HTTPS_KEY_PATH_ENV = "ZKUBE_HTTPS_KEY_PATH";
 const DEV_PLAYTEST_ACTION_SENTINEL = "zkube_playtest_action_v1";
 const LOCAL_BACKEND_SENTINEL = "zkube_local_backend_v1";
 const PLAYTEST_BUILD_SENTINEL = "zkube_owner_playtest_v1";
+const SOLANA_BACKEND_SENTINEL = "zkube_solana_backend_v1";
+const MONEY_SURFACE_SENTINEL = "zkube_money_surface_v1";
+type BuildTarget = "solana" | "store" | "playtest";
+
+const BUILD_TARGET_EXCLUSIONS: Readonly<
+  Record<BuildTarget, readonly string[]>
+> = {
+  solana: [LOCAL_BACKEND_SENTINEL, PLAYTEST_BUILD_SENTINEL],
+  store: [
+    SOLANA_BACKEND_SENTINEL,
+    PLAYTEST_BUILD_SENTINEL,
+    MONEY_SURFACE_SENTINEL,
+  ],
+  playtest: [SOLANA_BACKEND_SENTINEL],
+};
+
+function buildTarget(): BuildTarget {
+  const target = process.env.VITE_ZKUBE_BUILD ?? "solana";
+  if (target === "solana" || target === "store" || target === "playtest") {
+    return target;
+  }
+  throw new Error(`Unknown VITE_ZKUBE_BUILD target: ${target}`);
+}
+
+const BUILD_TARGET_BACKENDS: Readonly<Record<BuildTarget, string>> = {
+  solana: "./src/backend/solana/selectedBackend.ts",
+  store: "./src/backend/local/storeBackend.ts",
+  playtest: "./src/backend/local/playtestBackend.ts",
+};
 
 function localHttpsOptions():
   | Readonly<{ cert: Buffer; key: Buffer }>
@@ -79,11 +108,11 @@ function versionServiceWorker(): Plugin {
   };
 }
 
-/** Fails closed if local/playtest code enters an ordinary shipping build. */
+/** Fails closed if one product target contains another target's surface. */
 function excludeNonShippingCode(): Plugin {
-  const ownerPlaytest = process.env.VITE_ZKUBE_PLAYTEST === "1";
+  const target = buildTarget();
   return {
-    name: "zkube-shipping-build-has-no-playtest-flag",
+    name: "zkube-build-target-exclusions",
     apply: "build",
     enforce: "post",
     generateBundle(_options, bundle) {
@@ -99,14 +128,12 @@ function excludeNonShippingCode(): Plugin {
             `Dev-only code entered release asset ${output.fileName}`,
           );
         }
-        if (
-          !ownerPlaytest &&
-          (contents.includes(LOCAL_BACKEND_SENTINEL) ||
-            contents.includes(PLAYTEST_BUILD_SENTINEL))
-        ) {
-          throw new Error(
-            `Playtest code entered shipping asset ${output.fileName}`,
-          );
+        for (const sentinel of BUILD_TARGET_EXCLUSIONS[target]) {
+          if (contents.includes(sentinel)) {
+            throw new Error(
+              `${target} build contains excluded surface in ${output.fileName}`,
+            );
+          }
         }
       }
     },
@@ -138,7 +165,7 @@ export default defineConfig({
         entryFileNames: (chunk) =>
           chunk.name === "serviceWorker" ? "sw.js" : "assets/[name]-[hash].js",
         manualChunks:
-          process.env.VITE_ZKUBE_PLAYTEST === "1"
+          buildTarget() !== "solana"
             ? { "vendor-ui": ["motion"] }
             : {
                 "vendor-solana": ["@solana/web3.js", "@anchor-lang/core"],
@@ -148,7 +175,16 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: [{ find: "@", replacement: path.resolve(__dirname, "./src") }],
+    alias: [
+      {
+        find: "@/backend/selected",
+        replacement: path.resolve(
+          __dirname,
+          BUILD_TARGET_BACKENDS[buildTarget()],
+        ),
+      },
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+    ],
   },
   server: {
     host: true,

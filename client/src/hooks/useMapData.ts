@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { getThemeId, type ThemeId } from "@/config/themes";
 import type { ClientCampaignMap } from "@/backend/client";
-import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
+import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import { rulesToGameLevelData, type GameLevelData } from "./useGameLevel";
 
 type NodeType = "classic" | "boss";

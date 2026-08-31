@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { useCampaign, useConnectedPlayer } from "@/backend/client";
 import PlaytestNameGate from "@/backend/local/PlaytestNameGate";
-import { PLAYTEST_ACTIVE } from "@/backend/local/playtest";
+import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import { useNavigationStore, type PageId } from "@/stores/navigationStore";
 import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
