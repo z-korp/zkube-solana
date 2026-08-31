@@ -15,6 +15,7 @@ const README = join(ROOT, "README.md");
 const CLIENT = join(ROOT, "client/src");
 const CLIENT_TOOLS = join(ROOT, "client/tools");
 const CLIENT_PACKAGE = join(ROOT, "client/package.json");
+const CLIENT_VITE_CONFIG = join(ROOT, "client/vite.config.ts");
 const CLIENT_CONSTRAINT_COPY = [join(CLIENT, "config"), join(CLIENT, "game")];
 const CORE = join(ROOT, "crates/zkube-core/src");
 const CORE_WASM = join(ROOT, "crates/zkube-core-wasm/src");
@@ -406,6 +407,24 @@ describe("supersession", () => {
       const lines = (await readFile(file, "utf8")).split("\n");
       lines.forEach((line, index) => {
         if (/\bTWA\b|\bBubblewrap\b|twa-manifest|assetlinks/i.test(line)) {
+          violations.push(`${file}:${index + 1}`);
+        }
+      });
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps the retired playtest build flag out of client source and config", async () => {
+    const files = [
+      CLIENT_VITE_CONFIG,
+      ...(await sourceFiles(CLIENT)),
+      ...(await sourceFiles(CLIENT_TOOLS)),
+    ];
+    const violations: string[] = [];
+    for (const file of files) {
+      const lines = (await readFile(file, "utf8")).split("\n");
+      lines.forEach((line, index) => {
+        if (/VITE_ZKUBE_PLAYTEST/.test(line)) {
           violations.push(`${file}:${index + 1}`);
         }
       });
