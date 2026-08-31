@@ -7,6 +7,15 @@ import { mapLevelRuleSnapshot } from "@/core/runProjection";
 
 let initialMap1: ClientCampaignMap | undefined;
 
+export function campaignZoneActionLabel(
+  resumableZone: number | null,
+  zoneId: number,
+  zoneStars: number,
+): "Resume" | "Continue" | "Enter" {
+  if (resumableZone === zoneId) return "Resume";
+  return zoneStars > 0 ? "Continue" : "Enter";
+}
+
 export function uninitializedMap1(): ClientCampaignMap {
   if (initialMap1) return initialMap1;
   const authored = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);

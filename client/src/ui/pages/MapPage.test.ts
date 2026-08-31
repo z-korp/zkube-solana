@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ClientCampaignMap } from "@/backend/client";
 import {
+  campaignZoneActionLabel,
   resolveCampaignMap,
   uninitializedMap1,
 } from "@/ui/components/map/mapLogic";
@@ -26,5 +27,11 @@ describe("MapPage campaign routing", () => {
     expect(resolveCampaignMap(null, 1, true)).toBeUndefined();
     expect(resolveCampaignMap(null, 1, false)).toBe(uninitializedMap1());
     expect(resolveCampaignMap(null, 2, false)).toBeUndefined();
+  });
+
+  it("offers Enter or Continue when the Campaign slot is empty", () => {
+    expect(campaignZoneActionLabel(null, 1, 0)).toBe("Enter");
+    expect(campaignZoneActionLabel(null, 1, 3)).toBe("Continue");
+    expect(campaignZoneActionLabel(1, 1, 3)).toBe("Resume");
   });
 });

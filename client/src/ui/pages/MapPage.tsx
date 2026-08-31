@@ -28,6 +28,7 @@ import GuardianGreeting from "@/ui/components/map/GuardianGreeting";
 import LevelPreview from "@/ui/components/map/LevelPreview";
 import ZoneBackground from "@/ui/components/map/ZoneBackground";
 import {
+  campaignZoneActionLabel,
   resolveCampaignMap,
   unavailableMap,
 } from "@/ui/components/map/mapLogic";
@@ -226,11 +227,11 @@ const MapPage: React.FC = () => {
     nodes.find((node) => node.state !== "locked") ??
     null;
   const resumeHere = activeStoryRun?.zoneId === mapZoneId;
-  const currentActionLabel = resumeHere
-    ? "Resume"
-    : zoneStars > 0
-      ? "Continue"
-      : "Enter";
+  const currentActionLabel = campaignZoneActionLabel(
+    activeStoryRun?.zoneId ?? null,
+    mapZoneId,
+    zoneStars,
+  );
   const chooseRealm = (direction: -1 | 1) => {
     setSelectedNode(null);
     setShowGreeting(false);

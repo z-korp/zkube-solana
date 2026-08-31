@@ -384,13 +384,16 @@ export function makeLocalBackendLive(
                 catch: asRunsRejected,
               });
             }
-            const view = runView(record);
-            yield* SubscriptionRef.set(activeRefs[record.mode], view);
             const summary = coreRunSummary(record.state);
-            if (
+            const terminal =
               summary.phase === "finished" ||
-              summary.phase === "levelComplete"
-            ) {
+              summary.phase === "levelComplete";
+            const view = runView(record);
+            yield* SubscriptionRef.set(
+              activeRefs[record.mode],
+              terminal ? null : view,
+            );
+            if (terminal) {
               if (!record.recorded) {
                 record.recorded = true;
                 if (record.mode === "arcade") {

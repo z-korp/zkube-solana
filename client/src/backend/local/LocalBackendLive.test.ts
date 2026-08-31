@@ -83,6 +83,27 @@ describe("LocalBackendLive", () => {
       first,
     );
   });
+
+  it("terminal_campaign_run_leaves_the_resumable_slot_empty", async () => {
+    const runtime = ManagedRuntime.make(makeLocalBackendLive());
+    try {
+      const slot = await runtime.runPromise(
+        Effect.gen(function* () {
+          const runs = yield* Runs;
+          const started = yield* runs.startCampaign(1, 1);
+          const terminal = yield* runs.act(started.runId, {
+            _tag: "Finish",
+            reason: "abandon",
+          });
+          expect(coreRunSummary(terminal.token).phase).toBe("finished");
+          return yield* runs.resume("campaign");
+        }),
+      );
+      expect(slot).toBeNull();
+    } finally {
+      await runtime.dispose();
+    }
+  });
 });
 
 async function finishedLocalToken(seed: Uint8Array): Promise<Uint8Array> {
