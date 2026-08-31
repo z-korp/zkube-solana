@@ -14,8 +14,11 @@ import {
 } from "@/core/zkubeCore";
 import { currentDailyDayId } from "@/core/dailyRules";
 import { computeArcadeLifecycle } from "@/ui/components/arcade/arcadeLifecycle";
-import { Content, Runs } from "../services";
+import { Content, Runs, StoreEconomy } from "../services";
 import { localRowsFromVrf, makeLocalBackendLive } from "./LocalBackendLive";
+import { localProductStorage } from "./localPersistence";
+import type { CampaignBilling } from "./storeBilling";
+import type { StorageLike } from "@/platform/storage";
 
 initializeZkubeCoreSync(
   readFileSync(
@@ -202,6 +205,66 @@ describe("LocalBackendLive", () => {
       await Promise.all([store.dispose(), playtest.dispose()]);
     }
   });
+
+  it("store_answer_overwrites_the_cached_campaign_entitlement", async () => {
+    const storage = memoryStorage();
+    localProductStorage(storage).write((current) => ({
+      ...current,
+      campaignOwned: true,
+      campaignPrice: "$0.99",
+    }));
+    const billing = fakeCampaignBilling(false, "€0.99");
+    const runtime = ManagedRuntime.make(
+      makeLocalBackendLive({
+        target: "store",
+        storage,
+        campaignBilling: billing,
+      }),
+    );
+    try {
+      const state = await runtime.runPromise(
+        Effect.flatMap(StoreEconomy, (economy) => economy.restorePurchases()),
+      );
+      expect(state).toEqual({ campaignOwned: false, price: "€0.99" });
+      expect(localProductStorage(storage).read().campaignOwned).toBe(false);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("store_campaign_unlock_requires_store_ownership_at_the_run_boundary", async () => {
+    const storage = memoryStorage();
+    localProductStorage(storage).write((current) => ({
+      ...current,
+      stars: current.stars.map((stars, index) => (index === 29 ? 1 : stars)),
+    }));
+    const billing = fakeCampaignBilling(false, "¥0.99");
+    const runtime = ManagedRuntime.make(
+      makeLocalBackendLive({
+        target: "store",
+        storage,
+        campaignBilling: billing,
+      }),
+    );
+    try {
+      await expect(
+        runtime.runPromise(
+          Effect.flatMap(Runs, (runs) => runs.startCampaign(4, 1)),
+        ),
+      ).rejects.toThrow("Unlock the full Campaign first");
+      const state = await runtime.runPromise(
+        Effect.flatMap(StoreEconomy, (economy) => economy.unlockCampaign()),
+      );
+      expect(state).toEqual({ campaignOwned: true, price: "¥0.99" });
+      await expect(
+        runtime.runPromise(
+          Effect.flatMap(Runs, (runs) => runs.startCampaign(4, 1)),
+        ),
+      ).resolves.toBeDefined();
+    } finally {
+      await runtime.dispose();
+    }
+  });
 });
 
 async function finishedLocalToken(seed: Uint8Array): Promise<Uint8Array> {
@@ -240,5 +303,28 @@ function goldenConfig(): CoreRunConfigInput {
     primary: { kind: 0, value: 0, requiredCount: 0 },
     secondary: { kind: 0, value: 0, requiredCount: 0 },
     objective: { kind: 0, value: 0, requiredCount: 0 },
+  };
+}
+
+function memoryStorage(): StorageLike {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+}
+
+function fakeCampaignBilling(
+  initialOwnership: boolean,
+  price: string,
+): CampaignBilling {
+  let campaignOwned = initialOwnership;
+  return {
+    queryCampaign: async () => ({ campaignOwned, price }),
+    purchaseCampaign: async () => {
+      campaignOwned = true;
+    },
+    restorePurchases: async () => undefined,
   };
 }

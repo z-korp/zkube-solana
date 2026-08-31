@@ -39,12 +39,14 @@ import {
   Identity,
   Runs,
   Session,
+  StoreEconomy,
   type BoardsService,
   type ContentService,
   type EconomyService,
   type IdentityService,
   type RunsService,
   type SessionService,
+  type StoreEconomyService,
 } from "../services";
 import {
   type CampaignCatalog,
@@ -58,16 +60,24 @@ import {
   type RunMode,
   type RunView,
   type SessionState,
+  type StoreEconomyState,
   type TierTable,
   type WalletChoice,
 } from "../views";
-import { IdentityRejected, RunsRejected, RunsUnavailable } from "../errors";
+import {
+  EconomyRejected,
+  EconomyUnavailable,
+  IdentityRejected,
+  RunsRejected,
+  RunsUnavailable,
+} from "../errors";
 import type { StorageLike } from "@/platform/storage";
 import {
   localProductStorage,
   normalizeLocalName,
   type LocalProductState,
 } from "./localPersistence";
+import type { CampaignBilling, CampaignStoreAnswer } from "./storeBilling";
 export const LOCAL_BACKEND_SENTINEL = "zkube_local_backend_v1";
 
 const LOCAL_WALLET: WalletChoice = {
@@ -104,6 +114,7 @@ export interface LocalBackendOptions {
   readonly ownerControls?: LocalOwnerControls;
   readonly storage?: StorageLike | null;
   readonly nowUnix?: () => number;
+  readonly campaignBilling?: CampaignBilling;
   readonly onRuntimeStart?: () => void;
   readonly onRuntimeStop?: () => void;
 }
@@ -169,7 +180,9 @@ export async function localRowStream(args: {
 /** Local engine backend used by development and the explicitly flagged owner build. */
 export function makeLocalBackendLive(
   options: LocalBackendOptions,
-): Layer.Layer<Identity | Session | Runs | Content | Boards | Economy> {
+): Layer.Layer<
+  Identity | Session | Runs | Content | Boards | Economy | StoreEconomy
+> {
   return Layer.scopedContext(
     Effect.gen(function* () {
       yield* Effect.acquireRelease(
@@ -201,6 +214,9 @@ export function makeLocalBackendLive(
       const economyRef = yield* SubscriptionRef.make<EconomyState>(
         localEconomy(initialProduct, options.target),
       );
+      const storeEconomyRef = yield* SubscriptionRef.make<StoreEconomyState>(
+        localStoreEconomy(initialProduct, options.target),
+      );
       const activeRefs = {
         campaign: yield* SubscriptionRef.make<RunView | null>(null),
         arcade: yield* SubscriptionRef.make<RunView | null>(null),
@@ -216,6 +232,40 @@ export function makeLocalBackendLive(
           yield* SubscriptionRef.set(todayRef, today);
           return today;
         });
+
+      const applyCampaignStoreAnswer = (answer: CampaignStoreAnswer) =>
+        Effect.gen(function* () {
+          const product = persistence.write((current) => ({
+            ...current,
+            campaignOwned: answer.campaignOwned,
+            campaignPrice: answer.price,
+          }));
+          const state = localStoreEconomy(product, options.target);
+          yield* SubscriptionRef.set(storeEconomyRef, state);
+          return state;
+        });
+
+      const queryCampaignStore = () => {
+        if (options.target !== "store" || !options.campaignBilling) {
+          return Effect.fail(
+            new EconomyUnavailable({
+              message: "Campaign store is unavailable",
+            }),
+          );
+        }
+        return Effect.tryPromise({
+          try: options.campaignBilling.queryCampaign,
+          catch: (cause) =>
+            new EconomyUnavailable({ message: errorMessage(cause) }),
+        }).pipe(Effect.flatMap(applyCampaignStoreAnswer));
+      };
+
+      if (options.target === "store" && options.campaignBilling) {
+        yield* queryCampaignStore().pipe(
+          Effect.catchAll(() => Effect.void),
+          Effect.forkScoped,
+        );
+      }
 
       if (options.ownerControls) {
         yield* Effect.acquireRelease(
@@ -348,12 +398,28 @@ export function makeLocalBackendLive(
 
       const runs: RunsService = {
         startCampaign: (realm, level) =>
-          Effect.try({
-            try: () => campaignConfig(catalog, realm, level),
-            catch: asRunsRejected,
-          }).pipe(
-            Effect.flatMap((config) => start("campaign", realm, level, config)),
-          ),
+          Effect.gen(function* () {
+            const lock = localRealmLock(
+              options.target,
+              persistence.read(),
+              realm,
+            );
+            if (lock !== null) {
+              return yield* Effect.fail(
+                new RunsRejected({
+                  message:
+                    lock === "purchase"
+                      ? "Unlock the full Campaign first"
+                      : "Defeat the previous guardian first",
+                }),
+              );
+            }
+            const config = yield* Effect.try({
+              try: () => campaignConfig(catalog, realm, level),
+              catch: asRunsRejected,
+            });
+            return yield* start("campaign", realm, level, config);
+          }),
         enterDaily: () =>
           Effect.gen(function* () {
             yield* refreshToday();
@@ -572,6 +638,53 @@ export function makeLocalBackendLive(
         state: economyRef.changes,
       };
 
+      const fullCampaignState: StoreEconomyState = {
+        campaignOwned: true,
+        price: null,
+      };
+      const storeEconomy: StoreEconomyService =
+        options.target === "playtest"
+          ? {
+              unlockCampaign: () => Effect.succeed(fullCampaignState),
+              restorePurchases: () => Effect.succeed(fullCampaignState),
+              state: Stream.succeed(fullCampaignState),
+            }
+          : {
+              unlockCampaign: () =>
+                Effect.gen(function* () {
+                  if (!options.campaignBilling) {
+                    return yield* Effect.fail(
+                      new EconomyUnavailable({
+                        message: "Campaign store is unavailable",
+                      }),
+                    );
+                  }
+                  yield* Effect.tryPromise({
+                    try: options.campaignBilling.purchaseCampaign,
+                    catch: (cause) =>
+                      new EconomyRejected({ message: errorMessage(cause) }),
+                  });
+                  return yield* queryCampaignStore();
+                }),
+              restorePurchases: () =>
+                Effect.gen(function* () {
+                  if (!options.campaignBilling) {
+                    return yield* Effect.fail(
+                      new EconomyUnavailable({
+                        message: "Campaign store is unavailable",
+                      }),
+                    );
+                  }
+                  yield* Effect.tryPromise({
+                    try: options.campaignBilling.restorePurchases,
+                    catch: (cause) =>
+                      new EconomyRejected({ message: errorMessage(cause) }),
+                  });
+                  return yield* queryCampaignStore();
+                }),
+              state: storeEconomyRef.changes,
+            };
+
       return Context.mergeAll(
         Context.make(Identity, identity),
         Context.make(Session, session),
@@ -579,6 +692,7 @@ export function makeLocalBackendLive(
         Context.make(Content, content),
         Context.make(Boards, boards),
         Context.make(Economy, economy),
+        Context.make(StoreEconomy, storeEconomy),
       );
     }),
   );
@@ -862,6 +976,31 @@ function localEconomy(
   };
 }
 
+function localStoreEconomy(
+  product: LocalProductState,
+  target: LocalBackendOptions["target"],
+): StoreEconomyState {
+  return target === "playtest"
+    ? { campaignOwned: true, price: null }
+    : {
+        campaignOwned: product.campaignOwned,
+        price: product.campaignPrice,
+      };
+}
+
+function localRealmLock(
+  target: LocalBackendOptions["target"],
+  product: LocalProductState,
+  realm: number,
+): null | "stars" | "purchase" {
+  if (target === "playtest") return null;
+  if (realm >= 4 && !product.campaignOwned) return "purchase";
+  if (realm > 1 && (product.stars[(realm - 1) * 10 - 1] ?? 0) === 0) {
+    return "stars";
+  }
+  return null;
+}
+
 function localControlledToday(
   catalog: CampaignCatalog,
   today: DailyContent,
@@ -881,4 +1020,8 @@ function requireRealm(
 
 function countStarSources(mask: number): number {
   return (mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1);
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }

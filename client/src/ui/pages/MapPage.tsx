@@ -10,7 +10,7 @@ import {
   getThemeId,
   getThemeImages,
 } from "@/config/themes";
-import { useCampaign } from "@/backend/client";
+import { useCampaign, useCampaignUnlock } from "@/backend/client";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { useActiveStoryAttempt } from "@/hooks/useActiveStoryAttempt";
 import { useGame } from "@/hooks/useGame";
@@ -78,6 +78,7 @@ const getLabel = (node: MapNodeData): string => {
 
 const MapPage: React.FC = () => {
   const campaign = useCampaign();
+  const campaignUnlock = useCampaignUnlock();
   const navigate = useNavigationStore((state) => state.navigate);
   const gameId = useNavigationStore((state) => state.gameId);
   const rawMapZoneId = useNavigationStore((state) => state.mapZoneId);
@@ -654,16 +655,37 @@ const MapPage: React.FC = () => {
         <div className="relative z-30 px-4 pb-4">
           {map?.locked ? (
             <div className="rounded-2xl border border-white/15 bg-black/60 px-4 py-3 text-center backdrop-blur-md">
-              <p className="font-sans text-sm font-black text-white">
-                {map.locked === "purchase"
-                  ? "Unlock the full Campaign"
-                  : "Defeat the previous guardian"}
-              </p>
-              <p className="mt-1 font-sans text-xs text-white/55">
-                {map.locked === "purchase"
-                  ? "This realm is part of the full Campaign."
-                  : "Clear its final trial to open this path."}
-              </p>
+              {map.locked === "purchase" ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={campaignUnlock.busy}
+                    onClick={() => {
+                      void campaignUnlock
+                        .unlockCampaign()
+                        .catch(() => undefined);
+                    }}
+                    className="w-full rounded-xl bg-[#FFF4D7] px-4 py-2.5 font-sans text-sm font-black text-[#172033] disabled:opacity-50"
+                  >
+                    Unlock the full Campaign
+                    {campaignUnlock.price ? ` · ${campaignUnlock.price}` : ""}
+                  </button>
+                  {campaignUnlock.error && (
+                    <p className="mt-2 font-sans text-xs text-red-200">
+                      {campaignUnlock.error}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="font-sans text-sm font-black text-white">
+                    Defeat the previous guardian
+                  </p>
+                  <p className="mt-1 font-sans text-xs text-white/55">
+                    Clear its final trial to open this path.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <ArcadeButton

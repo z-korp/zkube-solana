@@ -2,6 +2,7 @@ import { Flame, Star } from "lucide-react";
 
 import {
   useCampaign,
+  useCampaignUnlock,
   useConnectedPlayer,
   useIdentityActions,
 } from "@/backend/client";
@@ -12,6 +13,7 @@ export default function StoreProfilePage() {
   const player = useConnectedPlayer();
   const campaign = useCampaign();
   const identity = useIdentityActions();
+  const campaignUnlock = useCampaignUnlock();
   const profile = usePlayerProfile();
   const emblem = Math.min(10, Math.max(1, profile.featuredEmblem || 1));
   const earnedGuardians =
@@ -60,6 +62,23 @@ export default function StoreProfilePage() {
           </div>
         </section>
       )}
+      <section className="rounded-3xl bg-[#101a2b] p-4 text-center">
+        <button
+          type="button"
+          disabled={campaignUnlock.busy}
+          onClick={() => {
+            void campaignUnlock.restorePurchases().catch(() => undefined);
+          }}
+          className="rounded-xl border border-white/15 px-4 py-2 font-sans text-sm font-bold text-white disabled:opacity-50"
+        >
+          Restore purchases
+        </button>
+        {campaignUnlock.error && (
+          <p className="mt-2 font-sans text-xs text-red-200">
+            {campaignUnlock.error}
+          </p>
+        )}
+      </section>
     </div>
   );
 }

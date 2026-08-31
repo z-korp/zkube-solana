@@ -35,6 +35,9 @@ importers:
       '@capacitor/status-bar':
         specifier: 8.0.3
         version: 8.0.3(@capacitor/core@8.5.0)
+      '@capgo/native-purchases':
+        specifier: 8.7.0
+        version: 8.7.0(@capacitor/core@8.5.0)
       '@magicblock-labs/ephemeral-rollups-sdk':
         specifier: 0.16.1
         version: 0.16.1(bufferutil@4.1.0)(encoding@0.1.13)(utf-8-validate@6.0.6)
@@ -352,6 +355,11 @@ packages:
 
   '@capacitor/status-bar@8.0.3':
     resolution: {integrity: sha512-csSpfNeN49Hx9JaQBSJEIiEbOLtXg3kcc2IpScq2fu5L520h3AWEvsxoH8Srk1jxfRKepaJ4S4sqSC3foI4AgA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capgo/native-purchases@8.7.0':
+    resolution: {integrity: sha512-sfnV5rZZOeUx/a/IVFX98HdEQX8f7/h9/oLyeo23QuTRnltVb6PxJhvmBOqIl02R7Pp5BaafNIEStvcacxLgnA==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -5229,6 +5237,10 @@ snapshots:
       '@capacitor/core': 8.5.0
 
   '@capacitor/status-bar@8.0.3(@capacitor/core@8.5.0)':
+    dependencies:
+      '@capacitor/core': 8.5.0
+
+  '@capgo/native-purchases@8.7.0(@capacitor/core@8.5.0)':
     dependencies:
       '@capacitor/core': 8.5.0
 

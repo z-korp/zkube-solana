@@ -18,11 +18,15 @@ describe("local product persistence", () => {
         name: "  Kube  ",
         stars: [9, 2],
         wornEmblem: 99,
+        campaignOwned: true,
+        campaignPrice: "  €0.99  ",
       }),
     );
     expect(decoded.name).toBe("Kube");
     expect(decoded.stars.slice(0, 3)).toEqual([3, 2, 0]);
     expect(decoded.wornEmblem).toBe(10);
+    expect(decoded.campaignOwned).toBe(true);
+    expect(decoded.campaignPrice).toBe("€0.99");
   });
 
   it("writes every local product change through the same key", () => {

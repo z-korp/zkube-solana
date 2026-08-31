@@ -22,6 +22,8 @@ export interface LocalProductState {
   readonly lastAttemptDayId: number | null;
   readonly bestDailyScore: number;
   readonly wornEmblem: number;
+  readonly campaignOwned: boolean;
+  readonly campaignPrice: string | null;
 }
 
 export function emptyLocalProductState(): LocalProductState {
@@ -34,6 +36,8 @@ export function emptyLocalProductState(): LocalProductState {
     lastAttemptDayId: null,
     bestDailyScore: 0,
     wornEmblem: 0,
+    campaignOwned: false,
+    campaignPrice: null,
   };
 }
 
@@ -82,6 +86,11 @@ export function decodeLocalProductState(
         : normalizeDayId(parsed.lastAttemptDayId),
     bestDailyScore: normalizeNonnegativeInteger(parsed.bestDailyScore),
     wornEmblem: Math.min(10, normalizeNonnegativeInteger(parsed.wornEmblem)),
+    campaignOwned: parsed.campaignOwned === true,
+    campaignPrice:
+      typeof parsed.campaignPrice === "string" && parsed.campaignPrice.trim()
+        ? parsed.campaignPrice.trim().slice(0, 40)
+        : null,
   };
 }
 

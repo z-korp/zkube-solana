@@ -1,9 +1,18 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Stream } from "effect";
 import { Connection } from "@solana/web3.js";
 
 import { SOLANA_ENDPOINT } from "./constants";
 import type { BackendLayer } from "../runtime";
-import { Boards, Content, Economy, Identity, Runs, Session } from "../services";
+import {
+  Boards,
+  Content,
+  Economy,
+  Identity,
+  Runs,
+  Session,
+  StoreEconomy,
+  type StoreEconomyService,
+} from "../services";
 import { makeSolanaContentBoardsLive } from "./content/SolanaContentBoardsLive";
 import { makeSolanaEconomyLive } from "./economy/SolanaEconomyLive";
 import { makeSolanaIdentitySessionLive } from "./SolanaIdentitySessionLive";
@@ -21,17 +30,24 @@ export function makeSolanaBackendLive(
   const connection =
     options.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
   const identity = makeSolanaIdentitySessionLive({ connection });
+  const campaignState = { campaignOwned: true, price: null } as const;
+  const storeEconomy: StoreEconomyService = {
+    unlockCampaign: () => Effect.succeed(campaignState),
+    restorePurchases: () => Effect.succeed(campaignState),
+    state: Stream.succeed(campaignState),
+  };
   const complete = Layer.mergeAll(
     identity,
     makeSolanaRunsLive({ connection }).pipe(Layer.provide(identity)),
     makeSolanaContentBoardsLive({ connection }).pipe(Layer.provide(identity)),
     makeSolanaEconomyLive({ connection }).pipe(Layer.provide(identity)),
+    Layer.succeed(StoreEconomy, storeEconomy),
   );
   return Layer.scopedContext(
     complete.pipe(
       Layer.build,
       // Keep the private wallet and identity-session tags inside the Solana
-      // implementation; BackendProvider exposes exactly the six public tags.
+      // implementation; BackendProvider exposes only the public tags.
       Effect.map((context) =>
         Context.pick(
           Identity,
@@ -40,6 +56,7 @@ export function makeSolanaBackendLive(
           Content,
           Boards,
           Economy,
+          StoreEconomy,
         )(context),
       ),
     ),

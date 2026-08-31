@@ -14,6 +14,7 @@ import type {
   RunMode,
   RunView,
   SessionState,
+  StoreEconomyState,
   TierTable,
   WalletChoice,
 } from "./views";
@@ -114,10 +115,26 @@ export class Economy extends Context.Tag("zkube/backend/Economy")<
   EconomyService
 >() {}
 
+export interface StoreEconomyService {
+  readonly unlockCampaign: () => Effect.Effect<StoreEconomyState, EconomyError>;
+  readonly restorePurchases: () => Effect.Effect<
+    StoreEconomyState,
+    EconomyError
+  >;
+  readonly state: Stream.Stream<StoreEconomyState, EconomyError>;
+}
+
+/** Store entitlement stays separate from Solana's Kredit and claim service. */
+export class StoreEconomy extends Context.Tag("zkube/backend/StoreEconomy")<
+  StoreEconomy,
+  StoreEconomyService
+>() {}
+
 export type BackendServices =
   | Identity
   | Session
   | Runs
   | Content
   | Boards
-  | Economy;
+  | Economy
+  | StoreEconomy;

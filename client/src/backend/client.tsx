@@ -23,7 +23,15 @@ import { subscribeNativeResume } from "@/platform/nativeShell";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { errorMessage } from "@/utils/errors";
 import { useBackendRuntime } from "./runtime";
-import { Boards, Content, Economy, Identity, Runs, Session } from "./services";
+import {
+  Boards,
+  Content,
+  Economy,
+  Identity,
+  Runs,
+  Session,
+  StoreEconomy,
+} from "./services";
 import { PlayerAddress } from "./views";
 import type {
   BoardState,
@@ -36,6 +44,7 @@ import type {
   RunMode,
   RunView,
   SessionState,
+  StoreEconomyState,
   WalletChoice,
 } from "./views";
 
@@ -173,6 +182,7 @@ export interface ClientState {
   identity: IdentityState;
   session: SessionState;
   economy: EconomyState;
+  storeEconomy: StoreEconomyState;
   today: DailyContent | null;
   boards: ReadonlyArray<BoardState>;
   catalog: CampaignCatalog | null;
@@ -204,6 +214,10 @@ const EMPTY_ECONOMY: EconomyState = {
     bestScore: 0,
   },
 };
+const EMPTY_STORE_ECONOMY: StoreEconomyState = {
+  campaignOwned: false,
+  price: null,
+};
 
 const ClientContext = createContext<ClientState | null>(null);
 const SELECTION_KEY = "zkube:run-content:v1";
@@ -213,6 +227,7 @@ export function BackendClientState({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState(EMPTY_IDENTITY);
   const [session, setSession] = useState(EMPTY_SESSION);
   const [economy, setEconomy] = useState(EMPTY_ECONOMY);
+  const [storeEconomy, setStoreEconomy] = useState(EMPTY_STORE_ECONOMY);
   const [today, setToday] = useState<DailyContent | null>(null);
   const [boards, setBoards] = useState<ReadonlyArray<BoardState>>([]);
   const [catalog, setCatalog] = useState<CampaignCatalog | null>(null);
@@ -243,6 +258,17 @@ export function BackendClientState({ children }: { children: ReactNode }) {
         Effect.flatMap(Identity, (service) =>
           Stream.runForEach(service.state, (value) =>
             Effect.sync(() => setIdentity(value)),
+          ),
+        ),
+      ),
+    [runtime],
+  );
+  useEffect(
+    () =>
+      runtime.runCallback(
+        Effect.flatMap(StoreEconomy, (service) =>
+          Stream.runForEach(service.state, (value) =>
+            Effect.sync(() => setStoreEconomy(value)),
           ),
         ),
       ),
@@ -323,6 +349,7 @@ export function BackendClientState({ children }: { children: ReactNode }) {
       identity,
       session,
       economy,
+      storeEconomy,
       today,
       boards,
       catalog,
@@ -337,6 +364,7 @@ export function BackendClientState({ children }: { children: ReactNode }) {
       economy,
       identity,
       session,
+      storeEconomy,
       today,
     ],
   );
@@ -699,15 +727,28 @@ export function useCampaign() {
   const state = useClientState();
   const runtime = useBackendRuntime();
   const campaign = useMemo(
-    () => projectCampaign(state.catalog, state.economy.profile.stars),
-    [state.catalog, state.economy.profile.stars],
+    () =>
+      projectCampaign(
+        state.catalog,
+        state.economy.profile.stars,
+        state.storeEconomy.campaignOwned,
+      ),
+    [
+      state.catalog,
+      state.economy.profile.stars,
+      state.storeEconomy.campaignOwned,
+    ],
   );
   const refresh = useCallback(async () => {
     const catalog = await runtime.runPromise(
       Effect.flatMap(Content, (service) => service.catalog()),
     );
-    return projectCampaign(catalog, state.economy.profile.stars);
-  }, [runtime, state.economy.profile.stars]);
+    return projectCampaign(
+      catalog,
+      state.economy.profile.stars,
+      state.storeEconomy.campaignOwned,
+    );
+  }, [runtime, state.economy.profile.stars, state.storeEconomy.campaignOwned]);
   return {
     campaign,
     loading: !state.catalog,
@@ -766,6 +807,7 @@ export function useDaily() {
 function projectCampaign(
   catalog: CampaignCatalog | null,
   stars: readonly number[],
+  campaignOwned: boolean,
 ): ClientCampaignView | null {
   if (!catalog) return null;
   return {
@@ -780,11 +822,9 @@ function projectCampaign(
         themeId: realm.theme,
         enabled: true,
         locked:
-          realm.locked === "purchase"
+          realm.locked === "purchase" && !campaignOwned
             ? "purchase"
-            : realm.locked === "stars" &&
-                index > 0 &&
-                (stars[index * 10 - 1] ?? 0) === 0
+            : index > 0 && (stars[index * 10 - 1] ?? 0) === 0
               ? "stars"
               : null,
         cleared: levelStars[9]! > 0,
@@ -933,6 +973,42 @@ export function useEconomyActions() {
       runtime.runPromise(
         Effect.flatMap(Economy, (service) => service.claim(dayId, board)),
       ),
+  };
+}
+
+export function useCampaignUnlock() {
+  const runtime = useBackendRuntime();
+  const { storeEconomy } = useClientState();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = useCallback(
+    async (operation: "unlock" | "restore") => {
+      setBusy(true);
+      setError(null);
+      try {
+        return await runtime.runPromise(
+          Effect.flatMap(StoreEconomy, (service) =>
+            operation === "unlock"
+              ? service.unlockCampaign()
+              : service.restorePurchases(),
+          ),
+        );
+      } catch (cause) {
+        const message = errorMessage(cause);
+        setError(message);
+        throw cause;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [runtime],
+  );
+  return {
+    ...storeEconomy,
+    busy,
+    error,
+    unlockCampaign: () => run("unlock"),
+    restorePurchases: () => run("restore"),
   };
 }
 

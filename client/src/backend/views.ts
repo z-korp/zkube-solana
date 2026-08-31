@@ -192,6 +192,12 @@ export const EconomyState = Schema.Struct({
 });
 export type EconomyState = typeof EconomyState.Type;
 
+export const StoreEconomyState = Schema.Struct({
+  campaignOwned: Schema.Boolean,
+  price: Schema.NullOr(Schema.String),
+});
+export type StoreEconomyState = typeof StoreEconomyState.Type;
+
 const Prepared = Schema.Struct({ _tag: Schema.Literal("Prepared") });
 const Delegated = Schema.Struct({ _tag: Schema.Literal("Delegated") });
 const RowReady = Schema.Struct({ _tag: Schema.Literal("RowReady") });
@@ -263,6 +269,7 @@ export const PUBLIC_VIEW_SCHEMAS = {
   DailyContent,
   BoardState,
   EconomyState,
+  StoreEconomyState,
   CampaignCatalog,
   TierTable,
 } as const;
