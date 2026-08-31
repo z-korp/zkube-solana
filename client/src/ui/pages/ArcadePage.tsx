@@ -35,6 +35,7 @@ import {
   InsertCoinSheet,
 } from "@/ui/components/settlement";
 import DailyBoard from "@/ui/components/arcade/DailyBoard";
+import DailyBoardsPreview from "@/ui/components/arcade/DailyBoardsPreview";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalanceLamports } from "@/utils/currency";
@@ -275,7 +276,9 @@ const ArcadePage: React.FC = () => {
                 </section>
               )}
 
-              {/* The board IS the prize surface: priced rungs into ranks. */}
+              <DailyBoardsPreview view={view} address={address ?? null} />
+
+              {/* The full board remains the prize surface: priced rungs into ranks. */}
               <DailyBoard view={view} address={address ?? null} />
             </>
           ) : (
