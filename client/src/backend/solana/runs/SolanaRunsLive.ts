@@ -13,9 +13,9 @@ import type {
 import {
   buildCommitDailyRunPlan,
   buildPrepareDailyRunPlan,
-  currentDailyDayId,
   fetchDailyView,
 } from "../content/dailyClient";
+import { currentDailyDayId } from "../../../core/dailyRules";
 import { projectRunFromLocalState } from "../../../core/runProjection";
 import {
   coreApplyRunBonus,

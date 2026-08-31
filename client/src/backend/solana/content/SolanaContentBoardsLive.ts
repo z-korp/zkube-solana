@@ -7,7 +7,10 @@ import {
   CAMPAIGN_CONTENT_VERSION,
   CANONICAL_CAMPAIGN_MAP_COUNT,
 } from "@/core/campaignCatalog";
-import { dailyContentFromPairIndex } from "@/core/dailyRules";
+import {
+  currentDailyDayId,
+  dailyContentFromPairIndex,
+} from "@/core/dailyRules";
 import {
   PRESSURE_STEP,
   TIER_BLOCK_WEIGHTS,
@@ -46,7 +49,6 @@ import {
   type CampaignView,
 } from "./campaignClient";
 import {
-  currentDailyDayId,
   fetchArcadeSuspendedUntilDay,
   fetchDailyBoardAccount,
   fetchDailyView,

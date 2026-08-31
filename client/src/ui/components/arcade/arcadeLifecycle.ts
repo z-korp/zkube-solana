@@ -1,4 +1,5 @@
 import type { ClientDailyView } from "@/backend/client";
+import { currentDailyDayId } from "@/core/dailyRules";
 
 /**
  * The presentational lifecycle states of the Arcade home. The
@@ -41,8 +42,7 @@ export function computeArcadeLifecycle(args: {
 }): ArcadeLifecycle {
   const { view, hasActiveRun, nowUnix } = args;
   if (hasActiveRun) return "resume";
-  const expectedDayId = args.expectedDayId ??
-    Math.max(0, Math.floor(nowUnix / 86_400));
+  const expectedDayId = args.expectedDayId ?? currentDailyDayId(nowUnix);
   if (view && view.dayId < expectedDayId) return "stale";
   if (!view || view.dayId !== expectedDayId ||
       view.status === "funding" || view.status === "unknown") {

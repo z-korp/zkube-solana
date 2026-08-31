@@ -1,4 +1,11 @@
-import { Context, Effect, Layer, Stream, SubscriptionRef } from "effect";
+import {
+  Context,
+  Effect,
+  Layer,
+  Schedule,
+  Stream,
+  SubscriptionRef,
+} from "effect";
 
 import {
   coreCampaignMoveBudget,
@@ -16,6 +23,7 @@ import {
   type CoreRunConfigInput,
 } from "@/core/zkubeCore";
 import { CAMPAIGN_CATALOG } from "@/core/campaignCatalog.generated";
+import { currentDailyDayId } from "@/core/dailyRules";
 import {
   CAMPAIGN_TARGET_LADDER,
   DAILY_MAX_MOVES,
@@ -101,6 +109,7 @@ export interface LocalBackendOptions {
   readonly dailyConfig?: CoreRunConfigInput;
   readonly deadlineAfterAcceptedActions?: number;
   readonly playtest?: boolean;
+  readonly nowUnix?: () => number;
   readonly onRuntimeStart?: () => void;
   readonly onRuntimeStop?: () => void;
 }
@@ -167,8 +176,13 @@ export function makeLocalBackendLive(
         floatLamports: 0n,
       });
       const catalog = defaultCatalog();
+      const nowUnix = options.nowUnix ?? (() => Math.floor(Date.now() / 1_000));
+      const synthesizeToday = () =>
+        options.playtest
+          ? localPlaytestToday(catalog, nowUnix())
+          : defaultToday(catalog, nowUnix());
       const todayRef = yield* SubscriptionRef.make<DailyContent>(
-        options.playtest ? localPlaytestToday(catalog) : defaultToday(catalog),
+        synthesizeToday(),
       );
       const economyRef =
         yield* SubscriptionRef.make<EconomyState>(defaultEconomy());
@@ -188,20 +202,26 @@ export function makeLocalBackendLive(
       const dailyAttempts: LocalDailyAttempt[] = [];
       let nextRunId = 1n;
 
+      const refreshToday = (force = false) =>
+        Effect.gen(function* () {
+          const previous = yield* SubscriptionRef.get(todayRef);
+          const today = synthesizeToday();
+          if (!force && previous.dayId === today.dayId) return previous;
+          dailyAttempts.length = 0;
+          const boards = rankedLocalBoards(today.dayId, dailyAttempts);
+          yield* Effect.all([
+            SubscriptionRef.set(todayRef, today),
+            SubscriptionRef.set(scoreBoardRef, boards.score),
+            SubscriptionRef.set(themeBoardRef, boards.theme),
+          ]);
+          return today;
+        });
+
       if (options.playtest) {
         yield* Effect.acquireRelease(
           Effect.sync(() =>
             subscribePlaytestSettings(() => {
-              const today = localPlaytestToday(catalog);
-              dailyAttempts.length = 0;
-              const boards = rankedLocalBoards(today.dayId, dailyAttempts);
-              Effect.runFork(
-                Effect.all([
-                  SubscriptionRef.set(todayRef, today),
-                  SubscriptionRef.set(scoreBoardRef, boards.score),
-                  SubscriptionRef.set(themeBoardRef, boards.theme),
-                ]),
-              );
+              Effect.runFork(refreshToday(true));
             }),
           ),
           (unsubscribe) => Effect.sync(unsubscribe),
@@ -324,14 +344,13 @@ export function makeLocalBackendLive(
           ),
         enterDaily: () =>
           Effect.gen(function* () {
+            yield* refreshToday();
             yield* SubscriptionRef.update(economyRef, (state) => ({
               ...state,
               kredits: state.kredits > 0n ? state.kredits - 1n : 0n,
               claimable: [],
             }));
-            const today = options.playtest
-              ? localPlaytestToday(catalog)
-              : yield* SubscriptionRef.get(todayRef);
+            const today = yield* SubscriptionRef.get(todayRef);
             const config = yield* Effect.try({
               try: () => options.dailyConfig ?? dailyConfig(catalog, today),
               catch: asRunsRejected,
@@ -446,10 +465,16 @@ export function makeLocalBackendLive(
       };
 
       const content: ContentService = {
-        today: () => SubscriptionRef.get(todayRef),
+        today: () => refreshToday(),
         catalog: () => Effect.succeed(catalog),
         tierTable: () => Effect.succeed(defaultTierTable()),
-        todayChanges: todayRef.changes,
+        todayChanges: Stream.merge(
+          todayRef.changes,
+          Stream.repeatEffectWithSchedule(
+            refreshToday(),
+            Schedule.spaced("30 seconds"),
+          ),
+        ).pipe(Stream.changes),
       };
 
       const boardRefs = [scoreBoardRef, themeBoardRef] as const;
@@ -683,16 +708,19 @@ function campaignConfig(
   };
 }
 
-function defaultToday(catalog: CampaignCatalog): DailyContent {
-  const now = Math.floor(Date.now() / 1_000);
+function defaultToday(
+  catalog: CampaignCatalog,
+  nowUnix: number,
+): DailyContent {
+  const dayId = currentDailyDayId(nowUnix);
   const realm = requireRealm(catalog, 1);
   return {
-    dayId: 0,
+    dayId,
     realm: 1,
     objective: { kind: 0, value: 0 },
     startingHeight: realm.startingHeight,
-    opensAt: now - 60,
-    freezesAt: now + 7 * 86_400,
+    opensAt: dayId * 86_400,
+    freezesAt: (dayId + 1) * 86_400,
     suspended: false,
   };
 }
@@ -765,8 +793,11 @@ function defaultEconomy(): EconomyState {
   };
 }
 
-function localPlaytestToday(catalog: CampaignCatalog): DailyContent {
-  const today = playtestToday();
+function localPlaytestToday(
+  catalog: CampaignCatalog,
+  nowUnix: number,
+): DailyContent {
+  const today = playtestToday(nowUnix);
   const realm = requireRealm(catalog, today.realm);
   return { ...today, startingHeight: realm.startingHeight };
 }

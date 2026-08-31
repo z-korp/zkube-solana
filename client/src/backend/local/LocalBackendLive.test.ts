@@ -12,7 +12,9 @@ import {
   initializeZkubeCoreSync,
   type CoreRunConfigInput,
 } from "@/core/zkubeCore";
-import { Runs } from "../services";
+import { currentDailyDayId } from "@/core/dailyRules";
+import { computeArcadeLifecycle } from "@/ui/components/arcade/arcadeLifecycle";
+import { Content, Runs } from "../services";
 import { localRowsFromVrf, makeLocalBackendLive } from "./LocalBackendLive";
 
 initializeZkubeCoreSync(
@@ -100,6 +102,36 @@ describe("LocalBackendLive", () => {
         }),
       );
       expect(slot).toBeNull();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("playtest_daily_is_open_on_the_shared_current_utc_day", async () => {
+    const nowUnix = Date.UTC(2026, 7, 31, 12, 30) / 1_000;
+    const runtime = ManagedRuntime.make(
+      makeLocalBackendLive({ playtest: true, nowUnix: () => nowUnix }),
+    );
+    try {
+      const today = await runtime.runPromise(
+        Effect.flatMap(Content, (content) => content.today()),
+      );
+      expect(today.dayId).toBe(currentDailyDayId(nowUnix));
+      expect(today.suspended).toBe(false);
+      expect(today.opensAt).toBeLessThanOrEqual(nowUnix);
+      expect(today.freezesAt).toBeGreaterThan(nowUnix);
+      expect(
+        computeArcadeLifecycle({
+          view: {
+            dayId: today.dayId,
+            status: "open",
+            opensAt: today.opensAt,
+            runsCloseAt: today.freezesAt,
+          },
+          hasActiveRun: false,
+          nowUnix,
+        }),
+      ).toBe("entries-open");
     } finally {
       await runtime.dispose();
     }

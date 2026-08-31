@@ -1,3 +1,4 @@
+import { currentDailyDayId } from "@/core/dailyRules";
 import { DAILY_THEMES } from "@/core/dailyRules.generated";
 import { appStorage } from "@/platform/storage";
 import type { DailyContent } from "../views";
@@ -58,16 +59,18 @@ export function playtestSeed(): Uint8Array {
   return decodeSeed(snapshot.seedHex);
 }
 
-export function playtestToday(): DailyContent {
+export function playtestToday(
+  nowUnix = Math.floor(Date.now() / 1_000),
+): DailyContent {
   const objective = DAILY_THEMES[snapshot.objectiveIndex] ?? DAILY_THEMES[0];
-  const now = Math.floor(Date.now() / 1_000);
+  const dayId = currentDailyDayId(nowUnix);
   return {
-    dayId: 1,
+    dayId,
     realm: snapshot.realm,
     objective: { kind: objective.kind, value: objective.value },
     startingHeight: 0,
-    opensAt: now - 60,
-    freezesAt: now + 7 * 86_400,
+    opensAt: dayId * 86_400,
+    freezesAt: (dayId + 1) * 86_400,
     suspended: false,
   };
 }

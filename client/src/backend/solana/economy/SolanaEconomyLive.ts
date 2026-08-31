@@ -5,6 +5,7 @@ import {
   coreLadderTier,
   initializeZkubeCore,
 } from "@/core/zkubeCore";
+import { currentDailyDayId } from "@/core/dailyRules";
 import { EconomyRejected } from "../../errors";
 import { Economy, type EconomyService } from "../../services";
 import type {
@@ -19,7 +20,6 @@ import {
 import {
   buildClaimDailyPrizePlan,
   buildPurchaseKreditsPlan,
-  currentDailyDayId,
   fetchUnclaimedRewards,
 } from "../content/dailyClient";
 import { unpackCompactLevelStars } from "../content/campaignClient";

@@ -43,6 +43,7 @@ import {
   type ActiveRunRulesView,
 } from "@/core/runProjection.js";
 import {
+  currentDailyDayId,
   mapDailyPressureProfile,
   dailyContentFromPairIndex,
   nextScheduledDaily,
@@ -141,12 +142,6 @@ export interface DailyView {
   rules: ActiveRunRulesView;
   dailyTheme: DailyThemeView;
   pressure: DailyPressureProfileView;
-}
-
-export function currentDailyDayId(
-  nowUnix = Math.floor(Date.now() / 1_000),
-): number {
-  return Math.max(0, Math.floor(nowUnix / 86_400));
 }
 
 export async function fetchArcadeSuspendedUntilDay(args: {

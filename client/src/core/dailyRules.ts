@@ -13,6 +13,12 @@ export interface DailyThemeView {
   value: number;
 }
 
+export function currentDailyDayId(
+  nowUnix = Math.floor(Date.now() / 1_000),
+): number {
+  return Math.max(0, Math.floor(nowUnix / 86_400));
+}
+
 export function dailyIsScheduled(
   dayId: number,
   suspendedUntilDay: number,
