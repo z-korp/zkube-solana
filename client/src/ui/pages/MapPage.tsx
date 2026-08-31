@@ -178,7 +178,7 @@ const MapPage: React.FC = () => {
     : highestClearedLevel(map?.levelStars ?? []);
   const isFirstVisit =
     map !== undefined &&
-    map.unlocked &&
+    map.locked === null &&
     zoneStars === 0 &&
     storyHighestCleared === 0;
   const alreadyGreeted = greetedZones.has(mapZoneId);
@@ -195,7 +195,7 @@ const MapPage: React.FC = () => {
   }, [map]);
 
   useEffect(() => {
-    if (!dataStabilized || alreadyGreeted || !map?.unlocked) {
+    if (!dataStabilized || alreadyGreeted || map?.locked !== null) {
       return;
     }
     if (isFirstVisit) {
@@ -206,7 +206,7 @@ const MapPage: React.FC = () => {
     alreadyGreeted,
     dataStabilized,
     isFirstVisit,
-    map?.unlocked,
+    map?.locked,
     mapZoneId,
     markZoneGreeted,
   ]);
@@ -652,13 +652,28 @@ const MapPage: React.FC = () => {
 
       {!selectedNode && !showGreeting && (
         <div className="relative z-30 px-4 pb-4">
-          <ArcadeButton
-            onClick={openCurrentNode}
-            disabled={!map?.unlocked || currentNode === null}
-            accentOverride={MONEY_GOLD}
-          >
-            {currentActionLabel}
-          </ArcadeButton>
+          {map?.locked ? (
+            <div className="rounded-2xl border border-white/15 bg-black/60 px-4 py-3 text-center backdrop-blur-md">
+              <p className="font-sans text-sm font-black text-white">
+                {map.locked === "purchase"
+                  ? "Unlock the full Campaign"
+                  : "Defeat the previous guardian"}
+              </p>
+              <p className="mt-1 font-sans text-xs text-white/55">
+                {map.locked === "purchase"
+                  ? "This realm is part of the full Campaign."
+                  : "Clear its final trial to open this path."}
+              </p>
+            </div>
+          ) : (
+            <ArcadeButton
+              onClick={openCurrentNode}
+              disabled={currentNode === null}
+              accentOverride={MONEY_GOLD}
+            >
+              {currentActionLabel}
+            </ArcadeButton>
+          )}
         </div>
       )}
     </div>

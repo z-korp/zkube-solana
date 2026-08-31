@@ -31,7 +31,7 @@ let backendLayer: BackendLayer;
 if (import.meta.env.DEV && DEV_BYPASS_ACTIVE) {
   const { LOCAL_BACKEND_SENTINEL, makeLocalBackendLive } =
     await import("@/backend/local/LocalBackendLive");
-  backendLayer = makeLocalBackendLive();
+  backendLayer = makeLocalBackendLive({ target: "playtest" });
   document.documentElement.dataset.zkubeBackend = LOCAL_BACKEND_SENTINEL;
 } else {
   backendLayer = makeSelectedBackend();

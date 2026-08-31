@@ -6,7 +6,6 @@ import type { DailyContent } from "../views";
 export const PLAYTEST_BUILD_SENTINEL = "zkube_owner_playtest_v1";
 
 const SETTINGS_KEY = "zkube:playtest:settings:v1";
-const NAME_KEY = "zkube:playtest:name:v1";
 const CHANGE_EVENT = "zkube:playtest-settings";
 const DEFAULT_SEED_HEX = "5a".repeat(32);
 
@@ -72,27 +71,6 @@ export function playtestToday(
     freezesAt: (dayId + 1) * 86_400,
     suspended: false,
   };
-}
-
-export function readPlaytestName(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const name = appStorage()?.getItem(NAME_KEY)?.trim() ?? "";
-    return name.length > 0 ? name : null;
-  } catch {
-    return null;
-  }
-}
-
-export function storePlaytestName(name: string): string {
-  const normalized = name.trim().slice(0, 24);
-  if (!normalized) throw new Error("Enter a name");
-  try {
-    appStorage()?.setItem(NAME_KEY, normalized);
-  } catch {
-    // A storage-denied preview keeps the name for this mounted runtime.
-  }
-  return normalized;
 }
 
 function loadSettings(): PlaytestSettings {

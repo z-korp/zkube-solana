@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from "react";
 
 import { useConnectedPlayer, useIdentityActions } from "@/backend/client";
-import { storePlaytestName } from "./playtest";
 
-export default function PlaytestNameGate() {
+export default function LocalNameGate() {
   const player = useConnectedPlayer();
   const identity = useIdentityActions();
   const [name, setName] = useState("");
@@ -15,9 +14,8 @@ export default function PlaytestNameGate() {
     setBusy(true);
     setError(null);
     try {
-      const normalized = storePlaytestName(name);
       await player.connectAndEnable("local");
-      await identity.setLabel(normalized);
+      await identity.setLabel(name);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -31,13 +29,13 @@ export default function PlaytestNameGate() {
         onSubmit={(event) => void submit(event)}
         className="w-full max-w-sm rounded-3xl border border-white/15 bg-[#101a2b] p-6 shadow-2xl"
       >
-        <p className="font-display text-4xl text-[#FFF4D7]">Owner play build</p>
+        <p className="font-display text-4xl text-[#FFF4D7]">Welcome to zKube</p>
         <p className="mt-2 font-sans text-sm leading-6 text-white/60">
-          Pick the name shown beside your local runs. It stays on this device.
+          Pick the name shown with your progress. It stays on this device.
         </p>
         <input
           autoFocus
-          aria-label="Playtest name"
+          aria-label="Player name"
           maxLength={24}
           value={name}
           onChange={(event) => setName(event.target.value)}

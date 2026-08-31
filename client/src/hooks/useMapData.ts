@@ -2,7 +2,6 @@ import { useMemo } from "react";
 
 import { getThemeId, type ThemeId } from "@/config/themes";
 import type { ClientCampaignMap } from "@/backend/client";
-import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import { rulesToGameLevelData, type GameLevelData } from "./useGameLevel";
 
 type NodeType = "classic" | "boss";
@@ -46,7 +45,7 @@ export function generateMapData({
   const zoneTheme = getThemeId(map.themeId);
   const firstUncleared = map.levelStars.findIndex((stars) => stars === 0);
   const currentNodeIndex = firstUncleared < 0 ? 9 : firstUncleared;
-  const playable = map.enabled && map.unlocked;
+  const playable = map.enabled && map.locked === null;
 
   const nodes = Array.from({ length: NODES_PER_ZONE }, (_, nodeIndex) => {
     const level = nodeIndex + 1;
@@ -57,7 +56,7 @@ export function generateMapData({
     let state: NodeState = "locked";
     if (playing) state = "playing";
     else if (cleared) state = "cleared";
-    else if (playable && (PLAYTEST_ACTIVE || nodeIndex === currentNodeIndex)) {
+    else if (playable && nodeIndex === currentNodeIndex) {
       state = "current";
     }
 

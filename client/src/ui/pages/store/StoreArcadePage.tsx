@@ -1,22 +1,29 @@
+import { useState } from "react";
 import { Settings } from "lucide-react";
 
-import { useDaily } from "@/backend/client";
+import { useClientState, useConnectedPlayer, useDaily } from "@/backend/client";
 import { getZoneGuardian } from "@/config/bossCharacters";
+import { ZONE_NAMES } from "@/config/profileData";
 import { dailyThemeName } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
 import { useActiveDailyAttempt } from "@/hooks/useActiveDailyAttempt";
 import { useNavigationStore } from "@/stores/navigationStore";
 import GuardianFaceBlock from "@/ui/components/economy/GuardianFaceBlock";
+import ShareCardSheet from "@/ui/components/profile/ShareCardSheet";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 
 export default function StoreArcadePage() {
   const daily = useDaily();
+  const { economy } = useClientState();
+  const player = useConnectedPlayer();
   const active = useActiveDailyAttempt();
+  const [showResult, setShowResult] = useState(false);
   const navigate = useNavigationStore((state) => state.navigate);
   const openSettings = useNavigationStore((state) => state.openSettings);
   const view = daily.daily;
   const realm = view?.mapId ?? 1;
   const guardian = getZoneGuardian(realm);
+  const attempt = view?.attempt;
   const enter = async () => {
     const run = await daily.enter();
     navigate("play", run.runId);
@@ -61,13 +68,37 @@ export default function StoreArcadePage() {
           disabled={!view || daily.action !== null}
           onClick={() => {
             if (active) navigate("play", active.gameId);
+            else if (attempt) setShowResult(true);
             else void enter();
           }}
           className="mt-5 w-full rounded-2xl bg-amber-300 px-4 py-3 font-sans text-sm font-black text-slate-950 disabled:opacity-40"
         >
-          {active ? "Resume run" : daily.action ? "Opening…" : "Play today"}
+          {active
+            ? "Resume run"
+            : attempt
+              ? "View result"
+              : daily.action
+                ? "Opening…"
+                : "Play today"}
         </button>
       </section>
+      {attempt && (
+        <ShareCardSheet
+          open={showResult}
+          onClose={() => setShowResult(false)}
+          data={{
+            displayName: player.label ?? "Player",
+            realm: ZONE_NAMES[attempt.realm] ?? `Realm ${attempt.realm}`,
+            objective: dailyThemeName(attempt.objective),
+            dailyScore: attempt.dailyScore,
+            objectiveTotal: attempt.objectiveTotal,
+            streak: economy.profile.streak,
+            guardianName: getZoneGuardian(attempt.realm).name,
+            guardianGreeting: getZoneGuardian(attempt.realm).dailyGreeting,
+            zoneId: attempt.realm,
+          }}
+        />
+      )}
     </div>
   );
 }

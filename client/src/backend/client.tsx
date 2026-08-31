@@ -20,7 +20,6 @@ import {
 import { coreRunSummary } from "@/core/zkubeCore";
 import { appStorage } from "@/platform/storage";
 import { subscribeNativeResume } from "@/platform/nativeShell";
-import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { errorMessage } from "@/utils/errors";
 import { useBackendRuntime } from "./runtime";
@@ -142,7 +141,7 @@ export interface ClientCampaignMap {
   mapId: number;
   themeId: number;
   enabled: boolean;
-  unlocked: boolean;
+  locked: null | "stars" | "purchase";
   cleared: boolean;
   perfected: boolean;
   levelStars: number[];
@@ -167,6 +166,7 @@ export interface ClientDailyView {
   entryLamports: bigint;
   dailyTheme: { kind: number; value: number };
   boards: ReadonlyArray<BoardState>;
+  attempt: EconomyState["profile"]["dailyAttempt"];
 }
 
 export interface ClientState {
@@ -779,8 +779,14 @@ function projectCampaign(
         mapId: realm.realm,
         themeId: realm.theme,
         enabled: true,
-        unlocked:
-          PLAYTEST_ACTIVE || index === 0 || (stars[index * 10 - 1] ?? 0) > 0,
+        locked:
+          realm.locked === "purchase"
+            ? "purchase"
+            : realm.locked === "stars" &&
+                index > 0 &&
+                (stars[index * 10 - 1] ?? 0) === 0
+              ? "stars"
+              : null,
         cleared: levelStars[9]! > 0,
         perfected: levelStars.every((value) => value === 3),
         levelStars,
@@ -824,6 +830,10 @@ function projectDaily(state: ClientState): ClientDailyView | null {
     entryLamports: ARENA_ENTRY_LAMPORTS,
     dailyTheme: state.today.objective,
     boards: state.boards,
+    attempt:
+      state.economy.profile.dailyAttempt?.dayId === state.today.dayId
+        ? state.economy.profile.dailyAttempt
+        : undefined,
   };
 }
 
@@ -832,6 +842,7 @@ export interface ConnectedPlayer {
   connectionStatus: IdentityState["status"];
   connector: WalletChoice | null;
   publicKey: string | null;
+  label: string | null;
   wallet: WalletChoice | null;
   session: { validUntil: number } | null;
   sessionStatus: "missing" | "checking" | "ready" | "expired" | "needsRenewal";
@@ -871,6 +882,7 @@ export function useConnectedPlayer(): ConnectedPlayer {
     connectionStatus: identity.status,
     connector: identity.wallet ?? null,
     publicKey: identity.address ?? null,
+    label: identity.label ?? null,
     wallet: identity.wallet ?? null,
     session:
       session.status === "none" ? null : { validUntil: session.expiresAt },

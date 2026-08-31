@@ -27,6 +27,7 @@ describe("LocalBackendLive", () => {
   it("local_backend_plays_a_golden_replay", async () => {
     const runtime = ManagedRuntime.make(
       makeLocalBackendLive({
+        target: "store",
         dailyConfig: goldenConfig(),
         dailyVrfOutputs: [
           decodeHex(golden.events[0].output_hex!),
@@ -87,7 +88,9 @@ describe("LocalBackendLive", () => {
   });
 
   it("terminal_campaign_run_leaves_the_resumable_slot_empty", async () => {
-    const runtime = ManagedRuntime.make(makeLocalBackendLive());
+    const runtime = ManagedRuntime.make(
+      makeLocalBackendLive({ target: "store" }),
+    );
     try {
       const slot = await runtime.runPromise(
         Effect.gen(function* () {
@@ -110,7 +113,7 @@ describe("LocalBackendLive", () => {
   it("local_daily_is_open_on_the_shared_current_utc_day", async () => {
     const nowUnix = Date.UTC(2026, 7, 31, 12, 30) / 1_000;
     const runtime = ManagedRuntime.make(
-      makeLocalBackendLive({ nowUnix: () => nowUnix }),
+      makeLocalBackendLive({ target: "store", nowUnix: () => nowUnix }),
     );
     try {
       const today = await runtime.runPromise(
@@ -136,10 +139,75 @@ describe("LocalBackendLive", () => {
       await runtime.dispose();
     }
   });
+
+  it("store_daily_is_one_attempt_per_day", async () => {
+    let nowUnix = Date.UTC(2026, 7, 31, 12) / 1_000;
+    const runtime = ManagedRuntime.make(
+      makeLocalBackendLive({ target: "store", nowUnix: () => nowUnix }),
+    );
+    try {
+      await runtime.runPromise(
+        Effect.flatMap(Runs, (runs) => runs.enterDaily()),
+      );
+      await expect(
+        runtime.runPromise(Effect.flatMap(Runs, (runs) => runs.enterDaily())),
+      ).rejects.toThrow("already been played");
+      nowUnix += 86_400;
+      await expect(
+        runtime.runPromise(Effect.flatMap(Runs, (runs) => runs.enterDaily())),
+      ).resolves.toBeDefined();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("store_daily_rows_derive_from_the_day", async () => {
+    const nowUnix = Date.UTC(2026, 7, 31, 12) / 1_000;
+    const first = ManagedRuntime.make(
+      makeLocalBackendLive({ target: "store", nowUnix: () => nowUnix }),
+    );
+    const second = ManagedRuntime.make(
+      makeLocalBackendLive({ target: "store", nowUnix: () => nowUnix }),
+    );
+    try {
+      const start = (runtime: typeof first) =>
+        runtime.runPromise(Effect.flatMap(Runs, (runs) => runs.enterDaily()));
+      expect((await start(second)).token).toEqual((await start(first)).token);
+    } finally {
+      await Promise.all([first.dispose(), second.dispose()]);
+    }
+  });
+
+  it("only_the_store_catalog_reports_purchase_locks", async () => {
+    const store = ManagedRuntime.make(
+      makeLocalBackendLive({ target: "store" }),
+    );
+    const playtest = ManagedRuntime.make(
+      makeLocalBackendLive({ target: "playtest" }),
+    );
+    try {
+      const catalog = (runtime: typeof store) =>
+        runtime.runPromise(
+          Effect.flatMap(Content, (content) => content.catalog()),
+        );
+      expect(
+        (await catalog(store)).realms.map((realm) => realm.locked),
+      ).toEqual([null, "stars", "stars", ...Array(7).fill("purchase")]);
+      expect(
+        (await catalog(playtest)).realms.every(
+          (realm) => realm.locked === null,
+        ),
+      ).toBe(true);
+    } finally {
+      await Promise.all([store.dispose(), playtest.dispose()]);
+    }
+  });
 });
 
 async function finishedLocalToken(seed: Uint8Array): Promise<Uint8Array> {
-  const runtime = ManagedRuntime.make(makeLocalBackendLive({ seed }));
+  const runtime = ManagedRuntime.make(
+    makeLocalBackendLive({ target: "playtest", seed }),
+  );
   try {
     return await runtime.runPromise(
       Effect.gen(function* () {

@@ -1,13 +1,21 @@
 import { Flame, Star } from "lucide-react";
 
-import { useConnectedPlayer } from "@/backend/client";
+import {
+  useCampaign,
+  useConnectedPlayer,
+  useIdentityActions,
+} from "@/backend/client";
 import { usePlayerProfile } from "@/hooks/usePlayerProfile";
 import GuardianFaceBlock from "@/ui/components/economy/GuardianFaceBlock";
 
 export default function StoreProfilePage() {
   const player = useConnectedPlayer();
+  const campaign = useCampaign();
+  const identity = useIdentityActions();
   const profile = usePlayerProfile();
   const emblem = Math.min(10, Math.max(1, profile.featuredEmblem || 1));
+  const earnedGuardians =
+    campaign.campaign?.maps.filter((map) => map.cleared) ?? [];
 
   return (
     <div className="relative flex min-h-full flex-col gap-3 px-4 pb-6 pt-7 text-white">
@@ -16,9 +24,7 @@ export default function StoreProfilePage() {
       </h1>
       <section className="mt-3 rounded-3xl border border-white/10 bg-[#101a2b] p-5 text-center shadow-2xl">
         <GuardianFaceBlock zoneId={emblem} size={96} className="mx-auto" />
-        <p className="mt-3 font-display text-2xl">
-          {player.publicKey ? "Local Player" : "Player"}
-        </p>
+        <p className="mt-3 font-display text-2xl">{player.label ?? "Player"}</p>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Stat
             icon={<Star size={15} />}
@@ -33,6 +39,27 @@ export default function StoreProfilePage() {
           <Stat label="Best" value={profile.bestDailyScore} />
         </div>
       </section>
+      {earnedGuardians.length > 0 && (
+        <section className="rounded-3xl bg-[#101a2b] p-4">
+          <p className="font-sans text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+            Guardian emblem
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {earnedGuardians.map((map) => (
+              <button
+                key={map.mapId}
+                type="button"
+                aria-label={`Wear guardian ${map.mapId}`}
+                aria-pressed={profile.featuredEmblem === map.mapId}
+                onClick={() => void identity.setWorn(map.mapId, 0)}
+                className="rounded-2xl p-1.5 aria-pressed:bg-cyan-200/20"
+              >
+                <GuardianFaceBlock zoneId={map.mapId} size={54} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

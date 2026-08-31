@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 
-import { useCampaign, useConnectedPlayer, type ClientCampaignMap } from "@/backend/client";
+import {
+  useCampaign,
+  useConnectedPlayer,
+  type ClientCampaignMap,
+} from "@/backend/client";
 import type { ZoneProgressData } from "@/config/profileData";
 
 export interface ZoneProgressResult {
@@ -21,7 +25,7 @@ export function campaignMapsToZones(
             mapId: index + 1,
             themeId: index + 1,
             enabled: true,
-            unlocked: index === 0,
+            locked: index === 0 ? null : "stars",
             cleared: false,
             perfected: false,
             levelStars: Array.from({ length: 10 }, () => 0),
@@ -34,7 +38,7 @@ export function campaignMapsToZones(
       zoneId: map.mapId,
       stars: map.levelStars.reduce((sum, stars) => sum + stars, 0),
       maxStars: 30,
-      unlocked: map.unlocked,
+      unlocked: map.locked === null,
       cleared: map.cleared,
       levelStars: map.levelStars,
       bossCleared: map.cleared,
@@ -47,9 +51,10 @@ export const useZoneProgress = (
   playerAddress: string | undefined,
 ): ZoneProgressResult => {
   const { campaign, loading } = useCampaign();
-  const { publicKey } = useConnectedPlayer();
+  const { connectionStatus, publicKey } = useConnectedPlayer();
   const isCurrentPlayer =
-    Boolean(publicKey && (!playerAddress || playerAddress === publicKey));
+    connectionStatus === "connected" &&
+    (!publicKey || !playerAddress || playerAddress === publicKey);
   return useMemo(() => {
     if (!isCurrentPlayer) {
       return { zones: [], totalStars: 0, isLoading: false };
@@ -60,9 +65,5 @@ export const useZoneProgress = (
       totalStars: zones.reduce((sum, zone) => sum + zone.stars, 0),
       isLoading: loading,
     };
-  }, [
-    campaign?.maps,
-    isCurrentPlayer,
-    loading,
-  ]);
+  }, [campaign?.maps, isCurrentPlayer, loading]);
 };

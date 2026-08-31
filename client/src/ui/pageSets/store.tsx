@@ -1,4 +1,5 @@
 import type { PageId } from "@/stores/navigationStore";
+import LocalNameGate from "@/backend/local/LocalNameGate";
 import StoreSettingsSheet from "@/ui/components/settings/StoreSettingsSheet";
 import MapPage from "@/ui/pages/MapPage";
 import PlayScreen from "@/ui/pages/PlayScreen";
@@ -26,5 +27,5 @@ export function SettingsSurface() {
 }
 
 export function DisconnectedSurface() {
-  return <Loading />;
+  return <LocalNameGate />;
 }

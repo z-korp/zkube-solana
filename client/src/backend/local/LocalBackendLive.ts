@@ -12,18 +12,20 @@ import {
   coreApplyRunBonus,
   coreApplyRunVrf,
   coreBuildRunConfig,
-  coreDailyBoardPools,
   coreEmptyContinuationRows,
   coreFinishRun,
   coreInitializeRun,
   corePlayRunMove,
-  coreRankPayoutPlan,
+  coreProtocol,
   coreRequestRunReroll,
   coreRunSummary,
   type CoreRunConfigInput,
 } from "@/core/zkubeCore";
 import { CAMPAIGN_CATALOG } from "@/core/campaignCatalog.generated";
-import { currentDailyDayId } from "@/core/dailyRules";
+import {
+  currentDailyDayId,
+  dailyContentFromPairIndex,
+} from "@/core/dailyRules";
 import {
   CAMPAIGN_TARGET_LADDER,
   DAILY_MAX_MOVES,
@@ -45,10 +47,6 @@ import {
   type SessionService,
 } from "../services";
 import {
-  PlayerAddress,
-  type BoardKind,
-  type BoardRow,
-  type BoardState,
   type CampaignCatalog,
   type CampaignRealmContent,
   type DailyContent,
@@ -64,15 +62,23 @@ import {
   type WalletChoice,
 } from "../views";
 import { IdentityRejected, RunsRejected, RunsUnavailable } from "../errors";
+import type { StorageLike } from "@/platform/storage";
+import {
+  localProductStorage,
+  normalizeLocalName,
+  type LocalProductState,
+} from "./localPersistence";
 export const LOCAL_BACKEND_SENTINEL = "zkube_local_backend_v1";
 
-const LOCAL_ADDRESS = PlayerAddress.make("local:zkube-player");
 const LOCAL_WALLET: WalletChoice = {
   id: "local",
-  name: "Local playtest",
+  name: "Local player",
   platform: "browser",
 };
 const DEFAULT_SEED = new Uint8Array(32).fill(0x5a);
+const LOCAL_DAILY_SEED = new TextEncoder().encode(
+  "zkube-local-daily-row-seed-v1",
+);
 const DEFAULT_RULES_HASH = new Uint8Array(32).fill(0x33);
 const DEFAULT_REPLAY_HASH = new Uint8Array(32).fill(0x42);
 
@@ -89,18 +95,14 @@ interface LocalRunRecord {
   recorded: boolean;
 }
 
-interface LocalDailyAttempt {
-  readonly runId: string;
-  readonly dailyScore: bigint;
-  readonly objectiveTotal: bigint;
-}
-
 export interface LocalBackendOptions {
+  readonly target: "store" | "playtest";
   readonly seed?: Uint8Array;
   readonly dailyVrfOutputs?: ReadonlyArray<Uint8Array>;
   readonly dailyConfig?: CoreRunConfigInput;
   readonly deadlineAfterAcceptedActions?: number;
   readonly ownerControls?: LocalOwnerControls;
+  readonly storage?: StorageLike | null;
   readonly nowUnix?: () => number;
   readonly onRuntimeStart?: () => void;
   readonly onRuntimeStop?: () => void;
@@ -109,9 +111,17 @@ export interface LocalBackendOptions {
 export interface LocalOwnerControls {
   readonly seed: () => Uint8Array;
   readonly today: (nowUnix: number) => DailyContent;
-  readonly readName: () => string | null;
-  readonly storeName: (name: string) => string;
   readonly subscribe: (listener: () => void) => () => void;
+}
+
+export async function localDailySeed(dayId: number): Promise<Uint8Array> {
+  if (!Number.isInteger(dayId) || dayId < 0 || dayId > 0xffff_ffff) {
+    throw new Error("local Daily day must be a u32");
+  }
+  const input = new Uint8Array(LOCAL_DAILY_SEED.length + 4);
+  input.set(LOCAL_DAILY_SEED);
+  new DataView(input.buffer).setUint32(LOCAL_DAILY_SEED.length, dayId, true);
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", input));
 }
 
 export async function localVrfOutput(
@@ -158,7 +168,7 @@ export async function localRowStream(args: {
 
 /** Local engine backend used by development and the explicitly flagged owner build. */
 export function makeLocalBackendLive(
-  options: LocalBackendOptions = {},
+  options: LocalBackendOptions,
 ): Layer.Layer<Identity | Session | Runs | Content | Boards | Economy> {
   return Layer.scopedContext(
     Effect.gen(function* () {
@@ -167,6 +177,8 @@ export function makeLocalBackendLive(
         () => Effect.sync(() => options.onRuntimeStop?.()),
       );
 
+      const persistence = localProductStorage(options.storage);
+      const initialProduct = persistence.read();
       const identityRef = yield* SubscriptionRef.make<IdentityState>({
         status: "disconnected",
       });
@@ -175,7 +187,7 @@ export function makeLocalBackendLive(
         expiresAt: 0,
         floatLamports: 0n,
       });
-      const catalog = defaultCatalog();
+      const catalog = defaultCatalog(options.target);
       const nowUnix = options.nowUnix ?? (() => Math.floor(Date.now() / 1_000));
       const synthesizeToday = () =>
         options.ownerControls
@@ -186,22 +198,14 @@ export function makeLocalBackendLive(
           : defaultToday(catalog, nowUnix());
       const todayRef =
         yield* SubscriptionRef.make<DailyContent>(synthesizeToday());
-      const economyRef =
-        yield* SubscriptionRef.make<EconomyState>(defaultEconomy());
-      const initialToday = yield* SubscriptionRef.get(todayRef);
-      const initialBoards = rankedLocalBoards(initialToday.dayId, []);
-      const scoreBoardRef = yield* SubscriptionRef.make<BoardState>(
-        initialBoards.score,
-      );
-      const themeBoardRef = yield* SubscriptionRef.make<BoardState>(
-        initialBoards.theme,
+      const economyRef = yield* SubscriptionRef.make<EconomyState>(
+        localEconomy(initialProduct, options.target),
       );
       const activeRefs = {
         campaign: yield* SubscriptionRef.make<RunView | null>(null),
         arcade: yield* SubscriptionRef.make<RunView | null>(null),
       };
       const records = new Map<string, LocalRunRecord>();
-      const dailyAttempts: LocalDailyAttempt[] = [];
       let nextRunId = 1n;
 
       const refreshToday = (force = false) =>
@@ -209,13 +213,7 @@ export function makeLocalBackendLive(
           const previous = yield* SubscriptionRef.get(todayRef);
           const today = synthesizeToday();
           if (!force && previous.dayId === today.dayId) return previous;
-          dailyAttempts.length = 0;
-          const boards = rankedLocalBoards(today.dayId, dailyAttempts);
-          yield* Effect.all([
-            SubscriptionRef.set(todayRef, today),
-            SubscriptionRef.set(scoreBoardRef, boards.score),
-            SubscriptionRef.set(themeBoardRef, boards.theme),
-          ]);
+          yield* SubscriptionRef.set(todayRef, today);
           return today;
         });
 
@@ -232,31 +230,40 @@ export function makeLocalBackendLive(
 
       const localIdentity = (): IdentityState => ({
         status: "connected",
-        address: LOCAL_ADDRESS,
-        label: options.ownerControls?.readName() ?? "Local Player",
-        wallet: LOCAL_WALLET,
+        ...(persistence.read().name ? { label: persistence.read().name! } : {}),
+      });
+
+      const liveLocalSession = (): SessionState => ({
+        status: "live",
+        expiresAt: Number.MAX_SAFE_INTEGER,
+        floatLamports: 0n,
       });
 
       const identity: IdentityService = {
-        wallets: () => Effect.succeed([LOCAL_WALLET]),
+        wallets: () => Effect.succeed([]),
         connect: (walletId) =>
           walletId === LOCAL_WALLET.id
-            ? SubscriptionRef.set(identityRef, localIdentity())
+            ? Effect.all([
+                SubscriptionRef.set(identityRef, localIdentity()),
+                SubscriptionRef.set(sessionRef, liveLocalSession()),
+              ]).pipe(Effect.asVoid)
             : Effect.fail(
                 new IdentityRejected({
                   message: `Unknown local wallet ${walletId}`,
                 }),
               ),
         reconnect: () =>
-          options.ownerControls && options.ownerControls.readName() === null
+          persistence.read().name === null
             ? Effect.void
-            : SubscriptionRef.set(identityRef, localIdentity()),
+            : Effect.all([
+                SubscriptionRef.set(identityRef, localIdentity()),
+                SubscriptionRef.set(sessionRef, liveLocalSession()),
+              ]).pipe(Effect.asVoid),
         disconnect: () =>
           SubscriptionRef.set(identityRef, { status: "disconnected" }),
         setLabel: (label) => {
-          const normalized = options.ownerControls
-            ? options.ownerControls.storeName(label)
-            : label;
+          const normalized = normalizeLocalName(label);
+          persistence.write((current) => ({ ...current, name: normalized }));
           return SubscriptionRef.update(identityRef, (state) => ({
             ...state,
             label: normalized,
@@ -270,8 +277,8 @@ export function makeLocalBackendLive(
           Effect.gen(function* () {
             const state: SessionState = {
               status: "live",
-              expiresAt: Math.floor(Date.now() / 1_000) + 7 * 86_400,
-              floatLamports: 10_000_000n,
+              expiresAt: Number.MAX_SAFE_INTEGER,
+              floatLamports: 0n,
             };
             yield* SubscriptionRef.set(sessionRef, state);
             return state;
@@ -298,6 +305,7 @@ export function makeLocalBackendLive(
         realm: number,
         level: number,
         config: CoreRunConfigInput,
+        seed?: Uint8Array,
       ) =>
         Effect.gen(function* () {
           const runId = (nextRunId++).toString();
@@ -321,7 +329,11 @@ export function makeLocalBackendLive(
             level,
             config: initialized.config,
             state: initialized.state,
-            seed: options.seed ?? options.ownerControls?.seed() ?? DEFAULT_SEED,
+            seed:
+              seed ??
+              options.seed ??
+              options.ownerControls?.seed() ??
+              DEFAULT_SEED,
             requestCounter: 0,
             events: eventRef,
             recorded: false,
@@ -345,17 +357,52 @@ export function makeLocalBackendLive(
         enterDaily: () =>
           Effect.gen(function* () {
             yield* refreshToday();
-            yield* SubscriptionRef.update(economyRef, (state) => ({
-              ...state,
-              kredits: state.kredits > 0n ? state.kredits - 1n : 0n,
-              claimable: [],
-            }));
             const today = yield* SubscriptionRef.get(todayRef);
+            if (
+              options.target === "store" &&
+              persistence.read().dailyAttempt?.dayId === today.dayId
+            ) {
+              return yield* Effect.fail(
+                new RunsRejected({
+                  message: "Today's Daily challenge has already been played",
+                }),
+              );
+            }
             const config = yield* Effect.try({
               try: () => options.dailyConfig ?? dailyConfig(catalog, today),
               catch: asRunsRejected,
             });
-            return yield* start("arcade", today.realm, 1, config);
+            const seed =
+              options.target === "store"
+                ? yield* Effect.promise(() => localDailySeed(today.dayId))
+                : undefined;
+            const view = yield* start("arcade", today.realm, 1, config, seed);
+            if (options.target === "store") {
+              const previous = persistence.read();
+              const streak =
+                previous.lastAttemptDayId === today.dayId - 1
+                  ? previous.streak + 1
+                  : 1;
+              const product = persistence.write((current) => ({
+                ...current,
+                streak,
+                lastAttemptDayId: today.dayId,
+                dailyAttempt: {
+                  dayId: today.dayId,
+                  realm: today.realm,
+                  objectiveKind: today.objective.kind,
+                  objectiveValue: today.objective.value,
+                  dailyScore: 0,
+                  objectiveTotal: "0",
+                  finished: false,
+                },
+              }));
+              yield* SubscriptionRef.set(
+                economyRef,
+                localEconomy(product, options.target),
+              );
+            }
+            return view;
           }),
         act: (runId, action) =>
           Effect.gen(function* () {
@@ -415,30 +462,40 @@ export function makeLocalBackendLive(
               if (!record.recorded) {
                 record.recorded = true;
                 if (record.mode === "arcade") {
-                  dailyAttempts.push({
-                    runId: record.runId,
-                    dailyScore: BigInt(summary.dailyScore),
-                    objectiveTotal: summary.objectiveTotal,
-                  });
-                  const today = yield* SubscriptionRef.get(todayRef);
-                  const localBoards = rankedLocalBoards(
-                    today.dayId,
-                    dailyAttempts,
-                  );
-                  yield* SubscriptionRef.set(scoreBoardRef, localBoards.score);
-                  yield* SubscriptionRef.set(themeBoardRef, localBoards.theme);
+                  if (options.target === "store") {
+                    const product = persistence.write((current) => ({
+                      ...current,
+                      bestDailyScore: Math.max(
+                        current.bestDailyScore,
+                        summary.dailyScore,
+                      ),
+                      dailyAttempt: current.dailyAttempt
+                        ? {
+                            ...current.dailyAttempt,
+                            dailyScore: summary.dailyScore,
+                            objectiveTotal: summary.objectiveTotal.toString(),
+                            finished: true,
+                          }
+                        : null,
+                    }));
+                    yield* SubscriptionRef.set(
+                      economyRef,
+                      localEconomy(product, options.target),
+                    );
+                  }
                 } else {
                   const earned = countStarSources(summary.latchedStarSources);
                   const starIndex = (record.realm - 1) * 10 + record.level - 1;
-                  yield* SubscriptionRef.update(economyRef, (state) => ({
-                    ...state,
-                    profile: {
-                      ...state.profile,
-                      stars: state.profile.stars.map((value, index) =>
-                        index === starIndex ? Math.max(value, earned) : value,
-                      ),
-                    },
+                  const product = persistence.write((current) => ({
+                    ...current,
+                    stars: current.stars.map((value, index) =>
+                      index === starIndex ? Math.max(value, earned) : value,
+                    ),
                   }));
+                  yield* SubscriptionRef.set(
+                    economyRef,
+                    localEconomy(product, options.target),
+                  );
                 }
               }
               yield* SubscriptionRef.set(record.events, {
@@ -476,26 +533,10 @@ export function makeLocalBackendLive(
         ).pipe(Stream.changes),
       };
 
-      const boardRefs = [scoreBoardRef, themeBoardRef] as const;
       const boards: BoardsService = {
-        boards: (dayId) =>
-          Effect.all(boardRefs.map(SubscriptionRef.get)).pipe(
-            Effect.map((states) =>
-              states.filter((state) => state.dayId === dayId),
-            ),
-          ),
-        yourRows: (dayId) =>
-          Effect.all(boardRefs.map(SubscriptionRef.get)).pipe(
-            Effect.map((states) =>
-              states.flatMap((state) =>
-                state.dayId === dayId && state.yourRow ? [state.yourRow] : [],
-              ),
-            ),
-          ),
-        watch: (dayId) =>
-          Stream.merge(scoreBoardRef.changes, themeBoardRef.changes).pipe(
-            Stream.filter((state) => state.dayId === dayId),
-          ),
+        boards: () => Effect.succeed([]),
+        yourRows: () => Effect.succeed([]),
+        watch: () => Stream.empty,
       };
 
       const economy: EconomyService = {
@@ -514,18 +555,20 @@ export function makeLocalBackendLive(
             };
             return [next, next];
           }),
-        setWorn: (emblem, border) =>
-          SubscriptionRef.modify(economyRef, (state) => {
-            const next = {
-              ...state,
-              profile: {
-                ...state.profile,
-                wornEmblem: emblem,
-                wornBorder: border,
-              },
-            };
-            return [next, next];
-          }),
+        setWorn: (emblem) =>
+          Effect.sync(() =>
+            persistence.write((current) => ({
+              ...current,
+              wornEmblem: emblem,
+            })),
+          ).pipe(
+            Effect.flatMap((product) => {
+              const next = localEconomy(product, options.target);
+              return SubscriptionRef.set(economyRef, next).pipe(
+                Effect.as(next),
+              );
+            }),
+          ),
         state: economyRef.changes,
       };
 
@@ -540,8 +583,6 @@ export function makeLocalBackendLive(
     }),
   );
 }
-
-export const LocalBackendLive = makeLocalBackendLive();
 
 function applyAction(
   record: LocalRunRecord,
@@ -709,11 +750,15 @@ function campaignConfig(
 
 function defaultToday(catalog: CampaignCatalog, nowUnix: number): DailyContent {
   const dayId = currentDailyDayId(nowUnix);
-  const realm = requireRealm(catalog, 1);
+  const pair = dailyContentFromPairIndex(
+    dayId,
+    coreProtocol.dailyPairIndex(dayId),
+  );
+  const realm = requireRealm(catalog, pair.realmMapId);
   return {
     dayId,
-    realm: 1,
-    objective: { kind: 0, value: 0 },
+    realm: pair.realmMapId,
+    objective: { ...pair.objective },
     startingHeight: realm.startingHeight,
     opensAt: dayId * 86_400,
     freezesAt: (dayId + 1) * 86_400,
@@ -721,7 +766,9 @@ function defaultToday(catalog: CampaignCatalog, nowUnix: number): DailyContent {
   };
 }
 
-function defaultCatalog(): CampaignCatalog {
+function defaultCatalog(
+  target: LocalBackendOptions["target"],
+): CampaignCatalog {
   return {
     contentVersion: CAMPAIGN_CATALOG.contentVersion,
     realms: CAMPAIGN_CATALOG.maps.map((map) => {
@@ -729,6 +776,14 @@ function defaultCatalog(): CampaignCatalog {
       return {
         realm: map.mapId,
         theme: map.mapId,
+        locked:
+          target === "playtest"
+            ? null
+            : map.mapId >= 4
+              ? "purchase"
+              : map.mapId === 1
+                ? null
+                : "stars",
         guardian: { bonus, trigger, threshold },
         startingHeight,
         levels: map.levels.map(([tier, primary, secondary], index) => {
@@ -765,7 +820,10 @@ function defaultTierTable(): TierTable {
   };
 }
 
-function defaultEconomy(): EconomyState {
+function localEconomy(
+  product: LocalProductState,
+  target: LocalBackendOptions["target"],
+): EconomyState {
   const emptyRecord = {
     bestPrizeRank: 0,
     podiums: 0,
@@ -773,18 +831,33 @@ function defaultEconomy(): EconomyState {
     rewardsLamports: 0n,
   };
   return {
-    kredits: 25n,
+    kredits: target === "playtest" ? 25n : 0n,
     claimable: [],
     profile: {
-      stars: Array<number>(100).fill(0),
+      stars: [...product.stars],
       ladderPoints: 0n,
       ladderTier: 0,
       highestTier: 0,
-      wornEmblem: 0,
+      wornEmblem: product.wornEmblem,
       wornBorder: 0,
       records: { score: emptyRecord, theme: emptyRecord },
-      streak: 0,
-      bestScore: 0,
+      streak: product.streak,
+      bestScore: product.bestDailyScore,
+      ...(product.dailyAttempt
+        ? {
+            dailyAttempt: {
+              dayId: product.dailyAttempt.dayId,
+              realm: product.dailyAttempt.realm,
+              objective: {
+                kind: product.dailyAttempt.objectiveKind,
+                value: product.dailyAttempt.objectiveValue,
+              },
+              dailyScore: product.dailyAttempt.dailyScore,
+              objectiveTotal: BigInt(product.dailyAttempt.objectiveTotal),
+              finished: product.dailyAttempt.finished,
+            },
+          }
+        : {}),
     },
   };
 }
@@ -808,74 +881,4 @@ function requireRealm(
 
 function countStarSources(mask: number): number {
   return (mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1);
-}
-
-function rankedLocalBoards(
-  dayId: number,
-  attempts: ReadonlyArray<LocalDailyAttempt>,
-): { score: BoardState; theme: BoardState } {
-  const score = attempts
-    .filter((attempt) => attempt.dailyScore > 0n)
-    .map((attempt) => ({ attempt, metric: attempt.dailyScore }));
-  const theme = attempts
-    .filter((attempt) => attempt.objectiveTotal > 0n)
-    .map((attempt) => ({ attempt, metric: attempt.objectiveTotal }));
-  const pools = coreDailyBoardPools(10_000_000_000n, theme.length);
-  return {
-    score: rankedLocalBoard(dayId, "score", pools.score, score),
-    theme: rankedLocalBoard(dayId, "theme", pools.theme, theme),
-  };
-}
-
-function rankedLocalBoard(
-  dayId: number,
-  kind: BoardKind,
-  potLamports: bigint,
-  entries: ReadonlyArray<{
-    readonly attempt: LocalDailyAttempt;
-    readonly metric: bigint;
-  }>,
-): BoardState {
-  const ranked = [...entries].sort(
-    (left, right) =>
-      Number(right.metric - left.metric) ||
-      Number(BigInt(left.attempt.runId) - BigInt(right.attempt.runId)),
-  );
-  const payouts =
-    ranked.length === 0 || potLamports === 0n
-      ? []
-      : coreRankPayoutPlan(potLamports, ranked.length, ranked.length).payouts;
-  const rows = ranked
-    .slice(0, payouts.length)
-    .map(({ attempt, metric }, index) => ({
-      address: PlayerAddress.make(`local:attempt:${attempt.runId}`),
-      label: `Attempt ${attempt.runId}`,
-      emblem: 0,
-      tier: 0,
-      metric,
-      rank: index + 1,
-      payoutLamports: payouts[index] ?? 0n,
-    }));
-  const latestAttempt = entries[entries.length - 1]?.attempt;
-  const latest = ranked.find(({ attempt }) => attempt === latestAttempt);
-  const latestIndex = latest ? ranked.indexOf(latest) : -1;
-  const yourRow: BoardRow | undefined = latest
-    ? {
-        address: LOCAL_ADDRESS,
-        label: "Latest attempt",
-        emblem: 0,
-        tier: 0,
-        metric: latest.metric,
-        rank: latestIndex + 1,
-        payoutLamports: payouts[latestIndex] ?? 0n,
-      }
-    : undefined;
-  return {
-    dayId,
-    kind,
-    status: "open",
-    potLamports,
-    rows,
-    ...(yourRow ? { yourRow } : {}),
-  };
 }

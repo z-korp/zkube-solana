@@ -23,7 +23,7 @@ export function uninitializedMap1(): ClientCampaignMap {
     mapId: 1,
     themeId: 1,
     enabled: true,
-    unlocked: true,
+    locked: null,
     cleared: false,
     perfected: false,
     levelStars: Array.from({ length: 10 }, () => 0),
@@ -51,7 +51,7 @@ export function unavailableMap(mapId: number): ClientCampaignMap {
     mapId,
     themeId: mapId,
     enabled: false,
-    unlocked: false,
+    locked: "stars",
     levelStars: Array.from({ length: 10 }, () => 0),
   };
 }

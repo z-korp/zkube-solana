@@ -23,11 +23,13 @@ const rule: ActiveRunRulesView = {
   guardian: { bonus: 0, trigger: 0, threshold: 0 },
 };
 
-const map = (overrides: Partial<ClientCampaignMap> = {}): ClientCampaignMap => ({
+const map = (
+  overrides: Partial<ClientCampaignMap> = {},
+): ClientCampaignMap => ({
   mapId: 2,
   themeId: 7,
   enabled: true,
-  unlocked: true,
+  locked: null,
   purchased: false,
   cleared: false,
   perfected: false,
@@ -64,7 +66,7 @@ describe("generateMapData", () => {
 
   it("keeps locked catalogs locked and marks the active run", () => {
     const locked = generateMapData({
-      map: map({ unlocked: false }),
+      map: map({ locked: "stars" }),
       activeStoryNode: { zoneId: 2, level: 4 },
     });
     expect(locked.nodes[2].state).toBe("locked");

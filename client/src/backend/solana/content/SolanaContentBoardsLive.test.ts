@@ -98,6 +98,9 @@ describe("Solana Content and Boards projections", () => {
       ].sort(),
     );
     expect(catalog.realms).toHaveLength(10);
+    expect(
+      catalog.realms.every((realm) => realm.locked !== "purchase"),
+    ).toBe(true);
     expect(tiers.blockWeights).toHaveLength(8);
   });
 });

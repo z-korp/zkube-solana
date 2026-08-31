@@ -38,9 +38,7 @@ import {
   type DailyContent,
   type TierTable,
 } from "../../views";
-import {
-  SolanaIdentitySessionState,
-} from "../SolanaIdentitySessionLive";
+import { SolanaIdentitySessionState } from "../SolanaIdentitySessionLive";
 import { createReadOnlyWallet } from "../identity/readOnlyWallet";
 import { watchAccount } from "../watch";
 import {
@@ -86,10 +84,7 @@ export function makeSolanaContentBoardsLive(
           catch: asContentError,
         }),
         Schedule.spaced("30 seconds"),
-      ).pipe(
-        Stream.changes,
-        Stream.share({ capacity: 1, replay: 1 }),
-      );
+      ).pipe(Stream.changes, Stream.share({ capacity: 1, replay: 1 }));
 
       const content: ContentService = {
         today: () =>
@@ -163,9 +158,7 @@ export function makeSolanaContentBoardsLive(
         yourRows: (dayId) =>
           loadBoards(dayId).pipe(
             Effect.map((states) =>
-              states.flatMap((state) =>
-                state.yourRow ? [state.yourRow] : [],
-              ),
+              states.flatMap((state) => (state.yourRow ? [state.yourRow] : [])),
             ),
           ),
         watch: (dayId) =>
@@ -237,7 +230,10 @@ async function projectToday(args: {
   if (dayId >= suspendedUntilDay) {
     throw new Error(`Daily ${dayId} has not been prepared`);
   }
-  const pair = dailyContentFromPairIndex(dayId, await coreDailyPairIndex(dayId));
+  const pair = dailyContentFromPairIndex(
+    dayId,
+    await coreDailyPairIndex(dayId),
+  );
   const campaign = await fetchCampaignView({
     connection: args.connection,
     wallet: args.wallet,
@@ -285,6 +281,7 @@ export function projectSolanaCatalog(view: CampaignView): CampaignCatalog {
     realms: view.maps.map((map) => ({
       realm: map.mapId,
       theme: map.themeId,
+      locked: map.unlocked ? null : "stars",
       guardian: { ...map.levels[0]!.guardian },
       startingHeight: map.levels[0]!.startingRows,
       levels: map.levels.map((level, index) => ({
@@ -387,8 +384,7 @@ function boardStatus(
   nowUnix: number,
 ): BoardState["status"] {
   if (account?.sealed) {
-    return nowUnix >
-      account.sealedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS
+    return nowUnix > account.sealedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS
       ? "expired"
       : "sealed";
   }

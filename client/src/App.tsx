@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useCampaign, useConnectedPlayer } from "@/backend/client";
-import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import { useNavigationStore, type PageId } from "@/stores/navigationStore";
 import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
@@ -79,27 +78,7 @@ export default function App() {
   // once every particle has cleared.
   const [bootRevealGone, setBootRevealGone] = useState(false);
   const playerReady =
-    player.connectionStatus === "connected" &&
-    !!player.publicKey &&
-    player.sessionStatus === "ready";
-
-  useEffect(() => {
-    if (
-      PLAYTEST_ACTIVE &&
-      player.connectionStatus === "connected" &&
-      player.sessionStatus !== "ready"
-    ) {
-      void player.enable();
-    }
-  }, [player]);
-
-  if (PLAYTEST_ACTIVE) {
-    return playerReady ? (
-      <ClientSurface currentPage={currentPage} />
-    ) : (
-      <DisconnectedSurface />
-    );
-  }
+    player.connectionStatus === "connected" && player.sessionStatus === "ready";
   // DEV-ONLY: skip the connect gate and render the populated menus from fixture
   // providers. `import.meta.env.DEV` is a literal `false` in production, so this
   // branch (and everything it imports under src/dev/) is dead-code-eliminated.

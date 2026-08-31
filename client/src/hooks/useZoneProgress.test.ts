@@ -4,11 +4,13 @@ import { describe, expect, it } from "vitest";
 import type { ClientCampaignMap } from "@/backend/client";
 import { campaignMapsToZones } from "./useZoneProgress";
 
-const map = (overrides: Partial<ClientCampaignMap> = {}): ClientCampaignMap => ({
+const map = (
+  overrides: Partial<ClientCampaignMap> = {},
+): ClientCampaignMap => ({
   mapId: 3,
   themeId: 8,
   enabled: true,
-  unlocked: true,
+  locked: null,
   cleared: false,
   perfected: false,
   levelStars: [3, 2, 1, 0, 0, 0, 0, 0, 0, 0],
@@ -28,12 +30,10 @@ describe("campaignMapsToZones", () => {
   });
 
   it("uses cleared as authoritative and omits disabled catalogs", () => {
-    const zones = campaignMapsToZones(
-      [
-        map({ cleared: true, enabled: true }),
-        map({ mapId: 4, enabled: false }),
-      ],
-    );
+    const zones = campaignMapsToZones([
+      map({ cleared: true, enabled: true }),
+      map({ mapId: 4, enabled: false }),
+    ]);
     expect(zones).toHaveLength(1);
     expect(zones[0].cleared).toBe(true);
   });

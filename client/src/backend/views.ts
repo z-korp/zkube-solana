@@ -82,6 +82,7 @@ export type CampaignLevelContent = typeof CampaignLevelContent.Type;
 export const CampaignRealmContent = Schema.Struct({
   realm: Schema.Number,
   theme: Schema.Number,
+  locked: Schema.NullOr(Schema.Literal("stars", "purchase")),
   guardian: GuardianView,
   startingHeight: Schema.Number,
   levels: Schema.Array(CampaignLevelContent),
@@ -149,6 +150,16 @@ export const ClaimableReward = Schema.Struct({
 });
 export type ClaimableReward = typeof ClaimableReward.Type;
 
+export const DailyAttemptView = Schema.Struct({
+  dayId: Schema.Number,
+  realm: Schema.Number,
+  objective: ObjectiveView,
+  dailyScore: Schema.Number,
+  objectiveTotal: Schema.BigIntFromSelf,
+  finished: Schema.Boolean,
+});
+export type DailyAttemptView = typeof DailyAttemptView.Type;
+
 export const CompetitionRecord = Schema.Struct({
   bestPrizeRank: Schema.Number,
   podiums: Schema.Number,
@@ -170,6 +181,7 @@ export const EconomyProfile = Schema.Struct({
   }),
   streak: Schema.Number,
   bestScore: Schema.Number,
+  dailyAttempt: Schema.optional(DailyAttemptView),
 });
 export type EconomyProfile = typeof EconomyProfile.Type;
 

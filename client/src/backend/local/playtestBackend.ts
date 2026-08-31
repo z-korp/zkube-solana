@@ -8,16 +8,12 @@ import {
   PLAYTEST_BUILD_SENTINEL,
   playtestSeed,
   playtestToday,
-  readPlaytestName,
-  storePlaytestName,
   subscribePlaytestSettings,
 } from "./playtest";
 
 const OWNER_CONTROLS: LocalOwnerControls = {
   seed: playtestSeed,
   today: playtestToday,
-  readName: readPlaytestName,
-  storeName: storePlaytestName,
   subscribe: subscribePlaytestSettings,
 };
 
@@ -26,5 +22,8 @@ export const SELECTED_BUILD_SENTINEL: string | undefined =
   PLAYTEST_BUILD_SENTINEL;
 
 export function makeSelectedBackend(): BackendLayer {
-  return makeLocalBackendLive({ ownerControls: OWNER_CONTROLS });
+  return makeLocalBackendLive({
+    target: "playtest",
+    ownerControls: OWNER_CONTROLS,
+  });
 }

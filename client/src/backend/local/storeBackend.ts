@@ -8,5 +8,5 @@ export const SELECTED_BACKEND_SENTINEL = LOCAL_BACKEND_SENTINEL;
 export const SELECTED_BUILD_SENTINEL: string | undefined = undefined;
 
 export function makeSelectedBackend(): BackendLayer {
-  return makeLocalBackendLive();
+  return makeLocalBackendLive({ target: "store" });
 }

@@ -12,6 +12,7 @@ describe("BackendProvider", () => {
     let starts = 0;
     let stops = 0;
     const layer = makeLocalBackendLive({
+      target: "playtest",
       onRuntimeStart: () => {
         starts += 1;
       },

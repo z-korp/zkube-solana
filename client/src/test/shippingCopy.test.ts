@@ -14,7 +14,6 @@ const MONEY_COPY =
   /Kredit|\bSOL\b|Solana|lamport|wallet|Seeker|prize|\bpot\b|payout|claim|ladder|tier|border|dApp Store/i;
 const PARKED = new Set([
   "ui/pages/SpectatorScreen.tsx",
-  "ui/components/profile/ShareCardSheet.tsx",
   "ui/components/shared/BootReveal.tsx",
 ]);
 const INTERNAL_TOKENS = /^(?:delegated|pda)$/i;
@@ -31,7 +30,6 @@ const DECLARED_MONEY_SURFACES = [
   "ui/components/economy/KreditShopSheet.tsx",
   "ui/components/economy/SolMark.tsx",
   "ui/components/economy/TierFrame.tsx",
-  "ui/components/profile/ShareCardSheet.tsx",
   "ui/components/settings/SettingsSheet.tsx",
   "ui/components/settlement/GuardianPrizeResult.tsx",
   "ui/components/settlement/InsertCoinSheet.tsx",
