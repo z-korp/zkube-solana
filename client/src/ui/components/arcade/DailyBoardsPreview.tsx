@@ -15,24 +15,31 @@ const PANEL_STYLE: React.CSSProperties = {
 interface DailyBoardsPreviewProps {
   view: ClientDailyView;
   address: string | null;
+  onOpenBoard: (kind: BoardKind) => void;
 }
 
 const BoardColumn: React.FC<{
   kind: BoardKind;
   state: BoardState | undefined;
   address: string | null;
-}> = ({ kind, state, address }) => {
+  onOpen: () => void;
+}> = ({ kind, state, address, onOpen }) => {
   const rows = boardPreviewRows(state, address);
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex items-center justify-between border-b border-white/[0.08] pb-2">
-        <h3 className="font-sans text-[11px] font-extrabold uppercase tracking-[0.16em] text-white/80">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open ${kind} leaderboard`}
+        className="flex w-full items-center justify-between border-b border-white/[0.08] pb-2 text-left"
+      >
+        <span className="font-sans text-[11px] font-extrabold uppercase tracking-[0.16em] text-white/80">
           {kind}
-        </h3>
+        </span>
         <span className="font-sans text-[8px] font-bold uppercase tracking-[0.12em] text-white/35">
           Rank · points
         </span>
-      </div>
+      </button>
       <div className="mt-1.5 space-y-1">
         {rows.map(({ row, isYou, separated }) => (
           <div
@@ -81,6 +88,7 @@ const BoardColumn: React.FC<{
 const DailyBoardsPreview: React.FC<DailyBoardsPreviewProps> = ({
   view,
   address,
+  onOpenBoard,
 }) => (
   <section className="rounded-2xl p-3.5" style={PANEL_STYLE}>
     <p className="font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
@@ -91,12 +99,14 @@ const DailyBoardsPreview: React.FC<DailyBoardsPreviewProps> = ({
         kind="score"
         state={view.boards.find((board) => board.kind === "score")}
         address={address}
+        onOpen={() => onOpenBoard("score")}
       />
       <div className="w-px flex-none bg-white/[0.08]" />
       <BoardColumn
         kind="theme"
         state={view.boards.find((board) => board.kind === "theme")}
         address={address}
+        onOpen={() => onOpenBoard("theme")}
       />
     </div>
   </section>

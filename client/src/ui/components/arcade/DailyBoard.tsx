@@ -33,6 +33,7 @@ interface DailyBoardProps {
   view: ClientDailyView;
   /** Connected wallet base58, for the gold ring and your below-cut row. */
   address: string | null;
+  initialBoard?: "score" | "theme";
 }
 
 /**
@@ -49,8 +50,12 @@ interface DailyBoardProps {
  * place a rank can mean anything. The tier is named beside the wallet as well,
  * because an ornament is not readable at row height on its own.
  */
-const DailyBoard: React.FC<DailyBoardProps> = ({ view, address }) => {
-  const [board, setBoard] = useState<"score" | "theme">("score");
+const DailyBoard: React.FC<DailyBoardProps> = ({
+  view,
+  address,
+  initialBoard = "score",
+}) => {
+  const [board, setBoard] = useState<"score" | "theme">(initialBoard);
   const state = view.boards.find((candidate) => candidate.kind === board);
   const paidRows = state?.rows ?? [];
   const hasSeparateYourRow = Boolean(

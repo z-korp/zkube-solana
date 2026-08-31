@@ -36,6 +36,7 @@ import {
 } from "@/ui/components/settlement";
 import DailyBoard from "@/ui/components/arcade/DailyBoard";
 import DailyBoardsPreview from "@/ui/components/arcade/DailyBoardsPreview";
+import Sheet from "@/ui/components/shared/Sheet";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalanceLamports } from "@/utils/currency";
@@ -77,6 +78,7 @@ const ArcadePage: React.FC = () => {
   const [coinSheetOpen, setCoinSheetOpen] = useState(false);
   // Buying is owner work, so the shop is its own surface rather than a verb.
   const [shopOpen, setShopOpen] = useState(false);
+  const [boardSheet, setBoardSheet] = useState<"score" | "theme" | null>(null);
   // DEV-ONLY sheet preview (?demo=coin with the wallet bypass) — the coin
   // sheet lives here, so its fixture preview does too. Folds away in prod.
   useEffect(() => {
@@ -276,10 +278,11 @@ const ArcadePage: React.FC = () => {
                 </section>
               )}
 
-              <DailyBoardsPreview view={view} address={address ?? null} />
-
-              {/* The full board remains the prize surface: priced rungs into ranks. */}
-              <DailyBoard view={view} address={address ?? null} />
+              <DailyBoardsPreview
+                view={view}
+                address={address ?? null}
+                onOpenBoard={setBoardSheet}
+              />
             </>
           ) : (
             <DailyStatusPanel
@@ -307,6 +310,21 @@ const ArcadePage: React.FC = () => {
           onClick={primaryOnClick}
         />
       </div>
+
+      {view && (
+        <Sheet
+          open={boardSheet !== null}
+          onClose={() => setBoardSheet(null)}
+          title={`${boardSheet === "theme" ? "Theme" : "Score"} leaderboard`}
+        >
+          <DailyBoard
+            key={boardSheet}
+            view={view}
+            address={address ?? null}
+            initialBoard={boardSheet ?? "score"}
+          />
+        </Sheet>
+      )}
 
       {view && (
         <KreditShopSheet
