@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
+import { getGuardianPrizeCopy } from "@/config/bossPrizeCopy";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { Coin, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import GuardianTalkScene from "@/ui/components/settlement/GuardianTalkScene";
@@ -9,6 +10,7 @@ import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
 import type { PrizeLabel } from "@/hooks/usePrizeState";
 import { formatSolBalanceLamports } from "@/utils/currency";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface GuardianPrizeResultProps {
   open: boolean;
@@ -29,7 +31,13 @@ interface GuardianPrizeResultProps {
 
 /** The X (Twitter) logo glyph. */
 const XLogo: React.FC<{ size?: number }> = ({ size = 15 }) => (
-  <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden fill="currentColor">
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    aria-hidden
+    fill="currentColor"
+  >
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zM17.083 19.77h1.833L7.084 4.126H5.117z" />
   </svg>
 );
@@ -53,6 +61,7 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
   const reduceMotion = useReducedMotion();
   const { playSfx } = useMusicPlayer();
   const guardian = getZoneGuardian(zoneId);
+  const prizeCopy = getGuardianPrizeCopy(zoneId);
   const [paying, setPaying] = useState(false);
   const [displayAmount, setDisplayAmount] = useState(
     reduceMotion ? amountLamports : 0n,
@@ -125,7 +134,10 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
       srTitle={`${periodLabel} prize won`}
       className="md:max-w-[540px]"
     >
-      <div className="flex flex-col items-center gap-4 pb-1 pt-1">
+      <div
+        className="flex flex-col items-center gap-4 pb-1 pt-1"
+        data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+      >
         <span
           className="font-display text-xl tracking-[0.04em]"
           style={{ color: MONEY_GOLD }}
@@ -136,7 +148,7 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
         <div className="relative w-full">
           <GuardianTalkScene
             zoneId={zoneId}
-            line={guardian.prizeLine}
+            line={prizeCopy.prizeLine}
             height={300}
             onLineDone={handleLineDone}
             mood={paying ? "celebrate" : "idle"}
@@ -153,7 +165,11 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
                 scale: [0.6, 1.05, 1, 0.7],
                 rotateY: [0, 180, 360, 420],
               }}
-              transition={{ duration: 0.9, times: [0, 0.25, 0.85, 1], ease: "easeIn" }}
+              transition={{
+                duration: 0.9,
+                times: [0, 0.25, 0.85, 1],
+                ease: "easeIn",
+              }}
             >
               <Coin size={44} />
             </motion.span>
@@ -180,52 +196,56 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
             </motion.span>
           )}
           {paying && (
-          <motion.div
-            className="relative flex items-center gap-2.5 rounded-full border px-6 py-3"
-            style={{
-              borderColor: `${MONEY_GOLD}55`,
-              background: `${MONEY_GOLD}14`,
-              boxShadow: `0 0 20px ${MONEY_GOLD}33`,
-            }}
-            initial={reduceMotion ? undefined : { scale: 0.5, opacity: 0 }}
-            animate={
-              reduceMotion
-                ? undefined
-                : { scale: [0.5, 1.1, 1], opacity: [0, 1, 1] }
-            }
-            transition={
-              reduceMotion ? undefined : { duration: 0.4, ease: "easeOut" }
-            }
-          >
-            {paying &&
-              !reduceMotion &&
-              Array.from({ length: 10 }, (_, index) => {
-                const angle = (Math.PI * 2 * index) / 10;
-                return (
-                  <motion.span
-                    key={index}
-                    aria-hidden
-                    data-testid="reward-particle"
-                    className="pointer-events-none absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-yellow-200"
-                    initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
-                    animate={{
-                      x: Math.cos(angle) * 58,
-                      y: Math.sin(angle) * 34,
-                      opacity: [0, 1, 0],
-                      scale: [0, 1, 0.4],
-                    }}
-                    transition={{ duration: 0.55, delay: 0.78, ease: "easeOut" }}
-                  />
-                );
-              })}
-            <span
-              className="money font-display text-4xl tabular-nums"
-              style={{ color: MONEY_GOLD }}
+            <motion.div
+              className="relative flex items-center gap-2.5 rounded-full border px-6 py-3"
+              style={{
+                borderColor: `${MONEY_GOLD}55`,
+                background: `${MONEY_GOLD}14`,
+                boxShadow: `0 0 20px ${MONEY_GOLD}33`,
+              }}
+              initial={reduceMotion ? undefined : { scale: 0.5, opacity: 0 }}
+              animate={
+                reduceMotion
+                  ? undefined
+                  : { scale: [0.5, 1.1, 1], opacity: [0, 1, 1] }
+              }
+              transition={
+                reduceMotion ? undefined : { duration: 0.4, ease: "easeOut" }
+              }
             >
-              +{formatSolBalanceLamports(displayAmount)}
-            </span>
-            <SolMark size={20} />
-          </motion.div>
+              {paying &&
+                !reduceMotion &&
+                Array.from({ length: 10 }, (_, index) => {
+                  const angle = (Math.PI * 2 * index) / 10;
+                  return (
+                    <motion.span
+                      key={index}
+                      aria-hidden
+                      data-testid="reward-particle"
+                      className="pointer-events-none absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-yellow-200"
+                      initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
+                      animate={{
+                        x: Math.cos(angle) * 58,
+                        y: Math.sin(angle) * 34,
+                        opacity: [0, 1, 0],
+                        scale: [0, 1, 0.4],
+                      }}
+                      transition={{
+                        duration: 0.55,
+                        delay: 0.78,
+                        ease: "easeOut",
+                      }}
+                    />
+                  );
+                })}
+              <span
+                className="money font-display text-4xl tabular-nums"
+                style={{ color: MONEY_GOLD }}
+              >
+                +{formatSolBalanceLamports(displayAmount)}
+              </span>
+              <SolMark size={20} />
+            </motion.div>
           )}
         </div>
 
@@ -237,8 +257,10 @@ const GuardianPrizeResult: React.FC<GuardianPrizeResultProps> = ({
             whileTap={{ y: 4, boxShadow: "0 1px 0 #000000" }}
             className="flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 font-sans text-[15px] font-extrabold uppercase tracking-[0.1em] text-white"
             style={{
-              background: "linear-gradient(160deg, #3a3a46 0%, #1c1c26 55%, #0b0b12 100%)",
-              boxShadow: "0 5px 0 #000000, inset 0 2px 0 rgba(255,255,255,0.14)",
+              background:
+                "linear-gradient(160deg, #3a3a46 0%, #1c1c26 55%, #0b0b12 100%)",
+              boxShadow:
+                "0 5px 0 #000000, inset 0 2px 0 rgba(255,255,255,0.14)",
             }}
           >
             <XLogo />

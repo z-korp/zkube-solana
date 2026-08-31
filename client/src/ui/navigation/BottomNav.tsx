@@ -3,15 +3,16 @@ import { motion } from "motion/react";
 import { useCampaign, useConnectedPlayer } from "@/backend/client";
 import { useNavigationStore, FULLSCREEN_PAGES } from "@/stores/navigationStore";
 import type { PageId } from "@/stores/navigationStore";
-import { DockArcadeIcon, DockCampaignIcon, DockProfileIcon } from "./dockIcons";
+import ArcadeDockIcon from "@/ui/navigation/ArcadeDockIcon";
+import { DockCampaignIcon, DockProfileIcon } from "./dockIcons";
 
 const TABS: {
   id: PageId;
-  icon: React.FC<{ size?: number }>;
+  icon: React.ComponentType<{ size?: number }>;
   label: string;
 }[] = [
   { id: "map", icon: DockCampaignIcon, label: "Campaign" },
-  { id: "arcade", icon: DockArcadeIcon, label: "Arcade" },
+  { id: "arcade", icon: ArcadeDockIcon, label: "Arcade" },
   { id: "profile", icon: DockProfileIcon, label: "Profile" },
 ];
 

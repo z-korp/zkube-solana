@@ -10,6 +10,7 @@ import ThemeBackground from "@/ui/components/shared/ThemeBackground";
 import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { SleepingDock } from "@/ui/navigation/BottomNav";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface ConnectScreenProps {
   /**
@@ -43,7 +44,10 @@ export default function ConnectScreen({
   return (
     // The exact shell PageNavigator gives the connected app — themed backdrop
     // behind a framed card on desktop — so landing and Home present alike.
-    <div className="fixed inset-0 overflow-hidden bg-[#02050d]">
+    <div
+      className="fixed inset-0 overflow-hidden bg-[#02050d]"
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       <ThemeBackground />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.03),rgba(0,0,0,0.2)_45%,rgba(0,0,0,0.65)_100%)]" />
       <div className="relative flex h-full w-full items-center justify-center p-0 md:p-5">
@@ -52,37 +56,37 @@ export default function ConnectScreen({
           {revealDone ? (
             <div className="relative h-full overflow-y-auto">
               <div className="br-rise-in relative flex min-h-full flex-col pb-[104px] pt-7">
-              {/* The crown row — the title alone; Home's plates join it on
+                {/* The crown row — the title alone; Home's plates join it on
                   the same line after connection. */}
-              <div className="text-center">
-                <span
-                  className="font-display text-[46px] leading-none"
-                  style={{
-                    color: "#FFF4D7",
-                    textShadow: "0 4px 20px rgba(0,0,0,0.7)",
-                  }}
-                >
-                  zKube
-                </span>
-                <p className="mt-1 font-sans text-[12px] font-semibold text-white/55">
-                  Daily block-puzzle arena. One run, real SOL.
-                </p>
-              </div>
-              {/* The pinned totem, minus the campaign door — the dock below
+                <div className="text-center">
+                  <span
+                    className="font-display text-[46px] leading-none"
+                    style={{
+                      color: "#FFF4D7",
+                      textShadow: "0 4px 20px rgba(0,0,0,0.7)",
+                    }}
+                  >
+                    zKube
+                  </span>
+                  <p className="mt-1 font-sans text-[12px] font-semibold text-white/55">
+                    Daily block-puzzle arena. One run, real SOL.
+                  </p>
+                </div>
+                {/* The pinned totem, minus the campaign door — the dock below
                   already names Campaign. Free height splits 1:2 around it so
                   the room above the guardian scales with the screen. */}
-              <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5">
-                <div className="min-h-[64px] flex-1" />
-                <DailyMarquee zoneId={zoneId} view={view}>
-                  <ConnectCta
-                    label="Connect wallet"
-                    accentOverride={MONEY_GOLD}
-                  />
-                </DailyMarquee>
-                <CampaignDoor locked />
-                <div className="flex-[2]" />
+                <div className="relative z-10 flex min-h-0 flex-1 flex-col px-5">
+                  <div className="min-h-[64px] flex-1" />
+                  <DailyMarquee zoneId={zoneId} view={view}>
+                    <ConnectCta
+                      label="Connect wallet"
+                      accentOverride={MONEY_GOLD}
+                    />
+                  </DailyMarquee>
+                  <CampaignDoor locked />
+                  <div className="flex-[2]" />
+                </div>
               </div>
-            </div>
             </div>
           ) : null}
           {revealDone ? <SleepingDock /> : null}

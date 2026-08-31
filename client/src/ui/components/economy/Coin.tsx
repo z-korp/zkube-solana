@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from "motion/react";
 
 import { MONEY_GOLD } from "./tokens";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface CoinProps {
   size?: number;
@@ -26,6 +27,7 @@ const Coin: React.FC<CoinProps> = ({
   const reduceMotion = useReducedMotion();
   const svg = (
     <svg
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
       width={size}
       height={size}
       viewBox="0 0 64 64"
@@ -67,7 +69,12 @@ const Coin: React.FC<CoinProps> = ({
       />
       {/* Embossed Solana logomark: light offset copy below, ink stamp on top. */}
       <g transform="translate(19.5 21.6) scale(0.2475)">
-        <path d={SOL_STAMP} fill="#fff6b0" opacity="0.8" transform="translate(0 3.2)" />
+        <path
+          d={SOL_STAMP}
+          fill="#fff6b0"
+          opacity="0.8"
+          transform="translate(0 3.2)"
+        />
         <path d={SOL_STAMP} fill="#6b3c08" />
       </g>
     </svg>
@@ -81,7 +88,9 @@ const Coin: React.FC<CoinProps> = ({
     >
       {svg}
     </motion.span>
-  ) : svg;
+  ) : (
+    svg
+  );
 };
 
 export default Coin;

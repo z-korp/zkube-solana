@@ -11,6 +11,7 @@ import { tierFrameOuterSize } from "@/config/tierFrames";
 import { SOL_LOGO_PATH } from "@/ui/components/economy/SolMark";
 import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 const GOLD = "#FACC15";
 const CREAM = "#FFF4D7";
@@ -69,8 +70,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 /** Squarified full-head crop, same math as the face windows. */
 function faceCrop(zoneId: number): [number, number, number] {
-  const [x1, y1, x2, y2] = GUARDIAN_FACE_CROPS[zoneId] ??
-    GUARDIAN_FACE_CROPS[1];
+  const [x1, y1, x2, y2] =
+    GUARDIAN_FACE_CROPS[zoneId] ?? GUARDIAN_FACE_CROPS[1];
   const side = Math.max(x2 - x1, y2 - y1);
   const cx = (x1 + x2) / 2;
   const cy = (y1 + y2) / 2;
@@ -78,7 +79,6 @@ function faceCrop(zoneId: number): [number, number, number] {
   const sy = Math.max(0, Math.min(512 - side, cy - side / 2));
   return [sx, sy, side];
 }
-
 
 /** The profile's flame, drawn straight onto the card. */
 function drawFlame(
@@ -126,14 +126,15 @@ async function drawPlatformStrip(
 
   let magicBlock: HTMLImageElement | null = null;
   try {
-    magicBlock = await loadImage("/assets/common/MagicBlock-Logomark-White.png");
+    magicBlock = await loadImage(
+      "/assets/common/MagicBlock-Logomark-White.png",
+    );
   } catch {
     // mark unavailable — the strip degrades to the two it can draw
   }
   const magicWidth = magicBlock ? MARK * 1.09 : 0;
   const parts = [MARK, magicWidth].filter((w) => w > 0);
-  const total =
-    parts.reduce((sum, w) => sum + w, 0) + GAP * (parts.length - 1);
+  const total = parts.reduce((sum, w) => sum + w, 0) + GAP * (parts.length - 1);
   let cursor = cx - total / 2;
 
   ctx.save();
@@ -190,7 +191,11 @@ function headline(data: ShareCardData): {
     };
   }
   if (data.bestPrizeRank > 0) {
-    return { label: "BEST FINISH", value: `#${data.bestPrizeRank}`, sol: false };
+    return {
+      label: "BEST FINISH",
+      value: `#${data.bestPrizeRank}`,
+      sol: false,
+    };
   }
   return {
     label: "LADDER POINTS",
@@ -460,7 +465,10 @@ const ShareCardSheet: React.FC<ShareCardSheetProps> = ({
 
   return (
     <Sheet open={open} onClose={onClose} srTitle="Share your profile card">
-      <div className="flex flex-col gap-3 pb-1">
+      <div
+        className="flex flex-col gap-3 pb-1"
+        data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+      >
         {dataUrl ? (
           <img
             src={dataUrl}
@@ -468,7 +476,10 @@ const ShareCardSheet: React.FC<ShareCardSheetProps> = ({
             className="mx-auto max-h-[56vh] w-auto rounded-2xl"
           />
         ) : error ? (
-          <p role="alert" className="py-10 text-center font-sans text-sm text-red-300">
+          <p
+            role="alert"
+            className="py-10 text-center font-sans text-sm text-red-300"
+          >
             {error}
           </p>
         ) : (
@@ -484,8 +495,7 @@ const ShareCardSheet: React.FC<ShareCardSheetProps> = ({
           style={{
             background:
               "linear-gradient(160deg, #FCE177 0%, #FACC15 55%, #B4930F 100%)",
-            boxShadow:
-              "0 5px 0 #705C09, inset 0 2px 0 rgba(255,255,255,0.5)",
+            boxShadow: "0 5px 0 #705C09, inset 0 2px 0 rgba(255,255,255,0.5)",
           }}
         >
           {sharing ? "Sharing…" : "Share"}

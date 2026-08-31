@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { getZoneGuardian } from "@/config/bossCharacters";
+import { getGuardianPrizeCopy } from "@/config/bossPrizeCopy";
 import { TalkCaret } from "@/ui/components/shared/GuardianQuote";
 import { useMusicPlayer } from "@/contexts/hooks";
 import { KreditCoin, MONEY_GOLD } from "@/ui/components/economy";
@@ -12,6 +13,7 @@ import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
 import type { DailyThemeView } from "@/core/dailyRules";
 import { dailyThemeDescription } from "@/game/constraint";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface InsertCoinSheetProps {
   open: boolean;
@@ -49,6 +51,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
   const reduceMotion = useReducedMotion();
   const { playSfx } = useMusicPlayer();
   const guardian = getZoneGuardian(zoneId);
+  const prizeCopy = getGuardianPrizeCopy(zoneId);
   const [feeding, setFeeding] = useState(false);
   const [fed, setFed] = useState(false);
   const timers = useRef<number[]>([]);
@@ -85,7 +88,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
 
   // The arcade host works the room until a coin interrupts the pitch; the
   // feed sequence overrides the talk machine outright.
-  const talk = useGuardianTalk(zoneId, guardian.arcadeGreeting, {
+  const talk = useGuardianTalk(zoneId, prizeCopy.arcadeGreeting, {
     enabled: open,
     overrideFrame: feeding ? (fed ? "satisfied" : "talk-open") : undefined,
   });
@@ -97,7 +100,10 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
       srTitle="Spend Kredit to enter ranked"
       dismissible={!busy}
     >
-      <div className="flex flex-col items-center gap-4 pt-1">
+      <div
+        className="flex flex-col items-center gap-4 pt-1"
+        data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+      >
         <div
           aria-label={`Feed ${guardian.name} one Kredit coin to enter`}
           className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0b0716]"
@@ -151,7 +157,7 @@ const InsertCoinSheet: React.FC<InsertCoinSheetProps> = ({
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             >
               <span className="font-sans text-[14px] font-medium text-white/95">
-                {guardian.entryLine}
+                {prizeCopy.entryLine}
               </span>
             </motion.span>
           )}

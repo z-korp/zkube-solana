@@ -12,6 +12,7 @@ import {
   TierFrame,
 } from "@/ui/components/economy";
 import { formatSolBalanceLamports } from "@/utils/currency";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 const PANEL_STYLE: React.CSSProperties = {
   background: "linear-gradient(180deg, #131F35 0%, #0D1626 100%)",
@@ -158,7 +159,11 @@ const DailyBoard: React.FC<DailyBoardProps> = ({
   };
 
   return (
-    <section className="rounded-2xl p-3.5" style={PANEL_STYLE}>
+    <section
+      className="rounded-2xl p-3.5"
+      style={PANEL_STYLE}
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       <div className="flex items-center justify-between">
         <p className="font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
           Leaderboard

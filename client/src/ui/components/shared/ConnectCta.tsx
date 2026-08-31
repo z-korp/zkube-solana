@@ -18,6 +18,7 @@ import {
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import Sheet from "@/ui/components/shared/Sheet";
 import WalletRecoveryPanel from "@/ui/components/shared/WalletRecoveryPanel";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface ConnectCtaProps {
   /** Disconnected-state label; mirrors the original client's Connect. */
@@ -144,7 +145,10 @@ const ConnectCta: React.FC<ConnectCtaProps> = ({
   }
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div
+      className="flex w-full flex-col gap-2"
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       {recoveryError && (
         <WalletRecoveryPanel
           error={recoveryError}

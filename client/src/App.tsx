@@ -1,22 +1,19 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useCampaign, useConnectedPlayer } from "@/backend/client";
-import PlaytestNameGate from "@/backend/local/PlaytestNameGate";
 import { PLAYTEST_ACTIVE } from "@/buildTarget";
 import { useNavigationStore, type PageId } from "@/stores/navigationStore";
 import { TooltipProvider } from "@/ui/elements/tooltip";
 import { Toaster } from "@/ui/elements/sonner";
 import Loading from "@/ui/screens/Loading";
 import PageNavigator from "@/ui/navigation/PageNavigator";
-import ArcadePage from "@/ui/pages/ArcadePage";
-import MapPage from "@/ui/pages/MapPage";
-import PlayScreen from "@/ui/pages/PlayScreen";
-import ProfilePage from "@/ui/pages/ProfilePage";
-import SettingsSheet from "@/ui/components/settings/SettingsSheet";
-import SpectatorScreen from "@/ui/pages/SpectatorScreen";
+import {
+  DisconnectedSurface,
+  PageSurface,
+  SettingsSurface,
+} from "@/ui/pageSet";
 import { getToastPlacement } from "@/utils/toast";
 import BootReveal from "@/ui/components/shared/BootReveal";
-import ConnectScreen from "@/ui/screens/ConnectScreen";
 import { DEV_BYPASS_ACTIVE } from "@/dev/devBypass";
 
 const params = new URLSearchParams(window.location.search);
@@ -54,14 +51,6 @@ if (DEV_BYPASS_ACTIVE) {
     useNavigationStore.setState({ currentPage: devPage as PageId });
   }
 }
-
-const pageComponents: Record<PageId, ReactNode> = {
-  arcade: <ArcadePage />,
-  profile: <ProfilePage />,
-  play: <PlayScreen />,
-  map: <MapPage />,
-  spectate: <SpectatorScreen />,
-};
 
 export default function App() {
   const player = useConnectedPlayer();
@@ -108,7 +97,7 @@ export default function App() {
     return playerReady ? (
       <ClientSurface currentPage={currentPage} />
     ) : (
-      <PlaytestNameGate />
+      <DisconnectedSurface />
     );
   }
   // DEV-ONLY: skip the connect gate and render the populated menus from fixture
@@ -133,7 +122,7 @@ export default function App() {
   if (!playerReady) {
     return (
       <>
-        <ConnectScreen revealDone={bootRevealDone} />
+        <DisconnectedSurface revealDone={bootRevealDone} />
         {reveal}
       </>
     );
@@ -161,8 +150,10 @@ function ClientSurface({
 }) {
   return (
     <TooltipProvider>
-      <PageNavigator>{pageComponents[currentPage]}</PageNavigator>
-      <SettingsSheet />
+      <PageNavigator>
+        <PageSurface currentPage={currentPage} />
+      </PageNavigator>
+      <SettingsSurface />
       <Toaster position={getToastPlacement()} />
       {overlay}
     </TooltipProvider>

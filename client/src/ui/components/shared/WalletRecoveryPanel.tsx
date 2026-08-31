@@ -3,6 +3,7 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 
 import type { PlatformKind } from "@/platform/capabilities";
 import type { WalletErrorClassification } from "@/utils/errors";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface WalletRecoveryPanelProps {
   error: WalletErrorClassification;
@@ -28,6 +29,7 @@ const WalletRecoveryPanel: React.FC<WalletRecoveryPanelProps> = ({
 
   return (
     <section
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
       role="alert"
       aria-labelledby={titleId}
       className="rounded-xl border border-amber-300/45 bg-[#150d02]/95 px-3 py-3 font-sans text-amber-50 shadow-[0_12px_34px_rgba(0,0,0,0.6)] backdrop-blur-md"

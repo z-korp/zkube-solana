@@ -56,7 +56,7 @@ export function PwaLifecycleNotice({
         <div className="flex items-start gap-3" role="status">
           <WifiOff className="mt-0.5 shrink-0 text-amber-200" size={18} />
           <p className="text-xs leading-5 text-white/85">
-            You&apos;re offline. Reconnect, then retry. Chain, wallet, and score
+            You&apos;re offline. Reconnect, then retry. Live progress and score
             data are never served from the offline cache.
           </p>
         </div>

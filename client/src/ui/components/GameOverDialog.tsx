@@ -3,15 +3,16 @@ import { motion } from "motion/react";
 
 import { useClientState, useConnectedPlayer, useDaily } from "@/backend/client";
 import { getZoneGuardian } from "@/config/bossCharacters";
+import { getGuardianPrizeCopy } from "@/config/bossPrizeCopy";
 import GuardianQuote from "@/ui/components/shared/GuardianQuote";
 import { useGuardianTalk } from "@/ui/components/shared/useGuardianTalk";
 import type { ThemeColors } from "@/config/themes";
 import { Game } from "@/game/model";
 import { TROPHY_IMAGES } from "@/ui/components/arena/leaderboardMedals";
 import ArcadeButton from "@/ui/components/shared/ArcadeButton";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
-
-interface GameOverDialogProps {
+export interface GameOverDialogProps {
   isOpen: boolean;
   onClose: () => void;
   /** Blocks dismissal while background settlement finishes on-chain. */
@@ -68,6 +69,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   const { economy } = useClientState();
   const owner = useConnectedPlayer().publicKey;
   const guardian = getZoneGuardian(game.zoneId);
+  const prizeCopy = getGuardianPrizeCopy(game.zoneId);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -104,7 +106,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
   const guardianLine = isNewBest
     ? guardian.newBestLine
     : rank !== null && rank > paidScorePlaces
-      ? guardian.noPrizeLine
+      ? prizeCopy.noPrizeLine
       : guardian.dailyGreeting;
   const talk = useGuardianTalk(game.zoneId, guardianLine, {
     mood: isNewBest ? "surprised" : "idle",
@@ -123,6 +125,7 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
 
   return (
     <motion.div
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
       className="absolute inset-0 z-40 flex flex-col bg-black/70"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -134,7 +137,12 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
           className="relative h-[55%] max-h-[340px]"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 20 }}
+          transition={{
+            delay: 0.1,
+            type: "spring",
+            stiffness: 200,
+            damping: 20,
+          }}
         >
           <img
             src={talk.src}
@@ -150,7 +158,12 @@ const GameOverDialog: React.FC<GameOverDialogProps> = ({
         className="shrink-0"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 25 }}
+        transition={{
+          delay: 0.15,
+          type: "spring",
+          stiffness: 300,
+          damping: 25,
+        }}
       >
         <div
           className="mx-2 mb-3 rounded-2xl border-2 px-4 pb-4 pt-3"

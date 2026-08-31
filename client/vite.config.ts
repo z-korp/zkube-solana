@@ -43,6 +43,21 @@ const BUILD_TARGET_BACKENDS: Readonly<Record<BuildTarget, string>> = {
   store: "./src/backend/local/storeBackend.ts",
   playtest: "./src/backend/local/playtestBackend.ts",
 };
+const BUILD_TARGET_PAGE_SETS: Readonly<Record<BuildTarget, string>> = {
+  solana: "./src/ui/pageSets/solana.tsx",
+  store: "./src/ui/pageSets/store.tsx",
+  playtest: "./src/ui/pageSets/playtest.tsx",
+};
+const BUILD_TARGET_DAILY_RESULTS: Readonly<Record<BuildTarget, string>> = {
+  solana: "./src/ui/components/GameOverDialog.tsx",
+  store: "./src/ui/components/local/LocalDailyResultDialog.tsx",
+  playtest: "./src/ui/components/local/LocalDailyResultDialog.tsx",
+};
+const BUILD_TARGET_ARCADE_ICONS: Readonly<Record<BuildTarget, string>> = {
+  solana: "./src/ui/navigation/money/ArcadeDockIcon.tsx",
+  store: "./src/ui/navigation/local/ArcadeDockIcon.tsx",
+  playtest: "./src/ui/navigation/local/ArcadeDockIcon.tsx",
+};
 
 function localHttpsOptions():
   | Readonly<{ cert: Buffer; key: Buffer }>
@@ -181,6 +196,27 @@ export default defineConfig({
         replacement: path.resolve(
           __dirname,
           BUILD_TARGET_BACKENDS[buildTarget()],
+        ),
+      },
+      {
+        find: "@/ui/pageSet",
+        replacement: path.resolve(
+          __dirname,
+          BUILD_TARGET_PAGE_SETS[buildTarget()],
+        ),
+      },
+      {
+        find: "@/ui/components/DailyResultDialog",
+        replacement: path.resolve(
+          __dirname,
+          BUILD_TARGET_DAILY_RESULTS[buildTarget()],
+        ),
+      },
+      {
+        find: "@/ui/navigation/ArcadeDockIcon",
+        replacement: path.resolve(
+          __dirname,
+          BUILD_TARGET_ARCADE_ICONS[buildTarget()],
         ),
       },
       { find: "@", replacement: path.resolve(__dirname, "./src") },

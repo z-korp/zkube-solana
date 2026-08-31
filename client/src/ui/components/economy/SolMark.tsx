@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface SolMarkProps {
   /** Height in px; width follows the official 101:88 aspect. */
@@ -29,6 +30,7 @@ const SolMark: React.FC<SolMarkProps> = ({
   const width = (size * 101) / 88;
   return (
     <svg
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
       viewBox="0 0 101 88"
       width={width}
       height={size}

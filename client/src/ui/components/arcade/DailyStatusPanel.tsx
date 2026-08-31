@@ -1,6 +1,7 @@
 import { Map } from "lucide-react";
 
 import { cn } from "@/ui/utils";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 import type { ArcadeLifecycle } from "./arcadeLifecycle";
 
@@ -38,7 +39,11 @@ const DailyStatusPanel: React.FC<DailyStatusPanelProps> = ({
   const keeperLate = lifecycle === "delayed" || lifecycle === "stale";
 
   return (
-    <div className={cn("rounded-2xl p-5", className)} style={PANEL_STYLE}>
+    <div
+      className={cn("rounded-2xl p-5", className)}
+      style={PANEL_STYLE}
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       <p className="font-sans text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">
         Today&apos;s pot
       </p>

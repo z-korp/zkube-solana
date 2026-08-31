@@ -38,6 +38,7 @@ import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalance, formatSolBalanceLamports } from "@/utils/currency";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 /** Opaque block furniture — same recipe as the marquee, no glass. */
 const PANEL_STYLE: React.CSSProperties = {
@@ -146,9 +147,17 @@ const ProfilePage: React.FC = () => {
 
   // One entry places on both boards, so the two records together say how a
   // player wins: on total performance, or on playing the day's theme.
-  const records: Array<{ label: string; hint: string; record: CompetitionRecord }> = [
+  const records: Array<{
+    label: string;
+    hint: string;
+    record: CompetitionRecord;
+  }> = [
     { label: "Score", hint: "Total performance", record: profile.scoreRecord },
-    { label: "Theme", hint: "The day's objective", record: profile.themeRecord },
+    {
+      label: "Theme",
+      hint: "The day's objective",
+      record: profile.themeRecord,
+    },
   ];
 
   const currentTier =
@@ -171,7 +180,10 @@ const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="relative flex min-h-full flex-col gap-2.5 px-4 pb-[104px] pt-7">
+    <div
+      className="relative flex min-h-full flex-col gap-2.5 px-4 pb-[104px] pt-7"
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       <ZoneBackdrop zoneId={backdropZoneId} />
 
       {/* The page title wears the same crown as zKube on Home. */}
@@ -262,7 +274,10 @@ const ProfilePage: React.FC = () => {
             {/* What the wallet is holding, in one line. */}
             <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {balance !== null && (
-                <span className={CHIP_CLASS} style={{ color: themeColors.text }}>
+                <span
+                  className={CHIP_CLASS}
+                  style={{ color: themeColors.text }}
+                >
                   {balance}
                   <SolMark size={9} />
                 </span>
@@ -377,18 +392,20 @@ const ProfilePage: React.FC = () => {
         <div
           className="mt-2.5 flex items-center gap-2 rounded-xl px-2.5 py-1.5"
           style={{
-            background:
-              hasEntryStreak ? "rgba(250,204,21,0.09)" : "rgba(255,255,255,0.03)",
-            boxShadow:
-              hasEntryStreak
-                ? "inset 0 0 0 1px rgba(250,204,21,0.3)"
-                : "inset 0 0 0 1px rgba(255,255,255,0.06)",
+            background: hasEntryStreak
+              ? "rgba(250,204,21,0.09)"
+              : "rgba(255,255,255,0.03)",
+            boxShadow: hasEntryStreak
+              ? "inset 0 0 0 1px rgba(250,204,21,0.3)"
+              : "inset 0 0 0 1px rgba(255,255,255,0.06)",
           }}
         >
           <Flame
             size={14}
             className="flex-none"
-            style={{ color: hasEntryStreak ? MONEY_GOLD : "rgba(255,255,255,0.3)" }}
+            style={{
+              color: hasEntryStreak ? MONEY_GOLD : "rgba(255,255,255,0.3)",
+            }}
           />
           <span className="min-w-0 flex-1 font-sans text-[12px] font-bold text-white/85">
             {profile.entryStreakDays > 0
@@ -570,7 +587,6 @@ const ProfilePage: React.FC = () => {
           </p>
         )}
       </section>
-
     </div>
   );
 };
@@ -580,18 +596,21 @@ function usePlayerLabelEditor() {
   const actions = useIdentityActions();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const save = useCallback(async (label: string) => {
-    setSaving(true);
-    setError(null);
-    try {
-      await actions.setLabel(label);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      throw cause;
-    } finally {
-      setSaving(false);
-    }
-  }, [actions]);
+  const save = useCallback(
+    async (label: string) => {
+      setSaving(true);
+      setError(null);
+      try {
+        await actions.setLabel(label);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        throw cause;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [actions],
+  );
   return {
     label: identity.label ? { displayName: identity.label } : null,
     saving,
@@ -605,18 +624,21 @@ function useWornIdentityEditor() {
   const actions = useIdentityActions();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const save = useCallback(async (emblem: number, border: number) => {
-    setSaving(true);
-    setError(null);
-    try {
-      await actions.setWorn(emblem, border);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      throw cause;
-    } finally {
-      setSaving(false);
-    }
-  }, [actions]);
+  const save = useCallback(
+    async (emblem: number, border: number) => {
+      setSaving(true);
+      setError(null);
+      try {
+        await actions.setWorn(emblem, border);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        throw cause;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [actions],
+  );
   return {
     featuredEmblem: economy.profile.wornEmblem,
     featuredFrameTier: economy.profile.wornBorder,

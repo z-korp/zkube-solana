@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 
 import { KreditCoin, SolMark } from "@/ui/components/economy";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface EnterCoinKeyProps {
   /** The verb ("Play", "Resume run", "Get Kredits", …). */
@@ -30,11 +31,15 @@ const EnterCoinKey: React.FC<EnterCoinKeyProps> = ({
   onClick,
 }) => (
   <motion.button
+    data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
     type="button"
     whileTap={
       disabled
         ? undefined
-        : { y: 4, boxShadow: "0 1px 0 #705C09, inset 0 2px 0 rgba(255,255,255,0.5)" }
+        : {
+            y: 4,
+            boxShadow: "0 1px 0 #705C09, inset 0 2px 0 rgba(255,255,255,0.5)",
+          }
     }
     disabled={disabled}
     onClick={onClick}

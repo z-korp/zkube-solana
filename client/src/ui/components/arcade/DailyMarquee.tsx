@@ -19,6 +19,7 @@ import {
 import { useCountdown } from "@/hooks/useNowTick";
 import { formatSolBalanceLamports } from "@/utils/currency";
 import { formatCountdown } from "@/utils/time";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 /** The public face of today's Daily — every field readable without a wallet. */
 export type DailyMarqueeView = ClientDailyView;
@@ -86,11 +87,7 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
         >
           {entry.emblem && entry.emblem >= 1 && entry.emblem <= 10 ? (
             <TierFrame tier={tier} size={inner}>
-              <GuardianFaceBlock
-                zoneId={entry.emblem}
-                size={inner}
-                framed
-              />
+              <GuardianFaceBlock zoneId={entry.emblem} size={inner} framed />
             </TierFrame>
           ) : (
             <span
@@ -135,7 +132,10 @@ const DailyMarquee: React.FC<DailyMarqueeProps> = ({
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-[400px]">
+    <div
+      className="relative mx-auto w-full max-w-[400px]"
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       <div className="absolute -top-[52px] left-1/2 z-10 -translate-x-1/2">
         <GuardianFaceBlock zoneId={zoneId} size={104} breathe />
       </div>

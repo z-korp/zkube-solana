@@ -3,6 +3,7 @@ import React from "react";
 import { EmblemBadge, MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import { cn } from "@/ui/utils";
 import { formatSolBalanceLamports } from "@/utils/currency";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface LeaderboardRowProps {
   rank: number;
@@ -153,13 +154,23 @@ const LeaderboardRow: React.FC<LeaderboardRowProps> = ({
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={classes} style={style}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={classes}
+        style={style}
+        data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+      >
         {inner}
       </button>
     );
   }
   return (
-    <div className={classes} style={style}>
+    <div
+      className={classes}
+      style={style}
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       {inner}
     </div>
   );

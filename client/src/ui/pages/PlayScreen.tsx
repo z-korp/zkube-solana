@@ -22,7 +22,7 @@ import {
   type PendingLevelCompletion,
 } from "@/stores/navigationStore";
 import GameBoard from "@/ui/components/GameBoard";
-import GameOverDialog from "@/ui/components/GameOverDialog";
+import GameOverDialog from "@/ui/components/DailyResultDialog";
 import LevelCompleteDialog from "@/ui/components/LevelCompleteDialog";
 import VictoryDialog from "@/ui/components/VictoryDialog";
 import {
@@ -61,9 +61,7 @@ type CoachMarks = { move: boolean; charge: boolean; reroll: boolean };
 
 function loadCoachMarks(): CoachMarks {
   try {
-    const saved = JSON.parse(
-      appStorage()?.getItem(COACH_MARKS_KEY) ?? "{}",
-    );
+    const saved = JSON.parse(appStorage()?.getItem(COACH_MARKS_KEY) ?? "{}");
     return {
       move: saved.move === true,
       charge: saved.charge === true,
@@ -145,7 +143,7 @@ export default function PlayScreen() {
   const onRunReroll = controller.onReroll;
   const recoverBaseRun = controller.recoverBaseRun;
   const dismissRun = run.dismissRun;
-  const recoveryOwner = run.publicKey ?? "disconnected wallet";
+  const recoveryOwner = run.publicKey ?? "disconnected player";
   const runErrorCopy = playerFacingRunError(run.error);
 
   useEffect(() => {

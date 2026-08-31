@@ -13,6 +13,7 @@ import ArcadeButton from "@/ui/components/shared/ArcadeButton";
 import InfoSheet from "@/ui/components/shared/InfoSheet";
 import Sheet from "@/ui/components/shared/Sheet";
 import { formatSolBalanceLamports } from "@/utils/currency";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface KreditShopSheetProps {
   open: boolean;
@@ -66,7 +67,10 @@ const KreditShopSheet: React.FC<KreditShopSheetProps> = ({
       srTitle="Buy Kredits"
       dismissible={!busy}
     >
-      <div className="flex flex-col gap-4 pt-1">
+      <div
+        className="flex flex-col gap-4 pt-1"
+        data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+      >
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-display text-[30px] leading-none text-white">
             Kredits
@@ -143,9 +147,9 @@ const KreditShopSheet: React.FC<KreditShopSheetProps> = ({
 
         <InfoSheet title="How Kredits work">
           <p>
-            Every Kredit costs the same{" "}
-            {formatSolBalanceLamports(unitLamports)} SOL. A bigger pack is not
-            cheaper — it is one wallet approval instead of several.
+            Every Kredit costs the same {formatSolBalanceLamports(unitLamports)}{" "}
+            SOL. A bigger pack is not cheaper — it is one wallet approval
+            instead of several.
           </p>
           <p>
             Purchase sends 10% to the operator and holds the prepaid 90% for the

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { ladderTierName } from "@/config/ladderTiers";
 import { tierFrameOuterSize } from "@/config/tierFrames";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 interface TierFrameProps {
   /** Protocol tier index. */
@@ -32,6 +33,7 @@ const TierFrame: React.FC<TierFrameProps> = ({
   // own box gets clipped by the first panel edge it meets.
   return (
     <span
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
       className={`relative inline-grid flex-none place-items-center ${className}`}
       style={{ width: outer, height: outer }}
     >

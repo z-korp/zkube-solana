@@ -3,6 +3,7 @@ import type { BoardKind, BoardState } from "@/backend/views";
 import { playerLabelWithWallet } from "@/ui/components/arena/leaderboardName";
 import { MONEY_GOLD, SolMark } from "@/ui/components/economy";
 import { formatSolBalanceLamports } from "@/utils/currency";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 import { boardPreviewRows } from "./dailyBoardPreview";
 
 const PANEL_STYLE: React.CSSProperties = {
@@ -90,7 +91,11 @@ const DailyBoardsPreview: React.FC<DailyBoardsPreviewProps> = ({
   address,
   onOpenBoard,
 }) => (
-  <section className="rounded-2xl p-3.5" style={PANEL_STYLE}>
+  <section
+    className="rounded-2xl p-3.5"
+    style={PANEL_STYLE}
+    data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+  >
     <p className="font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
       Today's boards
     </p>

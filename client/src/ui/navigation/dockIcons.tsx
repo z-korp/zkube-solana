@@ -1,12 +1,11 @@
 import { useId } from "react";
 
-import { SOL_LOGO_PATH } from "@/ui/components/economy/SolMark";
-
 /**
  * The dock's ink stamps (board 03, direction B): solid one-tint silhouettes in
  * currentColor — dim white at rest, dark ink on the gold key. Cutouts carry
- * the meaning: the arcade coin is stamped with the real SOL mark, the campaign
- * map with the winding trail and star, the profile shield with the emblem star.
+ * the meaning: the campaign map carries a winding trail and star, and the
+ * profile shield carries the emblem star. The selected product supplies the
+ * Arcade stamp.
  */
 
 interface DockIconProps {
@@ -43,29 +42,6 @@ export const DockCampaignIcon: React.FC<DockIconProps> = ({ size = 20 }) => (
     <circle cx="4" cy="19.5" r="2.7" fill="currentColor" />
   </svg>
 );
-
-export const DockArcadeIcon: React.FC<DockIconProps> = ({ size = 20 }) => {
-  const mask = useId();
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
-      <defs>
-        <mask id={mask}>
-          <rect width="24" height="24" fill="white" />
-          <g transform="translate(7.15 8.15) scale(0.096)">
-            <path d={SOL_LOGO_PATH} fill="black" />
-          </g>
-        </mask>
-      </defs>
-      <circle
-        cx="12"
-        cy="12"
-        r="10.4"
-        fill="currentColor"
-        mask={`url(#${mask})`}
-      />
-    </svg>
-  );
-};
 
 export const DockProfileIcon: React.FC<DockIconProps> = ({ size = 20 }) => {
   const mask = useId();

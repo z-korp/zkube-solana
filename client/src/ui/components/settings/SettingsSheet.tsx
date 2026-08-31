@@ -1,8 +1,7 @@
-import { useRef, useState } from "react";
-import { Check, Copy, ExternalLink, Music2, Volume2 } from "lucide-react";
+import { useState } from "react";
+import { Check, Copy, ExternalLink } from "lucide-react";
 
 import { useConnectedPlayer } from "@/backend/client";
-import { useMusicPlayer } from "@/contexts/hooks";
 import { useNotificationPreference } from "@/hooks/usePrizeState";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { MONEY_GOLD, mixHex, SolMark } from "@/ui/components/economy";
@@ -12,14 +11,13 @@ import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalance } from "@/utils/currency";
 import { errorMessage } from "@/utils/errors";
 import { truncatePublicKey } from "@/utils/solanaDisplay";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
+import AudioSettingsControls from "./AudioSettingsControls";
 
 const SECTION_CLASS =
   "font-sans text-[10px] font-bold uppercase tracking-[0.22em] text-white/45";
 const KEY_CLASS =
   "rounded-xl px-3 py-2.5 text-center font-sans text-xs font-extrabold uppercase tracking-[0.06em] disabled:opacity-40";
-
-/** Volume restored by a one-tap re-enable. */
-const AUDIO_ON_LEVEL = 0.7;
 
 function sessionLabel(status: string, validUntil?: number): string {
   if (status === "ready" && validUntil) {
@@ -55,15 +53,10 @@ const SettingsSheet: React.FC = () => {
     color: "#0a1628",
   };
   const player = useConnectedPlayer();
-  const { musicVolume, effectsVolume, setMusicVolume, setEffectsVolume } =
-    useMusicPlayer();
   const notifications = useNotificationPreference();
   const [copied, setCopied] = useState(false);
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletStatus, setWalletStatus] = useState("");
-  // Level each channel returns to when its mute key is tapped back on.
-  const lastMusic = useRef(AUDIO_ON_LEVEL);
-  const lastEffects = useRef(AUDIO_ON_LEVEL);
   const address = player.publicKey ?? "";
 
   const runWalletAction = async (
@@ -99,82 +92,11 @@ const SettingsSheet: React.FC = () => {
 
   return (
     <Sheet open={open} onClose={closeSettings} title="Settings">
-      <div className="flex flex-col gap-4 pb-2">
-        {/* Audio — the icon key mutes in one tap (and restores the last
-            level); the slider sets the level. */}
-        <section>
-          <p className={SECTION_CLASS}>Audio</p>
-          <div className="mt-2 flex flex-col gap-2.5">
-            {(
-              [
-                ["Music", Music2, musicVolume, setMusicVolume, lastMusic],
-                [
-                  "Effects",
-                  Volume2,
-                  effectsVolume,
-                  setEffectsVolume,
-                  lastEffects,
-                ],
-              ] as const
-            ).map(([label, Icon, value, onChange, last]) => {
-              const on = value > 0;
-              return (
-                <div key={label} className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={on}
-                    aria-label={`Toggle ${label.toLowerCase()}`}
-                    onClick={() => {
-                      if (on) {
-                        last.current = value;
-                        onChange(0);
-                      } else {
-                        onChange(last.current || AUDIO_ON_LEVEL);
-                      }
-                    }}
-                    className="grid h-10 w-10 flex-none place-items-center rounded-xl"
-                    style={
-                      on
-                        ? keyStyle
-                        : {
-                            background: "rgba(0,0,0,0.4)",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            color: "rgba(255,255,255,0.45)",
-                          }
-                    }
-                  >
-                    <Icon size={17} />
-                  </button>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    aria-label={`${label} volume`}
-                    value={Math.round(value * 100)}
-                    onChange={(event) => {
-                      const next = Number(event.target.value) / 100;
-                      if (next > 0) last.current = next;
-                      onChange(next);
-                    }}
-                    className="h-2.5 flex-1 cursor-pointer appearance-none rounded-full border border-white/[0.08]"
-                    style={{
-                      accentColor: accent,
-                      background: `linear-gradient(90deg, ${mixHex(accent, 0, 0.25)} 0%, ${accent} ${Math.round(value * 100)}%, rgba(255,255,255,0.16) ${Math.round(value * 100)}%)`,
-                    }}
-                  />
-                  <span
-                    className="w-9 flex-none text-right font-mono text-[13px] font-bold tabular-nums"
-                    style={{ color: accent }}
-                  >
-                    {Math.round(value * 100)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+      <div
+        className="flex flex-col gap-4 pb-2"
+        data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+      >
+        <AudioSettingsControls />
 
         {/* PARKED 2026-08-29 — owner ruling; not reachable from the product until unparked */}
         {/* Alerts */}
@@ -315,7 +237,10 @@ const SettingsSheet: React.FC = () => {
                 type="button"
                 disabled={walletBusy}
                 onClick={() =>
-                  void runWalletAction(player.disconnect, "Wallet disconnected.")
+                  void runWalletAction(
+                    player.disconnect,
+                    "Wallet disconnected.",
+                  )
                 }
                 className="w-full rounded-xl border border-red-400/40 bg-red-500/10 py-2.5 font-sans text-sm font-bold text-red-300 disabled:opacity-40"
               >

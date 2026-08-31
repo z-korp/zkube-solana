@@ -41,6 +41,7 @@ import ZoneBackdrop from "@/ui/components/shared/ZoneBackdrop";
 import { useTheme } from "@/ui/elements/theme-provider/hooks";
 import { formatSolBalanceLamports } from "@/utils/currency";
 import { formatCountdown } from "@/utils/time";
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
 
 /** Opaque block furniture — same recipe as every menu panel. */
 const PANEL_STYLE: React.CSSProperties = {
@@ -182,7 +183,10 @@ const ArcadePage: React.FC = () => {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden pt-7">
+    <div
+      className="relative flex h-full min-h-0 flex-col overflow-hidden pt-7"
+      data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
+    >
       <ZoneBackdrop zoneId={zoneId} />
 
       <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] items-center px-4">

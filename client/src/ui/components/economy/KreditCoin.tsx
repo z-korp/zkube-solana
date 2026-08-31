@@ -1,3 +1,5 @@
+import { MONEY_SURFACE_SENTINEL } from "@/ui/moneySurface";
+
 interface KreditCoinProps {
   size?: number;
   className?: string;
@@ -23,6 +25,7 @@ const KreditCoin: React.FC<KreditCoinProps> = ({
   title,
 }) => (
   <img
+    data-zkube-money-surface={MONEY_SURFACE_SENTINEL}
     src="/assets/common/kredit.png"
     alt={title ?? ""}
     aria-hidden={title ? undefined : true}
