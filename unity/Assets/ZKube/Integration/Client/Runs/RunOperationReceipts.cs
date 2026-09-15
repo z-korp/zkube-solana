@@ -22,7 +22,7 @@ namespace ZKube.Integration.Client.Runs
         public RunOperationReceipts(string owner, string mode, string expectedAddress = null)
         {
             if (string.IsNullOrEmpty(owner)) throw new ArgumentException("A receipt scope needs an owner", nameof(owner));
-            if (mode != "campaign" && mode != "daily") throw new ArgumentException("Invalid run mode", nameof(mode));
+            if (mode != "daily") throw new ArgumentException("Invalid run mode", nameof(mode));
             Owner = owner; Mode = mode; this.expectedAddress = expectedAddress;
         }
         internal void Begin(string owner, string mode)

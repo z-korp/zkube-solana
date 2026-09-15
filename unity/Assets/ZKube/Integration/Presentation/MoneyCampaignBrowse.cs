@@ -22,7 +22,7 @@ namespace ZKube.Integration.Presentation
         public byte SelectedRealm => browseRealm;
         public byte SelectedTrial => browseLevel;
 
-        public Task OpenCampaign() => Run(async (epoch, token) => {
+        public Task OpenCampaign() => RunCampaign(async (epoch, token) => {
             if (identity.Owner == null) return;
             CloseProductViews(); browsingCampaign = true; browseLevel = 0; overviewPanel.gameObject.SetActive(false);
             await RefreshCampaignPage(epoch, token);
@@ -62,10 +62,10 @@ namespace ZKube.Integration.Presentation
         }
         private void CampaignControls(bool available)
         {
-            if (campaignButton != null) campaignButton.interactable = available && !Busy && identity?.Owner != null;
+            if (campaignButton != null) campaignButton.interactable = available && identity?.Owner != null;
             if (campaignPanel == null) return;
             foreach (var button in campaignPanel.GetComponentsInChildren<Button>(true))
-                button.interactable = available && !Busy &&
+                button.interactable = available &&
                     (button.name == "Overview" || button.name == "Refresh Campaign" ||
                      (campaignRead != null && campaignRead.IsCurrent && !button.name.StartsWith("Locked trial", StringComparison.Ordinal)));
         }
@@ -84,7 +84,7 @@ namespace ZKube.Integration.Presentation
             var state = campaignRead.Value;
             if (state.Browse.Realms.Count == 0)
             {
-                DrawCampaignNotice(state.Progress.Status == "missing-protocol" ? "Campaign publication is unavailable." : "Campaign trial data is unavailable.");
+                DrawCampaignNotice("Campaign trial data is unavailable.");
                 return;
             }
             var realm = state.Browse.Realms.Single(value => value.MapId == browseRealm);
@@ -94,15 +94,11 @@ namespace ZKube.Integration.Presentation
             Label(campaignPanel, "Campaign · " + page.realmName, 30, true);
             Label(campaignPanel, page.guardianName + " · " + realm.Levels.Sum(level => level.Stars) + " / 30 stars", 21, false);
             if (Protocol.Realms.Any(value => value.MapId == realm.ThemeId)) RequestArt(realm.ThemeId);
-            else { RetireArtwork(); Label(campaignPanel, "Artwork is unavailable for this publication.", 18, false); }
-            if (!state.Progress.Player.Exists) Label(campaignPanel, "Your Campaign progress begins with your first trial.", 18, false);
-            if (state.Progress.Status == "paused") Label(campaignPanel, "Campaign play is paused.", 18, false);
-            if (state.PendingTransaction) Label(campaignPanel, "A transaction needs checking. Return to Overview to check it.", 18, false);
-            Label(campaignPanel, SessionText(state.Session), 18, false);
+            else { RetireArtwork(); Label(campaignPanel, "Artwork is unavailable for this realm.", 18, false); }
             DrawRunControls(state);
             if (state.Browse.SavedRealm.HasValue)
                 Label(campaignPanel, "Saved Campaign run · realm " + state.Browse.SavedRealm + ", trial " + state.Browse.SavedLevel + ". " + RunText(state.Run), 19, false);
-            else if (state.Run.Phase != "none") Label(campaignPanel, RunText(state.Run), 18, false);
+            else if (state.Run != null) Label(campaignPanel, RunText(state.Run), 18, false);
             if (browseLevel != 0)
             {
                 var level = realm.Levels[browseLevel - 1];
@@ -147,7 +143,7 @@ namespace ZKube.Integration.Presentation
                     label.rectTransform.offsetMin = Vector2.one * 4; label.rectTransform.offsetMax = Vector2.one * -4;
                 }
                 // MapPage names/coordinates use mapId; scenery and path styling
-                // use the independently published themeId.
+                // use the catalog themeId.
                 var style = catalog.themes.FirstOrDefault(value => value.realmId == realm.ThemeId)?.map;
                 graphic.Configure(page, realm.Levels.Select(level => level.State).ToArray(), style);
             }
@@ -155,7 +151,7 @@ namespace ZKube.Integration.Presentation
             Button(campaignPanel, "Overview", () => _ = OpenOverview());
             Controls();
         }
-        private bool CanBrowse() => !Busy && !paused && !detached && isActiveAndEnabled && campaignRead != null && campaignRead.IsCurrent;
+        private bool CanBrowse() => !paused && !detached && isActiveAndEnabled && campaignRead != null && campaignRead.IsCurrent;
         private void RefreshCampaignLayout() { if (browsingCampaign && CanBrowse()) DrawCampaign(); }
         private void SelectRealm(byte value)
         { if (!CanBrowse()) return; browseRealm = value; browseLevel = 0; DrawCampaign(); }

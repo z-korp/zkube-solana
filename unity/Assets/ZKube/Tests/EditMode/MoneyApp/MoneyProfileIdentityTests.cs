@@ -26,8 +26,6 @@ namespace ZKube.Integration.App.Tests
             var e = new MoneyTestEnvironment();
             try
             {
-                var accounts = MoneyTestEnvironment.Fixture("unity-product-reads-v1.json")["accounts"];
-                foreach (var catalog in accounts["catalogs"]) e.Http.Add(catalog);
                 e.Http.Add(row["player"]);
                 await e.Flow.Connect(e.Owner);
                 var read = (await e.Flow.RefreshProfile()).Value;
@@ -56,7 +54,7 @@ namespace ZKube.Integration.App.Tests
         }
 
         [Test]
-        public async Task MissingPublicationDoesNotConcealTheProfileOrOfferUnearnedEmblems()
+        public async Task CompiledCatalogKeepsAttestedProfileProgressAvailable()
         {
             var e = new MoneyTestEnvironment();
             try
@@ -65,10 +63,10 @@ namespace ZKube.Integration.App.Tests
                 e.Http.Add(accounts["player"]);
                 await e.Flow.Connect(e.Owner);
                 var read = (await e.Flow.RefreshProfile()).Value;
-                Assert.That(read.Campaign.Status, Is.EqualTo("missing-catalog"));
+                Assert.That(read.Campaign.Status, Is.EqualTo("ready"));
                 Assert.That(read.Profile.Exists, Is.True);
-                Assert.That(read.Identity.ProgressAvailable, Is.False);
-                CollectionAssert.AreEqual(new byte[] { 0 }, read.Identity.Emblems.Where(value => value.Earned).Select(value => value.Definition.Id));
+                Assert.That(read.Identity.ProgressAvailable, Is.True);
+                Assert.That(read.Identity.Emblems.Single(value => value.Definition.Id == 0).Earned, Is.True);
                 e.AssertReadOnly();
             }
             finally { await e.Flow.StopAsync(); }

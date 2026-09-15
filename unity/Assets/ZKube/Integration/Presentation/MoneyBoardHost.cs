@@ -9,6 +9,7 @@ using ZKube.Integration.App;
 using ZKube.Integration.Client.Runs;
 using ZKube.Integration.Execution;
 using ZKube.Presentation;
+using ZKube.Local;
 
 namespace ZKube.Integration.Presentation
 {
@@ -19,12 +20,13 @@ namespace ZKube.Integration.Presentation
         private MoneyAppFlow flow;
         private Func<long> now;
         private MoneyRunHandle run;
+        private MoneyCampaignRun campaign;
         private BoardController board;
         private CancellationTokenSource lifetime;
         private bool paused, observing, foregroundNeeded, settling, settlementAttempted, settled, frozenShown;
         private string terminalTitle, terminalBody, settlementError;
         private long generation, foregroundGeneration;
-        public bool HasRun => run != null;
+        public bool HasRun => run != null || campaign != null;
         public BoardController Board => board;
         public bool OperationPending => observing || settling;
         public event Action Closed;
@@ -59,6 +61,42 @@ namespace ZKube.Integration.Presentation
             board.SetHostInputEnabled(!paused && !Frozen());
         }
 
+        public void Open(MoneyCampaignRun launch, string title, float textScale)
+        {
+            if (flow == null || HasRun || !flow.CampaignIdentityCurrent(launch))
+                throw new InvalidOperationException("No current local run can be opened");
+            campaign = launch; lifetime = new CancellationTokenSource(); generation++;
+            settlementAttempted = settled = true;
+            settling = observing = foregroundNeeded = frozenShown = false;
+            terminalTitle = terminalBody = settlementError = null;
+            var provider = new LocalCampaignBoardActions(flow, launch);
+            var root = new GameObject("Money local Campaign"); root.transform.SetParent(transform, false);
+            board = root.AddComponent<BoardController>(); board.SetTextScale(textScale);
+            board.TerminalPresenter = PresentTerminal; board.ExitRequested += Close;
+            board.Bind(new BoardSession(launch.View.Token, launch.View.Rules, provider, title, launch.View.Realm));
+            board.SetHostInputEnabled(!paused);
+        }
+
+        private sealed class LocalCampaignBoardActions : IBoardActionProvider, IBoardRecoveryProvider
+        {
+            private readonly MoneyAppFlow flow;
+            private readonly MoneyCampaignRun run;
+            private readonly LocalBoardActionProvider local;
+            public LocalCampaignBoardActions(MoneyAppFlow flow, MoneyCampaignRun run)
+            { this.flow = flow; this.run = run; local = new LocalBoardActionProvider(run.Runs, run.View); }
+            private void Current()
+            { if (!flow.CampaignIdentityCurrent(run)) throw new OperationCanceledException("Campaign owner changed"); }
+            public async Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+            {
+                Current(); var result = await local.Submit(accepted, action, cancellation);
+                flow.CampaignChanged(run); Current(); return result;
+            }
+            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+            { Current(); return local.ResolveVrf(accepted, cancellation); }
+            public Task<BoardActionResult> Recover(CancellationToken cancellation)
+            { Current(); return local.Recover(cancellation); }
+        }
+
         private async Task<RunClientState> Execute(
             MoneyRunHandle expected,
             Func<CancellationToken, Task<MoneyRead<MoneyRunOperation>>> operation, CancellationToken caller)
@@ -72,7 +110,8 @@ namespace ZKube.Integration.Presentation
             return result.Value.RequireState();
         }
 
-        private bool Current(long epoch) => this != null && run != null && epoch == generation && flow.RunIdentityCurrent(run);
+        private bool Current(long epoch) => this != null && HasRun && epoch == generation &&
+            (campaign != null ? flow.CampaignIdentityCurrent(campaign) : flow.RunIdentityCurrent(run));
         private bool CurrentForeground(long epoch, long visit) => Current(epoch) &&
             visit == foregroundGeneration && !paused && isActiveAndEnabled;
         private bool Frozen() => run != null && run.Mode == "daily" && now() >= run.DeadlineAt;
@@ -82,8 +121,14 @@ namespace ZKube.Integration.Presentation
         private void Update()
         {
             if (!HasRun) return;
-            if (!flow.RunIdentityCurrent(run)) { Close(); return; }
+            if (!Current(generation)) { Close(); return; }
             if (paused || !board.PresentationInitialized) return;
+            if (campaign != null)
+            {
+                if (foregroundNeeded && !board.Busy) { foregroundNeeded = false; board.Pause(); }
+                board.SetHostInputEnabled(!Terminal() && !board.RecoveryRequired);
+                return;
+            }
             if (foregroundNeeded)
             {
                 board.SetHostInputEnabled(false);
@@ -116,7 +161,7 @@ namespace ZKube.Integration.Presentation
         private void RenderTerminal()
         {
             if (board?.View == null || terminalTitle == null) return;
-            string receipt = ReceiptText(run.LastReceiptOperation);
+            string receipt = ReceiptText(run?.LastReceiptOperation);
             string body = terminalBody + "\n\n" + (settled ? "Result saved." : settling || !settlementAttempted ?
                 "Saving your result…" : settlementError ?? "Check settlement before continuing.") + receipt;
             if (settled) board.View.OpenModal(terminalTitle, body, ("Continue", Close));
@@ -201,7 +246,7 @@ namespace ZKube.Integration.Presentation
         public void Close()
         {
             if (!HasRun) return;
-            generation++; run = null;
+            generation++; run = null; campaign = null;
             var previous = board; board = null;
             try { lifetime?.Cancel(); }
             finally

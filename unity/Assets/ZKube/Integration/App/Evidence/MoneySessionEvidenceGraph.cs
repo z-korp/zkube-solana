@@ -75,7 +75,7 @@ namespace ZKube.Integration.App.Evidence
             var graph = new MoneySessionEvidenceGraph(data, row); var storage = new Memory(graph);
             graph.Services = new MoneyClientServices(solanaJson, sessionJson,
                 new MoneyConnectionConfig((string)graph.inputs["base"], (string)graph.inputs["router"], (string)graph.inputs["expectedGenesis"]),
-                new Http(graph), new Native(graph), storage, graph.Clock);
+                new Http(graph), new Native(graph), storage, graph.Clock, owner => new ZKube.Local.LocalProductStore(owner: owner));
             if (row["active"]?.Type == JTokenType.Object)
             {
                 var record = row["active"];

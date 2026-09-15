@@ -34,7 +34,7 @@ namespace ZKube.Integration.Execution.Tests
         private static AccountEnvelope Envelope(JToken value) => new AccountEnvelope((string)value["address"], (string)value["owner"], (bool)value["executable"], Convert.FromBase64String((string)value["data"]));
         private ExecutionReconciliation Evidence(string mode, string action, string state, bool failed = false, ulong slot = 9000, bool absent = false, bool delegatedAccount = false, bool progressed = false)
         {
-            var tx = fixture["transactions"].Single(value => (string)value["id"] == (action == "delegate" ? "delegate" : mode + "-" + action));
+            var tx = fixture["transactions"].Single(value => (string)value["id"] == (action == "delegate" ? "delegate" : mode + "-" + (action == "prepare" ? "no-claims" : action)));
             bool isBase = action == "consume" || action.StartsWith("prepare", StringComparison.Ordinal) || action == "delegate";
             var pending = new PendingTransaction((string)tx["owner"], action, isBase ? "https://base.invalid/" : "https://er.invalid/", isBase,
                 Convert.FromBase64String((string)tx["bytes"]), (string)tx["blockhash"], 10000);
@@ -72,7 +72,7 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task AcceptedRerollWaitsForItsOwnVrfWithoutReplayOrCounterLoss()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var output = new List<RunSemanticObservation>(); var reconciler = Reconciler(new Http(), output);
                 Assert.That(await reconciler.Reconcile(Evidence(mode, "reroll", "playing"), default), Is.False);
@@ -90,7 +90,7 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task RequestVrfAndFinishRequireAuthoritativeCountersAndTerminalState()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var output = new List<RunSemanticObservation>(); var reconciler = Reconciler(new Http(), output);
                 Assert.That(await reconciler.Reconcile(Evidence(mode, "vrf", "prepared"), default), Is.False);
@@ -106,13 +106,13 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task CommitRequiresTerminalBaseCopybackAndNeverUsesAnErSlotOnBase()
         {
-            var http = new Http { Delegated = true, Base = Row("campaign", "finished") };
+            var http = new Http { Delegated = true, Base = Row("daily", "finished") };
             var output = new List<RunSemanticObservation>(); var reconciler = Reconciler(http, output);
-            Assert.That(await reconciler.Reconcile(Evidence("campaign", "commit", "finished"), default), Is.False);
-            http.Delegated = false; http.Base = Row("campaign", "playing");
-            Assert.That(await reconciler.Reconcile(Evidence("campaign", "commit", "finished"), default), Is.False);
-            http.Base = Row("campaign", "finished");
-            Assert.That(await reconciler.Reconcile(Evidence("campaign", "commit", "finished"), default), Is.True);
+            Assert.That(await reconciler.Reconcile(Evidence("daily", "commit", "finished"), default), Is.False);
+            http.Delegated = false; http.Base = Row("daily", "playing");
+            Assert.That(await reconciler.Reconcile(Evidence("daily", "commit", "finished"), default), Is.False);
+            http.Base = Row("daily", "finished");
+            Assert.That(await reconciler.Reconcile(Evidence("daily", "commit", "finished"), default), Is.True);
             Assert.That(output.Single().Endpoint, Is.EqualTo("https://base.invalid/"));
             Assert.That(output.Single().ContextSlot, Is.EqualTo(50));
             Assert.That(http.Requests.Where(r => (string)r["method"] == "getAccountInfo").All(r => r["params"][1]["minContextSlot"] == null), Is.True);
@@ -124,9 +124,9 @@ namespace ZKube.Integration.Execution.Tests
             var output = new List<RunSemanticObservation>(); var reconciler = Reconciler(new Http { Delegated = false }, output);
             Assert.That(await reconciler.Reconcile(Evidence("daily", "consume", "finished", absent: true), default), Is.False);
             Assert.That(output, Is.Empty);
-            Assert.That(await reconciler.Reconcile(Evidence("campaign", "consume", "finished", absent: true), default), Is.True);
+            Assert.That(await reconciler.Reconcile(Evidence("daily", "consume", "finished", absent: true, progressed: true), default), Is.True);
             Assert.That(output.Single().Phase, Is.EqualTo(RunSemanticPhase.Consumed));
-            try { await reconciler.Reconcile(Evidence("campaign", "consume", "finished", slot: 8999, absent: true), default); Assert.Fail("Expected stale evidence rejection"); }
+            try { await reconciler.Reconcile(Evidence("daily", "consume", "finished", slot: 8999, absent: true), default); Assert.Fail("Expected stale evidence rejection"); }
             catch (FormatException) { }
         }
 
@@ -134,9 +134,9 @@ namespace ZKube.Integration.Execution.Tests
         public async Task PreparationAndDelegationWaitForTheMatchingNativeRunOnItsCurrentEr()
         {
             var prepared = new List<RunSemanticObservation>();
-            Assert.That(await Reconciler(new Http { Delegated = false }, prepared).Reconcile(Evidence("campaign", "prepare", "prepared"), default), Is.True);
+            Assert.That(await Reconciler(new Http { Delegated = false }, prepared).Reconcile(Evidence("daily", "prepare", "prepared"), default), Is.True);
             Assert.That(prepared.Single().Phase, Is.EqualTo(RunSemanticPhase.Prepared));
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var http = new Http(); var output = new List<RunSemanticObservation>(); var reconciler = Reconciler(http, output);
                 var evidence = Evidence(mode, "prepare-delegate", "prepared", delegatedAccount: true);
@@ -148,14 +148,14 @@ namespace ZKube.Integration.Execution.Tests
                 Assert.That(http.Requests.Where(r => (string)r["method"] == "getMultipleAccounts").All(r => r["params"][1]["minContextSlot"] == null), Is.True);
             }
             var delegated = new List<RunSemanticObservation>();
-            Assert.That(await Reconciler(new Http { Er = Row("campaign", "playing") }, delegated).Reconcile(
-                Evidence("campaign", "delegate", "prepared", delegatedAccount: true), default), Is.True);
+            Assert.That(await Reconciler(new Http { Er = Row("daily", "playing") }, delegated).Reconcile(
+                Evidence("daily", "delegate", "prepared", delegatedAccount: true), default), Is.True);
         }
 
         [Test]
         public async Task RelocatedErActionsBindCurrentNativeStateWithoutComparingLedgerSlots()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var http = new Http { Endpoint = "https://new-er.invalid/", Er = Row(mode, "playing") };
                 var output = new List<RunSemanticObservation>(); var reconciler = Reconciler(http, output);
@@ -178,7 +178,7 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task AConfirmedRunAlreadyConsumedOnAnotherDeviceReleasesOnlyItsAddress()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 foreach (string action in new[] { "prepare-delegate", "reroll", "commit" })
                 {
@@ -197,7 +197,7 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task UnrecognizedSignedSideEffectsDoNotClearTheRunJournal()
         {
-            var evidence = Evidence("campaign", "reroll", "rerolled");
+            var evidence = Evidence("daily", "reroll", "rerolled");
             var extra = new SolanaInstruction(PlanningConstants.SystemProgram, Array.Empty<AccountMeta>(), new byte[] { 255 });
             var description = Make<TransactionDescription>(evidence.Transaction.Accounts.ToArray(),
                 evidence.Transaction.Instructions.Concat(new[] { extra }).ToArray(), evidence.Transaction.VersionZero);

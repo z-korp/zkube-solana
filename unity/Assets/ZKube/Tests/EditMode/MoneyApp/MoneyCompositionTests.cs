@@ -47,13 +47,13 @@ namespace ZKube.Integration.App.Tests
             Assert.That(e.Flow.Public, Is.Null); await e.Flow.StopAsync();
         }
         [Test]
-        public async Task ForegroundPreservesBothNativeRunSlotsWithoutDeviceKeysOrNewTransactions()
+        public async Task ForegroundPreservesArcadeWithoutDeviceKeysOrNewTransactions()
         {
-            var e = new MoneyTestEnvironment(); e.UseBothRuns(); await e.Flow.Connect(e.Owner);
+            var e = new MoneyTestEnvironment(); e.UseDailyRun(); await e.Flow.Connect(e.Owner);
             var value = (await e.Flow.RefreshOwner()).Value;
-            foreach (var mode in new[] { "campaign", "daily" })
+            foreach (var mode in new[] { "daily" })
             {
-                var actual = mode == "campaign" ? value.Campaign : value.Daily;
+                var actual = value.Daily;
                 var row = e.Runs["cases"].Single(x => (string)x["id"] == "active-" + mode + "-playing");
                 Assert.That(actual.Phase, Is.EqualTo("delegated"));
                 CollectionAssert.AreEqual(Convert.FromBase64String((string)row["token"]["state"]), actual.Token.State);
@@ -79,7 +79,7 @@ namespace ZKube.Integration.App.Tests
         [Test]
         public async Task PendingPurchaseUsesRealDispatcherAndInvalidatesRetainedEconomyProjection()
         {
-            var e = new MoneyTestEnvironment(); e.UseBothRuns(); e.AddEconomy(); await e.Flow.Connect(e.Owner);
+            var e = new MoneyTestEnvironment(); e.UseDailyRun(); e.AddEconomy(); await e.Flow.Connect(e.Owner);
             var retained = await e.Flow.RefreshOwner(); await e.Services.Journal.Begin(e.Purchase());
             var result = await e.Services.Executor.Resume(e.Owner, e.Services.Dispatcher);
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
@@ -101,7 +101,13 @@ namespace ZKube.Integration.App.Tests
         [Test]
         public async Task ForegroundDoesNotConsumeATransactionArrivingDuringItsProfileRead()
         {
-            var e = new MoneyTestEnvironment(); e.UseBothRuns(); e.AddEconomy(); await e.Flow.Connect(e.Owner);
+            var e = new MoneyTestEnvironment(); e.UseDailyRun(); e.AddEconomy();
+            // Let the independent connect-time record read enter before holding
+            // the foreground read whose transaction boundary this case checks.
+            e.Http.DelayMethod = "getAccountInfo";
+            e.Http.Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            e.Http.Release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            await e.Flow.Connect(e.Owner); await e.Http.Entered.Task; e.Http.Release.SetResult(true);
             e.Http.DelayMethod = "getAccountInfo";
             e.Http.Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             e.Http.Release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -150,17 +156,16 @@ namespace ZKube.Integration.App.Tests
             Assert.That(e.Http.Requests.Any(x => (string)x["method"] == "sendTransaction"), Is.False); await e.Flow.StopAsync();
         }
         [Test]
-        public async Task ActualConsumedRunReceiptClearsOnlyItsDurableModeThroughTheComposedDispatcher()
+        public async Task ActualConsumedArcadeReceiptClearsItsDurableMarkerThroughTheComposedDispatcher()
         {
-            var e = new MoneyTestEnvironment(); e.UseBothRuns(); await e.Flow.Connect(e.Owner); await e.Flow.RefreshOwner();
-            var campaign = await e.Services.RunMarkers.Load(e.Owner, "campaign"); var daily = await e.Services.RunMarkers.Load(e.Owner, "daily");
-            e.Http.Accounts.Remove(campaign.ActiveRun); e.Http.Delegated.Remove(campaign.ActiveRun); e.Http.Add(e.Runs["consumedPlayers"]["campaign"]);
-            await e.Services.Journal.Begin(new PendingTransaction(e.Owner, "consume-campaign", e.Config.BaseUri, true,
-                Convert.FromBase64String((string)e.Runs["ownerConsume"]["campaign"]), (string)e.Plans["inputs"]["blockhash"], 500));
+            var e = new MoneyTestEnvironment(); e.UseDailyRun(); await e.Flow.Connect(e.Owner); await e.Flow.RefreshOwner();
+            var campaign = await e.Services.RunMarkers.Load(e.Owner, "daily");
+            e.Http.Accounts.Remove(campaign.ActiveRun); e.Http.Delegated.Remove(campaign.ActiveRun); e.Http.Add(e.Runs["consumedPlayers"]["daily"]);
+            await e.Services.Journal.Begin(new PendingTransaction(e.Owner, "consume-daily", e.Config.BaseUri, true,
+                Convert.FromBase64String((string)e.Runs["ownerConsume"]["daily"]), (string)e.Plans["inputs"]["blockhash"], 500));
             var result = (await e.Flow.ResumePending()).Value;
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
-            Assert.That(await e.Services.RunMarkers.Load(e.Owner, "campaign"), Is.Null);
-            Assert.That((await e.Services.RunMarkers.Load(e.Owner, "daily")).ActiveRun, Is.EqualTo(daily.ActiveRun));
+            Assert.That(await e.Services.RunMarkers.Load(e.Owner, "daily"), Is.Null);
             Assert.That(await e.Services.Journal.Load(e.Owner), Is.Null); e.AssertReadOnly(); await e.Flow.StopAsync();
         }
         [Test]
@@ -204,11 +209,11 @@ namespace ZKube.Integration.App.Tests
         }
         internal MoneyClientServices Create(MoneyConnectionConfig config) => new MoneyClientServices(
             File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")),
-            File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")), config, Http, Native, Store, () => Now);
-        internal void UseBothRuns()
+            File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")), config, Http, Native, Store, () => Now, owner => new ZKube.Local.LocalProductStore(owner: owner));
+        internal void UseDailyRun()
         {
             Http.Add(Runs["player"]);
-            foreach (var mode in new[] { "campaign", "daily" })
+            foreach (var mode in new[] { "daily" })
             { var row = Runs["cases"].Single(x => (string)x["id"] == "active-" + mode + "-playing"); Http.Add(row); Http.Delegated.Add((string)row["address"]); }
         }
         internal void AddEconomy()
@@ -279,7 +284,10 @@ namespace ZKube.Integration.App.Tests
                     Interlocked.Increment(ref CancellationCallbacks);
                     throw new InvalidOperationException("Injected cancellation callback: " + method);
                 }) : default;
-                if (method == DelayMethod) { DelayMethod = null; Entered?.TrySetResult(true); if (Release != null) await Release.Task; }
+                if (method == DelayMethod) {
+                    var release = Release; var entered = Entered; DelayMethod = null;
+                    entered?.TrySetResult(true); if (release != null) await release.Task;
+                }
                 // Deliberately allow this fake callback to arrive after cancellation;
                 // the real transport/flow must still reject publication.
                 JToken Account(string address) => Accounts.TryGetValue(address, out var row) ? new JObject {

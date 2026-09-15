@@ -10,7 +10,10 @@
     "ZKube.Planning",
     "ZKube.Execution",
     "Unity.ugui",
-    "Unity.TextMeshPro"
+    "Unity.TextMeshPro",
+    "ZKube.Local",
+    "ZKube.Local.Runs",
+    "ZKube.Local.Presentation"
   ],
   "defineConstraints": [
     "!ZKUBE_STORE"

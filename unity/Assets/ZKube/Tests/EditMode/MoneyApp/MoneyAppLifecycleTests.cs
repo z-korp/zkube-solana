@@ -72,17 +72,16 @@ namespace ZKube.Integration.App.Tests
             Assert.Throws<OperationCanceledException>(() => _ = current.Value);
         }
         [Test]
-        public async Task AccountSwitchSuppressesOldOwnerReadWithoutDiscardingEitherRunMarker()
+        public async Task AccountSwitchSuppressesOldOwnerReadWithoutDiscardingArcadeMarker()
         {
-            var e = new MoneyTestEnvironment(); e.UseBothRuns(); await e.Flow.Connect(e.Owner);
-            var retained = await e.Flow.RefreshOwner(); var campaign = await e.Services.RunMarkers.Load(e.Owner, "campaign");
+            var e = new MoneyTestEnvironment(); e.UseDailyRun(); await e.Flow.Connect(e.Owner);
+            var retained = await e.Flow.RefreshOwner();
             var daily = await e.Services.RunMarkers.Load(e.Owner, "daily");
             e.Http.DelayMethod = "getAccountInfo"; e.Http.Entered = Signal(); e.Http.Release = Signal();
             var old = e.Flow.RefreshOwner(); await e.Http.Entered.Task; await e.Flow.Disconnect();
             e.Native.Owner = (string)e.Plans["inputs"]["device"]; var next = await e.Flow.Connect(e.Native.Owner);
             e.Http.Release.SetResult(true); await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await old);
             Assert.That(next.Value, Is.EqualTo(e.Native.Owner)); Assert.That(retained.IsCurrent, Is.False); Assert.That(e.Flow.Owner, Is.Null);
-            Assert.That((await e.Services.RunMarkers.Load(e.Owner, "campaign")).ActiveRun, Is.EqualTo(campaign.ActiveRun));
             Assert.That((await e.Services.RunMarkers.Load(e.Owner, "daily")).ActiveRun, Is.EqualTo(daily.ActiveRun));
             await e.Flow.StopAsync();
         }

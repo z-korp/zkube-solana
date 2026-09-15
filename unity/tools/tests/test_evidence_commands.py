@@ -34,13 +34,14 @@ class EvidenceCommandTests(unittest.TestCase):
         for path in sorted((ROOT / 'fixtures').glob('unity-money-*playable-v1.json')):
             playable = json.loads(path.read_text())
             mode = playable['inputs']['mode']
-            self.assertIn(mode, ('campaign', 'daily'))
+            self.assertEqual(mode, 'daily')
             self.assertNotIn(mode, modes, 'Duplicate playable fixture mode')
             modes.add(mode)
             self.assertEqual(playable['evidenceClass'], f'offline-synthetic-money-{mode}-trajectory')
-            self.assertEqual(playable['terminal']['phase'], {'campaign': 'levelComplete', 'daily': 'finished'}[mode])
+            self.assertEqual(playable['terminal']['phase'], 'finished')
             scenarios.add(mode + '-playable')
-        self.assertEqual(modes, {'campaign', 'daily'})
+        self.assertEqual(modes, {'daily'})
+        self.assertIn('campaign-playable', scenarios)
         self.assertEqual(set(evidence.MONEY_SCENARIOS), scenarios)
         for scenario in scenarios:
             self.assertEqual(self.invoke('load', '--surface', 'money', '--scenario', scenario)['scenario'], scenario)

@@ -399,7 +399,7 @@ namespace ZKube.Integration.Execution.Tests
                     return extra.Type == JTokenType.Null ? JValue.CreateNull() : new JObject { ["owner"] = extra["owner"], ["executable"] = extra["executable"],
                         ["lamports"] = extra["lamports"] ?? new JValue(5000000), ["data"] = new JArray(extra["data"], "base64") };
                 var profile = solana["accounts"].Single(row => (string)row["id"] == "player-valid");
-                JToken source = address == (string)profile["address"] ? profile : address == (string)plans["runs"]["campaign"]["address"] ? plans["runs"]["campaign"] : null;
+                JToken source = address == (string)profile["address"] ? profile : address == (string)plans["runs"]["daily"]["address"] ? plans["runs"]["daily"] : null;
                 if (source != null) return new JObject { ["owner"] = source["owner"], ["executable"] = source["executable"], ["lamports"] = 1,
                     ["data"] = new JArray(source["data"], "base64") };
                 if (AbsentNonPlayer) return JValue.CreateNull();

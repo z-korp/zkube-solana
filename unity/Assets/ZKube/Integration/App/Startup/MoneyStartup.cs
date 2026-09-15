@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -6,6 +7,8 @@ using ZKube.Integration.Android;
 using ZKube.Integration.Presentation;
 using ZKube.Integration.Transport;
 using ZKube.Presentation;
+using ZKube.Local;
+using ZKube.Persistence;
 
 namespace ZKube.Integration.App
 {
@@ -63,10 +66,15 @@ namespace ZKube.Integration.App
                     // configuration before using any platform dependency.
                     http = new HttpClientJsonRpc();
                     var native = new AndroidWalletTransport();
+                    string campaignDirectory = Path.Combine(Application.persistentDataPath, "campaign");
                     services = new MoneyClientServices(solanaSchema == null ? null : solanaSchema.text,
                         sessionSchema == null ? null : sessionSchema.text,
                         new MoneyConnectionConfig(baseUri, routerUri, expectedGenesis), http, native, native,
-                        () => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                        () => DateTimeOffset.UtcNow.ToUnixTimeSeconds(), owner => {
+                            string path = Path.Combine(campaignDirectory, owner + ".json");
+                            return new LocalProductStore(_ => AtomicProductFile.Read(path),
+                                (_, value) => AtomicProductFile.Write(path, value), owner);
+                        });
 #if !UNITY_ANDROID || UNITY_EDITOR
                     throw new PlatformNotSupportedException("Wallet support requires the Android money application.");
 #endif

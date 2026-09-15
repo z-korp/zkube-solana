@@ -13,17 +13,14 @@ namespace ZKube.Integration.Client
             if (observation.Phase == RunSemanticPhase.Consumed)
             {
                 if (observation.PlayerAfter == null) throw new FormatException("Consumed run has no validated player observation");
-                foreach (string mode in new[] { "campaign", "daily" })
-                {
-                    var marker = await store.Load(observation.Owner, mode).ConfigureAwait(false);
-                    if (marker?.ActiveRun == observation.Address)
-                        await store.ClearAfterConsumption(marker, observation.PlayerAfter, null, new DelegationPlacement { IsDelegated = false }).ConfigureAwait(false);
-                }
+                var marker = await store.Load(observation.Owner, "daily").ConfigureAwait(false);
+                if (marker?.ActiveRun == observation.Address)
+                    await store.ClearAfterConsumption(marker, observation.PlayerAfter, null, new DelegationPlacement { IsDelegated = false }).ConfigureAwait(false);
                 return;
             }
             if (observation.Phase == RunSemanticPhase.Absent) return;
             string selected = observation.Mode?.ToLowerInvariant();
-            if (!observation.RunId.HasValue || (selected != "campaign" && selected != "daily")) throw new FormatException("Accepted run has no durable locator");
+            if (!observation.RunId.HasValue || selected != "daily") throw new FormatException("Accepted run has no durable locator");
             var existing = await store.Load(observation.Owner, selected).ConfigureAwait(false);
             if (existing?.ActiveRun == observation.Address) return;
             await store.Save(new RunMarker(observation.Owner, observation.RunId.Value, selected, observation.Address, null, null, 0)).ConfigureAwait(false);

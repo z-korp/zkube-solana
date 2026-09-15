@@ -29,10 +29,10 @@ namespace ZKube.Integration.Execution
             this.rpc = rpc; this.accept = accept; native = new ActiveRunReconciler(accounts);
         }
 
-        public static bool Supports(string name) => name == "prepare_campaign_run" || name == "enter_arena" ||
+        public static bool Supports(string name) => name == "enter_arena" ||
             name == "delegate_active_run" || name == "request_vrf" || name == "play_move" || name == "apply_bonus" ||
             name == "request_reroll" || name == "finish_run" || name == "commit_run" ||
-            name == "consume_campaign_run" || name == "consume_arena_run";
+            name == "consume_arena_run";
 
         public async Task<bool> Reconcile(ExecutionReconciliation evidence, CancellationToken cancellation)
         {
@@ -57,15 +57,15 @@ namespace ZKube.Integration.Execution
                         throw new FormatException("Run transaction owner does not match the journal");
             }
             var observation = Fresh(evidence, address);
-            var consume = instructions.LastOrDefault(i => i.Name == "consume_campaign_run" || i.Name == "consume_arena_run");
+            var consume = instructions.LastOrDefault(i => i.Name == "consume_arena_run");
             if (consume != null)
             {
                 if (!evidence.Pending.IsBase) throw new FormatException("Consumption must reconcile on Base");
-                string mode = consume.Name == "consume_campaign_run" ? "campaign" : "daily";
+                string mode = "daily";
                 var playerInfo = Fresh(evidence, consume.Accounts["player_state"]);
                 if (playerInfo.Envelope == null) return false;
                 var player = accounts.PlayerState(playerInfo.Envelope, owner);
-                ulong current = (ulong)player[mode == "campaign" ? "campaign_active_run_id" : "active_run_id"];
+                ulong current = (ulong)player["active_run_id"];
                 if (observation.Envelope == null)
                 {
                     if ((current != 0 && addresses.ActiveRun(owner, current) == address) || (await rpc.Placement(address)).IsDelegated) return false;
@@ -76,8 +76,8 @@ namespace ZKube.Integration.Execution
                 if (succeeded) return false;
                 return await AcceptRun(observation, owner, address, evidence.Pending.Endpoint, instructions, false, mode);
             }
-            var prepare = instructions.FirstOrDefault(i => i.Name == "prepare_campaign_run" || i.Name == "enter_arena");
-            string expectedMode = prepare == null ? null : prepare.Name == "prepare_campaign_run" ? "campaign" : "daily";
+            var prepare = instructions.FirstOrDefault(i => i.Name == "enter_arena");
+            string expectedMode = prepare == null ? null : "daily";
             ulong? expectedRun = prepare == null ? (ulong?)null : (ulong)prepare.Arguments["run_id"];
             if (prepare != null)
             {
@@ -86,7 +86,7 @@ namespace ZKube.Integration.Execution
                 var playerInfo = Fresh(evidence, prepare.Accounts["player_state"]);
                 if (playerInfo.Envelope == null) return false;
                 var player = accounts.PlayerState(playerInfo.Envelope, owner);
-                ulong slot = (ulong)player[expectedMode == "campaign" ? "campaign_active_run_id" : "active_run_id"];
+                ulong slot = (ulong)player["active_run_id"];
                 if (succeeded && (ulong)player["next_run_id"] <= expectedRun.Value) return false;
                 if (succeeded && slot != expectedRun)
                     return await ConsumedAfterProgress(evidence, address, expectedMode, expectedRun, cancellation);
@@ -203,7 +203,7 @@ namespace ZKube.Integration.Execution
                 minContextSlot: evidence.Pending.IsBase ? evidence.MinimumSlot : (ulong?)null, cancellation: cancellation);
             if ((await rpc.Placement(address)).IsDelegated || batch.Accounts[0].Envelope != null || batch.Accounts[1].Envelope == null) return false;
             var player = accounts.PlayerState(batch.Accounts[1].Envelope, evidence.Pending.Owner);
-            foreach (string field in new[] { "campaign_active_run_id", "active_run_id" })
+            foreach (string field in new[] { "active_run_id" })
             {
                 ulong current = (ulong)player[field];
                 if (current != 0 && addresses.ActiveRun(evidence.Pending.Owner, current) == address) return false;

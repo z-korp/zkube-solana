@@ -7,7 +7,9 @@
     "ZKube.Transport",
     "ZKube.Core",
     "ZKube.Generated",
-    "ZKube.SolanaPrimitives"
+    "ZKube.SolanaPrimitives",
+    "ZKube.Local",
+    "ZKube.Local.Runs"
   ],
   "includePlatforms": [
     "Editor"

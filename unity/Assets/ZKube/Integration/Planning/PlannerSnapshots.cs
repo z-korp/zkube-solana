@@ -40,30 +40,17 @@ namespace ZKube.Integration.Planning
     {
         public string Owner { get; }
         public ulong NextRunId { get; }
-        public ulong CampaignRunId { get; }
         public ulong DailyRunId { get; }
         public ulong Kredits { get; }
         private PlayerPlanSnapshot(string owner, JObject fields)
         {
-            Owner = owner; NextRunId = (ulong)fields["next_run_id"]; CampaignRunId = (ulong)fields["campaign_active_run_id"];
+            Owner = owner; NextRunId = (ulong)fields["next_run_id"];
             DailyRunId = (ulong)fields["active_run_id"]; Kredits = (ulong)fields["kredit_balance"];
-            if (NextRunId == 0 || NextRunId <= CampaignRunId || NextRunId <= DailyRunId)
+            if (NextRunId == 0 || NextRunId <= DailyRunId)
                 throw new ArgumentException("Invalid monotonic run ID sequence");
         }
         public static PlayerPlanSnapshot Decode(AccountBindings bindings, AccountEnvelope envelope, string owner) =>
             new PlayerPlanSnapshot(owner, bindings.PlayerState(envelope, owner));
-    }
-
-    public sealed class ContentPlanSnapshot
-    {
-        public uint Version { get; }
-        private ContentPlanSnapshot(uint version) { Version = version; }
-        public static ContentPlanSnapshot Decode(AccountBindings bindings, AccountEnvelope protocol)
-        {
-            var fields = bindings.ProtocolConfig(protocol);
-            if ((bool)fields["paused"]) throw new InvalidOperationException("Protocol is paused");
-            return new ContentPlanSnapshot((uint)fields["content_version"]);
-        }
     }
 
     public sealed class DailyEntrySnapshot

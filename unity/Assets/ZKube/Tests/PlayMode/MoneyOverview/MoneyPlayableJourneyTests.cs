@@ -44,35 +44,21 @@ namespace ZKube.Tests.MoneyOverview
             yield return Ready();
         }
 
-        [UnityTest] public IEnumerator RaycastCampaignTrajectorySettlesThenShowsThreeSavedStars()
+        [UnityTest] public IEnumerator RaycastCampaignPlaysLocallyWithoutDeviceSetup()
         {
             yield return Prepare("campaign-playable");
             yield return evidence.Click("Connect"); yield return evidence.Click("Campaign");
-            yield return evidence.Click("Resume Campaign");
-            var graph = evidence.PlayableGraph;
+            yield return evidence.Click("Trial 1"); yield return evidence.Click("Start trial");
             var board = evidence.Active.GetComponent<MoneyBoardHost>().Board;
             Assert.That(board.Ready, Is.True);
-            int inputs = 0;
-            while (graph.NextInput != null && !graph.Consumed)
-            {
-                Assert.That(inputs++, Is.LessThan(30), "The finite trajectory must terminate");
-                yield return evidence.PlayNextInput();
-            }
-            Assert.That(inputs, Is.GreaterThan(1));
-            Assert.That(graph.Consumed, Is.True);
-            Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.LevelComplete));
-            Assert.That(board.State.Score, Is.EqualTo(10));
-            StringAssert.Contains("Result saved.", string.Join("\n", board.GetComponentsInChildren<TMP_Text>().Select(value => value.text)));
-            var journal = graph.Services.Journal.Load(graph.Owner); yield return MoneyOverviewTests.Wait(journal);
-            Assert.That(journal.GetAwaiter().GetResult(), Is.Null);
+            Assert.That(board.Session.Daily, Is.False);
+            yield return evidence.Click("Reroll action");
+            Assert.That(board.State.ActionCounter, Is.EqualTo(1));
+            yield return evidence.Click("Pause"); yield return evidence.Click("Dialog End run"); yield return evidence.Click("Dialog End run");
+            Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.Finished));
+            StringAssert.Contains("Result saved", string.Join("\n", board.GetComponentsInChildren<TMP_Text>().Select(value => value.text)));
             yield return evidence.Click("Dialog Continue");
             Assert.That(evidence.Active.Controller.PlayingRun, Is.False);
-            StringAssert.Contains("★★★", string.Join("\n", evidence.Active.GetComponentsInChildren<TMP_Text>().Select(value => value.text)));
-            // A new flow read deliberately supersedes the page's observation.
-            // Verify the rendered return before making that separate read.
-            var campaign = evidence.Active.Controller.Flow.RefreshCampaign(); yield return MoneyOverviewTests.Wait(campaign);
-            Assert.That(campaign.GetAwaiter().GetResult().Value.Progress.TotalStars, Is.EqualTo(3));
-            Assert.That(graph.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce()

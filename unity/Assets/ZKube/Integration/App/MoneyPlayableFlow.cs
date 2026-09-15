@@ -60,31 +60,7 @@ namespace ZKube.Integration.App
         private int launchingRun;
         public bool RunIdentityCurrent(MoneyRunHandle run) => run != null && !stopped && services.Identity.IsCurrent(run.Identity);
 
-        // A second tap is rejected synchronously. A read never calls this path,
-        // and an existing transaction/session repair is never a new run start.
-        public Task<MoneyRead<MoneyRunLaunch>> StartCampaignRun(byte realm, byte level, CancellationToken cancellation = default) =>
-            LaunchNewRun(cancellation, async (lease, token) => {
-                var progress = await services.Products.Campaign(token).ConfigureAwait(false);
-                var occupied = await services.Runs.Inspect("campaign", token).ConfigureAwait(false);
-                if (occupied.Phase != "none") throw new InvalidOperationException("Resume the saved Campaign run first");
-                if (await services.Journal.Load(lease.Owner).ConfigureAwait(false) != null)
-                    throw new InvalidOperationException("Check the existing transaction before starting a trial");
-                var browse = CampaignBrowseProjection.Create(progress.Value, null, services.Accounts);
-                var map = browse.Realms.SingleOrDefault(value => value.MapId == realm);
-                var trial = map?.Levels.SingleOrDefault(value => value.Level == level);
-                if (progress.Value.Status != "ready" || !progress.Value.Player.Exists || map == null ||
-                    !map.Enabled || !map.Unlocked || trial == null || !trial.CanInspect)
-                    throw new InvalidOperationException("This Campaign trial is unavailable");
-                var session = await services.SessionLifecycle.Inspect().ConfigureAwait(false);
-                if (!session.Current || session.Funding != "ready")
-                    throw new InvalidOperationException("Set up this device before starting a trial");
-                token.ThrowIfCancellationRequested();
-                var first = await CaptureRun(lease, "campaign", null, scope =>
-                    services.Runs.StartCampaign(realm, level, token, scope)).ConfigureAwait(false);
-                return await OpenAcceptedRun(lease, "campaign", first, token).ConfigureAwait(false);
-            });
-
-        // Both mode buttons share one synchronous launch guard and the same
+        // Daily entry uses one synchronous launch guard and the same
         // tracked owner lifetime. No second tap can queue another paid entry.
         private Task<MoneyRead<MoneyRunLaunch>> LaunchNewRun(CancellationToken cancellation,
             Func<IdentityLease, CancellationToken, Task<MoneyRunLaunch>> action)

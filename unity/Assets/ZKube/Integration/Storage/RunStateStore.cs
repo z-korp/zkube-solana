@@ -70,7 +70,7 @@ namespace ZKube.Integration
                 var envelope = await transport.ReadBase(playerAddress);
                 if (envelope == null) return new RunRecoveryResult { Phase = "none" };
                 var player = accounts.PlayerState(envelope, owner);
-                ulong runId = (ulong)player[mode == "campaign" ? "campaign_active_run_id" : "active_run_id"];
+                ulong runId = (ulong)player["active_run_id"];
                 if (runId == 0) return new RunRecoveryResult { Phase = "none" };
                 marker = new RunMarker(owner, runId, mode, ActiveAddress(owner, runId), null, null, 0);
                 // The chain's validated slot is sufficient to retain the locator
@@ -85,7 +85,7 @@ namespace ZKube.Integration
             Validate(marker);
             var player = accounts.PlayerState(playerAfter, marker.Owner);
             if (activeBaseAfter != null || placementAfter == null || placementAfter.IsDelegated ||
-                (ulong)player[marker.Mode == "campaign" ? "campaign_active_run_id" : "active_run_id"] == marker.RunId)
+                (ulong)player["active_run_id"] == marker.RunId)
                 throw new InvalidOperationException("Run consumption is not confirmed");
             string savedJson = await storage.Read(marker.Owner, marker.Mode);
             var saved = Parse(marker.Owner, marker.Mode, savedJson);
@@ -108,6 +108,6 @@ namespace ZKube.Integration
                 SolanaAddress.Bytes(owner), bytes.ToArray() }, out _);
         }
         private static void ValidateMode(string mode)
-        { if (mode != "campaign" && mode != "daily") throw new ArgumentException("Invalid run mode"); }
+        { if (mode != "daily") throw new ArgumentException("Invalid run mode"); }
     }
 }

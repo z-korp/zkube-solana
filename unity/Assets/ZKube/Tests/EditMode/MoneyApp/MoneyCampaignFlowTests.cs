@@ -1,64 +1,63 @@
 using System;
-using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using ZKube.Local;
+using ZKube.Integration.Execution;
 
 namespace ZKube.Integration.App.Tests
 {
     public sealed class MoneyCampaignFlowTests
     {
-        [Test] public async Task CampaignReadInvalidatesAfterAcceptedEconomyWhileOwnerStaysConnected()
+        [Test] public async Task money_campaign_needs_an_address_and_no_session()
         {
-            var e = Create(); e.AddEconomy(); await e.Flow.Connect(e.Owner);
-            var retained = await e.Flow.RefreshCampaign(); await e.Services.Journal.Begin(e.Purchase());
-            var result = await e.Services.Executor.Resume(e.Owner, e.Services.Dispatcher);
-            Assert.That(result.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess), result.Code);
-            Assert.That(e.Services.Identity.Owner, Is.EqualTo(e.Owner));
-            Assert.That(retained.IsCurrent, Is.False); Assert.Throws<OperationCanceledException>(() => _ = retained.Value);
+            var e = new MoneyTestEnvironment();
+            await MoneyTestEnvironment.Fails<InvalidOperationException>(async () => await e.Flow.StartCampaignRun(1, 1));
+            await e.Flow.Connect(e.Owner);
+            var run = (await e.Flow.StartCampaignRun(1, 1)).Value;
+            Assert.That(run.View.Mode, Is.EqualTo("campaign"));
+            Assert.That(e.Native.KeyLoads, Is.Zero);
+            var browse = await e.Flow.RefreshCampaign();
+            Assert.That(browse.Value.Browse.Realms.Count, Is.EqualTo(10));
+            CollectionAssert.AreEqual(run.View.Token.State, (await e.Flow.OpenSavedCampaign()).Value.View.Token.State);
+            await e.Flow.Disconnect();
+            Assert.That(e.Flow.CampaignIdentityCurrent(run), Is.False);
+            Assert.That(browse.IsCurrent, Is.False);
             e.AssertReadOnly(); await e.Flow.StopAsync();
         }
-        [Test] public async Task CampaignReadCannotPublishAcrossAnAcceptedEconomyChange()
+
+        [Test] public async Task campaign_record_write_never_gates_play_or_other_transactions()
         {
-            var e = Create(); e.AddEconomy(); await e.Flow.Connect(e.Owner);
-            e.Http.DelayMethod = "getMultipleAccounts"; e.Http.Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var e = new MoneyTestEnvironment(); e.AddEconomy();
+            e.Http.DelayMethod = "getAccountInfo";
+            e.Http.Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             e.Http.Release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var read = e.Flow.RefreshCampaign(); await e.Http.Entered.Task;
+            await e.Flow.Connect(e.Owner); await e.Http.Entered.Task;
+            var local = e.Services.Campaign(e.Owner);
+            local.Runs.MergeCampaignRecord(new byte[25] { 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 });
+            var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var sync = new CampaignRecordSync(local.Product, local.Runs, _ => Task.FromResult(new byte[25]),
+                async (stars, token) => { entered.TrySetResult(true); return await release.Task; });
+            sync.Start(CancellationToken.None); await entered.Task;
             try
             {
-                await e.Services.Journal.Begin(e.Purchase());
+                var pending = e.Purchase(); await e.Services.Journal.Begin(pending);
+                var run = await e.Flow.StartCampaignRun(1, 1);
+                Assert.That(run.Value.View.Mode, Is.EqualTo("campaign"));
+                Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
                 var result = await e.Services.Executor.Resume(e.Owner, e.Services.Dispatcher);
-                Assert.That(result.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess), result.Code);
+                Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
+                Assert.That(run.IsCurrent, Is.True, "Economy preserves the Campaign identity lease");
+                Assert.That(sync.Pending.IsCompleted, Is.False, "Write remains pending");
+                Assert.That(local.Product.Read.CampaignWritePending, Is.True, "Retry intent remains durable");
             }
-            finally { e.Http.Release.TrySetResult(true); }
-            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await read);
-            e.AssertReadOnly(); await e.Flow.StopAsync();
-        }
-        private static MoneyTestEnvironment Create()
-        {
-            var e = new MoneyTestEnvironment(); var fixture = MoneyTestEnvironment.Fixture("unity-product-reads-v1.json");
-            foreach (var catalog in fixture["accounts"]["catalogs"]) e.Http.Add(catalog);
-            e.Http.Add(fixture["accounts"]["player"]); return e;
-        }
-        [Test] public async Task BrowseNeverConsumesPendingJournalAndPreservesIdentityGuard()
-        {
-            var e = Create(); await e.Flow.Connect(e.Owner); var pending = e.Purchase(); await e.Services.Journal.Begin(pending);
-            var result = await e.Flow.RefreshCampaign();
-            Assert.That(result.Value.PendingTransaction, Is.True); Assert.That(result.Value.Browse.Realms.Count, Is.EqualTo(10));
-            Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
-            Assert.That(e.Http.Requests.Any(row => (string)row["method"] == "getSignatureStatuses"), Is.False);
-            await e.Flow.Disconnect(); Assert.That(result.IsCurrent, Is.False); Assert.Throws<OperationCanceledException>(() => _ = result.Value);
-            e.AssertReadOnly(); await e.Flow.StopAsync();
-        }
-        [Test] public async Task DisconnectDiscardsDelayedCampaignReadWithoutReplacementPublication()
-        {
-            var e = Create(); await e.Flow.Connect(e.Owner);
-            e.Http.DelayMethod = "getMultipleAccounts"; e.Http.Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            e.Http.Release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var task = e.Flow.RefreshCampaign(); await e.Http.Entered.Task;
-            try { await e.Flow.Disconnect(); }
-            finally { e.Http.Release.TrySetResult(true); }
-            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await task);
-            Assert.That(e.Services.Identity.Owner, Is.Null); e.AssertReadOnly(); await e.Flow.StopAsync();
+            finally {
+                release.TrySetResult(false); await sync.Pending;
+                var stopping = e.Flow.StopAsync(); e.Http.Release.TrySetResult(true); await stopping;
+            }
+            Assert.That(local.Product.Read.CampaignWritePending, Is.True);
+            e.AssertReadOnly();
         }
     }
 }

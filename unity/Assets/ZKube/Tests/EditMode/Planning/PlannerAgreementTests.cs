@@ -26,7 +26,7 @@ namespace ZKube.Integration.Planning.Tests
             var data = Fixture();
             Assert.That((int)data["schemaVersion"], Is.EqualTo(1));
             var operations = new HashSet<string>(data["plans"].Select(row => (string)row["input"]["operation"]));
-            foreach (var required in new[] { "purchase", "enable", "refill", "revoke", "revokeExpired", "claim", "featured", "campaign", "daily",
+            foreach (var required in new[] { "purchase", "enable", "refill", "revoke", "revokeExpired", "claim", "featured", "recordCampaignStars", "daily",
                 "delegate", "vrf", "move", "bonus", "reroll", "finish", "commit", "consume" })
                 Assert.That(operations, Does.Contain(required));
             foreach (var row in data["plans"]) yield return new TestCaseData((string)row["id"]).SetName("Planner_" + row["id"]);
@@ -69,8 +69,7 @@ namespace ZKube.Integration.Planning.Tests
                 case "revoke": plan = planner.RevokeSession(owner, device, (ulong)input["balance"]); break;
                 case "revokeExpired": plan = planner.RevokeExpiredSession(owner, Account("expiredSession"), now); break;
                 case "claim": plan = planner.Claim(actor, (uint)input["day"], (string)input["board"], (uint)input["position"]); break;
-                case "campaign": plan = planner.PrepareCampaign(actor, Player(), ContentPlanSnapshot.Decode(accounts, Account("protocol")),
-                    (byte)input["map"], (byte)input["level"]); break;
+                case "recordCampaignStars": plan = planner.RecordCampaignStars(actor, input["stars"].Values<byte>().ToArray()); break;
                 case "daily":
                     var selected = input["boards"].Values<string>().ToHashSet();
                     var observations = fixture["boards"].Where(b => selected.Contains((string)b["id"]))
@@ -114,19 +113,16 @@ namespace ZKube.Integration.Planning.Tests
         }
 
         [Test]
-        public void BothSlotsShareMonotonicIdsAndBlockOnlyTheirOwnActiveRun()
+        public void ArcadeUsesMonotonicIdsAndBlocksAnOccupiedRun()
         {
             foreach (var row in fixture["slotCases"])
             {
                 var player = PlayerPlanSnapshot.Decode(accounts, Envelope(row["player"]), owner);
-                TransactionPlan Prepare() => (string)row["mode"] == "campaign"
-                    ? planner.PrepareCampaign(Actor(), player, ContentPlanSnapshot.Decode(accounts, Account("protocol")), 1, 1)
-                    : planner.PrepareDaily(Actor(), player, Daily(), Array.Empty<ValidatedBoardReward>(), now);
+                TransactionPlan Prepare() => planner.PrepareDaily(Actor(), player, Daily(), Array.Empty<ValidatedBoardReward>(), now);
                 if ((bool)row["accepted"]) Assert.That(Prepare().RunId, Is.EqualTo((ulong)fixture["inputs"]["nextRunId"]));
                 else Assert.That(() => Prepare(), Throws.TypeOf<InvalidOperationException>());
             }
-            Assert.That(() => planner.PrepareCampaign(Actor(), Player(), ContentPlanSnapshot.Decode(accounts, Account("protocol")), 1, 1,
-                Envelope(fixture["runs"]["campaign"])), Throws.TypeOf<InvalidOperationException>());
+
         }
 
         [Test]
@@ -139,7 +135,7 @@ namespace ZKube.Integration.Planning.Tests
                 if ((bool)row["accepted"]) Assert.DoesNotThrow(Check); else Assert.That(Check, Throws.TypeOf<InvalidOperationException>());
             }
             Assert.That(() => PlannerActor.Device(device, owner, Account("session"), sessions, protocol.ProgramId, now), Throws.TypeOf<ArgumentException>());
-            Assert.That(() => planner.PrepareCampaign(PlannerActor.Wallet(device), Player(), ContentPlanSnapshot.Decode(accounts, Account("protocol")), 1, 1), Throws.TypeOf<ArgumentException>());
+            Assert.That(() => planner.PrepareDaily(PlannerActor.Wallet(device), Player(), Daily(), Array.Empty<ValidatedBoardReward>(), now), Throws.TypeOf<ArgumentException>());
         }
 
         [Test]
@@ -162,7 +158,7 @@ namespace ZKube.Integration.Planning.Tests
         [Test]
         public void NonterminalRunsCannotSkipTheirAcceptedFinishAndCopyback()
         {
-            foreach (var mode in new[] { "campaign", "daily" })
+            foreach (var mode in new[] { "daily" })
             {
                 Assert.That(() => planner.Commit(Actor(), Run(mode)), Throws.TypeOf<InvalidOperationException>());
                 Assert.That(() => planner.Consume(Actor(), Run(mode)), Throws.TypeOf<InvalidOperationException>());

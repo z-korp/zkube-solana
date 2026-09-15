@@ -120,7 +120,7 @@ namespace ZKube.Integration.App
         }
         public static void ValidateScenario(string value)
         {
-            if (value != "public-disconnected" && value != "owner-overview" && value != "pending-confirmed-failure" && !MoneySessionEvidenceGraph.Supports(value) && !MoneyPlayableEvidenceGraph.Supports(value))
+            if (value != "campaign-playable" && value != "public-disconnected" && value != "owner-overview" && value != "pending-confirmed-failure" && !MoneySessionEvidenceGraph.Supports(value) && !MoneyPlayableEvidenceGraph.Supports(value))
                 throw new ArgumentException("Unknown money evidence scenario", nameof(value));
         }
         public void AdvancePendingFailure()
@@ -297,7 +297,7 @@ namespace ZKube.Integration.App
                 {
                     yield return Click("Connect");
                     path = Path.Combine(directory, "01-connected.png"); yield return Capture(path); frames.Add(path);
-                    if (playableGraph != null) yield return PlayableJourney(directory, frames);
+                    if (scenario == "campaign-playable") yield return PlayableJourney(directory, frames);
                     else if (sessionGraph?.Operation == "claim")
                     {
                         yield return Click("Results");

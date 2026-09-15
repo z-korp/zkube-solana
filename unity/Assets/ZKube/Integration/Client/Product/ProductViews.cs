@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using ZKube.Core;
+using ZKube.Core.Generated;
 
 namespace ZKube.Integration.Client
 {
@@ -54,6 +55,32 @@ namespace ZKube.Integration.Client
         public PlayerProfile Player { get; }
         public IReadOnlyList<CampaignMapProgress> Maps { get; }
         public int? TotalStars => Maps.Count == 0 ? (int?)null : Maps.Sum(map => map.Stars.Sum(stars => stars));
+        public static CampaignProgress FromStars(string owner, byte[] stars, PlayerProfile player = null)
+        {
+            if (stars == null || stars.Length != 100 || stars.Any(value => value > 3))
+                throw new ArgumentException("Campaign stars have an invalid layout");
+            var maps = Protocol.Realms.Select(realm => {
+                int start = (realm.MapId - 1) * Protocol.CampaignTargets.Length;
+                var guardian = realm.GuardianAndHeight;
+                var catalog = new JObject {
+                    ["map_id"] = realm.MapId, ["theme_id"] = realm.MapId, ["enabled"] = true,
+                    ["map_rules"] = new JObject {
+                        ["guardian"] = new JObject { ["bonus"] = guardian[0], ["trigger"] = guardian[1], ["threshold"] = guardian[2] },
+                        ["starting_rows"] = guardian[3],
+                    },
+                    ["levels"] = new JArray(realm.Levels.Select((level, index) => new JObject {
+                        ["level"] = index + 1, ["difficulty"] = level.Tier,
+                        ["primary"] = Constraint(level.Primary), ["secondary"] = Constraint(level.Secondary),
+                    })),
+                };
+                return new CampaignMapProgress(realm.MapId, catalog, stars.Skip(start).Take(Protocol.CampaignTargets.Length).ToArray(),
+                    realm.MapId == 1 || stars[start - 1] > 0);
+            }).ToArray();
+            return new CampaignProgress("ready", Protocol.CatalogVersion, player ?? new PlayerProfile(owner, 0, null), maps);
+        }
+        private static JObject Constraint(byte[] value) => new JObject {
+            ["kind"] = value[0], ["value"] = value[1], ["required_count"] = value[2],
+        };
         internal CampaignProgress(string status, uint? version, PlayerProfile player, CampaignMapProgress[] maps)
         { Status = status; ContentVersion = version; Player = player; Maps = Array.AsReadOnly(maps); }
     }

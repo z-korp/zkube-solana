@@ -7,6 +7,7 @@ using ZKube.Integration.Client.Runs;
 using ZKube.Integration.Execution;
 using ZKube.Integration.Planning;
 using ZKube.Integration.Transport;
+using ZKube.Local;
 
 namespace ZKube.Integration.App
 {
@@ -39,10 +40,10 @@ namespace ZKube.Integration.App
             uri.Scheme == Uri.UriSchemeHttps && string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Fragment);
     }
 
-    // One concrete graph for both money run slots. HTTP, native wallet/key
+    // One concrete graph for local Campaign and Arcade. HTTP, native wallet/key
     // transport, and public storage are BORROWED from the platform owner.
     // Constructing the graph performs no read, authorization or key operation.
-    public sealed class MoneyClientServices
+    public sealed partial class MoneyClientServices
     {
         private readonly object revisionsGate = new object();
         private readonly Dictionary<string, long> economyRevisions = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -69,6 +70,7 @@ namespace ZKube.Integration.App
 
         public MoneyClientServices(string solanaJson, string sessionJson, MoneyConnectionConfig config,
             IJsonRpcHttp http, INativeDeviceKeyLifecycle native, IPublicClientStore storage, Func<long> now,
+            Func<string, LocalProductStore> localCampaignStore,
             Func<byte[]> runClientSeed = null)
         {
             if (config == null) throw new MoneyConfigurationException("configuration-unavailable");
@@ -76,6 +78,8 @@ namespace ZKube.Integration.App
             if (string.IsNullOrWhiteSpace(solanaJson) || string.IsNullOrWhiteSpace(sessionJson))
                 throw new MoneyConfigurationException("generated-schemas-unavailable");
             if (http == null || native == null || storage == null || now == null) throw new ArgumentNullException("platform dependencies");
+            campaignStore = localCampaignStore ?? throw new ArgumentNullException(nameof(localCampaignStore));
+            campaignClock = now;
             Protocol = new ProtocolBindings(solanaJson);
             Tokens = new SessionTokenBindings(sessionJson);
             Accounts = new AccountBindings(solanaJson, ZKube.Core.Generated.Protocol.PlayerStateAccountVersion,

@@ -111,7 +111,7 @@ namespace ZKube.Tests.ProductReads
 
         [Test] public async Task PublicDailyRejectsMalformedAccountsEvenWithMissingPeer()
         {
-            foreach (string name in new[] {"dailyContentVersion", "dailyMoveLimit", "dailyDraw"})
+            foreach (string name in new[] {"dailyCatalogVersion", "dailyMoveLimit", "dailyDraw"})
             {
                 var e = await Environment.Create(); e.Http.Put(e.Fixture["invalidAccounts"][name]);
                 await Failure<FormatException>(async () => { await PublicQuery(e).Current(); });

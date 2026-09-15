@@ -50,16 +50,16 @@ namespace ZKube.Integration.App.Tests
             finally { await flow.StopAsync(); }
         }
 
-        [Test] public async Task DailyObservationExpiresWhenCampaignSupersedesItOrTheOwnerDisconnects()
+        [Test] public async Task LocalCampaignReadDoesNotInvalidateDailyAndDisconnectInvalidatesBoth()
         {
             var graph = await Create(); var flow = new MoneyAppFlow(graph.Services);
             try
             {
                 await flow.Connect(); var first = await flow.RefreshDaily();
                 var campaign = await flow.RefreshCampaign();
-                Assert.That(first.IsCurrent, Is.False); Assert.That(campaign.IsCurrent, Is.True);
+                Assert.That(first.IsCurrent, Is.True); Assert.That(campaign.IsCurrent, Is.True);
                 var second = await flow.RefreshDaily();
-                Assert.That(campaign.IsCurrent, Is.False); Assert.That(second.IsCurrent, Is.True);
+                Assert.That(campaign.IsCurrent, Is.True); Assert.That(second.IsCurrent, Is.True);
                 await flow.Disconnect(); Assert.That(second.IsCurrent, Is.False);
                 Assert.That(graph.ForbiddenCalls, Is.Zero);
             }
@@ -113,7 +113,7 @@ namespace ZKube.Integration.App.Tests
             finally { await flow.StopAsync(); }
         }
 
-        [Test] public async Task BothModeButtonsShareTheSynchronousLaunchGuard()
+        [Test] public async Task ArcadeLaunchGuardDoesNotGateLocalCampaign()
         {
             var graph = await Create(); var flow = new MoneyAppFlow(graph.Services);
             var hold = graph.HoldNextRead("getMultipleAccounts");
@@ -121,7 +121,7 @@ namespace ZKube.Integration.App.Tests
             {
                 await flow.Connect(); var first = flow.StartDailyRun(); await hold.Entered;
                 Assert.Throws<InvalidOperationException>(() => flow.StartDailyRun());
-                Assert.Throws<InvalidOperationException>(() => flow.StartCampaignRun(1, 1));
+                Assert.That((await flow.StartCampaignRun(1, 1)).Value.View, Is.Not.Null);
                 hold.Release();
                 try { await first; Assert.Fail("Expected occupied Daily rejection"); }
                 catch (InvalidOperationException error) { StringAssert.Contains("resume", error.Message); }

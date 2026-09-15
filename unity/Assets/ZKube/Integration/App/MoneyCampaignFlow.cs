@@ -1,7 +1,9 @@
+using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ZKube.Integration.Client;
-using ZKube.Integration.Client.Runs;
+using ZKube.Local;
 
 namespace ZKube.Integration.App
 {
@@ -9,26 +11,58 @@ namespace ZKube.Integration.App
     {
         public CampaignProgress Progress { get; }
         public CampaignBrowseProjection Browse { get; }
-        public SessionAssessment Session { get; }
-        public RunClientState Run { get; }
-        public bool PendingTransaction { get; }
-        internal MoneyCampaignState(CampaignProgress progress, CampaignBrowseProjection browse, SessionAssessment session, RunClientState run, bool pending)
-        { Progress = progress; Browse = browse; Session = session; Run = run; PendingTransaction = pending; }
+        public LocalRunView Run { get; }
+        public bool RecordPending { get; }
+        internal MoneyCampaignState(CampaignProgress progress, CampaignBrowseProjection browse, LocalRunView run, bool pending)
+        { Progress = progress; Browse = browse; Run = run; RecordPending = pending; }
+    }
+    public sealed class MoneyCampaignRun
+    {
+        internal IdentityLease Identity { get; }
+        public LocalRunClient Runs { get; }
+        public LocalRunView View { get; }
+        internal MoneyCampaignRun(IdentityLease identity, LocalRunClient runs, LocalRunView view)
+        { Identity = identity; Runs = runs; View = view; }
     }
     public sealed partial class MoneyAppFlow
     {
-        // Campaign browsing never resumes the journal. Use the existing owner
-        // read gate/epoch, economy invalidation and shutdown drain.
+        public bool CampaignIdentityCurrent(MoneyCampaignRun run) =>
+            run != null && !stopped && services.Identity.IsCurrent(run.Identity);
+        public void CampaignChanged(MoneyCampaignRun run)
+        { if (CampaignIdentityCurrent(run) && run.Runs.Active("campaign") == null) services.SyncCampaign(run.Identity); }
+
         public Task<MoneyRead<MoneyCampaignState>> RefreshCampaign(CancellationToken cancellation = default) =>
-            ReadOwnerProduct(cancellation, async (lease, token) => {
-                var progress = await services.Products.Campaign(token).ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
-                var session = await services.SessionLifecycle.Inspect().ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
-                var run = await services.Runs.Inspect("campaign", token).ConfigureAwait(false);
-                var pending = await services.Journal.Load(lease.Owner).ConfigureAwait(false);
-                var projection = CampaignBrowseProjection.Create(progress.Value, run.Account, services.Accounts);
-                return new MoneyCampaignState(progress.Value, projection, session, run, pending != null);
+            WithCampaign(cancellation, (lease, local) => {
+                var progress = CampaignProgress.FromStars(lease.Owner, local.Product.Read.Stars);
+                var run = local.Runs.Active("campaign");
+                return new MoneyCampaignState(progress, CampaignBrowseProjection.Create(progress, run), run,
+                    local.Product.Read.CampaignWritePending);
+            });
+
+        public Task<MoneyRead<MoneyCampaignRun>> StartCampaignRun(byte realm, byte level, CancellationToken cancellation = default) =>
+            WithCampaign(cancellation, (lease, local) => {
+                var progress = CampaignProgress.FromStars(lease.Owner, local.Product.Read.Stars);
+                var browse = CampaignBrowseProjection.Create(progress, local.Runs.Active("campaign"));
+                var trial = browse.Realms.SingleOrDefault(value => value.MapId == realm)?.Levels.SingleOrDefault(value => value.Level == level);
+                if (trial == null || !trial.CanInspect) throw new InvalidOperationException("This Campaign trial is unavailable");
+                var started = local.Runs.StartCampaign(realm, level);
+                return new MoneyCampaignRun(lease, local.Runs, started.View);
+            });
+
+        public Task<MoneyRead<MoneyCampaignRun>> OpenSavedCampaign(CancellationToken cancellation = default) =>
+            WithCampaign(cancellation, (lease, local) => {
+                var run = local.Runs.Active("campaign") ?? throw new InvalidOperationException("No saved Campaign run");
+                return new MoneyCampaignRun(lease, local.Runs, run);
+            });
+
+        private Task<MoneyRead<T>> WithCampaign<T>(CancellationToken cancellation, Func<IdentityLease, MoneyLocalCampaign, T> action) =>
+            Track(() => {
+                var lease = services.Identity.Lease();
+                cancellation.ThrowIfCancellationRequested(); lifetime.Token.ThrowIfCancellationRequested();
+                var value = action(lease, services.Campaign(lease.Owner));
+                services.SyncCampaign(lease);
+                return Task.FromResult(new MoneyRead<T>(value, () =>
+                    !stopped && !cancellation.IsCancellationRequested && services.Identity.IsCurrent(lease)));
             });
     }
 }

@@ -70,15 +70,10 @@ namespace ZKube.Integration.App.Tests
                 Assert.That(map.Cleared, Is.EqualTo((bool)wanted["cleared"]));
                 Assert.That(map.Perfected, Is.EqualTo((bool)wanted["perfected"]));
             }
-            var activeMap = campaign.Maps.Single(map => map.MapId == (byte)expected["activeCampaign"]["mapId"]);
-            Assert.That(activeMap.Unlocked, Is.True);
-            int activeLevel = (int)expected["activeCampaign"]["level"];
-            Assert.That(activeLevel, Is.InRange(1, activeMap.Stars.Count));
-            if (activeLevel > 1) Assert.That(activeMap.Stars[activeLevel - 2], Is.GreaterThan(0));
             Assert.That(state.Session.Status, Is.EqualTo("none"));
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
-                var actual = mode == "campaign" ? state.Campaign : state.Daily;
+                var actual = state.Daily;
                 var row = oracle["cases"].Single(x => (string)x["id"] == "active-" + mode + "-playing");
                 Assert.That(actual.Phase, Is.EqualTo("delegated"));
                 CollectionAssert.AreEqual(Convert.FromBase64String((string)row["token"]["state"]), actual.Token.State);

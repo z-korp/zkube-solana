@@ -46,6 +46,7 @@ namespace ZKube.Integration.App
         public Task<MoneyRead<ExecutionResult>> RefillSession() => Track(async () => {
             var lease = services.Identity.Lease(); long generation = InvalidateOwner();
             var result = await services.SessionLifecycle.Refill().ConfigureAwait(false);
+            services.SyncCampaign(lease);
             RememberOwnerOperation(lease, result);
             RequireOwnerGeneration(generation, lease);
             return new MoneyRead<ExecutionResult>(result, () => CurrentOwnerGeneration(generation, lease));

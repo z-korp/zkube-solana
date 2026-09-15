@@ -47,7 +47,7 @@ namespace ZKube.Integration.Tests
             public Task<AccountEnvelope> ReadEr(string endpoint, string activeRun) => throw new InvalidOperationException("Unexpected ER read");
         }
         [Test]
-        public async Task BothChainSlotsAreDiscoveredWithoutADeviceKeyAndRetainedDuringRouterLag()
+        public async Task ArcadeSlotIsDiscoveredWithoutADeviceKeyAndRetainedDuringRouterLag()
         {
             var fixture = Fixture();
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
@@ -60,12 +60,9 @@ namespace ZKube.Integration.Tests
             var store = new RunStateStore(new Storage(), accounts, sessions);
             var recovery = new RunRecovery(accounts.ProgramId, delegation, sessions, accounts);
             var daily = await store.ResolveOrDiscover(owner, "daily", recovery, transport, (long)fixture["inputs"]["nowUnix"]);
-            var campaign = await store.ResolveOrDiscover(owner, "campaign", recovery, transport, (long)fixture["inputs"]["nowUnix"]);
-            Assert.That(daily.Phase, Is.EqualTo("resolving")); Assert.That(campaign.Phase, Is.EqualTo("resolving"));
-            Assert.That(daily.SessionAuthorized || campaign.SessionAuthorized, Is.False);
-            Assert.That(daily.Marker.RunId, Is.Not.EqualTo(campaign.Marker.RunId));
+            Assert.That(daily.Phase, Is.EqualTo("resolving"));
+            Assert.That(daily.SessionAuthorized, Is.False);
             Assert.That((await store.Load(owner, "daily")).ActiveRun, Is.EqualTo(daily.Marker.ActiveRun));
-            Assert.That((await store.Load(owner, "campaign")).ActiveRun, Is.EqualTo(campaign.Marker.ActiveRun));
         }
         [Test]
         public async Task RestartBeforeOrAfterSendRetainsExactBytesAndRequiresObservedOutcome()
@@ -106,18 +103,18 @@ namespace ZKube.Integration.Tests
             string active = null;
             foreach (var pda in fixture["pdas"]) if ((string)pda["id"] == "run-high-u64") active = (string)pda["address"];
             Assert.That(active, Is.Not.Null);
-            var marker = new RunMarker(owner, (ulong)fixture["inputs"]["runId"], "campaign", active, null, null, 0);
+            var marker = new RunMarker(owner, (ulong)fixture["inputs"]["runId"], "daily", active, null, null, 0);
             var storage = new Storage();
             var store = new RunStateStore(storage, accounts, sessions);
             await store.Save(marker);
-            var restored = await new RunStateStore(storage, accounts, sessions).Load(owner, "campaign");
+            var restored = await new RunStateStore(storage, accounts, sessions).Load(owner, "daily");
             Assert.That(restored.ActiveRun, Is.EqualTo(marker.ActiveRun));
             Assert.That(restored.SessionSigner, Is.Null);
-            var fields = JObject.Parse(await storage.Read(owner, "campaign"));
+            var fields = JObject.Parse(await storage.Read(owner, "daily"));
             fields["activeRun"] = owner;
-            await storage.Write(owner, "campaign", fields.ToString());
-            await AsyncAssert.Throws<FormatException>(async () => await store.Load(owner, "campaign"));
-            Assert.That(await storage.Read(owner, "campaign"), Is.Not.Null);
+            await storage.Write(owner, "daily", fields.ToString());
+            await AsyncAssert.Throws<FormatException>(async () => await store.Load(owner, "daily"));
+            Assert.That(await storage.Read(owner, "daily"), Is.Not.Null);
         }
     }
 }

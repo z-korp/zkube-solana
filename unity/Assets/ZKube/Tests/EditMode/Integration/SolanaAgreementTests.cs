@@ -39,7 +39,7 @@ namespace ZKube.Integration.Tests
             Assert.That(day, Is.EqualTo(20705U), "Retain the day that exposed the publication fixture defect");
             uint pair = NativeEngine.DailyPairIndex(day);
             Assert.That(pair, Is.EqualTo((uint)expected["pairIndex"]));
-            Assert.That(Protocol.CampaignContentVersion, Is.EqualTo((uint)expected["contentVersion"]));
+            Assert.That(Protocol.CatalogVersion, Is.EqualTo((uint)expected["contentVersion"]));
             Assert.That(Protocol.DailyMaxMoves, Is.EqualTo((uint)expected["maxMoves"]));
             Assert.That(pair / Protocol.DailyThemes.Length + 1, Is.EqualTo((uint)expected["realm"]));
             var objective = Protocol.DailyThemes[pair % Protocol.DailyThemes.Length];
@@ -194,7 +194,7 @@ namespace ZKube.Integration.Tests
             var resolver = new RunRecovery(protocol.ProgramId, (string)fixture["inputs"]["delegationProgramId"], session, bindings);
             var active = ReadEnvelope(row);
             var token = ReadEnvelope(fixture["accounts"].Single(item => (string)item["id"] == "session-valid"));
-            var marker = new RunMarker((string)fixture["inputs"]["owner"], (ulong)fixture["inputs"]["runId"], "campaign",
+            var marker = new RunMarker((string)fixture["inputs"]["owner"], (ulong)fixture["inputs"]["runId"], "daily",
                 active.Address, (string)fixture["inputs"]["device"], token.Address, (long)fixture["inputs"]["nowUnix"] + 3600);
             var transport = new RealAccountRecoveryTransport(active, token);
             Assert.That(async () => await resolver.Resolve(marker, transport, (long)fixture["inputs"]["nowUnix"]),

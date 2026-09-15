@@ -18,7 +18,9 @@ namespace ZKube.Tests.ProductReads
                 var e = await Environment.Create(); e.Http.Remove(e.Fixture["accounts"]["player"]);
                 foreach (var account in row["accounts"]) e.Http.Put(account);
                 var read = await e.Queries.Campaign();
-                var actual = CampaignBrowseProjection.Create(read.Value, row["saved"].Type == JTokenType.Null ? null : Envelope(row["saved"]), e.Accounts);
+                var local = new ZKube.Local.LocalRunClient(new ZKube.Local.LocalProductStore(), () => 0);
+                var saved = row["saved"].Type == JTokenType.Null ? null : local.StartCampaign((byte)row["saved"]["realm"], (byte)row["saved"]["level"]).View;
+                var actual = CampaignBrowseProjection.Create(read.Value, saved);
                 foreach (var realm in actual.Realms)
                 {
                     var expected = row["expected"][realm.MapId - 1];
@@ -44,17 +46,11 @@ namespace ZKube.Tests.ProductReads
                 }
             }
         }
-        [Test] public async Task CampaignMissingCatalogNeverConcealsMalformedPresentPeer()
+        [Test] public async Task CampaignCatalogDoesNotRequireProtocolPublication()
         {
-            foreach (string invalid in new[] { "catalogMap", "catalogVersion" })
-            {
-                var e = await Environment.Create();
-                e.Http.Remove(e.Fixture["accounts"]["catalogs"][1]);
-                e.Http.Put(e.Fixture["invalidAccounts"][invalid]);
-                await Failure<FormatException>(async () => { await e.Queries.Campaign(); });
-                e.Http.Put(e.Fixture["accounts"]["catalogs"][0]);
-                Assert.That((await e.Queries.Campaign()).Value.Status, Is.EqualTo("missing-catalog"));
-            }
+            var e = await Environment.Create();
+            e.Http.Remove(e.Fixture["accounts"]["protocol"]);
+            Assert.That((await e.Queries.Campaign()).Value.Status, Is.EqualTo("ready"));
         }
     }
 }

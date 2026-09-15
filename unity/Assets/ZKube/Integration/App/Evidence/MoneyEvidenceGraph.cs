@@ -26,7 +26,7 @@ namespace ZKube.Integration.App.Evidence
         public void Release() => released.TrySetResult(true);
         internal Task Wait() { entered.TrySetResult(true); return released.Task; }
     }
-    // Explicit evidence graph. All three cases begin disconnected. Native and
+    // Explicit evidence graph. Each case begins disconnected. Native and
     // transport doubles live only in this conditional assembly, never in Startup
     // fallback paths; production uses the same MoneyClientServices composition.
     public sealed class MoneyEvidenceGraph
@@ -61,7 +61,7 @@ namespace ZKube.Integration.App.Evidence
             var storage = new MemoryStore(graph);
             graph.Services = new MoneyClientServices(solanaJson, sessionJson,
                 new MoneyConnectionConfig((string)graph.inputs["base"], (string)graph.inputs["router"], (string)graph.inputs["expectedGenesis"]),
-                new FixtureHttp(graph), new FixtureNative(graph), storage, graph.Clock);
+                new FixtureHttp(graph), new FixtureNative(graph), storage, graph.Clock, owner => new ZKube.Local.LocalProductStore(owner: owner));
             if (selected["pending"]?.Type == JTokenType.Object)
             {
                 var pending = selected["pending"];

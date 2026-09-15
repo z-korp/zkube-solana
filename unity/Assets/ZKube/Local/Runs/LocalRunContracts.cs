@@ -6,6 +6,12 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Local
 {
+    public static class StoreCampaignPolicy
+    {
+        public static Func<byte, bool> PurchaseGate(LocalProductStore product) =>
+            realm => realm >= 4 && !product.Read.CampaignOwned;
+    }
+
     public enum LocalActionKind { Move, Bonus, Reroll, Finish }
     public readonly struct LocalRunAction
     {

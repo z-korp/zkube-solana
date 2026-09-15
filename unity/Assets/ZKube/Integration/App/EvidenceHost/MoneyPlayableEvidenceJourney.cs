@@ -55,7 +55,7 @@ namespace ZKube.Integration.App
         private IEnumerator ClickRunControl(string control)
         {
             if (!new[] { "Guardian action", "Reroll action", "Pause", "Dialog Resume", "Dialog Recover run",
-                "Dialog Retry settlement", "Dialog Continue", "Dialog Back to my runs", "Dialog Check result" }.Contains(control))
+                "Dialog Retry settlement", "Dialog Continue", "Dialog End run", "Dialog Back to my runs", "Dialog Check result" }.Contains(control))
                 throw new ArgumentException("Unknown run evidence control", nameof(control));
             var button = VisibleBoard.View.GetComponentsInChildren<Button>().Single(value => value.name == control && value.isActiveAndEnabled);
             EvidencePointer.Click(button, RecordRunPointer);
@@ -90,19 +90,13 @@ namespace ZKube.Integration.App
         }
         private IEnumerator PlayableJourney(string directory, List<string> frames)
         {
-            yield return Click("Campaign"); yield return Click("Resume Campaign");
+            yield return Click("Campaign"); yield return Click("Trial 1"); yield return Click("Start trial");
             string path = Path.Combine(directory, "02-playing.png"); yield return Capture(path); frames.Add(path);
-            int step = 3;
-            while (!playableGraph.Consumed)
-            {
-                if (playableGraph.NextCommand == "commit" || playableGraph.NextCommand == "consume")
-                { yield return PumpPlayable(); yield return WaitReady(); }
-                else yield return PlayNextInput();
-                path = Path.Combine(directory, (step++).ToString("D2") + "-accepted.png"); yield return Capture(path); frames.Add(path);
-                if (step > 30) throw new InvalidOperationException("Playable journey exceeded its finite input bound");
-            }
+            yield return Click("Reroll action");
+            path = Path.Combine(directory, "03-accepted.png"); yield return Capture(path); frames.Add(path);
+            yield return Click("Pause"); yield return Click("Dialog End run"); yield return Click("Dialog End run");
             yield return Click("Dialog Continue");
-            path = Path.Combine(directory, "30-campaign-progress.png"); yield return Capture(path); frames.Add(path);
+            path = Path.Combine(directory, "04-campaign-progress.png"); yield return Capture(path); frames.Add(path);
         }
     }
 }

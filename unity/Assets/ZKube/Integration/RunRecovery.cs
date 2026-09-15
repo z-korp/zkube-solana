@@ -17,7 +17,7 @@ namespace ZKube.Integration
         public long ValidUntil { get; }
         public RunMarker(string owner, ulong runId, string mode, string activeRun, string sessionSigner, string sessionToken, long validUntil)
         {
-            if (runId == 0 || (mode != "campaign" && mode != "daily")) throw new ArgumentException("Invalid run marker");
+            if (runId == 0 || (mode != "daily")) throw new ArgumentException("Invalid run marker");
             SolanaAddress.Bytes(owner); SolanaAddress.Bytes(activeRun);
             if ((sessionSigner == null) != (sessionToken == null) || validUntil < -9007199254740991L || validUntil > 9007199254740991L ||
                 (sessionSigner == null && validUntil != 0)) throw new FormatException("Invalid run marker session");
@@ -113,7 +113,7 @@ namespace ZKube.Integration
             var run = decodeRun(active, marker.Owner);
             if (!Matches(run, marker)) return Result("missing");
             string lifecycle = ((JObject)run["lifecycle"]).Properties().Single().Name;
-            return Result(lifecycle == "Finished" || lifecycle == "LevelComplete" ? "settleable" : "base", active, transport.BaseEndpoint);
+            return Result(lifecycle == "Finished" ? "settleable" : "base", active, transport.BaseEndpoint);
         }
 
         private static bool Matches(JObject run, RunMarker marker) => run != null && (string)run["owner"] == marker.Owner &&

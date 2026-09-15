@@ -55,10 +55,10 @@ namespace ZKube.Integration.App.Tests
             try
             {
                 await e.Flow.Connect(e.Owner); e.AddEconomy();
-                e.Http.DelayMethod = "getAccountInfo";
+                e.Http.DelayMethod = "getMultipleAccounts";
                 e.Http.Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 e.Http.Release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                var reading = e.Flow.RefreshKredits(); await e.Http.Entered.Task;
+                var reading = e.Flow.RefreshRewards((uint)MoneyTestEnvironment.Fixture("unity-product-reads-v1.json")["inputs"]["oldDay"]); await e.Http.Entered.Task;
                 using var cancellation = new CancellationTokenSource();
                 var purchase = e.Flow.BuyKredits(1, cancellation.Token);
                 Assert.Throws<InvalidOperationException>(() => e.Flow.BuyKredits(1));

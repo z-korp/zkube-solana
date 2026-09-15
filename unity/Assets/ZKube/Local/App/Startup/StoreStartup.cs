@@ -22,7 +22,7 @@ namespace ZKube.Local.App
             {
                 var directory = Path.Combine(Application.persistentDataPath, "local");
                 var product = new LocalProductStore(key => Read(directory, key), (key, value) => Write(directory, key, value));
-                var runs = new LocalRunClient(product, () => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                var runs = new LocalRunClient(product, () => DateTimeOffset.UtcNow.ToUnixTimeSeconds(), StoreCampaignPolicy.PurchaseGate(product));
 #if UNITY_EDITOR || ZKUBE_EVIDENCE
                 var offlineStorePath = Path.Combine(directory, OfflineCampaignStoreDriver.FileName);
                 billing = new CampaignBilling(new OfflineCampaignStoreDriver(

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using ZKube.Persistence;
@@ -17,6 +18,25 @@ namespace ZKube.Local
         public bool Finished { get; set; }
     }
 
+    public sealed class LocalCampaignAction
+    {
+        [JsonProperty("kind")] public string Kind { get; set; }
+        [JsonProperty("row")] public byte Row { get; set; }
+        [JsonProperty("start")] public byte Start { get; set; }
+        [JsonProperty("destination")] public byte Destination { get; set; }
+        [JsonProperty("reason")] public byte Reason { get; set; }
+    }
+
+    public sealed class LocalCampaignRun
+    {
+        [JsonProperty("id")] public string Id { get; set; }
+        [JsonProperty("catalogVersion")] public uint CatalogVersion { get; set; }
+        [JsonProperty("realm")] public byte Realm { get; set; }
+        [JsonProperty("level")] public byte Level { get; set; }
+        [JsonProperty("seed")] public int[] Seed { get; set; }
+        [JsonProperty("actions")] public List<LocalCampaignAction> Actions { get; set; } = new List<LocalCampaignAction>();
+    }
+
     public sealed class LocalProductState
     {
         public int Version { get; set; } = LocalProductCodec.Version;
@@ -29,6 +49,8 @@ namespace ZKube.Local
         public uint WornEmblem { get; set; }
         public bool CampaignOwned { get; set; }
         public string CampaignPrice { get; set; }
+        public LocalCampaignRun CampaignRun { get; set; }
+        public bool CampaignWritePending { get; set; }
     }
 
     public static class LocalProductCodec
@@ -58,6 +80,8 @@ namespace ZKube.Local
                 BestDailyScore = Nonnegative(parsed["bestDailyScore"]), WornEmblem = (uint)Math.Min(10UL, Nonnegative(parsed["wornEmblem"])),
                 CampaignOwned = parsed["campaignOwned"]?.Type == JTokenType.Boolean && (bool)parsed["campaignOwned"],
                 CampaignPrice = string.IsNullOrEmpty(price) ? null : Slice(price, 40),
+                CampaignRun = Campaign(parsed["campaignRun"]),
+                CampaignWritePending = parsed["campaignWritePending"]?.Type == JTokenType.Boolean && (bool)parsed["campaignWritePending"],
             };
         }
 
@@ -77,10 +101,29 @@ namespace ZKube.Local
                 ["bestDailyScore"] = state.BestDailyScore, ["wornEmblem"] = state.WornEmblem,
                 ["campaignOwned"] = state.CampaignOwned, ["campaignPrice"] = state.CampaignPrice,
             };
+            if (state.CampaignRun != null) document["campaignRun"] = JObject.FromObject(state.CampaignRun);
+            if (state.CampaignWritePending) document["campaignWritePending"] = true;
             // Escape UTF-16 code units so a split/lone surrogate survives the
             // UTF-8 storage boundary exactly, as well-formed JSON.stringify does.
             return JsonConvert.SerializeObject(document, Formatting.None,
                 new JsonSerializerSettings { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii });
+        }
+
+        private static LocalCampaignRun Campaign(JToken value)
+        {
+            if (value == null || value.Type == JTokenType.Null) return null;
+            try
+            {
+                var run = value.ToObject<LocalCampaignRun>();
+                if (run == null || !ulong.TryParse(run.Id, out var id) || id == 0 ||
+                    run.Realm < 1 || run.Realm > 10 || run.Level < 1 || run.Level > 10 ||
+                    run.Seed == null || run.Seed.Length != 32 || Array.Exists(run.Seed, item => item < 0 || item > 255) ||
+                    run.Actions == null || run.Actions.Count > 65535 || run.Actions.Exists(item => item == null ||
+                        (item.Kind != "Move" && item.Kind != "Bonus" && item.Kind != "Reroll" && item.Kind != "Finish")))
+                    throw new FormatException("Saved Campaign run is malformed");
+                return run;
+            }
+            catch (JsonException error) { throw new FormatException("Saved Campaign run is malformed", error); }
         }
 
         public static string NormalizeName(string value)
@@ -123,15 +166,37 @@ namespace ZKube.Local
     // The callbacks adapt public local storage; no platform dependency belongs in the codec.
     public sealed class LocalProductStore
     {
+        private readonly object gate = new object();
         private readonly Action<string, string> write;
+        private readonly string key;
+        public string Owner { get; }
         public LocalProductState Read { get; private set; }
-        public LocalProductStore(Func<string, string> read = null, Action<string, string> write = null)
-        { this.write = write; Read = LocalProductCodec.Decode(read?.Invoke(LocalProductCodec.StorageKey)); }
+        public LocalProductStore(Func<string, string> read = null, Action<string, string> write = null, string owner = null)
+        {
+            if (owner != null && string.IsNullOrWhiteSpace(owner)) throw new ArgumentException("A connected owner address is required");
+            this.write = write; Owner = owner;
+            key = owner == null ? LocalProductCodec.StorageKey : LocalProductCodec.StorageKey + ":" + owner;
+            Read = LocalProductCodec.Decode(read?.Invoke(key));
+        }
         public LocalProductState Write(Func<LocalProductState, LocalProductState> update)
         {
-            Read = LocalProductCodec.Decode(LocalProductCodec.Encode(update(Read)));
-            write?.Invoke(LocalProductCodec.StorageKey, LocalProductCodec.Encode(Read));
-            return Read;
+            lock (gate)
+            {
+                Read = LocalProductCodec.Decode(LocalProductCodec.Encode(update(Read)));
+                write?.Invoke(key, LocalProductCodec.Encode(Read));
+                return Read;
+            }
+        }
+        // Campaign accepts a state only after its complete record reaches storage.
+        public LocalProductState WriteCampaign(Func<LocalProductState, LocalProductState> update)
+        {
+            lock (gate)
+            {
+                var next = LocalProductCodec.Decode(LocalProductCodec.Encode(update(Read)));
+                write?.Invoke(key, LocalProductCodec.Encode(next));
+                Read = next;
+                return next;
+            }
         }
     }
 }

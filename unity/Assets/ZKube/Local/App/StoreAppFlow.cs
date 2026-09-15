@@ -10,8 +10,8 @@ namespace ZKube.Local.App
 {
     public enum StorePage { Name, Daily, Campaign, Level, Profile, Settings, Board, Result }
 
-    // The concrete store page flow. Product state is durable; run/provider state
-    // is deliberately process-local, exactly like LocalBackendLive.
+    // The concrete store page flow. Campaign recovery uses the same durable
+    // local record as the money identity, with the store purchase policy.
     public sealed class StoreAppFlow : IDisposable
     {
         public readonly LocalProductStore Product;

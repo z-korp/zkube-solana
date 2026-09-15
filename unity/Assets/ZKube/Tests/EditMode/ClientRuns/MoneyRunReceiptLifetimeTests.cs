@@ -9,7 +9,7 @@ namespace ZKube.Integration.Client.Runs.Tests
     {
         [Test] public async Task AConsumedRunsReceiptCanFinishWithoutClaimingItsNewSuccessor()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished"; env.Http.Delegated.Remove(mode);
                 var initial = await env.Client.Inspect(mode);

@@ -35,7 +35,7 @@ namespace ZKube.Integration.App.Evidence
         public string Address { get; }
         public string SourceSha256 { get; }
         public string Mode => (string)inputs["mode"];
-        public string Label => "Offline evidence · " + (Mode == "daily" ? "Daily" : "Campaign") + " playthrough";
+        public string Label => "Offline evidence · " + "Daily" + " playthrough";
         public Func<long> Clock { get; }
         public int ForbiddenCalls { get { lock (gate) return forbidden; } }
         public int SubmittedCount { get { lock (gate) return sent.Count; } }
@@ -55,25 +55,25 @@ namespace ZKube.Integration.App.Evidence
                 Destination = (byte?)command["destination"] ?? 0; Column = (byte?)command["column"] ?? 0; }
         }
         public InputStep NextInput { get { lock (gate) return cursor < steps.Length ? new InputStep(steps[cursor]["command"]) : null; } }
-        public static bool Supports(string scenario) => scenario == "campaign-playable" || scenario == "daily-playable";
-        public static Task<MoneyPlayableEvidenceGraph> Create(string solanaJson, string sessionJson) => Create(MoneyPlayableEvidenceData.Json, solanaJson, sessionJson);
+        public static bool Supports(string scenario) => scenario == "daily-playable";
+        public static Task<MoneyPlayableEvidenceGraph> Create(string solanaJson, string sessionJson) => Create(MoneyPlayableEvidenceData.DailyJson, solanaJson, sessionJson);
         public static Task<MoneyPlayableEvidenceGraph> CreateScenario(string scenario, string solanaJson, string sessionJson)
         {
             if (!Supports(scenario)) throw new ArgumentException("Unknown playable scenario", nameof(scenario));
-            return Create(scenario == "daily-playable" ? MoneyPlayableEvidenceData.DailyJson : MoneyPlayableEvidenceData.Json, solanaJson, sessionJson);
+            return Create(MoneyPlayableEvidenceData.DailyJson, solanaJson, sessionJson);
         }
 
         public static async Task<MoneyPlayableEvidenceGraph> Create(string fixture, string solanaJson, string sessionJson)
         {
             var data = JObject.Parse(fixture);
             string mode = (string)data["inputs"]?["mode"];
-            if ((int)data["schemaVersion"] != 1 || (mode != "campaign" && mode != "daily") ||
+            if ((int)data["schemaVersion"] != 1 || mode != "daily" ||
                 (string)data["evidenceClass"] != "offline-synthetic-money-" + mode + "-trajectory")
                 throw new FormatException("Unexpected playable evidence schema");
             var graph = new MoneyPlayableEvidenceGraph(data);
             graph.Services = new MoneyClientServices(solanaJson, sessionJson,
                 new MoneyConnectionConfig((string)graph.transport["base"], (string)graph.transport["router"], (string)graph.transport["expectedGenesis"]),
-                new Http(graph), new Native(graph), new Memory(graph), graph.Clock, () => Bytes(graph.inputs["clientSeed"]));
+                new Http(graph), new Native(graph), new Memory(graph), graph.Clock, owner => new ZKube.Local.LocalProductStore(owner: owner), () => Bytes(graph.inputs["clientSeed"]));
             var token = graph.baseAccounts[(string)graph.inputs["sessionToken"]];
             var session = graph.Services.Tokens.Decode(Envelope(token));
             await graph.Services.Sessions.Replace(await graph.Services.Sessions.Load(graph.Owner).ConfigureAwait(false),
@@ -83,7 +83,7 @@ namespace ZKube.Integration.App.Evidence
         private MoneyPlayableEvidenceGraph(JObject data)
         {
             inputs = (JObject)data["inputs"].DeepClone(); transport = (JObject)data["transport"].DeepClone();
-            entered = delegated = Mode == "campaign";
+            entered = delegated = false;
             active = (JObject)data["initial"].DeepClone(); Address = (string)active["address"];
             SourceSha256 = (string)data["sourceSha256"];
             if (SourceSha256?.Length != 64) throw new FormatException("Missing playable evidence provenance");
@@ -291,7 +291,7 @@ namespace ZKube.Integration.App.Evidence
             private readonly Dictionary<string, string> values = new Dictionary<string, string>();
             public Memory(MoneyPlayableEvidenceGraph graph) { this.graph = graph; }
             private void Check(string owner, string field)
-            { graph.OwnerOnly(owner); if (field != "session" && field != "journal" && field != "campaign" && field != "daily") throw graph.Forbidden("unknown-store-field"); }
+            { graph.OwnerOnly(owner); if (field != "session" && field != "journal" && field != "daily") throw graph.Forbidden("unknown-store-field"); }
             public Task<string> Read(string owner, string field)
             { Check(owner, field); lock (values) return Task.FromResult(values.TryGetValue(field, out var value) ? value : null); }
             public Task Write(string owner, string field, string value) => throw graph.Forbidden("unguarded-write");

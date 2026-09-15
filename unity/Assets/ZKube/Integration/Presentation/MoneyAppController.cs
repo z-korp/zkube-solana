@@ -146,8 +146,19 @@ namespace ZKube.Integration.Presentation
             Busy = true; Controls(); long epoch = generation;
             try { await Flow.Disconnect(); if (Current(epoch)) status.text = "Disconnected"; }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { Busy = false; PageReady = !artLoading; Controls(); } }
+            finally { if (Current(epoch)) { Busy = false; PageReady = !PlayingRun && !artLoading; Controls(); } }
         }
+        private async Task RunCampaign(Func<long, CancellationToken, Task> operation)
+        {
+            if (detached || !isActiveAndEnabled || paused || Flow == null || PlayingRun || identity.Owner == null) return;
+            long epoch = generation;
+            try { await operation(epoch, CancellationToken.None); }
+            catch (Exception error) { if (Current(epoch)) ShowError(error); }
+            finally { if (Current(epoch)) { PageReady = !PlayingRun && !artLoading; Controls(); } }
+        }
+        private static string RunText(ZKube.Local.LocalRunView state) =>
+            state == null ? "No saved run" : "Saved on this device";
+
         private async Task Run(Func<long, CancellationToken, Task> operation)
         {
             if (detached || !isActiveAndEnabled || paused || Flow == null || Busy || PlayingRun) return;
@@ -156,7 +167,7 @@ namespace ZKube.Integration.Presentation
             try { await operation(epoch, reads.Token); }
             catch (OperationCanceledException) { if (Current(epoch)) status.text = "Refresh was cancelled. Refresh to try again."; }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { Busy = false; PageReady = !artLoading; Controls(); } }
+            finally { if (Current(epoch)) { Busy = false; PageReady = !PlayingRun && !artLoading; Controls(); } }
         }
         private async Task Refresh(long epoch, CancellationToken token)
         {

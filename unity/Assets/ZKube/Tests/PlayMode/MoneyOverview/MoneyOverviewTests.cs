@@ -44,10 +44,9 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(evidence.Calls.Any(call => call.Operation == "authorize"), Is.False);
             Click("Connect"); yield return Idle();
             StringAssert.Contains(evidence.Owner, Text("Owner facts"));
-            StringAssert.Contains("Campaign: Run saved", Text("Owner facts"));
+            StringAssert.Contains("Campaign: No saved run", Text("Owner facts"));
             StringAssert.Contains("Daily: Run saved", Text("Owner facts"));
             var states = host.GetComponent<MoneyStartup>().Controller.Flow.Owner.Value;
-            StringAssert.DoesNotContain(states.Campaign.Marker.ActiveRun, Text("Owner facts"));
             StringAssert.DoesNotContain(states.Daily.Marker.ActiveRun, Text("Owner facts"));
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(true), Is.Empty);
             Click("Check transaction"); yield return Idle();

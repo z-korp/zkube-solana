@@ -20,6 +20,7 @@ namespace ZKube.Local.Tests
                 Assert.That(session.RealmId, Is.EqualTo(run.View.Realm));
                 Assert.That(session.RealmId, Is.EqualTo(realm.MapId));
                 CollectionAssert.AreEqual(run.View.Token.State, session.Accepted.State);
+                client.Act(run.View.RunId, new LocalRunAction(LocalActionKind.Finish));
             }
             var daily = client.StartDaily();
             Assert.That(new LocalBoardActionProvider(client, daily).Bind("Daily").RealmId, Is.EqualTo(client.Today().Realm));

@@ -16,9 +16,9 @@ namespace ZKube.Integration.App.Tests
             File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")),
             File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
 
-        [Test] public async Task BothSavedModesBindTheirAcceptedIdentityWithoutSigningOrStartingAnotherRun()
+        [Test] public async Task SavedArcadeBindsItsAcceptedIdentityWithoutSigningOrStartingAnotherRun()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var graph = await Create(); var flow = new MoneyAppFlow(graph.Services);
                 try
@@ -59,7 +59,7 @@ namespace ZKube.Integration.App.Tests
             var graph = await Create(); var flow = new MoneyAppFlow(graph.Services);
             try
             {
-                await flow.Connect(); var run = (await flow.OpenSavedRun("campaign")).Value.Run;
+                await flow.Connect(); var run = (await flow.OpenSavedRun("daily")).Value.Run;
                 await flow.Disconnect(); await flow.Connect(); int before = graph.Calls.Count;
                 Assert.That(flow.RunIdentityCurrent(run), Is.False);
                 try { await flow.ObserveBoundRun(run); Assert.Fail("Expected stale handle cancellation"); }
@@ -69,21 +69,18 @@ namespace ZKube.Integration.App.Tests
             finally { await flow.StopAsync(); }
         }
 
-        [Test] public async Task DoubleTapAndOccupiedCampaignCannotPrepareAnotherRun()
+        [Test] public async Task OccupiedLocalCampaignCannotStartAnotherTrial()
         {
             var graph = await Create(); var flow = new MoneyAppFlow(graph.Services);
             try
             {
-                await flow.Connect(); var held = graph.HoldNextRead("getMultipleAccounts");
-                var first = flow.StartCampaignRun(1, 1);
-                try
-                {
-                    await held.Entered;
-                    Assert.Throws<InvalidOperationException>(() => flow.StartCampaignRun(1, 1));
-                }
-                finally { held.Release(); }
-                try { await first; Assert.Fail("Expected occupied Campaign rejection"); }
-                catch (InvalidOperationException error) { StringAssert.Contains("saved Campaign", error.Message); }
+                await flow.Connect();
+                var first = (await flow.StartCampaignRun(1, 1)).Value;
+                try { await flow.StartCampaignRun(1, 1); Assert.Fail("Expected occupied local trial rejection"); }
+                catch (InvalidOperationException) { }
+                var resumed = (await flow.OpenSavedCampaign()).Value;
+                Assert.That(resumed.View.RunId, Is.EqualTo(first.View.RunId));
+                Assert.That(resumed.View.Token.State, Is.EqualTo(first.View.Token.State));
                 Assert.That(graph.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
                 Assert.That(graph.ForbiddenCalls, Is.Zero);
             }

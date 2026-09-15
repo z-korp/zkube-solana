@@ -42,34 +42,10 @@ namespace ZKube.Integration.Client
         });
 
         public Task<ProductRead<CampaignProgress>> Campaign(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
-            var first = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress, addresses.Player(lease.Owner) }, cancellation: token).ConfigureAwait(false);
-            var player = Profile(lease.Owner, first.Accounts[1]);
-            if (first.Accounts[0].Envelope == null) return new CampaignProgress("missing-protocol", null, player, Array.Empty<CampaignMapProgress>());
-            var protocol = accounts.ProtocolConfig(first.Accounts[0].Envelope);
-            uint version = (uint)protocol["content_version"];
-            if ((uint)protocol["campaign_map_count"] != Protocol.Realms.Length || version != Protocol.CampaignContentVersion)
-                throw new FormatException("Campaign publication does not match the supported content version");
-            var reads = await rpc.ReadAccounts(rpc.Base, Protocol.Realms.Select(realm => addresses.MapCatalog(version, realm.MapId)).ToArray(),
-                minContextSlot: first.Slot, cancellation: token).ConfigureAwait(false);
-            // A second protocol observation at the same batch slot makes a
-            // publication switch explicit instead of combining two versions.
-            var check = await rpc.ReadAccount(rpc.Base, addresses.ProtocolAddress, minContextSlot: reads.Slot, cancellation: token).ConfigureAwait(false);
-            if (check.Envelope == null || !JToken.DeepEquals(protocol, accounts.ProtocolConfig(check.Envelope)))
-                throw new InvalidOperationException("Campaign publication changed; read it again");
-            // Missing peers must not conceal a malformed supplied catalog.
-            var catalogs = reads.Accounts.Select((read, index) => read.Envelope == null ? null :
-                accounts.MapCatalog(read.Envelope, version, checked((byte)(index + 1)))).ToArray();
-            if (catalogs.Any(catalog => catalog == null))
-                return new CampaignProgress("missing-catalog", version, player, Array.Empty<CampaignMapProgress>());
-            byte[] packed = player.Fields?["campaign_stars"].Values<byte>().ToArray() ?? new byte[(Protocol.Realms.Length * Protocol.CampaignTargets.Length + 3) / 4];
-            var maps = reads.Accounts.Select((read, mapIndex) => {
-                byte map = checked((byte)(mapIndex + 1));
-                var catalog = catalogs[mapIndex];
-                byte[] stars = Enumerable.Range(0, Protocol.CampaignTargets.Length).Select(level => Stars(packed, mapIndex * Protocol.CampaignTargets.Length + level)).ToArray();
-                bool unlocked = mapIndex == 0 || Stars(packed, mapIndex * Protocol.CampaignTargets.Length - 1) > 0;
-                return new CampaignMapProgress(map, catalog, stars, unlocked);
-            }).ToArray();
-            return new CampaignProgress((bool)protocol["paused"] ? "paused" : "ready", version, player, maps);
+            var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
+            var player = Profile(lease.Owner, read);
+            byte[] packed = player.Fields?["campaign_stars"].Values<byte>().ToArray() ?? new byte[25];
+            return CampaignProgress.FromStars(lease.Owner, Enumerable.Range(0, 100).Select(index => Stars(packed, index)).ToArray(), player);
         });
 
         public Task<ProductRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
@@ -113,7 +89,7 @@ namespace ZKube.Integration.Client
         });
 
         // Mirrors resolveSpectatedRun(player, runId?): omitted runId selects
-        // nextRunId-1, not every active slot. Own run recovery remains two-slot.
+        // nextRunId-1. Own Arcade recovery reads the durable reservation.
         public Task<ProductRead<SpectatorSnapshot>> Spectate(string owner, ulong? runId = null, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             SolanaAddress.Bytes(owner);
             if (runId == null)

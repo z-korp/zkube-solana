@@ -32,10 +32,10 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.SelectedRealm, Is.EqualTo(3)); Assert.That(background.sprite, Is.SameAs(art.Sprite("background")));
             Assert.That(evidence.ForbiddenCalls, Is.Zero);
         }
-        [Test] public void CampaignPublishedStyleDoesNotReplaceAuthoredRealmCoordinates()
+        [Test] public void CampaignSceneryStyleDoesNotReplaceAuthoredRealmCoordinates()
         {
             var catalog = PageCatalog.Load(); var realm = catalog.Realm(1); var scenery = catalog.Realm(2);
-            host = new GameObject("Published Campaign path", typeof(RectTransform), typeof(CampaignPathGraphic));
+            host = new GameObject("Campaign scenery path", typeof(RectTransform), typeof(CampaignPathGraphic));
             var graphic = host.GetComponent<CampaignPathGraphic>();
             graphic.Configure(realm, Enumerable.Repeat("cleared", 10).ToArray(), scenery.map);
             const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
@@ -48,6 +48,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
             Click("Check transaction"); yield return Idle();
+            evidence.Services.Campaign(evidence.Owner).Runs.StartCampaign(1, 1);
             var controller = host.GetComponent<MoneyStartup>().Controller; var receipt = controller.LastReceipt;
             Click("Campaign"); yield return Idle(); yield return null;
             Assert.That(controller.BrowsingCampaign, Is.True);
@@ -68,12 +69,12 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty); Assert.That(evidence.ForbiddenCalls, Is.Zero);
         }
 
-        [UnityTest] public IEnumerator CampaignDisconnectRetiresDelayedReadAndRealmArtwork()
+        [UnityTest] public IEnumerator CampaignDisconnectRetiresDelayedRecordReadAndRealmArtwork()
         {
             yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
             Click("Campaign"); yield return Idle(); Click("Next realm");
             var controller = host.GetComponent<MoneyStartup>().Controller;
-            delay = evidence.HoldNextRead("getMultipleAccounts"); Click("Refresh Campaign");
+            delay = evidence.HoldNextRead("getAccountInfo"); Click("Refresh Campaign");
             try
             {
                 yield return Wait(delay.Entered);

@@ -7,16 +7,16 @@ namespace ZKube.Integration.Client
 {
     public sealed partial class ProductQueries
     {
-        // Explicit durable-slot selection complements the TS-compatible latest
-        // run-ID query. Either mode may be older than next_run_id-1.
+        // The active Arcade reservation is checked again after reading the run.
         public Task<ProductRead<SpectatorSnapshot>> SpectateSlot(string owner, string mode,
             CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             SolanaAddress.Bytes(owner);
             if (mode != "campaign" && mode != "ranked") throw new ArgumentException("Unknown durable run mode", nameof(mode));
+            if (mode == "campaign") return new SpectatorSnapshot("not-found", owner);
             string playerAddress = addresses.Player(owner);
             var before = await rpc.ReadAccount(rpc.Base, playerAddress, cancellation: token).ConfigureAwait(false);
             if (before.Envelope == null) return new SpectatorSnapshot("not-found", owner);
-            string field = mode == "campaign" ? "campaign_active_run_id" : "active_run_id";
+            string field = "active_run_id";
             var player = accounts.PlayerState(before.Envelope, owner);
             ulong runId = (ulong)player[field];
             if (runId == 0) return new SpectatorSnapshot("not-found", owner);
@@ -29,7 +29,7 @@ namespace ZKube.Integration.Client
             {
                 var actual = accounts.ActiveRun(result.Account, owner);
                 string actualMode = ((Newtonsoft.Json.Linq.JObject)actual["mode"]).Properties().Single().Name.ToLowerInvariant();
-                if (actualMode != (mode == "ranked" ? "daily" : "campaign")) throw new FormatException("Durable slot run mode differs from PlayerState reservation");
+                if (actualMode != "daily") throw new FormatException("Durable slot run mode differs from PlayerState reservation");
             }
             return result;
         });

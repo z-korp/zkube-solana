@@ -15,8 +15,8 @@ namespace ZKube.Local
             : base("The local action was accepted, but progress could not be saved", inner) { }
     }
     // LocalBackendLive.ts orchestration only. NativeEngine owns configurations,
-    // legal actions, metrics, star latches and terminal decisions. Records are
-    // intentionally process-local; only product state survives restart.
+    // legal actions, metrics, star latches and terminal decisions. Campaign
+    // recovery replays the accepted log stored with the local product.
     public sealed class LocalRunClient
     {
         private sealed class Record
@@ -29,6 +29,13 @@ namespace ZKube.Local
             public BuildConfigRequest Rules;
             public uint Counter;
             public bool Recorded;
+            public List<LocalCampaignAction> Actions = new List<LocalCampaignAction>();
+            public Record Copy()
+            {
+                var copy = (Record)MemberwiseClone();
+                copy.Actions = new List<LocalCampaignAction>(Actions);
+                return copy;
+            }
             public LocalRunView View() => new LocalRunView(Id, Mode, Realm, Level, Token, Rules);
         }
         private readonly object gate = new object();
@@ -37,8 +44,15 @@ namespace ZKube.Local
         private readonly Dictionary<string, Record> records = new Dictionary<string, Record>();
         private readonly Dictionary<string, Record> active = new Dictionary<string, Record>();
         private ulong nextId = 1;
-        public LocalRunClient(LocalProductStore store, Func<long> utcNow)
-        { this.store = store ?? throw new ArgumentNullException(nameof(store)); now = utcNow ?? throw new ArgumentNullException(nameof(utcNow)); }
+        private readonly Func<byte, bool> purchaseGate;
+        private bool restoring;
+        public LocalRunClient(LocalProductStore store, Func<long> utcNow, Func<byte, bool> purchaseGate = null)
+        {
+            this.store = store ?? throw new ArgumentNullException(nameof(store));
+            now = utcNow ?? throw new ArgumentNullException(nameof(utcNow));
+            this.purchaseGate = purchaseGate;
+            RestoreCampaign();
+        }
         public LocalDaily Today()
         {
             long time = now();
@@ -53,7 +67,7 @@ namespace ZKube.Local
             lock (gate)
             {
                 Realm(realm);
-                if (realm >= 4 && !store.Read.CampaignOwned) return "purchase";
+                if (purchaseGate?.Invoke(realm) == true) return "purchase";
                 if (realm > 1 && store.Read.Stars[(realm - 1) * Protocol.CampaignTargets.Length - 1] == 0) return "stars";
                 return null;
             }
@@ -70,14 +84,9 @@ namespace ZKube.Local
             {
                 string blocked = CampaignLock(realm);
                 if (blocked != null) throw new InvalidOperationException(blocked == "purchase" ? "Unlock the full Campaign first" : "Defeat the previous guardian first");
-                var definition = Realm(realm);
-                if (level == 0 || level > definition.Levels.Length) throw new ArgumentException($"Campaign level {realm}.{level} is not authored");
-                var authored = definition.Levels[level - 1];
-                var rules = Rules(definition); rules.TierPolicy = 0; rules.FixedTier = authored.Tier;
-                rules.MaxMoves = NativeEngine.CampaignMoveBudget(level, authored.Tier); rules.PointsRequired = Protocol.CampaignTargets[level - 1];
-                rules.PrimaryKind = authored.Primary[0]; rules.PrimaryValue = authored.Primary[1]; rules.PrimaryCount = authored.Primary[2];
-                rules.SecondaryKind = authored.Secondary[0]; rules.SecondaryValue = authored.Secondary[1]; rules.SecondaryCount = authored.Secondary[2];
-                return Start("campaign", realm, level, rules, Enumerable.Repeat((byte)0x5a, 32).ToArray(), null);
+                if (active.TryGetValue("campaign", out var existing))
+                    throw new InvalidOperationException("Resume the saved Campaign run first");
+                return Start("campaign", realm, level, CampaignRules(realm, level), Enumerable.Repeat((byte)0x5a, 32).ToArray(), null);
             }
         }
         public LocalRunUpdate StartDaily()
@@ -131,6 +140,7 @@ namespace ZKube.Local
             lock (gate)
             {
                 if (!records.TryGetValue(id, out var record)) throw new InvalidOperationException($"Local run {id} was not found");
+                if (record.Mode == "campaign") record = record.Copy();
                 var transitions = new List<(byte[], byte[])>();
                 var before = NativeEngine.Summary(record.Token);
                 switch (action.Kind)
@@ -148,6 +158,15 @@ namespace ZKube.Local
                 if (NativeEngine.Summary(record.Token).Phase == (byte)CorePhase.AwaitingVrf) NextRow(record, transitions);
                 var summary = NativeEngine.Summary(record.Token);
                 bool terminal = summary.Phase == (byte)CorePhase.Finished || summary.Phase == (byte)CorePhase.LevelComplete;
+                if (record.Mode == "campaign")
+                {
+                    record.Actions.Add(new LocalCampaignAction { Kind = action.Kind.ToString(), Row = action.Row,
+                        Start = action.Start, Destination = action.Destination, Reason = action.Reason });
+                    SaveCampaign(record, terminal);
+                    records[id] = record;
+                    if (terminal) active.Remove("campaign"); else active["campaign"] = record;
+                    return new LocalRunUpdate(record.View(), transitions);
+                }
                 if (active.TryGetValue(record.Mode, out var selected) && selected.Id == record.Id)
                 { if (terminal) active.Remove(record.Mode); else active[record.Mode] = record; }
                 if (terminal && !record.Recorded)
@@ -155,18 +174,8 @@ namespace ZKube.Local
                     record.Recorded = true;
                     store.Write(current => {
                         var next = Copy(current);
-                        if (record.Mode == "arcade")
-                        {
-                            next.BestDailyScore = Math.Max(current.BestDailyScore, summary.DailyScore);
-                            if (next.DailyAttempt != null && next.DailyAttempt.DayId == record.Day) { next.DailyAttempt.DailyScore = summary.DailyScore; next.DailyAttempt.ObjectiveTotal = summary.ObjectiveTotal.ToString(CultureInfo.InvariantCulture); next.DailyAttempt.Finished = true; }
-                        }
-                        else
-                        {
-                            byte mask = summary.LatchedStarSources;
-                            byte earned = (byte)((mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1));
-                            int index = (record.Realm - 1) * Protocol.CampaignTargets.Length + record.Level - 1;
-                            next.Stars[index] = Math.Max(next.Stars[index], earned);
-                        }
+                        next.BestDailyScore = Math.Max(current.BestDailyScore, summary.DailyScore);
+                        if (next.DailyAttempt != null && next.DailyAttempt.DayId == record.Day) { next.DailyAttempt.DailyScore = summary.DailyScore; next.DailyAttempt.ObjectiveTotal = summary.ObjectiveTotal.ToString(CultureInfo.InvariantCulture); next.DailyAttempt.Finished = true; }
                         return next;
                     });
                 }
@@ -177,9 +186,101 @@ namespace ZKube.Local
         {
             string id = (nextId++).ToString(CultureInfo.InvariantCulture);
             var record = new Record { Id = id, Mode = mode, Realm = realm, Level = level, Rules = rules, Seed = seed, Day = day, Token = NativeEngine.Initialize(rules) };
-            records.Add(id, record);
-            var transitions = new List<(byte[], byte[])>(); NextRow(record, transitions); active[mode] = record;
+            var transitions = new List<(byte[], byte[])>(); NextRow(record, transitions);
+            if (mode == "campaign") SaveCampaign(record, false);
+            records.Add(id, record); active[mode] = record;
             return new LocalRunUpdate(record.View(), transitions);
+        }
+        private static BuildConfigRequest CampaignRules(byte realm, byte level)
+        {
+            var definition = Realm(realm);
+            if (level == 0 || level > definition.Levels.Length) throw new ArgumentException($"Campaign level {realm}.{level} is not authored");
+            var authored = definition.Levels[level - 1];
+            var rules = Rules(definition); rules.TierPolicy = 0; rules.FixedTier = authored.Tier;
+            rules.MaxMoves = NativeEngine.CampaignMoveBudget(level, authored.Tier); rules.PointsRequired = Protocol.CampaignTargets[level - 1];
+            rules.PrimaryKind = authored.Primary[0]; rules.PrimaryValue = authored.Primary[1]; rules.PrimaryCount = authored.Primary[2];
+            rules.SecondaryKind = authored.Secondary[0]; rules.SecondaryValue = authored.Secondary[1]; rules.SecondaryCount = authored.Secondary[2];
+            return rules;
+        }
+        private void RestoreCampaign()
+        {
+            var saved = store.Read.CampaignRun;
+            if (saved == null) return;
+            if (saved.CatalogVersion != Protocol.CatalogVersion) throw new InvalidOperationException("Saved Campaign catalog version is unsupported");
+            restoring = true;
+            try
+            {
+                nextId = ulong.Parse(saved.Id, CultureInfo.InvariantCulture);
+                var opened = Start("campaign", saved.Realm, saved.Level, CampaignRules(saved.Realm, saved.Level),
+                    Array.ConvertAll(saved.Seed, value => checked((byte)value)), null);
+                foreach (var action in saved.Actions)
+                    Act(opened.View.RunId, new LocalRunAction((LocalActionKind)Enum.Parse(typeof(LocalActionKind), action.Kind),
+                        action.Row, action.Start, action.Destination, action.Reason));
+                if (!active.ContainsKey("campaign")) throw new InvalidOperationException("Saved Campaign log contains a terminal action");
+            }
+            finally { restoring = false; }
+        }
+        private void SaveCampaign(Record record, bool terminal)
+        {
+            if (restoring) return;
+            store.WriteCampaign(current => {
+                var next = Copy(current);
+                if (terminal)
+                {
+                    byte mask = NativeEngine.Summary(record.Token).LatchedStarSources;
+                    byte earned = (byte)((mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1));
+                    int index = (record.Realm - 1) * Protocol.CampaignTargets.Length + record.Level - 1;
+                    if (earned > next.Stars[index])
+                    {
+                        next.Stars[index] = earned;
+                        if (store.Owner != null) next.CampaignWritePending = true;
+                    }
+                    next.CampaignRun = null;
+                }
+                else next.CampaignRun = new LocalCampaignRun { Id = record.Id, CatalogVersion = Protocol.CatalogVersion,
+                    Realm = record.Realm, Level = record.Level, Seed = Array.ConvertAll(record.Seed, value => (int)value),
+                    Actions = new List<LocalCampaignAction>(record.Actions) };
+                return next;
+            });
+        }
+        public byte[] PackedCampaignStars()
+        {
+            lock (gate) return Pack(store.Read.Stars);
+        }
+        public void MergeCampaignRecord(byte[] chainStars)
+        {
+            lock (gate)
+            {
+                var merged = NativeEngine.MergeCampaignStars(Pack(store.Read.Stars), chainStars);
+                store.WriteCampaign(current => {
+                    var next = Copy(current); next.Stars = Unpack(merged);
+                    next.CampaignWritePending = store.Owner != null && !merged.SequenceEqual(chainStars);
+                    return next;
+                });
+            }
+        }
+        public void AcknowledgeCampaignRecord(byte[] submitted)
+        {
+            lock (gate)
+            {
+                store.WriteCampaign(current => {
+                    var next = Copy(current);
+                    next.CampaignWritePending = store.Owner != null && !Pack(next.Stars).SequenceEqual(submitted);
+                    return next;
+                });
+            }
+        }
+        private static byte[] Pack(byte[] stars)
+        {
+            var packed = new byte[25];
+            for (int i = 0; i < stars.Length; i++) packed[i / 4] |= (byte)(stars[i] << ((i % 4) * 2));
+            return packed;
+        }
+        private static byte[] Unpack(byte[] packed)
+        {
+            var stars = new byte[100];
+            for (int i = 0; i < stars.Length; i++) stars[i] = (byte)((packed[i / 4] >> ((i % 4) * 2)) & 3);
+            return stars;
         }
         private static void NextRow(Record record, List<(byte[], byte[])> transitions)
         {

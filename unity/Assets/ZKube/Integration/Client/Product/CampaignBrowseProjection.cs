@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using ZKube.Core;
+using ZKube.Local;
 using ZKube.Core.Generated;
 
 namespace ZKube.Integration.Client
@@ -30,8 +31,7 @@ namespace ZKube.Integration.Client
         internal CampaignBrowseRealm(CampaignMapProgress map, byte theme, int current, CampaignBrowseLevel[] levels)
         { MapId = map.MapId; ThemeId = theme; Unlocked = map.Unlocked; Enabled = map.Enabled; CurrentIndex = current; Levels = Array.AsReadOnly(levels); }
     }
-    // UI projection agrees with actual TS generateMapData. Published catalog
-    // values are preserved; a matching saved run supplies its own preview rules.
+    // UI projection uses the compiled catalog and the device-local saved run.
     public sealed class CampaignBrowseProjection
     {
         public IReadOnlyList<CampaignBrowseRealm> Realms { get; }
@@ -40,18 +40,14 @@ namespace ZKube.Integration.Client
         private CampaignBrowseProjection(CampaignBrowseRealm[] realms, byte? savedRealm, byte? savedLevel)
         { Realms = Array.AsReadOnly(realms); SavedRealm = savedRealm; SavedLevel = savedLevel; }
 
-        public static CampaignBrowseProjection Create(CampaignProgress progress, AccountEnvelope savedRun, AccountBindings accounts)
+        public static CampaignBrowseProjection Create(CampaignProgress progress, LocalRunView savedRun = null)
         {
-            if (progress == null || accounts == null) throw new ArgumentNullException();
+            if (progress == null) throw new ArgumentNullException();
             byte? savedRealm = null, savedLevel = null; BuildConfigRequest saved = null;
             if (savedRun != null)
             {
-                var fields = accounts.ActiveRun(savedRun, progress.Player.Owner);
-                if (((JObject)fields["mode"]).Properties().Single().Name != "Campaign") throw new FormatException("Campaign preview received another run mode");
-                savedRealm = (byte)fields["map_id"]; savedLevel = (byte)fields["level"];
-                var native = new ActiveRunReconciler(accounts);
-                // Reconcile validates the entire accepted snapshot, not just its label.
-                native.Reconcile(savedRun, progress.Player.Owner); saved = native.BuildConfiguration(savedRun, progress.Player.Owner);
+                if (savedRun.Mode != "campaign") throw new FormatException("Campaign preview received another run mode");
+                savedRealm = savedRun.Realm; savedLevel = savedRun.Level; saved = savedRun.Rules;
             }
             var realms = progress.Maps.Select(map => {
                 var catalog = map.Catalog;

@@ -145,6 +145,7 @@ namespace ZKube.Local.Tests
         {
             var env = new Env(); var start = env.Client.StartCampaign(1, 1); var provider = new LocalBoardActionProvider(env.Client, start);
             var first = await provider.Submit(start.View.Token, Reroll, None);
+            env.Client.Act(start.View.RunId, new LocalRunAction(LocalActionKind.Finish));
             var successor = env.Client.StartCampaign(1, 1);
             await Reject<InvalidOperationException>(() => provider.ResolveVrf(first.Token, None));
             Assert.That(await provider.Recover(None), Is.Null);

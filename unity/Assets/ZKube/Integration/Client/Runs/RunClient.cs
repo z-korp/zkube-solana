@@ -82,7 +82,7 @@ namespace ZKube.Integration.Client.Runs
                 var player = await rpc.ReadAccount(rpc.Base, planner.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
                 if (player.Envelope == null) return new RunClientState("run-unavailable");
                 var fields = accounts.PlayerState(player.Envelope, lease.Owner);
-                ulong runId = (ulong)fields[mode == "campaign" ? "campaign_active_run_id" : "active_run_id"];
+                ulong runId = (ulong)fields["active_run_id"];
                 if ((runId == 0 || planner.ActiveRun(lease.Owner, runId) != binding.Address) && !consuming) return new RunClientState("run-unavailable");
                 if (pending != null)
                 {
@@ -110,7 +110,7 @@ namespace ZKube.Integration.Client.Runs
                 instruction.ProgramId != PlanningConstants.ComputeBudgetProgram)) return false;
             var instructions = transaction.Instructions.Where(instruction => instruction.ProgramId == protocol.ProgramId)
                 .Select(protocol.DecodeInstruction).ToArray();
-            string consume = binding.Mode == "campaign" ? "consume_campaign_run" : "consume_arena_run";
+            string consume = "consume_arena_run";
             return instructions.Length > 0 && instructions.Last().Name == consume &&
                 instructions.Take(instructions.Length - 1).All(instruction => instruction.Name == "finish_run") &&
                 instructions.All(instruction => instruction.Accounts.TryGetValue("active_run", out var active) && active == binding.Address &&
@@ -118,11 +118,9 @@ namespace ZKube.Integration.Client.Runs
                     (!instruction.Accounts.TryGetValue("owner_authority", out var authority) || authority == binding.Owner));
         }
 
-        public Task<RunClientState> StartCampaign(byte map, byte level, CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
-            Start("campaign", map, level, cancellation, receipts);
-        public Task<RunClientState> StartDaily(CancellationToken cancellation = default, RunOperationReceipts receipts = null) => Start("daily", 0, 0, cancellation, receipts);
+        public Task<RunClientState> StartDaily(CancellationToken cancellation = default, RunOperationReceipts receipts = null) => Start("daily", cancellation, receipts);
 
-        private Task<RunClientState> Start(string mode, byte map, byte level, CancellationToken cancellation, RunOperationReceipts receipts) =>
+        private Task<RunClientState> Start(string mode, CancellationToken cancellation, RunOperationReceipts receipts) =>
             Operate(mode, cancellation, async (lease, token) => {
                 await RequireNoPending(lease, token).ConfigureAwait(false);
                 var prior = await Observe(lease, mode, token).ConfigureAwait(false);
@@ -133,10 +131,6 @@ namespace ZKube.Integration.Client.Runs
                 using var session = await sessions.Load(lease).ConfigureAwait(false);
                 var occupied = await rpc.ReadAccount(rpc.Base, planner.ActiveRun(lease.Owner, player.NextRunId), cancellation: token).ConfigureAwait(false);
                 TransactionPlan prepared;
-                if (mode == "campaign") prepared = planner.PrepareCampaign(session.Actor, player,
-                    ContentPlanSnapshot.Decode(accounts, batch.Accounts[1].Envelope), map, level, occupied.Envelope);
-                else
-                {
                     long observedNow = now(); uint day = checked((uint)(observedNow / 86400));
                     var arcade = await rpc.ReadAccount(rpc.Base, planner.ArcadeAddress, cancellation: token).ConfigureAwait(false);
                     uint following = Math.Max(checked(day + 1), (uint)accounts.ArcadeConfig(arcade.Envelope)["suspended_until_day"]);
@@ -145,7 +139,6 @@ namespace ZKube.Integration.Client.Runs
                         daily.Accounts[0].Envelope, daily.Accounts[1].Envelope, daily.Accounts[2].Envelope, day, observedNow);
                     var claims = await EntryClaims(lease.Owner, day, observedNow, token).ConfigureAwait(false);
                     prepared = planner.PrepareDaily(session.Actor, player, entry, claims, observedNow, occupied.Envelope);
-                }
                 var validator = await rpc.ClosestValidator(token).ConfigureAwait(false);
                 var plan = planner.PrepareAndDelegate(prepared, session.Actor, validator.Identity);
                 // Persist the locator before any signing/send. A failed or
@@ -311,7 +304,7 @@ namespace ZKube.Integration.Client.Runs
         private async Task<RunClientState> Operate(string mode, CancellationToken cancellation,
             Func<IdentityLease, CancellationToken, Task<RunClientState>> operation, RunOperationReceipts receipts = null)
         {
-            if (mode != "campaign" && mode != "daily") throw new ArgumentException("Invalid run mode");
+            if (mode != "daily") throw new ArgumentException("Invalid run mode");
             if (Interlocked.CompareExchange(ref operating, 1, 0) != 0) throw new InvalidOperationException("A run operation is already pending");
             try
             {
@@ -375,7 +368,7 @@ namespace ZKube.Integration.Client.Runs
                     var after = await rpc.Placement(marker.ActiveRun).ConfigureAwait(false);
                     var player = accounts.PlayerState(proof.Accounts[0].Envelope, lease.Owner);
                     if (!after.IsDelegated && proof.Accounts[1].Envelope == null &&
-                        (ulong)player[mode == "campaign" ? "campaign_active_run_id" : "active_run_id"] != marker.RunId)
+                        (ulong)player["active_run_id"] != marker.RunId)
                     {
                         await markers.ClearAfterConsumption(marker, proof.Accounts[0].Envelope, null, after).ConfigureAwait(false);
                         observed = await markers.ResolveOrDiscover(lease.Owner, mode, recovery, rpc, now()).ConfigureAwait(false);

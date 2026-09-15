@@ -65,7 +65,7 @@ namespace ZKube.Tests
             typeof(BoardController).GetProperty("TextScale").SetValue(board, 1f);
             failSave = false;
             product = new LocalProductStore(_ => null, (_, __) => { if (failSave) throw new InvalidOperationException("Injected save failure"); });
-            runs = new LocalRunClient(product, () => 20705L * 86400);
+            runs = new LocalRunClient(product, () => 20705L * 86400, StoreCampaignPolicy.PurchaseGate(product));
             billing = new CampaignBilling(new Driver(), () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
             app = appRoot.AddComponent<StoreAppController>(); app.Initialize(product, runs, billing, board);

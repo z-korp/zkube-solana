@@ -63,23 +63,21 @@ namespace ZKube.Tests.ProductReads
             var e = await Environment.Create(); var authority = e.Fixture["dailyAuthority"];
             uint day = (uint)authority["day"], pair = NativeEngine.DailyPairIndex(day);
             Assert.That(pair, Is.EqualTo((uint)authority["pairIndex"]), "native draw vs actual TS core result");
-            Assert.That(Protocol.CampaignContentVersion, Is.EqualTo((uint)authority["contentVersion"]), "generated C# vs TS publication identity");
+            Assert.That(Protocol.CatalogVersion, Is.EqualTo((uint)authority["catalogVersion"]), "generated C# vs TS catalog identity");
             Assert.That(Protocol.DailyMaxMoves, Is.EqualTo((uint)authority["maxMoves"]), "generated C# vs TS pressure limit");
             Assert.That(pair / Protocol.DailyThemes.Length + 1, Is.EqualTo((uint)authority["realm"]));
             var theme = Protocol.DailyThemes[pair % Protocol.DailyThemes.Length];
             Assert.That(theme[0], Is.EqualTo((byte)authority["objective"]["kind"]));
             Assert.That(theme[1], Is.EqualTo((byte)authority["objective"]["value"]));
-            var malformed = e.Fixture["invalidAccounts"]["dailyContentVersion"];
+            var malformed = e.Fixture["invalidAccounts"]["dailyCatalogVersion"];
             var invalid = e.Accounts.ArenaDaily(Envelope(malformed), day);
-            var protocol = e.Accounts.ProtocolConfig(Envelope(e.Fixture["accounts"]["protocol"]));
-            Assert.That((uint)invalid["content_version"], Is.EqualTo(0), "original omitted/zero-filled version");
-            Assert.That((uint)protocol["content_version"], Is.EqualTo(Protocol.CampaignContentVersion));
+            Assert.That((uint)invalid["catalog_version"], Is.EqualTo(0), "original omitted/zero-filled version");
             var valid = e.Accounts.ArenaDaily(Envelope(e.Fixture["accounts"]["daily"]), day);
-            var normalizedInvalid = (JObject)invalid.DeepClone(); normalizedInvalid["content_version"] = valid["content_version"];
+            var normalizedInvalid = (JObject)invalid.DeepClone(); normalizedInvalid["catalog_version"] = valid["catalog_version"];
             Assert.That(JToken.DeepEquals(normalizedInvalid, valid), Is.True, "only the historical missing version differs");
             e.Http.Put(malformed);
             var versionError = await Failure<FormatException>(async () => { await e.Queries.CurrentDaily(); });
-            Assert.That(versionError.Message, Is.EqualTo("Daily content version differs from protocol: expected " + Protocol.CampaignContentVersion + ", observed 0"));
+            Assert.That(versionError.Message, Is.EqualTo("Daily catalog version is unsupported"));
             e.Http.Put(e.Fixture["invalidAccounts"]["dailyMoveLimit"]);
             var movesError = await Failure<FormatException>(async () => { await e.Queries.CurrentDaily(); });
             Assert.That(movesError.Message, Does.StartWith("Daily move limit differs from protocol:"));
@@ -125,15 +123,13 @@ namespace ZKube.Tests.ProductReads
             Assert.That((await e.Queries.SettledBoards(day)).Value.Score.ClaimStatus, Is.EqualTo("expired"));
         }
 
-        [Test] public async Task MissingPlayerCatalogAndBoardRemainDifferentFromEmptySealedResults()
+        [Test] public async Task MissingPlayerAndBoardRemainDifferentFromEmptySealedResults()
         {
             var e = await Environment.Create(); e.Http.Remove(e.Fixture["accounts"]["player"]);
             var campaign = (await e.Queries.Campaign()).Value;
             Assert.That(campaign.Player.Exists, Is.False); Assert.That(campaign.Maps[0].Unlocked, Is.True);
             Assert.That(campaign.Maps.Skip(1).All(map => !map.Unlocked), Is.True);
-            e.Http.Remove(e.Fixture["accounts"]["catalogs"][0]);
-            campaign = (await e.Queries.Campaign()).Value;
-            Assert.That(campaign.Status, Is.EqualTo("missing-catalog")); Assert.That(campaign.TotalStars, Is.Null);
+            Assert.That(campaign.Status, Is.EqualTo("ready")); Assert.That(campaign.TotalStars, Is.Zero);
             var board = (await e.Queries.SettledBoards((uint)e.Fixture["inputs"]["oldDay"])).Value;
             Assert.That(board.Score.Status, Is.EqualTo("missing")); Assert.That(board.Score.ClaimStatus, Is.EqualTo("unavailable"));
         }
@@ -156,15 +152,10 @@ namespace ZKube.Tests.ProductReads
             Assert.That((await e.Queries.CurrentDaily()).Value.Status, Is.EqualTo("paused"));
         }
 
-        [Test] public async Task CatalogAndArenaPlayerRelationshipsRejectSubstitutedAccounts()
+        [Test] public async Task ArenaPlayerRelationshipsRejectSubstitutedAccounts()
         {
             var e = await Environment.Create(); e.Http.Put(e.Fixture["arenaPlayer"]);
             Assert.That((await e.Queries.CurrentDaily()).Value.DailyPlayer["paid_entries"].Value<uint>(), Is.EqualTo(3));
-            foreach (var key in new[] { "catalogMap", "catalogVersion" })
-            {
-                e.Http.Put(e.Fixture["invalidAccounts"][key]);
-                await Failure<FormatException>(async () => { await e.Queries.Campaign(); });
-            }
             foreach (var key in new[] { "arenaOwner", "arenaChallenge" })
             {
                 e.Http.Put(e.Fixture["invalidAccounts"][key]);
@@ -178,13 +169,13 @@ namespace ZKube.Tests.ProductReads
             foreach (var expected in e.Fixture["spectatorCases"])
             {
                 e.Http.Delegated = (bool)expected["delegated"];
-                var result = (await e.Queries.Spectate(e.Owner)).Value;
+                var result = (await e.Queries.Spectate(e.Owner, (ulong)e.Accounts.ActiveRun(Envelope(e.Fixture["accounts"]["active"]), e.Owner)["run_id"])).Value;
                 Assert.That(result.Phase, Is.EqualTo((string)expected["phase"]));
                 var native = new ActiveRunReconciler(e.Accounts).Reconcile(Envelope(e.Fixture["accounts"]["active"]), e.Owner);
                 Assert.That(result.Token.State, Is.EqualTo(native.State)); Assert.That(result.Token.Config, Is.EqualTo(native.Config));
             }
             e.Http.Delegated = false; e.Http.Remove(e.Fixture["accounts"]["active"]);
-            Assert.That((await e.Queries.Spectate(e.Owner)).Value.Phase, Is.EqualTo("archived"));
+            Assert.That((await e.Queries.Spectate(e.Owner, (ulong)e.Accounts.ActiveRun(Envelope(e.Fixture["accounts"]["active"]), e.Owner)["run_id"])).Value.Phase, Is.EqualTo("archived"));
             Assert.That(e.Http.Methods.All(method => method == "getGenesisHash" || method == "getAccountInfo" || method == "getDelegationStatus"), Is.True);
         }
 
@@ -208,7 +199,7 @@ namespace ZKube.Tests.ProductReads
             profile["owner"] = e.Owner; e.Http.Put(profile);
             await Failure<FormatException>(async () => { await e.Queries.Profile(); });
             e.Http.Put(e.Fixture["accounts"]["player"]); e.Http.Relocate = true;
-            Assert.That((await e.Queries.Spectate(e.Owner)).Value.Phase, Is.EqualTo("resolving"));
+            Assert.That((await e.Queries.Spectate(e.Owner, (ulong)e.Accounts.ActiveRun(Envelope(e.Fixture["accounts"]["active"]), e.Owner)["run_id"])).Value.Phase, Is.EqualTo("resolving"));
         }
 
         private static async Task<T> Failure<T>(Func<Task> action) where T : Exception

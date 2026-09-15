@@ -208,7 +208,7 @@ namespace ZKube.Integration.Execution.Tests
         {
             using var signer = new DeviceSigner(Enumerable.Repeat((byte)2, 32).ToArray());
             var actor = PlannerActor.Device(owner, device, Envelope(plans["accounts"]["session"]), sessions, accounts.ProgramId, (long)plans["inputs"]["now"]);
-            var run = RunPlanSnapshot.Decode(accounts, Envelope(plans["runs"]["campaign"]), owner);
+            var run = RunPlanSnapshot.Decode(accounts, Envelope(plans["runs"]["daily"]), owner);
             var plan = planner.RunAction(actor, run, "move", Enumerable.Repeat((byte)7, 32).ToArray(), 1, 2, 4, 0);
             var result = await executor.Execute(plan, "move", new[] { signer }, observer);
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -503,7 +503,7 @@ namespace ZKube.Integration.Execution.Tests
                     return extra.Type == JTokenType.Null ? JValue.CreateNull() : new JObject { ["owner"] = extra["owner"], ["executable"] = extra["executable"],
                         ["lamports"] = extra["lamports"] ?? new JValue(5000000), ["data"] = new JArray(extra["data"], "base64") };
                 var profile = solana["accounts"].Single(row => (string)row["id"] == "player-valid");
-                JToken source = address == (string)profile["address"] ? profile : address == (string)plans["runs"]["campaign"]["address"] ? plans["runs"]["campaign"] : null;
+                JToken source = address == (string)profile["address"] ? profile : address == (string)plans["runs"]["daily"]["address"] ? plans["runs"]["daily"] : null;
                 if (source != null) return new JObject { ["owner"] = source["owner"], ["executable"] = source["executable"], ["lamports"] = 1,
                     ["data"] = new JArray(source["data"], "base64") };
                 if (AbsentNonPlayer) return JValue.CreateNull();

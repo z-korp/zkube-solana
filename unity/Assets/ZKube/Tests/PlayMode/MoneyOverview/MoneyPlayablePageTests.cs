@@ -11,12 +11,31 @@ namespace ZKube.Tests.MoneyOverview
 {
     public sealed partial class MoneyOverviewTests
     {
-        private IEnumerator OpenAcceptedCampaign()
+        [UnityTest] public IEnumerator CampaignResumeBindsItsDeviceLocalAcceptedState()
         {
             yield return PrepareEvidence("owner-overview");
             yield return SessionClick("Connect"); yield return Idle();
+            var local = evidence.Services.Campaign(evidence.Owner).Runs;
+            var start = local.StartCampaign(1, 1);
+            var accepted = local.Act(start.View.RunId, new ZKube.Local.LocalRunAction(ZKube.Local.LocalActionKind.Reroll));
             yield return SessionClick("Campaign"); yield return Idle();
             yield return SessionClick("Resume Campaign"); yield return Idle();
+            var board = host.GetComponent<MoneyBoardHost>().Board;
+            float until = Time.realtimeSinceStartup + 15;
+            while (!board.Ready && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(board.Ready, Is.True, board.ReadinessIssue);
+            CollectionAssert.AreEqual(accepted.View.Token.State, board.Session.Accepted.State);
+            Assert.That(board.Session.Daily, Is.False);
+            Assert.That(evidence.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
+            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+        }
+
+        private IEnumerator OpenAcceptedArcade()
+        {
+            yield return PrepareEvidence("owner-overview");
+            yield return SessionClick("Connect"); yield return Idle();
+            yield return SessionClick("Daily"); yield return Idle();
+            yield return SessionClick("Resume Daily"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(controller.PlayingRun, Is.True);
             float until = Time.realtimeSinceStartup + 15;
@@ -25,11 +44,11 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(run.Board.Ready, Is.True, run.Board.ReadinessIssue);
         }
 
-        [UnityTest] public IEnumerator CampaignResumeInputBindsTheSavedNativeStateWithoutRequestingAnotherRun()
+        [UnityTest] public IEnumerator ArcadeResumeInputBindsTheSavedNativeStateWithoutRequestingAnotherRun()
         {
-            yield return OpenAcceptedCampaign();
+            yield return OpenAcceptedArcade();
             var run = host.GetComponent<MoneyBoardHost>();
-            var observed = evidence.Services.Runs.Inspect("campaign"); yield return Wait(observed);
+            var observed = evidence.Services.Runs.Inspect("daily"); yield return Wait(observed);
             var state = observed.GetAwaiter().GetResult();
             Assert.That(run.Board.Session.Accepted.State, Is.EqualTo(state.Token.State));
             Assert.That(run.Board.PresentedRealmId, Is.EqualTo(run.Board.Session.RealmId));
@@ -41,7 +60,7 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator ForegroundKeepsInputLockedUntilTheBoundObservationCompletes()
         {
-            yield return OpenAcceptedCampaign();
+            yield return OpenAcceptedArcade();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             var run = host.GetComponent<MoneyBoardHost>();
             var held = evidence.HoldNextRead("getAccountInfo");
@@ -65,7 +84,7 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator DisconnectLocksTheVisibleBoardBeforeAwaitingWalletCleanup()
         {
-            yield return OpenAcceptedCampaign();
+            yield return OpenAcceptedArcade();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             var board = host.GetComponent<MoneyBoardHost>().Board;
             var disconnect = controller.Disconnect();
@@ -78,7 +97,7 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator AForegroundReadCompletingDuringAnotherPauseCannotUnlockTheBoard()
         {
-            yield return OpenAcceptedCampaign();
+            yield return OpenAcceptedArcade();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             var run = host.GetComponent<MoneyBoardHost>();
             var held = evidence.HoldNextRead("getAccountInfo");
@@ -116,7 +135,7 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator AnObservationReleasedAfterCloseCannotRestoreTheRetiredBoard()
         {
-            yield return OpenAcceptedCampaign();
+            yield return OpenAcceptedArcade();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             var run = host.GetComponent<MoneyBoardHost>();
             var held = evidence.HoldNextRead("getAccountInfo");
@@ -138,14 +157,14 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator HidingThePageRetiresOnlyItsBoardAndPreservesTheSavedRun()
         {
-            yield return OpenAcceptedCampaign();
+            yield return OpenAcceptedArcade();
             var controller = host.GetComponent<MoneyStartup>().Controller;
-            var marker = evidence.Services.RunMarkers.Load(evidence.Owner, "campaign"); yield return Wait(marker);
+            var marker = evidence.Services.RunMarkers.Load(evidence.Owner, "daily"); yield return Wait(marker);
             Assert.That(marker.GetAwaiter().GetResult(), Is.Not.Null);
             controller.enabled = false; yield return null;
             Assert.That(controller.PlayingRun, Is.False);
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(), Is.Empty);
-            var retained = evidence.Services.RunMarkers.Load(evidence.Owner, "campaign"); yield return Wait(retained);
+            var retained = evidence.Services.RunMarkers.Load(evidence.Owner, "daily"); yield return Wait(retained);
             Assert.That(retained.GetAwaiter().GetResult().ActiveRun, Is.EqualTo(marker.GetAwaiter().GetResult().ActiveRun));
             controller.enabled = true; yield return Idle();
             Assert.That(controller.PlayingRun, Is.False);

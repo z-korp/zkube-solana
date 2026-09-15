@@ -180,7 +180,8 @@ namespace ZKube.Integration.Transport
             return new RpcSimulation(Error(value["err"]), logs, value["unitsConsumed"] == null ? (ulong?)null : Unsigned(value["unitsConsumed"]));
         }
 
-        // The caller durably journals these exact signed bytes before this call.
+        // Stateful operations journal these exact signed bytes. Cosmetic star
+        // maxima instead retain their idempotent retry intent in the play record.
         // A thrown transport/protocol error after submission is an unknown outcome;
         // this method never retries, refreshes a blockhash, or re-signs an intent.
         public async Task<string> Send(RpcEndpoint endpoint, byte[] transaction, RpcSubmissionPolicy policy, RpcBlockhash lease, CancellationToken cancellation = default)

@@ -47,7 +47,7 @@ namespace ZKube.Tests
             {
                 Product = new LocalProductStore(_ => null, (_, __) => { if (FailSave) throw new InvalidOperationException("Disk full"); });
                 if (name) Product.Write(current => { current.Name = "Player"; return current; });
-                Runs = new LocalRunClient(Product, () => Now);
+                Runs = new LocalRunClient(Product, () => Now, StoreCampaignPolicy.PurchaseGate(Product));
                 Billing = new CampaignBilling(Driver, () => new CampaignBillingAnswer(Product.Read.CampaignOwned, Product.Read.CampaignPrice, CampaignBillingStatus.Updated), Runs.ApplyCampaignEntitlement);
                 Flow = new StoreAppFlow(Product, Runs, Billing);
             }

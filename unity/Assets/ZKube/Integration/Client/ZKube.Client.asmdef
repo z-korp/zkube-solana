@@ -1,7 +1,7 @@
 {
   "name": "ZKube.Client",
   "rootNamespace": "ZKube.Integration.Client",
-  "references": [
+  "references": ["ZKube.Local", "ZKube.Local.Runs",
     "ZKube.Integration",
     "ZKube.Core",
     "ZKube.Generated",

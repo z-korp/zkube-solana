@@ -27,10 +27,17 @@ namespace ZKube.Integration.Presentation
         {
             if (!CanBrowse() || browseLevel == 0 || boardHost == null) return Task.CompletedTask;
             byte realm = browseRealm, trial = browseLevel;
-            return OpenRun(() => Flow.StartCampaignRun(realm, trial), "Trial " + trial);
+            return OpenLocalCampaign(() => Flow.StartCampaignRun(realm, trial), "Trial " + trial);
         }
         public Task ResumeCampaignRun() => boardHost == null ? Task.CompletedTask :
-            OpenRun(() => Flow.OpenSavedRun("campaign"), "Campaign");
+            OpenLocalCampaign(() => Flow.OpenSavedCampaign(), "Campaign");
+
+        private Task OpenLocalCampaign(Func<Task<MoneyRead<MoneyCampaignRun>>> action, string title) => RunCampaign(async (epoch, token) => {
+            var result = await action();
+            if (!Current(epoch) || !result.IsCurrent) return;
+            boardHost.Open(result.Value, title, textScale);
+            RetireArtwork(); root.SetActive(false);
+        });
 
         private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action, string title) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
             status.text = "Opening your accepted run…";
@@ -59,15 +66,9 @@ namespace ZKube.Integration.Presentation
         private void DrawRunControls(MoneyCampaignState state)
         {
             if (boardHost == null) return;
-            if (state.PendingTransaction)
-                Button(campaignPanel, "Check transaction", () => _ = CheckTransaction());
-            if (state.Run.Phase != "none")
+            if (state.Run != null)
                 Button(campaignPanel, "Resume Campaign", () => _ = ResumeCampaignRun());
-            if (!state.Session.Current || state.Session.Funding != "ready")
-                Button(campaignPanel, "Set up this device", () => _ = OpenSession());
-            if (browseLevel == 0 || state.Run.Phase != "none" || state.PendingTransaction ||
-                state.Progress.Status != "ready" || !state.Progress.Player.Exists ||
-                !state.Session.Current || state.Session.Funding != "ready") return;
+            if (browseLevel == 0 || state.Run != null || state.Progress.Status != "ready") return;
             var realm = state.Browse.Realms.Single(value => value.MapId == browseRealm);
             if (realm.Enabled && realm.Unlocked && realm.Levels[browseLevel - 1].CanInspect)
                 Button(campaignPanel, "Start trial", () => _ = StartSelectedTrial());

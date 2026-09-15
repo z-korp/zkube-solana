@@ -94,10 +94,8 @@ namespace ZKube.Integration.Client
             uint pair = NativeEngine.DailyPairIndex(day);
             byte realm = checked((byte)(pair / Protocol.DailyThemes.Length + 1));
             var theme = Protocol.DailyThemes[pair % Protocol.DailyThemes.Length];
-            if ((uint)daily["content_version"] != (uint)protocol["content_version"])
-                throw new FormatException("Daily content version differs from protocol: expected " + (uint)protocol["content_version"] + ", observed " + (uint)daily["content_version"]);
-            if ((uint)protocol["content_version"] != Protocol.CampaignContentVersion)
-                throw new FormatException("Daily publication does not match the generated content version");
+            if ((uint)daily["catalog_version"] != Protocol.CatalogVersion)
+                throw new FormatException("Daily catalog version is unsupported");
             if ((uint)daily["pressure"]["max_moves"] != Protocol.DailyMaxMoves)
                 throw new FormatException("Daily move limit differs from protocol: expected " + Protocol.DailyMaxMoves + ", observed " + (uint)daily["pressure"]["max_moves"]);
             if ((byte)daily["map_id"] != realm || (byte)daily["daily_theme"]["kind"] != theme[0] ||

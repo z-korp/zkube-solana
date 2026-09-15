@@ -25,7 +25,6 @@ namespace ZKube.Integration.Planning
         public string ArenaPlayer(string daily, string owner) => Pda(Text("arena_player"), Key(daily), Key(owner));
         public string Board(uint day, string kind) => kind == "score" || kind == "theme" ?
             Pda(Text("arena_board"), Key(Daily(day)), Text(kind)) : throw new ArgumentException("Invalid board kind");
-        public string MapCatalog(uint contentVersion, byte map) => Pda(Text("map"), Number(contentVersion, 4), new[] { map });
         public string ProtocolAddress => Pda(Text("protocol"));
         public string ArcadeAddress => Pda(Text("arcade"));
         public string CreditVaultAddress => Pda(Text("credit_vault"));
@@ -96,32 +95,27 @@ namespace ZKube.Integration.Planning
             return SelectEntryClaims(candidates, owner, currentDay, now);
         }
 
-        private static void RequireFreeSlot(PlannerActor actor, PlayerPlanSnapshot player, bool campaign, AccountEnvelope occupied)
+        private static void RequireFreeSlot(PlannerActor actor, PlayerPlanSnapshot player, AccountEnvelope occupied)
         {
             if (player == null || player.Owner != actor.Owner) throw new ArgumentException("Missing matching player state");
-            if ((campaign ? player.CampaignRunId : player.DailyRunId) != 0) throw new InvalidOperationException("Resume the active run in this slot");
+            if (player.DailyRunId != 0) throw new InvalidOperationException("Resume the active run in this slot");
             if (occupied != null) throw new InvalidOperationException("Run ID is already occupied; reconcile before preparation");
             if (player.NextRunId == ulong.MaxValue) throw new InvalidOperationException("Run ID sequence exhausted");
         }
 
-        public TransactionPlan PrepareCampaign(PlannerActor actor, PlayerPlanSnapshot player, ContentPlanSnapshot content,
-            byte map, byte level, AccountEnvelope occupied = null)
+        public TransactionPlan RecordCampaignStars(PlannerActor actor, byte[] stars)
         {
-            RequireFreeSlot(actor, player, true, occupied);
-            if (map < 1 || map > Protocol.Realms.Length || level < 1 || level > Protocol.CampaignTargets.Length)
-                throw new ArgumentException("Unknown Campaign level");
+            if (stars == null || stars.Length != 25) throw new ArgumentException("Campaign record requires 25 packed bytes");
             var keys = ActorAccounts(actor);
-            keys["protocol"] = ProtocolAddress; keys["player_state"] = Player(actor.Owner);
-            keys["map_catalog"] = MapCatalog(content.Version, map);
-            keys["active_run"] = ActiveRun(actor.Owner, player.NextRunId);
-            return Plan(actor, PlanRoute.Base, new[] { Instruction("prepare_campaign_run", new JObject {
-                ["run_id"] = player.NextRunId, ["map_id"] = map, ["level"] = level }, keys) }, runId: player.NextRunId);
+            keys["player_state"] = Player(actor.Owner);
+            return Plan(actor, PlanRoute.Base, new[] { Instruction("record_campaign_stars",
+                new JObject { ["stars"] = new JArray(stars.Select(value => (int)value)) }, keys) }, PlanningConstants.SettlementReserveLamports);
         }
 
         public TransactionPlan PrepareDaily(PlannerActor actor, PlayerPlanSnapshot player, DailyEntrySnapshot daily,
             IEnumerable<ValidatedBoardReward> rewards, long now, AccountEnvelope occupied = null)
         {
-            RequireFreeSlot(actor, player, false, occupied);
+            RequireFreeSlot(actor, player, occupied);
             if (player.Kredits < 1) throw new InvalidOperationException("Buy a Kredit before entering Daily");
             var claims = SelectEntryClaims(rewards, actor.Owner, daily.DayId, now);
             var keys = ActorAccounts(actor);
@@ -201,9 +195,8 @@ namespace ZKube.Integration.Planning
             if (abandonFirst) list.AddRange(RunAction(actor, run, "finish").Instructions);
             var keys = new Dictionary<string, string> { ["active_run"] = ActiveRun(run.Owner, run.RunId),
                 ["player_state"] = Player(run.Owner), ["rent_recipient"] = run.RentPayer, ["owner"] = run.Owner };
-            bool daily = run.Mode == "Daily";
-            if (daily) { keys["arena_daily"] = run.DailyAddress; keys["arena_player"] = ArenaPlayer(run.DailyAddress, run.Owner); }
-            list.Add(Instruction(daily ? "consume_arena_run" : "consume_campaign_run", new JObject(), keys));
+            keys["arena_daily"] = run.DailyAddress; keys["arena_player"] = ArenaPlayer(run.DailyAddress, run.Owner);
+            list.Add(Instruction("consume_arena_run", new JObject(), keys));
             return Plan(actor, PlanRoute.Base, list, runId: run.RunId);
         }
 

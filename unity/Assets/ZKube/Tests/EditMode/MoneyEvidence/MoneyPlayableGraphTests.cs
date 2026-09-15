@@ -19,14 +19,14 @@ namespace ZKube.Tests.MoneyPlayableGraph
     public sealed class MoneyPlayableGraphTests
     {
         private static string Source(string mode) => File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath,
-            "../../fixtures/unity-money-" + (mode == "daily" ? "daily-" : "") + "playable-v1.json")));
+            "../../fixtures/unity-money-daily-playable-v1.json")));
         private static Task<MoneyPlayableEvidenceGraph> Create(string mode) => MoneyPlayableEvidenceGraph.Create(Source(mode),
             File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")),
             File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
         private static async Task<MoneyRunLaunch> Open(MoneyPlayableEvidenceGraph graph, MoneyAppFlow flow)
         {
             await flow.Connect();
-            var opening = graph.Mode == "daily" ? flow.StartDailyRun() : flow.OpenSavedRun("campaign");
+            var opening = flow.StartDailyRun();
             return await BindOpening(graph, opening);
         }
         private static async Task<MoneyRunLaunch> BindOpening(MoneyPlayableEvidenceGraph graph, Task<MoneyRead<MoneyRunLaunch>> opening)
@@ -103,10 +103,10 @@ namespace ZKube.Tests.MoneyPlayableGraph
             }
             var final = fixture["steps"].Last["account"]["token"]["state"];
             CollectionAssert.AreEqual(Convert.FromBase64String((string)final), token.State);
-            Assert.That(NativeEngine.Summary(token).Phase, Is.EqualTo((byte)(graph.Mode == "daily" ? CorePhase.Finished : CorePhase.LevelComplete)));
+            Assert.That(NativeEngine.Summary(token).Phase, Is.EqualTo((byte)CorePhase.Finished));
             return run;
         }
-        [TestCase("campaign"), TestCase("daily")] public async Task ActualCompositionExecutesTheEntireNativeRunAndConsumesItsResultOnce(string mode)
+        [TestCase("daily")] public async Task ActualCompositionExecutesTheEntireNativeRunAndConsumesItsResultOnce(string mode)
         {
             var graph = await Create(mode); var flow = new MoneyAppFlow(graph.Services);
             try
@@ -121,7 +121,7 @@ namespace ZKube.Tests.MoneyPlayableGraph
                 Assert.That(await graph.Services.RunMarkers.Load(graph.Owner, mode), Is.Null);
                 Assert.That(await graph.Services.Journal.Load(graph.Owner), Is.Null);
                 var progress = (await flow.RefreshCampaign()).Value;
-                Assert.That(progress.Browse.Realms[0].Levels[0].Stars, Is.EqualTo(mode == "campaign" ? 3 : 0));
+                Assert.That(progress.Browse.Realms[0].Levels[0].Stars, Is.EqualTo(0));
                 if (mode == "daily")
                 {
                     var daily = (await flow.RefreshDaily()).Value;
@@ -138,7 +138,7 @@ namespace ZKube.Tests.MoneyPlayableGraph
             }
             finally { await flow.StopAsync(); }
         }
-        [TestCase("campaign"), TestCase("daily")] public async Task PendingRerollReconcilesItsExactReceiptBeforeOracleDeliveryWithoutResending(string mode)
+        [TestCase("daily")] public async Task PendingRerollReconcilesItsExactReceiptBeforeOracleDeliveryWithoutResending(string mode)
         {
             var graph = await Create(mode); var flow = new MoneyAppFlow(graph.Services);
             try
@@ -166,7 +166,7 @@ namespace ZKube.Tests.MoneyPlayableGraph
             }
             finally { await flow.StopAsync(); }
         }
-        [TestCase("campaign"), TestCase("daily")] public async Task SettlementRetryReconcilesDelayedCopybackBeforeSendingTheSingleConsume(string mode)
+        [TestCase("daily")] public async Task SettlementRetryReconcilesDelayedCopybackBeforeSendingTheSingleConsume(string mode)
         {
             var graph = await Create(mode); var flow = new MoneyAppFlow(graph.Services);
             try
@@ -187,7 +187,7 @@ namespace ZKube.Tests.MoneyPlayableGraph
             }
             finally { await flow.StopAsync(); }
         }
-        [TestCase("campaign"), TestCase("daily")] public async Task SettlementRetryRetainsTheConfirmedConsumeAfterItsRunSlotDisappears(string mode)
+        [TestCase("daily")] public async Task SettlementRetryRetainsTheConfirmedConsumeAfterItsRunSlotDisappears(string mode)
         {
             var graph = await Create(mode); var flow = new MoneyAppFlow(graph.Services);
             try

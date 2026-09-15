@@ -29,7 +29,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/solana.json"),
                 File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/session.json"),
                 new MoneyConnectionConfig("https://base.invalid/", "https://router.invalid/", env.Http.Genesis),
-                env.Http, new RunFlowNative(env.Native), env.Storage, () => env.Now, runClientSeed);
+                env.Http, new RunFlowNative(env.Native), env.Storage, () => env.Now, owner => new ZKube.Local.LocalProductStore(owner: owner), runClientSeed);
             var flow = new MoneyAppFlow(services); await flow.Connect(); return flow;
         }
 
@@ -40,7 +40,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             var flow = await CreateFlow(env, () => { requested++; return seed; });
             try
             {
-                var launch = (await flow.OpenSavedRun("campaign")).Value;
+                var launch = (await flow.OpenSavedRun("daily")).Value;
                 Assert.That(requested, Is.Zero);
                 var result = (await flow.SubmitRun(launch.Run, launch.Operation.State.Token,
                     RunClientAction.Reroll, 0, 0, 0, env.Now)).Value;
@@ -64,7 +64,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var flow = await CreateFlow(env, () => length < 0 ? null : new byte[length]);
                 try
                 {
-                    var launch = (await flow.OpenSavedRun("campaign")).Value;
+                    var launch = (await flow.OpenSavedRun("daily")).Value;
                     var result = (await flow.SubmitRun(launch.Run, launch.Operation.State.Token,
                         RunClientAction.Reroll, 0, 0, 0, env.Now)).Value;
                     Assert.That(result.Error, Is.TypeOf<InvalidOperationException>());
@@ -78,7 +78,7 @@ namespace ZKube.Integration.Client.Runs.Tests
 
         [Test] public async Task MoneyRunReadFailureRetainsActualConfirmedReceiptAndReportsTheNewFailure()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var env = await Environment.Create(); var flow = await CreateFlow(env);
                 try
@@ -107,7 +107,7 @@ namespace ZKube.Integration.Client.Runs.Tests
 
         [Test] public async Task MoneyRunSettlementUsesTheActualDispatcherAndKeepsOrderedCommitConsumeReceipts()
         {
-            foreach (string mode in new[] { "campaign", "daily" })
+            foreach (string mode in new[] { "daily" })
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished";
                 var flow = await CreateFlow(env);

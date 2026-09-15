@@ -1,9 +1,33 @@
 {
   "name": "ZKube.MoneyOverview.Tests",
-  "references": ["ZKube.MoneyStartup", "ZKube.MoneyPresentation", "ZKube.MoneyApp", "ZKube.MoneyEvidence", "ZKube.MoneyEvidenceHost", "ZKube.Integration", "ZKube.Execution", "ZKube.Presentation", "ZKube.Client", "ZKube.Core", "ZKube.Generated", "Unity.TextMeshPro", "Unity.ugui"],
-  "defineConstraints": ["!ZKUBE_STORE", "UNITY_EDITOR || ZKUBE_EVIDENCE"],
+  "references": [
+    "ZKube.MoneyStartup",
+    "ZKube.MoneyPresentation",
+    "ZKube.MoneyApp",
+    "ZKube.MoneyEvidence",
+    "ZKube.MoneyEvidenceHost",
+    "ZKube.Integration",
+    "ZKube.Execution",
+    "ZKube.Presentation",
+    "ZKube.Client",
+    "ZKube.Core",
+    "ZKube.Generated",
+    "Unity.TextMeshPro",
+    "Unity.ugui",
+    "ZKube.Local",
+    "ZKube.Local.Runs"
+  ],
+  "defineConstraints": [
+    "!ZKUBE_STORE",
+    "UNITY_EDITOR || ZKUBE_EVIDENCE"
+  ],
   "overrideReferences": true,
-  "precompiledReferences": ["nunit.framework.dll", "Newtonsoft.Json.dll"],
-  "optionalUnityReferences": ["TestAssemblies"],
+  "precompiledReferences": [
+    "nunit.framework.dll",
+    "Newtonsoft.Json.dll"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
   "autoReferenced": false
 }

@@ -15,14 +15,14 @@ namespace ZKube.Tests.MoneyPlayableTrajectory
     {
         private static readonly string Root = Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
         private static JObject Fixture() => JObject.Parse(File.ReadAllText(Path.Combine(Root,
-            "fixtures/unity-money-playable-v1.json")));
+            "fixtures/unity-money-daily-playable-v1.json")));
         private static string Generated(string file) => File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated", file));
         private static byte[] Bytes(JToken value) => Convert.FromBase64String((string)value);
         private static AccountEnvelope Envelope(JToken row) => new AccountEnvelope((string)row["address"], (string)row["owner"],
             (bool)row["executable"], Bytes(row["data"]));
         private static AccountBindings Accounts() => new AccountBindings(Generated("solana.json"), Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
 
-        [Test] public void EveryCampaignSnapshotAndTraceAgreesAcrossWasmNativeAndValidatedAccounts()
+        [Test] public void EveryDailySnapshotAndTraceAgreesAcrossWasmNativeAndValidatedAccounts()
         {
             var fixture = Fixture(); var inputs = fixture["inputs"];
             var native = new ActiveRunReconciler(Accounts());
@@ -32,7 +32,7 @@ namespace ZKube.Tests.MoneyPlayableTrajectory
                 var command = step["command"]; RunTransition transition = null;
                 switch ((string)command["kind"])
                 {
-                    case "requestVrf": break;
+                    case "entry": case "requestVrf": break;
                     case "oracleVrf": transition = NativeEngine.ApplyVrf(token, (uint)command["requestCounter"], Bytes(command["output"])); break;
                     case "reroll": transition = NativeEngine.RequestReroll(token, (uint)command["expectedAction"]); break;
                     case "bonus": transition = NativeEngine.ApplyBonus(token, (uint)command["expectedAction"], (byte)command["row"], (byte)command["column"]); break;
@@ -51,8 +51,8 @@ namespace ZKube.Tests.MoneyPlayableTrajectory
                 CollectionAssert.AreEqual(token.State, decoded.State);
                 CollectionAssert.AreEqual(Bytes(step["account"]["token"]["config"]), decoded.Config);
             }
-            Assert.That(NativeEngine.Summary(token).Phase, Is.EqualTo((byte)CorePhase.LevelComplete));
-            Assert.That(NativeEngine.Summary(token).LatchedStarSources, Is.EqualTo(7));
+            Assert.That(NativeEngine.Summary(token).Phase, Is.EqualTo((byte)CorePhase.Finished));
+            Assert.That(NativeEngine.Summary(token).LatchedStarSources, Is.Zero);
         }
 
         [Test] public void ActualCSharpPlansMatchEveryTypeScriptActionAndSettlementMessage()
@@ -68,7 +68,7 @@ namespace ZKube.Tests.MoneyPlayableTrajectory
             foreach (var step in fixture["steps"])
             {
                 var command = step["command"]; string kind = (string)command["kind"];
-                if (kind != "oracleVrf")
+                if (kind != "oracleVrf" && kind != "entry")
                 {
                     var run = RunPlanSnapshot.Decode(accounts, Envelope(accepted), actor.Owner);
                     var plan = planner.RunAction(actor, run, kind == "requestVrf" ? "vrf" : kind, Bytes(inputs["clientSeed"]),

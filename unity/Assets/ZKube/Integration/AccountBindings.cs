@@ -161,16 +161,6 @@ namespace ZKube.Integration
                 .Select(row => new ValidatedBoardReward(dayId, kind, row.Position, board.SealedAt, row.Claimed, owner, board.Address)).ToArray());
         }
 
-        public JObject MapCatalog(AccountEnvelope envelope, uint contentVersion, byte mapId)
-        {
-            var fields = DecodeFixed("MapCatalog", envelope);
-            RequireIdentity(envelope, fields, Address("map", LittleDay(contentVersion), new[] { mapId }), protocolVersion);
-            if ((uint)fields["content_version"] != contentVersion || (byte)fields["map_id"] != mapId ||
-                mapId < 1 || mapId > Protocol.Realms.Length || fields["levels"].Count() != Protocol.CampaignTargets.Length)
-                throw new FormatException("MapCatalog relationship is invalid");
-            return fields;
-        }
-
         public JObject ArenaPlayer(AccountEnvelope envelope, uint dayId, string owner)
         {
             var fields = DecodeFixed("ArenaPlayer", envelope);

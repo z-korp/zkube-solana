@@ -27,7 +27,8 @@ namespace ZKube.Integration.App.Tests
                 Assert.That(read.Value.Session.Status, Is.EqualTo("none"));
                 Assert.That(read.Value.Pending.Signature, Is.EqualTo(pending.Signature));
                 Assert.That((await graph.Services.Journal.Load(graph.Owner)).Signature, Is.EqualTo(pending.Signature));
-                Assert.That(graph.Calls.Skip(before).Any(call => call.Boundary == "base" || call.Operation == "authorize"), Is.False);
+                Assert.That(graph.Calls.Skip(before).Any(call => call.Operation == "getSignatureStatuses" ||
+                    call.Operation == "sendTransaction" || call.Operation == "authorize"), Is.False);
                 var receipt = (await flow.ResumePending()).Value;
                 Assert.That(receipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
                 Assert.That(receipt.Signature, Is.EqualTo(pending.Signature));
@@ -64,7 +65,8 @@ namespace ZKube.Integration.App.Tests
                 using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
                 try { await flow.RefreshSession(cancelled.Token); Assert.Fail("Expected cancellation"); }
                 catch (OperationCanceledException) { }
-                Assert.That(graph.Calls.Count, Is.EqualTo(before));
+                Assert.That(graph.Calls.Skip(before).All(call => call.Operation == "getAccountInfo"), Is.True,
+                    "Only the independent Campaign record read may complete");
             }
             finally { await flow.StopAsync(); }
         }

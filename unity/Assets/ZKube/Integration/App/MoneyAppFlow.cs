@@ -24,12 +24,12 @@ namespace ZKube.Integration.App
         public string Owner { get; }
         public PlayerProfile Profile { get; }
         public SessionAssessment Session { get; }
-        public RunClientState Campaign { get; }
+        public ZKube.Local.LocalRunView Campaign { get; }
         public RunClientState Daily { get; }
         public PendingTransaction Pending { get; }
         public ExecutionResult PreviousOperation { get; }
         internal MoneyOwnerState(string owner, PlayerProfile profile, SessionAssessment session,
-            RunClientState campaign, RunClientState daily, PendingTransaction pending, ExecutionResult operation)
+            ZKube.Local.LocalRunView campaign, RunClientState daily, PendingTransaction pending, ExecutionResult operation)
         { Owner = owner; Profile = profile; Session = session; Campaign = campaign; Daily = daily; Pending = pending; PreviousOperation = operation; }
     }
 
@@ -128,7 +128,7 @@ namespace ZKube.Integration.App
                     // identity cancellation; hold this read slot until it ends.
                     var session = await services.SessionLifecycle.Inspect().ConfigureAwait(false); Require(read, lease);
                     var profile = await services.Products.Profile(read.Token).ConfigureAwait(false); Require(read, lease);
-                    var campaign = await services.Runs.Inspect("campaign", read.Token).ConfigureAwait(false); Require(read, lease);
+                    var campaign = services.Campaign(lease.Owner).Runs.Active("campaign"); Require(read, lease);
                     var daily = await services.Runs.Inspect("daily", read.Token).ConfigureAwait(false); Require(read, lease);
                     var remaining = await services.Journal.Load(lease.Owner).ConfigureAwait(false); Require(read, lease);
                     previous = ReadOwnerOperation(out _);
@@ -145,6 +145,7 @@ namespace ZKube.Integration.App
             long generation = InvalidateOwner();
             string owner = await services.Identity.Connect(expectedOwner).ConfigureAwait(false);
             var lease = services.Identity.Lease();
+            services.SyncCampaign(lease);
             RequireOwnerGeneration(generation, lease);
             return new MoneyRead<string>(owner, () => CurrentOwnerGeneration(generation, lease));
         });
@@ -154,6 +155,7 @@ namespace ZKube.Integration.App
         public Task<MoneyRead<SessionEnsureResult>> EnsureSession() => Track(async () => {
             var lease = services.Identity.Lease(); long generation = InvalidateOwner();
             var result = await services.SessionLifecycle.Ensure().ConfigureAwait(false);
+            services.SyncCampaign(lease);
             RememberOwnerOperation(lease, result.Operation, result.Action == "recover");
             RequireOwnerGeneration(generation, lease);
             return new MoneyRead<SessionEnsureResult>(result, () => CurrentOwnerGeneration(generation, lease));
@@ -303,6 +305,8 @@ namespace ZKube.Integration.App
             {
                 var errors = InvalidateAll(); errors.AddRange(CancelAll(lifetime));
                 try { await Task.WhenAll(pending).ConfigureAwait(false); }
+                catch (Exception error) { errors.Add(error); }
+                try { await services.DrainCampaignSync().ConfigureAwait(false); }
                 catch (Exception error) { errors.Add(error); }
                 try { await services.Executor.WithIdle(() => Task.CompletedTask).ConfigureAwait(false); }
                 catch (Exception error) { errors.Add(error); }
