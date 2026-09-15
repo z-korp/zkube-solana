@@ -131,12 +131,6 @@ pub struct PrepareArenaDaily<'info> {
         constraint = day_id > arcade_archive.last_daily_id @ ErrorCode::InvalidPeriod
     )]
     pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
-    #[account(
-        constraint = realm_map_catalog.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = realm_map_catalog.content_version == protocol.content_version @ ErrorCode::ContentVersionMismatch,
-        constraint = realm_map_catalog.enabled @ ErrorCode::MapDisabled
-    )]
-    pub realm_map_catalog: Box<Account<'info, MapCatalog>>,
     #[account(init, payer = payer, space = 8 + ArenaDaily::INIT_SPACE,
         seeds = [ARENA_DAILY_SEED, day_id.to_le_bytes().as_ref()], bump)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
@@ -160,18 +154,12 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
     );
     let (opens_at, runs_close_at, recovery_deadline_at) = day_window(day_id)?;
     let content = daily_content_for_day(day_id);
-    validate_daily_map_catalog(
-        &ctx.accounts.realm_map_catalog,
-        content.realm_map_id,
-        ctx.accounts.protocol.content_version,
-    )?;
-    let map_rules = ctx.accounts.realm_map_catalog.map_rules;
-    let rules = daily_level_rules(map_rules);
+    let realm = zkube_core::REALM_RULES[usize::from(content.realm_map_id - 1)];
+    let rules = RealmRuleSnapshot::from_core(realm);
     let rules_hash = zkube_core::daily_rules_hash_with::<SolanaSha256>(
         day_id,
-        ctx.accounts.protocol.content_version,
-        map_rules.guardian.to_core()?,
-        map_rules.starting_rows,
+        realm.guardian,
+        realm.starting_height,
         content.objective.to_core()?,
     )
     .0;
@@ -181,7 +169,7 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         arcade_config: ctx.accounts.arcade_config.key(),
         status: PeriodStatus::Funding,
         predecessor_rollover_applied: false,
-        content_version: ctx.accounts.protocol.content_version,
+        catalog_version: zkube_core::CATALOG_VERSION,
         rules_hash,
         map_id: content.realm_map_id,
         daily_theme: content.objective,
@@ -802,7 +790,6 @@ fn initialize_arena_run(
         lifecycle: RunLifecycle::Prepared,
         rules_hash: daily.rules_hash,
         map_id: daily.map_id,
-        level: 1,
         rules: daily.rules,
         daily_theme: daily.daily_theme,
         current_tier: 0,
@@ -832,7 +819,6 @@ fn canonical_initial_replay(
 ) -> Result<[u8; 32]> {
     let replay_mode = match mode {
         RunMode::Daily => zkube_core::ReplayMode::Ranked,
-        RunMode::Campaign => return err!(ErrorCode::InvalidState),
     };
     let domain = zkube_core::ChainDomain(replay_domain);
     let player = zkube_core::derive_player_id_with::<SolanaSha256>(domain, owner.to_bytes());
@@ -1787,43 +1773,6 @@ pub fn handler_withdraw_operator_revenue(
     Ok(())
 }
 
-fn daily_level_rules(realm: CampaignMapRuleSnapshot) -> LevelRuleSnapshot {
-    LevelRuleSnapshot {
-        level: 1,
-        points_required: u32::MAX,
-        difficulty: 0,
-        primary: ConstraintSnapshot::default(),
-        secondary: ConstraintSnapshot::default(),
-        guardian: realm.guardian,
-        starting_rows: realm.starting_rows,
-    }
-}
-
-fn validate_daily_map_catalog(
-    catalog: &Account<'_, MapCatalog>,
-    expected_map_id: u8,
-    content_version: u32,
-) -> Result<()> {
-    require!(
-        catalog.version == ACCOUNT_VERSION
-            && catalog.content_version == content_version
-            && catalog.map_id == expected_map_id
-            && catalog.enabled,
-        ErrorCode::InvalidMap
-    );
-    let (expected, bump) = Pubkey::find_program_address(
-        &[
-            MAP_CATALOG_SEED,
-            &content_version.to_le_bytes(),
-            &[expected_map_id],
-        ],
-        &crate::ID,
-    );
-    require_keys_eq!(catalog.key(), expected, ErrorCode::InvalidMap);
-    require!(catalog.bump == bump, ErrorCode::InvalidMap);
-    Ok(())
-}
-
 fn transfer_from_signer<'info>(
     signer: &Signer<'info>,
     destination: &AccountInfo<'info>,
@@ -1960,16 +1909,10 @@ mod tests {
 
     #[test]
     fn campaign_and_daily_share_guardian_rules() {
-        let realm = CampaignMapRuleSnapshot {
-            guardian: GuardianSnapshot {
-                bonus: 2,
-                trigger: 8,
-                threshold: 12,
-            },
-            starting_rows: 6,
-        };
-        let daily = daily_level_rules(realm);
-        assert_eq!(daily.guardian, realm.guardian);
-        assert_eq!(daily.starting_rows, realm.starting_rows);
+        for realm in zkube_core::REALM_RULES {
+            let daily = RealmRuleSnapshot::from_core(realm);
+            assert_eq!(daily.guardian.to_core().unwrap(), realm.guardian);
+            assert_eq!(daily.starting_rows, realm.starting_height);
+        }
     }
 }

@@ -15,7 +15,7 @@ use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuild
 use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 
 use crate::error::ErrorCode;
-use crate::game::{sha256v, Bonus, Constraint, ConstraintKind, Grid, RunEngine, RunPhase};
+use crate::game::{sha256v, Bonus, ConstraintKind, Grid, RunEngine, RunPhase};
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
@@ -562,10 +562,7 @@ fn action_needs_row_vrf(lifecycle: RunLifecycle) -> bool {
 }
 
 fn run_has_terminal_projection(lifecycle: RunLifecycle, finished_at: i64) -> bool {
-    matches!(
-        lifecycle,
-        RunLifecycle::LevelComplete | RunLifecycle::Finished
-    ) && finished_at > 0
+    matches!(lifecycle, RunLifecycle::Finished) && finished_at > 0
 }
 
 #[commit]
@@ -587,10 +584,7 @@ pub struct CommitRun<'info> {
 
 pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
     require!(
-        matches!(
-            ctx.accounts.active_run.mode,
-            RunMode::Campaign | RunMode::Daily
-        ),
+        matches!(ctx.accounts.active_run.mode, RunMode::Daily),
         ErrorCode::InvalidState
     );
     require!(
@@ -616,82 +610,6 @@ pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
     Ok(())
 }
 
-#[derive(Accounts)]
-pub struct ConsumeCampaignRun<'info> {
-    #[account(
-        mut,
-        close = rent_recipient,
-        owner = crate::ID,
-        seeds = [ACTIVE_RUN_SEED, b"active", owner.key().as_ref(), active_run.run_id.to_le_bytes().as_ref()],
-        bump = active_run.bump,
-        has_one = owner @ ErrorCode::Unauthorized,
-        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub active_run: Box<Account<'info, ActiveRun>>,
-    #[account(
-        mut,
-        seeds = [PLAYER_STATE_SEED, owner.key().as_ref()],
-        bump = player_state.bump,
-        has_one = owner @ ErrorCode::Unauthorized,
-        constraint = player_state.schema_valid() @ ErrorCode::InvalidVersion
-    )]
-    pub player_state: Box<Account<'info, PlayerState>>,
-    /// CHECK: Player wallet pinned by every durable account and active_run.
-    pub owner: UncheckedAccount<'info>,
-    /// CHECK: Exact original payer persisted on the closing account.
-    #[account(
-        mut,
-        address = active_run.rent_payer @ ErrorCode::InvalidOwner
-    )]
-    pub rent_recipient: UncheckedAccount<'info>,
-}
-
-pub fn handler_consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<()> {
-    let active = &ctx.accounts.active_run;
-    require!(active.mode == RunMode::Campaign, ErrorCode::InvalidState);
-    require!(
-        ctx.accounts
-            .player_state
-            .campaign_reservation_matches(active.run_id),
-        ErrorCode::InvalidRunId
-    );
-    require!(
-        matches!(
-            active.lifecycle,
-            RunLifecycle::LevelComplete | RunLifecycle::Finished
-        ),
-        ErrorCode::GameNotFinished
-    );
-    require!(active.finished_at > 0, ErrorCode::GameNotFinished);
-    let stars = active.latched_star_sources.count_ones() as u8;
-    let newly_earned_stars =
-        ctx.accounts
-            .player_state
-            .record_level_stars(active.map_id, active.level, stars)?;
-    emit!(CampaignLevelRewarded {
-        owner: active.owner,
-        run_id: active.run_id,
-        map_id: active.map_id,
-        level: active.level,
-        achieved_stars: stars,
-        newly_earned_stars,
-    });
-    ctx.accounts
-        .player_state
-        .release_campaign_run(active.run_id)?;
-    Ok(())
-}
-
-#[event]
-pub struct CampaignLevelRewarded {
-    pub owner: Pubkey,
-    pub run_id: u64,
-    pub map_id: u8,
-    pub level: u8,
-    pub achieved_stars: u8,
-    pub newly_earned_stars: u8,
-}
-
 fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
     use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
 
@@ -700,40 +618,13 @@ fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
     Ok(Pubkey::new_from_array(record.authority.to_bytes()))
 }
 
-fn constraint(snapshot: ConstraintSnapshot) -> Result<Constraint> {
-    let kind = ConstraintKind::from_tag(snapshot.kind).ok_or(error!(ErrorCode::InvalidLevel))?;
-    Ok(Constraint {
-        kind,
-        value: snapshot.value,
-        required_count: snapshot.required_count,
-    })
-}
-
 fn run_rules(active: &ActiveRun) -> Result<zkube_core::RunRules> {
     let guardian = active.rules.guardian.to_core()?;
-    let (max_moves, tier, stars, objective) = match active.mode {
-        RunMode::Campaign => (
-            zkube_core::campaign_move_budget(active.level, active.rules.difficulty)
-                .ok_or(ErrorCode::InvalidLevel)?,
-            zkube_core::TierPolicy::Fixed(active.rules.difficulty),
-            Some(zkube_core::StarRules {
-                points_required: active.rules.points_required,
-                primary: constraint(active.rules.primary)?,
-                secondary: constraint(active.rules.secondary)?,
-            }),
-            None,
-        ),
-        RunMode::Daily => {
-            let theme = active.daily_theme.to_core()?;
-            let objective = (theme.kind != ConstraintKind::None).then_some(theme);
-            (
-                zkube_core::DAILY_MAX_MOVES,
-                zkube_core::TierPolicy::Pressure,
-                None,
-                objective,
-            )
-        }
-    };
+    let theme = active.daily_theme.to_core()?;
+    let objective = (theme.kind != ConstraintKind::None).then_some(theme);
+    let max_moves = zkube_core::DAILY_MAX_MOVES;
+    let tier = zkube_core::TierPolicy::Pressure;
+    let stars = None;
     let rules = zkube_core::RunRules {
         guardian,
         starting_height: active.rules.starting_rows,
@@ -759,7 +650,6 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
             RunPhase::AwaitingVrf
         }
         RunLifecycle::Playing => RunPhase::Playing,
-        RunLifecycle::LevelComplete => RunPhase::LevelComplete,
         RunLifecycle::Finished => RunPhase::Finished,
     };
     Ok(RunEngine {
@@ -770,9 +660,9 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         moves: active.moves,
         combo_counter: active.combo_counter,
         max_combo: active.max_combo,
-        primary_progress: active.primary_progress,
-        secondary_progress: active.secondary_progress,
-        latched_star_sources: active.latched_star_sources,
+        primary_progress: 0,
+        secondary_progress: 0,
+        latched_star_sources: 0,
         streak: active.streak,
         charges_earned: active.charges_earned,
         level_lines_cleared: active.level_lines_cleared,
@@ -790,9 +680,6 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     active.moves = engine.moves;
     active.combo_counter = engine.combo_counter;
     active.max_combo = engine.max_combo;
-    active.primary_progress = engine.primary_progress;
-    active.secondary_progress = engine.secondary_progress;
-    active.latched_star_sources = engine.latched_star_sources;
     active.streak = engine.streak;
     active.charges_earned = engine.charges_earned;
     active.level_lines_cleared = engine.level_lines_cleared;
@@ -816,9 +703,6 @@ fn run_from_active(active: &ActiveRun, rules: zkube_core::RunRules) -> Result<zk
         active.vrf_request_counter
     };
     let end_reason = match active.lifecycle {
-        RunLifecycle::LevelComplete if active.finish_reason.is_none() => {
-            Some(zkube_core::RunEndReason::Completed)
-        }
         RunLifecycle::Finished => Some(match active.finish_reason {
             None => zkube_core::RunEndReason::Exhausted,
             Some(RunFinishReason::Abandon) => zkube_core::RunEndReason::Abandoned,
@@ -833,11 +717,7 @@ fn run_from_active(active: &ActiveRun, rules: zkube_core::RunRules) -> Result<zk
         daily_score: active.daily_score,
         objective_total: active.objective_total,
         pressure_score: active.pressure_score,
-        current_tier: if active.mode == RunMode::Daily {
-            active.current_tier
-        } else {
-            rules.current_tier(0)
-        },
+        current_tier: active.current_tier,
         last_vrf_counter,
         replay: zkube_core::ReplayCommitment(active.replay_hash),
         rules_hash: zkube_core::RulesHash(active.rules_hash),
@@ -852,11 +732,7 @@ fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64) ->
     active.daily_score = run.daily_score;
     active.objective_total = run.objective_total;
     active.pressure_score = run.pressure_score;
-    active.current_tier = if active.mode == RunMode::Daily {
-        run.current_tier
-    } else {
-        0
-    };
+    active.current_tier = run.current_tier;
     active.replay_hash = run.replay.to_bytes();
     active.lifecycle = lifecycle_from_phase(run.engine.phase);
     active.finish_reason = match run.end_reason {
@@ -866,11 +742,7 @@ fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64) ->
             None
         }
     };
-    if matches!(
-        active.lifecycle,
-        RunLifecycle::LevelComplete | RunLifecycle::Finished
-    ) && active.finished_at == 0
-    {
+    if matches!(active.lifecycle, RunLifecycle::Finished) && active.finished_at == 0 {
         require!(terminal_at > 0, ErrorCode::InvalidState);
         active.finished_at = terminal_at;
     }
@@ -881,7 +753,7 @@ fn lifecycle_from_phase(phase: RunPhase) -> RunLifecycle {
     match phase {
         RunPhase::AwaitingVrf => RunLifecycle::AwaitingVrf,
         RunPhase::Playing => RunLifecycle::Playing,
-        RunPhase::LevelComplete => RunLifecycle::LevelComplete,
+        RunPhase::LevelComplete => RunLifecycle::Finished,
         RunPhase::Finished => RunLifecycle::Finished,
     }
 }
@@ -930,12 +802,7 @@ mod tests {
             mode: RunMode::Daily,
             lifecycle,
             rules_hash: [7; 32],
-            rules: LevelRuleSnapshot {
-                level: 1,
-                points_required: u32::MAX,
-                difficulty: 0,
-                primary: ConstraintSnapshot::default(),
-                secondary: ConstraintSnapshot::default(),
+            rules: RealmRuleSnapshot {
                 guardian: GuardianSnapshot {
                     bonus: 1,
                     trigger: 1,
@@ -972,22 +839,6 @@ mod tests {
         wrong_discriminator[..8].copy_from_slice(&101u64.to_le_bytes());
         assert!(delegation_record_validator(&wrong_discriminator).is_err());
         assert!(delegation_record_validator(&valid[..39]).is_err());
-    }
-
-    #[test]
-    fn campaign_consumer_is_permissionless_and_has_no_action_escrow() {
-        let owner = Pubkey::new_unique();
-        let metas = crate::accounts::ConsumeCampaignRun {
-            active_run: Pubkey::new_unique(),
-            player_state: Pubkey::new_unique(),
-            owner,
-            rent_recipient: Pubkey::new_unique(),
-        }
-        .to_account_metas(None);
-
-        assert_eq!(metas.len(), 4);
-        assert_eq!(metas[2].pubkey, owner);
-        assert!(metas.iter().all(|meta| !meta.is_signer));
     }
 
     #[test]
@@ -1041,18 +892,7 @@ mod tests {
     fn only_actions_that_consumed_the_preview_enqueue_randomness() {
         assert!(action_needs_row_vrf(RunLifecycle::AwaitingVrf));
         assert!(!action_needs_row_vrf(RunLifecycle::Playing));
-        assert!(!action_needs_row_vrf(RunLifecycle::LevelComplete));
         assert!(!action_needs_row_vrf(RunLifecycle::Finished));
-    }
-
-    #[test]
-    fn constraint_snapshot_mapping_rejects_unknown_kinds() {
-        assert!(constraint(ConstraintSnapshot {
-            kind: 19,
-            value: 0,
-            required_count: 0,
-        })
-        .is_err());
     }
 
     #[test]
@@ -1156,57 +996,6 @@ mod tests {
     }
 
     #[test]
-    fn campaign_perfection_and_guardian_unlock_are_derived_from_stars() {
-        let owner = Pubkey::new_unique();
-        let mut player = PlayerState::initialize(owner, 1);
-        for level in 1..=LEVELS_PER_MAP as u8 {
-            player
-                .record_level_stars(1, level, if level == 4 { 2 } else { 3 })
-                .unwrap();
-        }
-        assert!(player.zone_cleared(1).unwrap());
-        assert!(!player.zone_perfected(1).unwrap());
-        assert!(player.campaign_level_unlocked(2, 1).unwrap());
-        player.record_level_stars(1, 4, 3).unwrap();
-        assert!(player.zone_perfected(1).unwrap());
-    }
-
-    #[test]
-    fn campaign_levels_track_only_monotonic_stars() {
-        let owner = Pubkey::new_unique();
-        let mut player = PlayerState::initialize(owner, 1);
-
-        let one_star = player.record_level_stars(1, 1, 1).unwrap();
-        assert_eq!(one_star, 1);
-
-        let equal_replay = player.record_level_stars(1, 1, 1).unwrap();
-        let worse_replay = player.record_level_stars(1, 1, 0).unwrap();
-        assert_eq!(equal_replay, 0);
-        assert_eq!(worse_replay, 0);
-
-        let improved_to_three = player.record_level_stars(1, 1, 3).unwrap();
-        assert_eq!(improved_to_three, 2);
-
-        let fresh_two_star = player.record_level_stars(1, 2, 2).unwrap();
-        let fresh_three_star = player.record_level_stars(1, 3, 3).unwrap();
-        assert_eq!(fresh_two_star, 2);
-        assert_eq!(fresh_three_star, 3);
-        assert_eq!(player.best_stars(1, 1).unwrap(), 3);
-    }
-
-    #[test]
-    fn ordinary_guardian_clear_unlocks_the_next_zone_without_extra_state() {
-        let owner = Pubkey::new_unique();
-        let mut player = PlayerState::initialize(owner, 1);
-        for level in 1..=LEVELS_PER_MAP as u8 {
-            player.record_level_stars(1, level, 2).unwrap();
-        }
-        assert!(player.zone_cleared(1).unwrap());
-        assert!(player.campaign_level_unlocked(2, 1).unwrap());
-        assert!(!player.zone_perfected(1).unwrap());
-    }
-
-    #[test]
     fn finish_run_predicates_are_exact() {
         assert!(finish_lifecycle_is_allowed(
             RunFinishReason::Abandon,
@@ -1218,7 +1007,7 @@ mod tests {
         ));
         assert!(!finish_lifecycle_is_allowed(
             RunFinishReason::Abandon,
-            RunLifecycle::LevelComplete
+            RunLifecycle::Finished
         ));
         assert!(finish_lifecycle_is_allowed(
             RunFinishReason::Deadline,
@@ -1251,6 +1040,5 @@ mod tests {
         assert!(!run_has_terminal_projection(RunLifecycle::Playing, 10));
         assert!(!run_has_terminal_projection(RunLifecycle::Finished, 0));
         assert!(run_has_terminal_projection(RunLifecycle::Finished, 10));
-        assert!(run_has_terminal_projection(RunLifecycle::LevelComplete, 10,));
     }
 }

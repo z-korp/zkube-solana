@@ -10,12 +10,10 @@ use crate::state::arena_rules::DailyThemeSnapshot;
 
 pub const PROTOCOL_CONFIG_SEED: &[u8] = b"protocol";
 pub const PLAYER_STATE_SEED: &[u8] = b"player";
-pub const MAP_CATALOG_SEED: &[u8] = b"map";
 pub const ACTIVE_RUN_SEED: &[u8] = b"run";
 
 pub const ACCOUNT_VERSION: u8 = zkube_core::PROTOCOL_ACCOUNT_VERSION;
-/// Fresh-bootstrap PlayerState schema with independent Campaign and Arcade
-/// run slots plus explicit zeroed expansion space.
+/// Fresh-bootstrap player schema with one Arcade run slot and zeroed expansion space.
 pub const PLAYER_STATE_VERSION: u8 = zkube_core::PLAYER_STATE_ACCOUNT_VERSION;
 pub const MAX_MAPS: usize = zkube_core::CAMPAIGN_MAP_COUNT;
 pub const LEVELS_PER_MAP: usize = zkube_core::CAMPAIGN_LEVELS_PER_MAP;
@@ -40,9 +38,6 @@ pub struct ProtocolConfig {
     pub team_destination: Pubkey,
     /// Chain/deployment-specific replay domain used by canonical replay v2.
     pub replay_domain: [u8; 32],
-    pub content_version: u32,
-    /// Number of contiguous, authority-activated Campaign maps.
-    pub campaign_map_count: u8,
     pub paused: bool,
     pub bump: u8,
 }
@@ -76,8 +71,6 @@ pub struct PlayerState {
     /// reason the pot splits in two.
     pub score_record: CompetitionRecord,
     pub theme_record: CompetitionRecord,
-    /// Zero when the Campaign slot is idle.
-    pub campaign_active_run_id: u64,
     /// One-way prepaid entries owned by this wallet identity.
     pub kredit_balance: u64,
     /// Monotonic, non-monetary points accumulated by qualification and claims.
@@ -98,7 +91,7 @@ pub struct PlayerState {
     /// Consecutive days carrying at least one paid entry.
     pub entry_streak_days: u16,
     /// Explicit zeroed expansion space for future profile fields.
-    pub reserved: [u8; 18],
+    pub reserved: [u8; zkube_core::PLAYER_STATE_RESERVED_BYTES],
     pub bump: u8,
 }
 
@@ -110,7 +103,7 @@ impl PlayerState {
             next_run_id: INITIAL_RUN_ID,
             active_run_id: 0,
             active_run_daily: Pubkey::default(),
-            active_run_mode: RunMode::Campaign,
+            active_run_mode: RunMode::Daily,
             active_run_deadline_at: 0,
             orphan_run_id: 0,
             campaign_stars: [0; CAMPAIGN_STAR_BYTES],
@@ -118,7 +111,6 @@ impl PlayerState {
             lifetime_paid_entries: 0,
             score_record: CompetitionRecord::default(),
             theme_record: CompetitionRecord::default(),
-            campaign_active_run_id: 0,
             kredit_balance: 0,
             ladder_points: 0,
             highest_ladder_tier: 0,
@@ -126,7 +118,7 @@ impl PlayerState {
             best_daily_score: 0,
             last_entry_day_id: 0,
             entry_streak_days: 0,
-            reserved: [0; 18],
+            reserved: [0; zkube_core::PLAYER_STATE_RESERVED_BYTES],
             bump,
         }
     }
@@ -135,7 +127,7 @@ impl PlayerState {
         self.version == PLAYER_STATE_VERSION
             && self.highest_ladder_tier >= ladder_tier_for_points(self.ladder_points)
             && self.featured_frame_tier <= self.highest_ladder_tier
-            && self.reserved == [0; 18]
+            && self.reserved == [0; zkube_core::PLAYER_STATE_RESERVED_BYTES]
     }
 
     fn require_schema(&self) -> Result<()> {
@@ -143,22 +135,13 @@ impl PlayerState {
         Ok(())
     }
 
-    /// Allocate the next global monotonic run id. Campaign and Arcade use
-    /// separate occupancy slots but share one collision-free PDA sequence.
+    /// Allocate the next monotonic Arcade run id.
     fn allocate_run_id(&mut self, run_id: u64) -> Result<()> {
         require!(self.next_run_id == run_id, ErrorCode::InvalidRunId);
         self.next_run_id = self
             .next_run_id
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
-        Ok(())
-    }
-
-    pub fn reserve_campaign_run(&mut self, run_id: u64) -> Result<()> {
-        self.require_schema()?;
-        require!(self.campaign_active_run_id == 0, ErrorCode::ActiveRunExists);
-        self.allocate_run_id(run_id)?;
-        self.campaign_active_run_id = run_id;
         Ok(())
     }
 
@@ -200,14 +183,10 @@ impl PlayerState {
             && self.active_run_deadline_at == deadline_at
     }
 
-    pub fn campaign_reservation_matches(&self, run_id: u64) -> bool {
-        self.version == PLAYER_STATE_VERSION && self.campaign_active_run_id == run_id
-    }
-
     fn clear_arcade_slot(&mut self) {
         self.active_run_id = 0;
         self.active_run_daily = Pubkey::default();
-        self.active_run_mode = RunMode::Campaign;
+        self.active_run_mode = RunMode::Daily;
         self.active_run_deadline_at = 0;
     }
 
@@ -217,16 +196,6 @@ impl PlayerState {
         self.require_schema()?;
         require!(self.active_run_id == run_id, ErrorCode::InvalidRunId);
         self.clear_arcade_slot();
-        Ok(())
-    }
-
-    pub fn release_campaign_run(&mut self, run_id: u64) -> Result<()> {
-        self.require_schema()?;
-        require!(
-            self.campaign_active_run_id == run_id,
-            ErrorCode::InvalidRunId
-        );
-        self.campaign_active_run_id = 0;
         Ok(())
     }
 
@@ -251,30 +220,11 @@ impl PlayerState {
             .map_err(campaign_stars_error)
     }
 
-    pub fn record_level_stars(&mut self, map_id: u8, level: u8, stars: u8) -> Result<u8> {
-        require!(stars <= 3, ErrorCode::InvalidStars);
-        // A failed run records no stars and must remain a valid terminal
-        // consume operation; core only accepts completed one-to-three-star
-        // results.
-        if stars == 0 {
-            self.best_stars(map_id, level)?;
-            return Ok(0);
-        }
+    /// Self-attested cosmetic progress; only per-level maxima are stored.
+    pub fn merge_campaign_stars(&mut self, submitted: [u8; CAMPAIGN_STAR_BYTES]) {
         let mut progress = zkube_core::CampaignStars::from_packed(self.campaign_stars);
-        let delta = progress
-            .record_level(map_id, level, stars)
-            .map_err(campaign_stars_error)?;
+        progress.merge(zkube_core::CampaignStars::from_packed(submitted));
         self.campaign_stars = progress.packed();
-        Ok(delta)
-    }
-
-    /// Initially only Zone 1 Level 1 is playable. Later levels require one
-    /// star on their predecessor; each next zone requires its predecessor's
-    /// guardian (Level 10) to have at least one star.
-    pub fn campaign_level_unlocked(&self, map_id: u8, level: u8) -> Result<bool> {
-        let progress = zkube_core::CampaignStars::from_packed(self.campaign_stars);
-        progress.best(map_id, level).map_err(campaign_stars_error)?;
-        Ok(progress.level_unlocked(map_id, level))
     }
 
     pub fn zone_cleared(&self, map_id: u8) -> Result<bool> {
@@ -413,40 +363,6 @@ impl CompetitionRecord {
     }
 }
 
-#[account]
-#[derive(InitSpace)]
-pub struct MapCatalog {
-    pub version: u8,
-    pub content_version: u32,
-    pub map_id: u8,
-    pub theme_id: u8,
-    pub enabled: bool,
-    /// Rules that define one consistent identity across the whole map.
-    pub map_rules: CampaignMapRuleSnapshot,
-    pub levels: [CampaignLevelSnapshot; LEVELS_PER_MAP],
-    pub bump: u8,
-}
-
-impl MapCatalog {
-    pub fn expanded_level(&self, level: u8) -> Result<LevelRuleSnapshot> {
-        require!(
-            (1..=LEVELS_PER_MAP as u8).contains(&level),
-            ErrorCode::InvalidLevel
-        );
-        let authored = self.levels[usize::from(level - 1)];
-        let map = self.map_rules;
-        Ok(LevelRuleSnapshot {
-            level: authored.level,
-            points_required: u32::from(zkube_core::CAMPAIGN_TARGET_LADDER[usize::from(level - 1)]),
-            difficulty: authored.difficulty,
-            primary: authored.primary,
-            secondary: authored.secondary,
-            guardian: map.guardian,
-            starting_rows: map.starting_rows,
-        })
-    }
-}
-
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
@@ -473,35 +389,26 @@ impl GuardianSnapshot {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
-pub struct CampaignMapRuleSnapshot {
+pub struct RealmRuleSnapshot {
     pub guardian: GuardianSnapshot,
     pub starting_rows: u8,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
-pub struct CampaignLevelSnapshot {
-    pub level: u8,
-    pub difficulty: u8,
-    pub primary: ConstraintSnapshot,
-    pub secondary: ConstraintSnapshot,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
-pub struct LevelRuleSnapshot {
-    pub level: u8,
-    pub points_required: u32,
-    pub difficulty: u8,
-    pub primary: ConstraintSnapshot,
-    pub secondary: ConstraintSnapshot,
-    pub guardian: GuardianSnapshot,
-    pub starting_rows: u8,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace)]
-pub struct ConstraintSnapshot {
-    pub kind: u8,
-    pub value: u8,
-    pub required_count: u8,
+impl RealmRuleSnapshot {
+    pub fn from_core(realm: zkube_core::RealmRules) -> Self {
+        Self {
+            guardian: GuardianSnapshot {
+                bonus: match realm.guardian.bonus {
+                    zkube_core::Bonus::Hammer => 1,
+                    zkube_core::Bonus::Totem => 2,
+                    zkube_core::Bonus::Wave => 3,
+                },
+                trigger: realm.guardian.trigger,
+                threshold: realm.guardian.threshold,
+            },
+            starting_rows: realm.starting_height,
+        }
+    }
 }
 
 #[account]
@@ -520,11 +427,9 @@ pub struct ActiveRun {
     pub finish_reason: Option<RunFinishReason>,
     pub rules_hash: [u8; 32],
     /// Ranked actions and VRF callbacks are rejected at this immutable cutoff.
-    /// Campaign runs use zero (no cadence deadline).
     pub deadline_at: i64,
     pub map_id: u8,
-    pub level: u8,
-    pub rules: LevelRuleSnapshot,
+    pub rules: RealmRuleSnapshot,
     pub grid: [u8; 80],
     pub next_row: [u8; 8],
     pub has_next_row: bool,
@@ -540,10 +445,6 @@ pub struct ActiveRun {
     /// Saturating count of player moves that cleared at least two lines.
     pub combo_counter: u8,
     pub max_combo: u8,
-    pub primary_progress: u8,
-    pub secondary_progress: u8,
-    /// Bit mask of latched Campaign sources; Daily runs keep this byte at zero.
-    pub latched_star_sources: u8,
     /// Consecutive player moves that each clear at least one line.
     pub streak: u8,
     /// Guardian trigger events produced across the run, before inventory caps.
@@ -553,7 +454,7 @@ pub struct ActiveRun {
     pub bonus_charges: u8,
     /// Held preview replacements; every run starts with one.
     pub reroll_charges: u8,
-    /// Ramped tier for Daily; Campaign derives its fixed tier from `rules`.
+    /// Ramped draw tier for Daily.
     pub current_tier: u8,
     pub vrf_request_counter: u32,
     pub pending_vrf_counter: u32,
@@ -577,8 +478,7 @@ impl Default for ActiveRun {
             rules_hash: [0; 32],
             deadline_at: 0,
             map_id: 0,
-            level: 0,
-            rules: LevelRuleSnapshot::default(),
+            rules: RealmRuleSnapshot::default(),
             grid: [0; 80],
             next_row: [0; 8],
             has_next_row: false,
@@ -591,9 +491,6 @@ impl Default for ActiveRun {
             moves: 0,
             combo_counter: 0,
             max_combo: 0,
-            primary_progress: 0,
-            secondary_progress: 0,
-            latched_star_sources: 0,
             streak: 0,
             charges_earned: 0,
             level_lines_cleared: 0,
@@ -615,7 +512,6 @@ impl Default for ActiveRun {
 )]
 pub enum RunMode {
     #[default]
-    Campaign,
     Daily,
 }
 
@@ -628,7 +524,6 @@ pub enum RunLifecycle {
     Delegated,
     AwaitingVrf,
     Playing,
-    LevelComplete,
     Finished,
 }
 
@@ -652,6 +547,53 @@ mod tests {
     use super::*;
 
     #[test]
+    fn arcade_reservation_and_orphan_share_one_monotonic_run_sequence() {
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
+        let daily = Pubkey::new_unique();
+        player
+            .reserve_arcade_run(1, daily, RunMode::Daily, 1_000)
+            .unwrap();
+        assert_eq!(player.next_run_id, 2);
+        assert!(player
+            .reserve_arcade_run(2, daily, RunMode::Daily, 1_000)
+            .is_err());
+        assert!(player.release_arcade_run(2).is_err());
+        player.expire_arcade_run(1).unwrap();
+        assert_eq!(player.orphan_run_id, 1);
+        assert!(player
+            .reserve_arcade_run(2, daily, RunMode::Daily, 1_000)
+            .is_err());
+        player.release_orphan(1).unwrap();
+        player
+            .reserve_arcade_run(2, daily, RunMode::Daily, 1_000)
+            .unwrap();
+        player.release_arcade_run(2).unwrap();
+        assert_eq!(player.next_run_id, 3);
+    }
+
+    #[test]
+    fn campaign_stars_merge_per_level_maximum_and_never_decrease() {
+        let bytes = |player: &PlayerState| {
+            let mut encoded = Vec::new();
+            player.try_serialize(&mut encoded).unwrap();
+            encoded
+        };
+        let mut player = PlayerState::initialize(Pubkey::new_unique(), 9);
+        player.campaign_stars = [0b11_10_01_00; CAMPAIGN_STAR_BYTES];
+        player.kredit_balance = 25;
+        player.lifetime_paid_entries = 17;
+        let original = bytes(&player);
+        player.merge_campaign_stars([0b00_01_10_11; CAMPAIGN_STAR_BYTES]);
+        assert_eq!(player.campaign_stars, [0b11_10_10_11; CAMPAIGN_STAR_BYTES]);
+        let merged = bytes(&player);
+        player.merge_campaign_stars([0b00_01_10_11; CAMPAIGN_STAR_BYTES]);
+        player.merge_campaign_stars([0; CAMPAIGN_STAR_BYTES]);
+        assert_eq!(bytes(&player), merged);
+        player.campaign_stars = [0b11_10_01_00; CAMPAIGN_STAR_BYTES];
+        assert_eq!(bytes(&player), original);
+    }
+
+    #[test]
     fn fresh_profile_run_id_matches_the_shared_protocol_invariant() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../fixtures/protocol-invariants.json"
@@ -662,30 +604,7 @@ mod tests {
         assert_eq!(INITIAL_RUN_ID, expected);
         assert_eq!(player.next_run_id, expected);
         assert_eq!(player.active_run_id, 0);
-        assert_eq!(player.campaign_active_run_id, 0);
         assert_eq!(player.version, PLAYER_STATE_VERSION);
-    }
-
-    #[test]
-    fn campaign_and_arcade_have_independent_single_run_slots() {
-        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        let daily = Pubkey::new_unique();
-        player.reserve_campaign_run(INITIAL_RUN_ID).unwrap();
-        player
-            .reserve_arcade_run(INITIAL_RUN_ID + 1, daily, RunMode::Daily, 1_000)
-            .unwrap();
-        assert_eq!(player.campaign_active_run_id, INITIAL_RUN_ID);
-        assert_eq!(player.active_run_id, INITIAL_RUN_ID + 1);
-        assert_eq!(player.next_run_id, INITIAL_RUN_ID + 2);
-        assert!(player.reserve_campaign_run(INITIAL_RUN_ID + 2).is_err());
-        assert!(player
-            .reserve_arcade_run(INITIAL_RUN_ID + 2, daily, RunMode::Daily, 1_000,)
-            .is_err());
-        assert!(player.release_campaign_run(INITIAL_RUN_ID + 1).is_err());
-        player.release_campaign_run(INITIAL_RUN_ID).unwrap();
-        assert_eq!(player.active_run_id, INITIAL_RUN_ID + 1);
-        player.release_arcade_run(INITIAL_RUN_ID + 1).unwrap();
-        player.reserve_campaign_run(INITIAL_RUN_ID + 2).unwrap();
     }
 
     #[test]
@@ -694,7 +613,9 @@ mod tests {
         assert!(player.schema_valid());
         player.reserved[17] = 1;
         assert!(!player.schema_valid());
-        assert!(player.reserve_campaign_run(INITIAL_RUN_ID).is_err());
+        assert!(player
+            .reserve_arcade_run(INITIAL_RUN_ID, Pubkey::new_unique(), RunMode::Daily, 1_000)
+            .is_err());
     }
 
     #[test]
@@ -798,91 +719,11 @@ mod tests {
         let sizes = std::hint::black_box([
             ProtocolConfig::INIT_SPACE,
             PlayerState::INIT_SPACE,
-            MapCatalog::INIT_SPACE,
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 231);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 355);
-    }
-
-    #[test]
-    fn campaign_starts_with_only_zone_one_level_one_playable() {
-        let owner = Pubkey::new_unique();
-        let mut progress = PlayerState::initialize(owner, 7);
-        assert!(progress.campaign_level_unlocked(1, 1).unwrap());
-        assert!(!progress.campaign_level_unlocked(1, 2).unwrap());
-        assert!(!progress.campaign_level_unlocked(2, 1).unwrap());
-        assert!(progress.campaign_level_unlocked(11, 1).is_err());
-
-        progress.record_level_stars(1, 1, 1).unwrap();
-        assert!(progress.campaign_level_unlocked(1, 2).unwrap());
-        for level in 2..=LEVELS_PER_MAP as u8 {
-            progress.record_level_stars(1, level, 1).unwrap();
-        }
-        assert!(progress.campaign_level_unlocked(2, 1).unwrap());
-        assert!(progress.zone_cleared(1).unwrap());
-    }
-
-    #[test]
-    fn map_catalog_expands_one_guardian_across_all_ten_levels() {
-        let map_rules = CampaignMapRuleSnapshot {
-            guardian: GuardianSnapshot {
-                bonus: 1,
-                trigger: 4,
-                threshold: 3,
-            },
-            starting_rows: 5,
-        };
-        let levels = std::array::from_fn(|index| CampaignLevelSnapshot {
-            level: index as u8 + 1,
-            difficulty: index.min(7) as u8,
-            ..CampaignLevelSnapshot::default()
-        });
-        let catalog = MapCatalog {
-            version: ACCOUNT_VERSION,
-            content_version: 1,
-            map_id: 7,
-            theme_id: 7,
-            enabled: true,
-            map_rules,
-            levels,
-            bump: 1,
-        };
-
-        let first = catalog.expanded_level(1).unwrap();
-        let boss = catalog.expanded_level(10).unwrap();
-        assert_eq!(first.guardian, boss.guardian);
-        assert_eq!(first.guardian.trigger, 4);
-        assert_eq!(first.guardian.threshold, 3);
-        assert_eq!(
-            first.points_required,
-            u32::from(zkube_core::CAMPAIGN_TARGET_LADDER[0])
-        );
-        assert_eq!(
-            boss.points_required,
-            u32::from(zkube_core::CAMPAIGN_TARGET_LADDER[9])
-        );
-        assert_eq!(boss.level, 10);
-    }
-
-    #[test]
-    fn campaign_stars_are_compact_monotonic_and_delta_only() {
-        let owner = Pubkey::new_unique();
-        let mut progress = PlayerState::initialize(owner, 1);
-        assert_eq!(progress.campaign_stars.len(), 25);
-        assert_eq!(progress.record_level_stars(1, 1, 2).unwrap(), 2);
-        assert_eq!(progress.record_level_stars(1, 1, 1).unwrap(), 0);
-        assert_eq!(progress.record_level_stars(1, 1, 3).unwrap(), 1);
-        assert_eq!(progress.best_stars(1, 1).unwrap(), 3);
-        for map_id in 1..=MAX_MAPS as u8 {
-            let first = if map_id == 1 { 2 } else { 1 };
-            for level in first..=LEVELS_PER_MAP as u8 {
-                progress.record_level_stars(map_id, level, 1).unwrap();
-            }
-        }
-        assert_eq!(progress.record_level_stars(10, 10, 3).unwrap(), 2);
-        assert_eq!(progress.best_stars(10, 10).unwrap(), 3);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 223);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 339);
     }
 
     #[test]
@@ -892,11 +733,7 @@ mod tests {
         assert!(!player.emblem_unlocked(EMBLEM_FIRST_GUARDIAN));
         assert!(!player.emblem_unlocked(EMBLEM_REALM_CONQUEROR));
         assert!(!player.emblem_unlocked(EMBLEM_WORLD_PERFECT));
-        for map_id in 1..=MAX_MAPS as u8 {
-            for level in 1..=LEVELS_PER_MAP as u8 {
-                player.record_level_stars(map_id, level, 3).unwrap();
-            }
-        }
+        player.merge_campaign_stars([u8::MAX; CAMPAIGN_STAR_BYTES]);
         assert_eq!(player.total_campaign_stars(), MAX_CAMPAIGN_STARS);
         assert!(player.zone_perfected(10).unwrap());
         assert!(player.emblem_unlocked(10));

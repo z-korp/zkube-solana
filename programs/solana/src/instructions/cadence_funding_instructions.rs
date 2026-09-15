@@ -22,7 +22,6 @@ pub struct FundedPrepareArenaDaily<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     pub arcade_archive: Box<Account<'info, ArcadeArchive>>,
-    pub realm_map_catalog: Box<Account<'info, MapCatalog>>,
     /// CHECK: Initialized and fully constrained by the inner instruction.
     #[account(mut)]
     pub arena_daily: UncheckedAccount<'info>,
@@ -53,7 +52,6 @@ pub fn handler_funded_prepare_arena_daily(
         protocol: ctx.accounts.protocol.key(),
         arcade_config: ctx.accounts.arcade_config.key(),
         arcade_archive: ctx.accounts.arcade_archive.key(),
-        realm_map_catalog: ctx.accounts.realm_map_catalog.key(),
         arena_daily: ctx.accounts.arena_daily.key(),
         payer: ctx.accounts.cadence_funding.key(),
         caller: ctx.accounts.caller.key(),
@@ -68,7 +66,6 @@ pub fn handler_funded_prepare_arena_daily(
         ctx.accounts.protocol.to_account_info(),
         ctx.accounts.arcade_config.to_account_info(),
         ctx.accounts.arcade_archive.to_account_info(),
-        ctx.accounts.realm_map_catalog.to_account_info(),
         ctx.accounts.arena_daily.to_account_info(),
         ctx.accounts.cadence_funding.to_account_info(),
         ctx.accounts.caller.to_account_info(),

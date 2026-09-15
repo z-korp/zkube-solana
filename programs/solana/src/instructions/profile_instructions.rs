@@ -1,4 +1,4 @@
-//! Session-authorized emblem selection.
+//! Owner- or device-authorized cosmetic profile records.
 
 use anchor_lang::prelude::*;
 use session_keys::SessionTokenV2;
@@ -21,6 +21,22 @@ pub struct SetFeaturedEmblem<'info> {
     pub owner_authority: UncheckedAccount<'info>,
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     pub actor: Signer<'info>,
+}
+
+/// Merge self-attested cosmetic Campaign stars. The program cannot verify play.
+/// Each level keeps its maximum without requiring progression order or a new
+/// result. No other player field changes, including the worn emblem.
+pub fn handler_record_campaign_stars(
+    ctx: Context<SetFeaturedEmblem>,
+    stars: [u8; CAMPAIGN_STAR_BYTES],
+) -> Result<()> {
+    require_player_authorization(
+        ctx.accounts.owner_authority.key(),
+        ctx.accounts.actor.key(),
+        ctx.accounts.session_token.as_ref(),
+    )?;
+    ctx.accounts.player_state.merge_campaign_stars(stars);
+    Ok(())
 }
 
 /// Set the worn identity: the emblem, and the ladder border framing it.

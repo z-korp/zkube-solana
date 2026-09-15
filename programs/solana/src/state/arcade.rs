@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
-use crate::state::protocol::{LevelRuleSnapshot, PlayerState};
+use crate::state::protocol::{PlayerState, RealmRuleSnapshot};
 
 pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
@@ -391,11 +391,11 @@ pub struct ArenaDaily {
     pub arcade_config: Pubkey,
     pub status: PeriodStatus,
     pub predecessor_rollover_applied: bool,
-    pub content_version: u32,
+    pub catalog_version: u32,
     pub rules_hash: [u8; 32],
     pub map_id: u8,
     pub daily_theme: DailyThemeSnapshot,
-    pub rules: LevelRuleSnapshot,
+    pub rules: RealmRuleSnapshot,
     pub pressure: DailyPressureProfile,
     pub opens_at: i64,
     pub runs_close_at: i64,
@@ -873,7 +873,7 @@ pub fn daily_result_hash(
     daily.version.serialize(&mut bytes)?;
     daily.day_id.serialize(&mut bytes)?;
     daily.arcade_config.serialize(&mut bytes)?;
-    daily.content_version.serialize(&mut bytes)?;
+    daily.catalog_version.serialize(&mut bytes)?;
     daily.rules_hash.serialize(&mut bytes)?;
     daily.map_id.serialize(&mut bytes)?;
     daily.daily_theme.serialize(&mut bytes)?;
@@ -1260,10 +1260,10 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 215);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 203);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 207);
+        assert_eq!(daily_bytes.len(), 195);
         assert_eq!(ArenaBoard::INIT_SPACE, 117);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_341);
         assert_eq!(8 + ArenaPlayer::INIT_SPACE, 308);

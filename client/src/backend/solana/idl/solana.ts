@@ -142,89 +142,6 @@ export type Solana = {
       "args": []
     },
     {
-      "name": "activateCampaignMap",
-      "discriminator": [
-        241,
-        93,
-        123,
-        235,
-        248,
-        135,
-        200,
-        83
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true
-        },
-        {
-          "name": "mapCatalog"
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "activateContentRelease",
-      "discriminator": [
-        112,
-        124,
-        37,
-        124,
-        159,
-        223,
-        144,
-        145
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "contentVersion",
-          "type": "u32"
-        },
-        {
-          "name": "campaignMapCount",
-          "type": "u8"
-        }
-      ]
-    },
-    {
       "name": "applyBonus",
       "discriminator": [
         50,
@@ -1094,92 +1011,6 @@ export type Solana = {
               }
             ]
           }
-        },
-        {
-          "name": "rentRecipient",
-          "writable": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "consumeCampaignRun",
-      "discriminator": [
-        168,
-        216,
-        114,
-        59,
-        82,
-        199,
-        176,
-        11
-      ],
-      "accounts": [
-        {
-          "name": "activeRun",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  99,
-                  116,
-                  105,
-                  118,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "activeRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerState",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "relations": [
-            "activeRun",
-            "playerState"
-          ]
         },
         {
           "name": "rentRecipient",
@@ -2548,9 +2379,6 @@ export type Solana = {
           "name": "arcadeArchive"
         },
         {
-          "name": "realmMapCatalog"
-        },
-        {
           "name": "arenaDaily",
           "writable": true
         },
@@ -3118,9 +2946,6 @@ export type Solana = {
           }
         },
         {
-          "name": "realmMapCatalog"
-        },
-        {
           "name": "arenaDaily",
           "writable": true,
           "pda": {
@@ -3166,119 +2991,6 @@ export type Solana = {
         {
           "name": "dayId",
           "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "prepareCampaignRun",
-      "discriminator": [
-        196,
-        98,
-        234,
-        167,
-        109,
-        145,
-        158,
-        94
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "playerState",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "mapCatalog"
-        },
-        {
-          "name": "activeRun",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  99,
-                  116,
-                  105,
-                  118,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              },
-              {
-                "kind": "arg",
-                "path": "runId"
-              }
-            ]
-          }
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "runId",
-          "type": "u64"
-        },
-        {
-          "name": "mapId",
-          "type": "u8"
-        },
-        {
-          "name": "level",
-          "type": "u8"
         }
       ]
     },
@@ -3582,6 +3294,66 @@ export type Solana = {
         {
           "name": "expectedUnitLamports",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "recordCampaignStars",
+      "discriminator": [
+        110,
+        150,
+        128,
+        15,
+        241,
+        145,
+        200,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "playerState",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ownerAuthority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ownerAuthority"
+        },
+        {
+          "name": "sessionToken",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "stars",
+          "type": {
+            "array": [
+              "u8",
+              25
+            ]
+          }
         }
       ]
     },
@@ -4382,50 +4154,6 @@ export type Solana = {
           "type": "u64"
         }
       ]
-    },
-    {
-      "name": "writeMapCatalog",
-      "discriminator": [
-        217,
-        226,
-        89,
-        178,
-        63,
-        54,
-        125,
-        83
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "mapCatalog",
-          "writable": true
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "writeMapCatalogArgs"
-            }
-          }
-        }
-      ]
     }
   ],
   "accounts": [
@@ -4521,19 +4249,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "mapCatalog",
-      "discriminator": [
-        24,
-        88,
-        127,
-        223,
-        53,
-        15,
-        187,
-        130
-      ]
-    },
-    {
       "name": "operatorRevenueVault",
       "discriminator": [
         56,
@@ -4611,32 +4326,6 @@ export type Solana = {
         38,
         100,
         186
-      ]
-    },
-    {
-      "name": "campaignLevelRewarded",
-      "discriminator": [
-        5,
-        6,
-        248,
-        45,
-        123,
-        108,
-        217,
-        107
-      ]
-    },
-    {
-      "name": "contentReleaseActivated",
-      "discriminator": [
-        159,
-        30,
-        50,
-        177,
-        23,
-        41,
-        6,
-        246
       ]
     },
     {
@@ -5096,8 +4785,7 @@ export type Solana = {
           {
             "name": "deadlineAt",
             "docs": [
-              "Ranked actions and VRF callbacks are rejected at this immutable cutoff.",
-              "Campaign runs use zero (no cadence deadline)."
+              "Ranked actions and VRF callbacks are rejected at this immutable cutoff."
             ],
             "type": "i64"
           },
@@ -5106,14 +4794,10 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "level",
-            "type": "u8"
-          },
-          {
             "name": "rules",
             "type": {
               "defined": {
-                "name": "levelRuleSnapshot"
+                "name": "realmRuleSnapshot"
               }
             }
           },
@@ -5189,21 +4873,6 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "primaryProgress",
-            "type": "u8"
-          },
-          {
-            "name": "secondaryProgress",
-            "type": "u8"
-          },
-          {
-            "name": "latchedStarSources",
-            "docs": [
-              "Bit mask of latched Campaign sources; Daily runs keep this byte at zero."
-            ],
-            "type": "u8"
-          },
-          {
             "name": "streak",
             "docs": [
               "Consecutive player moves that each clear at least one line."
@@ -5239,7 +4908,7 @@ export type Solana = {
           {
             "name": "currentTier",
             "docs": [
-              "Ramped tier for Daily; Campaign derives its fixed tier from `rules`."
+              "Ramped draw tier for Daily."
             ],
             "type": "u8"
           },
@@ -5508,7 +5177,7 @@ export type Solana = {
             "type": "bool"
           },
           {
-            "name": "contentVersion",
+            "name": "catalogVersion",
             "type": "u32"
           },
           {
@@ -5536,7 +5205,7 @@ export type Solana = {
             "name": "rules",
             "type": {
               "defined": {
-                "name": "levelRuleSnapshot"
+                "name": "realmRuleSnapshot"
               }
             }
           },
@@ -5739,90 +5408,6 @@ export type Solana = {
       }
     },
     {
-      "name": "campaignLevelRewarded",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "runId",
-            "type": "u64"
-          },
-          {
-            "name": "mapId",
-            "type": "u8"
-          },
-          {
-            "name": "level",
-            "type": "u8"
-          },
-          {
-            "name": "achievedStars",
-            "type": "u8"
-          },
-          {
-            "name": "newlyEarnedStars",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "campaignLevelSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "level",
-            "type": "u8"
-          },
-          {
-            "name": "difficulty",
-            "type": "u8"
-          },
-          {
-            "name": "primary",
-            "type": {
-              "defined": {
-                "name": "constraintSnapshot"
-              }
-            }
-          },
-          {
-            "name": "secondary",
-            "type": {
-              "defined": {
-                "name": "constraintSnapshot"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "campaignMapRuleSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "guardian",
-            "type": {
-              "defined": {
-                "name": "guardianSnapshot"
-              }
-            }
-          },
-          {
-            "name": "startingRows",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "competitionRecord",
       "type": {
         "kind": "struct",
@@ -5845,42 +5430,6 @@ export type Solana = {
           {
             "name": "rewardsLamports",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "constraintSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "kind",
-            "type": "u8"
-          },
-          {
-            "name": "value",
-            "type": "u8"
-          },
-          {
-            "name": "requiredCount",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "contentReleaseActivated",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "contentVersion",
-            "type": "u32"
-          },
-          {
-            "name": "campaignMapCount",
-            "type": "u8"
           }
         ]
       }
@@ -6083,10 +5632,6 @@ export type Solana = {
             "type": "pubkey"
           },
           {
-            "name": "contentVersion",
-            "type": "u32"
-          },
-          {
             "name": "replayDomain",
             "type": {
               "array": [
@@ -6118,110 +5663,6 @@ export type Solana = {
           {
             "name": "operatorLamports",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "levelRuleSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "level",
-            "type": "u8"
-          },
-          {
-            "name": "pointsRequired",
-            "type": "u32"
-          },
-          {
-            "name": "difficulty",
-            "type": "u8"
-          },
-          {
-            "name": "primary",
-            "type": {
-              "defined": {
-                "name": "constraintSnapshot"
-              }
-            }
-          },
-          {
-            "name": "secondary",
-            "type": {
-              "defined": {
-                "name": "constraintSnapshot"
-              }
-            }
-          },
-          {
-            "name": "guardian",
-            "type": {
-              "defined": {
-                "name": "guardianSnapshot"
-              }
-            }
-          },
-          {
-            "name": "startingRows",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "mapCatalog",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "contentVersion",
-            "type": "u32"
-          },
-          {
-            "name": "mapId",
-            "type": "u8"
-          },
-          {
-            "name": "themeId",
-            "type": "u8"
-          },
-          {
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "name": "mapRules",
-            "docs": [
-              "Rules that define one consistent identity across the whole map."
-            ],
-            "type": {
-              "defined": {
-                "name": "campaignMapRuleSnapshot"
-              }
-            }
-          },
-          {
-            "name": "levels",
-            "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "campaignLevelSnapshot"
-                  }
-                },
-                10
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }
@@ -6442,13 +5883,6 @@ export type Solana = {
             }
           },
           {
-            "name": "campaignActiveRunId",
-            "docs": [
-              "Zero when the Campaign slot is idle."
-            ],
-            "type": "u64"
-          },
-          {
             "name": "kreditBalance",
             "docs": [
               "One-way prepaid entries owned by this wallet identity."
@@ -6635,17 +6069,6 @@ export type Solana = {
             }
           },
           {
-            "name": "contentVersion",
-            "type": "u32"
-          },
-          {
-            "name": "campaignMapCount",
-            "docs": [
-              "Number of contiguous, authority-activated Campaign maps."
-            ],
-            "type": "u8"
-          },
-          {
             "name": "paused",
             "type": "bool"
           },
@@ -6668,6 +6091,26 @@ export type Solana = {
           {
             "name": "paused",
             "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "realmRuleSnapshot",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "guardian",
+            "type": {
+              "defined": {
+                "name": "guardianSnapshot"
+              }
+            }
+          },
+          {
+            "name": "startingRows",
+            "type": "u8"
           }
         ]
       }
@@ -6704,9 +6147,6 @@ export type Solana = {
             "name": "playing"
           },
           {
-            "name": "levelComplete"
-          },
-          {
             "name": "finished"
           }
         ]
@@ -6717,9 +6157,6 @@ export type Solana = {
       "type": {
         "kind": "enum",
         "variants": [
-          {
-            "name": "campaign"
-          },
           {
             "name": "daily"
           }
@@ -6815,51 +6252,6 @@ export type Solana = {
           {
             "name": "teamDestination",
             "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "writeMapCatalogArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "contentVersion",
-            "type": "u32"
-          },
-          {
-            "name": "mapId",
-            "type": "u8"
-          },
-          {
-            "name": "themeId",
-            "type": "u8"
-          },
-          {
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "name": "mapRules",
-            "type": {
-              "defined": {
-                "name": "campaignMapRuleSnapshot"
-              }
-            }
-          },
-          {
-            "name": "levels",
-            "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "campaignLevelSnapshot"
-                  }
-                },
-                10
-              ]
-            }
           }
         ]
       }

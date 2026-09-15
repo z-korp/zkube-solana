@@ -136,89 +136,6 @@
       "args": []
     },
     {
-      "name": "activate_campaign_map",
-      "discriminator": [
-        241,
-        93,
-        123,
-        235,
-        248,
-        135,
-        200,
-        83
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true
-        },
-        {
-          "name": "map_catalog"
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "activate_content_release",
-      "discriminator": [
-        112,
-        124,
-        37,
-        124,
-        159,
-        223,
-        144,
-        145
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "content_version",
-          "type": "u32"
-        },
-        {
-          "name": "campaign_map_count",
-          "type": "u8"
-        }
-      ]
-    },
-    {
       "name": "apply_bonus",
       "discriminator": [
         50,
@@ -1088,92 +1005,6 @@
               }
             ]
           }
-        },
-        {
-          "name": "rent_recipient",
-          "writable": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "consume_campaign_run",
-      "discriminator": [
-        168,
-        216,
-        114,
-        59,
-        82,
-        199,
-        176,
-        11
-      ],
-      "accounts": [
-        {
-          "name": "active_run",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  99,
-                  116,
-                  105,
-                  118,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner",
-          "relations": [
-            "active_run",
-            "player_state"
-          ]
         },
         {
           "name": "rent_recipient",
@@ -2542,9 +2373,6 @@
           "name": "arcade_archive"
         },
         {
-          "name": "realm_map_catalog"
-        },
-        {
           "name": "arena_daily",
           "writable": true
         },
@@ -3112,9 +2940,6 @@
           }
         },
         {
-          "name": "realm_map_catalog"
-        },
-        {
           "name": "arena_daily",
           "writable": true,
           "pda": {
@@ -3160,119 +2985,6 @@
         {
           "name": "day_id",
           "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "prepare_campaign_run",
-      "discriminator": [
-        196,
-        98,
-        234,
-        167,
-        109,
-        145,
-        158,
-        94
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "player_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "map_catalog"
-        },
-        {
-          "name": "active_run",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  99,
-                  116,
-                  105,
-                  118,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              },
-              {
-                "kind": "arg",
-                "path": "run_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "run_id",
-          "type": "u64"
-        },
-        {
-          "name": "map_id",
-          "type": "u8"
-        },
-        {
-          "name": "level",
-          "type": "u8"
         }
       ]
     },
@@ -3576,6 +3288,66 @@
         {
           "name": "expected_unit_lamports",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "record_campaign_stars",
+      "discriminator": [
+        110,
+        150,
+        128,
+        15,
+        241,
+        145,
+        200,
+        96
+      ],
+      "accounts": [
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner_authority"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_authority"
+        },
+        {
+          "name": "session_token",
+          "optional": true
+        },
+        {
+          "name": "actor",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "stars",
+          "type": {
+            "array": [
+              "u8",
+              25
+            ]
+          }
         }
       ]
     },
@@ -4376,50 +4148,6 @@
           "type": "u64"
         }
       ]
-    },
-    {
-      "name": "write_map_catalog",
-      "discriminator": [
-        217,
-        226,
-        89,
-        178,
-        63,
-        54,
-        125,
-        83
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "map_catalog",
-          "writable": true
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "WriteMapCatalogArgs"
-            }
-          }
-        }
-      ]
     }
   ],
   "accounts": [
@@ -4515,19 +4243,6 @@
       ]
     },
     {
-      "name": "MapCatalog",
-      "discriminator": [
-        24,
-        88,
-        127,
-        223,
-        53,
-        15,
-        187,
-        130
-      ]
-    },
-    {
       "name": "OperatorRevenueVault",
       "discriminator": [
         56,
@@ -4605,32 +4320,6 @@
         38,
         100,
         186
-      ]
-    },
-    {
-      "name": "CampaignLevelRewarded",
-      "discriminator": [
-        5,
-        6,
-        248,
-        45,
-        123,
-        108,
-        217,
-        107
-      ]
-    },
-    {
-      "name": "ContentReleaseActivated",
-      "discriminator": [
-        159,
-        30,
-        50,
-        177,
-        23,
-        41,
-        6,
-        246
       ]
     },
     {
@@ -5090,8 +4779,7 @@
           {
             "name": "deadline_at",
             "docs": [
-              "Ranked actions and VRF callbacks are rejected at this immutable cutoff.",
-              "Campaign runs use zero (no cadence deadline)."
+              "Ranked actions and VRF callbacks are rejected at this immutable cutoff."
             ],
             "type": "i64"
           },
@@ -5100,14 +4788,10 @@
             "type": "u8"
           },
           {
-            "name": "level",
-            "type": "u8"
-          },
-          {
             "name": "rules",
             "type": {
               "defined": {
-                "name": "LevelRuleSnapshot"
+                "name": "RealmRuleSnapshot"
               }
             }
           },
@@ -5183,21 +4867,6 @@
             "type": "u8"
           },
           {
-            "name": "primary_progress",
-            "type": "u8"
-          },
-          {
-            "name": "secondary_progress",
-            "type": "u8"
-          },
-          {
-            "name": "latched_star_sources",
-            "docs": [
-              "Bit mask of latched Campaign sources; Daily runs keep this byte at zero."
-            ],
-            "type": "u8"
-          },
-          {
             "name": "streak",
             "docs": [
               "Consecutive player moves that each clear at least one line."
@@ -5233,7 +4902,7 @@
           {
             "name": "current_tier",
             "docs": [
-              "Ramped tier for Daily; Campaign derives its fixed tier from `rules`."
+              "Ramped draw tier for Daily."
             ],
             "type": "u8"
           },
@@ -5502,7 +5171,7 @@
             "type": "bool"
           },
           {
-            "name": "content_version",
+            "name": "catalog_version",
             "type": "u32"
           },
           {
@@ -5530,7 +5199,7 @@
             "name": "rules",
             "type": {
               "defined": {
-                "name": "LevelRuleSnapshot"
+                "name": "RealmRuleSnapshot"
               }
             }
           },
@@ -5733,90 +5402,6 @@
       }
     },
     {
-      "name": "CampaignLevelRewarded",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "run_id",
-            "type": "u64"
-          },
-          {
-            "name": "map_id",
-            "type": "u8"
-          },
-          {
-            "name": "level",
-            "type": "u8"
-          },
-          {
-            "name": "achieved_stars",
-            "type": "u8"
-          },
-          {
-            "name": "newly_earned_stars",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "CampaignLevelSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "level",
-            "type": "u8"
-          },
-          {
-            "name": "difficulty",
-            "type": "u8"
-          },
-          {
-            "name": "primary",
-            "type": {
-              "defined": {
-                "name": "ConstraintSnapshot"
-              }
-            }
-          },
-          {
-            "name": "secondary",
-            "type": {
-              "defined": {
-                "name": "ConstraintSnapshot"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "CampaignMapRuleSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "guardian",
-            "type": {
-              "defined": {
-                "name": "GuardianSnapshot"
-              }
-            }
-          },
-          {
-            "name": "starting_rows",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "CompetitionRecord",
       "type": {
         "kind": "struct",
@@ -5839,42 +5424,6 @@
           {
             "name": "rewards_lamports",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ConstraintSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "kind",
-            "type": "u8"
-          },
-          {
-            "name": "value",
-            "type": "u8"
-          },
-          {
-            "name": "required_count",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ContentReleaseActivated",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "campaign_map_count",
-            "type": "u8"
           }
         ]
       }
@@ -6077,10 +5626,6 @@
             "type": "pubkey"
           },
           {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
             "name": "replay_domain",
             "type": {
               "array": [
@@ -6112,110 +5657,6 @@
           {
             "name": "operator_lamports",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "LevelRuleSnapshot",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "level",
-            "type": "u8"
-          },
-          {
-            "name": "points_required",
-            "type": "u32"
-          },
-          {
-            "name": "difficulty",
-            "type": "u8"
-          },
-          {
-            "name": "primary",
-            "type": {
-              "defined": {
-                "name": "ConstraintSnapshot"
-              }
-            }
-          },
-          {
-            "name": "secondary",
-            "type": {
-              "defined": {
-                "name": "ConstraintSnapshot"
-              }
-            }
-          },
-          {
-            "name": "guardian",
-            "type": {
-              "defined": {
-                "name": "GuardianSnapshot"
-              }
-            }
-          },
-          {
-            "name": "starting_rows",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "MapCatalog",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "map_id",
-            "type": "u8"
-          },
-          {
-            "name": "theme_id",
-            "type": "u8"
-          },
-          {
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "name": "map_rules",
-            "docs": [
-              "Rules that define one consistent identity across the whole map."
-            ],
-            "type": {
-              "defined": {
-                "name": "CampaignMapRuleSnapshot"
-              }
-            }
-          },
-          {
-            "name": "levels",
-            "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "CampaignLevelSnapshot"
-                  }
-                },
-                10
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }
@@ -6436,13 +5877,6 @@
             }
           },
           {
-            "name": "campaign_active_run_id",
-            "docs": [
-              "Zero when the Campaign slot is idle."
-            ],
-            "type": "u64"
-          },
-          {
             "name": "kredit_balance",
             "docs": [
               "One-way prepaid entries owned by this wallet identity."
@@ -6629,17 +6063,6 @@
             }
           },
           {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "campaign_map_count",
-            "docs": [
-              "Number of contiguous, authority-activated Campaign maps."
-            ],
-            "type": "u8"
-          },
-          {
             "name": "paused",
             "type": "bool"
           },
@@ -6662,6 +6085,26 @@
           {
             "name": "paused",
             "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RealmRuleSnapshot",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "guardian",
+            "type": {
+              "defined": {
+                "name": "GuardianSnapshot"
+              }
+            }
+          },
+          {
+            "name": "starting_rows",
+            "type": "u8"
           }
         ]
       }
@@ -6698,9 +6141,6 @@
             "name": "Playing"
           },
           {
-            "name": "LevelComplete"
-          },
-          {
             "name": "Finished"
           }
         ]
@@ -6711,9 +6151,6 @@
       "type": {
         "kind": "enum",
         "variants": [
-          {
-            "name": "Campaign"
-          },
           {
             "name": "Daily"
           }
@@ -6809,51 +6246,6 @@
           {
             "name": "team_destination",
             "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "WriteMapCatalogArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "content_version",
-            "type": "u32"
-          },
-          {
-            "name": "map_id",
-            "type": "u8"
-          },
-          {
-            "name": "theme_id",
-            "type": "u8"
-          },
-          {
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "name": "map_rules",
-            "type": {
-              "defined": {
-                "name": "CampaignMapRuleSnapshot"
-              }
-            }
-          },
-          {
-            "name": "levels",
-            "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "CampaignLevelSnapshot"
-                  }
-                },
-                10
-              ]
-            }
           }
         ]
       }

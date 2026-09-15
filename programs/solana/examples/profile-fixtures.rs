@@ -13,7 +13,7 @@ fn row(id: &str, player: &PlayerState) -> Result<String, Box<dyn Error>> {
         zones.push(format!(
             "{{\"zoneId\":{zone_id},\"stars\":{},\"maxStars\":30,\"unlocked\":{},\"cleared\":{},\"perfected\":{},\"levelStars\":{levels:?}}}",
             levels.iter().map(|&stars| u16::from(stars)).sum::<u16>(),
-            player.campaign_level_unlocked(zone_id, 1)?,
+            zkube_core::CampaignStars::from_packed(player.campaign_stars).level_unlocked(zone_id, 1),
             player.zone_cleared(zone_id)?,
             player.zone_perfected(zone_id)?,
         ));
@@ -34,7 +34,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     for stars in [1, 3] {
         for realm in 1..=10 {
             for level in 1..=10 {
-                player.record_level_stars(realm, level, stars)?;
+                let index = (realm - 1) * 10 + level - 1;
+                let mut submitted = [0; zkube_core::CAMPAIGN_STAR_BYTES];
+                submitted[index / 4] = stars << ((index % 4) * 2);
+                player.merge_campaign_stars(submitted);
                 cases.push(row(
                     &format!("stars-{stars}-realm-{realm}-level-{level}"),
                     &player,

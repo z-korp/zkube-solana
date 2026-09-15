@@ -55,6 +55,13 @@ pub mod solana {
         instructions::profile_instructions::handler_set_featured_emblem(ctx, emblem_id, frame_tier)
     }
 
+    pub fn record_campaign_stars(
+        ctx: Context<SetFeaturedEmblem>,
+        stars: [u8; CAMPAIGN_STAR_BYTES],
+    ) -> Result<()> {
+        instructions::profile_instructions::handler_record_campaign_stars(ctx, stars)
+    }
+
     pub fn initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
         instructions::arcade_instructions::handler_initialize_arcade(ctx)
     }
@@ -228,38 +235,6 @@ pub mod solana {
         instructions::governance_instructions::handler_update_team_destination(ctx)
     }
 
-    pub fn write_map_catalog(
-        ctx: Context<WriteMapCatalog>,
-        args: WriteMapCatalogArgs,
-    ) -> Result<()> {
-        instructions::content_instructions::handler_write_map_catalog(ctx, args)
-    }
-
-    pub fn activate_campaign_map(ctx: Context<ActivateCampaignMap>) -> Result<()> {
-        instructions::content_instructions::handler_activate_campaign_map(ctx)
-    }
-
-    pub fn activate_content_release(
-        ctx: Context<ActivateContentRelease>,
-        content_version: u32,
-        campaign_map_count: u8,
-    ) -> Result<()> {
-        instructions::content_instructions::handler_activate_content_release(
-            ctx,
-            content_version,
-            campaign_map_count,
-        )
-    }
-
-    pub fn prepare_campaign_run(
-        ctx: Context<PrepareCampaignRun>,
-        run_id: u64,
-        map_id: u8,
-        level: u8,
-    ) -> Result<()> {
-        instructions::content_instructions::handler_prepare_campaign_run(ctx, run_id, map_id, level)
-    }
-
     pub fn delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()> {
         instructions::run_lifecycle::handler_delegate_active_run(ctx)
     }
@@ -330,9 +305,5 @@ pub mod solana {
 
     pub fn commit_run(ctx: Context<CommitRun>) -> Result<()> {
         instructions::run_lifecycle::handler_commit_run(ctx)
-    }
-
-    pub fn consume_campaign_run(ctx: Context<ConsumeCampaignRun>) -> Result<()> {
-        instructions::run_lifecycle::handler_consume_campaign_run(ctx)
     }
 }

@@ -116,6 +116,17 @@ export function mapLevelRuleSnapshot(
   };
 }
 
+export function mapDailyRuleSnapshot(
+  rules: { guardian: RawGuardianSnapshot; startingRows: unknown },
+  mapId: number,
+): ActiveRunRulesView {
+  return mapLevelRuleSnapshot({
+    ...rules, pointsRequired: 0, difficulty: 0,
+    primary: { kind: 0, value: 0, requiredCount: 0 },
+    secondary: { kind: 0, value: 0, requiredCount: 0 },
+  }, mapId, 1, "daily");
+}
+
 export function projectCoreRun(token: CoreRunToken) {
   const summary = coreRunSummary(token.state);
   const pendingVrfCounter =
