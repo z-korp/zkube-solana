@@ -1361,11 +1361,11 @@
   "provenance": [
     {
       "path": "fixtures/unity-money-overview-v1.json",
-      "sha256": "f6f30811da41bbc241a298bcc68085d5350ddf9c8b920fee98c392e40f6c857a"
+      "sha256": "2c869cd7e15f18d12a5263714b1b6213afca6bbc5e5dcdb1a33c90e200654cde"
     },
     {
       "path": "fixtures/unity-plans-v1.json",
-      "sha256": "7b310cb3a8763ccc8355258bce90da1ab6c20a5255ffbf44815ffb72022d8486"
+      "sha256": "96b444e6ea01f8462ca854e55c678b4c221eb87cff8d8945ddeff7c0dcec876c"
     },
     {
       "path": "fixtures/unity-economy-v1.json",
@@ -1404,5 +1404,5 @@
       "sha256": "bb8d082da2d05845631e30a3bcde91d76c1ec199575e4636c2c4d94e006b1143"
     }
   ],
-  "sourceSha256": "5c26c65c48ae29e806d39271e563fb234255b78d9279abff5e499a7908cb00be"
+  "sourceSha256": "7745da7fd3493900a41b94d81e87372d1fb12d19da099d4289d04179fb002b77"
 }

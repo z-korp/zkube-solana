@@ -4373,11 +4373,11 @@
     },
     {
       "path": "fixtures/unity-money-overview-v1.json",
-      "sha256": "f6f30811da41bbc241a298bcc68085d5350ddf9c8b920fee98c392e40f6c857a"
+      "sha256": "2c869cd7e15f18d12a5263714b1b6213afca6bbc5e5dcdb1a33c90e200654cde"
     },
     {
       "path": "fixtures/unity-plans-v1.json",
-      "sha256": "7b310cb3a8763ccc8355258bce90da1ab6c20a5255ffbf44815ffb72022d8486"
+      "sha256": "96b444e6ea01f8462ca854e55c678b4c221eb87cff8d8945ddeff7c0dcec876c"
     },
     {
       "path": "fixtures/unity-rpc-v1.json",
@@ -4385,7 +4385,7 @@
     },
     {
       "path": "fixtures/native-run-trajectories.json",
-      "sha256": "5e66be2c363450756ec546fb73192ab802685b40f40d3dc103946eb719afc87c"
+      "sha256": "22a04b62c43baba33089a1eb1626832b5a7d98036618ae5dc947a9e016a78096"
     },
     {
       "path": "client/src/backend/solana/pdas.ts",
@@ -4416,5 +4416,5 @@
       "sha256": "f5711b8f9a9eb3bf6fab99aceb6c138e302c6b3b309126bf29da84cedcb532d2"
     }
   ],
-  "sourceSha256": "1cd44fdfbb6b4d9f8c29f1f6d98899be768c2e064a9c6a12997a71617cac937e"
+  "sourceSha256": "63b892caa462d71fbe1cd6e3121825044885afbe31d7fd70dbc10dee9309bc0f"
 }

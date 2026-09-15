@@ -2557,15 +2557,15 @@
   "provenance": [
     {
       "path": "fixtures/unity-money-economy-v1.json",
-      "sha256": "1e81942ae6187b06cccebb20af0f90869fe348788f707275088bc45f822b3b13"
+      "sha256": "963af3a29af26ab295d3f69673d136615c1a9c1a5834e938f6e2316adfd7fc8f"
     },
     {
       "path": "fixtures/unity-money-session-v1.json",
-      "sha256": "47b77e5ad0e9d615554e6366fde81ec76ea73a1799518714a1ddeb12ef53b115"
+      "sha256": "1429dc7cef7ac9bd7240f6cf79c20c9b487b7841ceb7b35c837ec06ecbe0aa1b"
     },
     {
       "path": "fixtures/unity-plans-v1.json",
-      "sha256": "7b310cb3a8763ccc8355258bce90da1ab6c20a5255ffbf44815ffb72022d8486"
+      "sha256": "96b444e6ea01f8462ca854e55c678b4c221eb87cff8d8945ddeff7c0dcec876c"
     },
     {
       "path": "client/src/backend/solana/economy/playerStateClient.ts",
@@ -2592,5 +2592,5 @@
       "sha256": "8ac7862697d8e7385c994c3fe7a873f0c3758ff90fd38ddaf326cda2d5051bb9"
     }
   ],
-  "sourceSha256": "ca7cd304cc7a644a70f0eae1e81b2b76489f2e871079d02c1f98cf47b889d219"
+  "sourceSha256": "235c818872105abcb2336325498b8b4e86889c5352fa71867fbfb46350def635"
 }

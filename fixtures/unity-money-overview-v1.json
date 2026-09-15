@@ -9,11 +9,11 @@
       },
       {
         "path": "fixtures/unity-product-reads-v1.json",
-        "sha256": "e8278a5ee539dfc2fbd99878e5e06063b018a54f214019387836e1b0f0b03736"
+        "sha256": "38842558de7c60110cab1e6881d5606653ea86ed661d8b6feeb036337ec2cc20"
       },
       {
         "path": "fixtures/unity-run-client-v1.json",
-        "sha256": "f98219c210610ed23b59f84a17f7df0835296a1e95e8f8e029d04918be8d1a13"
+        "sha256": "d21fdc5f2327cb71362f1692ebb2abec30a1d1b7b7a831b58e7aa2d68b70c16c"
       },
       {
         "path": "fixtures/unity-solana-v1.json",
@@ -596,5 +596,5 @@
       "pending": null
     }
   ],
-  "sourceSha256": "470f0b92bfe950fdaf85ba5e4e8dfeab330ea4daf202d2546c78b09951b9e829"
+  "sourceSha256": "8e312ec12b9080f6c43ded802f108340072ebfde95a2b952d1fc6e8b9cd3742a"
 }

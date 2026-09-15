@@ -764,7 +764,12 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     };
     let mut t = Trajectory::new("committed-daily-run-anchor", cfg, None)?;
     t.apply(Action::Vrf(1, [0x11; 32]))?;
-    t.apply(Action::Move(0, 1, 0))?;
+    let movement = &golden["events"][1];
+    t.apply(Action::Move(
+        u8::try_from(movement["row"].as_u64().unwrap()).unwrap(),
+        u8::try_from(movement["start"].as_u64().unwrap()).unwrap(),
+        u8::try_from(movement["destination"].as_u64().unwrap()).unwrap(),
+    ))?;
     t.apply(Action::Vrf(2, [0x22; 32]))?;
     t.apply(Action::Finish(4))?;
     if hex(t.run().replay.as_bytes())

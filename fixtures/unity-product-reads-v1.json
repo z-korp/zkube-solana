@@ -634,9 +634,9 @@
     "client/src/backend/solana/content/SolanaContentBoardsLive.ts": "89e62beb3807f8ab5c3c287f4e9639223cbbb06b6ac625066fafbe8e109e3846",
     "client/src/backend/solana/runs/spectateRun.ts": "9c000f7c4c116ec7fdeddc811db0986935740a8714a6fc72abb01bf5d30fc1f5",
     "client/src/core/campaignCatalog.generated.ts": "4ee13f97efe0f7bb62d560632d8830cad3714c02b6adb1ad533ad548bc2278bd",
-    "fixtures/unity-plans-v1.json": "7b310cb3a8763ccc8355258bce90da1ab6c20a5255ffbf44815ffb72022d8486",
+    "fixtures/unity-plans-v1.json": "96b444e6ea01f8462ca854e55c678b4c221eb87cff8d8945ddeff7c0dcec876c",
     "fixtures/unity-solana-v1.json": "de077136e8ab6ebce977dcf99b4c868171f5cdb3514db9b5a31db8e2b31d7bf6",
-    "fixtures/unity-run-client-v1.json": "f98219c210610ed23b59f84a17f7df0835296a1e95e8f8e029d04918be8d1a13",
+    "fixtures/unity-run-client-v1.json": "d21fdc5f2327cb71362f1692ebb2abec30a1d1b7b7a831b58e7aa2d68b70c16c",
     "producer": "0f77f4f47b7adfca43c4b98934df96a78e79629ae644f971db595c8435365595"
   }
 }

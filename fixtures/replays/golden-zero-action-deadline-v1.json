@@ -20,10 +20,10 @@
   },
   "rules_snapshot_hash_hex": "ada659900e4cfca34b9e112a0bc28918ba8e3bbcb50b31549a639114721561ad",
   "day_id": 42,
-  "content_version": 2,
-  "rules_hash_hex": "4dad130f85331750c246a08d47ac1165fa31fe769a06ad6e0d77927f8c558019",
+  "content_version": 3,
+  "rules_hash_hex": "2e8e9117ff75984479bc5102ed436130b17fc6d7ae7d3ca67777640d720341d4",
   "player_id_hex": "da8355dd1b72696e764a2744b362ed873e450a168a551fcb584103241064b1e2",
-  "initial_replay_hash_hex": "e4d322c3cd908a6cb4677de30dd16d409741ed7b8eb9f61b50ee6457bae90c61",
+  "initial_replay_hash_hex": "21a4be2c565eb79645cccf5d1ff847828fb390b0ba97460fcdd0f3344fa3a729",
   "events": [
     {
       "kind": "vrf",
@@ -37,10 +37,10 @@
     "end_reason": "deadline",
     "score_eligible": false,
     "final_grid": [
-      0, 2, 2, 2, 2, 3, 3, 3,
-      0, 0, 1, 2, 2, 0, 1, 0,
-      0, 2, 2, 1, 2, 2, 2, 2,
-      0, 1, 1, 0, 0, 0, 1, 1,
+      4, 4, 4, 4, 3, 3, 3, 0,
+      2, 2, 1, 1, 0, 2, 2, 0,
+      0, 1, 1, 1, 2, 2, 1, 0,
+      2, 2, 0, 1, 2, 2, 2, 2,
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
@@ -65,6 +65,6 @@
     "level_lines_cleared": 0,
     "bonus": "wave",
     "bonus_charges": 0,
-    "final_replay_hash_hex": "224c00e75b3058f1338f944b469d6ad7f1a1ffb02323f0fd1cdebe9a5a334731"
+    "final_replay_hash_hex": "daa72be4e8839604022da22267e23d256c25bc8a3278d0200b3c78fbb0ff6503"
   }
 }

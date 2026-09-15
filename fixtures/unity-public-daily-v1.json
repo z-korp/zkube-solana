@@ -599,7 +599,7 @@
     "client/src/core/dailyRules.ts": "304b13cc5654692ce7472fcca3c905cd487562121e1a10244a8cda448f40f738",
     "client/src/ui/components/arcade/arcadeLifecycle.ts": "34395ce8b2379109c271dd7cae5ffcd361da0d2f9146554d84d08ef5d9882df5",
     "client/src/core/generated/zkube_core_bg.wasm": "6085fce2ce86e89e51a33e039ad6291d477c0f97be07de9170fa1f819e789d06",
-    "fixtures/unity-product-reads-v1.json": "e8278a5ee539dfc2fbd99878e5e06063b018a54f214019387836e1b0f0b03736",
+    "fixtures/unity-product-reads-v1.json": "38842558de7c60110cab1e6881d5606653ea86ed661d8b6feeb036337ec2cc20",
     "client/tools/unity/public-daily-fixtures.ts": "6aa1b0cb54f044e07a78f9cf729f4e511554abfb129c1c5579fb91e1a9efc91d"
   }
 }

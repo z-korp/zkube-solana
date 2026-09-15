@@ -145,15 +145,14 @@ fn fixture_rules(value: &GoldenRules) -> RunRules {
 fn verify_daily_run_vector(json: &str) {
     let fixture: GoldenDailyRun = serde_json::from_str(json).unwrap();
     assert_eq!(fixture.version, 2);
+    assert_eq!(fixture.content_version, CATALOG_VERSION);
     let rules = fixture_rules(&fixture.rules);
     assert_eq!(
         rules.snapshot_hash().to_bytes(),
         decode_32(&fixture.rules_snapshot_hash_hex)
     );
-    // Historical replay vectors retain their original catalog identity.
-    let rules_hash = crate::simulation::daily_rules_hash_components_with::<SoftwareSha256>(
+    let rules_hash = daily_rules_hash(
         fixture.day_id,
-        fixture.content_version,
         rules.guardian,
         rules.starting_height,
         DailyTheme {
@@ -162,7 +161,6 @@ fn verify_daily_run_vector(json: &str) {
                 .map_or(ConstraintKind::None, |theme| theme.kind),
             value: rules.objective.map_or(0, |theme| theme.value),
         },
-        RULES_VERSION,
     );
     assert_eq!(rules_hash.to_bytes(), decode_32(&fixture.rules_hash_hex));
     let domain = ChainDomain(decode_32(&fixture.chain_domain_hex));
