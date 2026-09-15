@@ -5217,6 +5217,7 @@ dependencies = [
  "serde",
  "serde_json",
  "zkube-core",
+ "zkube-core-wasm",
 ]
 
 [[package]]
@@ -5226,6 +5227,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "zkube-core-ffi"
+version = "0.1.0"
+dependencies = [
+ "zkube-core-wasm",
 ]
 
 [[package]]

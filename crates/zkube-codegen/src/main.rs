@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod native_client;
+mod native_fixtures;
+
 use std::{fmt::Write as _, fs, path::PathBuf, process::ExitCode};
 
 use clap::{Parser, Subcommand};
@@ -83,6 +86,7 @@ fn main() -> ExitCode {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn run(cli: &Cli) -> Result<String, String> {
     let fixture_path = cli.root.join(FIXTURE);
     let source = fs::read_to_string(&fixture_path)
@@ -94,9 +98,17 @@ fn run(cli: &Cli) -> Result<String, String> {
     let generated_tier_weights = render_tier_weights_rust(&catalog);
     let generated_daily_rules = render_daily_rules_typescript()?;
     let generated_protocol = render_protocol_constants(&catalog);
+    let native_outputs = native_client::outputs(&catalog)?;
     let output = cli.root.join(GENERATED_TS);
     match &cli.command {
         Command::Generate => {
+            for (relative, content) in &native_outputs {
+                let path = cli.root.join(relative);
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                fs::write(path, content).map_err(|e| e.to_string())?;
+            }
             if let Some(parent) = output.parent() {
                 fs::create_dir_all(parent)
                     .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
@@ -128,6 +140,17 @@ fn run(cli: &Cli) -> Result<String, String> {
             Ok("generated Campaign catalog, Daily rules, and shared protocol constants".into())
         }
         Command::Check => {
+            for (relative, content) in &native_outputs {
+                let path = cli.root.join(relative);
+                let actual = fs::read_to_string(&path)
+                    .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+                if &actual != content {
+                    return Err(format!(
+                        "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
+                        path.display()
+                    ));
+                }
+            }
             let actual = fs::read_to_string(&output)
                 .map_err(|error| format!("cannot read {}: {error}", output.display()))?;
             if actual != generated {

@@ -635,6 +635,32 @@ impl RunEngine {
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
+        self.play_run_move_observed(
+            expected_move,
+            row,
+            start,
+            destination,
+            max_moves,
+            stars,
+            guardian,
+            action_score_multiplier_x100,
+            &mut crate::NoPresentation,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn play_run_move_observed<O: crate::PresentationObserver>(
+        &mut self,
+        expected_move: u16,
+        row: u8,
+        start: u8,
+        destination: u8,
+        max_moves: u16,
+        stars: Option<StarRules>,
+        guardian: Guardian,
+        action_score_multiplier_x100: u16,
+        observer: &mut O,
+    ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
             return Err(RunError::InvalidPhase);
         }
@@ -660,7 +686,15 @@ impl RunEngine {
             self.grid = before;
             return Err(error.into());
         }
-        let (first_lines, first_points) = self.grid.settle();
+        observer.observe(crate::PresentationEvent::BlockMoved {
+            gravity: false,
+            from_row: row,
+            from_column: start,
+            to_row: row,
+            to_column: destination,
+            width: before.cells()[usize::from(row) * crate::GRID_WIDTH + usize::from(start)],
+        });
+        let (first_lines, first_points) = self.grid.settle_after_observed(0, observer);
         if self.grid.is_full() {
             return Ok(self.finish_run_move_with_multiplier(
                 ActionContext {
@@ -680,10 +714,11 @@ impl RunEngine {
         }
 
         self.grid.insert_bottom_row(next_row)?;
+        observer.observe(crate::PresentationEvent::RowInserted { row: next_row });
         // Cairo carries one line counter through both settle phases of the
         // action. The inserted row can complete another line, which must keep
         // climbing the same triangular score curve instead of restarting at 1.
-        let (second_lines, second_points) = self.grid.settle_after(first_lines);
+        let (second_lines, second_points) = self.grid.settle_after_observed(first_lines, observer);
         let report = self.finish_run_move_with_multiplier(
             ActionContext {
                 height_before,
@@ -727,6 +762,28 @@ impl RunEngine {
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
+        self.apply_run_bonus_observed(
+            row,
+            column,
+            max_moves,
+            stars,
+            guardian,
+            action_score_multiplier_x100,
+            &mut crate::NoPresentation,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn apply_run_bonus_observed<O: crate::PresentationObserver>(
+        &mut self,
+        row: u8,
+        column: u8,
+        max_moves: u16,
+        stars: Option<StarRules>,
+        guardian: Guardian,
+        action_score_multiplier_x100: u16,
+        observer: &mut O,
+    ) -> Result<MoveReport, RunError> {
         if self.phase != RunPhase::Playing {
             return Err(RunError::InvalidPhase);
         }
@@ -737,9 +794,17 @@ impl RunEngine {
         let height_before = self.grid.occupied_height();
         let block_cells_before =
             core::array::from_fn(|index| self.grid.count_cells_of_size(index as u8 + 1));
+        let before = self.grid;
         self.grid.apply_bonus(bonus, row, column)?;
+        let mut removed = [0u8; 10];
+        for (index, cell) in before.cells().iter().enumerate() {
+            if *cell != 0 && self.grid.cells()[index] == 0 {
+                removed[index / crate::GRID_WIDTH] |= 1 << (index % crate::GRID_WIDTH);
+            }
+        }
+        observer.observe(crate::PresentationEvent::BonusApplied { bonus, removed });
         self.bonus_charges -= 1;
-        let (lines, base_points) = self.grid.settle();
+        let (lines, base_points) = self.grid.settle_after_observed(0, observer);
         let report = self.finish_run_action_with_multiplier(
             ActionContext {
                 height_before,

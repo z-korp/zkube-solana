@@ -3,6 +3,7 @@ members = [
     "programs/*",
     "crates/zkube-core",
     "crates/zkube-core-wasm",
+    "crates/zkube-core-ffi",
     "crates/zkube-codegen",
 ]
 resolver = "2"

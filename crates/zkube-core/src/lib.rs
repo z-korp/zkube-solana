@@ -27,6 +27,7 @@ mod ladder;
 mod payouts;
 #[allow(clippy::missing_errors_doc)]
 mod periods;
+mod presentation;
 #[allow(clippy::pedantic)]
 mod randomness;
 mod replay;
@@ -88,6 +89,7 @@ pub use payouts::{
     rank_weighted_payouts, sol_rank_weighted_payouts,
 };
 pub use periods::{DAILY_REWARD_CLAIM_WINDOW_SECONDS, PeriodError, SECONDS_PER_DAY, day_id_at};
+pub use presentation::{NoPresentation, PresentationEvent, PresentationObserver};
 pub use randomness::{
     BlockWeights, ContinuationLayout, MAX_OPENING_HEIGHT, MIN_OPENING_HEIGHT, OpeningLayout,
     RandomnessError, continuation_from_vrf, continuation_from_vrf_with, opening_from_vrf,

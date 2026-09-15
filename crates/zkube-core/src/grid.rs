@@ -192,6 +192,13 @@ impl Grid {
     }
 
     pub fn apply_gravity(&mut self) {
+        self.apply_gravity_observed(&mut crate::NoPresentation);
+    }
+
+    pub(crate) fn apply_gravity_observed<O: crate::PresentationObserver>(
+        &mut self,
+        observer: &mut O,
+    ) {
         loop {
             let mut changed = false;
             for row in 1..GRID_HEIGHT {
@@ -214,6 +221,14 @@ impl Grid {
                             self.cells[row * GRID_WIDTH + column + index] = 0;
                         }
                         changed = true;
+                        observer.observe(crate::PresentationEvent::BlockMoved {
+                            gravity: true,
+                            from_row: row as u8,
+                            from_column: column as u8,
+                            to_row: (row - 1) as u8,
+                            to_column: column as u8,
+                            width: size as u8,
+                        });
                     }
                     column += size;
                 }
@@ -238,12 +253,21 @@ impl Grid {
     /// keeps a four-line action worth 1 + 2 + 3 + 4 even when the fourth line
     /// is completed by the inserted row.
     pub fn settle_after(&mut self, lines_before: u8) -> (u8, u16) {
+        self.settle_after_observed(lines_before, &mut crate::NoPresentation)
+    }
+
+    pub(crate) fn settle_after_observed<O: crate::PresentationObserver>(
+        &mut self,
+        lines_before: u8,
+        observer: &mut O,
+    ) -> (u8, u16) {
         let mut lines = 0u8;
         let mut action_lines = lines_before;
         let mut points = 0u16;
         loop {
-            self.apply_gravity();
+            self.apply_gravity_observed(observer);
             let mut cleared = false;
+            let mut rows = 0u16;
             for row in 0..GRID_HEIGHT {
                 let offset = row * GRID_WIDTH;
                 if self.cells[offset..offset + GRID_WIDTH]
@@ -255,11 +279,13 @@ impl Grid {
                     action_lines = action_lines.saturating_add(1);
                     points = points.saturating_add(action_lines as u16);
                     cleared = true;
+                    rows |= 1 << row;
                 }
             }
             if !cleared {
                 break;
             }
+            observer.observe(crate::PresentationEvent::RowsCleared { rows });
         }
         (lines, points)
     }

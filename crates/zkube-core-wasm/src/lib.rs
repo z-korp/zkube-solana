@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod native;
 mod run;
 
 pub use run::{
@@ -237,24 +238,24 @@ pub fn payout_for_rank(
     zkube_core::payout_for_rank(pool, denominator, rank, whole_unit).map_err(Into::into)
 }
 
-#[cfg(any(test, all(feature = "wasm-bindgen", target_arch = "wasm32")))]
-fn encode_board_pools(pools: DailyBoardPools) -> Vec<u8> {
+#[must_use]
+pub fn encode_board_pools(pools: DailyBoardPools) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(16);
     bytes.extend_from_slice(&pools.score.to_le_bytes());
     bytes.extend_from_slice(&pools.theme.to_le_bytes());
     bytes
 }
 
-#[cfg(any(test, all(feature = "wasm-bindgen", target_arch = "wasm32")))]
-fn encode_board_width(width: ProtocolBoardWidth) -> Vec<u8> {
+#[must_use]
+pub fn encode_board_width(width: ProtocolBoardWidth) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(20);
     bytes.extend_from_slice(&width.winner_count.to_le_bytes());
     bytes.extend_from_slice(&width.denominator.to_le_bytes());
     bytes
 }
 
-#[cfg(any(test, all(feature = "wasm-bindgen", target_arch = "wasm32")))]
-fn encode_payout_plan(plan: &ProtocolPayoutPlan) -> Vec<u8> {
+#[must_use]
+pub fn encode_payout_plan(plan: &ProtocolPayoutPlan) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(41 + plan.payouts.len() * 8);
     bytes.extend_from_slice(&plan.winner_count.to_le_bytes());
     bytes.extend_from_slice(&plan.width_winner_count.to_le_bytes());

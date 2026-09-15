@@ -381,10 +381,37 @@ impl Run {
         start: u8,
         destination: u8,
     ) -> Result<crate::MoveReport, RunTransitionError> {
+        self.play_move_observed_with::<H, _>(
+            rules,
+            action,
+            expected_move,
+            row,
+            start,
+            destination,
+            &mut crate::NoPresentation,
+        )
+    }
+
+    /// Observe the same atomic move used by untraced callers. Discard collected
+    /// events if this returns an error; events are not independently accepted.
+    ///
+    /// # Errors
+    /// Returns the same errors as [`Run::play_move`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn play_move_observed_with<H: Sha256Provider, O: crate::PresentationObserver>(
+        &mut self,
+        rules: RunRules,
+        action: u32,
+        expected_move: u16,
+        row: u8,
+        start: u8,
+        destination: u8,
+        observer: &mut O,
+    ) -> Result<crate::MoveReport, RunTransitionError> {
         self.require_action_with::<H>(rules, action)?;
         let mut next = *self;
         let trigger_events_before = next.engine.charges_earned;
-        let report = next.engine.play_run_move(
+        let report = next.engine.play_run_move_observed(
             expected_move,
             row,
             start,
@@ -393,6 +420,7 @@ impl Run {
             rules.stars,
             rules.guardian,
             rules.action_score_multiplier(next.current_tier),
+            observer,
         )?;
         let trigger_events = next
             .engine
@@ -409,6 +437,8 @@ impl Run {
                 destination,
             },
         );
+        next.observe_perfect_clear(self, report, observer);
+        next.observe_outcome(self, observer);
         *self = next;
         Ok(report)
     }
@@ -440,16 +470,38 @@ impl Run {
         row: u8,
         column: u8,
     ) -> Result<crate::MoveReport, RunTransitionError> {
+        self.apply_bonus_observed_with::<H, _>(
+            rules,
+            action,
+            row,
+            column,
+            &mut crate::NoPresentation,
+        )
+    }
+
+    /// Observe the shared bonus transition; discard events on rejection.
+    ///
+    /// # Errors
+    /// Returns the same errors as [`Run::apply_bonus`].
+    pub fn apply_bonus_observed_with<H: Sha256Provider, O: crate::PresentationObserver>(
+        &mut self,
+        rules: RunRules,
+        action: u32,
+        row: u8,
+        column: u8,
+        observer: &mut O,
+    ) -> Result<crate::MoveReport, RunTransitionError> {
         self.require_action_with::<H>(rules, action)?;
         let mut next = *self;
         let trigger_events_before = next.engine.charges_earned;
-        let report = next.engine.apply_run_bonus(
+        let report = next.engine.apply_run_bonus_observed(
             row,
             column,
             rules.max_moves,
             rules.stars,
             rules.guardian,
             rules.action_score_multiplier(next.current_tier),
+            observer,
         )?;
         let trigger_events = next
             .engine
@@ -464,8 +516,75 @@ impl Run {
                 column,
             },
         );
+        next.observe_perfect_clear(self, report, observer);
+        next.observe_outcome(self, observer);
         *self = next;
         Ok(report)
+    }
+
+    /// Observe row/preview replacement after verified randomness. The mutation
+    /// and commitment still use the one existing VRF path.
+    ///
+    /// # Errors
+    /// Returns the same errors as [`Run::apply_vrf`].
+    pub fn apply_vrf_observed<O: crate::PresentationObserver>(
+        &mut self,
+        rules: RunRules,
+        counter: u32,
+        output: [u8; 32],
+        observer: &mut O,
+    ) -> Result<(), RunTransitionError> {
+        let before = *self;
+        self.apply_vrf(rules, counter, output)?;
+        if before.engine.grid != self.engine.grid {
+            observer.observe(crate::PresentationEvent::BoardReplaced {
+                cells: *self.engine.grid.cells(),
+            });
+        }
+        self.observe_outcome(&before, observer);
+        Ok(())
+    }
+
+    /// Observe an explicit finish without changing the accepted finish path.
+    ///
+    /// # Errors
+    /// Returns the same errors as [`Run::finish`].
+    pub fn finish_observed<O: crate::PresentationObserver>(
+        &mut self,
+        rules: RunRules,
+        reason: RunEndReason,
+        observer: &mut O,
+    ) -> Result<(), RunTransitionError> {
+        let before = *self;
+        self.finish(rules, reason)?;
+        self.observe_outcome(&before, observer);
+        Ok(())
+    }
+
+    fn observe_perfect_clear<O: crate::PresentationObserver>(
+        &self,
+        before: &Self,
+        report: crate::MoveReport,
+        observer: &mut O,
+    ) {
+        if report.perfect_clear {
+            observer.observe(crate::PresentationEvent::PerfectClear {
+                reroll_granted: self.engine.reroll_charges > before.engine.reroll_charges,
+            });
+        }
+    }
+
+    fn observe_outcome<O: crate::PresentationObserver>(&self, before: &Self, observer: &mut O) {
+        if self.engine.next_row != before.engine.next_row {
+            observer.observe(crate::PresentationEvent::PreviewChanged {
+                row: self.engine.next_row,
+            });
+        }
+        if self.end_reason != before.end_reason
+            && let Some(reason) = self.end_reason
+        {
+            observer.observe(crate::PresentationEvent::Terminal { reason });
+        }
     }
 
     /// Spend one held reroll as an ordered action.
@@ -714,6 +833,97 @@ mod tests {
             rules_hash: RulesHash([5; 32]),
             rules: rules(),
             initial_replay: ReplayCommitment([6; 32]),
+        }
+    }
+
+    #[test]
+    fn perfect_clear_observation_preserves_move_bonus_and_capped_state() {
+        use std::{vec, vec::Vec};
+        #[derive(Default)]
+        struct Events(Vec<crate::PresentationEvent>);
+        impl crate::PresentationObserver for Events {
+            fn observe(&mut self, event: crate::PresentationEvent) {
+                self.0.push(event);
+            }
+        }
+        for bonus in [false, true] {
+            for charges in [1, crate::BONUS_CHARGE_CAP] {
+                let cfg = config();
+                let mut initial = Run::new(cfg).unwrap();
+                let mut cells = [0; 80];
+                cells[0] = 1;
+                if !bonus {
+                    cells[2..8].fill(1);
+                    cells[8] = 1;
+                }
+                initial.engine.grid = crate::Grid::try_from_cells(cells).unwrap();
+                initial.engine.next_row = Some([1; 8]);
+                initial.engine.phase = RunPhase::Playing;
+                initial.engine.bonus_charges = 1;
+                initial.engine.charges_earned = 1;
+                initial.engine.reroll_charges = charges;
+                initial.last_vrf_counter = 1;
+                let mut traced = initial;
+                let mut plain = initial;
+                let mut events = Events::default();
+                let report = if bonus {
+                    plain.apply_bonus(cfg.rules, 0, 0, 0).unwrap();
+                    traced
+                        .apply_bonus_observed_with::<SoftwareSha256, _>(
+                            cfg.rules,
+                            0,
+                            0,
+                            0,
+                            &mut events,
+                        )
+                        .unwrap()
+                } else {
+                    plain.play_move(cfg.rules, 0, 0, 1, 0, 1).unwrap();
+                    traced
+                        .play_move_observed_with::<SoftwareSha256, _>(
+                            cfg.rules,
+                            0,
+                            0,
+                            1,
+                            0,
+                            1,
+                            &mut events,
+                        )
+                        .unwrap()
+                };
+                assert!(report.perfect_clear);
+                assert_eq!(
+                    traced, plain,
+                    "observation cannot alter any accepted field or commitment"
+                );
+                assert_eq!(
+                    events
+                        .0
+                        .iter()
+                        .filter(|event| matches!(
+                            event,
+                            crate::PresentationEvent::PerfectClear { .. }
+                        ))
+                        .copied()
+                        .collect::<Vec<_>>(),
+                    vec![crate::PresentationEvent::PerfectClear {
+                        reroll_granted: charges < crate::BONUS_CHARGE_CAP
+                    }]
+                );
+                let mut rejected = Events::default();
+                assert!(
+                    initial
+                        .apply_bonus_observed_with::<SoftwareSha256, _>(
+                            cfg.rules,
+                            1,
+                            0,
+                            0,
+                            &mut rejected
+                        )
+                        .is_err()
+                );
+                assert!(rejected.0.is_empty());
+            }
         }
     }
 

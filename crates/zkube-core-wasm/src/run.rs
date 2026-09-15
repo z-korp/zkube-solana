@@ -516,7 +516,10 @@ pub fn run_end_reason(state: &[u8]) -> Result<u8, BoundaryError> {
         .map_or(0, end_reason_tag))
 }
 
-fn decode_for_transition(config: &[u8], state: &[u8]) -> Result<(RunConfig, Run), BoundaryError> {
+pub(crate) fn decode_for_transition(
+    config: &[u8],
+    state: &[u8],
+) -> Result<(RunConfig, Run), BoundaryError> {
     let config = decode_run_config(config)?;
     let run = decode_run_state(state)?;
     if run.rules_hash != config.rules_hash
@@ -595,7 +598,7 @@ fn constraint_from_parts(
     })
 }
 
-const fn phase_tag(phase: RunPhase) -> u8 {
+pub(crate) const fn phase_tag(phase: RunPhase) -> u8 {
     match phase {
         RunPhase::Playing => 1,
         RunPhase::AwaitingVrf => 2,
@@ -614,7 +617,7 @@ fn decode_phase(tag: u8) -> Result<RunPhase, BoundaryError> {
     }
 }
 
-const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
+pub(crate) const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
     match bonus {
         None => 0,
         Some(Bonus::Hammer) => 1,
@@ -633,7 +636,7 @@ fn decode_bonus(tag: u8) -> Result<Option<Bonus>, BoundaryError> {
     }
 }
 
-const fn end_reason_tag(reason: RunEndReason) -> u8 {
+pub(crate) const fn end_reason_tag(reason: RunEndReason) -> u8 {
     match reason {
         RunEndReason::Completed => 1,
         RunEndReason::Exhausted => 2,
