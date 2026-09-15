@@ -20,8 +20,8 @@ namespace ZKube.Integration.App.Tests
                 var result = (await e.Flow.BuyKredits(pack)).Value;
                 Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage), result.Code);
                 var quote = e.Http.Requests.Single(row => (string)row["method"] == "getFeeForMessage");
-                var expected = e.Plans["plans"].Single(row => (string)row["id"] == "purchase-" + pack);
-                Assert.That((string)quote["params"][0], Is.EqualTo((string)expected["expected"]["message"]));
+                var expected = e.Solana["transactions"].Single(row => (string)row["id"] == "purchase-" + pack);
+                ZKube.Integration.Tests.ProgramScenarios.EquivalentMessages((string)quote["params"][0], (string)expected["message"]);
                 Assert.That(e.Native.Calls, Is.EqualTo(1));
                 Assert.That(await e.Services.Journal.Load(e.Owner), Is.Null);
                 var observed = (await e.Flow.RefreshOwner()).Value;
@@ -58,7 +58,7 @@ namespace ZKube.Integration.App.Tests
                 e.Http.DelayMethod = "getMultipleAccounts";
                 e.Http.Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 e.Http.Release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                var reading = e.Flow.RefreshRewards((uint)MoneyTestEnvironment.Fixture("unity-product-reads-v1.json")["inputs"]["oldDay"]); await e.Http.Entered.Task;
+                var reading = e.Flow.RefreshRewards((uint)MoneyTestEnvironment.Fixture("reads")["inputs"]["oldDay"]); await e.Http.Entered.Task;
                 using var cancellation = new CancellationTokenSource();
                 var purchase = e.Flow.BuyKredits(1, cancellation.Token);
                 Assert.Throws<InvalidOperationException>(() => e.Flow.BuyKredits(1));
@@ -75,9 +75,11 @@ namespace ZKube.Integration.App.Tests
             var e = new MoneyTestEnvironment();
             try
             {
-                await e.Flow.Connect(e.Owner);
+                // Exercise the economy's identity boundary without starting
+                // independent background save reads in the application flow.
+                await e.Services.Identity.Connect(e.Owner);
                 var origin = e.Services.Identity.Lease();
-                await e.Flow.Disconnect(); await e.Flow.Connect(e.Owner);
+                await e.Services.Identity.Disconnect(); await e.Services.Identity.Connect(e.Owner);
                 int calls = e.Http.Requests.Count, native = e.Native.Calls;
                 await MoneyTestEnvironment.Fails<OperationCanceledException>(() => e.Services.Economy.Buy(1, origin.Cancellation));
                 Assert.That(e.Http.Requests.Count, Is.EqualTo(calls)); Assert.That(e.Native.Calls, Is.EqualTo(native));

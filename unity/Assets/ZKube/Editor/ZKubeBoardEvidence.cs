@@ -18,7 +18,7 @@ namespace ZKube.Editor
     {
         [Serializable] private sealed class Request
         {
-            public string id, action, fixture, output, control, scenario, raw, surface, outcome;
+            public string id, action, fixture, output, control, scenario, raw, surface;
             public int width = 430, height = 932, frames = 300;
             public int inputs = 1;
             public float seconds = 15;
@@ -62,25 +62,12 @@ namespace ZKube.Editor
                     Finish(request, "ok", ZKubeProfilerEvidence.Export(request.raw, request.output));
                     return;
                 }
-                if (request.surface != null && request.surface != "board" && request.surface != "money") throw new ArgumentException("Unknown evidence surface");
+                if (request.surface != null && request.surface != "board") throw new ArgumentException("Unknown evidence surface");
                 if (request.action == "open")
                 {
-                    if (request.surface == "money") OpenMoney(); else Open();
+                    Open();
                     Finish(request, "ok", "Entering Play mode"); return;
                 }
-#if !ZKUBE_STORE
-                if (request.surface == "money")
-                {
-                    var money = UnityEngine.Object.FindFirstObjectByType<ZKube.Integration.App.MoneyOverviewEvidenceHost>();
-                    if (!EditorApplication.isPlaying || money == null) throw new InvalidOperationException("Open the dedicated MoneyEvidence scene in Play mode");
-                    commandRunning = true;
-                    money.StartCoroutine(Execute(request, MoneyOperation(request, money),
-                        () => request.action == "journey" ? money.LastJourneyJson : money.ReadinessJson()));
-                    return;
-                }
-#else
-                if (request.surface == "money") throw new InvalidOperationException("Money evidence is excluded from store");
-#endif
                 var harness = UnityEngine.Object.FindFirstObjectByType<BoardEvidenceHarness>();
                 if (!EditorApplication.isPlaying || harness == null) throw new InvalidOperationException("Board evidence requires Play mode");
                 commandRunning = true;
@@ -106,7 +93,7 @@ namespace ZKube.Editor
                     Exception failure = null;
                     try
                     {
-                        if ((request.action == "profile" || request.surface == "money") && EditorApplication.timeSinceStartup > deadline)
+                        if (request.action == "profile" && EditorApplication.timeSinceStartup > deadline)
                             throw new TimeoutException("Evidence workload exceeded its 30-second bound");
                         var current = pending.Peek();
                         if (!current.MoveNext()) { (pending.Pop() as IDisposable)?.Dispose(); continue; }
@@ -121,43 +108,6 @@ namespace ZKube.Editor
             finally { while (pending.Count != 0) (pending.Pop() as IDisposable)?.Dispose(); }
             Finish(request, "ok", result());
         }
-
-        public static void OpenMoney()
-        {
-#if !ZKUBE_STORE
-            const string path = "Assets/ZKube/Scenes/MoneyEvidence.unity";
-            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode)
-                throw new InvalidOperationException("Open captures from an idle graphics Editor");
-            if (!File.Exists(path)) throw new InvalidOperationException("Root must prepare the dedicated MoneyEvidence scene first");
-            EditorSceneManager.OpenScene(path); SetViewport(430, 932); EditorApplication.isPlaying = true;
-#else
-            throw new InvalidOperationException("Money evidence is excluded from store");
-#endif
-        }
-#if !ZKUBE_STORE
-        private static IEnumerator MoneyOperation(Request request, ZKube.Integration.App.MoneyOverviewEvidenceHost host)
-        {
-            switch (request.action)
-            {
-                case "readiness": break;
-                case "load":
-                    var load = host.Load(request.scenario);
-                    while (!load.IsCompleted) yield return null;
-                    load.GetAwaiter().GetResult(); yield return host.WaitReady(); break;
-                case "viewport": SetViewport(request.width, request.height); yield return null; yield return null; break;
-                case "click": yield return host.Click(request.control); break;
-                case "input": yield return host.PlayNextInput(); break;
-                case "advance":
-                    if (request.outcome == "success") host.AdvancePendingSuccess();
-                    else if (string.IsNullOrEmpty(request.outcome) || request.outcome == "failure") host.AdvancePendingFailure();
-                    else throw new ArgumentException("Unknown finite money outcome");
-                    break;
-                case "capture": FocusGameView(); yield return null; yield return host.Capture(EvidencePath(request.output)); break;
-                case "journey": FocusGameView(); yield return null; yield return host.RecordJourney(EvidencePath(request.output)); break;
-                default: throw new ArgumentException("Unsupported money evidence operation: " + request.action);
-            }
-        }
-#endif
 
         private static IEnumerator Operation(Request request, BoardEvidenceHarness harness)
         {

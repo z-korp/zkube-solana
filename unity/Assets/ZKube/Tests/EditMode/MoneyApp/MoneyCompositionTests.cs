@@ -149,8 +149,8 @@ namespace ZKube.Integration.App.Tests
             Assert.That(value.Action, Is.EqualTo("refill")); Assert.That(value.Ready, Is.False);
             Assert.That(value.Operation.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage), value.Operation.Code);
             var quote = e.Http.Requests.Single(x => (string)x["method"] == "getFeeForMessage");
-            var oracle = e.Plans["plans"].Single(x => (string)x["id"] == "session-refill-0");
-            Assert.That((string)quote["params"][0], Is.EqualTo((string)oracle["expected"]["message"]));
+            var oracle = e.Solana["transactions"].Single(x => (string)x["id"] == "session-refill-0");
+            ZKube.Integration.Tests.ProgramScenarios.EquivalentMessages((string)quote["params"][0], (string)oracle["message"]);
             Assert.That((await e.Services.Sessions.Load(e.Owner)).Active.Signer, Is.EqualTo((string)e.Plans["inputs"]["device"]));
             Assert.That(await e.Services.Journal.Load(e.Owner), Is.Null); Assert.That(e.Native.Calls, Is.EqualTo(1));
             Assert.That(e.Http.Requests.Any(x => (string)x["method"] == "sendTransaction"), Is.False); await e.Flow.StopAsync();
@@ -171,7 +171,7 @@ namespace ZKube.Integration.App.Tests
         [Test]
         public async Task ExistingSignedRenewalRunsDurableHandoffExactlyOnceAcrossGraphRestart()
         {
-            var e = new MoneyTestEnvironment(); var fixture = MoneyTestEnvironment.Fixture("unity-session-plans-v1.json");
+            var e = new MoneyTestEnvironment(); var fixture = MoneyTestEnvironment.Fixture("device");
             var plan = fixture["cases"][0]; e.Native.Seed = Enumerable.Repeat((byte)2, 32).ToArray(); e.Native.Candidate = Enumerable.Repeat((byte)3, 32).ToArray();
             var old = new SessionRecord(e.Owner, (string)fixture["inputs"]["previous"], (string)plan["oldToken"]["address"], e.Now + (long)plan["remaining"]);
             var candidate = new SessionRecord(e.Owner, (string)fixture["inputs"]["candidate"], (string)fixture["candidateToken"]["address"], (long)fixture["candidateToken"]["validUntil"]);
@@ -189,129 +189,4 @@ namespace ZKube.Integration.App.Tests
         }
     }
 
-    // Transport/native/storage are deterministic injected test doubles. Signed
-    // bytes and account data come from actual TypeScript fixture producers.
-    internal sealed class MoneyTestEnvironment
-    {
-        internal static JObject Fixture(string name) => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/" + name))));
-        internal static AccountEnvelope Envelope(JToken row) => new AccountEnvelope((string)row["address"], (string)row["owner"], (bool)row["executable"], Convert.FromBase64String((string)row["data"]));
-        internal readonly JObject Plans = Fixture("unity-plans-v1.json"), Solana = Fixture("unity-solana-v1.json"), Runs = Fixture("unity-run-client-v1.json");
-        internal readonly MemoryStore Store = new MemoryStore(); internal readonly FakeNative Native = new FakeNative(); internal readonly FakeHttp Http = new FakeHttp();
-        internal MoneyConnectionConfig Config; internal MoneyClientServices Services; internal MoneyAppFlow Flow;
-        internal long Now; internal string Owner => (string)Plans["inputs"]["owner"];
-        internal MoneyTestEnvironment()
-        {
-            var rpc = Fixture("unity-rpc-v1.json"); Config = new MoneyConnectionConfig((string)rpc["inputs"]["base"], (string)rpc["inputs"]["router"], (string)rpc["inputs"]["expectedGenesis"]);
-            Http.Genesis = Config.ExpectedGenesis; Http.Er = (string)rpc["inputs"]["er"]; Http.Program = (string)rpc["inputs"]["program"]; Http.Validator = (string)Plans["inputs"]["validator"];
-            Now = (long)Plans["inputs"]["now"]; Native.Owner = Owner; Services = Create(Config); Flow = new MoneyAppFlow(Services);
-            var publications = Fixture("unity-product-reads-v1.json");
-            foreach (var name in new[] { "protocol", "arcade", "daily" }) Http.Add(publications["accounts"][name]);
-        }
-        internal MoneyClientServices Create(MoneyConnectionConfig config) => new MoneyClientServices(
-            File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")),
-            File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")), config, Http, Native, Store, () => Now, owner => new ZKube.Local.LocalProductStore(owner: owner));
-        internal void UseDailyRun()
-        {
-            Http.Add(Runs["player"]);
-            foreach (var mode in new[] { "daily" })
-            { var row = Runs["cases"].Single(x => (string)x["id"] == "active-" + mode + "-playing"); Http.Add(row); Http.Delegated.Add((string)row["address"]); }
-        }
-        internal void AddEconomy()
-        { foreach (var name in new[] { "protocol", "arcade", "credit" }) Http.Add(Plans["accounts"][name]);
-            Http.Add(Fixture("unity-economy-v1.json")["revenue"]); if (!Http.Accounts.ContainsKey(Services.Planner.Player(Owner))) Http.Add(Solana["accounts"].Single(x => (string)x["id"] == "player-valid")); }
-        internal PendingTransaction Purchase() => new PendingTransaction(Owner, "purchase-one", Config.BaseUri, true,
-            Convert.FromBase64String((string)Solana["transactions"].Single(x => (string)x["id"] == "purchase-1")["signedTransaction"]), (string)Solana["inputs"]["blockhash"], 500);
-        internal async Task ReadySession()
-        {
-            Native.Seed = Enumerable.Repeat((byte)2, 32).ToArray(); var row = Plans["accounts"]["session"]; var token = Services.Tokens.Decode(Envelope(row));
-            await Services.Sessions.Replace(await Services.Sessions.Load(Owner), new SessionRecords(Owner,
-                new SessionRecord(Owner, (string)Plans["inputs"]["device"], (string)row["address"], token.ValidUntil), null));
-            Http.Add(row); Http.Add(new JObject { ["address"] = Plans["inputs"]["device"], ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["lamports"] = 5000000, ["data"] = "" });
-        }
-        internal void AssertReadOnly() => Assert.That(Http.Requests.Any(x => new[] { "sendTransaction", "simulateTransaction", "getLatestBlockhash" }.Contains((string)x["method"])), Is.False);
-        internal static async Task<T> Fails<T>(Func<Task> call) where T : Exception
-        { try { await call(); } catch (T error) { return error; } Assert.Fail("Expected " + typeof(T).Name); return null; }
-        internal sealed class MemoryStore : IPublicClientStore, IDisposable
-        {
-            private readonly Dictionary<string, string> values = new Dictionary<string, string>(); internal int Calls; internal bool Disposed;
-            public Task<string> Read(string owner, string field) { lock (values) { Calls++; values.TryGetValue(owner + field, out var value); return Task.FromResult(value); } }
-            public Task Write(string owner, string field, string value) { lock (values) { Calls++; values[owner + field] = value; } return Task.CompletedTask; }
-            public Task<bool> CompareExchange(string owner, string field, string expected, string value)
-            { lock (values) { Calls++; values.TryGetValue(owner + field, out var prior); if (prior != expected) return Task.FromResult(false); values[owner + field] = value; return Task.FromResult(true); } }
-            public void Dispose() { Disposed = true; }
-        }
-        internal sealed class FakeNative : INativeDeviceKeyLifecycle, IDisposable
-        {
-            internal string Owner; internal int Calls, KeyLoads, Promotions, Deletions; internal byte[] Seed, Candidate; internal bool Disposed;
-            internal TaskCompletionSource<bool> Entered, Release;
-            public async Task<string> Request(string json)
-            {
-                Calls++; var request = JObject.Parse(json); string operation = (string)request["operation"];
-                if (operation == "signTransactions") throw new InvalidOperationException("No signing is allowed in this foreground fixture");
-                if (operation == "authorize") { Entered?.TrySetResult(true); if (Release != null) await Release.Task; }
-                return new JObject { ["requestId"] = request["requestId"], ["ok"] = true, ["owner"] = request["owner"]?.Type == JTokenType.String ? request["owner"] : new JValue(Owner) }.ToString();
-            }
-            public Task<byte[]> LoadDeviceSeed(string owner) { KeyLoads++; return Task.FromResult(Seed?.ToArray()); }
-            public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult(Candidate?.ToArray());
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new InvalidOperationException("Unexpected key creation");
-            public Task<byte[]> CreateCandidateSeed(string owner) => throw new InvalidOperationException("Unexpected candidate creation");
-            public Task RemoveDeviceSeed(string owner) { Deletions++; Seed = null; return Task.CompletedTask; }
-            public Task PromoteCandidateSeed(string owner, byte[] oldHash, byte[] nextHash)
-            {
-                bool Match(byte[] seed, byte[] hash) { if (seed == null || hash == null) return seed == null && hash == null; using var sha = SHA256.Create(); return sha.ComputeHash(seed).SequenceEqual(hash); }
-                if (Candidate == null && Match(Seed, nextHash)) return Task.CompletedTask;
-                if (!Match(Seed, oldHash) || !Match(Candidate, nextHash)) throw new InvalidOperationException("Changed key snapshot");
-                Seed = Candidate; Candidate = null; Promotions++; return Task.CompletedTask;
-            }
-            public void Dispose() { Disposed = true; }
-        }
-        internal sealed class FakeHttp : IJsonRpcHttp, IDisposable
-        {
-            internal readonly List<JObject> Requests = new List<JObject>(); internal readonly Dictionary<string, JToken> Accounts = new Dictionary<string, JToken>();
-            internal readonly HashSet<string> Delegated = new HashSet<string>();
-            internal string Genesis, Er, Program, Validator, Confirmation = "confirmed", DelayMethod, Blockhash;
-            internal bool AllowFeeQuote;
-            internal JToken StatusError;
-            internal bool ThrowOnCancellation;
-            internal int CancellationCallbacks;
-            internal TaskCompletionSource<bool> Entered, Release; internal bool Disposed;
-            internal void Add(JToken row) => Accounts[(string)row["address"]] = row.DeepClone();
-            public async Task<string> Post(Uri endpoint, string json, int maximum, CancellationToken cancellation)
-            {
-                cancellation.ThrowIfCancellationRequested(); var request = JObject.Parse(json); string method = (string)request["method"];
-                request["endpoint"] = endpoint.AbsoluteUri; Requests.Add(request);
-                using var registration = method == DelayMethod && ThrowOnCancellation ? cancellation.Register(() => {
-                    Interlocked.Increment(ref CancellationCallbacks);
-                    throw new InvalidOperationException("Injected cancellation callback: " + method);
-                }) : default;
-                if (method == DelayMethod) {
-                    var release = Release; var entered = Entered; DelayMethod = null;
-                    entered?.TrySetResult(true); if (release != null) await release.Task;
-                }
-                // Deliberately allow this fake callback to arrive after cancellation;
-                // the real transport/flow must still reject publication.
-                JToken Account(string address) => Accounts.TryGetValue(address, out var row) ? new JObject {
-                    ["owner"] = row["owner"], ["executable"] = row["executable"], ["lamports"] = row["lamports"] ?? new JValue(5000000), ["data"] = new JArray(row["data"], "base64") } : JValue.CreateNull();
-                JObject Context(JToken value) => new JObject { ["context"] = new JObject { ["slot"] = 1000 }, ["value"] = value };
-                JToken result;
-                switch (method)
-                {
-                    case "getGenesisHash": result = new JValue(Genesis); break;
-                    case "getMultipleAccounts": result = Context(new JArray(request["params"][0].Values<string>().Select(Account))); break;
-                    case "getAccountInfo": result = Context(Account((string)request["params"][0])); break;
-                    case "getSignatureStatuses": result = Context(new JArray { Confirmation == null ? JValue.CreateNull() : new JObject { ["slot"] = 990, ["confirmationStatus"] = Confirmation, ["err"] = StatusError?.DeepClone() ?? JValue.CreateNull() } }); break;
-                    case "getBlockHeight": result = new JValue(400); break;
-                    case "getMinimumBalanceForRentExemption": result = new JValue(890880); break;
-                    case "getLatestBlockhash" when AllowFeeQuote: result = Context(new JObject { ["blockhash"] = Blockhash, ["lastValidBlockHeight"] = 500 }); break;
-                    case "getFeeForMessage" when AllowFeeQuote: result = Context(new JValue(5400)); break;
-                    case "getBalance" when AllowFeeQuote: result = Context(new JValue(0)); break;
-                    case "getDelegationStatus": result = Delegated.Contains((string)request["params"][0]) ? new JObject { ["isDelegated"] = true, ["fqdn"] = Er,
-                        ["delegationRecord"] = new JObject { ["owner"] = Program, ["authority"] = Validator, ["delegationSlot"] = 900, ["lamports"] = 1 } } : new JObject { ["isDelegated"] = false }; break;
-                    default: throw new InvalidOperationException("Unplanned offline RPC " + method);
-                }
-                return new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"], ["result"] = result }.ToString();
-            }
-            public void Dispose() { Disposed = true; }
-        }
-    }
 }

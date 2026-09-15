@@ -35,7 +35,7 @@ namespace ZKube.Integration.Tests
                 }
             }
         }
-        private static JObject Fixture() => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/unity-solana-v1.json"))));
+        private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");
         private sealed class DiscoveryTransport : IRecoveryTransport
         {
             public AccountEnvelope Player;
@@ -69,7 +69,7 @@ namespace ZKube.Integration.Tests
         {
             var fixture = Fixture();
             string owner = (string)fixture["inputs"]["owner"];
-            byte[] bytes = Convert.FromBase64String((string)fixture["walletCases"][0]["output"]);
+            byte[] bytes = Convert.FromBase64String((string)fixture["transactions"][0]["signedTransaction"]);
             var entry = new PendingTransaction(owner, "synthetic-purchase", "https://base.invalid", true, bytes,
                 (string)fixture["inputs"]["blockhash"], 500);
             var storage = new Storage();

@@ -238,7 +238,6 @@ namespace ZKube.Editor
                 if (!File.Exists(ZKubeBoardScene.Path)) ZKubeBoardScene.Create();
                 if (!File.Exists(ZKubeStoreScene.Path)) ZKubeStoreScene.Create();
                 if (!File.Exists(ZKubeMoneyScene.Path)) ZKubeMoneyScene.Create();
-                if (!File.Exists(ZKubeMoneyScene.EvidencePath)) ZKubeMoneyScene.CreateEvidence();
                 EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ZKubeMoneyScene.Path, true) };
                 AssetDatabase.SaveAssets();
                 ZKubeBatchCommand.Complete();
@@ -267,7 +266,7 @@ namespace ZKube.Editor
                 throw new InvalidOperationException("ZKUBE_UNITY_BUILD_MODE must be evidence or production");
             var evidence = mode == "evidence";
             string scenePath = Identity.name == "store" ? ZKubeStoreScene.Path
-                : evidence ? ZKubeMoneyScene.EvidencePath : ZKubeMoneyScene.Path;
+                : ZKubeMoneyScene.Path;
             if (!File.Exists(scenePath)) throw new InvalidOperationException("Prepare the selected application scene before building");
             var defines = new List<string>();
             if (evidence) defines.Add("ZKUBE_EVIDENCE");

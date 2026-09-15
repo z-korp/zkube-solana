@@ -59,10 +59,9 @@ Source implements v5 partially. Current state:
 - The Unity client ships two Android identities (owner scope decision,
   2026-09-09): `com.zkorp.zkube` targets the Solana dApp Store and Seeker;
   `com.zkorp.zkube.store` targets Google Play as an AAB with arm64-v8a and
-  x86_64. The store identity mirrors `client/src/ui/pageSets/store.tsx` and
-  `client/src/backend/local`: local name, UTC Daily, native-billing Campaign
+  x86_64. The store identity has a local name, UTC Daily, native-billing Campaign
   unlock, profile and settings, with Solana assemblies and wallet plugins
-  excluded. The wallet, Kredit and on-chain rules below govern the money
+  excluded. Unity is the only client; all gameplay uses the Rust core over the FFI. The wallet, Kredit and on-chain rules below govern the money
   identity. Do not start iOS work on this Linux machine.
 - The connected Solana address is the player identity. There are no embedded
   wallets and no recovery codes.
@@ -113,7 +112,7 @@ Source implements v5 partially. Current state:
   local trial alongside an Arcade run. Base, Router, and resolved ER connections
   remain separate; resolve ER placement with `getDelegationStatus`.
 - Fly runs only the independently funded Daily keeper, which has no inbound
-  HTTP surface. The web client and Capacitor shells have no server signer.
+  HTTP surface. The Unity client has no server signer.
   There is no keeper push stack. Client notification controls remain parked;
   a reward is collectable in the app for thirty days regardless, so any future
   notification can only ever be a courtesy.
@@ -222,13 +221,13 @@ ladder tier boundaries, and the flat qualifying credit.
   guardian trigger; it remains a Campaign constraint fact and the Arcade reroll
   grant.
   `bonus_trigger_threshold_is_valid` is the shared core/program constraint, and
-  the Campaign catalog parity test binds the compiled client catalog to the
+  the codegen drift check binds the compiled client catalog to the
   core-validated fixture. Types 3 and 5 are unsupported;
   `trigger_threshold_semantics_are_exhaustive` guards the sparse tag set.
 - **Guardian inventories start empty in both modes.** Starting height comes from
   the drawn realm in Daily and the same compiled realm in Campaign; Hammer,
   Totem, and Wave charges are earned only by firing that guardian's trigger.
-  `campaign_seed_is_fresh_per_attempt_and_replays_on_resume` in both clients and
+  `campaign_seed_is_fresh_per_attempt_and_replays_on_resume` in both identities and
   `daily_runs_start_without_guardian_charges` guard the two constructors.
 - **Dailies may be suspended at any time and for any length.** Nothing obliges a
   daily to run. Prepaid funding spans any gap untouched: the last paid day funds
@@ -457,10 +456,6 @@ themes, and starting guardian charges are superseded as well.
 - Preserve `ActiveRun` until copied-back terminal state is consumed, or until a
   deterministic expiry resolution and orphan reservation prevent late scoring
   and permit safe cleanup.
-- Production Vercel publishing is Git-driven only from
-  `z-korp/zkube-solana:main` to project
-  `prj_5kqIxlxgXHXGhldje8unic9h3qYA` under `z-labs`. Never deploy zKube under
-  JCN DATA; its temporary exception is Fly Devnet keeper hosting only.
 
 ## Versioning
 
@@ -485,7 +480,7 @@ NO_DNA=1 ./validate.sh
 
 `validate.sh` is the single authority on what the gates are — do not restate
 its contents here or anywhere else. It defaults to the full suite; `program`
-and `frontend` scopes exist for iteration, but the full run is what finishes
+and `tools` scopes exist for iteration, but the full run is what finishes
 a change. A red gate is a defect that outranks whatever work surfaced it.
 
 Start with `README.md`, then inspect `state`/`instructions` for contract work,
@@ -537,7 +532,7 @@ balance, content, code, and copy alike.
   acceptable.
 - **Tune inside systems; challenge systems with evidence.** Balance and
   content are tuned within a system's rules. A system itself is challenged
-  with a measurement or a playtest, never with taste alone. Cutting or
+  with a measurement or a gameplay test, never with taste alone. Cutting or
   reshaping a system the v5 specification locks requires the owner's explicit
   approval and amends the specification in the same change.
 - **Smallest change that closes the class.** No speculative generality, no
@@ -614,10 +609,10 @@ enable request arriving during an existing attempt. No cloud, server, indexer,
 or second progress store participates.
 
 Each Campaign attempt draws a fresh 32-byte seed from the platform random
-source. Both local clients persist it before the first action and replay the
+source. The shared local client persists it before the first action and replays the
 saved seed on resume; `campaign_seed_is_fresh_per_attempt_and_replays_on_resume`
 tests different seeds across two starts and an identical opening after resume
-for both identities in both clients. Tests can inject a seed for fixture parity.
+for both identities. Tests can inject a seed for fixture parity.
 
 An unfinished Campaign trial persists its seed and accepted action log before
 an action is acknowledged. Reopening replays that log through the core on the
@@ -763,6 +758,29 @@ The featured emblem and ladder border are owner- or device-session-selectable. I
 chooses the strongest unlocked emblem; IDs 1-10 are zone guardians, 11 is Realm
 Conqueror for all ten guardians, and 12 is World Perfect for 300/300 stars.
 Emblems are identity display only with no monetary effect.
+### Client retirement amendment — 2026-09-15
+
+The owner approved Unity as the only client. Operator commands and the single
+checked-in program IDL live in `tools/chain`; run operator procedures from
+`tools/chain`. `chain_entrypoints_load_offline_under_tsx` exercises each command
+entry point, and `idl:check` verifies the IDL against the program build.
+
+`unity/tools/fixtures.py` runs the Rust producers. Program account bytes,
+PDAs, instructions and transaction messages come from
+`programs/solana/examples/unity-fixtures.rs`.
+`RustProgramInstructionsDecodeAndReencodeWithTheSharedBorshReader` and
+`BoardRewardsValidateActualAnchorAccountsAndKeepClaimedPositionsVisible` exercise
+that boundary. RPC envelopes are authored in the C# tests. The compatibility
+record `store-save-format-v1.json` retains the v1 store save format.
+Money EditMode and PlayMode tests share `MoneyTestEnvironment`, with one HTTP,
+native-wallet and memory-store implementation. Rust produces their account
+states; the test code supplies RPC envelopes and synthetic signatures.
+`DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce` and
+`ForegroundPreservesArcadeWithoutDeviceKeysOrNewTransactions` exercise that
+composition. The runtime money evidence graphs and their recordings are removed.
+The root `assets/` directory owns the artwork and authored presentation inputs;
+Rust codegen emits its theme catalog for Unity imports.
+
 ### Runtime boundaries
 
 | Boundary | Responsibility | Authority and funding |
@@ -774,8 +792,7 @@ Emblems are identity display only with no monetary effect.
 | MagicBlock ER | Arcade gameplay and per-row VRF | Router-resolved validator |
 | Solana program | The player's reported Campaign save, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
-| Unity and React local run client | Campaign play, durable seed/action replay and local lifetime stars | Connected address only on money; walletless store policy |
-| Static web/PWA and Capacitor shells | Wallet, local Campaign, and Arcade UI; core engine through WASM | No server signer or paymaster |
+| Unity local Campaign client | Campaign play, durable seed/action replay and local lifetime stars | Connected address only on money; walletless store policy |
 
 Each `ActiveRun` and `ArenaPlayer` stores the signer that paid its rent, and every
 close returns rent to that exact address even when another device resumes the
@@ -852,7 +869,7 @@ both boards, append the on-chain root, expire unclaimed rewards, then close.
 ## Operator procedures
 
 Every procedure here is approval-gated by the transaction policy above. The
-repository has no current deployed binding. `client/deployment/devnet-v4.json`
+repository has no current deployed binding. `tools/chain/deployment/devnet-v4.json`
 is the abandoned deployment's frozen record and is never a v5 release input.
 The source program ID is not evidence that corresponding ProgramData or
 protocol accounts are current. A fresh v5 pass must derive and approve every
@@ -868,7 +885,7 @@ write authority. No v4 manifest, fingerprint, account, or approval is reusable.
 
 ### Deployment
 
-Preparation is two exact, independently approved bundles. From `client`,
+Preparation is two exact, independently approved bundles. From `tools/chain`,
 `NO_DNA=1 pnpm chain:devnet:deploy` plans the v5 program operation from an
 already frozen SBF. Its live read-only preflight binds Devnet genesis, the
 derived ProgramData address, artifact and padded ProgramData hashes, allocation,
@@ -911,7 +928,7 @@ exactly and none inherited.
 
 Never transfer SOL directly to a Daily PDA; that does not update its seeded-funds
 ledger. This procedure exists only after a fresh v5 manifest has been generated
-and approved. From `client`, this read-only plan resolves the confirmed Daily,
+and approved. From `tools/chain`, this read-only plan resolves the confirmed Daily,
 validates that manifest and the live accounts, combines instructions atomically,
 simulates without a signer, and writes a public bundle under `/tmp`:
 
@@ -947,12 +964,11 @@ Devnet approval or this command's existence grants none of those permissions.
 ### Gate G1 — physical-device wallet matrix
 
 Run every row on a physical device for Seed Vault Wallet on Seeker, Phantom on
-Android, and Solflare on Android. `README.md` documents the capability panel and
-local HTTPS setup used for step 1.
+Android, and Solflare on Android through the Kotlin MWA plugin.
 
 | # | Step | Expected result |
 | ---: | --- | --- |
-| 1 | Passive capability inspection | Panel lists the wallet with `solana:signTransaction` and version `0` |
+| 1 | Kotlin MWA capability inspection | Wallet exposes sign-only transactions and version `0` |
 | 2 | Connection and authorization | Account authorized, address matches the wallet UI |
 | 3 | Rejection | User decline surfaces as a typed rejection, no partial state |
 | 4 | Reconnect after process death | Authorization re-establishes without a stale account |
@@ -963,7 +979,7 @@ local HTTPS setup used for step 1.
 | 9 | Device partial signatures | An existing device-session signature survives wallet signing |
 
 Steps 7–9 verify properties the client already enforces: signing requires
-`solana:signTransaction` with version `0`, a wallet that can only sign-and-send
+Kotlin MWA sign-only transactions with version `0`, a wallet that can only sign-and-send
 is rejected, and a wallet that mutates the message or discards an existing
 partial signature fails the check rather than producing a silently altered
 transaction.
@@ -984,7 +1000,7 @@ explicit architecture and security decision. Never silently fall back to
 the device partial signature.
 
 Record per device, wallet, and step, with no secrets: UTC date; device model and
-OS or firmware build; wallet name and version; browser and surface; exposed
+OS or firmware build; wallet name and version; plugin version; exposed
 feature keys and supported transaction versions; result or error class. Never
 record signer bytes, seed phrases, private keys, `.env` contents, keeper
 secrets, or Android credentials.

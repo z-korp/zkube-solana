@@ -17,7 +17,7 @@ namespace ZKube.Integration.Tests
 {
     public sealed class ApplicationReconciliationTests
     {
-        private static JObject Fixture(string name) => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/" + name))));
+        private static JObject Fixture(string name) => ZKube.Integration.Tests.ProgramScenarios.Load(name);
         private sealed class Http : IJsonRpcHttp
         {
             public readonly Dictionary<string, JToken> Accounts = new Dictionary<string, JToken>();
@@ -49,7 +49,7 @@ namespace ZKube.Integration.Tests
         [Test]
         public async Task RealSignedRenewalsRequireFreshValidTokenAndResumeHandoffBeforeJournalRemoval()
         {
-            var plans = Fixture("unity-session-plans-v1.json"); var solana = Fixture("unity-solana-v1.json"); var rpcFixture = Fixture("unity-rpc-v1.json");
+            var plans = Fixture("device"); var solana = Fixture("solana"); var rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
             string idl = File.ReadAllText(Path.Combine(generated, "solana.json")); var protocol = new ProtocolBindings(idl);
             var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
@@ -84,7 +84,7 @@ namespace ZKube.Integration.Tests
         [Test]
         public async Task ProcessedErrorsKeepBothKeysAndConfirmedFailureNeverPromotesTheCandidate()
         {
-            var plans = Fixture("unity-session-plans-v1.json"); var rpcFixture = Fixture("unity-rpc-v1.json");
+            var plans = Fixture("device"); var rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
             string idl = File.ReadAllText(Path.Combine(generated, "solana.json")); var protocol = new ProtocolBindings(idl);
             var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
@@ -113,7 +113,7 @@ namespace ZKube.Integration.Tests
         [Test]
         public async Task PurchasePublishesFreshDecodedBalanceAndAwaitsAcceptanceBeforeClearingJournal()
         {
-            var solana = Fixture("unity-solana-v1.json"); var plans = Fixture("unity-plans-v1.json"); var economy = Fixture("unity-economy-v1.json"); var rpcFixture = Fixture("unity-rpc-v1.json");
+            var solana = Fixture("solana"); var plans = Fixture("plans"); var economy = Fixture("economy"); var rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
             string idl = File.ReadAllText(Path.Combine(generated, "solana.json")); var protocol = new ProtocolBindings(idl);
             var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
@@ -142,7 +142,7 @@ namespace ZKube.Integration.Tests
         [Test]
         public async Task ClaimRejectsWrongBoardOwnerThenUsesClaimedBitmapOrFreshArchivalAbsence()
         {
-            var solana = Fixture("unity-solana-v1.json"); var economy = Fixture("unity-economy-v1.json"); var rpcFixture = Fixture("unity-rpc-v1.json");
+            var solana = Fixture("solana"); var economy = Fixture("economy"); var rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
             string idl = File.ReadAllText(Path.Combine(generated, "solana.json")); var protocol = new ProtocolBindings(idl);
             var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);

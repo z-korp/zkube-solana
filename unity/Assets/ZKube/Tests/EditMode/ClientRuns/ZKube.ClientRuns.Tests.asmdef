@@ -13,7 +13,8 @@
     "ZKube.MoneyPresentation",
     "ZKube.MoneyApp",
     "ZKube.Local",
-    "ZKube.Local.Runs"
+    "ZKube.Local.Runs",
+    "ZKube.Integration.Tests"
   ],
   "includePlatforms": [
     "Editor"

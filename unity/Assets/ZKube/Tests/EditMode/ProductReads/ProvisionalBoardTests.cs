@@ -95,7 +95,7 @@ namespace ZKube.Tests.ProductReads
             var wrongPda = (JObject)row.DeepClone(); wrongPda["address"] = e.Owner;
             var wrongVersion = PatchAccount(row, "ArenaPlayer", ("version", new byte[] { 255 }));
             var zeroBest = PatchAccount(row, "ArenaPlayer", ("score_best_entry.score", Number(0, 4)));
-            foreach (var invalid in new[] { wrongOwner, wrongPda, wrongVersion, zeroBest, e.Fixture["invalidAccounts"]["arenaChallenge"] })
+            foreach (var invalid in new[] { wrongOwner, wrongPda, wrongVersion, zeroBest, PatchAccount(row, "ArenaPlayer", ("challenge", SolanaAddress.Bytes(e.Owner))) })
             {
                 ConfigureScan(e, 1, 0, invalid);
                 await Failure<FormatException>(async () => { await e.Queries.CurrentProvisionalBoards(); });
@@ -154,7 +154,7 @@ namespace ZKube.Tests.ProductReads
         { var bytes = new byte[width]; for (int i=0;i<width;i++) bytes[i]=(byte)(value>>(8*i)); return bytes; }
         // Test mutations locate fields through the real IDL rather than copied
         // offsets. The encoded base account is the existing Anchor fixture.
-        private static readonly JObject MutationIdl = JObject.Parse(File.ReadAllText(Path.Combine(Root,"client/src/backend/solana/idl/solana.json")));
+        private static readonly JObject MutationIdl = JObject.Parse(File.ReadAllText(Path.Combine(Root,"tools/chain/idl/solana.json")));
         private static JObject PatchAccount(JToken source, string account, params (string Path, byte[] Bytes)[] patches)
         {
             var output = (JObject)source.DeepClone(); byte[] data = Convert.FromBase64String((string)source["data"]);

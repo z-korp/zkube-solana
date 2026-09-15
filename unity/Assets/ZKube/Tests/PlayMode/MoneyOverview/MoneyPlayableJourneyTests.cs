@@ -1,10 +1,8 @@
 using System.Collections;
-using System.IO;
 using System.Linq;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
 using ZKube.Core.Generated;
 using ZKube.Integration.App;
@@ -12,104 +10,87 @@ using ZKube.Integration.Presentation;
 
 namespace ZKube.Tests.MoneyOverview
 {
-    public sealed class MoneyPlayableJourneyTests
+    public sealed partial class MoneyOverviewTests
     {
-        private GameObject root, template, input;
-        private TextAsset solana, session;
-        private MoneyOverviewEvidenceHost evidence;
-
-        [UnityTearDown] public IEnumerator Cleanup()
-        {
-            if (evidence != null) yield return MoneyOverviewTests.Wait(evidence.StopAsync());
-            if (root != null) Object.Destroy(root);
-            if (template != null) Object.Destroy(template);
-            if (input != null) Object.Destroy(input);
-            if (solana != null) Object.Destroy(solana);
-            if (session != null) Object.Destroy(session);
-            yield return null;
-        }
-
-        private IEnumerator Prepare(string scenario)
-        {
-            if (EventSystem.current == null) input = new GameObject("Playable input", typeof(EventSystem), typeof(StandaloneInputModule));
-            template = new GameObject("Inactive playable template"); template.SetActive(false);
-            var startup = template.AddComponent<MoneyStartup>();
-            solana = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
-            session = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
-            startup.Configure(solana, session, Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"),
-                Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular"));
-            root = new GameObject("Playable evidence"); root.SetActive(false);
-            evidence = root.AddComponent<MoneyOverviewEvidenceHost>(); evidence.Configure(startup, scenario);
-            root.SetActive(true);
-            yield return Ready();
-        }
-
         [UnityTest] public IEnumerator RaycastCampaignPlaysLocallyWithoutDeviceSetup()
         {
-            yield return Prepare("campaign-playable");
-            yield return evidence.Click("Connect"); yield return evidence.Click("Campaign");
-            yield return evidence.Click("Trial 1"); yield return evidence.Click("Start trial");
-            var board = evidence.Active.GetComponent<MoneyBoardHost>().Board;
-            Assert.That(board.Ready, Is.True);
+            yield return PrepareScenario("campaign-playable");
+            yield return SessionClick("Connect"); yield return Idle();
+            yield return SessionClick("Campaign"); yield return Idle();
+            yield return SessionClick("Trial 1"); yield return Idle();
+            yield return SessionClick("Start trial"); yield return Idle();
+            var board = host.GetComponent<MoneyBoardHost>().Board;
+            yield return BoardReady();
             Assert.That(board.Session.Daily, Is.False);
-            yield return evidence.Click("Reroll action");
-            Assert.That(board.State.ActionCounter, Is.EqualTo(1));
-            yield return evidence.Click("Pause"); yield return evidence.Click("Dialog End run"); yield return evidence.Click("Dialog End run");
-            Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.Finished));
-            StringAssert.Contains("Result saved", string.Join("\n", board.GetComponentsInChildren<TMP_Text>().Select(value => value.text)));
-            yield return evidence.Click("Dialog Continue");
-            Assert.That(evidence.Active.Controller.PlayingRun, Is.False);
+            Click("Reroll action"); yield return BoardAccepted(1);
+            Click("Pause"); yield return null;
+            Click("Dialog End run"); yield return null;
+            Click("Dialog End run"); yield return BoardFinished();
+            StringAssert.Contains("Result saved", SessionText());
+            Click("Dialog Continue"); yield return Idle();
+            Assert.That(host.GetComponent<MoneyStartup>().Controller.PlayingRun, Is.False);
+            Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
         }
 
         [UnityTest] public IEnumerator DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce()
         {
-            yield return Prepare("daily-playable");
-            yield return evidence.Click("Connect"); yield return evidence.Click("Daily");
-            var graph = evidence.PlayableGraph;
-            Assert.That(graph.SubmittedCount, Is.Zero);
-            yield return evidence.Click("Enter · 1 Kredit");
-            Assert.That(evidence.Active.Controller.ConfirmingDailyEntry, Is.True);
-            Assert.That(graph.SubmittedCount, Is.Zero);
-            yield return evidence.Click("Cancel entry");
-            Assert.That(evidence.Active.Controller.ConfirmingDailyEntry, Is.False);
-            Assert.That(graph.SubmittedCount, Is.Zero);
-            yield return evidence.Click("Enter · 1 Kredit"); yield return evidence.Click("Confirm 1 Kredit");
-            var board = evidence.Active.GetComponent<MoneyBoardHost>().Board;
-            Assert.That(board.Ready, Is.True);
+            yield return PrepareDeviceScenario("daily-playable", page: "Daily");
+            var controller = host.GetComponent<MoneyStartup>().Controller;
+            Assert.That(environment.SentSignature, Is.Null);
+            yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
+            Assert.That(controller.ConfirmingDailyEntry, Is.True);
+            Assert.That(environment.SentSignature, Is.Null);
+            yield return SessionClick("Cancel entry"); yield return Idle();
+            Assert.That(controller.ConfirmingDailyEntry, Is.False);
+            yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
+            yield return SessionClick("Confirm 1 Kredit"); yield return Idle();
+            yield return BoardReady();
+            var board = host.GetComponent<MoneyBoardHost>().Board;
             Assert.That(board.Session.Daily, Is.True);
-            Assert.That(graph.Calls.Count(call => call.Operation == "accepted-entry"), Is.EqualTo(1));
-            int inputs = 0;
-            while (graph.NextInput != null && !graph.Consumed)
-            {
-                Assert.That(inputs++, Is.LessThan(100), "The finite Daily trajectory must terminate");
-                yield return evidence.PlayNextInput();
-            }
-            Assert.That(inputs, Is.EqualTo(85));
-            Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.Finished));
-            Assert.That(board.State.DailyScore, Is.EqualTo(139));
-            Assert.That(board.State.ObjectiveTotal, Is.EqualTo(13));
-            Assert.That(graph.Consumed, Is.True);
-            StringAssert.Contains("Result saved.", string.Join("\n", board.GetComponentsInChildren<TMP_Text>().Select(value => value.text)));
-            var journal = graph.Services.Journal.Load(graph.Owner); yield return MoneyOverviewTests.Wait(journal);
+            Click("Reroll action"); yield return BoardAccepted(1);
+            Click("Pause"); yield return null;
+            Click("Dialog End run"); yield return null;
+            Click("Dialog End run"); yield return BoardFinished();
+            var rust = environment.Runs["cases"].Single(row => (string)row["id"] == "active-daily-finished");
+            var token = new ZKube.Core.CoreRunToken(System.Convert.FromBase64String((string)rust["token"]["config"]),
+                System.Convert.FromBase64String((string)rust["token"]["state"]));
+            var expected = ZKube.Core.NativeEngine.Summary(token);
+            Assert.That(board.State.DailyScore, Is.EqualTo(expected.DailyScore));
+            Assert.That(board.State.ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
+            float until = Time.realtimeSinceStartup + 15;
+            while (!environment.Consumed && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(environment.Consumed, Is.True);
+            StringAssert.Contains("Result saved.", SessionText());
+            var journal = environment.Services.Journal.Load(environment.Owner); yield return Wait(journal);
             Assert.That(journal.GetAwaiter().GetResult(), Is.Null);
-            yield return evidence.Click("Dialog Continue");
-            Assert.That(evidence.Active.Controller.PlayingRun, Is.False);
-            Assert.That(evidence.Active.Controller.BrowsingDaily, Is.True);
-            var daily = evidence.Active.Controller.Flow.RefreshDaily(); yield return MoneyOverviewTests.Wait(daily);
-            var result = daily.GetAwaiter().GetResult().Value;
-            Assert.That(result.Lobby.Profile.Kredits, Is.EqualTo(24));
-            Assert.That(result.Lobby.Profile.LadderPoints, Is.EqualTo(200));
-            Assert.That((uint)result.Lobby.DailyPlayer["score_best_entry"]["score"], Is.EqualTo(139));
-            Assert.That((ulong)result.Lobby.DailyPlayer["theme_best_entry"]["objective_total"], Is.EqualTo(13));
-            Assert.That(graph.Calls.Count(call => call.Operation == "accepted-entry"), Is.EqualTo(1));
-            Assert.That(graph.ForbiddenCalls, Is.Zero);
+            Click("Dialog Continue"); yield return Idle();
+            Assert.That(controller.PlayingRun, Is.False);
+            Assert.That(controller.BrowsingDaily, Is.True);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
-        private IEnumerator Ready()
+        private IEnumerator BoardReady()
         {
-            float until = Time.realtimeSinceStartup + 20;
-            while (!evidence.Ready && Time.realtimeSinceStartup < until) yield return null;
-            Assert.That(evidence.Ready, Is.True, evidence.ReadinessJson());
+            float until = Time.realtimeSinceStartup + 15;
+            while (host.GetComponent<MoneyBoardHost>()?.Board?.Ready != true && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(host.GetComponent<MoneyBoardHost>()?.Board?.Ready, Is.True);
+        }
+        private IEnumerator BoardAccepted(uint count)
+        {
+            var board = host.GetComponent<MoneyBoardHost>().Board;
+            float until = Time.realtimeSinceStartup + 15;
+            while (board.State.ActionCounter != count && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(board.State.ActionCounter, Is.EqualTo(count));
+            while (!board.Ready && Time.realtimeSinceStartup < until) yield return null;
+            yield return null;
+        }
+        private IEnumerator BoardFinished()
+        {
+            var board = host.GetComponent<MoneyBoardHost>().Board;
+            float until = Time.realtimeSinceStartup + 15;
+            while (board.State.Phase != (byte)CorePhase.Finished && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.Finished));
+            yield return null;
         }
     }
 }

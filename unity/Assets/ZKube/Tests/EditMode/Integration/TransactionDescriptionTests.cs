@@ -10,9 +10,9 @@ namespace ZKube.Integration.Tests
     public sealed class TransactionDescriptionTests
     {
         [Test]
-        public void DurableWireDescriptionsMatchActualWeb3AccountPrivilegesAndInstructions()
+        public void DurableWireDescriptionsMatchRustProgramAccountPrivilegesAndInstructions()
         {
-            var fixture = JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/unity-solana-v1.json"))));
+            var fixture = ZKube.Integration.Tests.ProgramScenarios.Load("solana");
             foreach (var row in fixture["transactions"])
             {
                 var description = TransactionSignatures.Describe(Convert.FromBase64String((string)row["signedTransaction"]));

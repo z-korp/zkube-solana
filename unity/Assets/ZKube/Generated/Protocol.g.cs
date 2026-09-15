@@ -50,7 +50,6 @@ namespace ZKube.Core.Generated
             new byte[] { 18, 4 },
         };
         public static readonly byte[] DailySelectionSeed = { 122, 107, 117, 98, 101, 45, 100, 97, 105, 108, 121, 45, 112, 111, 111, 108, 45, 118, 48, 49, 45, 112, 117, 98, 108, 105, 99, 45, 115, 101, 101, 100 };
-        public const string CampaignContentHashHex = "08dedc937ca4d1d2253dfb076105707a71cd7ee85e6b1ddb7164618a069e3366";
         public static readonly RealmDefinition[] Realms =
         {
             new RealmDefinition(1, new ushort[] { 3, 1, 2, 4 }, new LevelDefinition[]

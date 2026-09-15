@@ -31,13 +31,13 @@ namespace ZKube.Integration.Execution.Tests
         private Observer observer;
         private TransactionExecutor executor;
         private ConcurrentQueue<string> events;
-        private static JObject Fixture(string name) => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/" + name))));
+        private static JObject Fixture(string name) => ZKube.Integration.Tests.ProgramScenarios.Load(name);
         private static AccountEnvelope Envelope(JToken row) => new AccountEnvelope((string)row["address"], (string)row["owner"],
             (bool)row["executable"], Convert.FromBase64String((string)row["data"]));
         [SetUp]
         public void Setup()
         {
-            solana = Fixture("unity-solana-v1.json"); plans = Fixture("unity-plans-v1.json"); rpcFixture = Fixture("unity-rpc-v1.json");
+            solana = Fixture("solana"); plans = Fixture("plans"); rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
             string idl = File.ReadAllText(Path.Combine(generated, "solana.json"));
             var protocol = new ProtocolBindings(idl);
@@ -74,8 +74,8 @@ namespace ZKube.Integration.Execution.Tests
         {
             var result = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(http.Sent, Is.EqualTo(SignedPurchase().Transaction));
-            Assert.That(result.Signature, Is.EqualTo(SignedPurchase().Signature));
+            ZKube.Integration.Tests.ProgramScenarios.Equivalent(http.Sent, SignedPurchase().Transaction);
+            Assert.That(result.Signature, Is.EqualTo(TransactionSignatures.ValidateFullySigned(http.Sent)));
             var order = events.ToArray();
             Assert.That(Array.IndexOf(order, "simulateTransaction"), Is.LessThan(Array.IndexOf(order, "wallet")));
             Assert.That(Array.IndexOf(order, "wallet"), Is.LessThan(Array.IndexOf(order, "journal")));
@@ -85,7 +85,7 @@ namespace ZKube.Integration.Execution.Tests
             Assert.That(Array.IndexOf(order, "journal"), Is.LessThan(Array.IndexOf(order, "sendTransaction")));
             Assert.That(observer.Count, Is.EqualTo(1)); Assert.That(await store.Read(owner, "journal"), Is.Null);
             var expectedMessage = (string)solana["transactions"].Single(row => (string)row["id"] == "purchase-1")["message"];
-            Assert.That((string)http.Requests.Single(request => (string)request["method"] == "getFeeForMessage")["params"][0], Is.EqualTo(expectedMessage));
+            ZKube.Integration.Tests.ProgramScenarios.EquivalentMessages((string)http.Requests.Single(request => (string)request["method"] == "getFeeForMessage")["params"][0], expectedMessage);
         }
 
         [Test]
@@ -277,7 +277,7 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task EnableRenewalUsesActualPlanAndPromotesOnlyAfterConfirmedFreshCandidate()
         {
-            var fixture = Fixture("unity-session-plans-v1.json"); var row = fixture["cases"][1];
+            var fixture = Fixture("device"); var row = fixture["cases"][1];
             native.DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray();
             var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
             var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
@@ -299,7 +299,7 @@ namespace ZKube.Integration.Execution.Tests
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
             var lifecycle = new SessionLifecycle(identity, wallet, keys, records, sessions, planner, rpc, journal, executor, reconciler, accounts.ProgramId, () => (long)fixture["inputs"]["now"]);
             Assert.That((await lifecycle.EnableOrRenew()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(http.Sent, Is.EqualTo(Convert.FromBase64String((string)row["signedTransaction"])));
+            ZKube.Integration.Tests.ProgramScenarios.Equivalent(http.Sent, Convert.FromBase64String((string)row["signedTransaction"]));
             Assert.That(native.Promotions, Is.EqualTo(1)); Assert.That(native.Candidate, Is.Null);
             Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo((string)fixture["inputs"]["candidate"]));
             using var access = await new SessionAccess(wallet, records, sessions, rpc, accounts.ProgramId, () => (long)fixture["inputs"]["now"]).Load(identity.Lease());
@@ -335,7 +335,7 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task ExplicitClaimUsesEachBoardSealingWindowEvenForADailyOutsideDiscoveryHistory()
         {
-            var economy = Fixture("unity-economy-v1.json");
+            var economy = Fixture("economy");
             native.DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray();
             var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
             var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
@@ -357,7 +357,7 @@ namespace ZKube.Integration.Execution.Tests
             Assert.That(http.Count("sendTransaction"), Is.Zero);
             http.AfterSend = () => http.ExtraAccounts[(string)economy["oldScore"]["address"]] = economy["oldScoreClaimed"];
             Assert.That((await client.Claim(day, "score")).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(http.Sent, Is.EqualTo(Convert.FromBase64String((string)economy["oldScoreTransaction"])));
+            ZKube.Integration.Tests.ProgramScenarios.Equivalent(http.Sent, Convert.FromBase64String((string)economy["oldScoreTransaction"]));
             Assert.That(accepted.ClaimState, Is.EqualTo("claimed")); Assert.That(accepted.DayId, Is.EqualTo(day));
             Assert.That(native.Calls, Is.EqualTo(1), "The device claim must not open the wallet again");
         }

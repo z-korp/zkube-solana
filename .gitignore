@@ -42,7 +42,6 @@ magicblock-test-storage/
 .playwright-mcp/
 .yarn/
 test-ledger/
-client/twa/signing/
 *.jks
 *.keystore
 *.p12
@@ -55,7 +54,6 @@ keystore.properties
 *.cer
 **/*.rs.bk
 run_logs.txt
-.vercel
 /zkube-v1-evol.md
 /zkube-v4-evol.md
 *:Zone.Identifier
@@ -71,8 +69,12 @@ unity/Logs/
 unity/obj/
 unity/UserSettings/
 unity/MemoryCaptures/
-unity/tools/__pycache__/
+__pycache__/
 unity/Assets/Plugins/**/*.so
 unity/Assets/Plugins/Android/*.aar
 unity/Assets/ZKube/Art/Generated/
 unity/Assets/ZKube/Branding/Generated/
+unity/Assets/ZKube/Integration/Generated/solana.json
+
+# Existing local caches from the retired checkout.
+/client/

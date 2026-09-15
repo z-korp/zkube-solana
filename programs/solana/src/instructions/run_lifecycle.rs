@@ -726,7 +726,8 @@ fn run_from_active(active: &ActiveRun, rules: zkube_core::RunRules) -> Result<zk
     })
 }
 
-fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64) -> Result<()> {
+/// Project core state into the account layout, including offline fixture output.
+pub fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64) -> Result<()> {
     write_engine(active, &run.engine);
     active.action_counter = run.action_counter;
     active.daily_score = run.daily_score;

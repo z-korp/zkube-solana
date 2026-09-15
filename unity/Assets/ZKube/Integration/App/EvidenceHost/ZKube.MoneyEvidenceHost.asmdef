@@ -1,6 +1,0 @@
-{
-  "name": "ZKube.MoneyEvidenceHost",
-  "references": ["ZKube.MoneyEvidence", "ZKube.MoneyStartup", "ZKube.MoneyPresentation", "ZKube.MoneyApp", "ZKube.Client", "ZKube.Integration", "ZKube.Execution", "ZKube.Core", "ZKube.Generated", "ZKube.Presentation", "Unity.ugui"],
-  "defineConstraints": ["UNITY_EDITOR || ZKUBE_EVIDENCE", "!ZKUBE_STORE"],
-  "autoReferenced": true
-}

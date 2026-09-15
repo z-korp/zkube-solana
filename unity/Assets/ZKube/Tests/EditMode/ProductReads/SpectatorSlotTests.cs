@@ -12,7 +12,7 @@ namespace ZKube.Tests.ProductReads
     {
         [Test] public async Task ArcadeSpectatorReadsDurableSlotAndKeepsNativeAcceptedSnapshot()
         {
-            var e = await Environment.Create(); var runs = JObject.Parse(File.ReadAllText(Path.Combine(Root,"fixtures/unity-run-client-v1.json")));
+            var e = await Environment.Create(); var runs = ZKube.Integration.Tests.ProgramScenarios.Load("runs");
             e.Http.Put(runs["player"]); e.Http.Delegated = true;
             var daily = runs["cases"].Single(row => (string)row["id"] == "active-daily-playing");
             e.Http.Put(daily);
@@ -30,7 +30,7 @@ namespace ZKube.Tests.ProductReads
 
         [Test] public async Task ChangedOrMismatchedDurableSpectatorSlotNeverExposesAcceptedToken()
         {
-            var e = await Environment.Create(); var runs = JObject.Parse(File.ReadAllText(Path.Combine(Root,"fixtures/unity-run-client-v1.json")));
+            var e = await Environment.Create(); var runs = ZKube.Integration.Tests.ProgramScenarios.Load("runs");
             var daily = runs["cases"].Single(row => (string)row["id"] == "active-daily-playing");
             e.Http.Put(runs["player"]); e.Http.Put(daily); e.Http.Delegated = true;
             e.Http.OnRequest = request => { if ((string)request["method"] == "getDelegationStatus")

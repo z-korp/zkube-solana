@@ -21,7 +21,7 @@ namespace ZKube.Integration.Client.Runs.Tests
         private static readonly string Root = Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
         private static JObject Fixture(string name)
         {
-            return JObject.Parse(File.ReadAllText(Root + "/fixtures/" + name));
+            return ZKube.Integration.Tests.ProgramScenarios.Load(name);
         }
         private static AccountEnvelope Envelope(JToken row) => new AccountEnvelope((string)row["address"], (string)row["owner"], (bool)row["executable"], Convert.FromBase64String((string)row["data"]));
         private static async Task<T> Fails<T>(Func<Task> action) where T : Exception
@@ -66,7 +66,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 Assert.That(consumed.Phase, Is.EqualTo("consumed")); Assert.That(consumed.Token, Is.Null);
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "consume_arena_run" }));
                 Assert.That(env.Http.SentFeePayers, Is.EqualTo(new[] { env.Owner }));
-                Assert.That(env.Http.SentTransactions, Is.EqualTo(new[] { (string)env.Http.Runs["ownerConsume"][mode] }), "Exact signed v0 bytes must match the actual TS owner recovery builder");
+                ZKube.Integration.Tests.ProgramScenarios.Equivalent(Convert.FromBase64String(env.Http.SentTransactions.Single()), Convert.FromBase64String((string)env.Http.Runs["ownerConsume"][mode]));
                 Assert.That(env.Native.KeyLoads, Is.EqualTo(1), "Base consumption first checks whether normal device settlement is available");
                 Assert.That(await env.Markers.Load(env.Owner, mode), Is.Null);
                 var er = await Environment.Create(); er.Http.States[mode] = "finished";
@@ -129,14 +129,13 @@ namespace ZKube.Integration.Client.Runs.Tests
         }
 
         [Test]
-        public async Task ArcadeRecoversWithoutADeviceKeyAndUsesActualTypeScriptRoutingResults()
+        public async Task ArcadeRecoversWithoutADeviceKeyAndUsesProgramSnapshots()
         {
             var env = await Environment.Create(); env.Native.HasKey = false;
             foreach (string mode in new[] { "daily" })
             {
                 var state = await env.Client.Recover(mode);
-                var oracle = env.Http.Runs["routing"].Single(row => (string)row["id"] == "active-" + mode + "-playing" && (bool)row["delegated"]);
-                Assert.That(state.Phase, Is.EqualTo((string)oracle["phase"]));
+                Assert.That(state.Phase, Is.EqualTo("delegated"));
                 Assert.That(state.Token.State, Is.EqualTo(Convert.FromBase64String((string)env.Http.Row(mode, "playing")["token"]["state"])));
             }
             Assert.That(await env.Markers.Load(env.Owner, "daily"), Is.Not.Null);
@@ -219,7 +218,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 if (ownerChanges)
                 {
                     await env.Identity.Disconnect();
-                    env.Native.Owner = (string)Fixture("unity-plans-v1.json")["inputs"]["device"];
+                    env.Native.Owner = (string)Fixture("plans")["inputs"]["device"];
                     await env.Identity.Connect();
                 }
                 else env.Http.ReplaceWithSuccessor(false, true);
@@ -284,12 +283,12 @@ namespace ZKube.Integration.Client.Runs.Tests
         }
 
         [Test]
-        public async Task BaseSettlementPayerMatchesActualTypeScriptSessionAndRecoveryBuilders()
+        public async Task BaseSettlementPayerMatchesAuthorizedSignerAvailability()
         {
-            var oracle = Fixture("unity-run-client-v1.json");
-            foreach (var row in oracle["sessionDecisions"])
+            var oracle = Fixture("runs");
+            foreach (string condition in new[] { "ready", "missing", "expired", "revoked", "depleted" })
             {
-                string mode = (string)row["mode"], condition = (string)row["condition"];
+                string mode = "daily";
                 var env = await Environment.Create(); env.Http.States[mode] = "finished"; env.Http.Delegated.Remove(mode);
                 var state = await env.Client.Recover(mode);
                 var provider = new RunBoardActionProvider(env.Client, state, new ActiveRunReconciler(env.Accounts));
@@ -298,9 +297,9 @@ namespace ZKube.Integration.Client.Runs.Tests
                 if (condition == "depleted") env.Http.SignerBalance = 0;
                 var result = await provider.FinishAndSettle(default);
                 Assert.That(result.Phase, Is.EqualTo("consumed"), mode + "/" + condition);
-                Assert.That(env.Http.SentFeePayers, Is.EqualTo(new[] { (string)row["payer"] }), mode + "/" + condition);
+                Assert.That(env.Http.SentFeePayers, Is.EqualTo(new[] { condition == "ready" ? (string)Fixture("plans")["inputs"]["device"] : env.Owner }), mode + "/" + condition);
                 string fixture = condition == "ready" ? "deviceConsume" : "ownerConsume";
-                Assert.That(env.Http.SentTransactions, Is.EqualTo(new[] { (string)oracle[fixture][mode] }), "Exact actual TS signed v0 bytes");
+                ZKube.Integration.Tests.ProgramScenarios.Equivalent(Convert.FromBase64String(env.Http.SentTransactions.Single()), Convert.FromBase64String((string)oracle[fixture][mode]));
                 Assert.That(env.Native.OwnerPrompts, Is.EqualTo(condition == "ready" ? 0 : 1));
             }
         }
@@ -394,7 +393,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 Assert.That(result.Phase, Is.EqualTo("consumed"));
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "commit_run", "consume_arena_run" }));
                 Assert.That(env.Http.CopybackPolls, Is.Zero);
-                Assert.That(env.Http.SentTransactions.Last(), Is.EqualTo((string)env.Http.Runs[expire ? "ownerConsume" : "deviceConsume"][mode]));
+                ZKube.Integration.Tests.ProgramScenarios.Equivalent(Convert.FromBase64String(env.Http.SentTransactions.Last()), Convert.FromBase64String((string)env.Http.Runs[expire ? "ownerConsume" : "deviceConsume"][mode]));
                 Assert.That(env.Native.OwnerPrompts, Is.EqualTo(expire ? 1 : 0));
             }
         }
@@ -429,7 +428,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             public Store Storage;
             public static async Task<Environment> Create()
             {
-                var value = new Environment(); var plans = Fixture("unity-plans-v1.json");
+                var value = new Environment(); var plans = Fixture("plans");
                 string idl = File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/solana.json");
                 var protocol = new ProtocolBindings(idl); var tokens = new SessionTokenBindings(File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/session.json"));
                 value.Owner = (string)plans["inputs"]["owner"];
@@ -438,7 +437,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 value.Journal = new TransactionJournal(storage); value.Markers = new RunStateStore(storage, value.Accounts, tokens);
                 value.Native = new NativeWallet { Owner = value.Owner };
                 var wallet = new WalletClient(value.Native); var identity = new ClientIdentity(wallet); value.Identity = identity; await identity.Connect();
-                value.Http = new Http(protocol, plans, Fixture("unity-run-client-v1.json"));
+                value.Http = new Http(protocol, plans, Fixture("runs"));
                 var rpc = new SolanaRpcTransport(value.Http, "https://base.invalid/", "https://router.invalid/", value.Http.Genesis, protocol.ProgramId);
                 var records = new SessionRecordStore(storage, tokens, protocol.ProgramId);
                 var decoded = tokens.Decode(Envelope(plans["accounts"]["session"]));
@@ -507,7 +506,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             private string commitWaiting, successorMode = "daily";
             private bool successorVisible, successorOpening;
             public ulong SignerBalance = 1000000000;
-            public string Genesis = (string)Fixture("unity-rpc-v1.json")["inputs"]["expectedGenesis"];
+            public string Genesis = (string)Fixture("transport")["inputs"]["expectedGenesis"];
             private JToken player;
             public Http(ProtocolBindings protocol, JObject plans, JObject runs) { this.protocol = protocol; this.plans = plans; Runs = runs; player = runs["player"]; }
             public void Prepare(string mode) { player = Runs["initialPlayers"][mode]; States["daily"] = null; Delegated.Clear(); }

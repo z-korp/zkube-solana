@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod art_catalog;
 mod native_client;
 mod native_fixtures;
 
@@ -13,22 +14,10 @@ use zkube_core::{
     DAILY_PAIR_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES,
     ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_LABEL_ACCOUNT_VERSION,
     PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules,
-    SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, Sha256Provider, SoftwareSha256, StarRules,
-    TierPolicy, campaign_move_budget,
+    SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, StarRules, TierPolicy, campaign_move_budget,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
-const GENERATED_TS: &str = "client/src/core/campaignCatalog.generated.ts";
-const GENERATED_TIER_WEIGHTS_RS: &str = "crates/zkube-core/src/tier_weights.generated.rs";
-const GENERATED_DAILY_RULES_TS: [&str; 2] = [
-    "client/src/core/dailyRules.generated.ts",
-    "services/src/dailyRules.generated.ts",
-];
-const GENERATED_PROTOCOL_TS: [&str; 2] = [
-    "client/src/core/protocolVersions.generated.ts",
-    "services/src/protocolVersions.generated.ts",
-];
-
 // Authored adjacent weight tiers must remain materially distinct.
 const CAMPAIGN_MIN_ADJACENT_WEIGHT_TV_PERCENT: u16 = 5;
 
@@ -86,7 +75,6 @@ fn main() -> ExitCode {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn run(cli: &Cli) -> Result<String, String> {
     let fixture_path = cli.root.join(FIXTURE);
     let source = fs::read_to_string(&fixture_path)
@@ -94,110 +82,56 @@ fn run(cli: &Cli) -> Result<String, String> {
     let catalog: CampaignCatalog = serde_json::from_str(&source)
         .map_err(|error| format!("invalid {}: {error}", fixture_path.display()))?;
     validate_catalog(&catalog)?;
-    let generated = render_typescript(&catalog)?;
-    let generated_tier_weights = render_tier_weights_rust(&catalog);
-    let generated_daily_rules = render_daily_rules_typescript()?;
-    let generated_protocol = render_protocol_constants(&catalog);
-    let mut native_outputs = native_client::outputs(&catalog)?;
-    native_outputs.push((
-        "crates/zkube-core/src/realm_rules.generated.rs",
-        render_realm_rules_rust(&catalog),
+    let mut outputs = native_client::outputs(&catalog)?;
+    let art_source = fs::read_to_string(cli.root.join("assets/catalog.json"))
+        .map_err(|error| error.to_string())?;
+    outputs.push((
+        "assets/theme-catalog.generated.json",
+        art_catalog::render(&catalog, &art_source)?,
     ));
-    let output = cli.root.join(GENERATED_TS);
-    match &cli.command {
-        Command::Generate => {
-            for (relative, content) in &native_outputs {
-                let path = cli.root.join(relative);
+    outputs.extend([
+        (
+            "crates/zkube-core/src/realm_rules.generated.rs",
+            render_realm_rules_rust(&catalog),
+        ),
+        (
+            "crates/zkube-core/src/tier_weights.generated.rs",
+            render_tier_weights_rust(&catalog),
+        ),
+        (
+            "services/src/dailyRules.generated.ts",
+            render_daily_rules_typescript()?,
+        ),
+        (
+            "services/src/protocolVersions.generated.ts",
+            render_protocol_constants(&catalog),
+        ),
+    ]);
+    for (relative, content) in outputs {
+        let path = cli.root.join(relative);
+        match cli.command {
+            Command::Generate => {
                 if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
                 }
-                fs::write(path, content).map_err(|e| e.to_string())?;
+                fs::write(&path, content).map_err(|error| error.to_string())?;
             }
-            if let Some(parent) = output.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
-            }
-            fs::write(&output, generated)
-                .map_err(|error| format!("cannot write {}: {error}", output.display()))?;
-            let tier_output = cli.root.join(GENERATED_TIER_WEIGHTS_RS);
-            fs::write(&tier_output, &generated_tier_weights)
-                .map_err(|error| format!("cannot write {}: {error}", tier_output.display()))?;
-            for relative in GENERATED_DAILY_RULES_TS {
-                let daily_output = cli.root.join(relative);
-                if let Some(parent) = daily_output.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
-                }
-                fs::write(&daily_output, &generated_daily_rules)
-                    .map_err(|error| format!("cannot write {}: {error}", daily_output.display()))?;
-            }
-            for relative in GENERATED_PROTOCOL_TS {
-                let protocol_output = cli.root.join(relative);
-                if let Some(parent) = protocol_output.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
-                }
-                fs::write(&protocol_output, &generated_protocol).map_err(|error| {
-                    format!("cannot write {}: {error}", protocol_output.display())
-                })?;
-            }
-            Ok("generated Campaign catalog, Daily rules, and shared protocol constants".into())
-        }
-        Command::Check => {
-            for (relative, content) in &native_outputs {
-                let path = cli.root.join(relative);
+            Command::Check => {
                 let actual = fs::read_to_string(&path)
-                    .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-                if &actual != content {
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+                if actual != content {
                     return Err(format!(
                         "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
                         path.display()
                     ));
                 }
             }
-            let actual = fs::read_to_string(&output)
-                .map_err(|error| format!("cannot read {}: {error}", output.display()))?;
-            if actual != generated {
-                return Err(format!(
-                    "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
-                    output.display()
-                ));
-            }
-            let tier_output = cli.root.join(GENERATED_TIER_WEIGHTS_RS);
-            let actual_tiers = fs::read_to_string(&tier_output)
-                .map_err(|error| format!("cannot read {}: {error}", tier_output.display()))?;
-            if actual_tiers != generated_tier_weights {
-                return Err(format!(
-                    "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
-                    tier_output.display()
-                ));
-            }
-            for relative in GENERATED_DAILY_RULES_TS {
-                let daily_output = cli.root.join(relative);
-                let actual_daily = fs::read_to_string(&daily_output)
-                    .map_err(|error| format!("cannot read {}: {error}", daily_output.display()))?;
-                if actual_daily != generated_daily_rules {
-                    return Err(format!(
-                        "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
-                        daily_output.display()
-                    ));
-                }
-            }
-            for relative in GENERATED_PROTOCOL_TS {
-                let protocol_output = cli.root.join(relative);
-                let actual = fs::read_to_string(&protocol_output).map_err(|error| {
-                    format!("cannot read {}: {error}", protocol_output.display())
-                })?;
-                if actual != generated_protocol {
-                    return Err(format!(
-                        "{} is stale; run `NO_DNA=1 cargo run -p zkube-codegen -- generate`",
-                        protocol_output.display()
-                    ));
-                }
-            }
-            Ok("checked Campaign catalog, Daily rules, and shared protocol constants".into())
         }
     }
+    Ok(
+        "Campaign catalog, Daily rules, native fixtures and shared protocol constants are current"
+            .into(),
+    )
 }
 
 fn validate_catalog(catalog: &CampaignCatalog) -> Result<(), String> {
@@ -345,29 +279,6 @@ fn constraint(tuple: [u8; 3]) -> Result<Constraint, String> {
         value: tuple[1],
         required_count: tuple[2],
     })
-}
-
-fn render_typescript(catalog: &CampaignCatalog) -> Result<String, String> {
-    let canonical = serde_json::to_vec(catalog)
-        .map_err(|error| format!("cannot canonicalize Campaign catalog: {error}"))?;
-    let digest = SoftwareSha256::hashv(&[b"zkube-campaign-content-v2", &canonical]);
-    let mut hash_hex = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        write!(&mut hash_hex, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    let json = serde_json::to_string_pretty(catalog)
-        .map_err(|error| format!("cannot render Campaign catalog: {error}"))?;
-    Ok(format!(
-        "// Generated by zkube-codegen. Do not edit.\n\
-         export const CAMPAIGN_CONTENT_HASH_HEX = \"{hash_hex}\" as const;\n\
-         export const CAMPAIGN_CONTENT_HASH = new Uint8Array([{}]);\n\
-         export const CAMPAIGN_CATALOG = {json} as const;\n",
-        digest
-            .iter()
-            .map(u8::to_string)
-            .collect::<Vec<_>>()
-            .join(", ")
-    ))
 }
 
 fn render_daily_rules_typescript() -> Result<String, String> {
@@ -531,17 +442,13 @@ mod tests {
     ];
 
     #[test]
-    fn committed_catalog_validates_and_hashes_stably() {
+    fn committed_catalog_validates_and_emits_protocol_constants() {
         let source = include_str!("../../../fixtures/campaign-v2.json");
         let catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
         validate_catalog(&catalog).unwrap();
-        let first = render_typescript(&catalog).unwrap();
-        let second = render_typescript(&catalog).unwrap();
-        assert_eq!(first, second);
         let rendered_daily = render_daily_rules_typescript().unwrap();
         assert!(rendered_daily.contains("DAILY_PAIR_COUNT = 160"));
         assert!(rendered_daily.contains("kind: 18"));
-        assert!(first.contains("CAMPAIGN_CONTENT_HASH_HEX"));
         let versions = render_protocol_constants(&catalog);
         assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 2"));
         assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 2"));

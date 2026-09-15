@@ -144,7 +144,7 @@ def native(android, profile):
             shutil.copyfile(source, destination)
     # Keep the existing product icon authoritative; the Capacitor shell still
     # contains starter artwork and is not the source for replacement branding.
-    source = ROOT / "client/public/assets/pwa-512x512.png"
+    source = ROOT / "assets/pwa-512x512.png"
     directory = PROJECT / "Assets/ZKube/Branding/Generated"
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / "AppIcon.png"
@@ -216,13 +216,10 @@ def main():
     parser.add_argument("--test-platform", choices=["EditMode", "PlayMode"], default="EditMode")
     parser.add_argument("--test-filter", default="ZKube")
     parser.add_argument("--identity", choices=["money", "store"], default="money")
-    parser.add_argument("--surface", choices=["board", "money"], default="board", help="board-gui: explicit evidence scene")
     parser.add_argument("--mode", choices=["evidence", "production"], default="evidence")
     parser.add_argument("--method", help="exec: fully qualified static method, e.g. ZKube.Editor.ZKubeBuild.Probe")
     parser.add_argument("--build-target", choices=["StandaloneLinux64", "Android"], help="exec: Editor build target (default StandaloneLinux64)")
     args = parser.parse_args()
-    if args.surface == "money" and (args.action != "board-gui" or args.identity != "money"):
-        parser.error("--surface money requires board-gui --identity money")
     if args.action == "exec" and not args.method:
         parser.error("exec requires --method ZKube.Editor.<Class>.<Method>")
     if args.method and not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+", args.method):
@@ -238,7 +235,7 @@ def main():
     method = {"probe": "ZKubeBuild.Probe", "prepare": "ZKubeBuild.Prepare",
               "diagnose-art": "ZKubeAssetImports.DiagnoseSpriteImport",
               "board-scene": "ZKubeBoardScene.Create",
-              "board-gui": "ZKubeBoardEvidence.OpenMoney" if args.surface == "money" else "ZKubeBoardEvidence.Open"}.get(args.action, "ZKubeBuild.BuildAndroid")
+              "board-gui": "ZKubeBoardEvidence.Open"}.get(args.action, "ZKubeBuild.BuildAndroid")
     # Unity prints its process environment on Gradle failures. Pass only build
     # and desktop paths, so unrelated signer/service credentials cannot enter logs.
     inherited = {"HOME", "USER", "LOGNAME", "PATH", "LANG", "LC_ALL", "SHELL",
@@ -256,6 +253,9 @@ def main():
     env.update(NO_DNA="1", ZKUBE_UNITY_APK=str(apk), ZKUBE_UNITY_BUILD_MODE=args.mode,
                ZKUBE_UNITY_IDENTITY=args.identity)
     with editor_lease() as lease_fd:
+        generated_idl = PROJECT / "Assets/ZKube/Integration/Generated/solana.json"
+        generated_idl.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / "tools/chain/idl/solana.json", generated_idl)
         editor, android = toolchain()
         if args.action == "android" and args.identity == "money":
             run(["python3", PROJECT / "NativeAndroid/verify.py"], env=env)

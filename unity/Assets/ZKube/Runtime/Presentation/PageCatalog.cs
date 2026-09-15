@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ZKube.Presentation
 {
-    // Authored presentation data is emitted by the existing TS theme producer.
+    // Authored presentation data is emitted by Rust codegen from the asset catalog.
     // No path coordinates, guardian lines or palette values are mirrored here.
     [Serializable] public sealed class PageCatalog
     {
@@ -74,4 +74,3 @@ namespace ZKube.Presentation
         private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
     }
 }
-

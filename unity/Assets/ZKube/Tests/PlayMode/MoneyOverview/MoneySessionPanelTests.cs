@@ -16,10 +16,10 @@ namespace ZKube.Tests.MoneyOverview
     {
         [UnityTest] public IEnumerator OpeningSessionAndForegroundPreserveAnExistingPendingReceiptWithoutStatusRequests()
         {
-            yield return PrepareEvidence("pending-confirmed-failure"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             var exact = controller.LastReceipt;
-            int before = evidence.Calls.Count(call => call.Operation == "getSignatureStatuses");
+            int before = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
             yield return SessionClick("This device"); yield return Idle();
             Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(controller.BrowsingCampaign, Is.False);
@@ -29,18 +29,18 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Transaction receipt").text, Is.Not.Empty);
             controller.SendMessage("OnApplicationPause", true);
             controller.SendMessage("OnApplicationPause", false); yield return Idle();
-            Assert.That(evidence.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(before));
+            Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(before));
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
-            evidence.ConfirmPendingFailure(); yield return SessionClick("Check transaction"); yield return Idle();
+            environment.ConfirmPendingFailure(); yield return SessionClick("Check transaction"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure));
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
             Assert.That(controller.BrowsingSession, Is.True);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator DeviceAndCampaignNavigationKeepOneVisiblePanel()
         {
-            yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             yield return SessionClick("This device"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(host.GetComponentsInChildren<RectTransform>().Count(rect => rect.name == "Device session panel"), Is.EqualTo(1));
@@ -52,12 +52,12 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("This device"); yield return Idle();
             Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(host.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == "Campaign browser"), Is.False);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         private string SessionText() => string.Join("\n", host.GetComponentsInChildren<TMP_Text>().Select(value => value.text));
         // Real first-hit EventSystem input. Scroll positioning is fixture setup,
-        // not a claim of operating-system touch or swipe evidence.
+        // not a claim of operating-system touch or swipe coverage.
         private IEnumerator SessionClick(string name)
         {
             var button = host.GetComponentsInChildren<Button>().Single(value => value.name == name);

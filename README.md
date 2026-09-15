@@ -145,33 +145,27 @@ before.
 | Component | Role |
 | --- | --- |
 | `crates/zkube-core` | Deterministic Rust engine: grid, blocks, guardians, scoring, metrics, period and payout math, canonical encoding, replay schedule |
-| `crates/zkube-core-wasm` | WASM build of the same engine for the client |
+| `crates/zkube-core-wasm` | Node WASM build of the same engine for keeper calculations |
 | `crates/zkube-core-ffi` | Native byte boundary over the same engine for Unity |
 | `programs/solana` | Anchor program: Campaign stars, competitive records, accounting, boards, settlement |
 | MagicBlock ER | Active gameplay and per-row VRF, on a Router-resolved validator |
 | `services` | Keeper worker: Daily cadence and last-resort permissionless recovery |
-| `client` | Static web/PWA plus Capacitor Android and iOS shells for the wallet, Campaign, and Arcade UI; no server signer |
-| `unity` | Native Android replacement in development, with money and local store identities sharing Rust gameplay |
+| `unity` | The only client: Android money and local store identities sharing Rust gameplay |
 
 The engine is the single source of truth for game rules, and native Rust, WASM,
 and the on-chain program must all agree on the same committed golden vectors
 before an ABI can ship. The generated IDL is the contract between program,
 keeper, and client.
 
-The Unity migration retains the existing artwork and protocol behavior. It adds
-a native binding, generated C# sources and client parity checks, with no new
-protocol accounts or instructions. Both clients coexist until the Android
-replacement passes product and integration acceptance. The eventual removal
-of the React UI and Capacitor/PWA shells preserves operator tooling, its imports
-and the authoritative asset source; wallet compatibility alone does not trigger
-that removal. The money identity, `com.zkorp.zkube`, targets the Solana dApp
-Store. The local identity, `com.zkorp.zkube.store`, targets Google Play with an
-ARM64 and x86_64 AAB, a local name and UTC Daily, and a native purchase to
-unlock Campaign. It preserves the existing store client's local product data.
-Store backend, billing and bundle delivery are still in development. The iOS
-shell remains until a Unity store replacement is accepted from a Mac.
+The Unity client retains the artwork and protocol behavior, with all gameplay
+executed by the Rust core over the native FFI. The money identity,
+`com.zkorp.zkube`, targets the Solana dApp Store. The store identity,
+`com.zkorp.zkube.store`, targets Google Play with an ARM64 and x86_64 AAB,
+a local name, a local UTC Daily, and a native purchase to unlock Campaign.
+The store identity preserves the v1 local save format. Arcade is on chain only
+for the money identity. Store billing and distribution remain in development.
 
-Gameplay runs on a MagicBlock ephemeral rollup, then commits back to base
+Arcade gameplay runs on a MagicBlock ephemeral rollup, then commits back to base
 layer. At a run's deadline the ER freezes the last fully accepted state and
 appends a deadline event: a run with at least one accepted action is scored from
 that partial state, while an untouched run expires. Late VRF output is ignored,
@@ -196,7 +190,8 @@ version, and PDA derivation before decoding anything.
 crates/      deterministic engine (core, WASM bindings, codegen)
 programs/    Anchor program — state, instructions, game rules
 services/    keeper worker and chain services
-client/      React web/PWA and Capacitor mobile shells
+tools/chain/ standalone operator commands and the checked-in program IDL
+assets/      authoritative artwork and authored presentation inputs
 unity/       native Android client and reproducible Unity build tooling
 fixtures/    committed golden vectors and chain fixtures
 artifacts/   frozen build artifacts
@@ -219,8 +214,8 @@ NO_DNA=1 ./validate.sh
 `validate.sh` defines the gates and available iteration scopes. GitHub static
 validation is `workflow_dispatch` only and is not a push or pull-request gate.
 
-For Unity iteration, `NO_DNA=1 python3 unity/tools/build.py test` runs the managed
-agreement tests; add `--test-platform PlayMode` for board interaction tests with
+For Unity iteration, `NO_DNA=1 python3 unity/tools/build.py test` runs the
+managed tests against Rust fixtures; add `--test-platform PlayMode` for board interaction tests with
 a graphics display. Desktop tests and `build.py board-gui` use Linux texture
 imports; Android artifacts use Android imports. With the graphics Editor running,
 `python3 unity/tools/evidence.py readiness` inspects the accepted board and
@@ -234,67 +229,26 @@ reports. These local artifacts use local signing; release certificate acceptance
 and publication are separate. Existing `ZKUBE_ANDROID_VERSION_CODE` and
 `ZKUBE_ANDROID_VERSION_NAME` overrides apply to Unity too.
 
+The Android store handoff metadata lives in
+`unity/dapp-store/publishing.json`. Unity's build tool produces the packages used
+for that handoff.
+
 ## Platform support
 
 | Surface | Status | Wallet path |
 | --- | --- | --- |
-| Desktop browser | Development preview | Wallet Standard extension |
-| Android Chrome | Development preview | Mobile Wallet Adapter |
-| Chrome-installed PWA | Development preview | Mobile Wallet Adapter |
-| Unity Android (dApp Store / Seeker) | Replacement in development | Native Mobile Wallet Adapter plugin |
-| Unity Android (Google Play) | Local store replacement in development | Local name; native Campaign purchase |
-| Capacitor Android | Retained during migration | Native Mobile Wallet Adapter bridge |
-| Capacitor iOS | Retained until a Unity store replacement is accepted from a Mac | Phantom or Solflare wallet links |
-| iOS browser | Not claimed supported | — |
-| Other Android browsers | Not claimed supported | — |
+| Unity Android (dApp Store / Seeker) | In development | Kotlin Mobile Wallet Adapter plugin |
+| Unity Android (Google Play) | In development | Local name; native Campaign purchase |
 
 Seed Vault Wallet is Seeker's built-in wallet and the reference MWA target;
-Phantom and Solflare on Android are additional compatibility targets. The iOS
-shell uses sign-only wallet links; paid Arcade distribution remains subject to
-the counsel and distribution review stated above.
+Phantom and Solflare on Android are additional compatibility targets. Paid
+Arcade distribution remains subject to the counsel and distribution review
+stated above.
 
-`client/src/platform/capabilities.ts` classifies observable browser signals
-and the native runtime before choosing a wallet path. Browser MWA registration
-is limited to supported Android web surfaces. The Android shell uses its Kotlin
-bridge, while the iOS shell returns from wallet links through Capacitor's app
-lifecycle; neither native shell relies on browser connector registration.
-
-Signing is sign-only by design: the client requires
-`solana:signTransaction` at transaction version `0`, rejects wallets that can
-only sign-and-send, and fails the check rather than accepting a mutated message
-or a discarded device-session partial signature. Owner transactions pin a
-400,000-compute-unit limit and 1,000-micro-lamport unit price before approval —
-a 400-lamport maximum priority fee — which also prevents wallet-side fee
-message enhancement.
-
-### Local device testing over HTTPS
-
-The web dev preview exposes a read-only capability panel, but a physical browser
-must load it from a trusted HTTPS origin: plain HTTP on a LAN address is not a
-secure context, and the browser MWA package will not register. Capacitor builds
-package the same Vite output and use their native wallet paths instead.
-
-Create a development certificate **outside this repository** with a locally
-trusted CA such as `mkcert`, include the workstation LAN IP or test hostname,
-install that CA on the test device, then point Vite at the files:
-
-```bash
-cd client
-NO_DNA=1 ZKUBE_HTTPS_CERT_PATH=/absolute/path/outside/repo/dev-cert.pem \
-  ZKUBE_HTTPS_KEY_PATH=/absolute/path/outside/repo/dev-key.pem pnpm dev
-```
-
-Open `https://<certificate-host-or-lan-ip>:5175/?dev=1` and expand
-`Capability diagnostics`; `?dev=0` clears the opt-in. The panel reports the
-classified platform, secure-context and WebView signals, MWA support reason,
-and each discovered wallet's chains, feature keys, and supported transaction
-versions. It reads registry metadata only — it never connects, authorizes,
-signs, or sends — and the whole `client/src/dev/` harness is gated on
-`import.meta.env.DEV`, so production builds eliminate it.
-
-Certificate and key suffixes are ignored repository-wide. Keep all generated TLS
-material outside the worktree, and never use browser flags that weaken
-secure-context or certificate checks.
+The Kotlin MWA plugin requires sign-only v0 transaction support. Returned
+message bytes and existing device partial signatures are checked before relay.
+Owner transactions pin a 400,000-compute-unit limit and a
+1,000-micro-lamport unit price before approval, a 400-lamport maximum priority fee.
 
 ## Contributing
 

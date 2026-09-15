@@ -12,12 +12,10 @@ import { describe, expect, it } from "vitest";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AGENT_RULES = join(ROOT, "AGENTS.md");
 const README = join(ROOT, "README.md");
-const CLIENT = join(ROOT, "client/src");
 const UNITY_CLIENT = join(ROOT, "unity/Assets/ZKube");
-const CLIENT_TOOLS = join(ROOT, "client/tools");
-const CLIENT_PACKAGE = join(ROOT, "client/package.json");
-const CLIENT_VITE_CONFIG = join(ROOT, "client/vite.config.ts");
-const CLIENT_CONSTRAINT_COPY = [join(CLIENT, "config"), join(CLIENT, "game")];
+const TOOLS = join(ROOT, "tools/chain");
+const TOOLS_PACKAGE = join(TOOLS, "package.json");
+const CONSTRAINT_COPY = [UNITY_CLIENT];
 const CORE = join(ROOT, "crates/zkube-core/src");
 const CORE_WASM = join(ROOT, "crates/zkube-core-wasm/src");
 const SERVICES = join(ROOT, "services/src");
@@ -25,189 +23,194 @@ const PROGRAM = join(ROOT, "programs/solana/src");
 
 // Generated bindings and the frozen IDL are machine output, not authored text.
 const SKIPPED = [
-  join(CLIENT, "core/generated"),
-  join(CLIENT, "backend/solana/idl"),
+  join(TOOLS, "node_modules"),
+  join(TOOLS, "idl"),
   join(UNITY_CLIENT, "Generated"),
   join(UNITY_CLIENT, "Integration/Generated"),
 ];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /MoneyEvidenceGraph|MoneySessionEvidenceGraph|MoneyPlayableEvidenceGraph|MoneyOverviewEvidenceHost|Money(?:Session|Playable|Economy|Claim|Profile)?EvidenceData/,
+    trees: [UNITY_CLIENT],
+    reversal: "Money tests share injected boundaries and Rust program scenarios; runtime evidence graphs were removed (2026-09-15)",
+  },
+  {
     pattern: /fixed[ _-]?puzzle|default[ _-]?seed|campaign[ _-]?proof|checkpoint/i,
-    trees: [CLIENT, PROGRAM],
+    trees: [UNITY_CLIENT, PROGRAM],
     reversal: "Campaign starts with fresh randomness and synchronizes the player's reported save (2026-09-15)",
   },
   {
     pattern: /activate_campaign_map|prepare_campaign_run|consume_campaign_run|activateCampaignMap|prepareCampaignRun|consumeCampaignRun|write_map_catalog|activate_content_release|writeMapCatalog|activateContentRelease|campaign_active_run_id|campaignActiveRunId|Campaign run slot|Campaign publication|Campaign delegation|set up (?:this |a |your )?device before (?:a |your )?Campaign trial/i,
-    trees: [CLIENT, CLIENT_TOOLS, UNITY_CLIENT, SERVICES, PROGRAM],
+    trees: [UNITY_CLIENT, TOOLS, SERVICES, PROGRAM],
     reversal: "Campaign runs locally; the player's reported lifetime stars synchronize across devices (2026-09-15)",
   },
   {
     pattern: /\bHomePage\b|\bCampaignPage\b/,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal: "Arcade is the one lobby and Map is the one Campaign chooser",
   },
   {
     pattern:
       /\bgridProjection\b|\bEmptyState\b|\bSegmentedTabs\b|\bActionBarSvg\b|\bresolveFeaturedEmblem\b|\busePrizeDeltaTrigger\b|notify-rewards-seen|Wake the guardian|zkube:v4:/i,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal:
       "one engine projection, one rewards observer, and produced client states replaced the dead client surfaces",
   },
   {
     pattern:
       /Resolving MagicBlock run|Recovering ActiveRun rent|Preparing verified opening|Final tier \d+\/7|Forget run locally/i,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal:
       "player-facing run copy names player actions, not protocol plumbing",
   },
   {
     pattern:
       /push(?:ed|es)? automatically|payouts are pushed|push confirms|pushed prize/i,
-    trees: [CLIENT, SERVICES, PROGRAM],
+    trees: [UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "settlement is claim-based (2026-08-08); nothing is pushed",
   },
   {
     pattern: /\btomorrow\b/i,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal:
       "the next day's content is unpublished (2026-08-10); no surface hints at it",
   },
   {
     pattern: /\bweekly\b|\bseason\b/i,
-    trees: [CLIENT, PROGRAM],
+    trees: [UNITY_CLIENT, PROGRAM],
     reversal: "Daily is the only competition; Weekly and Season died with v4",
   },
   {
     pattern: /weekly:current:3SOL/i,
-    trees: [CLIENT_TOOLS],
+    trees: [TOOLS],
     reversal: "the manual top-up surface is Daily-only",
   },
   {
     pattern: /devnet-v4\.json/i,
-    trees: [CLIENT, CLIENT_TOOLS],
+    trees: [UNITY_CLIENT, TOOLS],
     reversal: "the abandoned deployment record is never a v5 runtime default",
   },
   {
     pattern:
       /positive thresholds? (?:for|on) (?:perfect[- ]clear|all[- ]block[- ]sizes)|(?:perfect[- ]clear|all[- ]block[- ]sizes).{0,40}positive thresholds?/i,
-    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "perfect-clear guardian triggers were removed; all-block-sizes carries no numeric threshold",
   },
   {
     pattern:
       /bonus_trigger_type\s*[:=]\s*5\b|bonusTriggerType\s*[:=]\s*5\b|perfect[- ]clears?(?:\s+add\s+\d+\s+and)?\s+(?:earns?|grants?|→).{0,30}(?:Hammer|Totem|Wave|guardian (?:bonus|charge))/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "perfect clear remains a constraint and Arcade reroll grant, never a guardian trigger",
   },
   {
     pattern:
       /two[- ](?:request|vrf).{0,40}perfect[- ]clear|perfect[- ]clear.{0,40}(?:second|two).{0,16}vrf/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "one perfect-clear output derives both the board reseed and preview",
   },
   {
     pattern:
       /\bselection_seed\s*:\s*\[u8;\s*32\]|\bselectionSeed\??\s*:\s*Uint8Array/,
-    trees: [CLIENT, SERVICES, PROGRAM],
+    trees: [UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "the Daily selection seed is protocol code, not catalog or keeper state",
   },
   {
     pattern: /\bdifficulty_band\b|\bdifficultyBand\b/,
-    trees: [CLIENT, SERVICES, PROGRAM],
+    trees: [UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "Daily uses one catalog-wide pressure profile without per-entry bands",
   },
   {
     pattern:
       /DAILY_PRESSURE_THRESHOLDS|DAILY_PRESSURE_BLOCK_WEIGHTS|CampaignRules\.block_weights|DailyPressureRules\.block_weights|LevelRuleSnapshot\.block_weights/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "one generated tier table and one pressure step replaced stored weight and threshold copies",
   },
   {
     pattern:
       /score_multipliers_x100|scoreMultipliersX100|1\.0\/1\.5\/2\.0\/2\.5\/3\.0\/3\.5\/4\.0\/4\.5/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "Daily score pressure is an uncapped formula rather than a stored multiplier array",
   },
   {
     pattern:
       /private target curves?|authored move budgets?|per[- ]realm target curves?/i,
-    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "one Campaign target ladder and tier-derived move budgets replaced authored curves",
   },
   {
     pattern: /\bCampaign (?:content )?v2\b|\bcampaign_v2\b/i,
-    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "Campaign content v3 replaced the pre-ladder v2 publication",
   },
   {
     pattern: /bonus_trigger_type\s*:\s*3\b|triggerType\s*===?\s*3\b/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "bonus trigger type 3 is unsupported",
   },
   {
     pattern: /KREDIT_PACK_SIZES[^;\n]*\b5\b/,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal: "the shop offers only 1-, 10-, and 25-Kredit packs",
   },
   {
     pattern:
       /\bMutatorRules\b|\bpassive\s+(?:pairing|score|scoring|bonus|map|mutator|line-clear|perfect-clear)\b|line_clear_bonus|perfect_clear_bonus|neutral baseline|Calm Tides|Foundation Stone|Frozen Rage|Marble Discipline|Imperial Scale|Geometric Flow|Bushido|Jungle Altar|Primal Pulse|Altitude/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "one Guardian value replaced realm scoring fields and the Daily mode exception",
   },
   {
     pattern:
       /\bscore_multiplier_x100\b|\bcombo_multiplier_x100\b|(?<!["'])\bscoreMultiplierX100\b(?!["'])|\bcomboMultiplierX100\b|PlannerStrongCombo|CampaignCombo|passive[-_]relevance/,
-    trees: [CORE, CLIENT, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, PROGRAM],
     reversal:
       "per-realm scaling fields were inert; pressure owns action scoring",
   },
   {
     pattern:
       /\bsim[_-]harness\b|\bapex-reachable\b|\bPLANNER_STRONG\b|\bORACLE_NODE_BUDGET\b|\bboard-divergence\b|\bacceptance digest\b/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "the Monte Carlo balance harness and its assertion vocabulary were retired",
   },
   {
     pattern:
       /\bderive_randomness\b|\bCAMPAIGN_LEVEL_MODE_TAG\b|OpeningLayout\.hash_blocks/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "the core owns deterministic replay; Arcade alone uses verified VRF outputs",
   },
   {
     pattern: /\bCampaignSimulation\b|\bDailySimulation\b/,
-    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "one Run and one codec drive both gameplay modes",
   },
   {
     pattern:
       /sync_daily_profile|syncDailyProfile|ProfileSynced|profile[- ]sync/i,
-    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "a Daily claim atomically settles its payout and profile",
   },
   {
     pattern:
       /seed_launch_pools|seedLaunchPools|top_up_arena_daily|topUpArenaDaily|claim_daily_prize_at_position|ClaimDailyPrizeAtPosition|player_funding_target_lamports|playerFundingTargetLamports/,
-    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "one position-addressed claim, one authority deposit, and generated constants replaced duplicate surfaces",
   },
   {
     pattern:
       /player funding PDA|player_funding|playerFunding|funded_prepare_campaign_run|fundedPrepareCampaignRun|funded_enter_arena|fundedEnterArena|withdraw_player_funding|withdrawPlayerFunding|funded_delegate_active_run|fundedDelegateActiveRun|funded_create_player_label|fundedCreatePlayerLabel/,
-    trees: [CORE, CORE_WASM, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, CORE_WASM, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "the owner-funded device session pays player account rent and stored rent_payer receives every refund",
   },
@@ -234,92 +237,92 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern: /\bEndless\b|dailyContentSelection/i,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal:
       "Daily pressure names the one competitive profile and the core owns pair selection",
   },
   {
     pattern:
       /connectedPlayerContext|useRunController|\berRetry\b|awaitAccountCondition|RewardsProvider|DailyProvider|CampaignProvider/,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal:
       "the six Effect services and one BackendProvider replaced the client chain-context stack",
   },
   {
     pattern: /\bdevBoard\b|still life/i,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal:
       "the owner play build uses the playable local backend instead of frozen fixtures",
   },
   {
     pattern: /\bRunMetrics\b|\barcade_metrics\b|\bdaily_challenge_bonus\b/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "Run persists only state consumed by gameplay, settlement, replay, or presentation",
   },
   {
     pattern: /\brequest_row_vrf\b|\bforce_finish_deadline\b|\babandon_run\b/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "one Run VRF context and one exact finish_run predicate table own the lifecycle",
   },
   {
     pattern:
       /apply_ladder_streak_bonus|ladder_streak_bonus_pct|ladderStreakBonusPct|LADDER_STREAK_BONUS_CAP_DAYS/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "the visible entry streak does not multiply ladder points",
   },
   {
     pattern:
       /calculate_level_stars|calculateLevelStars|move[- ](?:efficiency|percent(?:age)?) stars|move_(?:efficiency|percent(?:age)?)|move(?:Efficiency|Percent(?:age)?)/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "Campaign stars latch from score, primary, and secondary constraints",
   },
   {
     pattern: /star_threshold_modifier|starThresholdModifier|126.{0,3}129/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "Campaign star sources have no authored efficiency modifier",
   },
   {
     pattern: /ComboMeter|Combo Meter/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "Campaign constraints use the fixed line/combo/streak vocabulary",
   },
   {
     pattern: /\bcascade\b/i,
-    trees: CLIENT_CONSTRAINT_COPY,
+    trees: CONSTRAINT_COPY,
     reversal: "player-facing constraint copy calls the action a combo",
   },
   {
     pattern: /never re-paired/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "guardian pairings are fixed by one Campaign/Arcade catalog publication",
   },
   {
     pattern:
       /Bonus::Reroll|BonusType\.Reroll|\bBonusShape\b|bonus_type\s*==\s*4|RealmPlusUniversalReroll/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "Reroll is one universal run action beside the three guardian bonuses",
   },
   {
     pattern: /\breroll_available\b|\brerollAvailable\b|exactly one reroll/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "reroll is a capped inventory with Campaign and Daily grants",
   },
   {
     pattern:
       /second star grants|★★ awards|latch in order|contiguous star sources|while holding/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "star sources latch independently and perfect clears grant rerolls in both modes",
   },
   {
     pattern:
       /(?:starting_(?:bonus_)?charges|bonus_charges)\s*<=\s*15|bonusCharges\s*<=\s*15|\.min\(15\)/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal: "all bonus inventories use the shared three-charge cap",
   },
   {
@@ -331,27 +334,27 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
     pattern:
       /\bDailyObjective\b|bonus_multiplier_x100|\bscoringIndex\b|\bSurvival\b|Exact-1|seven families/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "Daily objectives use the shared constraint vocabulary without multipliers",
   },
   {
     pattern:
       /\bDailyPoolEntry\b|\bDailyRulesCatalog\b|publish_arena_rules|activate_arena_rules|\bdaily pool\b|\brulesCatalog\b|RULES_ACCOUNT_VERSION/i,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "Daily content is the fixed protocol realm-objective product, not a published catalog",
   },
   {
     pattern: /starting_bonus_charges|startingBonusCharges|\bstartingCharges\b/,
-    trees: [CORE, CLIENT, SERVICES, PROGRAM],
+    trees: [CORE, UNITY_CLIENT, SERVICES, PROGRAM],
     reversal:
       "guardian inventories start empty and Daily starting height comes from its realm",
   },
   {
     pattern:
       /score at ×|perfect clears add|[Ss]tart with .* (?:Totem|Hammer|Wave)/,
-    trees: [CLIENT],
+    trees: [UNITY_CLIENT],
     reversal:
       "guardian mechanics copy is derived from the published guardian rule",
   },
@@ -374,10 +377,7 @@ describe("supersession", () => {
     const cache = new Map<string, string[]>();
     const violations: string[] = [];
     for (const rule of RULES) {
-      // The native replacement inherits the same vocabulary guard during coexistence.
-      const trees = rule.trees.flatMap((tree) =>
-        tree === CLIENT ? [tree, UNITY_CLIENT] : [tree],
-      );
+      const trees = [...new Set(rule.trees)];
       for (const tree of trees) {
         for (const file of await sourceFiles(tree)) {
           let lines = cache.get(file);
@@ -422,9 +422,9 @@ describe("supersession", () => {
     const files = [
       AGENT_RULES,
       README,
-      CLIENT_PACKAGE,
-      ...(await sourceFiles(CLIENT)),
-      ...(await sourceFiles(CLIENT_TOOLS)),
+      TOOLS_PACKAGE,
+      ...(await sourceFiles(UNITY_CLIENT)),
+      ...(await sourceFiles(TOOLS)),
     ];
     const violations: string[] = [];
     for (const file of files) {
@@ -438,19 +438,14 @@ describe("supersession", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps the retired playtest build flag out of client source and config", async () => {
-    const files = [
-      CLIENT_VITE_CONFIG,
-      ...(await sourceFiles(CLIENT)),
-      ...(await sourceFiles(CLIENT_TOOLS)),
-    ];
+  it("keeps the retired client surfaces out of source and documentation", async () => {
+    const pattern = /\b(?:React|PWA|Capacitor|Vercel|vite|playtest)\b|wallet-standard/i;
+    const files = [AGENT_RULES, README, ...(await sourceFiles(TOOLS)),
+      ...(await sourceFiles(UNITY_CLIENT)), ...(await sourceFiles(SERVICES)), ...(await sourceFiles(PROGRAM))];
     const violations: string[] = [];
     for (const file of files) {
-      const lines = (await readFile(file, "utf8")).split("\n");
-      lines.forEach((line, index) => {
-        if (/VITE_ZKUBE_PLAYTEST/.test(line)) {
-          violations.push(`${file}:${index + 1}`);
-        }
+      (await readFile(file, "utf8")).split("\n").forEach((line, index) => {
+        if (pattern.test(line)) violations.push(`${file}:${index + 1}`);
       });
     }
     expect(violations).toEqual([]);

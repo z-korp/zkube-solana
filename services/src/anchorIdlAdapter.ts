@@ -182,7 +182,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
 
   static async create(input: AnchorKeeperAdapterInput): Promise<AnchorKeeperAdapter> {
     const path = input.idlPath ??
-      new URL("../../client/src/backend/solana/idl/solana.json", import.meta.url);
+      new URL("../../tools/chain/idl/solana.json", import.meta.url);
     const bytes = await readFile(path);
     let parsed: unknown;
     try {

@@ -10,7 +10,10 @@
     "build": "tsc -p tsconfig.json",
     "release:fingerprint": "node dist/keeperReleaseCli.js",
     "test": "vitest run",
-    "start:keeper": "node dist/keeperWorker.js"
+    "start:keeper": "node dist/keeperWorker.js",
+    "core:wasm:sync": "node sync-zkube-core-wasm.mjs",
+    "core:wasm:check": "node sync-zkube-core-wasm.mjs --check",
+    "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
     "@anchor-lang/core": "1.0.2",
@@ -22,6 +25,10 @@
     "@types/bn.js": "5.2.0",
     "@types/node": "^22.15.0",
     "typescript": "~5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@eslint/js": "9.39.1",
+    "eslint": "9.39.1",
+    "globals": "16.5.0",
+    "typescript-eslint": "8.46.4"
   }
 }

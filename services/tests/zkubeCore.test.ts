@@ -81,17 +81,10 @@ describe("generated Node zkube-core boundary", () => {
 
   it("payout_curve_has_one_implementation", () => {
     expect(existsSync(new URL("../src/arcadeEconomy.ts", import.meta.url))).toBe(false);
-    expect(existsSync(new URL(
-      "../../client/src/ui/components/economy/payout.ts",
-      import.meta.url,
-    ))).toBe(false);
     expect(readFileSync(
       new URL("../src/arcadeReconciliation.ts", import.meta.url),
       "utf8",
     )).toContain('from "./zkubeCore.js"');
-    expect(readFileSync(
-      new URL("../../client/src/ui/components/economy/index.ts", import.meta.url),
-      "utf8",
-    )).toContain('from "@/core/zkubeCore"');
+
   });
 });

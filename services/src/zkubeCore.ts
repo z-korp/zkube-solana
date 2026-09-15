@@ -1,5 +1,5 @@
-// The generated Node target and browser package come from the same Rust source
-// and are freshness-checked together. Protocol consumers decode only this
+// The generated Node target is freshness-checked against the Rust source.
+// Protocol consumers decode only this
 // generated boundary rather than carrying TypeScript rule mirrors.
 import {
   applyRunBonus,

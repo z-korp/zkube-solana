@@ -42,7 +42,7 @@ namespace ZKube.Presentation
 
         // JSON may contain values older clients wrote outside the slider UI.
         // Match JS Number coercion here; do not silently apply different types
-        // or decimal parsing rules on Mono than on the TypeScript boundary.
+        // or decimal parsing rules from the original save parser.
         private static readonly Regex Decimal = new Regex(@"^([+-]?)(?:([0-9]+)(?:\.([0-9]*))?|\.([0-9]+))([eE][+-]?[0-9]+)?$", RegexOptions.CultureInvariant);
         private static double Number(JToken value)
         {

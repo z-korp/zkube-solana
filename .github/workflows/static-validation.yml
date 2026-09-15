@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: client-validation-${{ github.ref }}
+  group: static-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,12 +46,12 @@ jobs:
       - run: NO_DNA=1 pnpm run build
       - run: NO_DNA=1 pnpm test
 
-  client:
+  chain-tools:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: client
+        working-directory: tools/chain
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -61,16 +61,12 @@ jobs:
         with:
           node-version: 24.13.0
           cache: pnpm
-          cache-dependency-path: client/pnpm-lock.yaml
+          cache-dependency-path: tools/chain/pnpm-lock.yaml
       - name: Install locked dependencies
         run: NO_DNA=1 pnpm install --frozen-lockfile
-      - name: TypeScript
-        run: NO_DNA=1 pnpm exec tsc -b --pretty false
       - name: Chain TypeScript
-        run: NO_DNA=1 pnpm run typecheck:chain
+        run: NO_DNA=1 pnpm run typecheck
       - name: Lint
         run: NO_DNA=1 pnpm lint
       - name: Tests
         run: NO_DNA=1 pnpm exec vitest run
-      - name: Production build
-        run: NO_DNA=1 pnpm build

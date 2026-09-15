@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
@@ -14,14 +13,14 @@ namespace ZKube.Local.Tests
     {
         private static string Root => Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
         private static JObject Fixture => JObject.Parse(File.ReadAllText(Path.Combine(Root,
-            "fixtures/unity-local-product-v1.json"
+            "fixtures/store-save-format-v1.json"
         )));
         public static IEnumerable Cases()
         {
             foreach (var row in Fixture["cases"]) yield return new TestCaseData((string)row["name"]);
         }
         [TestCaseSource(nameof(Cases))]
-        public void ActualTypeScriptDecoderAgreement(string name)
+        public void ReadsTheV1StoreSaveFormat(string name)
         {
             var row = (JObject)Fixture["cases"].Single(item => (string)item["name"] == name);
             var state = LocalProductCodec.Decode((string)row["raw"]);
@@ -46,7 +45,7 @@ namespace ZKube.Local.Tests
             foreach (var row in Fixture["names"]) yield return new TestCaseData((string)row["name"]);
         }
         [TestCaseSource(nameof(Names))]
-        public void ActualTypeScriptNameAgreement(string name)
+        public void ReadsV1StoreNamesWithoutChangingCodeUnits(string name)
         {
             var row = (JObject)Fixture["names"].Single(item => (string)item["name"] == name);
             int[] input = Units(row["input"]);
@@ -54,14 +53,6 @@ namespace ZKube.Local.Tests
             if (row["error"].Type != JTokenType.Null)
                 Assert.That(Assert.Throws<ArgumentException>(() => LocalProductCodec.NormalizeName(value)).Message, Is.EqualTo((string)row["error"]));
             else CollectionAssert.AreEqual(Units(row["expected"]), Units(LocalProductCodec.NormalizeName(value)));
-        }
-        [Test]
-        public void OracleRemainsBoundToTheActualTypeScriptSource()
-        {
-            var fixture = Fixture;
-            using var sha = SHA256.Create();
-            var bytes = sha.ComputeHash(File.ReadAllBytes(Path.Combine(Root, (string)fixture["authority"])));
-            Assert.That(string.Concat(bytes.Select(value => value.ToString("x2"))), Is.EqualTo((string)fixture["sourceSha256"]));
         }
         [Test]
         public void WritesNormalizeThroughTheSameVersionedKey()

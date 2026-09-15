@@ -11,10 +11,17 @@ import sys
 from cli import run_main
 
 ROOT = Path(__file__).resolve().parents[2]
-# RPC reads Solana output; economy reads planner output; run-client reads both
-# planner and reconciliation output. Parallel writes can bless stale inputs.
-PRODUCERS = ("solana", "profile-identity", "planner", "rpc", "run-reconciliation", "session", "run-client", "product-read", "public-daily", "readiness", "provisional-board",
-             "local-persistence", "local-run", "store-billing", "store-page", "theme", "audio", "money-overview", "campaign-browse", "money-session", "money-playable", "money-economy", "money-claim", "money-profile")
+def program_scenarios(action, env):
+    result = subprocess.run(["cargo", "run", "--quiet", "-p", "solana", "--example", "unity-fixtures"],
+                            cwd=ROOT, env=env, stdout=subprocess.PIPE, check=True, timeout=180)
+    content = result.stdout.decode("utf-8")
+    json.loads(content)
+    path = ROOT / "fixtures/program-unity-v1.json"
+    if action == "generate":
+        path.write_text(content)
+    elif path.read_text() != content:
+        raise RuntimeError("Stale program integration fixture: " + str(path))
+    print("Program integration scenarios: " + action + " passed")
 
 
 def profile_eligibility(action, env):
@@ -39,18 +46,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("check", "generate"))
     args = parser.parse_args()
-    env = dict(os.environ, NO_DNA="1", ZKUBE_WRITE_UNITY_FIXTURES="1" if args.action == "generate" else "0")
+    env = dict(os.environ, NO_DNA="1")
     subprocess.run(["cargo", "run", "-p", "zkube-codegen", "--", args.action], cwd=ROOT, env=env, check=True)
     profile_eligibility(args.action, env)
-    files = [f"tools/unity/{name}-fixtures.test.ts" for name in PRODUCERS]
-    files.append("tools/unity/store-share-agreement.test.ts")
-    batches = [[name] for name in files] if args.action == "generate" else [files]
-    for batch in batches:
-        subprocess.run(["pnpm", "exec", "vitest", "run", *batch], cwd=ROOT / "client", env=env, check=True)
+    program_scenarios(args.action, env)
     evidence = ROOT / "unity/Assets/ZKube/Runtime/Presentation/Evidence/generate_evidence.py"
     subprocess.run([sys.executable, str(evidence), *(["--check"] if args.action == "check" else [])],
                    cwd=ROOT, env=env, check=True)
-    print(f"Unity fixtures: native, {len(files)} agreement suites and presentation {args.action} passed")
+    print(f"Unity fixtures: native, program integration scenarios and presentation {args.action} passed")
 
 
 if __name__ == "__main__":

@@ -13,13 +13,13 @@ namespace ZKube.Tests.MoneyOverview
     {
         private IEnumerator PrepareClaimPage(string scenario, float textScale = 1)
         {
-            yield return PrepareSessionEvidence(scenario, textScale, "Results");
+            yield return PrepareDeviceScenario(scenario, textScale, "Results");
             var controller = host.GetComponent<MoneyStartup>().Controller;
-            yield return Wait(controller.OpenRewards(sessionEvidence.ClaimDay)); yield return Idle();
+            yield return Wait(controller.OpenRewards(environment.ClaimDay)); yield return Idle();
             Assert.That(controller.BrowsingRewards, Is.True);
-            Assert.That(controller.RewardDay, Is.EqualTo(sessionEvidence.ClaimDay));
+            Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay));
             StringAssert.Contains("Ladder · 200 points", SessionText());
-            Assert.That(sessionEvidence.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
+            Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
         }
         [UnityTest] public IEnumerator ScoreRewardButtonPaysOnceAndShowsConfirmedPoints() => CollectReward("score", "sealed", 170);
         [UnityTest] public IEnumerator ThemeRewardButtonPaysOnceAndShowsConfirmedPoints() => CollectReward("theme", "sealed", 135);
@@ -32,17 +32,17 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Collect " + name); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(sessionEvidence.SentSignature));
-            StringAssert.Contains(name + " reward received · 0.019 SOL", SessionText());
+            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
+            StringAssert.Contains(name + " reward received · " + (environment.ClaimAmount / 1_000_000_000m).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " SOL", SessionText());
             StringAssert.Contains("+" + points + " ladder points", SessionText());
             StringAssert.Contains("Ladder · " + (200 + points) + " points", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect " + name), Is.False);
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect " + peer).interactable, Is.True);
             yield return Wait(controller.CollectReward(kind));
             controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
-            Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ExpiredScoreLeavesThemeAvailable() => UnavailableReward("expired", "The claim window has closed.");
         [UnityTest] public IEnumerator UnsealedScoreDoesNotOfferAClaim() => UnavailableReward("unsealed", "Results are being finalized.");
@@ -57,7 +57,7 @@ namespace ZKube.Tests.MoneyOverview
             var theme = host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Theme");
             Assert.That(theme.interactable, Is.EqualTo(variant != "missing-session"));
             yield return Wait(host.GetComponent<MoneyStartup>().Controller.CollectReward("score"));
-            Assert.That(sessionEvidence.SentSignature, Is.Null); Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator PendingClaimWaitsForAnExplicitCheckBeforeShowingPoints() => PendingReward(false);
         [UnityTest] public IEnumerator FailedClaimKeepsPointsAndOriginalReceipt() => PendingReward(true);
@@ -70,53 +70,53 @@ namespace ZKube.Tests.MoneyOverview
             StringAssert.Contains("Ladder · 200 points", SessionText());
             StringAssert.DoesNotContain("reward received", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Collect ")).All(button => !button.interactable), Is.True);
-            int checks = sessionEvidence.Calls.Count(call => call.Operation == "getSignatureStatuses");
+            int checks = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
             yield return SessionClick("Refresh results"); yield return Idle();
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
-            if (failure) sessionEvidence.ConfirmPendingFailure(); else sessionEvidence.ConfirmPendingSuccess();
+            Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
+            if (failure) environment.ConfirmPendingFailure(); else environment.ConfirmPendingSuccess();
             yield return SessionClick("Check transaction"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(failure ? ExecutionOutcome.ConfirmedFailure : ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             StringAssert.Contains("Ladder · " + (failure ? 200 : 370) + " points", SessionText());
             if (failure) StringAssert.DoesNotContain("reward received", SessionText());
             else StringAssert.Contains("+170 ladder points", SessionText());
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
-            Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator RewardDeadlineClosesWithoutWaitingForAnotherTap()
         {
             yield return PrepareClaimPage("claim-score-deadline");
-            sessionEvidence.AdvanceClock(1); yield return null; yield return Idle();
+            environment.AdvanceClock(1); yield return null; yield return Idle();
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect Score" && button.interactable), Is.False);
             StringAssert.Contains("The claim window has closed.", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Theme").interactable, Is.True);
-            Assert.That(sessionEvidence.SentSignature, Is.Null); Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator RewardReadbackFailurePreservesReceiptAndRequiresFreshValues()
         {
-            yield return PrepareClaimPage("claim-score-sealed"); sessionEvidence.FailFirstReadAfterJournalClear();
+            yield return PrepareClaimPage("claim-score-sealed"); environment.FailFirstReadAfterJournalClear();
             yield return SessionClick("Collect Score"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             StringAssert.DoesNotContain("reward received", SessionText());
             yield return SessionClick("Refresh results"); yield return Idle();
-            StringAssert.Contains("Score reward received · 0.019 SOL", SessionText());
+            StringAssert.Contains("Score reward received · " + (environment.ClaimAmount / 1_000_000_000m).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " SOL", SessionText());
             StringAssert.Contains("Ladder · 370 points", SessionText());
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ResultDayNavigationNeverSignsAndOtherPagesCloseResults()
         {
             yield return PrepareClaimPage("claim-score-sealed"); var controller = host.GetComponent<MoneyStartup>().Controller;
             yield return SessionClick("Previous day"); yield return Idle();
-            Assert.That(controller.RewardDay, Is.EqualTo(sessionEvidence.ClaimDay - 1));
+            Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay - 1));
             yield return SessionClick("Next day"); yield return Idle();
-            Assert.That(controller.RewardDay, Is.EqualTo(sessionEvidence.ClaimDay));
+            Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay));
             yield return SessionClick("Daily"); yield return Idle();
             Assert.That(controller.BrowsingRewards, Is.False); Assert.That(controller.BrowsingDaily, Is.True);
             Assert.That(host.GetComponentsInChildren<Transform>().Any(value => value.name == "Daily results"), Is.False);
-            Assert.That(sessionEvidence.SentSignature, Is.Null); Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
     }
 }

@@ -14,9 +14,9 @@ namespace ZKube.Tests.MoneyOverview
     {
         private IEnumerator PrepareProfilePage(string scenario, float scale = 1)
         {
-            yield return PrepareSessionEvidence(scenario, scale, "Profile");
+            yield return PrepareDeviceScenario(scenario, scale, "Profile");
             Assert.That(host.GetComponent<MoneyStartup>().Controller.BrowsingProfile, Is.True);
-            Assert.That(sessionEvidence.SentSignature, Is.Null);
+            Assert.That(environment.SentSignature, Is.Null);
         }
         [UnityTest] public IEnumerator FeaturedIdentityRequiresAnExplicitWearAndShowsConfirmedReadback() => WearProfile("profile-success", 8, 3);
         [UnityTest] public IEnumerator AutomaticCanBeRestoredWithItsSelectedBorder() => WearProfile("profile-auto", 0, 0);
@@ -32,18 +32,18 @@ namespace ZKube.Tests.MoneyOverview
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(controller.SelectedEmblem, Is.EqualTo(emblem));
             Assert.That(controller.SelectedBorder, Is.EqualTo(border));
-            Assert.That(sessionEvidence.SentSignature, Is.Null);
+            Assert.That(environment.SentSignature, Is.Null);
             yield return SessionClick("Wear selection"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(sessionEvidence.SentSignature));
+            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             Assert.That(controller.SelectedEmblem, Is.EqualTo(latestEmblem ?? emblem));
             Assert.That(controller.SelectedBorder, Is.EqualTo(latestBorder ?? border));
             StringAssert.Contains("Wearing · " + ProfileIdentityCatalog.Emblems.Single(value => value.Id == (latestEmblem ?? emblem)).Name, SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Wear selection").interactable, Is.False);
             yield return Wait(controller.WearProfileSelection());
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
-            Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
             foreach (var button in host.GetComponentsInChildren<Button>())
             {
                 var label = button.GetComponentInChildren<TMP_Text>();
@@ -59,14 +59,14 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(button.interactable, Is.False, button.name);
             controller.SelectProfileEmblem(1); yield return Wait(controller.WearProfileSelection());
             Assert.That(controller.SelectedEmblem, Is.Zero);
-            Assert.That(sessionEvidence.SentSignature, Is.Null);
+            Assert.That(environment.SentSignature, Is.Null);
         }
         [UnityTest] public IEnumerator MissingDeviceSessionKeepsProfileVisibleWithoutWrites()
         {
             yield return PrepareProfilePage("profile-missing-session");
             StringAssert.Contains("Set up this device to change your emblem or border.", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Wear selection").interactable, Is.False);
-            Assert.That(sessionEvidence.SentSignature, Is.Null);
+            Assert.That(environment.SentSignature, Is.Null);
         }
         [UnityTest] public IEnumerator PendingProfileWaitsForExplicitConfirmation() => PendingProfile(false);
         [UnityTest] public IEnumerator FailedProfileWriteKeepsThePriorIdentity() => PendingProfile(true);
@@ -82,20 +82,20 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Refresh profile"); yield return Idle();
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(receipt));
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            if (failure) sessionEvidence.ConfirmPendingFailure(); else sessionEvidence.ConfirmPendingSuccess();
+            if (failure) environment.ConfirmPendingFailure(); else environment.ConfirmPendingSuccess();
             yield return SessionClick("Check transaction"); yield return Idle();
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(receipt));
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(failure ? ExecutionOutcome.ConfirmedFailure : ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.SelectedEmblem, Is.EqualTo(failure ? 0 : 8));
             Assert.That(controller.SelectedBorder, Is.EqualTo(failure ? 0 : 3));
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ConfirmedProfileReceiptSurvivesReadFailureAndResume()
         {
             yield return PrepareProfilePage("profile-success");
             yield return SessionClick("Emblem 8"); yield return SessionClick("Border 3");
-            sessionEvidence.FailFirstReadAfterJournalClear();
+            environment.FailFirstReadAfterJournalClear();
             yield return SessionClick("Wear selection"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -103,7 +103,7 @@ namespace ZKube.Tests.MoneyOverview
             controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(receipt));
             Assert.That(controller.SelectedEmblem, Is.EqualTo(8));
-            Assert.That(sessionEvidence.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
         }
     }
 }

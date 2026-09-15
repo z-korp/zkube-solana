@@ -27,9 +27,9 @@ namespace ZKube.Integration.Tests
             public Task<byte[]> CreateDeviceSeed(string owner) { Creates++; return Task.FromResult(Enumerable.Repeat((byte)2, 32).ToArray()); }
             public Task RemoveDeviceSeed(string owner) => Task.CompletedTask;
         }
-        private static JObject Fixture() => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/unity-solana-v1.json"))));
+        private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");
         [Test]
-        public void BothWireFormatsProduceExactWeb3SignedTransactionsAndRejectUnsignedPackets()
+        public void RustMessagesAcceptSyntheticSignaturesAndRejectUnsignedPackets()
         {
             var fixture = Fixture();
             using var owner = new DeviceSigner(Enumerable.Repeat((byte)1, 32).ToArray());
@@ -45,35 +45,53 @@ namespace ZKube.Integration.Tests
             }
         }
         [Test]
-        public async Task ActualDeviceSignaturesMatchWeb3BeforeOwnerWalletAndAllAdversarialResponsesFail()
+        public async Task OwnerWalletRejectsChangedMessagesAndMissingSignatures()
         {
             var fixture = Fixture();
             string owner = (string)fixture["inputs"]["owner"];
-            byte[] seed = Enumerable.Repeat((byte)2, 32).ToArray();
-            using var signer = new DeviceSigner(seed);
-            foreach (var row in fixture["walletCases"])
+            var rows = fixture["transactions"].ToArray();
+            byte[] before = SolanaWire.UnsignedTransaction(Convert.FromBase64String((string)rows[0]["message"]));
+            var native = new Native { Reply = _ => Task.FromResult(new JObject {
+                ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner)), ["transaction"] = rows[0]["signedTransaction"] }) };
+            var wallet = new WalletClient(native);
+            Assert.That(await wallet.Sign(owner, before), Is.EqualTo(Convert.FromBase64String((string)rows[0]["signedTransaction"])));
+            foreach (string output in new[] { (string)rows[1]["signedTransaction"], Convert.ToBase64String(before) })
             {
-                byte[] before = Convert.FromBase64String((string)row["before"]);
-                var native = new Native { Reply = request => Task.FromResult(new JObject {
-                    ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner)), ["transaction"] = row["output"] }) };
-                var wallet = new WalletClient(native);
-                if (!(bool)row["accept"])
-                {
-                    await AsyncAssert.Throws<FormatException>(async () => await wallet.Sign(owner, before), (string)row["id"]);
-                    if (((string)row["id"]).EndsWith("before-wallet", StringComparison.Ordinal)) Assert.That(native.Calls, Is.Zero);
-                }
-                else
-                {
-                    Assert.That(signer.PartialSign(before), Is.EqualTo(before));
-                    var signed = await wallet.Sign(owner, before);
-                    Assert.That(signed, Is.EqualTo(Convert.FromBase64String((string)row["output"])));
-                    Assert.That(TransactionSignatures.ValidateFullySigned(signed), Is.EqualTo((string)fixture["walletSignature"]));
-                    TransactionSignatures.ValidateSignature((string)fixture["walletSignature"]);
-                }
+                native.Reply = _ => Task.FromResult(new JObject { ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner)), ["transaction"] = output });
+                await AsyncAssert.Throws<FormatException>(() => wallet.Sign(owner, before));
             }
-            signer.Dispose();
-            Assert.Throws<ObjectDisposedException>(() => signer.PartialSign(new byte[1]));
+            using var disposed = new DeviceSigner(Enumerable.Repeat((byte)2, 32).ToArray());
+            disposed.Dispose();
+            Assert.Throws<ObjectDisposedException>(() => disposed.PartialSign(new byte[1]));
         }
+        [Test]
+        public async Task DevicePartialSignatureSurvivesOwnerApprovalAndMissingOrChangedSignaturesFail()
+        {
+            var fixture = Fixture();
+            var row = fixture["transactions"].Single(value => (string)value["id"] == "session-refill-0");
+            using var owner = new DeviceSigner(Enumerable.Repeat((byte)1, 32).ToArray());
+            using var device = new DeviceSigner(Enumerable.Repeat((byte)2, 32).ToArray());
+            byte[] unsigned = SolanaWire.UnsignedTransaction(Convert.FromBase64String((string)row["message"]));
+            byte[] before = device.PartialSign(unsigned), signed = owner.PartialSign(before);
+            var native = new Native { Reply = _ => Task.FromResult(new JObject {
+                ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner.Address)), ["transaction"] = Convert.ToBase64String(signed) }) };
+            var wallet = new WalletClient(native);
+            Assert.That(await wallet.Sign(owner.Address, before), Is.EqualTo(signed));
+            Assert.That(device.PartialSign(before), Is.EqualTo(before));
+            var corrupted = signed.ToArray();
+            int deviceIndex = Array.IndexOf(row["signers"].Values<string>().ToArray(), device.Address);
+            corrupted[1 + 64 * deviceIndex] ^= 1;
+            foreach (byte[] output in new[] { owner.PartialSign(unsigned), before, corrupted })
+            {
+                native.Reply = _ => Task.FromResult(new JObject { ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner.Address)),
+                    ["transaction"] = Convert.ToBase64String(output) });
+                await AsyncAssert.Throws<FormatException>(() => wallet.Sign(owner.Address, before));
+            }
+            int calls = native.Calls;
+            await AsyncAssert.Throws<FormatException>(() => wallet.Sign(owner.Address, unsigned));
+            Assert.That(native.Calls, Is.EqualTo(calls));
+        }
+
         [Test]
         public async Task MissingSecretNeverCreatesReplacementAndAuthorizationSerializesAndPinsIdentity()
         {

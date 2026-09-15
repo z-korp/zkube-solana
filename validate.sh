@@ -67,48 +67,19 @@ validate_program() {
   validate_sbf
 }
 
-validate_frontend() {
+validate_tools() {
   cd "$root/services"
   NO_DNA=1 pnpm install --frozen-lockfile
+  NO_DNA=1 pnpm run core:wasm:check
   NO_DNA=1 pnpm run build
   NO_DNA=1 pnpm test
-  cd "$root/client"
+  NO_DNA=1 pnpm run lint
+  cd "$root/tools/chain"
   NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run idl:check
-  NO_DNA=1 pnpm run core:wasm:check
-  NO_DNA=1 pnpm run typecheck:chain
-  NO_DNA=1 pnpm run build
-  NO_DNA=1 pnpm exec vitest run
+  NO_DNA=1 pnpm run typecheck
+  NO_DNA=1 pnpm test
   NO_DNA=1 pnpm run lint
-}
-
-validate_mobile() {
-  cd "$root/client"
-  NO_DNA=1 pnpm install --frozen-lockfile
-  NO_DNA=1 ruby -c fastlane/Fastfile
-
-  local target mobile_tmp
-  for target in solana store; do
-    VITE_ZKUBE_BUILD="$target" NO_DNA=1 pnpm run build
-    VITE_ZKUBE_BUILD="$target" NO_DNA=1 node tools/validate-mobile-config.mjs
-    mkdir -p "$root/build/mobile-validation"
-    mobile_tmp="$(mktemp -d "$root/build/mobile-validation/sync.XXXXXX")"
-    cp -a capacitor.config.ts package.json pnpm-lock.yaml dist android ios "$mobile_tmp/"
-    ln -s "$root/client/node_modules" "$mobile_tmp/node_modules"
-    if ! (
-      cd "$mobile_tmp"
-      VITE_ZKUBE_BUILD="$target" NO_DNA=1 \
-        "$root/client/node_modules/.bin/cap" sync android
-      if [[ "$target" == "store" ]]; then
-        VITE_ZKUBE_BUILD=store NO_DNA=1 \
-          "$root/client/node_modules/.bin/cap" sync ios
-      fi
-    ); then
-      rm -rf "$mobile_tmp"
-      return 1
-    fi
-    rm -rf "$mobile_tmp"
-  done
 }
 
 validate_unity() {
@@ -134,20 +105,16 @@ case "$scope" in
   program-sbf)
     validate_sbf
     ;;
-  frontend)
-    validate_frontend
-    ;;
-  mobile)
-    validate_mobile
+  tools)
+    validate_tools
     ;;
   all)
     validate_program
-    validate_frontend
-    validate_mobile
+    validate_tools
     validate_unity
     ;;
   *)
-    echo "usage: $0 [program|program-sbf|frontend|mobile|all]" >&2
+    echo "usage: $0 [program|program-sbf|tools|all]" >&2
     exit 2
     ;;
 esac

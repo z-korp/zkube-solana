@@ -10,7 +10,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
 using ZKube.Integration.App;
-using ZKube.Integration.App.Evidence;
+using ZKube.Integration.App.Tests;
 using ZKube.Integration.Execution;
 using ZKube.Integration.Presentation;
 
@@ -20,8 +20,8 @@ namespace ZKube.Tests.MoneyOverview
     {
         private GameObject host, input;
         private TextAsset solana, session;
-        private MoneyEvidenceGraph evidence;
-        private MoneyEvidenceDelay delay;
+        private MoneyTestEnvironment environment;
+        private HeldCall delay;
         [UnityTearDown] public IEnumerator Cleanup()
         {
             delay?.Release();
@@ -38,12 +38,12 @@ namespace ZKube.Tests.MoneyOverview
         }
         [UnityTest] public IEnumerator ActualConnectAndDisconnectButtonsShowBothSlotsWithoutBindingABoard()
         {
-            yield return PrepareEvidence("owner-overview");
-            Assert.That(evidence.Services.Identity.Owner, Is.Null);
-            StringAssert.Contains(System.DateTimeOffset.FromUnixTimeSeconds(evidence.Clock()).ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + " UTC", Text("Daily facts"));
-            Assert.That(evidence.Calls.Any(call => call.Operation == "authorize"), Is.False);
+            yield return PrepareScenario("owner-overview");
+            Assert.That(environment.Services.Identity.Owner, Is.Null);
+            StringAssert.Contains(System.DateTimeOffset.FromUnixTimeSeconds(environment.Clock()).ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + " UTC", Text("Daily facts"));
+            Assert.That(environment.Calls.Any(call => call.Operation == "authorize"), Is.False);
             Click("Connect"); yield return Idle();
-            StringAssert.Contains(evidence.Owner, Text("Owner facts"));
+            StringAssert.Contains(environment.Owner, Text("Owner facts"));
             StringAssert.Contains("Campaign: No saved run", Text("Owner facts"));
             StringAssert.Contains("Daily: Run saved", Text("Owner facts"));
             var states = host.GetComponent<MoneyStartup>().Controller.Flow.Owner.Value;
@@ -57,54 +57,54 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Text("Owner facts"), Is.EqualTo("Disconnected"));
             Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt, Is.Null);
             yield return Idle();
-            Assert.That(evidence.Services.Identity.Owner, Is.Null);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Services.Identity.Owner, Is.Null);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ActualCheckButtonKeepsConfirmedFailureAfterTheJournalIsCleared()
         {
-            yield return PrepareEvidence("pending-confirmed-failure"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
             StringAssert.Contains("Transaction pending", Text("Transaction receipt"));
             Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            evidence.ConfirmPendingFailure(); Click("Check transaction"); yield return Idle();
+            environment.ConfirmPendingFailure(); Click("Check transaction"); yield return Idle();
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
             var exact = host.GetComponent<MoneyStartup>().Controller.LastReceipt;
             Assert.That(exact.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure)); Assert.That(exact.ChainError, Is.Not.Empty);
             StringAssert.DoesNotContain(exact.ChainError, Text("Transaction receipt"));
-            var read = evidence.Services.Journal.Load(evidence.Owner); yield return Wait(read);
+            var read = environment.Services.Journal.Load(environment.Owner); yield return Wait(read);
             Assert.That(read.GetAwaiter().GetResult(), Is.Null);
             Click("Refresh"); yield return Idle();
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
             Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt, Is.SameAs(exact));
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator PauseInvalidatesDelayedOwnerPresentationAndForegroundNeverAuthorizes()
         {
-            yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
-            delay = evidence.HoldNextRead("getAccountInfo"); Click("Refresh"); yield return Wait(delay.Entered);
+            yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
+            delay = environment.HoldNextRead("getAccountInfo"); Click("Refresh"); yield return Wait(delay.Entered);
             var controller = host.GetComponent<MoneyStartup>().Controller;
             controller.SendMessage("OnApplicationPause", true);
             Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
             delay.Release(); yield return null;
             controller.SendMessage("OnApplicationPause", false); yield return Idle();
-            StringAssert.Contains(evidence.Owner, Text("Owner facts"));
-            Assert.That(evidence.Calls.Count(call => call.Operation == "authorize"), Is.EqualTo(1));
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            StringAssert.Contains(environment.Owner, Text("Owner facts"));
+            Assert.That(environment.Calls.Count(call => call.Operation == "authorize"), Is.EqualTo(1));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator TeardownDuringDelayedReadWaitsWithoutLateInputOrSigning()
         {
-            yield return PrepareEvidence("owner-overview");
-            delay = evidence.HoldNextRead("getMultipleAccounts"); Click("Refresh"); yield return Wait(delay.Entered);
+            yield return PrepareScenario("owner-overview");
+            delay = environment.HoldNextRead("getMultipleAccounts"); Click("Refresh"); yield return Wait(delay.Entered);
             var stop = host.GetComponent<MoneyStartup>().StopAsync();
             Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
             Assert.That(stop.IsCompleted, Is.False);
             delay.Release(); yield return Wait(stop);
-            Assert.That(evidence.Services.Identity.Owner, Is.Null);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Services.Identity.Owner, Is.Null);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ComponentDisableHidesInputAndReenableRefetchesAfterALateRead()
         {
-            yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
-            delay = evidence.HoldNextRead("getAccountInfo"); Click("Refresh");
+            yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
+            delay = environment.HoldNextRead("getAccountInfo"); Click("Refresh");
             try
             {
                 yield return Wait(delay.Entered);
@@ -120,29 +120,29 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(controller.PageReady, Is.False);
                 delay.Release(); yield return null;
                 Assert.That(host.GetComponentsInChildren<TMP_Text>(), Is.Empty, "A late callback must not restore visible old content");
-                int before = evidence.Calls.Count(call => call.Operation == "getMultipleAccounts");
+                int before = environment.Calls.Count(call => call.Operation == "getMultipleAccounts");
                 controller.enabled = true; yield return Idle();
                 Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Not.Empty);
-                Assert.That(evidence.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.GreaterThan(before));
-                StringAssert.Contains(evidence.Owner, Text("Owner facts"));
-                Assert.That(evidence.Calls.Count(call => call.Operation == "authorize"), Is.EqualTo(1));
-                Assert.That(evidence.ForbiddenCalls, Is.Zero);
+                Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.GreaterThan(before));
+                StringAssert.Contains(environment.Owner, Text("Owner facts"));
+                Assert.That(environment.Calls.Count(call => call.Operation == "authorize"), Is.EqualTo(1));
+                Assert.That(environment.ForbiddenCalls, Is.Zero);
             }
             finally { delay.Release(); }
         }
-        private IEnumerator PrepareEvidence(string scenario, float scale = 1, float? density = null)
+        private IEnumerator PrepareScenario(string scenario, float scale = 1, float? density = null)
         {
             var startup = Create();
             solana = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
             session = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
             startup.Configure(solana, session, Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"), Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular"), textScale: scale, displayDensity: density);
-            var build = MoneyEvidenceGraph.Create(scenario, solana.text, session.text); yield return Wait(build);
-            evidence = build.GetAwaiter().GetResult(); startup.InitializeEvidence(evidence.Services, evidence.Label, evidence.Clock);
+            var build = MoneyTestEnvironment.Create(scenario); yield return Wait(build);
+            environment = build.GetAwaiter().GetResult(); startup.InitializeEvidence(environment.Services, environment.Label, environment.Clock);
             host.SetActive(true); yield return null; yield return Idle();
         }
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()
         {
-            yield return PrepareEvidence("owner-overview", 1.3f); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("owner-overview", 1.3f); Click("Connect"); yield return Idle();
             // Overflow is a property of this explicit short viewport, not the
             // incidental size of the Editor window running the test.
             var scroll = host.GetComponentInChildren<ScrollRect>();
@@ -179,33 +179,33 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(text.preferredWidth, Is.LessThanOrEqualTo(text.rectTransform.rect.width + 1), button.name);
             }
             scroll.verticalNormalizedPosition = 0; yield return null;
-            Click("Refresh"); yield return Idle(); Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Click("Refresh"); yield return Idle(); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator FreezeAndUtcRolloverEachRefreshOnceWithoutPolling()
         {
-            yield return PrepareEvidence("public-disconnected");
-            var read = evidence.Services.PublicDaily.Current(); yield return Wait(read);
+            yield return PrepareScenario("public-disconnected");
+            var read = environment.Services.PublicDaily.Current(); yield return Wait(read);
             var daily = read.GetAwaiter().GetResult();
             Assert.That(daily.FreezesAt.HasValue, Is.True);
-            long untilFreeze = daily.FreezesAt.Value - evidence.Clock(); Assert.That(untilFreeze, Is.GreaterThan(0));
-            int before = evidence.Calls.Count(call => call.Operation == "getMultipleAccounts");
-            evidence.AdvanceClock(untilFreeze); yield return null; yield return Idle();
+            long untilFreeze = daily.FreezesAt.Value - environment.Clock(); Assert.That(untilFreeze, Is.GreaterThan(0));
+            int before = environment.Calls.Count(call => call.Operation == "getMultipleAccounts");
+            environment.AdvanceClock(untilFreeze); yield return null; yield return Idle();
             StringAssert.Contains("Entries are closed", Text("Daily facts"));
-            Assert.That(evidence.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
+            Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
             for (int i = 0; i < 5; i++) yield return null;
-            Assert.That(evidence.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
-            evidence.AdvanceClock((evidence.Clock() / 86400 + 1) * 86400 - evidence.Clock());
+            Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
+            environment.AdvanceClock((environment.Clock() / 86400 + 1) * 86400 - environment.Clock());
             yield return null; yield return Idle();
             StringAssert.Contains("Today's Daily is not available", Text("Daily facts"));
-            Assert.That(evidence.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));
+            Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));
             for (int i = 0; i < 5; i++) yield return null;
-            Assert.That(evidence.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator NarrowHighDensityCanvasKeepsPhysicalTouchTargetsAfterScaling()
         {
             const float density = 2.75f;
-            yield return PrepareEvidence("public-disconnected", 1.3f, density);
+            yield return PrepareScenario("public-disconnected", 1.3f, density);
             var scaler = host.GetComponentInChildren<CanvasScaler>(); var canvas = scaler.GetComponent<Canvas>();
             foreach (float logicalWidth in new[] { 280f, 320f })
             {
@@ -224,7 +224,7 @@ namespace ZKube.Tests.MoneyOverview
                     Assert.That(rect.rect.width * canvas.scaleFactor / density, Is.GreaterThanOrEqualTo(48 - .01), button.name);
                 }
             }
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         private IEnumerator Idle()
         {

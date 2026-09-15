@@ -26,7 +26,7 @@ class PortraitImports(unittest.TestCase):
         catalog = {'themes': []}; by_source = {}; entries = []; files = {}
         for realm in range(1, 11):
             scope = f'theme-{realm}'
-            relative = f'client/public/assets/{scope}/boss/idle.png'
+            relative = f'assets/{scope}/boss/idle.png'
             data = (ROOT / relative).read_bytes()
             asset = f'Assets/ZKube/Art/Generated/Sprites/{scope}/boss__idle.png'
             entry = dict(source=relative, sha256=hashlib.sha256(data).hexdigest(), bytes=len(data),

@@ -58,7 +58,7 @@ namespace ZKube.Presentation
             var token = binding.Accept(observed);
             if (token.State.SequenceEqual(accepted.State)) throw new InvalidOperationException("The next row has not arrived yet");
             // The chain stores the resulting grid/replay, not raw VRF output.
-            // Do not fabricate ordered cascade events for an unseen callback.
+            // Do not fabricate ordered presentation events for an unseen callback.
             return BoardActionResult.Snapshot(token);
         }
         private static RunClientAction Convert(BoardActionKind kind)

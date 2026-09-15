@@ -2,7 +2,6 @@
   "name": "ZKube.MoneyApp.Tests",
   "references": [
     "ZKube.MoneyApp",
-    "ZKube.MoneyEvidence",
     "ZKube.Client",
     "ZKube.Integration",
     "ZKube.Planning",
@@ -13,7 +12,8 @@
     "ZKube.Generated",
     "ZKube.SolanaPrimitives",
     "ZKube.Local",
-    "ZKube.Local.Runs"
+    "ZKube.Local.Runs",
+    "ZKube.Integration.Tests"
   ],
   "includePlatforms": [
     "Editor"

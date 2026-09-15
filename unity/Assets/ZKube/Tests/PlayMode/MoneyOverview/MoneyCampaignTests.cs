@@ -14,7 +14,7 @@ namespace ZKube.Tests.MoneyOverview
     {
         [UnityTest] public IEnumerator CampaignRealmNavigationIsNotReadyUntilTheFinalRequestedArtworkCompletes()
         {
-            yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             Click("Campaign"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             float until = Time.realtimeSinceStartup + 15;
@@ -30,7 +30,7 @@ namespace ZKube.Tests.MoneyOverview
             var background = (Image)controller.GetType().GetField("background", fields).GetValue(controller);
             Assert.That(art.RealmId, Is.EqualTo(controller.SelectedRealm));
             Assert.That(controller.SelectedRealm, Is.EqualTo(3)); Assert.That(background.sprite, Is.SameAs(art.Sprite("background")));
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [Test] public void CampaignSceneryStyleDoesNotReplaceAuthoredRealmCoordinates()
         {
@@ -46,9 +46,9 @@ namespace ZKube.Tests.MoneyOverview
         }
         [UnityTest] public IEnumerator CampaignUsesSavedTrialAndRetainsReceiptAcrossBrowsingAndUtcRollover()
         {
-            yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             Click("Check transaction"); yield return Idle();
-            evidence.Services.Campaign(evidence.Owner).Runs.StartCampaign(1, 1);
+            environment.Services.Campaign(environment.Owner).Runs.StartCampaign(1, 1);
             var controller = host.GetComponent<MoneyStartup>().Controller; var receipt = controller.LastReceipt;
             Click("Campaign"); yield return Idle(); yield return null;
             Assert.That(controller.BrowsingCampaign, Is.True);
@@ -57,24 +57,24 @@ namespace ZKube.Tests.MoneyOverview
             Click("Trial 1"); yield return null;
             Assert.That(controller.SelectedTrial, Is.EqualTo(1));
             Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Rules of your saved run"), Is.True);
-            int before = evidence.Calls.Count;
-            evidence.AdvanceClock(86400); yield return null; yield return null;
+            int before = environment.Calls.Count;
+            environment.AdvanceClock(86400); yield return null; yield return null;
             Assert.That(controller.BrowsingCampaign, Is.True); Assert.That(controller.SelectedTrial, Is.EqualTo(1));
-            Assert.That(evidence.Calls.Count, Is.EqualTo(before), "UTC update cannot switch pages or silently refresh owner data");
+            Assert.That(environment.Calls.Count, Is.EqualTo(before), "UTC update cannot switch pages or silently refresh owner data");
             Click("Back to map"); Click("Next realm"); yield return null;
             Assert.That(controller.SelectedRealm, Is.EqualTo(2));
             Assert.That(host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Locked trial")).Count(), Is.EqualTo(10));
             Click("Overview"); yield return Idle();
             Assert.That(controller.LastReceipt, Is.SameAs(receipt)); Assert.That(controller.BrowsingCampaign, Is.False);
-            Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty); Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator CampaignDisconnectRetiresDelayedRecordReadAndRealmArtwork()
         {
-            yield return PrepareEvidence("owner-overview"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             Click("Campaign"); yield return Idle(); Click("Next realm");
             var controller = host.GetComponent<MoneyStartup>().Controller;
-            delay = evidence.HoldNextRead("getAccountInfo"); Click("Refresh Campaign");
+            delay = environment.HoldNextRead("getAccountInfo"); Click("Refresh Campaign");
             try
             {
                 yield return Wait(delay.Entered);
@@ -82,11 +82,11 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(controller.BrowsingCampaign, Is.False);
                 Assert.That(host.GetComponentsInChildren<CampaignPathGraphic>(), Is.Empty);
                 delay.Release(); yield return Wait(disconnect); yield return null;
-                Assert.That(evidence.Services.Identity.Owner, Is.Null);
+                Assert.That(environment.Services.Identity.Owner, Is.Null);
                 Assert.That(controller.LastReceipt, Is.Null);
                 Assert.That(host.GetComponentsInChildren<CampaignPathGraphic>(), Is.Empty);
                 Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Saved Campaign run")), Is.False);
-                Assert.That(evidence.ForbiddenCalls, Is.Zero);
+                Assert.That(environment.ForbiddenCalls, Is.Zero);
             }
             finally { delay.Release(); }
         }
@@ -94,7 +94,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator CampaignPathUsesSharedNarrowDensityGeometryAndAuthoredPoints()
         {
             const float density = 2.75f;
-            yield return PrepareEvidence("owner-overview", 1.3f, density); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("owner-overview", 1.3f, density); Click("Connect"); yield return Idle();
             var canvas = host.GetComponentInChildren<Canvas>(); var scaler = canvas.GetComponent<CanvasScaler>();
             scaler.enabled = false; scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = 280 * density / 430; scaler.enabled = true;
@@ -118,7 +118,7 @@ namespace ZKube.Tests.MoneyOverview
                 }
                 if (realm != 10) { Click("Next realm"); yield return null; Canvas.ForceUpdateCanvases(); }
             }
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
     }
 }

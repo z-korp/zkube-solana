@@ -53,7 +53,6 @@ namespace ZKube.Local.Billing
     // operation retains the single operation slot until its callback arrives.
     public sealed class CampaignBilling : IDisposable
     {
-        // Authority: client/src/backend/local/storeBilling.ts.
         public const string ProductId = "com.zkorp.zkube.campaign";
         private readonly ICampaignStoreDriver driver;
         private readonly Func<CampaignBillingAnswer> cached;

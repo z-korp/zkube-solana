@@ -1,0 +1,2647 @@
+{
+  "dailyThemes": [
+    {
+      "description": "No Theme today — the whole pot pays Score",
+      "kind": 0,
+      "name": "Classic Score",
+      "value": 0
+    },
+    {
+      "description": "2+-line combo moves",
+      "kind": 1,
+      "name": "Combo 2+",
+      "value": 2
+    },
+    {
+      "description": "3+-line combo moves",
+      "kind": 1,
+      "name": "Combo 3+",
+      "value": 3
+    },
+    {
+      "description": "exact 2-line clears",
+      "kind": 4,
+      "name": "Exact 2",
+      "value": 2
+    },
+    {
+      "description": "exact 3-line clears",
+      "kind": 4,
+      "name": "Exact 3",
+      "value": 3
+    },
+    {
+      "description": "width-1 blocks broken",
+      "kind": 2,
+      "name": "Break Width 1",
+      "value": 1
+    },
+    {
+      "description": "width-2 blocks broken",
+      "kind": 2,
+      "name": "Break Width 2",
+      "value": 2
+    },
+    {
+      "description": "width-3 blocks broken",
+      "kind": 2,
+      "name": "Break Width 3",
+      "value": 3
+    },
+    {
+      "description": "width-4 blocks broken",
+      "kind": 2,
+      "name": "Break Width 4",
+      "value": 4
+    },
+    {
+      "description": "the realm trigger fired",
+      "kind": 6,
+      "name": "Guardian Triggers",
+      "value": 0
+    },
+    {
+      "description": "lines cleared with a bonus",
+      "kind": 7,
+      "name": "Bonus Lines",
+      "value": 0
+    },
+    {
+      "description": "blocks broken with a bonus",
+      "kind": 8,
+      "name": "Bonus Breaks",
+      "value": 0
+    },
+    {
+      "description": "clears started at height 7+",
+      "kind": 17,
+      "name": "Clutch Clears 7+",
+      "value": 7
+    },
+    {
+      "description": "clears started at height 8+",
+      "kind": 17,
+      "name": "Clutch Clears 8+",
+      "value": 8
+    },
+    {
+      "description": "clears ending at height 3 or lower",
+      "kind": 18,
+      "name": "Clean Clears 3",
+      "value": 3
+    },
+    {
+      "description": "clears ending at height 4 or lower",
+      "kind": 18,
+      "name": "Clean Clears 4",
+      "value": 4
+    }
+  ],
+  "effects": {
+    "bonus-activate": "/assets/common/sounds/effects/bonus-activate.mp3",
+    "boss-defeat": "/assets/common/sounds/effects/boss-defeat.mp3",
+    "boss-intro": "/assets/common/sounds/effects/boss-intro.mp3",
+    "coin": "/assets/common/sounds/effects/coin.mp3",
+    "explode": "/assets/common/sounds/effects/explode.mp3",
+    "levelup": "/assets/common/sounds/effects/levelup.mp3",
+    "over": "/assets/common/sounds/effects/over.mp3",
+    "star": "/assets/common/sounds/effects/star.mp3",
+    "swipe": "/assets/common/sounds/effects/swipe.mp3",
+    "victory": "/assets/common/sounds/effects/victory.mp3"
+  },
+  "guardianRules": [
+    {
+      "bonus": 3,
+      "description": "Clear 2+ lines in a move",
+      "sentence": "Clear 2 or more lines in one move to earn a Wave.",
+      "threshold": 2,
+      "trigger": 1
+    },
+    {
+      "bonus": 1,
+      "description": "Clear exactly 2 lines in a move",
+      "sentence": "Clear exactly 2 lines in one move to earn a Hammer.",
+      "threshold": 2,
+      "trigger": 4
+    },
+    {
+      "bonus": 2,
+      "description": "Break 10+ blocks in one move",
+      "sentence": "Break 10 or more blocks in one move to earn a Totem.",
+      "threshold": 10,
+      "trigger": 8
+    },
+    {
+      "bonus": 1,
+      "description": "Clear a line 3 moves in a row",
+      "sentence": "Clear lines on 3 moves in a row to earn a Hammer.",
+      "threshold": 3,
+      "trigger": 9
+    },
+    {
+      "bonus": 3,
+      "description": "Every 7 lines cleared by moves",
+      "sentence": "Every 7 lines cleared by moves earns a Wave.",
+      "threshold": 7,
+      "trigger": 2
+    },
+    {
+      "bonus": 2,
+      "description": "Break every size in one move",
+      "sentence": "Break every block size in one move to earn a Totem.",
+      "threshold": 0,
+      "trigger": 6
+    },
+    {
+      "bonus": 1,
+      "description": "Clear exactly 3 lines in a move",
+      "sentence": "Clear exactly 3 lines in one move to earn a Hammer.",
+      "threshold": 3,
+      "trigger": 4
+    },
+    {
+      "bonus": 2,
+      "description": "Clear 3+ lines in a move",
+      "sentence": "Clear 3 or more lines in one move to earn a Totem.",
+      "threshold": 3,
+      "trigger": 1
+    },
+    {
+      "bonus": 2,
+      "description": "Every 2 combos",
+      "sentence": "Every 2 combos earns a Totem.",
+      "threshold": 2,
+      "trigger": 7
+    },
+    {
+      "bonus": 1,
+      "description": "Clear exactly 4 lines in a move",
+      "sentence": "Clear exactly 4 lines in one move to earn a Hammer.",
+      "threshold": 4,
+      "trigger": 4
+    }
+  ],
+  "schema": 1,
+  "themes": [
+    {
+      "campaignPath": [
+        {
+          "x": 0.18,
+          "y": 0.9
+        },
+        {
+          "x": 0.36,
+          "y": 0.82
+        },
+        {
+          "x": 0.59,
+          "y": 0.78
+        },
+        {
+          "x": 0.8,
+          "y": 0.7
+        },
+        {
+          "x": 0.7,
+          "y": 0.6
+        },
+        {
+          "x": 0.48,
+          "y": 0.55
+        },
+        {
+          "x": 0.25,
+          "y": 0.48
+        },
+        {
+          "x": 0.18,
+          "y": 0.36
+        },
+        {
+          "x": 0.4,
+          "y": 0.27
+        },
+        {
+          "x": 0.66,
+          "y": 0.18
+        }
+      ],
+      "guardianGreeting": "Today the tides shift for all challengers equally. Ride them better than anyone.",
+      "guardianName": "Mako",
+      "guardianPortrait": "/assets/theme-1/boss/idle.png",
+      "id": "theme-1",
+      "images": {
+        "background": "/assets/theme-1/background.png",
+        "block1": "/assets/theme-1/block-1.png",
+        "block2": "/assets/theme-1/block-2.png",
+        "block3": "/assets/theme-1/block-3.png",
+        "block4": "/assets/theme-1/block-4.png",
+        "loadingBg": "/assets/theme-1/loading-bg.png",
+        "mapBg": "/assets/theme-1/map-bg.png",
+        "mapNodeBoss": "/assets/theme-1/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-1/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-1/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.49411764705882355,
+          0.7843137254901961,
+          0.8901960784313725,
+          1
+        ],
+        "clearedRgba": [
+          0.6627450980392157,
+          0.8470588235294118,
+          1.0,
+          1
+        ],
+        "lockedDash": "6 5",
+        "lockedRgba": [
+          0.00784313725490196,
+          0.054901960784313725,
+          0.1450980392156863,
+          1
+        ],
+        "lockedStrokeWidth": 1.8,
+        "pathStyle": "solid",
+        "strokeWidth": 2.5
+      },
+      "music": {
+        "boss": "/assets/theme-1/sounds/musics/boss.mp3",
+        "level": "/assets/theme-1/sounds/musics/level.mp3",
+        "main": "/assets/theme-1/sounds/musics/main.mp3"
+      },
+      "realmId": 1,
+      "realmName": "Tiki",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.01568627450980392,
+            0.10196078431372549,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.07450980392156863,
+            0.1568627450980392,
+            0.30980392156862746,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.01568627450980392,
+            0.09019607843137255,
+            0.23529411764705882,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.4980392156862745,
+            0.6352941176470588,
+            0.7490196078431373,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.054901960784313725,
+            0.13725490196078433,
+            0.29411764705882354,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.08627450980392157,
+            0.16470588235294117,
+            0.3176470588235294,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.6627450980392157,
+            0.8470588235294118,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.011764705882352941,
+            0.08235294117647059,
+            0.21176470588235294,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.43137254901960786,
+            0.5490196078431373,
+            0.6509803921568628,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.011764705882352941,
+            0.08235294117647059,
+            0.21176470588235294,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.6627450980392157,
+            0.8470588235294118,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.49411764705882355,
+            0.7843137254901961,
+            0.8901960784313725,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.76,
+          "y": 0.9
+        },
+        {
+          "x": 0.52,
+          "y": 0.83
+        },
+        {
+          "x": 0.25,
+          "y": 0.76
+        },
+        {
+          "x": 0.2,
+          "y": 0.64
+        },
+        {
+          "x": 0.47,
+          "y": 0.58
+        },
+        {
+          "x": 0.78,
+          "y": 0.51
+        },
+        {
+          "x": 0.67,
+          "y": 0.4
+        },
+        {
+          "x": 0.38,
+          "y": 0.35
+        },
+        {
+          "x": 0.2,
+          "y": 0.25
+        },
+        {
+          "x": 0.48,
+          "y": 0.16
+        }
+      ],
+      "guardianGreeting": "The Nile tests all equally today. Precision will separate the worthy from the rest.",
+      "guardianName": "Sobek",
+      "guardianPortrait": "/assets/theme-2/boss/idle.png",
+      "id": "theme-2",
+      "images": {
+        "background": "/assets/theme-2/background.png",
+        "block1": "/assets/theme-2/block-1.png",
+        "block2": "/assets/theme-2/block-2.png",
+        "block3": "/assets/theme-2/block-3.png",
+        "block4": "/assets/theme-2/block-4.png",
+        "loadingBg": "/assets/theme-2/loading-bg.png",
+        "mapBg": "/assets/theme-2/map-bg.png",
+        "mapNodeBoss": "/assets/theme-2/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-2/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-2/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.9411764705882353,
+          0.8117647058823529,
+          0.47843137254901963,
+          1
+        ],
+        "clearedRgba": [
+          0.8313725490196079,
+          0.6862745098039216,
+          0.21568627450980393,
+          1
+        ],
+        "lockedDash": "8 4",
+        "lockedRgba": [
+          0.0392156862745098,
+          0.027450980392156862,
+          0.01568627450980392,
+          1
+        ],
+        "lockedStrokeWidth": 1.6,
+        "pathStyle": "dashed",
+        "strokeWidth": 2.8
+      },
+      "music": {
+        "boss": "/assets/theme-2/sounds/musics/boss.mp3",
+        "level": "/assets/theme-2/sounds/musics/level.mp3",
+        "main": "/assets/theme-2/sounds/musics/main.mp3"
+      },
+      "realmId": 2,
+      "realmName": "Egypt",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.07058823529411765,
+            0.047058823529411764,
+            0.03137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.12549019607843137,
+            0.10588235294117647,
+            0.09019607843137255,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.06274509803921569,
+            0.043137254901960784,
+            0.027450980392156862,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.6235294117647059,
+            0.5137254901960784,
+            0.1607843137254902,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.10588235294117647,
+            0.08627450980392157,
+            0.07058823529411765,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.13725490196078433,
+            0.11372549019607843,
+            0.09803921568627451,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.8313725490196079,
+            0.6862745098039216,
+            0.21568627450980393,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.054901960784313725,
+            0.0392156862745098,
+            0.023529411764705882,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.5411764705882353,
+            0.4470588235294118,
+            0.1411764705882353,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.054901960784313725,
+            0.0392156862745098,
+            0.023529411764705882,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.8313725490196079,
+            0.6862745098039216,
+            0.21568627450980393,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.9411764705882353,
+            0.8117647058823529,
+            0.47843137254901963,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.2,
+          "y": 0.88
+        },
+        {
+          "x": 0.48,
+          "y": 0.84
+        },
+        {
+          "x": 0.78,
+          "y": 0.75
+        },
+        {
+          "x": 0.54,
+          "y": 0.67
+        },
+        {
+          "x": 0.24,
+          "y": 0.61
+        },
+        {
+          "x": 0.43,
+          "y": 0.51
+        },
+        {
+          "x": 0.75,
+          "y": 0.45
+        },
+        {
+          "x": 0.58,
+          "y": 0.34
+        },
+        {
+          "x": 0.28,
+          "y": 0.27
+        },
+        {
+          "x": 0.54,
+          "y": 0.16
+        }
+      ],
+      "guardianGreeting": "The storm rages equally for all today. Strike harder than your rivals.",
+      "guardianName": "Fenris",
+      "guardianPortrait": "/assets/theme-3/boss/idle.png",
+      "id": "theme-3",
+      "images": {
+        "background": "/assets/theme-3/background.png",
+        "block1": "/assets/theme-3/block-1.png",
+        "block2": "/assets/theme-3/block-2.png",
+        "block3": "/assets/theme-3/block-3.png",
+        "block4": "/assets/theme-3/block-4.png",
+        "loadingBg": "/assets/theme-3/loading-bg.png",
+        "mapBg": "/assets/theme-3/map-bg.png",
+        "mapNodeBoss": "/assets/theme-3/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-3/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-3/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.6627450980392157,
+          0.7686274509803922,
+          0.8745098039215686,
+          1
+        ],
+        "clearedRgba": [
+          0.49411764705882355,
+          0.7215686274509804,
+          0.8549019607843137,
+          1
+        ],
+        "lockedDash": "2 4",
+        "lockedRgba": [
+          0.023529411764705882,
+          0.047058823529411764,
+          0.07058823529411765,
+          1
+        ],
+        "lockedStrokeWidth": 1.4,
+        "pathStyle": "solid",
+        "strokeWidth": 2.2
+      },
+      "music": {
+        "boss": "/assets/theme-3/sounds/musics/boss.mp3",
+        "level": "/assets/theme-3/sounds/musics/level.mp3",
+        "main": "/assets/theme-3/sounds/musics/main.mp3"
+      },
+      "realmId": 3,
+      "realmName": "Norse",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.0392156862745098,
+            0.08235294117647059,
+            0.12549019607843137,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.09803921568627451,
+            0.13725490196078433,
+            0.17647058823529413,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.03529411764705882,
+            0.07058823529411765,
+            0.10980392156862745,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.37254901960784315,
+            0.5411764705882353,
+            0.6431372549019608,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.0784313725490196,
+            0.11764705882352941,
+            0.1607843137254902,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.10588235294117647,
+            0.1450980392156863,
+            0.18823529411764706,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.49411764705882355,
+            0.7215686274509804,
+            0.8549019607843137,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.03137254901960784,
+            0.06666666666666667,
+            0.10196078431372549,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.3215686274509804,
+            0.47058823529411764,
+            0.5568627450980392,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.03137254901960784,
+            0.06666666666666667,
+            0.10196078431372549,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.49411764705882355,
+            0.7215686274509804,
+            0.8549019607843137,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.6627450980392157,
+            0.7686274509803922,
+            0.8745098039215686,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.22,
+          "y": 0.9
+        },
+        {
+          "x": 0.45,
+          "y": 0.83
+        },
+        {
+          "x": 0.72,
+          "y": 0.83
+        },
+        {
+          "x": 0.72,
+          "y": 0.69
+        },
+        {
+          "x": 0.45,
+          "y": 0.64
+        },
+        {
+          "x": 0.22,
+          "y": 0.57
+        },
+        {
+          "x": 0.22,
+          "y": 0.43
+        },
+        {
+          "x": 0.48,
+          "y": 0.37
+        },
+        {
+          "x": 0.75,
+          "y": 0.29
+        },
+        {
+          "x": 0.51,
+          "y": 0.17
+        }
+      ],
+      "guardianGreeting": "The same puzzle for all minds today. Prove yours is the sharpest.",
+      "guardianName": "Noctua",
+      "guardianPortrait": "/assets/theme-4/boss/idle.png",
+      "id": "theme-4",
+      "images": {
+        "background": "/assets/theme-4/background.png",
+        "block1": "/assets/theme-4/block-1.png",
+        "block2": "/assets/theme-4/block-2.png",
+        "block3": "/assets/theme-4/block-3.png",
+        "block4": "/assets/theme-4/block-4.png",
+        "loadingBg": "/assets/theme-4/loading-bg.png",
+        "mapBg": "/assets/theme-4/map-bg.png",
+        "mapNodeBoss": "/assets/theme-4/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-4/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-4/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.7490196078431373,
+          0.8352941176470589,
+          0.9098039215686274,
+          1
+        ],
+        "clearedRgba": [
+          0.23137254901960785,
+          0.43529411764705883,
+          0.6274509803921569,
+          1
+        ],
+        "lockedDash": "6 4",
+        "lockedRgba": [
+          0.054901960784313725,
+          0.07058823529411765,
+          0.10196078431372549,
+          1
+        ],
+        "lockedStrokeWidth": 1.6,
+        "pathStyle": "dotted",
+        "strokeWidth": 2.5
+      },
+      "music": {
+        "boss": "/assets/theme-4/sounds/musics/boss.mp3",
+        "level": "/assets/theme-4/sounds/musics/level.mp3",
+        "main": "/assets/theme-4/sounds/musics/main.mp3"
+      },
+      "realmId": 4,
+      "realmName": "Greece",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.10196078431372549,
+            0.12549019607843137,
+            0.18823529411764706,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.1568627450980392,
+            0.17647058823529413,
+            0.23529411764705882,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.09019607843137255,
+            0.10980392156862745,
+            0.16470588235294117,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.17254901960784313,
+            0.3254901960784314,
+            0.47058823529411764,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.13725490196078433,
+            0.1607843137254902,
+            0.2196078431372549,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.16470588235294117,
+            0.18823529411764706,
+            0.24313725490196078,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.23137254901960785,
+            0.43529411764705883,
+            0.6274509803921569,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.08235294117647059,
+            0.10196078431372549,
+            0.14901960784313725,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.14901960784313725,
+            0.2823529411764706,
+            0.40784313725490196,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.08235294117647059,
+            0.10196078431372549,
+            0.14901960784313725,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.23137254901960785,
+            0.43529411764705883,
+            0.6274509803921569,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.7490196078431373,
+            0.8352941176470589,
+            0.9098039215686274,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.78,
+          "y": 0.9
+        },
+        {
+          "x": 0.57,
+          "y": 0.83
+        },
+        {
+          "x": 0.33,
+          "y": 0.79
+        },
+        {
+          "x": 0.18,
+          "y": 0.68
+        },
+        {
+          "x": 0.35,
+          "y": 0.58
+        },
+        {
+          "x": 0.62,
+          "y": 0.55
+        },
+        {
+          "x": 0.8,
+          "y": 0.45
+        },
+        {
+          "x": 0.65,
+          "y": 0.34
+        },
+        {
+          "x": 0.4,
+          "y": 0.29
+        },
+        {
+          "x": 0.2,
+          "y": 0.18
+        }
+      ],
+      "guardianGreeting": "The dragon's gaze falls on all challengers today. Outlast them all.",
+      "guardianName": "Long",
+      "guardianPortrait": "/assets/theme-5/boss/idle.png",
+      "id": "theme-5",
+      "images": {
+        "background": "/assets/theme-5/background.png",
+        "block1": "/assets/theme-5/block-1.png",
+        "block2": "/assets/theme-5/block-2.png",
+        "block3": "/assets/theme-5/block-3.png",
+        "block4": "/assets/theme-5/block-4.png",
+        "loadingBg": "/assets/theme-5/loading-bg.png",
+        "mapBg": "/assets/theme-5/map-bg.png",
+        "mapNodeBoss": "/assets/theme-5/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-5/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-5/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.611764705882353,
+          0.8470588235294118,
+          0.7137254901960784,
+          1
+        ],
+        "clearedRgba": [
+          0.3137254901960784,
+          0.7843137254901961,
+          0.47058823529411764,
+          1
+        ],
+        "lockedDash": "5 5",
+        "lockedRgba": [
+          0.023529411764705882,
+          0.054901960784313725,
+          0.023529411764705882,
+          1
+        ],
+        "lockedStrokeWidth": 1.6,
+        "pathStyle": "solid",
+        "strokeWidth": 2.5
+      },
+      "music": {
+        "boss": "/assets/theme-5/sounds/musics/boss.mp3",
+        "level": "/assets/theme-5/sounds/musics/level.mp3",
+        "main": "/assets/theme-5/sounds/musics/main.mp3"
+      },
+      "realmId": 5,
+      "realmName": "China",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.0392156862745098,
+            0.10196078431372549,
+            0.0392156862745098,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.09803921568627451,
+            0.1568627450980392,
+            0.09803921568627451,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.03529411764705882,
+            0.09019607843137255,
+            0.03529411764705882,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.23529411764705882,
+            0.5882352941176471,
+            0.35294117647058826,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.0784313725490196,
+            0.13725490196078433,
+            0.0784313725490196,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.10588235294117647,
+            0.16470588235294117,
+            0.10588235294117647,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.3137254901960784,
+            0.7843137254901961,
+            0.47058823529411764,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.03137254901960784,
+            0.08235294117647059,
+            0.03137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.20392156862745098,
+            0.5098039215686274,
+            0.3058823529411765,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.03137254901960784,
+            0.08235294117647059,
+            0.03137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.3137254901960784,
+            0.7843137254901961,
+            0.47058823529411764,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.611764705882353,
+            0.8470588235294118,
+            0.7137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.18,
+          "y": 0.88
+        },
+        {
+          "x": 0.43,
+          "y": 0.84
+        },
+        {
+          "x": 0.78,
+          "y": 0.87
+        },
+        {
+          "x": 0.66,
+          "y": 0.73
+        },
+        {
+          "x": 0.35,
+          "y": 0.69
+        },
+        {
+          "x": 0.19,
+          "y": 0.57
+        },
+        {
+          "x": 0.45,
+          "y": 0.49
+        },
+        {
+          "x": 0.78,
+          "y": 0.43
+        },
+        {
+          "x": 0.63,
+          "y": 0.29
+        },
+        {
+          "x": 0.37,
+          "y": 0.17
+        }
+      ],
+      "guardianGreeting": "The same mosaic for all eyes today. See the pattern faster than anyone.",
+      "guardianName": "Lamassu",
+      "guardianPortrait": "/assets/theme-6/boss/idle.png",
+      "id": "theme-6",
+      "images": {
+        "background": "/assets/theme-6/background.png",
+        "block1": "/assets/theme-6/block-1.png",
+        "block2": "/assets/theme-6/block-2.png",
+        "block3": "/assets/theme-6/block-3.png",
+        "block4": "/assets/theme-6/block-4.png",
+        "loadingBg": "/assets/theme-6/loading-bg.png",
+        "mapBg": "/assets/theme-6/map-bg.png",
+        "mapNodeBoss": "/assets/theme-6/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-6/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-6/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.6196078431372549,
+          0.7176470588235294,
+          0.8745098039215686,
+          1
+        ],
+        "clearedRgba": [
+          0.11764705882352941,
+          0.5647058823529412,
+          1.0,
+          1
+        ],
+        "lockedDash": "7 5",
+        "lockedRgba": [
+          0.023529411764705882,
+          0.03137254901960784,
+          0.09019607843137255,
+          1
+        ],
+        "lockedStrokeWidth": 1.8,
+        "pathStyle": "solid",
+        "strokeWidth": 3.0
+      },
+      "music": {
+        "boss": "/assets/theme-6/sounds/musics/boss.mp3",
+        "level": "/assets/theme-6/sounds/musics/level.mp3",
+        "main": "/assets/theme-6/sounds/musics/main.mp3"
+      },
+      "realmId": 6,
+      "realmName": "Persia",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.0392156862745098,
+            0.058823529411764705,
+            0.16470588235294117,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.09803921568627451,
+            0.11372549019607843,
+            0.21568627450980393,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.03529411764705882,
+            0.050980392156862744,
+            0.1450980392156863,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.09019607843137255,
+            0.4235294117647059,
+            0.7490196078431373,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.0784313725490196,
+            0.09803921568627451,
+            0.2,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.10588235294117647,
+            0.12549019607843137,
+            0.2235294117647059,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.11764705882352941,
+            0.5647058823529412,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.03137254901960784,
+            0.047058823529411764,
+            0.13333333333333333,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.0784313725490196,
+            0.3686274509803922,
+            0.6509803921568628,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.03137254901960784,
+            0.047058823529411764,
+            0.13333333333333333,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.11764705882352941,
+            0.5647058823529412,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.6196078431372549,
+            0.7176470588235294,
+            0.8745098039215686,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.78,
+          "y": 0.89
+        },
+        {
+          "x": 0.48,
+          "y": 0.82
+        },
+        {
+          "x": 0.2,
+          "y": 0.75
+        },
+        {
+          "x": 0.42,
+          "y": 0.66
+        },
+        {
+          "x": 0.75,
+          "y": 0.61
+        },
+        {
+          "x": 0.56,
+          "y": 0.51
+        },
+        {
+          "x": 0.24,
+          "y": 0.44
+        },
+        {
+          "x": 0.43,
+          "y": 0.34
+        },
+        {
+          "x": 0.75,
+          "y": 0.27
+        },
+        {
+          "x": 0.5,
+          "y": 0.16
+        }
+      ],
+      "guardianGreeting": "The same trick for all challengers today. Let's see who falls for it last.",
+      "guardianName": "Kitsune",
+      "guardianPortrait": "/assets/theme-7/boss/idle.png",
+      "id": "theme-7",
+      "images": {
+        "background": "/assets/theme-7/background.png",
+        "block1": "/assets/theme-7/block-1.png",
+        "block2": "/assets/theme-7/block-2.png",
+        "block3": "/assets/theme-7/block-3.png",
+        "block4": "/assets/theme-7/block-4.png",
+        "loadingBg": "/assets/theme-7/loading-bg.png",
+        "mapBg": "/assets/theme-7/map-bg.png",
+        "mapNodeBoss": "/assets/theme-7/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-7/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-7/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.8823529411764706,
+          0.6039215686274509,
+          0.6392156862745098,
+          1
+        ],
+        "clearedRgba": [
+          0.7686274509803922,
+          0.11764705882352941,
+          0.22745098039215686,
+          1
+        ],
+        "lockedDash": "3 4",
+        "lockedRgba": [
+          0.027450980392156862,
+          0.027450980392156862,
+          0.0392156862745098,
+          1
+        ],
+        "lockedStrokeWidth": 1.4,
+        "pathStyle": "dashed",
+        "strokeWidth": 2.2
+      },
+      "music": {
+        "boss": "/assets/theme-7/sounds/musics/boss.mp3",
+        "level": "/assets/theme-7/sounds/musics/level.mp3",
+        "main": "/assets/theme-7/sounds/musics/main.mp3"
+      },
+      "realmId": 7,
+      "realmName": "Japan",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.050980392156862744,
+            0.050980392156862744,
+            0.07058823529411765,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.10980392156862745,
+            0.10980392156862745,
+            0.12549019607843137,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.043137254901960784,
+            0.043137254901960784,
+            0.06274509803921569,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.5764705882352941,
+            0.09019607843137255,
+            0.17254901960784313,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.09019607843137255,
+            0.09019607843137255,
+            0.10588235294117647,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.11764705882352941,
+            0.11764705882352941,
+            0.13725490196078433,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.7686274509803922,
+            0.11764705882352941,
+            0.22745098039215686,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.0392156862745098,
+            0.0392156862745098,
+            0.054901960784313725,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.4980392156862745,
+            0.0784313725490196,
+            0.14901960784313725,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.0392156862745098,
+            0.0392156862745098,
+            0.054901960784313725,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.7686274509803922,
+            0.11764705882352941,
+            0.22745098039215686,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.8823529411764706,
+            0.6039215686274509,
+            0.6392156862745098,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.18,
+          "y": 0.86
+        },
+        {
+          "x": 0.45,
+          "y": 0.9
+        },
+        {
+          "x": 0.78,
+          "y": 0.82
+        },
+        {
+          "x": 0.81,
+          "y": 0.65
+        },
+        {
+          "x": 0.61,
+          "y": 0.52
+        },
+        {
+          "x": 0.32,
+          "y": 0.55
+        },
+        {
+          "x": 0.18,
+          "y": 0.42
+        },
+        {
+          "x": 0.33,
+          "y": 0.27
+        },
+        {
+          "x": 0.61,
+          "y": 0.25
+        },
+        {
+          "x": 0.54,
+          "y": 0.12
+        }
+      ],
+      "guardianGreeting": "The jungle offers its three gifts to all today. Use them wisely, others won't hesitate.",
+      "guardianName": "Balam",
+      "guardianPortrait": "/assets/theme-8/boss/idle.png",
+      "id": "theme-8",
+      "images": {
+        "background": "/assets/theme-8/background.png",
+        "block1": "/assets/theme-8/block-1.png",
+        "block2": "/assets/theme-8/block-2.png",
+        "block3": "/assets/theme-8/block-3.png",
+        "block4": "/assets/theme-8/block-4.png",
+        "loadingBg": "/assets/theme-8/loading-bg.png",
+        "mapBg": "/assets/theme-8/map-bg.png",
+        "mapNodeBoss": "/assets/theme-8/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-8/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-8/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.6627450980392157,
+          0.7450980392156863,
+          0.4470588235294118,
+          1
+        ],
+        "clearedRgba": [
+          0.2980392156862745,
+          0.6862745098039216,
+          0.3137254901960784,
+          1
+        ],
+        "lockedDash": "5 4",
+        "lockedRgba": [
+          0.023529411764705882,
+          0.054901960784313725,
+          0.023529411764705882,
+          1
+        ],
+        "lockedStrokeWidth": 1.6,
+        "pathStyle": "solid",
+        "strokeWidth": 2.8
+      },
+      "music": {
+        "boss": "/assets/theme-8/sounds/musics/boss.mp3",
+        "level": "/assets/theme-8/sounds/musics/level.mp3",
+        "main": "/assets/theme-8/sounds/musics/main.mp3"
+      },
+      "realmId": 8,
+      "realmName": "Mayan",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.0392156862745098,
+            0.10196078431372549,
+            0.0392156862745098,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.09803921568627451,
+            0.1568627450980392,
+            0.09803921568627451,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.03529411764705882,
+            0.09019607843137255,
+            0.03529411764705882,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.2235294117647059,
+            0.5137254901960784,
+            0.23529411764705882,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.0784313725490196,
+            0.13725490196078433,
+            0.0784313725490196,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.10588235294117647,
+            0.16470588235294117,
+            0.10588235294117647,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.2980392156862745,
+            0.6862745098039216,
+            0.3137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.03137254901960784,
+            0.08235294117647059,
+            0.03137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.19215686274509805,
+            0.4470588235294118,
+            0.20392156862745098,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.03137254901960784,
+            0.08235294117647059,
+            0.03137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.2980392156862745,
+            0.6862745098039216,
+            0.3137254901960784,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.6627450980392157,
+            0.7450980392156863,
+            0.4470588235294118,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.5,
+          "y": 0.91
+        },
+        {
+          "x": 0.22,
+          "y": 0.83
+        },
+        {
+          "x": 0.48,
+          "y": 0.76
+        },
+        {
+          "x": 0.78,
+          "y": 0.69
+        },
+        {
+          "x": 0.51,
+          "y": 0.61
+        },
+        {
+          "x": 0.2,
+          "y": 0.53
+        },
+        {
+          "x": 0.48,
+          "y": 0.45
+        },
+        {
+          "x": 0.78,
+          "y": 0.37
+        },
+        {
+          "x": 0.5,
+          "y": 0.27
+        },
+        {
+          "x": 0.24,
+          "y": 0.17
+        }
+      ],
+      "guardianGreeting": "The same beat for all today. Match the rhythm longer than anyone else.",
+      "guardianName": "Mamba",
+      "guardianPortrait": "/assets/theme-9/boss/idle.png",
+      "id": "theme-9",
+      "images": {
+        "background": "/assets/theme-9/background.png",
+        "block1": "/assets/theme-9/block-1.png",
+        "block2": "/assets/theme-9/block-2.png",
+        "block3": "/assets/theme-9/block-3.png",
+        "block4": "/assets/theme-9/block-4.png",
+        "loadingBg": "/assets/theme-9/loading-bg.png",
+        "mapBg": "/assets/theme-9/map-bg.png",
+        "mapNodeBoss": "/assets/theme-9/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-9/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-9/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.8784313725490196,
+          0.6274509803921569,
+          0.47843137254901963,
+          1
+        ],
+        "clearedRgba": [
+          0.25098039215686274,
+          0.7843137254901961,
+          0.7215686274509804,
+          1
+        ],
+        "lockedDash": "6 4",
+        "lockedRgba": [
+          0.09019607843137255,
+          0.06666666666666667,
+          0.043137254901960784,
+          1
+        ],
+        "lockedStrokeWidth": 1.6,
+        "pathStyle": "dashed",
+        "strokeWidth": 2.5
+      },
+      "music": {
+        "boss": "/assets/theme-9/sounds/musics/boss.mp3",
+        "level": "/assets/theme-9/sounds/musics/level.mp3",
+        "main": "/assets/theme-9/sounds/musics/main.mp3"
+      },
+      "realmId": 9,
+      "realmName": "Tribal",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.16470588235294117,
+            0.12156862745098039,
+            0.0784313725490196,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.21568627450980393,
+            0.17254901960784313,
+            0.13333333333333333,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.1450980392156863,
+            0.10588235294117647,
+            0.07058823529411765,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.18823529411764706,
+            0.5882352941176471,
+            0.5411764705882353,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.2,
+            0.1568627450980392,
+            0.11372549019607843,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.2235294117647059,
+            0.1843137254901961,
+            0.1411764705882353,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.25098039215686274,
+            0.7843137254901961,
+            0.7215686274509804,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.13333333333333333,
+            0.09803921568627451,
+            0.06274509803921569,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.16470588235294117,
+            0.5098039215686274,
+            0.47058823529411764,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.13333333333333333,
+            0.09803921568627451,
+            0.06274509803921569,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.25098039215686274,
+            0.7843137254901961,
+            0.7215686274509804,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.8784313725490196,
+            0.6274509803921569,
+            0.47843137254901963,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    },
+    {
+      "campaignPath": [
+        {
+          "x": 0.22,
+          "y": 0.9
+        },
+        {
+          "x": 0.48,
+          "y": 0.85
+        },
+        {
+          "x": 0.75,
+          "y": 0.78
+        },
+        {
+          "x": 0.58,
+          "y": 0.68
+        },
+        {
+          "x": 0.3,
+          "y": 0.62
+        },
+        {
+          "x": 0.18,
+          "y": 0.5
+        },
+        {
+          "x": 0.42,
+          "y": 0.43
+        },
+        {
+          "x": 0.73,
+          "y": 0.36
+        },
+        {
+          "x": 0.61,
+          "y": 0.24
+        },
+        {
+          "x": 0.36,
+          "y": 0.14
+        }
+      ],
+      "guardianGreeting": "One path. One summit. All climbers face the same mountain today. Reach highest.",
+      "guardianName": "Kuntur",
+      "guardianPortrait": "/assets/theme-10/boss/idle.png",
+      "id": "theme-10",
+      "images": {
+        "background": "/assets/theme-10/background.png",
+        "block1": "/assets/theme-10/block-1.png",
+        "block2": "/assets/theme-10/block-2.png",
+        "block3": "/assets/theme-10/block-3.png",
+        "block4": "/assets/theme-10/block-4.png",
+        "loadingBg": "/assets/theme-10/loading-bg.png",
+        "mapBg": "/assets/theme-10/map-bg.png",
+        "mapNodeBoss": "/assets/theme-10/map-node-boss.png",
+        "mapNodeCompleted": "/assets/theme-10/map-node-completed.png",
+        "mapNodeLevel": "/assets/theme-10/map-node-level.png"
+      },
+      "map": {
+        "activeRgba": [
+          0.7803921568627451,
+          0.7372549019607844,
+          0.6627450980392157,
+          1
+        ],
+        "clearedRgba": [
+          0.8313725490196079,
+          0.6862745098039216,
+          0.21568627450980393,
+          1
+        ],
+        "lockedDash": "7 4",
+        "lockedRgba": [
+          0.054901960784313725,
+          0.054901960784313725,
+          0.09019607843137255,
+          1
+        ],
+        "lockedStrokeWidth": 1.8,
+        "pathStyle": "solid",
+        "strokeWidth": 2.8
+      },
+      "music": {
+        "boss": "/assets/theme-10/sounds/musics/boss.mp3",
+        "level": "/assets/theme-10/sounds/musics/level.mp3",
+        "main": "/assets/theme-10/sounds/musics/main.mp3"
+      },
+      "realmId": 10,
+      "realmName": "Inca",
+      "rgba": [
+        {
+          "name": "background",
+          "value": [
+            0.10196078431372549,
+            0.10196078431372549,
+            0.16470588235294117,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientStart",
+          "value": [
+            0.1568627450980392,
+            0.1568627450980392,
+            0.21568627450980393,
+            1
+          ]
+        },
+        {
+          "name": "backgroundGradientEnd",
+          "value": [
+            0.09019607843137255,
+            0.09019607843137255,
+            0.1450980392156863,
+            1
+          ]
+        },
+        {
+          "name": "gridLines",
+          "value": [
+            0.6235294117647059,
+            0.5137254901960784,
+            0.1607843137254902,
+            1
+          ]
+        },
+        {
+          "name": "gridBg",
+          "value": [
+            0.13725490196078433,
+            0.13725490196078433,
+            0.2,
+            1
+          ]
+        },
+        {
+          "name": "gridCellAlt",
+          "value": [
+            0.16470588235294117,
+            0.16470588235294117,
+            0.2235294117647059,
+            1
+          ]
+        },
+        {
+          "name": "frameBorder",
+          "value": [
+            0.8313725490196079,
+            0.6862745098039216,
+            0.21568627450980393,
+            1
+          ]
+        },
+        {
+          "name": "hudBar",
+          "value": [
+            0.08235294117647059,
+            0.08235294117647059,
+            0.13333333333333333,
+            1
+          ]
+        },
+        {
+          "name": "hudBarBorder",
+          "value": [
+            0.5411764705882353,
+            0.4470588235294118,
+            0.1411764705882353,
+            1
+          ]
+        },
+        {
+          "name": "actionBarBg",
+          "value": [
+            0.08235294117647059,
+            0.08235294117647059,
+            0.13333333333333333,
+            1
+          ]
+        },
+        {
+          "name": "dangerZone",
+          "value": [
+            1.0,
+            0.26666666666666666,
+            0.26666666666666666,
+            1
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            0.8313725490196079,
+            0.6862745098039216,
+            0.21568627450980393,
+            1
+          ]
+        },
+        {
+          "name": "accent2",
+          "value": [
+            0.7803921568627451,
+            0.7372549019607844,
+            0.6627450980392157,
+            1
+          ]
+        },
+        {
+          "name": "text",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1
+          ]
+        },
+        {
+          "name": "textMuted",
+          "value": [
+            1,
+            1,
+            1,
+            0.5
+          ]
+        },
+        {
+          "name": "surface",
+          "value": [
+            1,
+            1,
+            1,
+            0.04
+          ]
+        },
+        {
+          "name": "border",
+          "value": [
+            1,
+            1,
+            1,
+            0.08
+          ]
+        }
+      ]
+    }
+  ]
+}

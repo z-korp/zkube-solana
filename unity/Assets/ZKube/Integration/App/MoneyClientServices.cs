@@ -29,8 +29,7 @@ namespace ZKube.Integration.App
         {
             if (string.IsNullOrWhiteSpace(BaseUri) || string.IsNullOrWhiteSpace(RouterUri) || string.IsNullOrWhiteSpace(ExpectedGenesis))
                 throw new MoneyConfigurationException("configuration-unavailable");
-            // The native wallet is currently fixed to solana:devnet. The value
-            // is generated from the actual TypeScript client cluster authority.
+            // The Kotlin wallet plugin is fixed to solana:devnet.
             if (ExpectedGenesis != ClientPolicy.SolanaDevnetGenesisHash)
                 throw new MoneyConfigurationException("unsupported-wallet-cluster");
             if (!ValidUri(BaseUri, out var baseAddress) || !ValidUri(RouterUri, out var routerAddress) || baseAddress == routerAddress)

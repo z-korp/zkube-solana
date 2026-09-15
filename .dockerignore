@@ -18,8 +18,10 @@ coverage
 api
 public
 **/public
-tools
-client/tools
+build
+unity
+assets
+client
 twa
 client/twa
 twa/*.keystore

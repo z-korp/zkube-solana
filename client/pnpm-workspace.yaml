@@ -1,7 +1,0 @@
-overrides:
-  ws: ^8.17.1
-allowBuilds:
-  "@swc/core": true
-  bufferutil: true
-  esbuild: true
-  utf-8-validate: true

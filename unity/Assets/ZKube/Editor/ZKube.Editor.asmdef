@@ -7,8 +7,7 @@
     "ZKube.StoreStartup",
     "ZKube.MoneyStartup",
     "Unity.TextMeshPro",
-    "Unity.ugui",
-    "ZKube.MoneyEvidenceHost"
+    "Unity.ugui"
   ],
   "includePlatforms": [
     "Editor"

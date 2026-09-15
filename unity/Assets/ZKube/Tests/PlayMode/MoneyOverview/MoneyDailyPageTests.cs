@@ -15,7 +15,7 @@ namespace ZKube.Tests.MoneyOverview
         private string DailyText() => string.Join("\n", host.GetComponentsInChildren<TMP_Text>().Select(value => value.text));
         private IEnumerator OpenDailyPage(string scenario = "owner-overview")
         {
-            yield return PrepareEvidence(scenario);
+            yield return PrepareScenario(scenario);
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick("Daily"); yield return Idle();
             Assert.That(host.GetComponent<MoneyStartup>().Controller.BrowsingDaily, Is.True);
@@ -29,14 +29,14 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit" || button.name == "Confirm 1 Kredit"), Is.False);
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(), Is.Empty);
-            Assert.That(evidence.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator DailyResumeButtonBindsItsOwnSavedSlotWithoutNewEntry()
         {
             yield return OpenDailyPage();
-            var read = evidence.Services.Runs.Inspect("daily"); yield return Wait(read);
+            var read = environment.Services.Runs.Inspect("daily"); yield return Wait(read);
             var token = read.GetAwaiter().GetResult().Token;
             yield return SessionClick("Resume Daily"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
@@ -46,49 +46,49 @@ namespace ZKube.Tests.MoneyOverview
             while (!board.Ready && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(board.Ready, Is.True, board.ReadinessIssue);
             Assert.That(board.Session.Accepted.State, Is.EqualTo(token.State));
-            Assert.That(evidence.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator AnOccupiedDailyCannotOpenOrConfirmTheEntryChoice()
         {
             yield return OpenDailyPage(); var controller = host.GetComponent<MoneyStartup>().Controller;
-            int before = evidence.Calls.Count;
+            int before = environment.Calls.Count;
             controller.AskDailyEntry(); Assert.That(controller.ConfirmingDailyEntry, Is.False);
             yield return Wait(controller.ConfirmDailyEntry());
             Assert.That(controller.PlayingRun, Is.False);
-            Assert.That(evidence.Calls.Count, Is.EqualTo(before)); Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Count, Is.EqualTo(before)); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator DailyPageRetainsPendingReceiptWithoutAnotherStatusCheck()
         {
-            yield return PrepareEvidence("pending-confirmed-failure");
+            yield return PrepareScenario("pending-confirmed-failure");
             yield return SessionClick("Connect"); yield return Idle();
-            int checks = evidence.Calls.Count(call => call.Operation == "getSignatureStatuses");
+            int checks = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
             yield return SessionClick("Daily"); yield return Idle();
             StringAssert.Contains("pending transaction", DailyText());
-            Assert.That(evidence.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
+            Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Check transaction"), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit"), Is.False);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator FreezeRefreshesTheDailyPageAndKeepsSavedResultRecoveryAvailable()
         {
             yield return OpenDailyPage();
-            long now = evidence.Clock(); evidence.AdvanceClock((now / 86400 + 1) * 86400 - 60 - now);
+            long now = environment.Clock(); environment.AdvanceClock((now / 86400 + 1) * 86400 - 60 - now);
             yield return null; yield return Idle(); yield return null;
             StringAssert.Contains("Entries are closed", DailyText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
-            Assert.That(evidence.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator DisabledDailyPageRejectsALateReadAndRefetchesWhenEnabled()
         {
             yield return OpenDailyPage();
             var controller = host.GetComponent<MoneyStartup>().Controller;
-            var hold = evidence.HoldNextRead("getMultipleAccounts");
+            var hold = environment.HoldNextRead("getMultipleAccounts");
             yield return SessionClick("Refresh Daily");
             try
             {
@@ -98,8 +98,8 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(host.GetComponentsInChildren<Button>(), Is.Empty);
                 controller.enabled = true; yield return Idle();
                 Assert.That(controller.BrowsingDaily, Is.True); StringAssert.Contains("Prize pot", DailyText());
-                Assert.That(evidence.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
-                Assert.That(evidence.ForbiddenCalls, Is.Zero);
+                Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
+                Assert.That(environment.ForbiddenCalls, Is.Zero);
             }
             finally { hold.Release(); }
         }
@@ -115,7 +115,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("This device"); yield return Idle();
             Assert.That(controller.BrowsingDaily, Is.False); Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.False);
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator ProductNavigationRetiresThePreviousPagesScrollOffsetAndInertia()
@@ -136,14 +136,14 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(scroll.content.anchoredPosition.y, Is.EqualTo(0).Within(.1f), control);
                 Assert.That(scroll.velocity.sqrMagnitude, Is.LessThan(.01f), control);
             }
-            Assert.That(evidence.ForbiddenCalls, Is.Zero);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         [UnityTest] public IEnumerator AnUnfinishedDeviceRequestStillBlocksRunOpeningAfterPageRecreation()
         {
-            yield return PrepareSessionEvidence("session-refill-success");
+            yield return PrepareDeviceScenario("session-refill-success");
             var controller = host.GetComponent<MoneyStartup>().Controller;
-            var hold = sessionEvidence.HoldNextWallet();
+            var hold = environment.HoldNextWallet();
             var operation = controller.RefillDeviceSession();
             try
             {
@@ -155,11 +155,11 @@ namespace ZKube.Tests.MoneyOverview
                 yield return SessionClick("Daily"); yield return Idle();
                 var resume = host.GetComponentsInChildren<Button>().Single(button => button.name == "Resume Daily");
                 Assert.That(resume.interactable, Is.False);
-                int before = sessionEvidence.Calls.Count;
+                int before = environment.Calls.Count;
                 yield return Wait(controller.ResumeDailyRun());
                 Assert.That(controller.PlayingRun, Is.False);
-                Assert.That(sessionEvidence.Calls.Count, Is.EqualTo(before));
-                Assert.That(sessionEvidence.ForbiddenCalls, Is.Zero);
+                Assert.That(environment.Calls.Count, Is.EqualTo(before));
+                Assert.That(environment.ForbiddenCalls, Is.Zero);
             }
             finally { hold.Release(); }
             yield return Wait(operation);

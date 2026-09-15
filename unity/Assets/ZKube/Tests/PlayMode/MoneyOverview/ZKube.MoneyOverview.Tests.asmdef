@@ -4,8 +4,6 @@
     "ZKube.MoneyStartup",
     "ZKube.MoneyPresentation",
     "ZKube.MoneyApp",
-    "ZKube.MoneyEvidence",
-    "ZKube.MoneyEvidenceHost",
     "ZKube.Integration",
     "ZKube.Execution",
     "ZKube.Presentation",
@@ -15,7 +13,11 @@
     "Unity.TextMeshPro",
     "Unity.ugui",
     "ZKube.Local",
-    "ZKube.Local.Runs"
+    "ZKube.Local.Runs",
+    "ZKube.MoneyApp.Tests",
+    "ZKube.Integration.Tests",
+    "ZKube.Planning",
+    "ZKube.Transport"
   ],
   "defineConstraints": [
     "!ZKUBE_STORE",

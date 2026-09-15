@@ -48,7 +48,7 @@ namespace ZKube.Integration.Tests
                 Active = Candidate; Candidate = null; Promotions++;
             }
         }
-        private static JObject Fixture() => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/unity-session-plans-v1.json"))));
+        private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("device");
         private static AccountEnvelope Envelope(JToken row) => new AccountEnvelope((string)row["address"], (string)row["owner"],
             (bool)row["executable"], Convert.FromBase64String((string)row["data"]));
         [Test]

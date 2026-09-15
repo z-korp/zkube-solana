@@ -13,7 +13,7 @@ namespace ZKube.Integration.Tests
         [Test]
         public void BoardRewardsValidateActualAnchorAccountsAndKeepClaimedPositionsVisible()
         {
-            var fixture = JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/unity-plans-v1.json"))));
+            var fixture = ZKube.Integration.Tests.ProgramScenarios.Load("plans");
             var bindings = new AccountBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")),
                 Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
             string owner = (string)fixture["inputs"]["owner"];

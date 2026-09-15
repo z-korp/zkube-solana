@@ -2,8 +2,7 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Integration.Execution
 {
-    // Inputs come from a native-validated account. Agreement fixtures invoke the
-    // same extracted predicates used by the TypeScript live observer callbacks.
+    // Inputs come from the account snapshot validated through the native core.
     public static class RunObservation
     {
         public static bool HasAcceptedAction(RunSummary run, uint expectedAction) => run.ActionCounter >= expectedAction;
@@ -14,4 +13,3 @@ namespace ZKube.Integration.Execution
         public static bool IsTerminal(RunSummary run) => run.Phase == (byte)CorePhase.Finished || run.Phase == (byte)CorePhase.LevelComplete;
     }
 }
-

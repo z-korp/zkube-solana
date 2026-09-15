@@ -202,7 +202,7 @@ function readIdl(): {
   accounts: Array<{ name: string }>;
 } {
   return JSON.parse(readFileSync(
-    new URL("../../client/src/backend/solana/idl/solana.json", import.meta.url),
+    new URL("../../tools/chain/idl/solana.json", import.meta.url),
     "utf8",
   ));
 }

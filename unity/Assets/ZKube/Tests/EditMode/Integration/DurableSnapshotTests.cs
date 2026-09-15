@@ -26,7 +26,7 @@ namespace ZKube.Integration.Tests
             }
             public void Arm(string current, string later) { Current = current; LaterRead = later; Reads = Exchanges = 0; }
         }
-        private static JObject Fixture() => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/unity-solana-v1.json"))));
+        private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");
         [Test]
         public async Task CompletingOneSignatureCannotClearAnotherCapturedJournalSnapshot()
         {
