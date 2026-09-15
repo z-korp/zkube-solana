@@ -15,11 +15,11 @@ namespace ZKube.Presentation
         private readonly Func<CancellationToken, Task<RunClientState>> resolve, recover, settle;
         public RunBoardActionProvider(RunClient client, RunClientState initial, ActiveRunReconciler native)
         {
-            binding = new RunPresentationBinding(initial, native); string mode = initial.Marker.Mode;
-            submit = (accepted, action, row, start, destination, cancellation) => client.Apply(mode, accepted, binding, action, row, start, destination, cancellation);
-            resolve = cancellation => client.ResolveVrf(mode, binding, cancellation);
-            recover = cancellation => client.Recover(mode, binding, cancellation);
-            settle = cancellation => client.FinishAndSettle(mode, binding, cancellation);
+            binding = new RunPresentationBinding(initial, native);
+            submit = (accepted, action, row, start, destination, cancellation) => client.Apply(accepted, binding, action, row, start, destination, cancellation);
+            resolve = cancellation => client.ResolveVrf(binding, cancellation);
+            recover = cancellation => client.Recover(binding, cancellation);
+            settle = cancellation => client.FinishAndSettle(binding, cancellation);
         }
         // Money hosts supply tracked operations; projection and native trace
         // agreement remain identical to the direct RunClient adapter above.

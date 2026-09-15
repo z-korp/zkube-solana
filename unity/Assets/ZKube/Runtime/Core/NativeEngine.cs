@@ -122,8 +122,27 @@ namespace ZKube.Core
             => new RunTransition(token.Config, Call(FinishRequest.Operation, new FinishRequest
             { Config = token.Config, State = token.State, Trace = trace ? (byte)1 : (byte)0, Reason = reason }.Encode()));
 
-        public static uint DailyPairIndex(uint day)
-            => checked((uint)NativeWire.Read(Call(DailyPairIndexRequest.Operation, new DailyPairIndexRequest { Day = day }.Encode()), 0, 4));
+        public static DailyPair DailyPair(uint day) => Generated.DailyPair.Decode(
+            Call(DailyPairIndexRequest.Operation, new DailyPairIndexRequest { Day = day }.Encode()));
+
+        public static byte[] PackCampaignStars(byte[] stars) => Call(PackCampaignStarsRequest.Operation,
+            new PackCampaignStarsRequest { Stars = stars }.Encode());
+        public static CampaignProgressSummary CampaignProgress(byte[] packed) => CampaignProgressSummary.Decode(
+            Call(CampaignProgressRequest.Operation, new CampaignProgressRequest { Stars = packed }.Encode()));
+        public static byte[] RecordLocalCampaignResult(byte[] packed, byte realm, byte level, CoreRunToken token) =>
+            Call(RecordLocalCampaignResultRequest.Operation, new RecordLocalCampaignResultRequest {
+                Stars = packed, Realm = realm, Level = level, State = token.State
+            }.Encode());
+        public static BuildConfigRequest CampaignRules(byte realm, byte level)
+        {
+            if (realm < 1 || realm > Protocol.Realms.Length) throw new ArgumentOutOfRangeException(nameof(realm));
+            var definition = Protocol.Realms[realm - 1];
+            if (level < 1 || level > definition.Levels.Length) throw new ArgumentOutOfRangeException(nameof(level));
+            var authored = definition.Levels[level - 1];
+            return BuildConfigRequest.Decode(Call(CampaignRulesRequest.Operation, new CampaignRulesRequest {
+                Realm = realm, Level = level, Tier = authored.Tier, Primary = authored.Primary, Secondary = authored.Secondary
+            }.Encode()));
+        }
 
         public static ushort CampaignMoveBudget(byte level, byte tier)
             => checked((ushort)NativeWire.Read(Call(CampaignMoveBudgetRequest.Operation, new CampaignMoveBudgetRequest { Level = level, Tier = tier }.Encode()), 0, 2));

@@ -40,7 +40,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             var flow = await CreateFlow(env, () => { requested++; return seed; });
             try
             {
-                var launch = (await flow.OpenSavedRun("daily")).Value;
+                var launch = (await flow.OpenSavedRun()).Value;
                 Assert.That(requested, Is.Zero);
                 var result = (await flow.SubmitRun(launch.Run, launch.Operation.State.Token,
                     RunClientAction.Reroll, 0, 0, 0, env.Now)).Value;
@@ -64,7 +64,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var flow = await CreateFlow(env, () => length < 0 ? null : new byte[length]);
                 try
                 {
-                    var launch = (await flow.OpenSavedRun("daily")).Value;
+                    var launch = (await flow.OpenSavedRun()).Value;
                     var result = (await flow.SubmitRun(launch.Run, launch.Operation.State.Token,
                         RunClientAction.Reroll, 0, 0, 0, env.Now)).Value;
                     Assert.That(result.Error, Is.TypeOf<InvalidOperationException>());
@@ -83,7 +83,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var env = await Environment.Create(); var flow = await CreateFlow(env);
                 try
                 {
-                    var launch = (await flow.OpenSavedRun(mode)).Value;
+                    var launch = (await flow.OpenSavedRun()).Value;
                     var accepted = (await flow.SubmitRun(launch.Run, launch.Operation.State.Token,
                         RunClientAction.Reroll, 0, 0, 0, env.Now)).Value;
                     Assert.That(accepted.Error, Is.Null); Assert.That(accepted.Receipts.Count, Is.EqualTo(1));
@@ -113,7 +113,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var flow = await CreateFlow(env);
                 try
                 {
-                    var launch = (await flow.OpenSavedRun(mode)).Value;
+                    var launch = (await flow.OpenSavedRun()).Value;
                     var result = (await flow.SettleRun(launch.Run)).Value;
                     Assert.That(result.Error, Is.Null); Assert.That(result.State.Phase, Is.EqualTo("consumed"));
                     Assert.That(result.Receipts.Select(step => step.Result.Intent),
@@ -121,7 +121,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                     Assert.That(result.Receipts.All(step => step.Address == launch.Run.Address && step.Owner == env.Owner &&
                         step.Result.Outcome == ExecutionOutcome.ConfirmedSuccess), Is.True);
                     Assert.That(await env.Journal.Load(env.Owner), Is.Null);
-                    Assert.That(await env.Markers.Load(env.Owner, mode), Is.Null);
+                    Assert.That(await env.Markers.Load(env.Owner), Is.Null);
                     Assert.That(launch.Run.LastReceiptOperation, Is.SameAs(result));
                 }
                 finally { await flow.StopAsync(); }

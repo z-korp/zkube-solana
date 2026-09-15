@@ -35,54 +35,42 @@ namespace ZKube.Integration.Client
     }
     public sealed class CampaignMapProgress
     {
-        private readonly JObject catalog;
         public byte MapId { get; }
-        public bool Enabled { get; }
+        public bool Enabled => true;
         public bool Unlocked { get; }
         public bool Cleared { get; }
         public bool Perfected { get; }
         public IReadOnlyList<byte> Stars { get; }
-        public JObject Catalog => (JObject)catalog.DeepClone();
-        internal CampaignMapProgress(byte map, JObject source, byte[] stars, bool unlocked)
-        { MapId = map; catalog = (JObject)source.DeepClone(); Enabled = (bool)catalog["enabled"];
-            Stars = Array.AsReadOnly((byte[])stars.Clone()); Unlocked = unlocked;
-            Cleared = stars[stars.Length - 1] > 0; Perfected = stars.All(value => value == 3); }
+        public IReadOnlyList<byte> LevelUnlocked { get; }
+        internal CampaignMapProgress(byte map, CampaignProgressSummary progress)
+        {
+            MapId = map; int start = (map - 1) * Protocol.CampaignTargets.Length;
+            Stars = Array.AsReadOnly(progress.Stars.Skip(start).Take(Protocol.CampaignTargets.Length).ToArray());
+            LevelUnlocked = Array.AsReadOnly(progress.LevelUnlocked.Skip(start).Take(Protocol.CampaignTargets.Length).ToArray());
+            Unlocked = progress.RealmUnlocked[map - 1] != 0;
+            Cleared = progress.Cleared[map - 1] != 0; Perfected = progress.Perfected[map - 1] != 0;
+        }
     }
     public sealed class CampaignProgress
     {
-        public string Status { get; }
-        public uint? ContentVersion { get; }
+        public string Status => "ready";
+        public uint? ContentVersion => Protocol.CatalogVersion;
         public PlayerProfile Player { get; }
         public IReadOnlyList<CampaignMapProgress> Maps { get; }
-        public int? TotalStars => Maps.Count == 0 ? (int?)null : Maps.Sum(map => map.Stars.Sum(stars => stars));
-        public static CampaignProgress FromStars(string owner, byte[] stars, PlayerProfile player = null)
+        public int? TotalStars => facts.Total;
+        private readonly CampaignProgressSummary facts;
+        public IReadOnlyList<byte> EmblemUnlocked { get; }
+        public IReadOnlyList<byte> EmblemGold { get; }
+        public byte StrongestEmblem => facts.StrongestEmblem;
+        public static CampaignProgress FromStars(string owner, byte[] stars, PlayerProfile player = null) =>
+            new CampaignProgress(player ?? new PlayerProfile(owner, 0, null),
+                NativeEngine.CampaignProgress(NativeEngine.PackCampaignStars(stars)));
+        private CampaignProgress(PlayerProfile player, CampaignProgressSummary facts)
         {
-            if (stars == null || stars.Length != 100 || stars.Any(value => value > 3))
-                throw new ArgumentException("Campaign stars have an invalid layout");
-            var maps = Protocol.Realms.Select(realm => {
-                int start = (realm.MapId - 1) * Protocol.CampaignTargets.Length;
-                var guardian = realm.GuardianAndHeight;
-                var catalog = new JObject {
-                    ["map_id"] = realm.MapId, ["theme_id"] = realm.MapId, ["enabled"] = true,
-                    ["map_rules"] = new JObject {
-                        ["guardian"] = new JObject { ["bonus"] = guardian[0], ["trigger"] = guardian[1], ["threshold"] = guardian[2] },
-                        ["starting_rows"] = guardian[3],
-                    },
-                    ["levels"] = new JArray(realm.Levels.Select((level, index) => new JObject {
-                        ["level"] = index + 1, ["difficulty"] = level.Tier,
-                        ["primary"] = Constraint(level.Primary), ["secondary"] = Constraint(level.Secondary),
-                    })),
-                };
-                return new CampaignMapProgress(realm.MapId, catalog, stars.Skip(start).Take(Protocol.CampaignTargets.Length).ToArray(),
-                    realm.MapId == 1 || stars[start - 1] > 0);
-            }).ToArray();
-            return new CampaignProgress("ready", Protocol.CatalogVersion, player ?? new PlayerProfile(owner, 0, null), maps);
+            Player = player; this.facts = facts;
+            EmblemUnlocked = Array.AsReadOnly(facts.EmblemUnlocked); EmblemGold = Array.AsReadOnly(facts.EmblemGold);
+            Maps = Array.AsReadOnly(Protocol.Realms.Select(realm => new CampaignMapProgress(realm.MapId, facts)).ToArray());
         }
-        private static JObject Constraint(byte[] value) => new JObject {
-            ["kind"] = value[0], ["value"] = value[1], ["required_count"] = value[2],
-        };
-        internal CampaignProgress(string status, uint? version, PlayerProfile player, CampaignMapProgress[] maps)
-        { Status = status; ContentVersion = version; Player = player; Maps = Array.AsReadOnly(maps); }
     }
     public sealed class DailyLobby
     {

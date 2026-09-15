@@ -44,7 +44,7 @@ namespace ZKube.Local.App
         private readonly Color pale = new Color(1, .96f, .84f), panel = new Color(.06f, .10f, .17f, .95f);
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
-        public void Initialize(LocalProductStore product, LocalRunClient runs, CampaignBilling billing, BoardController boardController, float? displayDensity = null)
+        public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController, float? displayDensity = null)
         {
             if (Flow != null) throw new InvalidOperationException("Store app was already initialized");
             board = boardController ?? throw new ArgumentNullException(nameof(boardController));

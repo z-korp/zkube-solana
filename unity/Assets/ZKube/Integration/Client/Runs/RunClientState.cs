@@ -34,7 +34,6 @@ namespace ZKube.Integration.Client.Runs
         private readonly ActiveRunReconciler native;
         public string Owner => owner;
         public string Address => address;
-        public string Mode { get; }
         public long DeadlineAt { get; }
         public byte RealmId { get; }
         public BuildConfigRequest Rules => BuildConfigRequest.Decode(rulesRequest);
@@ -42,7 +41,7 @@ namespace ZKube.Integration.Client.Runs
         {
             if (initial?.Account == null) throw new ArgumentException("No accepted run to bind");
             this.native = native; owner = initial.Marker.Owner; address = initial.Marker.ActiveRun;
-            Mode = initial.Marker.Mode; DeadlineAt = native.DeadlineAt(initial.Account, owner);
+            DeadlineAt = native.DeadlineAt(initial.Account, owner);
             RealmId = native.RealmId(initial.Account, owner);
             var rules = native.BuildConfiguration(initial.Account, owner);
             rulesRequest = rules.Encode(); config = NativeEngine.BuildConfig(rules);
@@ -53,8 +52,8 @@ namespace ZKube.Integration.Client.Runs
             RequireIdentity(current?.Marker?.Owner, current?.Marker?.ActiveRun);
             if (current.Account == null)
                 throw new InvalidOperationException("The accepted run identity changed");
-            if (current.Marker.Mode != Mode || native.DeadlineAt(current.Account, owner) != DeadlineAt)
-                throw new InvalidOperationException("Run mode or deadline changed while the board was bound");
+            if (native.DeadlineAt(current.Account, owner) != DeadlineAt)
+                throw new InvalidOperationException("Run deadline changed while the board was bound");
             if (native.RealmId(current.Account, owner) != RealmId)
                 throw new InvalidOperationException("Run realm changed while the board was bound");
             var rules = native.BuildConfiguration(current.Account, owner);

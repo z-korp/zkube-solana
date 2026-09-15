@@ -597,6 +597,76 @@ namespace ZKube.Core.Generated
         }
     }
 
+    public sealed class PackCampaignStarsRequest
+    {
+        public const int ByteLength = 102;
+        public const uint Operation = 23;
+        public byte[] Stars { get; set; } = new byte[100];
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Stars, bytes, 2, 100);
+            return bytes;
+        }
+    }
+
+    public sealed class CampaignProgressRequest
+    {
+        public const int ByteLength = 27;
+        public const uint Operation = 24;
+        public byte[] Stars { get; set; } = new byte[25];
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Stars, bytes, 2, 25);
+            return bytes;
+        }
+    }
+
+    public sealed class CampaignRulesRequest
+    {
+        public const int ByteLength = 11;
+        public const uint Operation = 25;
+        public byte Realm { get; set; }
+        public byte Level { get; set; }
+        public byte Tier { get; set; }
+        public byte[] Primary { get; set; } = new byte[3];
+        public byte[] Secondary { get; set; } = new byte[3];
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 1, Realm);
+            NativeWire.Write(bytes, 3, 1, Level);
+            NativeWire.Write(bytes, 4, 1, Tier);
+            NativeWire.Copy(Primary, bytes, 5, 3);
+            NativeWire.Copy(Secondary, bytes, 8, 3);
+            return bytes;
+        }
+    }
+
+    public sealed class RecordLocalCampaignResultRequest
+    {
+        public const int ByteLength = 260;
+        public const uint Operation = 26;
+        public byte[] Stars { get; set; } = new byte[25];
+        public byte Realm { get; set; }
+        public byte Level { get; set; }
+        public byte[] State { get; set; } = new byte[231];
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Stars, bytes, 2, 25);
+            NativeWire.Write(bytes, 27, 1, Realm);
+            NativeWire.Write(bytes, 28, 1, Level);
+            NativeWire.Copy(State, bytes, 29, 231);
+            return bytes;
+        }
+    }
+
     public sealed class RunSummary
     {
         public const int ByteLength = 199;
@@ -659,6 +729,56 @@ namespace ZKube.Core.Generated
                 NextRow = NativeWire.Bytes(bytes, 127, 8),
                 ReplayHash = NativeWire.Bytes(bytes, 135, 32),
                 RulesHash = NativeWire.Bytes(bytes, 167, 32),
+            };
+        }
+    }
+
+    public sealed class DailyPair
+    {
+        public const int ByteLength = 7;
+        public uint Index { get; set; }
+        public byte Realm { get; set; }
+        public byte Kind { get; set; }
+        public byte Value { get; set; }
+        public static DailyPair Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyPair byte length");
+            return new DailyPair
+            {
+                Index = (uint)NativeWire.Read(bytes, 0, 4),
+                Realm = bytes[4],
+                Kind = bytes[5],
+                Value = bytes[6],
+            };
+        }
+    }
+
+    public sealed class CampaignProgressSummary
+    {
+        public const int ByteLength = 259;
+        public byte[] Stars { get; set; } = new byte[100];
+        public ushort Total { get; set; }
+        public byte[] LevelUnlocked { get; set; } = new byte[100];
+        public byte[] RealmUnlocked { get; set; } = new byte[10];
+        public byte[] Cleared { get; set; } = new byte[10];
+        public byte[] Perfected { get; set; } = new byte[10];
+        public byte[] EmblemUnlocked { get; set; } = new byte[13];
+        public byte[] EmblemGold { get; set; } = new byte[13];
+        public byte StrongestEmblem { get; set; }
+        public static CampaignProgressSummary Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid CampaignProgressSummary byte length");
+            return new CampaignProgressSummary
+            {
+                Stars = NativeWire.Bytes(bytes, 0, 100),
+                Total = (ushort)NativeWire.Read(bytes, 100, 2),
+                LevelUnlocked = NativeWire.Bytes(bytes, 102, 100),
+                RealmUnlocked = NativeWire.Bytes(bytes, 202, 10),
+                Cleared = NativeWire.Bytes(bytes, 212, 10),
+                Perfected = NativeWire.Bytes(bytes, 222, 10),
+                EmblemUnlocked = NativeWire.Bytes(bytes, 232, 13),
+                EmblemGold = NativeWire.Bytes(bytes, 245, 13),
+                StrongestEmblem = bytes[258],
             };
         }
     }

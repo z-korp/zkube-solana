@@ -129,7 +129,7 @@ namespace ZKube.Integration.App
                     var session = await services.SessionLifecycle.Inspect().ConfigureAwait(false); Require(read, lease);
                     var profile = await services.Products.Profile(read.Token).ConfigureAwait(false); Require(read, lease);
                     var campaign = services.Campaign(lease.Owner).Runs.Active("campaign"); Require(read, lease);
-                    var daily = await services.Runs.Inspect("daily", read.Token).ConfigureAwait(false); Require(read, lease);
+                    var daily = await services.Runs.Inspect(read.Token).ConfigureAwait(false); Require(read, lease);
                     var remaining = await services.Journal.Load(lease.Owner).ConfigureAwait(false); Require(read, lease);
                     previous = ReadOwnerOperation(out _);
                     return PublishOwner(read, lease, new MoneyOwnerState(lease.Owner, profile.Value, session,

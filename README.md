@@ -39,9 +39,10 @@ trial resumes on its own device from its saved seed and actions. Every new
 attempt draws a fresh 32-byte seed from the platform random source.
 
 The store identity stays walletless and local, with its existing purchase gate
-on realms 4–10. Both identities use the same local Campaign client. Campaign
-stars grant no SOL, entries, or prize eligibility; emblems 1–12 reflect that
-reported progress.
+on realms 4–10. Both identities use the same local Campaign client; only the
+store assembly adds the local UTC Daily. Campaign progress and eligibility are
+decoded by Rust over the native boundary. Campaign stars grant no SOL, entries,
+or prize eligibility; emblems 1–12 reflect that reported progress.
 
 **Arcade** is competition only. The owner prepays Kredits at exactly 0.01 SOL
 (10,000,000 lamports) each. Spending one Kredit routes:

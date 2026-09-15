@@ -11,7 +11,8 @@
     "ZKube.Core",
     "ZKube.Generated",
     "ZKube.Local",
-    "ZKube.Local.Runs"
+    "ZKube.Local.Runs",
+    "ZKube.Local.Presentation"
   ],
   "defineConstraints": [
     "!ZKUBE_STORE"

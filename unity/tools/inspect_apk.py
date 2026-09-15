@@ -65,6 +65,13 @@ def metadata_check(data):
         raise RuntimeError("Player contains managed test assemblies")
 
 
+def money_metadata_check(data):
+    metadata_check(data)
+    for token in (b"StoreRunClient", b"StoreCampaignPolicy", b"ZKube.Local.App.dll", b"ZKube.Local.App"):
+        if token + b"\x00" in data:
+            raise RuntimeError("Money player contains the store Daily client or policy")
+
+
 def manifest_nodes(dump):
     """Read aapt2's tree, retaining parentage so child attributes cannot satisfy a parent check."""
     nodes, stack = [], []
@@ -139,7 +146,7 @@ def inspect(apk, android_tools, expected_native):
     libraries = []
     with open_archive(apk) as archive:
         metadata = read_member(archive, "assets/bin/Data/Managed/Metadata/global-metadata.dat")
-        metadata_check(metadata)
+        money_metadata_check(metadata)
         if any(token in metadata for token in (b"Unity.Purchasing.dll\x00", b"UnityEngine.Purchasing\x00",
                                                b"ZKube.Local.Billing.dll\x00", b"ZKube.Local.Billing.Unity.dll\x00")):
             raise RuntimeError("Money APK contains store billing managed code")

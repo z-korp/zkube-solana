@@ -82,6 +82,13 @@ class StaticTests(unittest.TestCase):
                 metadata_check(name.encode() + b'.dll\x00')
         with self.assertRaises(RuntimeError): metadata_check(b'ZKube.Core.Tests.dll\x00')
 
+    def test_money_metadata_excludes_the_local_daily_and_store_policy(self):
+        from inspect_apk import money_metadata_check
+        money_metadata_check(b"LocalRunClient\x00CampaignRecordSync\x00")
+        for token in (b"StoreRunClient", b"StoreCampaignPolicy", b"ZKube.Local.App.dll"):
+            with self.subTest(token=token), self.assertRaises(RuntimeError):
+                money_metadata_check(token + b"\x00")
+
     def test_metadata_rejects_test_drivers_and_retired_diagnostics(self):
         self.assertIsNone(metadata_check(b"BoardPointer\x00"))
         for name in (b'BoardHarness', b'TestBoardPointer', b'BoardEvidenceHarness', b'BoardEvidenceData',

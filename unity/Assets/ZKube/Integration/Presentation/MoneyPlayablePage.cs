@@ -1,3 +1,4 @@
+using ZKube.Local;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -32,10 +33,10 @@ namespace ZKube.Integration.Presentation
         public Task ResumeCampaignRun() => boardHost == null ? Task.CompletedTask :
             OpenLocalCampaign(() => Flow.OpenSavedCampaign(), "Campaign");
 
-        private Task OpenLocalCampaign(Func<Task<MoneyRead<MoneyCampaignRun>>> action, string title) => RunCampaign(async (epoch, token) => {
+        private Task OpenLocalCampaign(Func<Task<MoneyRead<LocalBoardActionProvider>>> action, string title) => RunCampaign(async (epoch, token) => {
             var result = await action();
             if (!Current(epoch) || !result.IsCurrent) return;
-            boardHost.Open(result.Value, title, textScale);
+            boardHost.Open(result, title, textScale);
             RetireArtwork(); root.SetActive(false);
         });
 

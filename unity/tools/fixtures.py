@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Check or regenerate Unity native and program fixtures in order."""
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,31 +22,12 @@ def program_scenarios(action, env):
     print("Program integration scenarios: " + action + " passed")
 
 
-def profile_eligibility(action, env):
-    # Call the program's eligibility methods: the legacy money presentation
-    # once confused opening a realm with earning its guardian emblem.
-    result = subprocess.run(["cargo", "run", "--quiet", "-p", "solana", "--example", "profile-fixtures"],
-                            cwd=ROOT, env=env, stdout=subprocess.PIPE, check=True, timeout=180)
-    oracle = json.loads(result.stdout)
-    oracle["sources"] = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in (
-        "programs/solana/examples/profile-fixtures.rs", "programs/solana/src/state/protocol.rs",
-        "crates/zkube-core/src/campaign.rs")}
-    path = ROOT / "fixtures/unity-profile-eligibility-v1.json"
-    content = json.dumps(oracle, indent=2) + "\n"
-    if action == "generate":
-        path.write_text(content)
-    elif path.read_text() != content:
-        raise RuntimeError("Stale program profile eligibility fixture: " + str(path))
-    print("Profile eligibility: program oracle " + action + " passed")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("check", "generate"))
     args = parser.parse_args()
     env = dict(os.environ, NO_DNA="1")
     subprocess.run(["cargo", "run", "-p", "zkube-codegen", "--", args.action], cwd=ROOT, env=env, check=True)
-    profile_eligibility(args.action, env)
     program_scenarios(args.action, env)
     print(f"Unity fixtures: native and program integration scenarios {args.action} passed")
 

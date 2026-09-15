@@ -74,9 +74,7 @@ namespace ZKube.Integration.Client
             var arcade = arcadeEnvelope == null ? null : accounts.ArcadeConfig(arcadeEnvelope);
             var daily = dailyEnvelope == null ? null : accounts.ArenaDaily(dailyEnvelope, day);
             if (daily != null && protocol != null) ValidateDailyPublication(daily, protocol, day);
-            uint pair = NativeEngine.DailyPairIndex(day);
-            byte realm = checked((byte)(pair / Protocol.DailyThemes.Length + 1));
-            var theme = Protocol.DailyThemes[pair % Protocol.DailyThemes.Length];
+            var pair = NativeEngine.DailyPair(day);
             bool paused = protocol != null && (bool)protocol["paused"];
             bool suspended = arcade != null && day < (uint)arcade["suspended_until_day"];
             string status = protocol == null || arcade == null ? "missing-config"
@@ -85,21 +83,19 @@ namespace ZKube.Integration.Client
             // Missing publication/config has no invented funded pot or playable snapshot.
             bool published = protocol != null && arcade != null && daily != null;
             return new PublicDaily(day, slot, timestamp, status, suspended, paused,
-                realm, theme[0], theme[1], published ? AvailablePool(daily["ledger"]) : (ulong?)null,
+                pair.Realm, pair.Kind, pair.Value, published ? AvailablePool(daily["ledger"]) : (ulong?)null,
                 published ? daily : null);
         }
 
         internal static void ValidateDailyPublication(JObject daily, JObject protocol, uint day)
         {
-            uint pair = NativeEngine.DailyPairIndex(day);
-            byte realm = checked((byte)(pair / Protocol.DailyThemes.Length + 1));
-            var theme = Protocol.DailyThemes[pair % Protocol.DailyThemes.Length];
+            var pair = NativeEngine.DailyPair(day);
             if ((uint)daily["catalog_version"] != Protocol.CatalogVersion)
                 throw new FormatException("Daily catalog version is unsupported");
             if ((uint)daily["pressure"]["max_moves"] != Protocol.DailyMaxMoves)
                 throw new FormatException("Daily move limit differs from protocol: expected " + Protocol.DailyMaxMoves + ", observed " + (uint)daily["pressure"]["max_moves"]);
-            if ((byte)daily["map_id"] != realm || (byte)daily["daily_theme"]["kind"] != theme[0] ||
-                (byte)daily["daily_theme"]["value"] != theme[1])
+            if ((byte)daily["map_id"] != pair.Realm || (byte)daily["daily_theme"]["kind"] != pair.Kind ||
+                (byte)daily["daily_theme"]["value"] != pair.Value)
                 throw new FormatException("Daily content disagrees with the protocol draw");
         }
 

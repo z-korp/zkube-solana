@@ -13,7 +13,9 @@
     "ZKube.SolanaPrimitives",
     "ZKube.Local",
     "ZKube.Local.Runs",
-    "ZKube.Integration.Tests"
+    "ZKube.Integration.Tests",
+    "ZKube.Local.Presentation",
+    "ZKube.Presentation"
   ],
   "includePlatforms": [
     "Editor"

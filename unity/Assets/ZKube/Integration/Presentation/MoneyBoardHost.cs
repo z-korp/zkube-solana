@@ -20,7 +20,7 @@ namespace ZKube.Integration.Presentation
         private MoneyAppFlow flow;
         private Func<long> now;
         private MoneyRunHandle run;
-        private MoneyCampaignRun campaign;
+        private MoneyRead<LocalBoardActionProvider> campaign;
         private BoardController board;
         private CancellationTokenSource lifetime;
         private bool paused, observing, foregroundNeeded, settling, settlementAttempted, settled, frozenShown;
@@ -61,40 +61,19 @@ namespace ZKube.Integration.Presentation
             board.SetHostInputEnabled(!paused && !Frozen());
         }
 
-        public void Open(MoneyCampaignRun launch, string title, float textScale)
+        public void Open(MoneyRead<LocalBoardActionProvider> launch, string title, float textScale)
         {
-            if (flow == null || HasRun || !flow.CampaignIdentityCurrent(launch))
+            if (flow == null || HasRun || !launch.IsCurrent)
                 throw new InvalidOperationException("No current local run can be opened");
             campaign = launch; lifetime = new CancellationTokenSource(); generation++;
             settlementAttempted = settled = true;
             settling = observing = foregroundNeeded = frozenShown = false;
             terminalTitle = terminalBody = settlementError = null;
-            var provider = new LocalCampaignBoardActions(flow, launch);
             var root = new GameObject("Money local Campaign"); root.transform.SetParent(transform, false);
             board = root.AddComponent<BoardController>(); board.SetTextScale(textScale);
             board.TerminalPresenter = PresentTerminal; board.ExitRequested += Close;
-            board.Bind(new BoardSession(launch.View.Token, launch.View.Rules, provider, title, launch.View.Realm));
+            board.Bind(launch.Value.Bind(title));
             board.SetHostInputEnabled(!paused);
-        }
-
-        private sealed class LocalCampaignBoardActions : IBoardActionProvider, IBoardRecoveryProvider
-        {
-            private readonly MoneyAppFlow flow;
-            private readonly MoneyCampaignRun run;
-            private readonly LocalBoardActionProvider local;
-            public LocalCampaignBoardActions(MoneyAppFlow flow, MoneyCampaignRun run)
-            { this.flow = flow; this.run = run; local = new LocalBoardActionProvider(run.Runs, run.View); }
-            private void Current()
-            { if (!flow.CampaignIdentityCurrent(run)) throw new OperationCanceledException("Campaign owner changed"); }
-            public async Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
-            {
-                Current(); var result = await local.Submit(accepted, action, cancellation);
-                flow.CampaignChanged(run); Current(); return result;
-            }
-            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
-            { Current(); return local.ResolveVrf(accepted, cancellation); }
-            public Task<BoardActionResult> Recover(CancellationToken cancellation)
-            { Current(); return local.Recover(cancellation); }
         }
 
         private async Task<RunClientState> Execute(
@@ -111,10 +90,10 @@ namespace ZKube.Integration.Presentation
         }
 
         private bool Current(long epoch) => this != null && HasRun && epoch == generation &&
-            (campaign != null ? flow.CampaignIdentityCurrent(campaign) : flow.RunIdentityCurrent(run));
+            (campaign != null ? campaign.IsCurrent : flow.RunIdentityCurrent(run));
         private bool CurrentForeground(long epoch, long visit) => Current(epoch) &&
             visit == foregroundGeneration && !paused && isActiveAndEnabled;
-        private bool Frozen() => run != null && run.Mode == "daily" && now() >= run.DeadlineAt;
+        private bool Frozen() => run != null && now() >= run.DeadlineAt;
         private bool Terminal() => board?.State != null && (board.State.Phase == (byte)CorePhase.Finished ||
             board.State.Phase == (byte)CorePhase.LevelComplete);
 

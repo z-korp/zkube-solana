@@ -34,6 +34,31 @@ pub struct RunRules {
 }
 
 impl RunRules {
+    /// Compose an authored Campaign level from the core's realm, target and budget rules.
+    #[must_use]
+    pub fn campaign(
+        realm: crate::RealmRules,
+        level: u8,
+        tier: u8,
+        primary: crate::Constraint,
+        secondary: crate::Constraint,
+    ) -> Option<Self> {
+        let max_moves = crate::campaign_move_budget(level, tier)?;
+        let rules = Self {
+            guardian: realm.guardian,
+            starting_height: realm.starting_height,
+            max_moves,
+            tier: TierPolicy::Fixed(tier),
+            stars: Some(StarRules {
+                points_required: u32::from(crate::CAMPAIGN_TARGET_LADDER[usize::from(level - 1)]),
+                primary,
+                secondary,
+            }),
+            objective: None,
+        };
+        rules.is_valid().then_some(rules)
+    }
+
     #[must_use]
     pub fn is_valid(self) -> bool {
         let common = self.max_moves > 0

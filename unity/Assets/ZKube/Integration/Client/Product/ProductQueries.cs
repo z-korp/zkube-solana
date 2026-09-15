@@ -45,7 +45,7 @@ namespace ZKube.Integration.Client
             var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
             var player = Profile(lease.Owner, read);
             byte[] packed = player.Fields?["campaign_stars"].Values<byte>().ToArray() ?? new byte[25];
-            return CampaignProgress.FromStars(lease.Owner, Enumerable.Range(0, 100).Select(index => Stars(packed, index)).ToArray(), player);
+            return CampaignProgress.FromStars(lease.Owner, NativeEngine.CampaignProgress(packed).Stars, player);
         });
 
         public Task<ProductRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
@@ -143,7 +143,6 @@ namespace ZKube.Integration.Client
         }
         private PlayerProfile Profile(string owner, RpcAccount read) => new PlayerProfile(owner, read.Slot,
             read.Envelope == null ? null : accounts.PlayerState(read.Envelope, owner));
-        private static byte Stars(byte[] packed, int level) => (byte)((packed[level / 4] >> ((level % 4) * 2)) & 3);
         private long Clock() => PublicDailyQuery.ValidateClock(now());
         private static uint CurrentDay(long timestamp) => PublicDailyQuery.CurrentDay(timestamp);
         private static string DailyStatus(JObject daily, long timestamp) => PublicDailyQuery.DailyStatus(daily, timestamp);

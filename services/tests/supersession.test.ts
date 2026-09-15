@@ -34,6 +34,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /MoneyLocalCampaign|MoneyCampaignRun|LocalCampaignBoardActions|generateMapData|actual TS resolver|CatalogRules\(JObject|unity-profile-eligibility/,
+    trees: [UNITY_CLIENT],
+    reversal: "The shared Campaign client uses core progression and configuration; store Daily and money save synchronization each have one identity owner (2026-09-15)",
+  },
+  {
     pattern: /ZKUBE_EVIDENCE|ZKUBE_STANDALONE|BoardEvidenceHarness|BoardEvidenceData|EvidencePointer|BoardInputJourney|BoardFaultJourney|StoreStartupDiagnostic|OfflineCampaignStoreDriver|InitializeEvidence|evidenceLabel|ZKubeBoardEvidence|ZKubeProfilerEvidence|ZKubeBoardScene|StartupTestAccess/,
     trees: [UNITY_CLIENT],
     reversal: "Board input tests read Rust trajectories directly; runtime recording, diagnostic and alternate build paths are retired (2026-09-15)",

@@ -57,7 +57,7 @@ namespace ZKube.Integration.App.Tests
                 var row = e.Runs["cases"].Single(x => (string)x["id"] == "active-" + mode + "-playing");
                 Assert.That(actual.Phase, Is.EqualTo("delegated"));
                 CollectionAssert.AreEqual(Convert.FromBase64String((string)row["token"]["state"]), actual.Token.State);
-                Assert.That((await e.Services.RunMarkers.Load(e.Owner, mode)).ActiveRun, Is.EqualTo((string)row["address"]));
+                Assert.That((await e.Services.RunMarkers.Load(e.Owner)).ActiveRun, Is.EqualTo((string)row["address"]));
             }
             Assert.That(value.Session.Status, Is.EqualTo("none")); Assert.That(value.Pending, Is.Null);
             Assert.That(e.Native.Calls, Is.EqualTo(1)); e.AssertReadOnly(); await e.Flow.StopAsync();
@@ -159,13 +159,13 @@ namespace ZKube.Integration.App.Tests
         public async Task ActualConsumedArcadeReceiptClearsItsDurableMarkerThroughTheComposedDispatcher()
         {
             var e = new MoneyTestEnvironment(); e.UseDailyRun(); await e.Flow.Connect(e.Owner); await e.Flow.RefreshOwner();
-            var campaign = await e.Services.RunMarkers.Load(e.Owner, "daily");
+            var campaign = await e.Services.RunMarkers.Load(e.Owner);
             e.Http.Accounts.Remove(campaign.ActiveRun); e.Http.Delegated.Remove(campaign.ActiveRun); e.Http.Add(e.Runs["consumedPlayers"]["daily"]);
             await e.Services.Journal.Begin(new PendingTransaction(e.Owner, "consume-daily", e.Config.BaseUri, true,
                 Convert.FromBase64String((string)e.Runs["ownerConsume"]["daily"]), (string)e.Plans["inputs"]["blockhash"], 500));
             var result = (await e.Flow.ResumePending()).Value;
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
-            Assert.That(await e.Services.RunMarkers.Load(e.Owner, "daily"), Is.Null);
+            Assert.That(await e.Services.RunMarkers.Load(e.Owner), Is.Null);
             Assert.That(await e.Services.Journal.Load(e.Owner), Is.Null); e.AssertReadOnly(); await e.Flow.StopAsync();
         }
         [Test]

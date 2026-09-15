@@ -1,11 +1,26 @@
 {
   "name": "ZKube.Local.Runs.Tests",
   "rootNamespace": "ZKube.Local.Tests",
-  "references": ["ZKube.Local.Runs", "ZKube.Local", "ZKube.Core", "ZKube.Generated"],
-  "includePlatforms": ["Editor"],
-  "defineConstraints": ["UNITY_EDITOR"],
+  "references": [
+    "ZKube.Local.Runs",
+    "ZKube.Local",
+    "ZKube.Core",
+    "ZKube.Generated",
+    "ZKube.Local.App"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "defineConstraints": [
+    "UNITY_EDITOR"
+  ],
   "overrideReferences": true,
-  "precompiledReferences": ["Newtonsoft.Json.dll", "nunit.framework.dll"],
-  "optionalUnityReferences": ["TestAssemblies"],
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll",
+    "nunit.framework.dll"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
   "autoReferenced": false
 }

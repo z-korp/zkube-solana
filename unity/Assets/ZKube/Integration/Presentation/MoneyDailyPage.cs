@@ -82,7 +82,7 @@ namespace ZKube.Integration.Presentation
             return OpenRun(() => Flow.StartDailyRun(), "Daily");
         }
         public Task ResumeDailyRun() => !CanUseDaily() || boardHost == null ? Task.CompletedTask :
-            OpenRun(() => Flow.OpenSavedRun("daily"), "Daily");
+            OpenRun(() => Flow.OpenSavedRun(), "Daily");
 
         private void BeginDailyPanel()
         {

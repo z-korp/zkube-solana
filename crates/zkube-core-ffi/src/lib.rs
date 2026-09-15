@@ -105,11 +105,16 @@ pub unsafe extern "C" fn zkube_core_call(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zkube_core_wasm::native;
 
     #[test]
     fn rejected_calls_publish_nothing_and_query_is_explicit() {
         let request = [1u8, 0, 42, 0, 0, 0];
-        let mut output = [0xa5; 8];
+        let expected = native::dispatch(12, &request).unwrap();
+        let response_length = native::fields_len(native::DAILY_PAIR_FIELDS);
+        assert_eq!(expected.len(), response_length);
+        let mut output = vec![0xa5; response_length + 1];
+        let capacity = u32::try_from(output.len()).unwrap();
         let mut written = 0xface;
         // SAFETY: all buffers are live, initialized, disjoint and correctly sized.
         let status = unsafe {
@@ -118,12 +123,12 @@ mod tests {
                 request.as_ptr(),
                 6,
                 output.as_mut_ptr(),
-                3,
+                u32::try_from(response_length - 1).unwrap(),
                 &raw mut written,
             )
         };
         assert_eq!(status, 5);
-        assert_eq!(output, [0xa5; 8]);
+        assert_eq!(output, vec![0xa5; response_length + 1]);
         assert_eq!(written, 0xface);
         // SAFETY: live request/written and the documented null/zero size query.
         assert_eq!(
@@ -139,7 +144,7 @@ mod tests {
             },
             0
         );
-        assert_eq!(written, 4);
+        assert_eq!(usize::try_from(written).unwrap(), response_length);
         // SAFETY: disjoint live buffers with sufficient capacity.
         assert_eq!(
             unsafe {
@@ -148,17 +153,14 @@ mod tests {
                     request.as_ptr(),
                     6,
                     output.as_mut_ptr(),
-                    8,
+                    capacity,
                     &raw mut written,
                 )
             },
             0
         );
-        assert_eq!(
-            &output[..4],
-            &zkube_core_wasm::daily_pair_index(42).to_le_bytes()
-        );
-        assert_eq!(&output[4..], &[0xa5; 4]);
+        assert_eq!(&output[..response_length], expected);
+        assert_eq!(&output[response_length..], &[0xa5]);
     }
 
     #[test]

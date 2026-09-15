@@ -10,19 +10,19 @@ namespace ZKube.Integration
     {
         public string Owner { get; }
         public ulong RunId { get; }
-        public string Mode { get; }
+        public const string StorageKey = "daily";
         public string ActiveRun { get; }
         public string SessionSigner { get; }
         public string SessionToken { get; }
         public long ValidUntil { get; }
-        public RunMarker(string owner, ulong runId, string mode, string activeRun, string sessionSigner, string sessionToken, long validUntil)
+        public RunMarker(string owner, ulong runId, string activeRun, string sessionSigner, string sessionToken, long validUntil)
         {
-            if (runId == 0 || (mode != "daily")) throw new ArgumentException("Invalid run marker");
+            if (runId == 0) throw new ArgumentException("Invalid run marker");
             SolanaAddress.Bytes(owner); SolanaAddress.Bytes(activeRun);
             if ((sessionSigner == null) != (sessionToken == null) || validUntil < -9007199254740991L || validUntil > 9007199254740991L ||
                 (sessionSigner == null && validUntil != 0)) throw new FormatException("Invalid run marker session");
             if (sessionSigner != null) { SolanaAddress.Bytes(sessionSigner); SolanaAddress.Bytes(sessionToken); }
-            Owner = owner; RunId = runId; Mode = mode; ActiveRun = activeRun; SessionSigner = sessionSigner;
+            Owner = owner; RunId = runId; ActiveRun = activeRun; SessionSigner = sessionSigner;
             SessionToken = sessionToken; ValidUntil = validUntil;
         }
     }
@@ -118,6 +118,6 @@ namespace ZKube.Integration
 
         private static bool Matches(JObject run, RunMarker marker) => run != null && (string)run["owner"] == marker.Owner &&
             (ulong)run["run_id"] == marker.RunId &&
-            string.Equals(((JObject)run["mode"]).Properties().Single().Name, marker.Mode, StringComparison.OrdinalIgnoreCase);
+            string.Equals(((JObject)run["mode"]).Properties().Single().Name, RunMarker.StorageKey, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -28,7 +28,9 @@ fn daily_publication() -> Result<Value, String> {
     request.put("Day", &day.to_le_bytes());
     let actual = native::dispatch(request.operation, &request.bytes)
         .map_err(|status| format!("Daily publication native query rejected: {status}"))?;
-    if actual != pair_index.to_le_bytes() {
+    let mut expected = pair_index.to_le_bytes().to_vec();
+    expected.extend_from_slice(&[realm, objective.kind.tag(), objective.value]);
+    if actual != expected {
         return Err("Daily publication native query disagrees with core draw".into());
     }
     Ok(json!({
@@ -57,6 +59,105 @@ fn local_randomness_vectors() -> Result<Vec<Value>, String> {
             vectors.push(
                 json!({"seedHex": hex(&seed), "counter": counter, "outputHex": hex(&expected)}),
             );
+        }
+    }
+    Ok(vectors)
+}
+
+fn campaign_boundary_vectors(
+    catalog: &CampaignCatalog,
+    cases: &[Value],
+) -> Result<Vec<Value>, String> {
+    let mut vectors = Vec::new();
+    let mut record = |name: String, request: Request, expected: Vec<u8>| -> Result<(), String> {
+        let actual = native::dispatch(request.operation, &request.bytes)
+            .map_err(|status| format!("{name}: {status}"))?;
+        if actual != expected {
+            return Err(format!("{name}: native response differs from core"));
+        }
+        vectors.push(json!({"name": name, "operation": request.operation,
+            "requestHex": hex(&request.bytes), "responseHex": hex(&expected)}));
+        Ok(())
+    };
+    for day in (0..160).chain([20_705, u32::MAX]) {
+        let mut request = Request::new(12);
+        request.put("Day", &day.to_le_bytes());
+        let (realm, theme) = daily_pair(day);
+        let mut expected = u32::try_from(daily_pair_index(day))
+            .unwrap()
+            .to_le_bytes()
+            .to_vec();
+        expected.extend_from_slice(&[realm, theme.kind.tag(), theme.value]);
+        record(format!("daily-pair-{day}"), request, expected)?;
+    }
+    for value in [0, 1, 2, 3, 4, 16, 64, 85, 170, 192, 255] {
+        let stars =
+            zkube_core::CampaignStars::from_packed([value; zkube_core::CAMPAIGN_STAR_BYTES]);
+        let mut request = Request::new(23);
+        request.put("Stars", &stars.unpacked());
+        record(
+            format!("pack-stars-{value}"),
+            request,
+            stars.packed().to_vec(),
+        )?;
+        let mut request = Request::new(24);
+        request.put("Stars", &stars.packed());
+        record(
+            format!("progress-{value}"),
+            request,
+            native::encode_campaign_progress(stars),
+        )?;
+    }
+    for map in &catalog.maps {
+        for (index, level) in map.levels.iter().enumerate() {
+            let number = u8::try_from(index + 1).unwrap();
+            let mut request = Request::new(25);
+            request.put("Realm", &[map.map_id]);
+            request.put("Level", &[number]);
+            request.put("Tier", &[level.0]);
+            request.put("Primary", &level.1);
+            request.put("Secondary", &level.2);
+            let config = RunConfig {
+                rules: campaign_rules(map, number, *level, &catalog.difficulty_weights)?,
+                rules_hash: RulesHash([0; 32]),
+                initial_replay: ReplayCommitment([0; 32]),
+            };
+            record(
+                format!("campaign-rules-{}-{number}", map.map_id),
+                request,
+                native::encode_config_request(config),
+            )?;
+        }
+    }
+    for case in cases {
+        let text = case["finalStateHex"].as_str().unwrap();
+        let state = (0..text.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&text[i..i + 2], 16).map_err(|e| e.to_string()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let run = boundary::decode_run_state(&state).map_err(|error| format!("{error:?}"))?;
+        if !matches!(
+            run.engine.phase,
+            RunPhase::Finished | RunPhase::LevelComplete
+        ) {
+            continue;
+        }
+        for prior in [0, 3] {
+            let mut stars = zkube_core::CampaignStars::new();
+            stars.merge_level(1, 1, prior).unwrap();
+            let mut request = Request::new(26);
+            request.put("Stars", &stars.packed());
+            request.put("Realm", &[1]);
+            request.put("Level", &[1]);
+            request.put("State", &state);
+            stars
+                .merge_level(1, 1, run.engine.latched_star_count())
+                .unwrap();
+            record(
+                format!("record-{}-{prior}", case["name"].as_str().unwrap()),
+                request,
+                stars.packed().to_vec(),
+            )?;
         }
     }
     Ok(vectors)
@@ -255,41 +356,10 @@ impl Trajectory {
 }
 
 fn config_request(config: RunConfig) -> Request {
-    let mut r = Request::new(1);
-    r.put("RulesHash", config.rules_hash.as_bytes());
-    r.put("InitialReplay", config.initial_replay.as_bytes());
-    r.put("MaxMoves", &config.rules.max_moves.to_le_bytes());
-    r.put(
-        "BonusType",
-        &[match config.rules.guardian.bonus {
-            Bonus::Hammer => 1,
-            Bonus::Totem => 2,
-            Bonus::Wave => 3,
-        }],
-    );
-    r.put("Trigger", &[config.rules.guardian.trigger]);
-    r.put(
-        "TriggerThreshold",
-        &config.rules.guardian.threshold.to_le_bytes(),
-    );
-    r.put("StartingHeight", &[config.rules.starting_height]);
-    match config.rules.tier {
-        TierPolicy::Fixed(tier) => r.put("FixedTier", &[tier]),
-        TierPolicy::Pressure => r.put("TierPolicy", &[1]),
+    Request {
+        operation: 1,
+        bytes: native::encode_config_request(config),
     }
-    if let Some(stars) = config.rules.stars {
-        r.put("PointsRequired", &stars.points_required.to_le_bytes());
-        for (prefix, constraint) in [("Primary", stars.primary), ("Secondary", stars.secondary)] {
-            r.put(&format!("{prefix}Kind"), &[constraint.kind.tag()]);
-            r.put(&format!("{prefix}Value"), &[constraint.value]);
-            r.put(&format!("{prefix}Count"), &[constraint.required_count]);
-        }
-    }
-    if let Some(theme) = config.rules.objective {
-        r.put("ObjectiveKind", &[theme.kind.tag()]);
-        r.put("ObjectiveValue", &[theme.value]);
-    }
-    r
 }
 
 fn config(rules: RunRules, identity: u8) -> RunConfig {
@@ -717,7 +787,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         cases.push(t.finish());
     }
     serde_json::to_string_pretty(&json!({ "schemaVersion": 1, "coreVersion": CORE_VERSION,
-            "dailyPublication": daily_publication()?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
+            "campaignBoundary": campaign_boundary_vectors(catalog, &cases)?, "dailyPublication": daily_publication()?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
     .map(|s| s + "\n")
     .map_err(|e| e.to_string())
 }

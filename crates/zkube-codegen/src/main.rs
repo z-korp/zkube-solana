@@ -14,7 +14,7 @@ use zkube_core::{
     DAILY_PAIR_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES,
     ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_LABEL_ACCOUNT_VERSION,
     PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules,
-    SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS, StarRules, TierPolicy, campaign_move_budget,
+    SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -246,28 +246,27 @@ fn campaign_rules(
         3 => Bonus::Wave,
         value => return Err(format!("map {} has unknown bonus {value}", map.map_id)),
     };
-    Ok(RunRules {
-        guardian: Guardian {
-            bonus,
-            trigger: u8::try_from(map.rules[1])
-                .map_err(|_| format!("map {} trigger exceeds u8", map.map_id))?,
-            threshold: map.rules[2],
+    RunRules::campaign(
+        zkube_core::RealmRules {
+            guardian: Guardian {
+                bonus,
+                trigger: u8::try_from(map.rules[1])
+                    .map_err(|_| format!("map {} trigger exceeds u8", map.map_id))?,
+                threshold: map.rules[2],
+            },
+            starting_height: u8::try_from(map.rules[3])
+                .map_err(|_| format!("map {} starting rows exceed u8", map.map_id))?,
         },
-        starting_height: u8::try_from(map.rules[3])
-            .map_err(|_| format!("map {} starting rows exceed u8", map.map_id))?,
-        max_moves: campaign_move_budget(level_number, level.0).ok_or_else(|| {
-            format!(
-                "map {} level {level_number} cannot derive a move budget for tier {}",
-                map.map_id, level.0
-            )
-        })?,
-        tier: TierPolicy::Fixed(level.0),
-        stars: Some(StarRules {
-            points_required: u32::from(CAMPAIGN_TARGET_LADDER[usize::from(level_number - 1)]),
-            primary: constraint(level.1)?,
-            secondary: constraint(level.2)?,
-        }),
-        objective: None,
+        level_number,
+        level.0,
+        constraint(level.1)?,
+        constraint(level.2)?,
+    )
+    .ok_or_else(|| {
+        format!(
+            "map {} level {level_number} has invalid Campaign rules",
+            map.map_id
+        )
     })
 }
 

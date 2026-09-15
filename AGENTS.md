@@ -196,7 +196,7 @@ ladder tier boundaries, and the flat qualifying credit.
   `TIER_BLOCK_WEIGHTS` from the fixture's single `difficultyWeights` table; a
   Campaign level at tier N and a Daily at pressure tier N draw from exactly the
   same row. No account, level snapshot, or run snapshot stores block weights;
-  `campaign_and_daily_draw_from_one_tier_table` and the codegen check guard the
+  `CampaignAndDailyQueriesUseTheRustProgressionAndCatalogOwners` and the codegen check guard the
   boundary.
 - **Daily pressure is one uncapped score ramp and one clamped draw table.** The
   pressure tier is `pressure_score / 15`, its action multiplier is
@@ -243,8 +243,7 @@ ladder tier boundaries, and the flat qualifying credit.
 - **Theme is not Score.** `daily_score` is triangular action points;
   `objective_total` is a count attributable only to the day's fact and is never
   added to score or pressure. A player clearing carelessly wins Score; a player
-  who pursues the fact wins Theme. `theme_total_is_not_added_to_score` guards
-  the boundary.
+  who pursues the fact wins Theme.
 - **Classic pays 100% to Score, and that is derived rather than configured.**
   The Classic theme is the absent constraint kind and yields zero objective
   increments, so its theme
@@ -788,6 +787,24 @@ native operation; Campaign resume keeps the same row sequence. Client display
 policies have one C# owner, program account bounds are generated from the program,
 and share numbers use .NET formatting. `SharePreservesTheCallersPlatformFormatting`
 guards the share boundary. Unused provisional-board and spectator reads are removed.
+Campaign star packing, level availability, realm completion, emblem eligibility,
+and level configuration come from core operations over the native boundary.
+`CampaignAndDailyQueriesUseTheRustProgressionAndCatalogOwners` checks those
+responses against Rust fixtures, including the full Daily pair returned by op 12.
+`campaign_packing_roundtrips_and_local_results_preserve_the_maximum` and
+`campaign_eligibility_handles_sparse_saves_and_unsupported_emblems` guard the core.
+The shared local client exposes Campaign play. The store assembly extends it
+with the local UTC Daily and owns its purchase policy; the money assembly owns
+save merging and acknowledgement. `money_identity_cannot_start_a_local_daily`
+and `test_money_metadata_excludes_the_local_daily_and_store_policy` check the
+composition and shipped package. `store_gate_is_a_store_identity_policy_over_shared_progression`
+retains the store purchase boundary. Both identity constructors are covered by
+`campaign_seed_is_fresh_per_attempt_and_replays_on_resume` and
+`local_campaign_run_survives_process_death`.
+The chain run client has one Arcade path with no mode argument. The existing
+v1 Daily recovery locator remains readable. `AConsumedRunsReceiptCanFinishWithoutClaimingItsNewSuccessor`
+and `RunReceiptRejectsReuseWrongOwnerAndRunBeforeSending` retain the recovery and
+receipt boundaries.
 The root `assets/` directory owns the artwork and authored presentation inputs;
 Rust codegen emits its theme catalog for Unity imports.
 

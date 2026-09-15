@@ -1,8 +1,11 @@
 using System;
+using System.Linq;
+using ZKube.Core;
+using ZKube.Local;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ZKube.Local
+namespace ZKube.Integration.App
 {
     // The durable pending flag belongs to the play record. A failed or unknown
     // write is retried by merging again; duplicate submissions are harmless.
@@ -10,7 +13,8 @@ namespace ZKube.Local
     {
         private readonly object gate = new object();
         private readonly LocalProductStore product;
-        private readonly LocalRunClient runs;
+        public LocalProductStore Product => product;
+        public LocalRunClient Runs { get; }
         private readonly Func<CancellationToken, Task<byte[]>> read;
         private readonly Func<byte[], CancellationToken, Task<bool>> writeWhenReady;
         private Task attempt = Task.CompletedTask;
@@ -21,7 +25,27 @@ namespace ZKube.Local
 
         public CampaignRecordSync(LocalProductStore product, LocalRunClient runs,
             Func<CancellationToken, Task<byte[]>> read, Func<byte[], CancellationToken, Task<bool>> writeWhenReady)
-        { this.product = product; this.runs = runs; this.read = read; this.writeWhenReady = writeWhenReady; }
+        { this.product = product; Runs = runs; this.read = read; this.writeWhenReady = writeWhenReady; }
+
+        public byte[] PackedCampaignStars() => NativeEngine.PackCampaignStars(product.Read.Stars);
+        public void MergeCampaignRecord(byte[] chainStars)
+        {
+            product.WriteCampaign(current => {
+                var merged = NativeEngine.MergeCampaignStars(NativeEngine.PackCampaignStars(current.Stars), chainStars);
+                var next = Copy(current); next.Stars = NativeEngine.CampaignProgress(merged).Stars;
+                next.CampaignWritePending = !merged.SequenceEqual(chainStars);
+                return next;
+            });
+        }
+        public void AcknowledgeCampaignRecord(byte[] submitted)
+        {
+            product.WriteCampaign(current => {
+                var next = Copy(current);
+                next.CampaignWritePending = !NativeEngine.PackCampaignStars(next.Stars).SequenceEqual(submitted);
+                return next;
+            });
+        }
+        private static LocalProductState Copy(LocalProductState current) => LocalProductCodec.Decode(LocalProductCodec.Encode(current));
 
         public void Start(CancellationToken cancellation, CancellationToken shutdown = default)
         {
@@ -56,11 +80,11 @@ namespace ZKube.Local
                 LastError = null;
                 var chain = await read(cancellation).ConfigureAwait(false);
                 cancellation.ThrowIfCancellationRequested();
-                runs.MergeCampaignRecord(chain);
+                MergeCampaignRecord(chain);
                 if (!product.Read.CampaignWritePending) return;
-                var submitted = runs.PackedCampaignStars();
+                var submitted = PackedCampaignStars();
                 if (await writeWhenReady(submitted, cancellation).ConfigureAwait(false))
-                    runs.AcknowledgeCampaignRecord(submitted);
+                    AcknowledgeCampaignRecord(submitted);
             }
             catch (Exception error) { LastError = error; }
         }

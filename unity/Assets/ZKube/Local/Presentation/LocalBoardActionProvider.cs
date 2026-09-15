@@ -13,6 +13,8 @@ namespace ZKube.Local
         private readonly object gate = new object();
         private readonly LocalRunClient client;
         private readonly LocalRunView initial;
+        private readonly Func<bool> identityCurrent;
+        private readonly Action acceptedAction;
         private CoreRunToken delivered;
         private LocalRunUpdate retained;
         private int cursor;
@@ -24,8 +26,9 @@ namespace ZKube.Local
 
         public LocalBoardActionProvider(LocalRunClient client, LocalRunUpdate initial, Exception persistenceFailure = null)
             : this(client, initial?.View, persistenceFailure) { }
-        public LocalBoardActionProvider(LocalRunClient client, LocalRunView initial, Exception persistenceFailure = null)
+        public LocalBoardActionProvider(LocalRunClient client, LocalRunView initial, Exception persistenceFailure = null, Func<bool> identityCurrent = null, Action acceptedAction = null)
         {
+            this.identityCurrent = identityCurrent; this.acceptedAction = acceptedAction;
             this.client = client ?? throw new ArgumentNullException(nameof(client));
             this.initial = initial ?? throw new ArgumentNullException(nameof(initial));
             delivered = initial.Token; PersistenceFailure = persistenceFailure;
@@ -38,7 +41,7 @@ namespace ZKube.Local
         {
             lock (gate)
             {
-                cancellation.ThrowIfCancellationRequested();
+                cancellation.ThrowIfCancellationRequested(); RequireIdentity();
                 RequireDelivered(accepted);
                 if (recoveryRequired || retained != null) throw new InvalidOperationException("Observe the accepted local action before another gesture");
                 LocalRunUpdate update;
@@ -56,6 +59,7 @@ namespace ZKube.Local
                     }
                     throw;
                 }
+                acceptedAction?.Invoke(); RequireIdentity();
                 retained = update; cursor = 0;
                 try { ValidateTraceChain(accepted, update); }
                 catch { recoveryRequired = true; throw; }
@@ -66,7 +70,7 @@ namespace ZKube.Local
         {
             lock (gate)
             {
-                cancellation.ThrowIfCancellationRequested(); RequireDelivered(accepted);
+                cancellation.ThrowIfCancellationRequested(); RequireIdentity(); RequireDelivered(accepted);
                 if (recoveryRequired || retained == null || NativeEngine.Summary(accepted).Phase != (byte)CorePhase.AwaitingVrf)
                     throw new InvalidOperationException("No accepted local row is awaiting delivery");
                 var observed = BoundObservation();
@@ -79,7 +83,7 @@ namespace ZKube.Local
         {
             lock (gate)
             {
-                cancellation.ThrowIfCancellationRequested();
+                cancellation.ThrowIfCancellationRequested(); RequireIdentity();
                 var observed = BoundObservation();
                 retained = null; cursor = 0;
                 if (observed == null) { recoveryRequired = true; return Task.FromResult<BoardActionResult>(null); }
@@ -87,8 +91,11 @@ namespace ZKube.Local
                 return Task.FromResult(BoardActionResult.Snapshot(delivered));
             }
         }
+        private void RequireIdentity()
+        { if (identityCurrent != null && !identityCurrent()) throw new OperationCanceledException("Campaign owner changed"); }
         private LocalRunView BoundObservation()
         {
+            RequireIdentity();
             var observed = client.Observe(initial.RunId);
             if (observed == null || observed.Mode != initial.Mode || !observed.Token.Config.SequenceEqual(initial.Token.Config)) return null;
             var selected = client.Active(initial.Mode);

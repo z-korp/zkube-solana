@@ -20,7 +20,7 @@ namespace ZKube.Integration.App
         public Task<MoneyRead<MoneyDailyState>> RefreshDaily(CancellationToken cancellation = default) =>
             ReadOwnerProduct(cancellation, async (lease, token) => {
                 var lobby = await services.Products.CurrentDaily(token).ConfigureAwait(false);
-                var run = await services.Runs.Inspect("daily", token).ConfigureAwait(false);
+                var run = await services.Runs.Inspect(token).ConfigureAwait(false);
                 var readiness = await services.EntryReadiness.Read(token).ConfigureAwait(false);
                 if (lobby.Value.DayId != readiness.Value.DayId)
                     throw new OperationCanceledException("UTC Daily changed during refresh");
@@ -35,13 +35,13 @@ namespace ZKube.Integration.App
                 var readiness = await services.EntryReadiness.Read(token).ConfigureAwait(false);
                 if (!readiness.Value.Ready)
                     throw new InvalidOperationException("Daily entry is unavailable: " + readiness.Value.Status);
-                var occupied = await services.Runs.Inspect("daily", token).ConfigureAwait(false);
+                var occupied = await services.Runs.Inspect(token).ConfigureAwait(false);
                 if (occupied.Phase != "none")
                     throw new InvalidOperationException("Resume the saved Daily run first");
                 token.ThrowIfCancellationRequested();
-                var first = await CaptureRun(lease, "daily", null, scope =>
+                var first = await CaptureRun(lease, null, scope =>
                     services.Runs.StartDaily(token, scope)).ConfigureAwait(false);
-                return await OpenAcceptedRun(lease, "daily", first, token).ConfigureAwait(false);
+                return await OpenAcceptedRun(lease, first, token).ConfigureAwait(false);
             });
     }
 }

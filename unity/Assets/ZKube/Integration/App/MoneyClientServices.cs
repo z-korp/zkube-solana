@@ -78,7 +78,6 @@ namespace ZKube.Integration.App
                 throw new MoneyConfigurationException("generated-schemas-unavailable");
             if (http == null || native == null || storage == null || now == null) throw new ArgumentNullException("platform dependencies");
             campaignStore = localCampaignStore ?? throw new ArgumentNullException(nameof(localCampaignStore));
-            campaignClock = now;
             Protocol = new ProtocolBindings(solanaJson);
             Tokens = new SessionTokenBindings(sessionJson);
             Accounts = new AccountBindings(solanaJson, ZKube.Core.Generated.Protocol.PlayerStateAccountVersion,

@@ -12,20 +12,20 @@ namespace ZKube.Integration.Client.Runs.Tests
             foreach (string mode in new[] { "daily" })
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished"; env.Http.Delegated.Remove(mode);
-                var initial = await env.Client.Inspect(mode);
+                var initial = await env.Client.Inspect();
                 var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
                 env.Http.SuccessorAfterConsume = true; env.Http.Confirmed = false;
-                await Fails<RunExecutionException>(async () => await env.Client.FinishAndSettle(mode, binding));
+                await Fails<RunExecutionException>(async () => await env.Client.FinishAndSettle(binding));
                 var pending = await env.Journal.Load(env.Owner); Assert.That(pending, Is.Not.Null);
                 env.Http.Confirmed = true;
-                var receipt = new RunOperationReceipts(env.Owner, mode, binding.Address);
-                var recovered = await env.Client.Recover(mode, binding, receipts: receipt);
+                var receipt = new RunOperationReceipts(env.Owner, binding.Address);
+                var recovered = await env.Client.Recover(binding, receipts: receipt);
                 Assert.That(recovered.Phase, Is.EqualTo("consumed")); Assert.That(recovered.Token, Is.Null);
                 Assert.That(receipt.Steps.Single().Address, Is.EqualTo(binding.Address));
                 Assert.That(receipt.Steps.Single().Result.Signature, Is.EqualTo(pending.Signature));
                 Assert.That(receipt.Steps.Single().Result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
                 Assert.That(await env.Journal.Load(env.Owner), Is.Null);
-                Assert.That((await env.Markers.Load(env.Owner, mode)).ActiveRun, Is.EqualTo((string)env.Http.Runs["successor"]["address"]));
+                Assert.That((await env.Markers.Load(env.Owner)).ActiveRun, Is.EqualTo((string)env.Http.Runs["successor"]["address"]));
                 Assert.That(env.Http.SentTransactions.Count, Is.EqualTo(1));
             }
         }

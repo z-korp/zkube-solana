@@ -70,7 +70,7 @@ namespace ZKube.Local.Billing
         public Exception LastFulfillmentError { get; private set; }
         public bool Busy => active;
 
-        // Production composition passes LocalRunClient.ApplyCampaignEntitlement,
+        // Production composition passes the store entitlement writer,
         // preserving the existing normalized local persistence/run-lock boundary.
         public CampaignBilling(ICampaignStoreDriver driver, Func<CampaignBillingAnswer> cached,
                                Action<bool, string> applySuccessfulAnswer)

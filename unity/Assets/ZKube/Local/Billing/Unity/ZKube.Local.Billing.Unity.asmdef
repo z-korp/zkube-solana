@@ -1,7 +1,13 @@
 {
   "name": "ZKube.Local.Billing.Unity",
   "rootNamespace": "ZKube.Local.Billing",
-  "references": ["ZKube.Local.Billing", "ZKube.Local", "ZKube.Local.Runs", "Unity.Purchasing"],
-  "defineConstraints": ["UNITY_EDITOR || ZKUBE_STORE"],
+  "references": [
+    "ZKube.Local.Billing",
+    "ZKube.Local",
+    "Unity.Purchasing"
+  ],
+  "defineConstraints": [
+    "UNITY_EDITOR || ZKUBE_STORE"
+  ],
   "autoReferenced": true
 }

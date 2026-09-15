@@ -28,7 +28,6 @@ namespace ZKube.Integration.App
         internal readonly IdentityLease Identity;
         public RunPresentationBinding Binding { get; }
         public string Owner => Binding.Owner;
-        public string Mode => Binding.Mode;
         public string Address => Binding.Address;
         public long DeadlineAt => Binding.DeadlineAt;
         private MoneyRunOperation lastOperation;
@@ -77,19 +76,19 @@ namespace ZKube.Integration.App
 
         // Explicit Resume observes first, then continues only this accepted run.
         // A missing account/slot remains a waiting or navigation result.
-        public Task<MoneyRead<MoneyRunLaunch>> OpenSavedRun(string mode, CancellationToken cancellation = default) =>
+        public Task<MoneyRead<MoneyRunLaunch>> OpenSavedRun(CancellationToken cancellation = default) =>
             WithRunOwner(null, cancellation, async (lease, token) => {
-                var state = await services.Runs.Inspect(mode, token).ConfigureAwait(false);
+                var state = await services.Runs.Inspect(token).ConfigureAwait(false);
                 var first = new MoneyRunOperation(state, null, Array.Empty<RunExecutionReceipt>());
                 if (state.Account == null) return new MoneyRunLaunch(null, first);
                 var handle = new MoneyRunHandle(lease, state, new ActiveRunReconciler(services.Accounts));
                 if (await services.Journal.Load(lease.Owner).ConfigureAwait(false) != null)
-                    first = await CaptureRun(lease, mode, handle.Address, scope =>
-                        services.Runs.Recover(mode, handle.Binding, token, scope)).ConfigureAwait(false);
-                return await OpenAcceptedRun(lease, mode, first, token, handle).ConfigureAwait(false);
+                    first = await CaptureRun(lease, handle.Address, scope =>
+                        services.Runs.Recover(handle.Binding, token, scope)).ConfigureAwait(false);
+                return await OpenAcceptedRun(lease, first, token, handle).ConfigureAwait(false);
             });
 
-        private async Task<MoneyRunLaunch> OpenAcceptedRun(IdentityLease lease, string mode, MoneyRunOperation first,
+        private async Task<MoneyRunLaunch> OpenAcceptedRun(IdentityLease lease, MoneyRunOperation first,
             CancellationToken token, MoneyRunHandle handle = null)
         {
             if (first.State?.Account != null && handle == null)
@@ -98,8 +97,8 @@ namespace ZKube.Integration.App
             if (handle != null && first.Error == null && first.State?.Token != null &&
                 NativeEngine.Summary(first.State.Token).Phase == (byte)CorePhase.AwaitingVrf)
             {
-                var opening = await CaptureRun(lease, mode, handle.Address, scope =>
-                    services.Runs.ResolveVrf(mode, handle.Binding, token, scope)).ConfigureAwait(false);
+                var opening = await CaptureRun(lease, handle.Address, scope =>
+                    services.Runs.ResolveVrf(handle.Binding, token, scope)).ConfigureAwait(false);
                 operation = new MoneyRunOperation(opening.State, opening.Error, first.Receipts.Concat(opening.Receipts));
             }
             handle?.Record(operation); return new MoneyRunLaunch(handle, operation);
@@ -107,7 +106,7 @@ namespace ZKube.Integration.App
 
         public Task<MoneyRead<MoneyRunOperation>> ObserveBoundRun(MoneyRunHandle run, CancellationToken cancellation = default) =>
             WithRunOwner(run, cancellation, async (lease, token) => {
-                var observed = await services.Runs.Inspect(run.Mode, token).ConfigureAwait(false);
+                var observed = await services.Runs.Inspect(token).ConfigureAwait(false);
                 if (observed.Account != null) run.Binding.Accept(observed);
                 else if (observed.Marker != null) run.Binding.RequireIdentity(observed.Marker.Owner, observed.Marker.ActiveRun);
                 return new MoneyRunOperation(observed, null, Array.Empty<RunExecutionReceipt>());
@@ -118,28 +117,28 @@ namespace ZKube.Integration.App
             BoundRun(run, cancellation, (token, scope) => {
                 // This UI boundary never substitutes freeze for abandon/settle.
                 // The existing protocol still verifies the actual action time.
-                if (run.Mode == "daily" && observedNow >= run.DeadlineAt)
+                if (observedNow >= run.DeadlineAt)
                     throw new InvalidOperationException("Daily entry is frozen; check its accepted result");
-                return services.Runs.Apply(run.Mode, accepted, run.Binding, action, row, start, destination, token, scope);
+                return services.Runs.Apply(accepted, run.Binding, action, row, start, destination, token, scope);
             });
         public Task<MoneyRead<MoneyRunOperation>> ResolveRun(MoneyRunHandle run, CancellationToken cancellation = default) =>
-            BoundRun(run, cancellation, (token, scope) => services.Runs.ResolveVrf(run.Mode, run.Binding, token, scope));
+            BoundRun(run, cancellation, (token, scope) => services.Runs.ResolveVrf(run.Binding, token, scope));
         public Task<MoneyRead<MoneyRunOperation>> RecoverRun(MoneyRunHandle run, CancellationToken cancellation = default) =>
-            BoundRun(run, cancellation, (token, scope) => services.Runs.Recover(run.Mode, run.Binding, token, scope));
+            BoundRun(run, cancellation, (token, scope) => services.Runs.Recover(run.Binding, token, scope));
         public Task<MoneyRead<MoneyRunOperation>> SettleRun(MoneyRunHandle run, CancellationToken cancellation = default) =>
             WithRunOwner(run, cancellation, async (lease, token) => {
                 MoneyRunOperation prior = null;
                 if (await services.Journal.Load(lease.Owner).ConfigureAwait(false) != null)
                 {
-                    prior = await CaptureRun(lease, run.Mode, run.Address, scope =>
-                        services.Runs.Recover(run.Mode, run.Binding, token, scope)).ConfigureAwait(false);
+                    prior = await CaptureRun(lease, run.Address, scope =>
+                        services.Runs.Recover(run.Binding, token, scope)).ConfigureAwait(false);
                     // Retry is an explicit reconciliation first. It cannot send
                     // another intent while confirmation or copy-back is pending.
                     if (prior.Error != null || prior.State?.Token == null)
                     { run.Record(prior); return prior; }
                 }
-                var next = await CaptureRun(lease, run.Mode, run.Address, scope =>
-                    services.Runs.FinishAndSettle(run.Mode, run.Binding, token, scope)).ConfigureAwait(false);
+                var next = await CaptureRun(lease, run.Address, scope =>
+                    services.Runs.FinishAndSettle(run.Binding, token, scope)).ConfigureAwait(false);
                 var result = prior == null ? next : new MoneyRunOperation(next.State, next.Error, prior.Receipts.Concat(next.Receipts));
                 run.Record(result); return result;
             });
@@ -147,16 +146,16 @@ namespace ZKube.Integration.App
         private Task<MoneyRead<MoneyRunOperation>> BoundRun(MoneyRunHandle run, CancellationToken cancellation,
             Func<CancellationToken, RunOperationReceipts, Task<RunClientState>> action) =>
             WithRunOwner(run, cancellation, async (lease, token) => {
-                var result = await CaptureRun(lease, run.Mode, run.Address, scope => action(token, scope)).ConfigureAwait(false);
+                var result = await CaptureRun(lease, run.Address, scope => action(token, scope)).ConfigureAwait(false);
                 // Store before cancellation/publication checks, scoped to this
                 // handle. A late callback never becomes another owner's receipt.
                 run.Record(result); return result;
             });
 
-        private async Task<MoneyRunOperation> CaptureRun(IdentityLease lease, string mode, string address,
+        private async Task<MoneyRunOperation> CaptureRun(IdentityLease lease, string address,
             Func<RunOperationReceipts, Task<RunClientState>> action)
         {
-            var scope = new RunOperationReceipts(lease.Owner, mode, address);
+            var scope = new RunOperationReceipts(lease.Owner, address);
             RunClientState state = null; Exception failure = null;
             try { state = await action(scope).ConfigureAwait(false); }
             catch (Exception error) { failure = error; }

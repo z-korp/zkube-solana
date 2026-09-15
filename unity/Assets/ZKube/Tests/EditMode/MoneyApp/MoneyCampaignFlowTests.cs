@@ -9,19 +9,31 @@ namespace ZKube.Integration.App.Tests
 {
     public sealed class MoneyCampaignFlowTests
     {
+        [Test] public async Task money_identity_cannot_start_a_local_daily()
+        {
+            var e = new MoneyTestEnvironment();
+            await e.Flow.Connect(e.Owner);
+            var client = e.Services.Campaign(e.Owner).Runs;
+            Assert.That(client.GetType(), Is.EqualTo(typeof(LocalRunClient)));
+            Assert.That(client.GetType().GetMethod("StartDaily"), Is.Null);
+            Assert.That(client.GetType().GetMethod("Today"), Is.Null);
+            await e.Flow.StopAsync(); e.AssertReadOnly();
+        }
+
         [Test] public async Task money_campaign_needs_an_address_and_no_session()
         {
             var e = new MoneyTestEnvironment();
             await MoneyTestEnvironment.Fails<InvalidOperationException>(async () => await e.Flow.StartCampaignRun(1, 1));
             await e.Flow.Connect(e.Owner);
-            var run = (await e.Flow.StartCampaignRun(1, 1)).Value;
-            Assert.That(run.View.Mode, Is.EqualTo("campaign"));
+            var run = await e.Flow.StartCampaignRun(1, 1);
+            Assert.That(run.Value.AcceptedSnapshot, Is.Not.Null);
             Assert.That(e.Native.KeyLoads, Is.Zero);
             var browse = await e.Flow.RefreshCampaign();
             Assert.That(browse.Value.Browse.Realms.Count, Is.EqualTo(10));
-            CollectionAssert.AreEqual(run.View.Token.State, (await e.Flow.OpenSavedCampaign()).Value.View.Token.State);
+            CollectionAssert.AreEqual(run.Value.AcceptedSnapshot.State, (await e.Flow.OpenSavedCampaign()).Value.AcceptedSnapshot.State);
             await e.Flow.Disconnect();
-            Assert.That(e.Flow.CampaignIdentityCurrent(run), Is.False);
+            Assert.That(run.IsCurrent, Is.False);
+            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await run.Value.Recover(CancellationToken.None));
             Assert.That(browse.IsCurrent, Is.False);
             e.AssertReadOnly(); await e.Flow.StopAsync();
         }
@@ -34,7 +46,7 @@ namespace ZKube.Integration.App.Tests
             e.Http.Release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             await e.Flow.Connect(e.Owner); await e.Http.Entered.Task;
             var local = e.Services.Campaign(e.Owner);
-            local.Runs.MergeCampaignRecord(new byte[25] { 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 });
+            local.MergeCampaignRecord(new byte[25] { 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 });
             var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var sync = new CampaignRecordSync(local.Product, local.Runs, _ => Task.FromResult(new byte[25]),
@@ -44,7 +56,7 @@ namespace ZKube.Integration.App.Tests
             {
                 var pending = e.Purchase(); await e.Services.Journal.Begin(pending);
                 var run = await e.Flow.StartCampaignRun(1, 1);
-                Assert.That(run.Value.View.Mode, Is.EqualTo("campaign"));
+                Assert.That(run.Value.AcceptedSnapshot, Is.Not.Null);
                 Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
                 var result = await e.Services.Executor.Resume(e.Owner, e.Services.Dispatcher);
                 Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);

@@ -5,6 +5,12 @@ pub const CAMPAIGN_STAR_BYTES: usize = CAMPAIGN_TOTAL_LEVELS / 4;
 pub const CAMPAIGN_MAX_STARS: u16 = 300;
 const CAMPAIGN_MAP_COUNT_U8: u8 = 10;
 const CAMPAIGN_LEVELS_PER_MAP_U8: u8 = 10;
+pub const EMBLEM_AUTO: u8 = 0;
+pub const EMBLEM_FIRST_GUARDIAN: u8 = 1;
+pub const EMBLEM_LAST_GUARDIAN: u8 = CAMPAIGN_MAP_COUNT_U8;
+pub const EMBLEM_REALM_CONQUEROR: u8 = EMBLEM_LAST_GUARDIAN + 1;
+pub const EMBLEM_WORLD_PERFECT: u8 = EMBLEM_REALM_CONQUEROR + 1;
+pub const CAMPAIGN_EMBLEM_COUNT: usize = EMBLEM_WORLD_PERFECT as usize + 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CampaignStarsError {
@@ -37,6 +43,74 @@ impl CampaignStars {
     #[must_use]
     pub const fn packed(self) -> [u8; CAMPAIGN_STAR_BYTES] {
         self.packed
+    }
+
+    /// Pack the local save's unpacked star values.
+    ///
+    /// # Errors
+    /// Rejects a value outside the two-bit star range.
+    pub fn from_unpacked(stars: [u8; CAMPAIGN_TOTAL_LEVELS]) -> Result<Self, CampaignStarsError> {
+        let mut packed = [0; CAMPAIGN_STAR_BYTES];
+        for (index, stars) in stars.into_iter().enumerate() {
+            if stars > 3 {
+                return Err(CampaignStarsError::InvalidStars);
+            }
+            packed[index / 4] |= stars << ((index % 4) * 2);
+        }
+        Ok(Self::from_packed(packed))
+    }
+
+    #[must_use]
+    pub fn unpacked(self) -> [u8; CAMPAIGN_TOTAL_LEVELS] {
+        core::array::from_fn(|index| (self.packed[index / 4] >> ((index % 4) * 2)) & 3)
+    }
+
+    /// Merge one local result, including a zero-star attempt, by lifetime maximum.
+    ///
+    /// # Errors
+    /// Rejects an invalid map, level or star count.
+    pub fn merge_level(&mut self, map: u8, level: u8, stars: u8) -> Result<u8, CampaignStarsError> {
+        if stars > 3 {
+            return Err(CampaignStarsError::InvalidStars);
+        }
+        let index = level_index(map, level)?;
+        let previous = self.best(map, level)?;
+        let next = previous.max(stars);
+        let shift = (index % 4) * 2;
+        self.packed[index / 4] = (self.packed[index / 4] & !(3 << shift)) | (next << shift);
+        Ok(next - previous)
+    }
+
+    #[must_use]
+    pub fn emblem_unlocked(&self, id: u8) -> bool {
+        match id {
+            EMBLEM_AUTO => true,
+            EMBLEM_FIRST_GUARDIAN..=EMBLEM_LAST_GUARDIAN => self.zone_cleared(id),
+            EMBLEM_REALM_CONQUEROR => self.all_guardians_cleared(),
+            EMBLEM_WORLD_PERFECT => self.world_perfected(),
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn strongest_emblem(&self) -> u8 {
+        (EMBLEM_FIRST_GUARDIAN..=EMBLEM_WORLD_PERFECT)
+            .rev()
+            .find(|id| self.emblem_unlocked(*id))
+            .unwrap_or(EMBLEM_AUTO)
+    }
+
+    #[must_use]
+    pub fn emblem_gold(&self, id: u8) -> bool {
+        match id {
+            EMBLEM_AUTO => {
+                let strongest = self.strongest_emblem();
+                strongest != EMBLEM_AUTO && self.emblem_gold(strongest)
+            }
+            EMBLEM_FIRST_GUARDIAN..=EMBLEM_LAST_GUARDIAN => self.zone_perfected(id),
+            EMBLEM_REALM_CONQUEROR | EMBLEM_WORLD_PERFECT => self.world_perfected(),
+            _ => false,
+        }
     }
 
     /// Merge a self-attested cosmetic record by each level's lifetime maximum.
@@ -121,18 +195,11 @@ impl CampaignStars {
         if !(1..=3).contains(&stars) {
             return Err(CampaignStarsError::InvalidStars);
         }
-        let index = level_index(map_id, level_id)?;
+        level_index(map_id, level_id)?;
         if !self.level_unlocked(map_id, level_id) {
             return Err(CampaignStarsError::Locked);
         }
-        let previous = self.best(map_id, level_id)?;
-        let next = previous.max(stars);
-        if next != previous {
-            let shift = (index % 4) * 2;
-            let mask = !(0b11 << shift);
-            self.packed[index / 4] = (self.packed[index / 4] & mask) | (next << shift);
-        }
-        Ok(next - previous)
+        self.merge_level(map_id, level_id, stars)
     }
 }
 
@@ -157,6 +224,59 @@ fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignStarsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn campaign_packing_roundtrips_and_local_results_preserve_the_maximum() {
+        for value in 0..=u8::MAX {
+            let packed = CampaignStars::from_packed([value; CAMPAIGN_STAR_BYTES]);
+            assert_eq!(CampaignStars::from_unpacked(packed.unpacked()), Ok(packed));
+        }
+        assert_eq!(
+            CampaignStars::from_unpacked([4; CAMPAIGN_TOTAL_LEVELS]),
+            Err(CampaignStarsError::InvalidStars)
+        );
+        let mut record = CampaignStars::new();
+        assert_eq!(record.merge_level(10, 10, 2), Ok(2));
+        for stars in [0, 1, 2] {
+            assert_eq!(record.merge_level(10, 10, stars), Ok(0));
+        }
+        assert_eq!(record.best(10, 10), Ok(2));
+        let before = record;
+        for (map, level, stars) in [(0, 1, 1), (11, 1, 1), (1, 0, 1), (1, 11, 1), (1, 1, 4)] {
+            assert!(record.merge_level(map, level, stars).is_err());
+            assert_eq!(record, before);
+        }
+    }
+
+    #[test]
+    fn campaign_eligibility_handles_sparse_saves_and_unsupported_emblems() {
+        let mut record = CampaignStars::new();
+        assert!(record.emblem_unlocked(EMBLEM_AUTO));
+        assert!(!record.emblem_gold(EMBLEM_AUTO));
+        for map in 1..=10 {
+            record.merge_level(map, 10, 1).unwrap();
+            assert!(record.emblem_unlocked(map));
+            assert!(!record.zone_perfected(map));
+            assert_eq!(
+                record.strongest_emblem(),
+                if map == 10 {
+                    EMBLEM_REALM_CONQUEROR
+                } else {
+                    map
+                }
+            );
+        }
+        assert!(record.all_guardians_cleared());
+        assert!(!record.world_perfected());
+        assert_eq!(record.total(), 10);
+        for id in 13..=u8::MAX {
+            assert!(!record.emblem_unlocked(id));
+            assert!(!record.emblem_gold(id));
+        }
+        let perfect = CampaignStars::from_packed([255; CAMPAIGN_STAR_BYTES]);
+        assert_eq!(perfect.strongest_emblem(), EMBLEM_WORLD_PERFECT);
+        assert!(perfect.emblem_gold(EMBLEM_AUTO));
+    }
 
     #[test]
     fn campaign_stars_merge_per_level_maximum_and_never_decrease() {

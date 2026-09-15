@@ -20,11 +20,10 @@ pub const LEVELS_PER_MAP: usize = zkube_core::CAMPAIGN_LEVELS_PER_MAP;
 pub const CAMPAIGN_LEVEL_COUNT: usize = zkube_core::CAMPAIGN_TOTAL_LEVELS;
 pub const CAMPAIGN_STAR_BYTES: usize = zkube_core::CAMPAIGN_STAR_BYTES;
 pub const MAX_CAMPAIGN_STARS: u16 = zkube_core::CAMPAIGN_MAX_STARS;
-pub const EMBLEM_AUTO: u8 = 0;
-pub const EMBLEM_FIRST_GUARDIAN: u8 = 1;
-pub const EMBLEM_LAST_GUARDIAN: u8 = MAX_MAPS as u8;
-pub const EMBLEM_REALM_CONQUEROR: u8 = 11;
-pub const EMBLEM_WORLD_PERFECT: u8 = 12;
+pub use zkube_core::{
+    EMBLEM_AUTO, EMBLEM_FIRST_GUARDIAN, EMBLEM_LAST_GUARDIAN, EMBLEM_REALM_CONQUEROR,
+    EMBLEM_WORLD_PERFECT,
+};
 /// Run identifiers are per-player and begin at one on every fresh deployment.
 pub const INITIAL_RUN_ID: u64 = 1;
 pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = zkube_core::LADDER_TIER_POINT_THRESHOLDS;
@@ -244,19 +243,7 @@ impl PlayerState {
     }
 
     pub fn emblem_unlocked(&self, emblem_id: u8) -> bool {
-        match emblem_id {
-            EMBLEM_AUTO => true,
-            EMBLEM_FIRST_GUARDIAN..=EMBLEM_LAST_GUARDIAN => {
-                self.zone_cleared(emblem_id).unwrap_or(false)
-            }
-            EMBLEM_REALM_CONQUEROR => {
-                zkube_core::CampaignStars::from_packed(self.campaign_stars).all_guardians_cleared()
-            }
-            EMBLEM_WORLD_PERFECT => {
-                zkube_core::CampaignStars::from_packed(self.campaign_stars).world_perfected()
-            }
-            _ => false,
-        }
+        zkube_core::CampaignStars::from_packed(self.campaign_stars).emblem_unlocked(emblem_id)
     }
 
     /// Spend one prepaid Kredit and advance the entry streak.

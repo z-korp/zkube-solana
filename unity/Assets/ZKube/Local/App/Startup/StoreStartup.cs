@@ -18,8 +18,8 @@ namespace ZKube.Local.App
             {
                 var directory = Path.Combine(Application.persistentDataPath, "local");
                 var product = new LocalProductStore(key => Read(directory, key), (key, value) => Write(directory, key, value));
-                var runs = new LocalRunClient(product, () => DateTimeOffset.UtcNow.ToUnixTimeSeconds(), StoreCampaignPolicy.PurchaseGate(product));
-                billing = StoreCampaignBillingFactory.Create(product, runs);
+                var runs = new StoreRunClient(product, () => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                billing = StoreCampaignBillingFactory.Create(product, runs.ApplyCampaignEntitlement);
                 if (EventSystem.current == null)
                     new GameObject("Store input", typeof(EventSystem), typeof(StandaloneInputModule));
                 var board = new GameObject("Store board", typeof(BoardController)).GetComponent<BoardController>();

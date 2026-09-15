@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ZKube.Core;
 using ZKube.Core.Generated;
 using ZKube.Local.Billing;
 
@@ -15,7 +16,7 @@ namespace ZKube.Local.App
     public sealed class StoreAppFlow : IDisposable
     {
         public readonly LocalProductStore Product;
-        public readonly LocalRunClient Runs;
+        public readonly StoreRunClient Runs;
         public readonly CampaignBilling Billing;
         private readonly Dictionary<string, LocalBoardActionProvider> providers = new Dictionary<string, LocalBoardActionProvider>();
         private CancellationTokenSource pageWait = new CancellationTokenSource();
@@ -30,7 +31,7 @@ namespace ZKube.Local.App
         public bool Unsaved { get; private set; }
         public event Action Changed;
         public event Action<LocalBoardActionProvider> BoardOpened;
-        public StoreAppFlow(LocalProductStore product, LocalRunClient runs, CampaignBilling billing)
+        public StoreAppFlow(LocalProductStore product, StoreRunClient runs, CampaignBilling billing)
         {
             Product = product ?? throw new ArgumentNullException(nameof(product));
             Runs = runs ?? throw new ArgumentNullException(nameof(runs));
@@ -41,20 +42,16 @@ namespace ZKube.Local.App
         public LocalRunView TodayRun => Product.Read.DailyAttempt?.DayId == Today.DayId ? Runs.Active("arcade") : null;
         public bool AttemptedToday => Product.Read.DailyAttempt?.DayId == Today.DayId;
         public string DailyAction => TodayRun != null ? "Resume run" : AttemptedToday ? "View result" : "Play today";
-        public bool Cleared(byte realm) => Product.Read.Stars[realm * Protocol.CampaignTargets.Length - 1] > 0;
+        public bool Cleared(byte realm) => Progress().Cleared[realm - 1] != 0;
+        private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(NativeEngine.PackCampaignStars(Product.Read.Stars));
         public int Stars(byte realm) => Product.Read.Stars.Skip((realm - 1) * Protocol.CampaignTargets.Length).Take(Protocol.CampaignTargets.Length).Sum(value => (int)value);
         public bool LevelAvailable(byte realm, byte level)
         {
             if (realm < 1 || realm > Protocol.Realms.Length || level < 1 || level > Protocol.CampaignTargets.Length) return false;
             var active = Runs.Active("campaign");
             if (active?.Realm == realm && active.Level == level) return true;
-            int start = (realm - 1) * Protocol.CampaignTargets.Length;
-            if (Product.Read.Stars[start + level - 1] > 0) return true;
-            if (Runs.CampaignLock(realm) != null) return false;
-            // Authority: generateMapData; cleared levels and the first uncleared
-            // level are selectable. Backend start is deliberately less restrictive.
-            int first = Array.FindIndex(Product.Read.Stars, start, Protocol.CampaignTargets.Length, value => value == 0);
-            return first == start + level - 1;
+            return !StoreCampaignPolicy.PurchaseGate(Product)(realm) &&
+                Progress().LevelUnlocked[(realm - 1) * Protocol.CampaignTargets.Length + level - 1] != 0;
         }
         public void Show(StorePage page)
         {

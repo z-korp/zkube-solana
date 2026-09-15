@@ -90,6 +90,16 @@ pub const SUMMARY_FIELDS: &[Field] = fields![
     ReplayHash: Bytes(32), RulesHash: Bytes(32),
 ];
 
+pub const DAILY_PAIR_FIELDS: &[Field] = fields![Index: U32, Realm: U8, Kind: U8, Value: U8];
+pub const CAMPAIGN_PROGRESS_FIELDS: &[Field] = fields![
+    Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS), Total: U16,
+    LevelUnlocked: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS),
+    RealmUnlocked: Bytes(zkube_core::CAMPAIGN_MAP_COUNT),
+    Cleared: Bytes(zkube_core::CAMPAIGN_MAP_COUNT), Perfected: Bytes(zkube_core::CAMPAIGN_MAP_COUNT),
+    EmblemUnlocked: Bytes(zkube_core::CAMPAIGN_EMBLEM_COUNT),
+    EmblemGold: Bytes(zkube_core::CAMPAIGN_EMBLEM_COUNT), StrongestEmblem: U8,
+];
+
 #[derive(Clone, Copy)]
 pub struct Operation {
     pub id: u32,
@@ -207,6 +217,26 @@ pub const OPERATIONS: &[Operation] = &[
         id: 21,
         name: "MergeCampaignStars",
         fields: fields![Stored: Bytes(zkube_core::CAMPAIGN_STAR_BYTES), Incoming: Bytes(zkube_core::CAMPAIGN_STAR_BYTES)],
+    },
+    Operation {
+        id: 23,
+        name: "PackCampaignStars",
+        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS)],
+    },
+    Operation {
+        id: 24,
+        name: "CampaignProgress",
+        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_STAR_BYTES)],
+    },
+    Operation {
+        id: 25,
+        name: "CampaignRules",
+        fields: fields![Realm: U8, Level: U8, Tier: U8, Primary: Bytes(3), Secondary: Bytes(3)],
+    },
+    Operation {
+        id: 26,
+        name: "RecordLocalCampaignResult",
+        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_STAR_BYTES), Realm: U8, Level: U8, State: Bytes(RUN_STATE_LEN)],
     },
 ];
 
@@ -469,7 +499,64 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
             n("Mode"),
         )
         .map(|v| v.to_vec()),
-        12 => Ok(daily_pair_index(u("Day")).to_le_bytes().to_vec()),
+        12 => {
+            let (realm, theme) = zkube_core::daily_pair(u("Day"));
+            let mut bytes = daily_pair_index(u("Day")).to_le_bytes().to_vec();
+            bytes.extend_from_slice(&[realm, theme.kind.tag(), theme.value]);
+            Ok(bytes)
+        }
+        23 => {
+            zkube_core::CampaignStars::from_unpacked(b("Stars").try_into().expect("schema stars"))
+                .map(|stars| stars.packed().to_vec())
+                .map_err(|_| BoundaryError::InvalidEncoding)
+        }
+        24 => Ok(encode_campaign_progress(
+            zkube_core::CampaignStars::from_packed(b("Stars").try_into().expect("schema stars")),
+        )),
+        25 => {
+            let realm = n("Realm")
+                .checked_sub(1)
+                .and_then(|i| zkube_core::REALM_RULES.get(usize::from(i)))
+                .ok_or(BoundaryError::InvalidEncoding)?;
+            let constraint = |name| -> Result<zkube_core::Constraint, BoundaryError> {
+                let value = b(name);
+                Ok(zkube_core::Constraint {
+                    kind: zkube_core::ConstraintKind::from_tag(value[0])
+                        .ok_or(BoundaryError::InvalidEncoding)?,
+                    value: value[1],
+                    required_count: value[2],
+                })
+            };
+            let rules = zkube_core::RunRules::campaign(
+                *realm,
+                n("Level"),
+                n("Tier"),
+                constraint("Primary")?,
+                constraint("Secondary")?,
+            )
+            .ok_or(BoundaryError::InvalidEncoding)?;
+            Ok(encode_config_request(zkube_core::RunConfig {
+                rules,
+                rules_hash: zkube_core::RulesHash([0; 32]),
+                initial_replay: zkube_core::ReplayCommitment([0; 32]),
+            }))
+        }
+        26 => {
+            let run = decode_run_state(b("State"))?;
+            if !matches!(
+                run.engine.phase,
+                zkube_core::RunPhase::Finished | zkube_core::RunPhase::LevelComplete
+            ) {
+                return Err(BoundaryError::InvalidEncoding);
+            }
+            let mut stars = zkube_core::CampaignStars::from_packed(
+                b("Stars").try_into().expect("schema stars"),
+            );
+            stars
+                .merge_level(n("Realm"), n("Level"), run.engine.latched_star_count())
+                .map_err(|_| BoundaryError::InvalidEncoding)?;
+            Ok(stars.packed().to_vec())
+        }
         21 => crate::merge_campaign_stars(b("Stored"), b("Incoming")),
         22 => {
             let seed = b("Seed")
@@ -511,6 +598,92 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
         }
         _ => unreachable!("operation registry exhaustively checked"),
     }
+}
+
+/// Encode Campaign presentation facts from the core progression owner.
+///
+/// # Panics
+/// Panics if the fixed catalog dimensions exceed the byte-sized realm or level IDs.
+#[must_use]
+pub fn encode_campaign_progress(stars: zkube_core::CampaignStars) -> Vec<u8> {
+    let mut bytes = vec![0; fields_len(CAMPAIGN_PROGRESS_FIELDS)];
+    let mut put = |name: &str, value: &[u8]| {
+        bytes[field_range(CAMPAIGN_PROGRESS_FIELDS, name)].copy_from_slice(value);
+    };
+    put("Stars", &stars.unpacked());
+    put("Total", &stars.total().to_le_bytes());
+    let levels: [u8; zkube_core::CAMPAIGN_TOTAL_LEVELS] = core::array::from_fn(|i| {
+        u8::from(stars.level_unlocked(
+            u8::try_from(i / zkube_core::CAMPAIGN_LEVELS_PER_MAP + 1).unwrap(),
+            u8::try_from(i % zkube_core::CAMPAIGN_LEVELS_PER_MAP + 1).unwrap(),
+        ))
+    });
+    put("LevelUnlocked", &levels);
+    for (name, query) in [
+        (
+            "RealmUnlocked",
+            (|s: &zkube_core::CampaignStars, map| s.level_unlocked(map, 1))
+                as fn(&zkube_core::CampaignStars, u8) -> bool,
+        ),
+        ("Cleared", zkube_core::CampaignStars::zone_cleared),
+        ("Perfected", zkube_core::CampaignStars::zone_perfected),
+    ] {
+        let values: [u8; zkube_core::CAMPAIGN_MAP_COUNT] =
+            core::array::from_fn(|i| u8::from(query(&stars, u8::try_from(i + 1).unwrap())));
+        put(name, &values);
+    }
+    for (name, query) in [
+        (
+            "EmblemUnlocked",
+            zkube_core::CampaignStars::emblem_unlocked
+                as fn(&zkube_core::CampaignStars, u8) -> bool,
+        ),
+        ("EmblemGold", zkube_core::CampaignStars::emblem_gold),
+    ] {
+        let values: [u8; zkube_core::CAMPAIGN_EMBLEM_COUNT] =
+            core::array::from_fn(|i| u8::from(query(&stars, u8::try_from(i).unwrap())));
+        put(name, &values);
+    }
+    put("StrongestEmblem", &[stars.strongest_emblem()]);
+    bytes
+}
+
+/// Encode the generated config request, shared with fixture production.
+#[must_use]
+pub fn encode_config_request(config: zkube_core::RunConfig) -> Vec<u8> {
+    let mut bytes = vec![0; 2 + fields_len(CONFIG_FIELDS)];
+    bytes[..2].copy_from_slice(&ABI_VERSION.to_le_bytes());
+    let mut put = |name: &str, value: &[u8]| {
+        bytes[2 + field_range(CONFIG_FIELDS, name).start..2 + field_range(CONFIG_FIELDS, name).end]
+            .copy_from_slice(value);
+    };
+    put("RulesHash", config.rules_hash.as_bytes());
+    put("InitialReplay", config.initial_replay.as_bytes());
+    put("MaxMoves", &config.rules.max_moves.to_le_bytes());
+    put("BonusType", &[bonus_tag(Some(config.rules.guardian.bonus))]);
+    put("Trigger", &[config.rules.guardian.trigger]);
+    put(
+        "TriggerThreshold",
+        &config.rules.guardian.threshold.to_le_bytes(),
+    );
+    put("StartingHeight", &[config.rules.starting_height]);
+    match config.rules.tier {
+        zkube_core::TierPolicy::Fixed(tier) => put("FixedTier", &[tier]),
+        zkube_core::TierPolicy::Pressure => put("TierPolicy", &[1]),
+    }
+    if let Some(stars) = config.rules.stars {
+        put("PointsRequired", &stars.points_required.to_le_bytes());
+        for (prefix, value) in [("Primary", stars.primary), ("Secondary", stars.secondary)] {
+            put(&format!("{prefix}Kind"), &[value.kind.tag()]);
+            put(&format!("{prefix}Value"), &[value.value]);
+            put(&format!("{prefix}Count"), &[value.required_count]);
+        }
+    }
+    if let Some(theme) = config.rules.objective {
+        put("ObjectiveKind", &[theme.kind.tag()]);
+        put("ObjectiveValue", &[theme.value]);
+    }
+    bytes
 }
 
 fn transition(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> {

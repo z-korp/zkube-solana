@@ -18,14 +18,13 @@ namespace ZKube.Integration.Client.Runs.Tests
             {
                 var launch = (await flow.StartDailyRun()).Value;
                 Assert.That(launch.CanBind, Is.True, launch.Operation.Error?.ToString());
-                Assert.That(launch.Run.Mode, Is.EqualTo("daily"));
                 Assert.That(NativeEngine.Summary(launch.Operation.State.Token).Phase, Is.EqualTo((byte)CorePhase.Playing));
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "enter_arena", "delegate_active_run", "request_vrf" }));
                 Assert.That(launch.Operation.Receipts.All(step => step.Result.Outcome == ExecutionOutcome.ConfirmedSuccess), Is.True);
                 Assert.That(launch.Operation.Receipts.Select(step => step.Result.Intent), Is.EqualTo(new[] { "start-daily", "vrf-daily" }));
                 Assert.That(env.Native.OwnerPrompts, Is.Zero);
                 Assert.That(await env.Journal.Load(env.Owner), Is.Null);
-                Assert.That(await env.Markers.Load(env.Owner, "daily"), Is.Not.Null);
+                Assert.That(await env.Markers.Load(env.Owner), Is.Not.Null);
             }
             finally { await flow.StopAsync(); }
         }

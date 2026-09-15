@@ -156,6 +156,13 @@ fn schema() -> String {
         );
     }
     emit_class(&mut output, "RunSummary", native::SUMMARY_FIELDS, None);
+    emit_class(&mut output, "DailyPair", native::DAILY_PAIR_FIELDS, None);
+    emit_class(
+        &mut output,
+        "CampaignProgressSummary",
+        native::CAMPAIGN_PROGRESS_FIELDS,
+        None,
+    );
     output.push_str(r#"    public static class NativeWire
     {
         public static ulong Read(byte[] bytes, int offset, int count)

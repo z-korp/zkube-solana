@@ -53,25 +53,25 @@ namespace ZKube.Integration.Client.Runs
         // Foreground inspection publishes current accepted state without consuming
         // a transaction receipt that its caller did not capture. Explicit recovery
         // retains the existing journal Resume behavior below.
-        public Task<RunClientState> Inspect(string mode, CancellationToken cancellation = default) =>
-            Operate(mode, cancellation, (lease, token) => Observe(lease, mode, token));
+        public Task<RunClientState> Inspect(CancellationToken cancellation = default) =>
+            Operate(cancellation, (lease, token) => Observe(lease, token));
 
-        public Task<RunClientState> Recover(string mode, CancellationToken cancellation = default) =>
-            Operate(mode, cancellation, async (lease, token) => {
+        public Task<RunClientState> Recover(CancellationToken cancellation = default) =>
+            Operate(cancellation, async (lease, token) => {
                 if (await journal.Load(lease.Owner).ConfigureAwait(false) != null)
                 {
                     var result = await executor.Resume(lease.Owner, reconciler, token).ConfigureAwait(false);
                     if (result.Outcome != ExecutionOutcome.ConfirmedSuccess && result.Outcome != ExecutionOutcome.ConfirmedFailure &&
                         result.Outcome != ExecutionOutcome.ExpiredReconciled) throw new RunExecutionException(result);
                 }
-                return await Observe(lease, mode, token).ConfigureAwait(false);
+                return await Observe(lease, token).ConfigureAwait(false);
             });
 
-        public Task<RunClientState> Recover(string mode, RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null)
+        public Task<RunClientState> Recover(RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null)
         {
             if (binding == null) throw new ArgumentNullException(nameof(binding));
             if (identity.Owner != binding.Owner) return Task.FromResult(new RunClientState("identity-changed"));
-            return Operate(mode, cancellation, async (lease, token) => {
+            return Operate(cancellation, async (lease, token) => {
                 if (lease.Owner != binding.Owner) return new RunClientState("identity-changed");
                 receipts?.Bind(binding.Address);
                 // A consume receipt can outlive its run slot. Only a decoded
@@ -94,7 +94,7 @@ namespace ZKube.Integration.Client.Runs
                     if (result.Outcome != ExecutionOutcome.ConfirmedSuccess && result.Outcome != ExecutionOutcome.ConfirmedFailure &&
                         result.Outcome != ExecutionOutcome.ExpiredReconciled) throw new RunExecutionException(result);
                 }
-                var observed = await Observe(lease, mode, token).ConfigureAwait(false);
+                var observed = await Observe(lease, token).ConfigureAwait(false);
                 if (consuming && observed.Marker?.ActiveRun != binding.Address) return new RunClientState("consumed");
                 if (observed.Marker?.Owner != binding.Owner || observed.Marker?.ActiveRun != binding.Address || observed.Token == null)
                     return new RunClientState("run-unavailable");
@@ -118,13 +118,11 @@ namespace ZKube.Integration.Client.Runs
                     (!instruction.Accounts.TryGetValue("owner_authority", out var authority) || authority == binding.Owner));
         }
 
-        public Task<RunClientState> StartDaily(CancellationToken cancellation = default, RunOperationReceipts receipts = null) => Start("daily", cancellation, receipts);
-
-        private Task<RunClientState> Start(string mode, CancellationToken cancellation, RunOperationReceipts receipts) =>
-            Operate(mode, cancellation, async (lease, token) => {
+        public Task<RunClientState> StartDaily(CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
+            Operate(cancellation, async (lease, token) => {
                 await RequireNoPending(lease, token).ConfigureAwait(false);
-                var prior = await Observe(lease, mode, token).ConfigureAwait(false);
-                if (prior.Marker != null) throw new InvalidOperationException("Recover the run already occupying this mode");
+                var prior = await Observe(lease, token).ConfigureAwait(false);
+                if (prior.Marker != null) throw new InvalidOperationException("Recover the run already occupying the Arcade slot");
                 var batch = await rpc.ReadAccounts(rpc.Base, new[] { planner.Player(lease.Owner), planner.ProtocolAddress }, cancellation: token).ConfigureAwait(false);
                 var player = PlayerPlanSnapshot.Decode(accounts, batch.Accounts[0].Envelope, lease.Owner);
                 receipts?.Bind(planner.ActiveRun(lease.Owner, player.NextRunId));
@@ -143,30 +141,30 @@ namespace ZKube.Integration.Client.Runs
                 var plan = planner.PrepareAndDelegate(prepared, session.Actor, validator.Identity);
                 // Persist the locator before any signing/send. A failed or
                 // expired preparation clears it only through fresh absence proof.
-                await markers.Save(new RunMarker(lease.Owner, player.NextRunId, mode,
+                await markers.Save(new RunMarker(lease.Owner, player.NextRunId,
                     planner.ActiveRun(lease.Owner, player.NextRunId), session.Actor.Signer,
                     session.Actor.SessionToken, session.Assessment.ValidUntil)).ConfigureAwait(false);
-                var result = await executor.Execute(plan, "start-" + mode, new[] { session.Signer }, reconciler, token).ConfigureAwait(false);
+                var result = await executor.Execute(plan, "start-daily", new[] { session.Signer }, reconciler, token).ConfigureAwait(false);
                 receipts?.Record(result);
-                if (result.Outcome != ExecutionOutcome.Pending) await Observe(lease, mode, token).ConfigureAwait(false);
+                if (result.Outcome != ExecutionOutcome.Pending) await Observe(lease, token).ConfigureAwait(false);
                 RequireSettled(result);
-                return await WaitFor(lease, mode, planner.ActiveRun(lease.Owner, player.NextRunId), token, state => state.Phase == "delegated" || state.Phase == "settleable").ConfigureAwait(false);
+                return await WaitFor(lease, planner.ActiveRun(lease.Owner, player.NextRunId), token, state => state.Phase == "delegated" || state.Phase == "settleable").ConfigureAwait(false);
             }, receipts);
 
-        public Task<RunClientState> ResolveVrf(string mode, CancellationToken cancellation = default, RunOperationReceipts receipts = null) => ResolveVrf(mode, null, cancellation, receipts);
-        public Task<RunClientState> ResolveVrf(string mode, RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
-            Operate(mode, cancellation, async (lease, token) => {
+        public Task<RunClientState> ResolveVrf(CancellationToken cancellation = default, RunOperationReceipts receipts = null) => ResolveVrf(null, cancellation, receipts);
+        public Task<RunClientState> ResolveVrf(RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
+            Operate(cancellation, async (lease, token) => {
                 // A board remains bound to its original owner and PDA across
-                // asynchronous identity changes and mode-slot replacement.
+                // asynchronous identity changes and slot replacement.
                 binding?.RequireIdentity(lease.Owner, binding.Address);
                 if (binding != null) receipts?.Bind(binding.Address);
                 await RequireNoPending(lease, token).ConfigureAwait(false);
-                var current = await Observe(lease, mode, token).ConfigureAwait(false);
+                var current = await Observe(lease, token).ConfigureAwait(false);
                 binding?.RequireIdentity(current.Marker?.Owner, current.Marker?.ActiveRun);
                 if (current.Marker == null) return current;
                 string address = current.Marker.ActiveRun;
                 receipts?.Bind(address);
-                if (current.Account == null) current = await WaitFor(lease, mode, address, token, state => state.Account != null).ConfigureAwait(false);
+                if (current.Account == null) current = await WaitFor(lease, address, token, state => state.Account != null).ConfigureAwait(false);
                 if (current.Marker == null) return current;
                 binding?.Accept(current);
                 var before = NativeEngine.Summary(current.Token);
@@ -179,8 +177,8 @@ namespace ZKube.Integration.Client.Runs
                 if (current.Phase == "base")
                 {
                     var validator = await rpc.ClosestValidator(token).ConfigureAwait(false);
-                    await Execute(planner.Delegate(session.Actor, current.Marker.RunId, validator.Identity), "delegate-" + mode, session, token, receipts).ConfigureAwait(false);
-                    current = await WaitFor(lease, mode, address, token, state => state.Phase == "delegated" || state.Phase == "settleable").ConfigureAwait(false);
+                    await Execute(planner.Delegate(session.Actor, current.Marker.RunId, validator.Identity), "delegate-daily", session, token, receipts).ConfigureAwait(false);
+                    current = await WaitFor(lease, address, token, state => state.Phase == "delegated" || state.Phase == "settleable").ConfigureAwait(false);
                 }
                 if (current.Marker == null) return current;
                 binding?.Accept(current);
@@ -192,11 +190,11 @@ namespace ZKube.Integration.Client.Runs
                 if (summary.Phase == (byte)CorePhase.Playing && pending == 0) return current;
                 if (pending == 0)
                 {
-                    await Execute(planner.RunAction(session.Actor, Snapshot(current), "vrf", Seed()), "vrf-" + mode, session, token, receipts).ConfigureAwait(false);
+                    await Execute(planner.RunAction(session.Actor, Snapshot(current), "vrf", Seed()), "vrf-daily", session, token, receipts).ConfigureAwait(false);
                     counter = checked(counter + 1);
                 }
                 else counter = pending;
-                return await WaitFor(lease, mode, address, token, state => {
+                return await WaitFor(lease, address, token, state => {
                     if (state.Account == null) return false;
                     var accepted = accounts.ActiveRun(state.Account, lease.Owner);
                     return RunObservation.IsTerminal(NativeEngine.Summary(state.Token)) ||
@@ -204,12 +202,12 @@ namespace ZKube.Integration.Client.Runs
                 }).ConfigureAwait(false);
             }, receipts);
 
-        public Task<RunClientState> Apply(string mode, CoreRunToken expected, RunPresentationBinding binding, RunClientAction action,
+        public Task<RunClientState> Apply(CoreRunToken expected, RunPresentationBinding binding, RunClientAction action,
             byte row = 0, byte start = 0, byte destination = 0, CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
-            Operate(mode, cancellation, async (lease, token) => {
+            Operate(cancellation, async (lease, token) => {
                 if (binding != null) receipts?.Bind(binding.Address);
                 await RequireNoPending(lease, token).ConfigureAwait(false);
-                var current = await Observe(lease, mode, token).ConfigureAwait(false);
+                var current = await Observe(lease, token).ConfigureAwait(false);
                 RequireEr(current);
                 // Replay/action/grid equality prevents a stale board intention
                 // from being silently applied to a different accepted position.
@@ -222,30 +220,30 @@ namespace ZKube.Integration.Client.Runs
                 using var session = await sessions.Load(lease).ConfigureAwait(false);
                 string instruction = action == RunClientAction.Move ? "move" : action == RunClientAction.Guardian ? "bonus" : action == RunClientAction.Reroll ? "reroll" : "finish";
                 await Execute(planner.RunAction(session.Actor, Snapshot(current), instruction,
-                    action == RunClientAction.Abandon ? null : Seed(), row, start, destination, start), instruction + "-" + mode, session, token, receipts).ConfigureAwait(false);
+                    action == RunClientAction.Abandon ? null : Seed(), row, start, destination, start), instruction + "-daily", session, token, receipts).ConfigureAwait(false);
                 uint expectedAction = checked(NativeEngine.Summary(expected).ActionCounter + (action == RunClientAction.Abandon ? 0u : 1u));
-                return await WaitFor(lease, mode, current.Marker.ActiveRun, token, state => state.Account != null &&
+                return await WaitFor(lease, current.Marker.ActiveRun, token, state => state.Account != null &&
                     (action == RunClientAction.Abandon ? RunObservation.IsTerminal(NativeEngine.Summary(state.Token)) :
                         RunObservation.HasAcceptedAction(NativeEngine.Summary(state.Token), expectedAction))).ConfigureAwait(false);
             }, receipts);
 
-        public Task<RunClientState> FinishAndSettle(string mode, CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
-            Settle(mode, null, cancellation, receipts);
+        public Task<RunClientState> FinishAndSettle(CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
+            Settle(null, cancellation, receipts);
 
         // A terminal screen owns one run, not whichever run later occupies its slot.
-        public Task<RunClientState> FinishAndSettle(string mode, RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null)
+        public Task<RunClientState> FinishAndSettle(RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null)
         {
             if (binding == null) throw new ArgumentNullException(nameof(binding));
             if (identity.Owner != binding.Owner) return Task.FromResult(new RunClientState("identity-changed"));
-            return Settle(mode, binding, cancellation, receipts);
+            return Settle(binding, cancellation, receipts);
         }
 
-        private Task<RunClientState> Settle(string mode, RunPresentationBinding binding, CancellationToken cancellation, RunOperationReceipts receipts) =>
-            Operate(mode, cancellation, async (lease, token) => {
+        private Task<RunClientState> Settle(RunPresentationBinding binding, CancellationToken cancellation, RunOperationReceipts receipts) =>
+            Operate(cancellation, async (lease, token) => {
                 if (binding != null && lease.Owner != binding.Owner) return new RunClientState("identity-changed");
                 if (binding != null) receipts?.Bind(binding.Address);
                 await RequireNoPending(lease, token).ConfigureAwait(false);
-                var current = await Observe(lease, mode, token).ConfigureAwait(false);
+                var current = await Observe(lease, token).ConfigureAwait(false);
                 if (binding != null)
                 {
                     if (current.Marker?.Owner != binding.Owner || current.Marker?.ActiveRun != binding.Address || current.Token == null)
@@ -261,14 +259,14 @@ namespace ZKube.Integration.Client.Runs
                     using var session = await sessions.Load(lease).ConfigureAwait(false);
                     if (!Snapshot(current).Terminal)
                     {
-                        await Execute(planner.RunAction(session.Actor, Snapshot(current), "finish"), "finish-" + mode, session, token, receipts).ConfigureAwait(false);
-                        current = await WaitFor(lease, mode, address, token, state => state.Account != null && Snapshot(state).Terminal).ConfigureAwait(false);
+                        await Execute(planner.RunAction(session.Actor, Snapshot(current), "finish"), "finish-daily", session, token, receipts).ConfigureAwait(false);
+                        current = await WaitFor(lease, address, token, state => state.Account != null && Snapshot(state).Terminal).ConfigureAwait(false);
                     }
                     if (current.Marker == null) return current;
                     if (current.Phase == "delegated")
                     {
-                        await Execute(planner.Commit(session.Actor, Snapshot(current)), "commit-" + mode, session, token, receipts).ConfigureAwait(false);
-                        current = await WaitFor(lease, mode, address, token, state => state.Phase == "settleable").ConfigureAwait(false);
+                        await Execute(planner.Commit(session.Actor, Snapshot(current)), "commit-daily", session, token, receipts).ConfigureAwait(false);
+                        current = await WaitFor(lease, address, token, state => state.Phase == "settleable").ConfigureAwait(false);
                     }
                 }
                 if (current.Marker == null) return current;
@@ -284,8 +282,8 @@ namespace ZKube.Integration.Client.Runs
                 catch (SessionUnavailableException) { token.ThrowIfCancellationRequested(); }
                 using (payer)
                     await Execute(planner.Consume(payer?.Actor ?? PlannerActor.Wallet(lease.Owner), Snapshot(current), current.Phase == "base"),
-                        "consume-" + mode, payer, token, receipts).ConfigureAwait(false);
-                return ForRun(await Observe(lease, mode, token).ConfigureAwait(false), address);
+                        "consume-daily", payer, token, receipts).ConfigureAwait(false);
+                return ForRun(await Observe(lease, token).ConfigureAwait(false), address);
             }, receipts);
 
         public static RunTransition NativeCandidate(CoreRunToken token, RunClientAction action, byte row, byte start, byte destination)
@@ -301,15 +299,14 @@ namespace ZKube.Integration.Client.Runs
             }
         }
 
-        private async Task<RunClientState> Operate(string mode, CancellationToken cancellation,
+        private async Task<RunClientState> Operate(CancellationToken cancellation,
             Func<IdentityLease, CancellationToken, Task<RunClientState>> operation, RunOperationReceipts receipts = null)
         {
-            if (mode != "daily") throw new ArgumentException("Invalid run mode");
             if (Interlocked.CompareExchange(ref operating, 1, 0) != 0) throw new InvalidOperationException("A run operation is already pending");
             try
             {
                 var lease = identity.Lease();
-                receipts?.Begin(lease.Owner, mode);
+                receipts?.Begin(lease.Owner);
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(lease.Cancellation, cancellation);
                 var result = await operation(lease, linked.Token).ConfigureAwait(false);
                 linked.Token.ThrowIfCancellationRequested();
@@ -353,10 +350,10 @@ namespace ZKube.Integration.Client.Runs
             var bytes = new byte[32]; using var rng = RandomNumberGenerator.Create(); rng.GetBytes(bytes); return bytes;
         }
 
-        private async Task<RunClientState> Observe(IdentityLease lease, string mode, CancellationToken cancellation)
+        private async Task<RunClientState> Observe(IdentityLease lease, CancellationToken cancellation)
         {
             cancellation.ThrowIfCancellationRequested();
-            var observed = await markers.ResolveOrDiscover(lease.Owner, mode, recovery, rpc, now()).ConfigureAwait(false);
+            var observed = await markers.ResolveOrDiscover(lease.Owner, recovery, rpc, now()).ConfigureAwait(false);
             cancellation.ThrowIfCancellationRequested();
             if (observed.Phase == "missing" && await journal.Load(lease.Owner).ConfigureAwait(false) == null)
             {
@@ -371,19 +368,19 @@ namespace ZKube.Integration.Client.Runs
                         (ulong)player["active_run_id"] != marker.RunId)
                     {
                         await markers.ClearAfterConsumption(marker, proof.Accounts[0].Envelope, null, after).ConfigureAwait(false);
-                        observed = await markers.ResolveOrDiscover(lease.Owner, mode, recovery, rpc, now()).ConfigureAwait(false);
+                        observed = await markers.ResolveOrDiscover(lease.Owner, recovery, rpc, now()).ConfigureAwait(false);
                     }
                 }
             }
             return new RunClientState(observed, native);
         }
-        private async Task<RunClientState> WaitFor(IdentityLease lease, string mode, string address, CancellationToken cancellation, Func<RunClientState, bool> ready)
+        private async Task<RunClientState> WaitFor(IdentityLease lease, string address, CancellationToken cancellation, Func<RunClientState, bool> ready)
         {
             var elapsed = Stopwatch.StartNew();
             do
             {
-                var state = await Observe(lease, mode, cancellation).ConfigureAwait(false);
-                // A newer run can occupy this mode after cross-device consume.
+                var state = await Observe(lease, cancellation).ConfigureAwait(false);
+                // A newer run can occupy the Arcade slot after cross-device consume.
                 // Its counters never fulfill an observation of the old action.
                 var anchored = ForRun(state, address);
                 if (anchored != state) return anchored;

@@ -48,7 +48,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return OpenAcceptedArcade();
             var run = host.GetComponent<MoneyBoardHost>();
-            var observed = environment.Services.Runs.Inspect("daily"); yield return Wait(observed);
+            var observed = environment.Services.Runs.Inspect(); yield return Wait(observed);
             var state = observed.GetAwaiter().GetResult();
             Assert.That(run.Board.Session.Accepted.State, Is.EqualTo(state.Token.State));
             Assert.That(run.Board.PresentedRealmId, Is.EqualTo(run.Board.Session.RealmId));
@@ -159,12 +159,12 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return OpenAcceptedArcade();
             var controller = host.GetComponent<MoneyStartup>().Controller;
-            var marker = environment.Services.RunMarkers.Load(environment.Owner, "daily"); yield return Wait(marker);
+            var marker = environment.Services.RunMarkers.Load(environment.Owner); yield return Wait(marker);
             Assert.That(marker.GetAwaiter().GetResult(), Is.Not.Null);
             controller.enabled = false; yield return null;
             Assert.That(controller.PlayingRun, Is.False);
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(), Is.Empty);
-            var retained = environment.Services.RunMarkers.Load(environment.Owner, "daily"); yield return Wait(retained);
+            var retained = environment.Services.RunMarkers.Load(environment.Owner); yield return Wait(retained);
             Assert.That(retained.GetAwaiter().GetResult().ActiveRun, Is.EqualTo(marker.GetAwaiter().GetResult().ActiveRun));
             controller.enabled = true; yield return Idle();
             Assert.That(controller.PlayingRun, Is.False);

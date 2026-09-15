@@ -36,7 +36,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator DailyResumeButtonBindsItsOwnSavedSlotWithoutNewEntry()
         {
             yield return OpenDailyPage();
-            var read = environment.Services.Runs.Inspect("daily"); yield return Wait(read);
+            var read = environment.Services.Runs.Inspect(); yield return Wait(read);
             var token = read.GetAwaiter().GetResult().Token;
             yield return SessionClick("Resume Daily"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;

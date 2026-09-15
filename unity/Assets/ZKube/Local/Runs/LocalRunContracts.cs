@@ -6,12 +6,6 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Local
 {
-    public static class StoreCampaignPolicy
-    {
-        public static Func<byte, bool> PurchaseGate(LocalProductStore product) =>
-            realm => realm >= 4 && !product.Read.CampaignOwned;
-    }
-
     public enum LocalActionKind { Move, Bonus, Reroll, Finish }
     public readonly struct LocalRunAction
     {
@@ -19,17 +13,6 @@ namespace ZKube.Local
         public readonly byte Row, Start, Destination, Reason;
         public LocalRunAction(LocalActionKind kind, byte row = 0, byte start = 0, byte destination = 0, byte reason = 3)
         { Kind = kind; Row = row; Start = start; Destination = destination; Reason = reason; }
-    }
-    public sealed class LocalDaily
-    {
-        public uint DayId { get; }
-        public byte Realm { get; }
-        public byte ObjectiveKind { get; }
-        public byte ObjectiveValue { get; }
-        public long OpensAt => (long)DayId * 86400;
-        public long FreezesAt => ((long)DayId + 1) * 86400;
-        internal LocalDaily(uint day, byte realm, byte kind, byte value)
-        { DayId = day; Realm = realm; ObjectiveKind = kind; ObjectiveValue = value; }
     }
     public sealed class LocalRunView
     {

@@ -10,7 +10,7 @@ namespace ZKube.Core.Tests
 {
     public sealed class NativeEngineTests
     {
-        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; }
+        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; public Step[] campaignBoundary; }
         [Serializable] public sealed class LocalRandomness { public string seedHex, outputHex; public uint counter; }
         [Serializable] public sealed class Trajectory { public string name; public string origin; public string configHex; public string initialStateHex; public string finalStateHex; public string finalReplayHex; public Step[] steps; }
         [Serializable] public sealed class Step { public uint operation; public string requestHex; public string responseHex; }
@@ -78,6 +78,27 @@ namespace ZKube.Core.Tests
             }
             CollectionAssert.AreEqual(Hex(trajectory.finalStateHex), state);
             CollectionAssert.AreEqual(Hex(trajectory.finalReplayHex), NativeEngine.Summary(state).ReplayHash);
+        }
+
+        [Test] public void CampaignAndDailyQueriesUseTheRustProgressionAndCatalogOwners()
+        {
+            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").campaignBoundary)
+            {
+                var actual = NativeEngine.Call(vector.operation, Hex(vector.requestHex));
+                CollectionAssert.AreEqual(Hex(vector.responseHex), actual);
+                if (vector.operation == CampaignProgressRequest.Operation)
+                    CollectionAssert.AreEqual(actual.Take(100), CampaignProgressSummary.Decode(actual).Stars);
+                if (vector.operation == DailyPairIndexRequest.Operation)
+                    Assert.That(DailyPair.Decode(actual).Index, Is.EqualTo(NativeWire.Read(actual, 0, 4)));
+                if (vector.operation == CampaignRulesRequest.Operation)
+                    CollectionAssert.AreEqual(actual, BuildConfigRequest.Decode(actual).Encode());
+            }
+            var invalid = new byte[100]; invalid[99] = 4;
+            Assert.That(Assert.Throws<NativeEngineException>(() => NativeEngine.PackCampaignStars(invalid)).Status,
+                Is.EqualTo(NativeStatus.InvalidEncoding));
+            var playing = NativeEngine.Initialize(NativeEngine.CampaignRules(1, 1));
+            Assert.That(Assert.Throws<NativeEngineException>(() => NativeEngine.RecordLocalCampaignResult(new byte[25], 1, 1, playing)).Status,
+                Is.EqualTo(NativeStatus.InvalidEncoding));
         }
 
         [Test] public void LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds()
@@ -187,7 +208,7 @@ namespace ZKube.Core.Tests
                 Assert.AreEqual(vector.points, NativeEngine.LadderPoints(vector.qualifiedEntrants, vector.rank));
             var core = Read<GameFixture>("game-parity.json").phase1Core;
             for (uint i = 0; i < core.dailyPairDraw.pairIndicesByDay.Length; i++)
-                Assert.AreEqual(core.dailyPairDraw.pairIndicesByDay[i], NativeEngine.DailyPairIndex(core.dailyPairDraw.startsDay + i));
+                Assert.AreEqual(core.dailyPairDraw.pairIndicesByDay[i], NativeEngine.DailyPair(core.dailyPairDraw.startsDay + i).Index);
             var pools = NativeEngine.BoardPools(core.dailyBoardSplit.poolLamports, core.dailyBoardSplit.themeQualifiedWinners);
             Assert.AreEqual(core.dailyBoardSplit.scoreLamports, NativeWire.Read(pools, 0, 8));
             Assert.AreEqual(core.dailyBoardSplit.themeLamports, NativeWire.Read(pools, 8, 8));

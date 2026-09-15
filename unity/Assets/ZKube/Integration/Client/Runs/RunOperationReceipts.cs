@@ -15,19 +15,17 @@ namespace ZKube.Integration.Client.Runs
         private string address;
         private int started;
         public string Owner { get; }
-        public string Mode { get; }
         public IReadOnlyList<RunExecutionReceipt> Steps
         { get { lock (sync) return Array.AsReadOnly(steps.ToArray()); } }
 
-        public RunOperationReceipts(string owner, string mode, string expectedAddress = null)
+        public RunOperationReceipts(string owner, string expectedAddress = null)
         {
             if (string.IsNullOrEmpty(owner)) throw new ArgumentException("A receipt scope needs an owner", nameof(owner));
-            if (mode != "daily") throw new ArgumentException("Invalid run mode", nameof(mode));
-            Owner = owner; Mode = mode; this.expectedAddress = expectedAddress;
+            Owner = owner; this.expectedAddress = expectedAddress;
         }
-        internal void Begin(string owner, string mode)
+        internal void Begin(string owner)
         {
-            if (owner != Owner || mode != Mode) throw new InvalidOperationException("Receipt scope identity changed");
+            if (owner != Owner) throw new InvalidOperationException("Receipt scope identity changed");
             if (Interlocked.CompareExchange(ref started, 1, 0) != 0)
                 throw new InvalidOperationException("A receipt scope belongs to one run operation");
         }
@@ -40,17 +38,16 @@ namespace ZKube.Integration.Client.Runs
         internal void Record(ExecutionResult result)
         {
             if (address == null || started == 0) throw new InvalidOperationException("Receipt scope has no bound run");
-            lock (sync) steps.Add(new RunExecutionReceipt(Owner, Mode, address, result));
+            lock (sync) steps.Add(new RunExecutionReceipt(Owner, address, result));
         }
     }
 
     public sealed class RunExecutionReceipt
     {
         public string Owner { get; }
-        public string Mode { get; }
         public string Address { get; }
         public ExecutionResult Result { get; }
-        internal RunExecutionReceipt(string owner, string mode, string address, ExecutionResult result)
-        { Owner = owner; Mode = mode; Address = address; Result = result; }
+        internal RunExecutionReceipt(string owner, string address, ExecutionResult result)
+        { Owner = owner; Address = address; Result = result; }
     }
 }
