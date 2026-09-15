@@ -1,0 +1,7 @@
+{
+  "name": "ZKube.MoneyEvidenceHost.Tests",
+  "references": ["ZKube.MoneyEvidenceHost", "ZKube.MoneyEvidence", "ZKube.MoneyStartup", "ZKube.MoneyPresentation", "ZKube.MoneyApp", "ZKube.Integration", "ZKube.Client", "ZKube.Execution", "Unity.TextMeshPro", "Unity.ugui"],
+  "defineConstraints": ["UNITY_EDITOR || ZKUBE_EVIDENCE", "!ZKUBE_STORE"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

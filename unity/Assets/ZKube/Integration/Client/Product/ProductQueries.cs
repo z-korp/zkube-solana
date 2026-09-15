@@ -1,0 +1,227 @@
+using System;
+using System.Linq;
+using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+using ZKube.Core;
+using ZKube.Core.Generated;
+using ZKube.Integration.Planning;
+using ZKube.Integration.Transport;
+
+namespace ZKube.Integration.Client
+{
+    public sealed class ProductRead<T>
+    {
+        private readonly ClientIdentity identity;
+        private readonly T value;
+        public IdentityLease Identity { get; }
+        public T Value => identity.IsCurrent(Identity) ? value : throw new OperationCanceledException("Product result identity changed");
+        internal ProductRead(ClientIdentity identity, IdentityLease lease, T value) { this.identity = identity; Identity = lease; this.value = value; }
+    }
+
+    // Finite, read-only queries. Account transport verifies Base genesis, and
+    // AccountBindings owns byte/PDA validation. No subscription, durable write,
+    // wallet operation, or per-owner cache belongs to this facade.
+    public sealed partial class ProductQueries
+    {
+        private readonly ClientIdentity identity;
+        private readonly AccountBindings accounts;
+        private readonly TransactionPlanner addresses;
+        private readonly SolanaRpcTransport rpc;
+        private readonly ActiveRunReconciler native;
+        private readonly Func<long> now;
+        public ProductQueries(ClientIdentity identity, AccountBindings accounts, TransactionPlanner addresses,
+            SolanaRpcTransport rpc, Func<long> now)
+        { this.identity = identity; this.accounts = accounts; this.addresses = addresses; this.rpc = rpc;
+            this.now = now; native = new ActiveRunReconciler(accounts); }
+
+        public Task<ProductRead<PlayerProfile>> Profile(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
+            return Profile(lease.Owner, read);
+        });
+
+        public Task<ProductRead<CampaignProgress>> Campaign(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            var first = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress, addresses.Player(lease.Owner) }, cancellation: token).ConfigureAwait(false);
+            var player = Profile(lease.Owner, first.Accounts[1]);
+            if (first.Accounts[0].Envelope == null) return new CampaignProgress("missing-protocol", null, player, Array.Empty<CampaignMapProgress>());
+            var protocol = accounts.ProtocolConfig(first.Accounts[0].Envelope);
+            uint version = (uint)protocol["content_version"];
+            if ((uint)protocol["campaign_map_count"] != Protocol.Realms.Length || version != Protocol.CampaignContentVersion)
+                throw new FormatException("Campaign publication does not match the supported content version");
+            var reads = await rpc.ReadAccounts(rpc.Base, Protocol.Realms.Select(realm => addresses.MapCatalog(version, realm.MapId)).ToArray(),
+                minContextSlot: first.Slot, cancellation: token).ConfigureAwait(false);
+            // A second protocol observation at the same batch slot makes a
+            // publication switch explicit instead of combining two versions.
+            var check = await rpc.ReadAccount(rpc.Base, addresses.ProtocolAddress, minContextSlot: reads.Slot, cancellation: token).ConfigureAwait(false);
+            if (check.Envelope == null || !JToken.DeepEquals(protocol, accounts.ProtocolConfig(check.Envelope)))
+                throw new InvalidOperationException("Campaign publication changed; read it again");
+            // Missing peers must not conceal a malformed supplied catalog.
+            var catalogs = reads.Accounts.Select((read, index) => read.Envelope == null ? null :
+                accounts.MapCatalog(read.Envelope, version, checked((byte)(index + 1)))).ToArray();
+            if (catalogs.Any(catalog => catalog == null))
+                return new CampaignProgress("missing-catalog", version, player, Array.Empty<CampaignMapProgress>());
+            byte[] packed = player.Fields?["campaign_stars"].Values<byte>().ToArray() ?? new byte[(Protocol.Realms.Length * Protocol.CampaignTargets.Length + 3) / 4];
+            var maps = reads.Accounts.Select((read, mapIndex) => {
+                byte map = checked((byte)(mapIndex + 1));
+                var catalog = catalogs[mapIndex];
+                byte[] stars = Enumerable.Range(0, Protocol.CampaignTargets.Length).Select(level => Stars(packed, mapIndex * Protocol.CampaignTargets.Length + level)).ToArray();
+                bool unlocked = mapIndex == 0 || Stars(packed, mapIndex * Protocol.CampaignTargets.Length - 1) > 0;
+                return new CampaignMapProgress(map, catalog, stars, unlocked);
+            }).ToArray();
+            return new CampaignProgress((bool)protocol["paused"] ? "paused" : "ready", version, player, maps);
+        });
+
+        public Task<ProductRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            long timestamp = Clock(); uint day = CurrentDay(timestamp);
+            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress, addresses.ArcadeAddress,
+                addresses.Daily(day), addresses.Player(lease.Owner), addresses.ArenaPlayer(addresses.Daily(day), lease.Owner) }, cancellation: token).ConfigureAwait(false);
+            var projection = PublicDailyQuery.Decode(accounts, day, Clock(), read.Slot,
+                read.Accounts[0].Envelope, read.Accounts[1].Envelope, read.Accounts[2].Envelope);
+            var profile = Profile(lease.Owner, read.Accounts[3]);
+            JObject dailyPlayer = projection.Daily == null || read.Accounts[4].Envelope == null ? null
+                : accounts.ArenaPlayer(read.Accounts[4].Envelope, day, lease.Owner);
+            return new DailyLobby(day, projection.Status, projection.Suspended, projection.ProtocolPaused,
+                projection.Realm, projection.ObjectiveKind, projection.ObjectiveValue, projection.PotLamports,
+                profile, projection.Daily, dailyPlayer);
+        });
+
+        private static void ValidateDailyPublication(JObject daily, JObject protocol, uint day) =>
+            PublicDailyQuery.ValidateDailyPublication(daily, protocol, day);
+
+        // Explicit day reads have no discovery lookback restriction: an old
+        // board sealed recently can still be claimed during its own window.
+        // Settled accounts only. This is not the current Daily's provisional
+        // leaderboard: that requires separate bounded ArenaPlayer discovery.
+        public Task<ProductRead<DailyBoards>> SettledBoards(uint day, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            long timestamp = Clock();
+            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score"), addresses.Board(day, "theme") }, cancellation: token).ConfigureAwait(false);
+            var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
+            string dailyStatus = daily == null ? "missing" : DailyStatus(daily, timestamp);
+            return new DailyBoards(day, read.Slot, dailyStatus,
+                Board(day, "score", read.Accounts[1].Envelope, daily, lease.Owner, timestamp),
+                Board(day, "theme", read.Accounts[2].Envelope, daily, lease.Owner, timestamp));
+        });
+
+        // A single-board action must not depend on the peer board being present.
+        // Both the page and preflight use Board for binding, payouts and expiry.
+        public Task<ProductRead<PrizeBoard>> SettledBoard(uint day, string kind, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            if (kind != "score" && kind != "theme") throw new ArgumentException("Invalid reward board", nameof(kind));
+            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, kind) }, cancellation: token).ConfigureAwait(false);
+            var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
+            return Board(day, kind, read.Accounts[1].Envelope, daily, lease.Owner, Clock());
+        });
+
+        // Mirrors resolveSpectatedRun(player, runId?): omitted runId selects
+        // nextRunId-1, not every active slot. Own run recovery remains two-slot.
+        public Task<ProductRead<SpectatorSnapshot>> Spectate(string owner, ulong? runId = null, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            SolanaAddress.Bytes(owner);
+            if (runId == null)
+            {
+                var player = await rpc.ReadAccount(rpc.Base, addresses.Player(owner), cancellation: token).ConfigureAwait(false);
+                if (player.Envelope == null) return new SpectatorSnapshot("not-found", owner);
+                ulong next = (ulong)accounts.PlayerState(player.Envelope, owner)["next_run_id"];
+                if (next <= 1) return new SpectatorSnapshot("not-found", owner);
+                runId = next - 1;
+            }
+            if (runId == 0) throw new ArgumentOutOfRangeException(nameof(runId));
+            return await ReadSpectator(owner, runId.Value, token).ConfigureAwait(false);
+        });
+
+        private async Task<SpectatorSnapshot> ReadSpectator(string owner, ulong runId, CancellationToken token, ulong? baseMinimum = null)
+        {
+            string address = addresses.ActiveRun(owner, runId);
+            token.ThrowIfCancellationRequested();
+            var before = await rpc.Placement(address).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (before.IsDelegated && before.Endpoint == null) return new SpectatorSnapshot("resolving", owner, runId, address);
+            AccountEnvelope envelope = before.IsDelegated ? await rpc.ReadEr(before.Endpoint, address).ConfigureAwait(false)
+                : (await rpc.ReadAccount(rpc.Base, address, minContextSlot: baseMinimum, cancellation: token).ConfigureAwait(false)).Envelope;
+            token.ThrowIfCancellationRequested();
+            var after = await rpc.Placement(address).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (before.IsDelegated != after.IsDelegated || before.Endpoint != after.Endpoint)
+                return new SpectatorSnapshot("resolving", owner, runId, address);
+            if (envelope == null) return new SpectatorSnapshot(before.IsDelegated ? "not-found" : "archived", owner, runId, address);
+            if (envelope.Owner == PlanningConstants.DelegationProgram) return new SpectatorSnapshot("resolving", owner, runId, address);
+            var accepted = native.Reconcile(envelope, owner);
+            return new SpectatorSnapshot(before.IsDelegated ? "delegated" : "base", owner, runId, address,
+                before.IsDelegated ? before.Endpoint : rpc.BaseEndpoint, envelope, accepted);
+        }
+
+        private PrizeBoard Board(uint day, string kind, AccountEnvelope envelope, JObject daily, string owner, long timestamp)
+        {
+            var board = accounts.ArenaBoard(envelope, day, kind);
+            if (board == null) return new PrizeBoard(kind, "missing", "unavailable", null, Array.Empty<PrizeRow>(), owner, null);
+            // Native width verification scans the full qualified count. Keep
+            // untrusted reads inside the existing client/keeper work envelope;
+            // this does not cap protocol width or substitute a truncated payout.
+            if (board.QualifiedCount > SolanaRpcTransport.MaximumArenaPlayerAccounts)
+                return new PrizeBoard(kind, "unsupported-verification", "unavailable", null, Array.Empty<PrizeRow>(), owner, null);
+            var payouts = ValidateBoardEconomics(board, daily);
+            if (!board.Sealed) return new PrizeBoard(kind, "unsealed", "unsealed", null, Array.Empty<PrizeRow>(), owner, board);
+            long expiry = checked(board.SealedAt + (long)Protocol.ClaimWindowSeconds);
+            bool expired = timestamp > expiry;
+            var rows = board.Rows.Select(row => new PrizeRow(row, kind, payouts[row.Position])).ToArray();
+            var yours = rows.SingleOrDefault(row => row.Record.Player == owner);
+            string claim = daily == null ? "unavailable" : expired || (bool)daily["claims_expired"] ? "expired"
+                : yours == null ? "not-ranked" : yours.Record.Claimed ? "claimed" : "claimable";
+            return new PrizeBoard(kind, expired ? "expired" : rows.Length == 0 ? "empty" : "sealed", claim, expiry, rows, owner, board);
+        }
+
+        private static ulong[] ValidateBoardEconomics(ValidatedBoardAccount board, JObject daily)
+        {
+            // Mirrors validate_finalized_board_binding. The finalized pool comes
+            // from accounted payouts+rollover, never the remaining claim balance.
+            if (daily != null)
+            {
+                if (!string.Equals(((JObject)daily["status"]).Properties().Single().Name, "Finalized", StringComparison.OrdinalIgnoreCase))
+                    throw new FormatException("Prize board requires its finalized Daily");
+                var ledger = daily["ledger"];
+                var funded = new BigInteger((ulong)ledger["payout_lamports"]) + (ulong)ledger["rollover_out_lamports"];
+                if (funded > ulong.MaxValue) throw new FormatException("Finalized Daily ledger overflows its pool");
+                var pools = NativeEngine.BoardPools((ulong)funded, (uint)daily["theme_qualified_players"]);
+                ulong pool = NativeWire.Read(pools, board.Kind == "score" ? 0 : 8, 8);
+                if (board.PoolLamports != pool || board.QualifiedCount != (uint)daily[board.Kind + "_qualified_players"])
+                    throw new FormatException("Prize board pool or qualification count differs from finalized Daily");
+            }
+            // Core owns width, denominator and each rounded payout. This only
+            // applies the program's retained-account capacity and checks headers.
+            var width = NativeEngine.BoardWidth(board.PoolLamports, board.QualifiedCount);
+            uint widthCount = checked((uint)NativeWire.Read(width, 0, 4));
+            var denominator = NativeWire.Bytes(width, 4, 16);
+            uint count = Math.Min(widthCount, ClientPolicy.ArenaBoardCapacity);
+            if (board.PayoutCount != count || board.WidthCount != widthCount ||
+                board.CapacityLimited != (count < widthCount) ||
+                board.Denominator != new BigInteger(denominator.Concat(new byte[] { 0 }).ToArray()))
+                throw new FormatException("Prize board does not match the native payout plan");
+            var payouts = new ulong[count]; ulong paid = 0, claimed = 0;
+            for (uint i = 0; i < count; i++)
+            {
+                payouts[i] = NativeEngine.PayoutForRank(board.PoolLamports, denominator, i + 1);
+                paid = checked(paid + payouts[i]);
+                if (board.Sealed && board.Rows[(int)i].Claimed) claimed = checked(claimed + payouts[i]);
+            }
+            if (paid > board.PoolLamports || board.PaidLamports != paid || board.RolloverLamports != board.PoolLamports - paid ||
+                board.ClaimedLamports != claimed)
+                throw new FormatException("Prize board paid, rollover or claimed ledger differs from native payouts");
+            return payouts;
+        }
+        private PlayerProfile Profile(string owner, RpcAccount read) => new PlayerProfile(owner, read.Slot,
+            read.Envelope == null ? null : accounts.PlayerState(read.Envelope, owner));
+        private static byte Stars(byte[] packed, int level) => (byte)((packed[level / 4] >> ((level % 4) * 2)) & 3);
+        private long Clock() => PublicDailyQuery.ValidateClock(now());
+        private static uint CurrentDay(long timestamp) => PublicDailyQuery.CurrentDay(timestamp);
+        private static string DailyStatus(JObject daily, long timestamp) => PublicDailyQuery.DailyStatus(daily, timestamp);
+        private async Task<ProductRead<T>> Read<T>(CancellationToken cancellation, Func<IdentityLease, CancellationToken, Task<T>> query)
+        {
+            var lease = identity.Lease();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(lease.Cancellation, cancellation);
+            linked.Token.ThrowIfCancellationRequested();
+            var value = await query(lease, linked.Token).ConfigureAwait(false);
+            linked.Token.ThrowIfCancellationRequested();
+            if (!identity.IsCurrent(lease)) throw new OperationCanceledException("Product read identity changed");
+            return new ProductRead<T>(identity, lease, value);
+        }
+    }
+}

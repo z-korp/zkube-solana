@@ -1,0 +1,10 @@
+{
+  "name": "ZKube.MoneyApp.Tests",
+  "references": ["ZKube.MoneyApp", "ZKube.MoneyEvidence", "ZKube.Client", "ZKube.Integration", "ZKube.Planning", "ZKube.Transport", "ZKube.Execution", "ZKube.RunReconciliation", "ZKube.Core", "ZKube.Generated", "ZKube.SolanaPrimitives"],
+  "includePlatforms": ["Editor"],
+  "defineConstraints": ["UNITY_INCLUDE_TESTS", "!ZKUBE_STORE"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll", "Newtonsoft.Json.dll"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

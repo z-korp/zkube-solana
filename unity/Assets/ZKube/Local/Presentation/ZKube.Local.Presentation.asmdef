@@ -1,0 +1,8 @@
+{
+  "name": "ZKube.Local.Presentation",
+  "rootNamespace": "ZKube.Local",
+  "references": ["ZKube.Local.Runs", "ZKube.Presentation", "ZKube.Core", "ZKube.Generated"],
+  "defineConstraints": ["UNITY_EDITOR || ZKUBE_STORE"],
+  "autoReferenced": true,
+  "noEngineReferences": true
+}

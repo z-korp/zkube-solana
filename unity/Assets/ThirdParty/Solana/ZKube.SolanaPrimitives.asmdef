@@ -1,0 +1,14 @@
+{
+  "name": "ZKube.SolanaPrimitives",
+  "rootNamespace": "Solana.Unity.Wallet",
+  "references": [],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Chaos.NaCl.dll"
+  ],
+  "autoReferenced": false,
+  "noEngineReferences": true,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

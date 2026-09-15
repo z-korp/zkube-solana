@@ -1,0 +1,7 @@
+{
+  "name": "ZKube.Presentation.Tests",
+  "references": ["ZKube.Presentation", "ZKube.Core", "ZKube.Generated", "Unity.ugui", "Unity.TextMeshPro"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "defineConstraints": ["UNITY_EDITOR || ZKUBE_EVIDENCE"],
+  "autoReferenced": false
+}

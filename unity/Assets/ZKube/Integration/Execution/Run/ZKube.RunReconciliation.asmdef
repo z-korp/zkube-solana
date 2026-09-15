@@ -1,0 +1,21 @@
+{
+  "name": "ZKube.RunReconciliation",
+  "rootNamespace": "ZKube.Integration.Execution",
+  "references": [
+    "ZKube.Core",
+    "ZKube.Generated",
+    "ZKube.Integration",
+    "ZKube.Planning",
+    "ZKube.Transport",
+    "ZKube.Execution"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": true,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

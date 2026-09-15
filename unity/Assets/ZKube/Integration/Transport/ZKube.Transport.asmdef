@@ -1,0 +1,17 @@
+{
+  "name": "ZKube.Transport",
+  "rootNamespace": "ZKube.Integration.Transport",
+  "references": [
+    "ZKube.Integration",
+    "ZKube.Generated"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": true,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

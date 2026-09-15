@@ -1,0 +1,9 @@
+{
+  "name": "ZKube.StoreStartup.Tests",
+  "references": ["ZKube.StoreStartup", "ZKube.Local", "ZKube.Local.Runs", "ZKube.Local.Billing"],
+  "includePlatforms": ["Editor"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

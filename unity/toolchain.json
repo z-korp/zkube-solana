@@ -1,0 +1,49 @@
+{
+  "editor": "6000.3.23f1",
+  "revision": "09d2ecc7fb28",
+  "ndk": "27.2.12479018",
+  "jdk": "17.0.18",
+  "gradle": "9.1.0",
+  "androidGradlePlugin": "9.0.0",
+  "sdkBuildTools": "36.0.0",
+  "androidApi": 36,
+  "androidMinimumApi": 26,
+  "bundletool": "1.17.2",
+  "androidAbis": [
+    {
+      "name": "arm64-v8a",
+      "rustTarget": "aarch64-linux-android",
+      "linkerPrefix": "aarch64-linux-android",
+      "unityCpu": "ARM64",
+      "elfMachine": 183
+    },
+    {
+      "name": "x86_64",
+      "rustTarget": "x86_64-linux-android",
+      "linkerPrefix": "x86_64-linux-android",
+      "unityCpu": "x86_64",
+      "elfMachine": 62
+    }
+  ],
+  "androidIdentities": [
+    {
+      "name": "money",
+      "package": "com.zkorp.zkube",
+      "format": "apk",
+      "abis": [
+        "arm64-v8a"
+      ],
+      "locks": "NativeAndroid/unity-locks"
+    },
+    {
+      "name": "store",
+      "package": "com.zkorp.zkube.store",
+      "format": "aab",
+      "abis": [
+        "arm64-v8a",
+        "x86_64"
+      ],
+      "locks": "NativeAndroid/store-unity-locks"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+using NUnit.Framework;
+using ZKube.Integration;
+
+namespace ZKube.Tests.ProductReads
+{
+    public sealed partial class ProductReadTests
+    {
+        [Test] public async Task ExplicitSpectatorModesReadBothDurableSlotsAndKeepNativeAcceptedSnapshots()
+        {
+            var e = await Environment.Create(); var runs = JObject.Parse(File.ReadAllText(Path.Combine(Root,"fixtures/unity-run-client-v1.json")));
+            e.Http.Put(runs["player"]); e.Http.Delegated = true;
+            var campaign = runs["cases"].Single(row => (string)row["id"] == "active-campaign-playing");
+            var daily = runs["cases"].Single(row => (string)row["id"] == "active-daily-playing");
+            e.Http.Put(campaign); e.Http.Put(daily);
+            foreach (var pair in new[] { (Mode:"campaign",Row:campaign), (Mode:"ranked",Row:daily) })
+            {
+                var actual = (await e.Queries.SpectateSlot(e.Owner,pair.Mode)).Value;
+                Assert.That(actual.Address, Is.EqualTo((string)pair.Row["address"])); Assert.That(actual.Phase, Is.EqualTo("delegated"));
+                var expected = new ActiveRunReconciler(e.Accounts).Reconcile(Envelope(pair.Row),e.Owner);
+                CollectionAssert.AreEqual(expected.State,actual.Token.State); CollectionAssert.AreEqual(expected.Config,actual.Token.Config);
+            }
+            var latest = (await e.Queries.Spectate(e.Owner)).Value;
+            Assert.That(latest.Address, Is.EqualTo((string)campaign["address"]), "This fixture allocates Campaign last; latest-ID alone misses the older Daily slot");
+        }
+
+        [Test] public async Task ChangedOrMismatchedDurableSpectatorSlotNeverExposesAcceptedToken()
+        {
+            var e = await Environment.Create(); var runs = JObject.Parse(File.ReadAllText(Path.Combine(Root,"fixtures/unity-run-client-v1.json")));
+            var campaign = runs["cases"].Single(row => (string)row["id"] == "active-campaign-playing");
+            var daily = runs["cases"].Single(row => (string)row["id"] == "active-daily-playing");
+            e.Http.Put(runs["player"]); e.Http.Put(campaign); e.Http.Put(daily); e.Http.Delegated = true;
+            e.Http.OnRequest = request => { if ((string)request["method"] == "getDelegationStatus")
+                e.Http.Put(PatchAccount(runs["player"],"PlayerState",("campaign_active_run_id",Number(0,8)))); };
+            var result = (await e.Queries.SpectateSlot(e.Owner,"campaign")).Value;
+            Assert.That(result.Phase, Is.EqualTo("changed")); Assert.That(result.Token, Is.Null);
+            e.Http.OnRequest = null;
+            ulong dailyId=(ulong)e.Accounts.ActiveRun(Envelope(daily),e.Owner)["run_id"];
+            e.Http.Put(PatchAccount(runs["player"],"PlayerState",("campaign_active_run_id",Number(dailyId,8))));
+            await Failure<FormatException>(async()=>{ await e.Queries.SpectateSlot(e.Owner,"campaign"); });
+            e.Http.Put(PatchAccount(runs["player"],"PlayerState",("campaign_active_run_id",Number(0,8))));
+            Assert.That((await e.Queries.SpectateSlot(e.Owner,"campaign")).Value.Phase, Is.EqualTo("not-found"));
+        }
+    }
+}

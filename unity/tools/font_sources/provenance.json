@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "license": "SIL Open Font License 1.1; individual unmodified license files accompany each upstream family",
+  "sources": [
+    {
+      "family": "Lilita One",
+      "repository": "https://github.com/google/fonts",
+      "revision": "baa2e5561af8a4873b058859dcfe158bdd033942",
+      "directory": "ofl/lilitaone",
+      "files": ["LilitaOne-Regular.ttf", "OFL.txt"]
+    },
+    {
+      "family": "Outfit",
+      "repository": "https://github.com/Outfitio/Outfit-Fonts",
+      "revision": "902773808eb372f70fb34e8946dd1ffe604efc79",
+      "directory": "fonts/ttf",
+      "files": ["Outfit-Regular.ttf", "Outfit-Medium.ttf", "Outfit-SemiBold.ttf", "Outfit-Bold.ttf", "Outfit-ExtraBold.ttf"],
+      "licensePath": "OFL.txt"
+    },
+    {
+      "family": "Noto Sans Symbols 2",
+      "repository": "https://github.com/google/fonts",
+      "revision": "baa2e5561af8a4873b058859dcfe158bdd033942",
+      "directory": "ofl/notosanssymbols2",
+      "files": ["NotoSansSymbols2-Regular.ttf", "OFL.txt"]
+    },
+    {
+      "family": "Noto Sans Math",
+      "repository": "https://github.com/google/fonts",
+      "revision": "baa2e5561af8a4873b058859dcfe158bdd033942",
+      "directory": "ofl/notosansmath",
+      "files": ["NotoSansMath-Regular.ttf", "OFL.txt"]
+    }
+  ],
+  "fallback": "Lilita One -> Outfit Regular -> Noto Sans Symbols 2 -> Noto Sans Math; use existing sprite icons for decorated pictograms. Math supplies the required less-than-or-equal and greater-than-or-equal symbols. Runtime fallback coverage is checked by the Editor preparation method before acceptance."
+}

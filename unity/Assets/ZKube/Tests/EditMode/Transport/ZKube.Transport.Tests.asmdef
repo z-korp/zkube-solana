@@ -1,0 +1,24 @@
+{
+  "name": "ZKube.Transport.Tests",
+  "rootNamespace": "ZKube.Integration.Transport.Tests",
+  "references": [
+    "ZKube.Transport",
+    "ZKube.Integration",
+    "ZKube.Generated"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll",
+    "nunit.framework.dll"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

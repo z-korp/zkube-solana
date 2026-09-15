@@ -1,0 +1,8 @@
+{
+  "name": "ZKube.Core.Tests",
+  "rootNamespace": "ZKube.Core.Tests",
+  "references": ["ZKube.Core", "ZKube.Generated"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

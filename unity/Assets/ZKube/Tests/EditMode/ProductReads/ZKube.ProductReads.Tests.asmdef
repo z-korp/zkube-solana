@@ -1,0 +1,27 @@
+{
+  "name": "ZKube.ProductReads.Tests",
+  "references": [
+    "ZKube.Client",
+    "ZKube.Integration",
+    "ZKube.Planning",
+    "ZKube.Transport",
+    "ZKube.Core",
+    "ZKube.Generated",
+    "ZKube.SolanaPrimitives"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll",
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

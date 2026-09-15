@@ -1,0 +1,20 @@
+{
+  "name": "ZKube.Integration",
+  "rootNamespace": "ZKube.Integration",
+  "references": [
+    "ZKube.SolanaPrimitives",
+    "Unity.Newtonsoft.Json",
+    "ZKube.Core",
+    "ZKube.Generated"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Chaos.NaCl.dll",
+    "Newtonsoft.Json.dll"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": true,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

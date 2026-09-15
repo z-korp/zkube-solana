@@ -1,0 +1,21 @@
+{
+  "name": "ZKube.Client",
+  "rootNamespace": "ZKube.Integration.Client",
+  "references": [
+    "ZKube.Integration",
+    "ZKube.Core",
+    "ZKube.Generated",
+    "ZKube.Planning",
+    "ZKube.Transport",
+    "ZKube.Execution",
+    "ZKube.RunReconciliation"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

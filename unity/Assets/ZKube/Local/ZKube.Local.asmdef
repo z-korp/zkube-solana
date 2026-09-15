@@ -1,0 +1,10 @@
+{
+  "name": "ZKube.Local",
+  "rootNamespace": "ZKube.Local",
+  "references": ["ZKube.Persistence"],
+  "defineConstraints": ["UNITY_EDITOR || ZKUBE_STORE"],
+  "overrideReferences": true,
+  "precompiledReferences": ["Newtonsoft.Json.dll"],
+  "autoReferenced": true,
+  "noEngineReferences": true
+}

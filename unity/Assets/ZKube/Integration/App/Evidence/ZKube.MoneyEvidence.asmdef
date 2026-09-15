@@ -1,0 +1,9 @@
+{
+  "name": "ZKube.MoneyEvidence",
+  "references": ["ZKube.MoneyApp", "ZKube.Client", "ZKube.Integration", "ZKube.Transport", "ZKube.Execution", "ZKube.Planning"],
+  "defineConstraints": ["UNITY_EDITOR || ZKUBE_EVIDENCE", "!ZKUBE_STORE"],
+  "overrideReferences": true,
+  "precompiledReferences": ["Newtonsoft.Json.dll"],
+  "noEngineReferences": true,
+  "autoReferenced": true
+}

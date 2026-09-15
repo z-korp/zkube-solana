@@ -1,0 +1,11 @@
+{
+  "name": "ZKube.AndroidWallet",
+  "rootNamespace": "ZKube.Integration.Android",
+  "references": [
+    "ZKube.Integration"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}

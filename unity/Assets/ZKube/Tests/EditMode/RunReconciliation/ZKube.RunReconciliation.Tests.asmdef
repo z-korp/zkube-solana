@@ -1,0 +1,27 @@
+{
+  "name": "ZKube.RunReconciliation.Tests",
+  "references": [
+    "ZKube.RunReconciliation",
+    "ZKube.Core",
+    "ZKube.Generated",
+    "ZKube.Integration",
+    "ZKube.Planning",
+    "ZKube.Transport",
+    "ZKube.Execution"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll",
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "!ZKUBE_STORE"
+  ]
+}
