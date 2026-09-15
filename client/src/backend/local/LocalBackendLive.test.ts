@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Effect, ManagedRuntime } from "effect";
 
 import golden from "../../../../fixtures/replays/golden-daily-run-v1.json";
@@ -27,6 +27,37 @@ initializeZkubeCoreSync(
 );
 
 describe("LocalBackendLive", () => {
+  it.each(["store", "money"] as const)("campaign_seed_is_fresh_per_attempt_and_replays_on_resume (%s)", async target => {
+    const storage = memoryStorage();
+    const options = { target, storage, ...(target === "money" ? { owner: "player-address" } : {}) };
+    const random = vi.spyOn(globalThis.crypto, "getRandomValues");
+    let runtime = ManagedRuntime.make(makeLocalBackendLive(options));
+    const saved = () => runtime.runPromise(Effect.map(LocalCampaignProgress, progress => progress.read().campaignRun!));
+    try {
+      const first = await runtime.runPromise(Effect.flatMap(Runs, runs => runs.startCampaign(1, 1)));
+      const firstSave = await saved();
+      expect(firstSave.seed).toHaveLength(32);
+      expect(firstSave.actions).toEqual([]);
+      expect(coreRunSummary(first.token).bonusCharges).toBe(0);
+      await runtime.runPromise(Effect.flatMap(Runs, runs => runs.act(first.runId, { _tag: "Finish", reason: "abandon" })));
+      const second = await runtime.runPromise(Effect.flatMap(Runs, runs => runs.startCampaign(1, 1)));
+      const secondSave = await saved();
+      expect(secondSave.seed).toHaveLength(32);
+      expect(secondSave.seed).not.toEqual(firstSave.seed);
+      expect(secondSave.actions).toEqual([]);
+      expect(random).toHaveBeenCalledTimes(2);
+      await runtime.dispose();
+      runtime = ManagedRuntime.make(makeLocalBackendLive(options));
+      const resumed = await runtime.runPromise(Effect.flatMap(Runs, runs => runs.active("campaign")));
+      expect(resumed?.token).toEqual(second.token);
+      expect((await saved()).seed).toEqual(secondSave.seed);
+      expect(random).toHaveBeenCalledTimes(2);
+    } finally {
+      await runtime.dispose();
+      random.mockRestore();
+    }
+  });
+
   it.each(["store", "money"] as const)("local_campaign_run_survives_process_death (%s)", async target => {
     const values = new Map<string, string>();
     const storage = { getItem: (key: string) => values.get(key) ?? null,

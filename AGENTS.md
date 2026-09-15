@@ -47,9 +47,9 @@ Source implements v5 partially. Current state:
 | Area | Status |
 | --- | --- |
 | Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed realm × objective draw |
-| Program surface | Built — 41 instructions and 11 account types; Arcade-only run lifecycle and one cosmetic Campaign star-record write |
+| Program surface | Built — 41 instructions and 11 account types; Arcade-only run lifecycle and one Campaign save write |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
-| `PlayerState` | Built — 223 bytes; self-attested Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
+| `PlayerState` | Built — 223 bytes; the player's reported Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and Daily draw | Built — prepaid purchase/spend paths and protocol-derived realm × objective selection |
 | Points ladder | Built — integer Q64 `ln` in the core, streak-neutral points applied atomically with each Daily claim |
@@ -138,11 +138,16 @@ and approved on 2026-08-08.
 **Campaign amendment approved 2026-09-15.** The owner reversed the on-chain
 Campaign lifecycle because a free mode was spending owner SOL and requiring a
 funded device session. Campaign gameplay now runs locally, while the existing
-25-byte lifetime-best star array is a self-attested, cosmetic sync record.
-Emblems 1–12 consequently have self-attested trust; `emblem_unlocked` keeps its
-existing star gate. `campaign_badges_and_emblems_are_derived_from_stars` guards
+25-byte lifetime-best star array is the player's Campaign save, written by their
+own device and synchronized across their devices. The program does not verify
+this progress, and it has no effect on money. Emblems 1–12 reflect that reported
+progress; `emblem_unlocked` keeps its existing star gate.
+`campaign_badges_and_emblems_are_derived_from_stars` guards
 that unchanged gate. Daily, Kredits, boards, claims, the ladder, and keeper
 cadence retain their rules.
+
+On-chain replay verification was measured at 1,757,716 CU for a worst-case level
+on 2026-09-15 and rejected as a lifecycle rebuilt for a cosmetic.
 
 The amendment adds one instruction and one 25-byte argument. It removes the
 three Campaign lifecycle instructions, one run slot, the content accounts, and
@@ -223,7 +228,7 @@ ladder tier boundaries, and the flat qualifying credit.
 - **Guardian inventories start empty in both modes.** Starting height comes from
   the drawn realm in Daily and the same compiled realm in Campaign; Hammer,
   Totem, and Wave charges are earned only by firing that guardian's trigger.
-  `campaign_opening_is_seeded_and_reproducible` and
+  `campaign_seed_is_fresh_per_attempt_and_replays_on_resume` in both clients and
   `daily_runs_start_without_guardian_charges` guard the two constructors.
 - **Dailies may be suspended at any time and for any length.** Nothing obliges a
   daily to run. Prepaid funding spans any gap untouched: the last paid day funds
@@ -585,8 +590,10 @@ progression without changing it or imposing a gate on the money identity;
 `PlayerState` retains its packed 25-byte, two-bits-per-level array.
 `record_campaign_stars` takes the entire array and applies each level's maximum,
 using the exact owner-or-device-session authorization of `set_featured_emblem`.
-The program cannot verify these stars: the record and emblems 1–12 are
-self-attested and cosmetic. Apart from authorization and account constraints,
+The array is the player's Campaign save, written by their own device and
+synchronized across their devices. The program does not verify these stars;
+they have no effect on money, and emblems 1–12 reflect that reported progress.
+Apart from authorization and account constraints,
 only malformed encoding is rejected; all 100 two-bit values are valid.
 `campaign_stars_merge_per_level_maximum_and_never_decrease` in the core and
 program pins monotonic merging.
@@ -605,6 +612,12 @@ guards the durable retry and acknowledgement, and
 `campaign_record_enable_during_pending_attempt_retains_the_retry` guards an
 enable request arriving during an existing attempt. No cloud, server, indexer,
 or second progress store participates.
+
+Each Campaign attempt draws a fresh 32-byte seed from the platform random
+source. Both local clients persist it before the first action and replay the
+saved seed on resume; `campaign_seed_is_fresh_per_attempt_and_replays_on_resume`
+tests different seeds across two starts and an identical opening after resume
+for both identities in both clients. Tests can inject a seed for fixture parity.
 
 An unfinished Campaign trial persists its seed and accepted action log before
 an action is acknowledged. Reopening replays that log through the core on the
@@ -755,11 +768,11 @@ Emblems are identity display only with no monetary effect.
 | Boundary | Responsibility | Authority and funding |
 | --- | --- | --- |
 | Owner wallet | Durable identity, Kredit purchases and device funding | Signs purchases at the protocol unit price and funds the device allowance |
-| Device session | Approximately seven days of authorized Arcade gameplay and cosmetic record writes | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
+| Device session | Approximately seven days of authorized Arcade gameplay and Campaign save writes | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
 | Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation and finalization only |
 | Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
 | MagicBlock ER | Arcade gameplay and per-row VRF | Router-resolved validator |
-| Solana program | Cosmetic attested Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
+| Solana program | The player's reported Campaign save, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
 | Unity and React local run client | Campaign play, durable seed/action replay and local lifetime stars | Connected address only on money; walletless store policy |
 | Static web/PWA and Capacitor shells | Wallet, local Campaign, and Arcade UI; core engine through WASM | No server signer or paymaster |

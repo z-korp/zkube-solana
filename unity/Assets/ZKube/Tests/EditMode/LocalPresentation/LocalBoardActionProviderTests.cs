@@ -29,7 +29,8 @@ namespace ZKube.Local.Tests
                     if (Fail) throw new IOException("disk-full");
                     Disk = value; AfterWrite?.Invoke();
                 });
-                Client = new LocalRunClient(Store, () => 20705L * 86400 + 123);
+                Client = new LocalRunClient(Store, () => 20705L * 86400 + 123,
+                    campaignSeed: () => Enumerable.Repeat((byte)0x5a, 32).ToArray());
             }
         }
         private static readonly CancellationToken None = CancellationToken.None;

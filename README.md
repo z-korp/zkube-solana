@@ -30,15 +30,18 @@ wallets or recovery codes.
 
 **Campaign** is free and optional on the money identity, and does not gate
 Arcade. Its 100 trials play locally. A connected Solana address identifies the
-player; playing needs no device session, signature, or SOL. Lifetime-best stars
-merge across devices through a self-attested, cosmetic 25-byte on-chain record.
+player; playing needs no device session, signature, or SOL. The 25-byte on-chain
+star array is the player's Campaign save, written by their own device and
+synchronized across their devices. The program does not verify this progress,
+and it has no effect on money.
 Updates wait for a funded device session and do not interrupt play. An unfinished
-trial resumes on its own device from its saved seed and actions.
+trial resumes on its own device from its saved seed and actions. Every new
+attempt draws a fresh 32-byte seed from the platform random source.
 
 The store identity stays walletless and local, with its existing purchase gate
 on realms 4–10. Both identities use the same local Campaign client. Campaign
-stars grant no SOL, entries, or prize eligibility; emblems 1–12 reflect
-self-attested progress.
+stars grant no SOL, entries, or prize eligibility; emblems 1–12 reflect that
+reported progress.
 
 **Arcade** is competition only. The owner prepays Kredits at exactly 0.01 SOL
 (10,000,000 lamports) each. Spending one Kredit routes:

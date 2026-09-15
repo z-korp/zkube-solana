@@ -14,7 +14,7 @@ export async function scenario(name: string, initial: ReturnType<typeof emptyLoc
   let now = 20705 * 86400 + 123, persisted: string | null = JSON.stringify(initial), failWrites = false;
   let owned = false, price = "€0.99", billingFails = true, writes = 0;
   const storage = { getItem: () => persisted, setItem: (_key: string, value: string) => { if (failWrites) throw new Error("disk-full"); persisted = value; writes++; }, removeItem: () => {} };
-  const create = () => ManagedRuntime.make(make({ target: "store", nowUnix: () => now, storage,
+  const create = () => ManagedRuntime.make(make({ target: "store", seed: new Uint8Array(32).fill(0x5a), nowUnix: () => now, storage,
     campaignBilling: { queryCampaign: async () => { if (billingFails) throw new Error("billing-offline"); return { campaignOwned: owned, price }; }, purchaseCampaign: async () => {}, restorePurchases: async () => {} } }));
   let runtime = create();
   async function ready() { await runtime.runPromise(Effect.flatMap(Content, content => content.today())); await new Promise<void>(done => setImmediate(done)); }

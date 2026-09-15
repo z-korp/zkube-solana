@@ -7,7 +7,6 @@ export const PLAYTEST_BUILD_SENTINEL = "zkube_owner_playtest_v1";
 
 const SETTINGS_KEY = "zkube:playtest:settings:v1";
 const CHANGE_EVENT = "zkube:playtest-settings";
-const DEFAULT_SEED_HEX = "5a".repeat(32);
 
 export interface PlaytestSettings {
   readonly seedHex: string;
@@ -16,7 +15,7 @@ export interface PlaytestSettings {
 }
 
 const DEFAULT_SETTINGS: PlaytestSettings = {
-  seedHex: DEFAULT_SEED_HEX,
+  seedHex: encodeHex(globalThis.crypto.getRandomValues(new Uint8Array(32))),
   realm: 1,
   objectiveIndex: 0,
 };

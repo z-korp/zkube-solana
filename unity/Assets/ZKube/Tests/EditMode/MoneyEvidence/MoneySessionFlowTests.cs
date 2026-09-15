@@ -59,16 +59,16 @@ namespace ZKube.Integration.App.Tests
         [Test] public async Task PrecancelledSessionReadHasNoNativeOrTransportEffects()
         {
             var graph = await Create("owner-overview"); var flow = new MoneyAppFlow(graph.Services);
+            var hold = graph.HoldNextRead("getAccountInfo");
             try
             {
-                await flow.Connect(); int before = graph.Calls.Count;
+                await flow.Connect(); await hold.Entered; int before = graph.Calls.Count;
                 using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
                 try { await flow.RefreshSession(cancelled.Token); Assert.Fail("Expected cancellation"); }
                 catch (OperationCanceledException) { }
-                Assert.That(graph.Calls.Skip(before).All(call => call.Operation == "getAccountInfo"), Is.True,
-                    "Only the independent Campaign record read may complete");
+                Assert.That(graph.Calls.Count, Is.EqualTo(before));
             }
-            finally { await flow.StopAsync(); }
+            finally { hold.Release(); await flow.StopAsync(); }
         }
 
         [Test] public async Task ExplicitEnsureRecoverKeepsPriorPurchaseIdentityAndDoesNotStartSessionSetup()

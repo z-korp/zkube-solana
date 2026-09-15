@@ -33,9 +33,14 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /fixed[ _-]?puzzle|default[ _-]?seed|campaign[ _-]?proof|checkpoint/i,
+    trees: [CLIENT, PROGRAM],
+    reversal: "Campaign starts with fresh randomness and synchronizes the player's reported save (2026-09-15)",
+  },
+  {
     pattern: /activate_campaign_map|prepare_campaign_run|consume_campaign_run|activateCampaignMap|prepareCampaignRun|consumeCampaignRun|write_map_catalog|activate_content_release|writeMapCatalog|activateContentRelease|campaign_active_run_id|campaignActiveRunId|Campaign run slot|Campaign publication|Campaign delegation|set up (?:this |a |your )?device before (?:a |your )?Campaign trial/i,
     trees: [CLIENT, CLIENT_TOOLS, UNITY_CLIENT, SERVICES, PROGRAM],
-    reversal: "Campaign runs locally; only cosmetic lifetime stars synchronize through an attested record (2026-09-15)",
+    reversal: "Campaign runs locally; the player's reported lifetime stars synchronize across devices (2026-09-15)",
   },
   {
     pattern: /\bHomePage\b|\bCampaignPage\b/,

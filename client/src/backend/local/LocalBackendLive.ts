@@ -122,7 +122,6 @@ const LOCAL_WALLET: WalletChoice = {
   name: "Local player",
   platform: "browser",
 };
-const DEFAULT_SEED = new Uint8Array(32).fill(0x5a);
 const LOCAL_DAILY_SEED = new TextEncoder().encode(
   "zkube-local-daily-row-seed-v1",
 );
@@ -447,7 +446,7 @@ export function makeLocalBackendLive(
               seed ??
               options.seed ??
               options.ownerControls?.seed() ??
-              DEFAULT_SEED,
+              globalThis.crypto.getRandomValues(new Uint8Array(32)),
             requestCounter: 0,
             events: eventRef,
             recorded: false,

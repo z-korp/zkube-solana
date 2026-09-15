@@ -45,12 +45,14 @@ namespace ZKube.Local
         private readonly Dictionary<string, Record> active = new Dictionary<string, Record>();
         private ulong nextId = 1;
         private readonly Func<byte, bool> purchaseGate;
+        private readonly Func<byte[]> campaignSeed;
         private bool restoring;
-        public LocalRunClient(LocalProductStore store, Func<long> utcNow, Func<byte, bool> purchaseGate = null)
+        public LocalRunClient(LocalProductStore store, Func<long> utcNow, Func<byte, bool> purchaseGate = null, Func<byte[]> campaignSeed = null)
         {
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             now = utcNow ?? throw new ArgumentNullException(nameof(utcNow));
             this.purchaseGate = purchaseGate;
+            this.campaignSeed = campaignSeed ?? FreshCampaignSeed;
             RestoreCampaign();
         }
         public LocalDaily Today()
@@ -86,7 +88,7 @@ namespace ZKube.Local
                 if (blocked != null) throw new InvalidOperationException(blocked == "purchase" ? "Unlock the full Campaign first" : "Defeat the previous guardian first");
                 if (active.TryGetValue("campaign", out var existing))
                     throw new InvalidOperationException("Resume the saved Campaign run first");
-                return Start("campaign", realm, level, CampaignRules(realm, level), Enumerable.Repeat((byte)0x5a, 32).ToArray(), null);
+                return Start("campaign", realm, level, CampaignRules(realm, level), campaignSeed(), null);
             }
         }
         public LocalRunUpdate StartDaily()
@@ -181,6 +183,12 @@ namespace ZKube.Local
                 }
                 return new LocalRunUpdate(record.View(), transitions);
             }
+        }
+        private static byte[] FreshCampaignSeed()
+        {
+            var seed = new byte[32];
+            using (var random = RandomNumberGenerator.Create()) random.GetBytes(seed);
+            return seed;
         }
         private LocalRunUpdate Start(string mode, byte realm, byte level, BuildConfigRequest rules, byte[] seed, uint? day)
         {

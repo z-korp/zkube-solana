@@ -13,6 +13,34 @@ namespace ZKube.Local.Tests
 {
     public sealed class LocalRunTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void campaign_seed_is_fresh_per_attempt_and_replays_on_resume(bool money)
+        {
+            var disk = new System.Collections.Generic.Dictionary<string, string>();
+            LocalProductStore Open() => new LocalProductStore(key => disk.TryGetValue(key, out var value) ? value : null,
+                (key, value) => disk[key] = value, money ? "player-address" : null);
+            var store = Open();
+            var runs = new LocalRunClient(store, () => 0);
+            var first = runs.StartCampaign(1, 1);
+            var firstSeed = Open().Read.CampaignRun.Seed.ToArray();
+            Assert.That(firstSeed.Length, Is.EqualTo(32));
+            Assert.That(Open().Read.CampaignRun.Actions, Is.Empty);
+            Assert.That(NativeEngine.Summary(first.View.Token).BonusCharges, Is.Zero);
+            runs.Act(first.View.RunId, first.View.Token, new LocalRunAction(LocalActionKind.Finish));
+            var second = runs.StartCampaign(1, 1);
+            var secondSeed = Open().Read.CampaignRun.Seed.ToArray();
+            Assert.That(secondSeed.Length, Is.EqualTo(32));
+            CollectionAssert.AreNotEqual(firstSeed, secondSeed);
+            Assert.That(Open().Read.CampaignRun.Actions, Is.Empty);
+            var restored = new LocalRunClient(Open(), () => 86400,
+                campaignSeed: () => throw new InvalidOperationException("Resume uses the saved randomness"));
+            var resumed = restored.Active("campaign");
+            CollectionAssert.AreEqual(second.View.Token.Config, resumed.Token.Config);
+            CollectionAssert.AreEqual(second.View.Token.State, resumed.Token.State);
+            CollectionAssert.AreEqual(secondSeed, Open().Read.CampaignRun.Seed);
+        }
+
         [Test]
         public async Task campaign_record_enable_during_pending_attempt_retains_the_retry()
         {
@@ -138,7 +166,7 @@ namespace ZKube.Local.Tests
             var fixture = Fixture["cases"].Single(item => (string)item["name"] == name);
             string saved = fixture["initial"].ToString(); bool failWrites = false; int writes = 0; long now = (long)fixture["now"];
             LocalProductStore store = null; LocalRunClient client = null;
-            void Restart() { store = new LocalProductStore(_ => saved, (_, value) => { if (failWrites) throw new IOException("disk-full"); saved = value; writes++; }); client = new LocalRunClient(store, () => now, StoreCampaignPolicy.PurchaseGate(store)); }
+            void Restart() { store = new LocalProductStore(_ => saved, (_, value) => { if (failWrites) throw new IOException("disk-full"); saved = value; writes++; }); client = new LocalRunClient(store, () => now, StoreCampaignPolicy.PurchaseGate(store), () => Enumerable.Repeat((byte)0x5a, 32).ToArray()); }
             Restart();
             int index = 0;
             foreach (var step in fixture["steps"])
