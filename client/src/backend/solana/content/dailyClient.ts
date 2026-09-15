@@ -268,9 +268,9 @@ export async function fetchDailyView(args: {
 
 const ARENA_BOARD_HEADER_BYTES = 125;
 const ARENA_BOARD_ENTRY_BYTES = 84;
-const ARENA_BOARD_CAPACITY = 1_536;
-const MAX_AUTO_CLAIMS_PER_ENTRY = 2;
-const AUTO_CLAIM_LOOKBACK_DAYS = 30;
+export const ARENA_BOARD_CAPACITY = 1_536;
+export const MAX_AUTO_CLAIMS_PER_ENTRY = 2;
+export const AUTO_CLAIM_LOOKBACK_DAYS = 30;
 
 export async function fetchDailyBoardAccount(
   connection: Connection,
@@ -678,7 +678,7 @@ export async function buildPurchaseKreditsPlan(args: {
   ) {
     throw new Error("Kredit count must be a positive u32");
   }
-  const unitLamports = args.expectedUnitLamports ?? 10_000_000n;
+  const unitLamports = args.expectedUnitLamports ?? ARENA_ENTRY_LAMPORTS;
   const owner = args.ownerWallet.publicKey;
   const instruction = await zkubeProgram(args.connection, args.ownerWallet)
     .methods.purchaseKredits(args.kreditCount, new BN(unitLamports.toString()))
@@ -704,14 +704,13 @@ const rankedDependencyCoder = new BorshAccountsCoder(
   convertIdlToCamelCase(IDL),
 );
 
-const RANKED_ACCOUNT_SPACES = {
-  protocolConfig: 156,
-  arcadeConfig: 103,
-  arenaDaily: 235,
-  creditVault: 58,
-} as const;
-
-type RankedAccountName = keyof typeof RANKED_ACCOUNT_SPACES;
+type RankedAccountName = "protocolConfig" | "arcadeConfig" | "arenaDaily" | "creditVault";
+interface RankedAccountIdentity {
+  version: number;
+  protocol?: PublicKey;
+  dayId?: number;
+  arcadeConfig?: PublicKey;
+}
 
 interface RankedEntryAccount {
   name: RankedAccountName;
@@ -731,9 +730,8 @@ interface RankedEntryDependencyValues {
  * Fail closed before an owner wallet prompt if any exact cadence dependency
  * disappeared, was substituted, or no longer matches the Daily snapshot.
  *
- * The checks intentionally use fixed offsets only for the account identity
- * prefix shared by every valid account revision. Leaderboards live in their
- * own exact-sized accounts and are not entry dependencies.
+ * The committed IDL owns allocation and field decoding. Leaderboards live in
+ * their own exact-sized accounts and are not entry dependencies.
  */
 export async function assertRankedEntryDependencies(args: {
   connection: Pick<Connection, "getMultipleAccountsInfo">;
@@ -797,13 +795,10 @@ export async function assertRankedEntryDependencies(args: {
   assertVersion(followingDailyInfo!, ARCADE_ACCOUNT_VERSION, "following Daily");
   assertVersion(creditVaultInfo!, ARCADE_ACCOUNT_VERSION, "credit vault");
 
-  assertPubkeyAt(arcadeConfigInfo!, 9, protocol, "Arcade config protocol");
-  assertU64At(
-    arcadeConfigInfo!,
-    73,
-    args.daily.entryLamports,
-    "Arcade entry price",
-  );
+  assertPubkey(arcadeConfigInfo!.protocol, protocol, "Arcade config protocol");
+  if (args.daily.entryLamports !== ARENA_ENTRY_LAMPORTS) {
+    throw rankedEntryUnavailable("entry price does not match the protocol");
+  }
   assertDailyIdentity(currentDailyInfo!, {
     dayId: args.daily.dayId,
     arcadeConfig,
@@ -814,11 +809,9 @@ export async function assertRankedEntryDependencies(args: {
     arcadeConfig,
     label: "following Daily",
   });
-  assertPubkeyAt(creditVaultInfo!, 9, protocol, "credit vault protocol");
+  assertPubkey(creditVaultInfo!.protocol, protocol, "credit vault protocol");
 
-  // The program object is deliberately constructed here, even though the
-  // fixed-prefix verifier does not decode variable tails: it binds the
-  // preflight to the same deployed program ID used to build the instruction.
+  // Bind preflight to the same program identity used to build the instruction.
   if (!program.programId.equals(ZKUBE_PROGRAM_ID)) {
     throw rankedEntryUnavailable("client program identity is invalid");
   }
@@ -828,9 +821,9 @@ export async function assertRankedEntryDependencies(args: {
 function assertExactRankedAccount(
   account: RankedEntryAccount,
   info: AccountInfo<Buffer> | null,
-): Buffer {
+): RankedAccountIdentity {
   if (!info) throw rankedEntryUnavailable(`${account.label} is not prepared`);
-  const expectedSize = RANKED_ACCOUNT_SPACES[account.name];
+  const expectedSize = rankedDependencyCoder.size(account.name);
   if (
     info.executable ||
     !info.owner.equals(ZKUBE_PROGRAM_ID) ||
@@ -847,57 +840,35 @@ function assertExactRankedAccount(
   if (!data.subarray(0, discriminator.length).equals(discriminator)) {
     throw rankedEntryUnavailable(`${account.label} discriminator is invalid`);
   }
-  return data;
+  return rankedDependencyCoder.decode<RankedAccountIdentity>(account.name, data);
 }
 
-function assertVersion(data: Buffer, expected: number, label: string): void {
-  if (data.readUInt8(8) !== expected) {
+function assertVersion(data: RankedAccountIdentity, expected: number, label: string): void {
+  if (data.version !== expected) {
     throw rankedEntryUnavailable(`${label} version is invalid`);
   }
 }
 
 function assertDailyIdentity(
-  data: Buffer,
+  data: RankedAccountIdentity,
   expected: {
     dayId: number;
     arcadeConfig: PublicKey;
     label: string;
   },
 ): void {
-  assertU32At(data, 9, expected.dayId, `${expected.label} day`);
-  assertPubkeyAt(data, 13, expected.arcadeConfig, `${expected.label} config`);
-}
-
-function assertU32At(
-  data: Buffer,
-  offset: number,
-  expected: number,
-  label: string,
-): void {
-  if (data.readUInt32LE(offset) !== expected) {
-    throw rankedEntryUnavailable(`${label} relationship is invalid`);
+  if (data.dayId !== expected.dayId) {
+    throw rankedEntryUnavailable(`${expected.label} day relationship is invalid`);
   }
+  assertPubkey(data.arcadeConfig, expected.arcadeConfig, `${expected.label} config`);
 }
 
-function assertU64At(
-  data: Buffer,
-  offset: number,
-  expected: bigint,
-  label: string,
-): void {
-  if (data.readBigUInt64LE(offset) !== expected) {
-    throw rankedEntryUnavailable(`${label} relationship is invalid`);
-  }
-}
-
-function assertPubkeyAt(
-  data: Buffer,
-  offset: number,
+function assertPubkey(
+  actual: PublicKey | undefined,
   expected: PublicKey,
   label: string,
 ): void {
-  const actual = new PublicKey(data.subarray(offset, offset + 32));
-  if (!actual.equals(expected)) {
+  if (!actual?.equals(expected)) {
     throw rankedEntryUnavailable(`${label} relationship is invalid`);
   }
 }

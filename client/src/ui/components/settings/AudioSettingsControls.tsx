@@ -5,7 +5,7 @@ import { useMusicPlayer } from "@/contexts/hooks";
 import { mixHex } from "@/ui/components/economy/tokens";
 import { useThemeColors } from "@/ui/elements/theme-provider/hooks";
 
-const AUDIO_ON_LEVEL = 0.7;
+export const AUDIO_ON_LEVEL = 0.7;
 
 export default function AudioSettingsControls() {
   const accent = useThemeColors().accent;

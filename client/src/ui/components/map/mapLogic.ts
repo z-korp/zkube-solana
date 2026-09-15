@@ -66,3 +66,9 @@ export function resolveCampaignMap(
   if (!loading && maps === null && mapId === 1) return uninitializedMap1();
   return undefined;
 }
+
+// Shared by the live map and Unity agreement vectors; this permits preview only.
+export function canInspectCampaignNode(state: string, realm: number, level: number,
+  activeRealm: number | null, activeLevel: number | null): boolean {
+  return state !== "locked" && (activeRealm === null || (activeRealm === realm && activeLevel === level));
+}

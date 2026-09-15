@@ -92,12 +92,9 @@ function zoneById(
   return zones.find((zone) => zone.zoneId === zoneId);
 }
 
-/**
- * A guardian's emblem unlocks the moment its realm opens — the RIM carries
- * mastery (silver when the guardian falls, gold at 30/30), not the unlock.
- */
+/** The program awards a guardian emblem when that realm's guardian is cleared. */
 function guardianUnlocked(zone: EmblemZoneInput | undefined): boolean {
-  return Boolean(zone?.unlocked);
+  return Boolean(zone?.cleared);
 }
 
 function guardianGold(zone: EmblemZoneInput | undefined): boolean {
@@ -110,8 +107,8 @@ function totalStars(zones: readonly EmblemZoneInput[]): number {
 
 /**
  * Derive the unlocked/gold state of every emblem from Campaign progress. The
- * `auto` emblem is reported unlocked whenever any concrete emblem is unlocked,
- * and gold whenever its resolved target is gold.
+ * `auto` setting is always selectable, and gold whenever its resolved target
+ * is gold. A fresh player keeps the neutral automatic emblem.
  */
 export function resolveEmblemStates(
   zones: readonly EmblemZoneInput[],
@@ -125,8 +122,7 @@ export function resolveEmblemStates(
     } satisfies EmblemState;
   });
 
-  // Realm Conqueror is earned by DEFEATING all ten guardians — clears, not
-  // zone visibility, even though guardian emblems themselves unlock at open.
+  // Realm Conqueror requires all ten guardian clears.
   const allGuardiansBeaten = GUARDIAN_EMBLEM_IDS.every((zoneId) =>
     Boolean(zoneById(zones, zoneId)?.cleared),
   );
@@ -148,7 +144,7 @@ export function resolveEmblemStates(
   const strongest = strongestUnlocked(concrete);
   const autoState: EmblemState = {
     descriptor: emblemDescriptor(AUTO_EMBLEM_ID),
-    unlocked: strongest !== null,
+    unlocked: true,
     gold: strongest?.gold ?? false,
   };
 

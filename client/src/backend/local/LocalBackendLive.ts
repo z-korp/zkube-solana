@@ -97,6 +97,7 @@ interface LocalRunRecord {
   readonly runId: string;
   readonly realm: number;
   readonly level: number;
+  readonly dayId?: number;
   readonly config: Uint8Array;
   readonly seed: Uint8Array;
   readonly events: SubscriptionRef.SubscriptionRef<RunEvent>;
@@ -356,6 +357,7 @@ export function makeLocalBackendLive(
         level: number,
         config: CoreRunConfigInput,
         seed?: Uint8Array,
+        dayId?: number,
       ) =>
         Effect.gen(function* () {
           const runId = (nextRunId++).toString();
@@ -377,6 +379,7 @@ export function makeLocalBackendLive(
             runId,
             realm,
             level,
+            dayId,
             config: initialized.config,
             state: initialized.state,
             seed:
@@ -442,7 +445,7 @@ export function makeLocalBackendLive(
               options.target === "store"
                 ? yield* Effect.promise(() => localDailySeed(today.dayId))
                 : undefined;
-            const view = yield* start("arcade", today.realm, 1, config, seed);
+            const view = yield* start("arcade", today.realm, 1, config, seed, today.dayId);
             if (options.target === "store") {
               const previous = persistence.read();
               const streak =
@@ -520,9 +523,9 @@ export function makeLocalBackendLive(
             const terminal =
               summary.phase === "finished" || summary.phase === "levelComplete";
             const view = runView(record);
-            yield* SubscriptionRef.set(
+            yield* SubscriptionRef.update(
               activeRefs[record.mode],
-              terminal ? null : view,
+              (current) => current?.runId === record.runId ? (terminal ? null : view) : current,
             );
             if (terminal) {
               if (!record.recorded) {
@@ -535,14 +538,14 @@ export function makeLocalBackendLive(
                         current.bestDailyScore,
                         summary.dailyScore,
                       ),
-                      dailyAttempt: current.dailyAttempt
+                      dailyAttempt: current.dailyAttempt && current.dailyAttempt.dayId === record.dayId
                         ? {
                             ...current.dailyAttempt,
                             dailyScore: summary.dailyScore,
                             objectiveTotal: summary.objectiveTotal.toString(),
                             finished: true,
                           }
-                        : null,
+                        : current.dailyAttempt,
                     }));
                     yield* SubscriptionRef.set(
                       economyRef,

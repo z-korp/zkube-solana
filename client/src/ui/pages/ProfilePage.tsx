@@ -95,22 +95,20 @@ const ProfilePage: React.FC = () => {
   // The realm follows you everywhere: same zone art as Home and Arcade.
   const backdropZoneId = daily.daily?.mapId ?? 1;
 
-  // The stored id, with auto (0) resolved to the strongest unlocked emblem.
+  // Resolve Automatic for rendering; writes retain the stored setting.
   const storedEmblem = emblem.featuredEmblem ?? profile.featuredEmblem;
   const featuredEmblem = useMemo(() => {
     if (storedEmblem > 0) return storedEmblem;
     return resolveAutoEmblemId(zones as readonly EmblemZoneInput[]);
   }, [storedEmblem, zones]);
 
-  // The two mastery crests share the realm rack below the guardians.
-  const crestStates = useMemo(
-    () =>
-      resolveEmblemStates(zones as readonly EmblemZoneInput[]).filter(
-        (state) =>
-          state.descriptor.kind === "realm" ||
-          state.descriptor.kind === "world",
-      ),
+  const emblemStates = useMemo(
+    () => resolveEmblemStates(zones as readonly EmblemZoneInput[]),
     [zones],
+  );
+  // The two mastery crests share the realm rack below the guardians.
+  const crestStates = emblemStates.filter(
+    (state) => state.descriptor.kind === "realm" || state.descriptor.kind === "world",
   );
 
   // The border the player wears, which any tier they ever reached unlocks.
@@ -124,7 +122,9 @@ const ProfilePage: React.FC = () => {
   const wearIdentity = (emblemId: number, frameTier: number) => {
     if (
       emblem.saving ||
-      (emblemId === featuredEmblem && frameTier === wornFrameTier)
+      !emblemStates[emblemId]?.unlocked ||
+      frameTier > profile.highestLadderTier ||
+      (emblemId === storedEmblem && frameTier === wornFrameTier)
     ) {
       return;
     }
@@ -329,7 +329,7 @@ const ProfilePage: React.FC = () => {
                 title={ladderTierName(tier)}
                 aria-label={`Wear the ${ladderTierName(tier)} border`}
                 aria-pressed={worn}
-                onClick={() => wearIdentity(featuredEmblem, tier)}
+                onClick={() => wearIdentity(storedEmblem, tier)}
                 className="relative grid place-items-center rounded-xl disabled:cursor-not-allowed"
                 style={{
                   width: 56,
@@ -491,15 +491,26 @@ const ProfilePage: React.FC = () => {
         </div>
       </section>
 
-      {/* Campaign — the free mode, and the emblem rack in the same breath:
-          tapping an unlocked realm wears its guardian. */}
+      {/* Campaign guardian portraits remain visible as realms open;
+          their emblems become selectable after the guardian is defeated. */}
       <section className="relative z-10 rounded-2xl p-3.5" style={PANEL_STYLE}>
         {/* The two mastery crests ride the header rather than owning a row of
             their own: they are two icons, and a labelled row cost more height
             than the ten realms beneath it. */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className={SECTION_CLASS}>Campaign</p>
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={emblem.saving}
+              aria-label="Wear the Automatic emblem"
+              aria-pressed={storedEmblem === 0}
+              onClick={() => wearIdentity(0, wornFrameTier)}
+              className="min-h-12 rounded-xl px-2 font-sans text-xs font-bold text-white/85 disabled:opacity-40"
+              style={wornRing(storedEmblem === 0)}
+            >
+              Automatic
+            </button>
             {crestStates.map((state) => (
               <button
                 key={state.descriptor.id}
@@ -507,10 +518,10 @@ const ProfilePage: React.FC = () => {
                 disabled={!state.unlocked || emblem.saving}
                 title={state.descriptor.name}
                 aria-label={`Wear the ${state.descriptor.name} emblem`}
-                aria-pressed={state.descriptor.id === featuredEmblem}
+                aria-pressed={state.descriptor.id === storedEmblem}
                 onClick={() => wearIdentity(state.descriptor.id, wornFrameTier)}
                 className="rounded-xl p-0.5 disabled:cursor-not-allowed"
-                style={wornRing(state.descriptor.id === featuredEmblem)}
+                style={wornRing(state.descriptor.id === storedEmblem)}
               >
                 <EmblemBadge
                   emblemId={state.descriptor.id}
@@ -535,15 +546,15 @@ const ProfilePage: React.FC = () => {
             <button
               key={zone.zoneId}
               type="button"
-              disabled={!zone.unlocked || emblem.saving}
+              disabled={!emblemStates[zone.zoneId]?.unlocked || emblem.saving}
               aria-label={`Wear the ${getZoneGuardian(zone.zoneId).name} emblem`}
-              aria-pressed={zone.zoneId === featuredEmblem}
+              aria-pressed={zone.zoneId === storedEmblem}
               onClick={() => wearIdentity(zone.zoneId, wornFrameTier)}
               className="flex flex-col items-center gap-0.5 disabled:cursor-not-allowed"
             >
               <span
                 className="rounded-2xl p-0.5"
-                style={wornRing(zone.zoneId === featuredEmblem)}
+                style={wornRing(zone.zoneId === storedEmblem)}
               >
                 {zone.unlocked ? (
                   <GuardianFaceBlock

@@ -1,3 +1,4 @@
+import { hasAcceptedRunAction, isAcceptedRunActionReady, hasResolvedRunVrf } from "./runObservation";
 import { Duration, Effect, Layer, Schedule, Stream, SubscriptionRef } from "effect";
 import { Connection, PublicKey } from "@solana/web3.js";
 
@@ -350,10 +351,7 @@ async function act(args: {
     let active: ActiveRunView;
     try {
       const update = await attached.observer.waitFor(
-        (state) =>
-          state.actionCounter >= expectedAction &&
-          (isTerminal(state.lifecycle) ||
-            (state.lifecycle === "playing" && state.pendingVrfCounter === 0)),
+        (state) => isAcceptedRunActionReady(state, expectedAction),
         {
           fallbackPollMs: 250,
           timeoutMs: 20_000,
@@ -369,7 +367,7 @@ async function act(args: {
           wallet,
           attached.marker.addresses.activeRun,
         ));
-      if (pending && pending.actionCounter >= expectedAction) {
+      if (pending && hasAcceptedRunAction(pending, expectedAction)) {
         attached.activeRun = pending;
         await publish(attached.events, {
           _tag: "AwaitingRow",
@@ -615,8 +613,7 @@ async function hydrateRows(args: {
     });
     try {
       const update = await args.observer.waitFor(
-        (state) =>
-          state.vrfRequestCounter >= counter && state.pendingVrfCounter === 0,
+        (state) => hasResolvedRunVrf(state, counter),
         {
           fallbackPollMs: 250,
           timeoutMs: 20_000,

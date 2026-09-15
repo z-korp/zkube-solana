@@ -1,0 +1,639 @@
+{
+  "schemaVersion": 1,
+  "inputs": {
+    "now": 1788912000,
+    "day": 20705,
+    "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "device": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
+    "rent": 890880
+  },
+  "sessionCases": [
+    {
+      "variant": "ready",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXJCvoGoAAAAA"
+      },
+      "balance": 5000000,
+      "action": "ready",
+      "keyPresent": true,
+      "tokenPresent": true,
+      "signerPresent": true
+    },
+    {
+      "variant": "expiring",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXL2hoGoAAAAA"
+      },
+      "balance": 5000000,
+      "action": "ready",
+      "keyPresent": true,
+      "tokenPresent": true,
+      "signerPresent": true
+    },
+    {
+      "variant": "one-short",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXJCvoGoAAAAA"
+      },
+      "balance": 900879,
+      "action": "refill",
+      "keyPresent": true,
+      "tokenPresent": true,
+      "signerPresent": true
+    },
+    {
+      "variant": "missing-signer",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXJCvoGoAAAAA"
+      },
+      "balance": 5000000,
+      "action": "refill",
+      "keyPresent": true,
+      "tokenPresent": true,
+      "signerPresent": false
+    },
+    {
+      "variant": "missing-key",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXJCvoGoAAAAA"
+      },
+      "balance": 5000000,
+      "action": "renew",
+      "keyPresent": false,
+      "tokenPresent": true,
+      "signerPresent": true
+    },
+    {
+      "variant": "expired",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXIChoGoAAAAA"
+      },
+      "balance": 5000000,
+      "action": "renew",
+      "keyPresent": true,
+      "tokenPresent": true,
+      "signerPresent": true
+    },
+    {
+      "variant": "skew",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXLyhoGoAAAAA"
+      },
+      "balance": 5000000,
+      "action": "renew",
+      "keyPresent": true,
+      "tokenPresent": true,
+      "signerPresent": true
+    },
+    {
+      "variant": "revoked",
+      "now": 1788912000,
+      "token": {
+        "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
+        "owner": "KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5",
+        "executable": false,
+        "data": "sgNV/g10gCmKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbggTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5SKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXJCvoGoAAAAA"
+      },
+      "balance": 5000000,
+      "action": "renew",
+      "keyPresent": true,
+      "tokenPresent": false,
+      "signerPresent": true
+    }
+  ],
+  "dailyCases": [
+    {
+      "variant": "ready",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "ready",
+      "preparation": "ready"
+    },
+    {
+      "variant": "missing-receiver",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": null,
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "unavailable",
+      "preparation": "unavailable"
+    },
+    {
+      "variant": "missing-vault",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": null,
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "unavailable",
+      "preparation": "unavailable"
+    },
+    {
+      "variant": "wrong-vault-owner",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "11111111111111111111111111111111",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "unavailable",
+      "preparation": "unavailable"
+    },
+    {
+      "variant": "zero-kredits",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "ready",
+      "preparation": "unavailable"
+    },
+    {
+      "variant": "resume",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "resume",
+      "dependency": "ready",
+      "preparation": "ready"
+    },
+    {
+      "variant": "occupied",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        "occupied": {
+          "id": "active-campaign-playing",
+          "kind": "ActiveRun",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+          "address": "F36JWTcQ6qVRUf1969knCbageZByfqiTV19nCrBHwBoT",
+          "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAIAAAAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAACaZ6n9kcKvEaYVfxboHO2XVxbIJq3fq/yk/oGnKVbXuAAAAAAAAAAAAAA==",
+          "token": {
+            "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEJpnqf2Rwq8RphV/Fugc7ZdXFsgmrd+r/KT+gacpVte4QAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+            "state": "AQEBAwABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEmmep/ZHCrxGmFX8W6Bztl1cWyCat36v8pP6BpylW17gQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+          }
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "ready",
+      "preparation": "unavailable"
+    },
+    {
+      "variant": "frozen",
+      "now": 1788998340,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-closed",
+      "dependency": "ready",
+      "preparation": "ready"
+    },
+    {
+      "variant": "before-open",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgaGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-closed",
+      "dependency": "ready",
+      "preparation": "ready"
+    },
+    {
+      "variant": "paused",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgEA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "ready",
+      "preparation": "ready"
+    },
+    {
+      "variant": "suspended",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHHiUAAAAeBQAAAA"
+        },
+        "credit": {
+          "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "following": {
+          "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        },
+        "player": {
+          "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//DwAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "lifecycle": "entries-open",
+      "dependency": "ready",
+      "preparation": "ready"
+    }
+  ],
+  "provenance": {
+    "client/src/backend/solana/SolanaIdentitySessionLive.ts": "6bee3d223049901666799a255812aafdaa94dc993524143256befdf0842886a9",
+    "client/src/backend/solana/session/deviceSessionFunding.ts": "614efc8d5ffe6c4cfb4f0a83a5e2716688787b0abaabd0ad60a26f634341f4c1",
+    "client/src/backend/solana/content/dailyClient.ts": "1a3fa3803bd01f2ca58d2014fa2e50d752457f241b723dd98c8b4cb9bb833eef",
+    "client/src/ui/components/arcade/arcadeLifecycle.ts": "34395ce8b2379109c271dd7cae5ffcd361da0d2f9146554d84d08ef5d9882df5",
+    "client/tools/unity/readiness-fixtures.ts": "de2a88110ca6082a9e139e446e371e674f7b4de0fd3014f81f738c93c7345d17"
+  }
+}

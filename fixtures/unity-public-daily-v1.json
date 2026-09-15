@@ -1,0 +1,616 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "variant": "open",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998340,
+        "suspended": false
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-open",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    },
+    {
+      "variant": "opens-at",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998340,
+        "suspended": false
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-open",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    },
+    {
+      "variant": "before-open",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgaGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912001,
+        "freezesAt": 1788998340,
+        "suspended": false
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-closed",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    },
+    {
+      "variant": "freeze-minus-one",
+      "now": 1788998339,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998340,
+        "suspended": false
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-open",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    },
+    {
+      "variant": "freeze-at",
+      "now": 1788998340,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998340,
+        "suspended": false
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-closed",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    },
+    {
+      "variant": "finalized",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAgADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998340,
+        "suspended": false
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-closed",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "DiQfckiSXJJaEwN7dch8MfAEu7jzbA8tpeS4g1q5gUZ3",
+        "gdxrM8AzvHLCaJqz7igBhKu1jdLJvG5AyVqzJb4vSTW",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "DiQfckiSXJJaEwN7dch8MfAEu7jzbA8tpeS4g1q5gUZ3",
+        "gdxrM8AzvHLCaJqz7igBhKu1jdLJvG5AyVqzJb4vSTW",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    },
+    {
+      "variant": "suspended",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHHiUAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998340,
+        "suspended": true
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-open",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    },
+    {
+      "variant": "suspended-missing",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHHiUAAAAeBQAAAA"
+        },
+        "daily": null
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998399,
+        "suspended": true
+      },
+      "unavailable": null,
+      "pool": null,
+      "lifecycle": "preparing",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "GLazYAqsFpHbNdP5P7y9fC2P16C9A6ddjHyCMP3Ladmo",
+        "3masyTttX2bGetJTfZXSrNh6p9wGRK6veXihJqPUcG3Z",
+        "AY1Y4mL8tNQg11xkm1zpf8jEs4PcVrc42UbW7ZGDxpAH",
+        "3Co5rpYTx9m4wXxB7fY5SsVqubDMKgqpgDAbFTCUpsvm",
+        "G4A1NUmg3hZstozXStAfuCmrKiiav59BeEFegzF3ZACW",
+        "3ty976rU2b7PTyQtPdriv8h2sLCHnVXKrWX4kx4wjd29",
+        "GbLZS7baZzZ1XMKpBqyNUqq8HMGBL96FupuJJ6482vc",
+        "CiuGDo9U58iZYEtdVJzTNhX4dkswGnWWnAA9HUNNmWWn",
+        "9HuMBqRNUoFnx2KSYvi7iGhdDQYUFCy2rrABpAmB9g6C",
+        "2bWTcRcotPESeH6FGB5CFwBXSf68v77ADsUHP7DQPvkg"
+      ]
+    },
+    {
+      "variant": "missing-daily",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": null
+      },
+      "content": null,
+      "unavailable": "Daily 20705 has not been prepared",
+      "pool": null,
+      "lifecycle": "preparing",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU"
+      ]
+    },
+    {
+      "variant": "missing-config",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+        },
+        "arcade": null,
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": null,
+      "unavailable": "Account does not exist or has no data 88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+      "pool": null,
+      "lifecycle": "preparing",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU"
+      ]
+    },
+    {
+      "variant": "paused",
+      "now": 1788912000,
+      "rows": {
+        "protocol": {
+          "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgEA"
+        },
+        "arcade": {
+          "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+        },
+        "daily": {
+          "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+          "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+          "executable": false,
+          "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAZc0dAAAAAAAtMQEAAAAAwM9qAAAAAABAQg8AAAAAAICEHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        }
+      },
+      "content": {
+        "dayId": 20705,
+        "realm": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        },
+        "startingHeight": 4,
+        "opensAt": 1788912000,
+        "freezesAt": 1788998340,
+        "suspended": false
+      },
+      "unavailable": null,
+      "pool": "524000000",
+      "lifecycle": "entries-open",
+      "requests": [
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
+        "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
+        "F4QyR79MdhqPAKsX9Fj1KTL5TRsC6Gint8AdAJ42vfxQ",
+        "9PjdDkomERASprEUuVypeN8hSjAv1dn1xn8rLUkWBBaL",
+        "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
+        "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH"
+      ]
+    }
+  ],
+  "clocks": [
+    {
+      "now": 0,
+      "day": 0,
+      "pair": {
+        "pairIndex": 56,
+        "realmMapId": 4,
+        "objective": {
+          "kind": 2,
+          "value": 4
+        }
+      }
+    },
+    {
+      "now": 1788911999,
+      "day": 20704,
+      "pair": {
+        "pairIndex": 21,
+        "realmMapId": 2,
+        "objective": {
+          "kind": 2,
+          "value": 1
+        }
+      }
+    },
+    {
+      "now": 1788912000,
+      "day": 20705,
+      "pair": {
+        "pairIndex": 110,
+        "realmMapId": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        }
+      }
+    },
+    {
+      "now": 1788998399,
+      "day": 20705,
+      "pair": {
+        "pairIndex": 110,
+        "realmMapId": 7,
+        "objective": {
+          "kind": 18,
+          "value": 3
+        }
+      }
+    },
+    {
+      "now": 1788998400,
+      "day": 20706,
+      "pair": {
+        "pairIndex": 118,
+        "realmMapId": 8,
+        "objective": {
+          "kind": 2,
+          "value": 2
+        }
+      }
+    },
+    {
+      "now": 371085174374399,
+      "day": 4294967295,
+      "pair": {
+        "pairIndex": 81,
+        "realmMapId": 6,
+        "objective": {
+          "kind": 1,
+          "value": 2
+        }
+      }
+    }
+  ],
+  "provenance": {
+    "client/src/backend/solana/content/SolanaContentBoardsLive.ts": "34885f968704bca97789466ba9f1aa73851c54a1e46cb65bdaf48d8e78b7b947",
+    "client/src/backend/solana/content/dailyClient.ts": "1a3fa3803bd01f2ca58d2014fa2e50d752457f241b723dd98c8b4cb9bb833eef",
+    "client/src/backend/solana/identity/readOnlyWallet.ts": "310c51a3a072ba26dec9045cc24e7c8681067f8a02cd65e48ddf9e21e89c8a59",
+    "client/src/core/dailyRules.ts": "304b13cc5654692ce7472fcca3c905cd487562121e1a10244a8cda448f40f738",
+    "client/src/ui/components/arcade/arcadeLifecycle.ts": "34395ce8b2379109c271dd7cae5ffcd361da0d2f9146554d84d08ef5d9882df5",
+    "client/src/core/generated/zkube_core_bg.wasm": "7ea84ca560ce7c792bd95d53164c6bcf354cd406d8437b413065e94fc6280f06",
+    "fixtures/unity-product-reads-v1.json": "1b4c57d83c5aeefc39e751d8797a074a8f6ef2f42b0b23f0e614480cb971658d",
+    "client/tools/unity/public-daily-fixtures.ts": "d28c70fd3eefd2de88238a3766f93e1a8c7dd61d1ccb232b4d81bb064569203c"
+  }
+}

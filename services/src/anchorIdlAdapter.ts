@@ -71,7 +71,7 @@ const MAX_PROGRAM_ACCOUNT_BYTES = 129_538;
 // results remain byte-identical while the keeper owns an explicit hard bound.
 const MAX_CADENCE_PERIODS = 10_000;
 const MAX_DISCOVERED_PLAYER_STATES = 10_000;
-const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
+export const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =

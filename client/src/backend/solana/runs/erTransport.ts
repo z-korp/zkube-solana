@@ -8,6 +8,7 @@ import type { TransactionPlan } from "./runPlan.js";
 import type { WalletLike } from "../session/sessionWallet.js";
 
 const BLOCKHASH_CACHE_MS = 10_000;
+export const ER_SEND_OPTIONS = Object.freeze({ maxRetries: 0, skipPreflight: true });
 
 interface CachedBlockhash extends BlockhashWithExpiryBlockHeight {
   fetchedAt: number;
@@ -98,7 +99,7 @@ export async function submitErTransactionPlan(args: {
       const sendStartedAt = performance.now();
       signature = await transactionPlan.connection.sendRawTransaction(
         signed.serialize(),
-        { maxRetries: 0, skipPreflight: true },
+        ER_SEND_OPTIONS,
       );
       sendMs += performance.now() - sendStartedAt;
 

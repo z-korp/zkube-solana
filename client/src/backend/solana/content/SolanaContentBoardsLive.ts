@@ -211,7 +211,7 @@ function boardWatchSource(args: {
   );
 }
 
-async function projectToday(args: {
+export async function projectToday(args: {
   connection: Connection;
   wallet: ReturnType<typeof createReadOnlyWallet>;
   nowUnix: number;

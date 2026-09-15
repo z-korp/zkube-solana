@@ -13,6 +13,7 @@ const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AGENT_RULES = join(ROOT, "AGENTS.md");
 const README = join(ROOT, "README.md");
 const CLIENT = join(ROOT, "client/src");
+const UNITY_CLIENT = join(ROOT, "unity/Assets/ZKube");
 const CLIENT_TOOLS = join(ROOT, "client/tools");
 const CLIENT_PACKAGE = join(ROOT, "client/package.json");
 const CLIENT_VITE_CONFIG = join(ROOT, "client/vite.config.ts");
@@ -26,6 +27,8 @@ const PROGRAM = join(ROOT, "programs/solana/src");
 const SKIPPED = [
   join(CLIENT, "core/generated"),
   join(CLIENT, "backend/solana/idl"),
+  join(UNITY_CLIENT, "Generated"),
+  join(UNITY_CLIENT, "Integration/Generated"),
 ];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
@@ -351,7 +354,7 @@ async function sourceFiles(dir: string): Promise<string[]> {
     const path = join(dir, entry.name);
     if (SKIPPED.some((skipped) => path.startsWith(skipped))) continue;
     if (entry.isDirectory()) files.push(...(await sourceFiles(path)));
-    else if (/\.(mjs|ts|tsx|rs)$/.test(entry.name)) files.push(path);
+    else if (/\.(mjs|ts|tsx|rs|cs|kt)$/.test(entry.name)) files.push(path);
   }
   return files;
 }
@@ -361,7 +364,11 @@ describe("supersession", () => {
     const cache = new Map<string, string[]>();
     const violations: string[] = [];
     for (const rule of RULES) {
-      for (const tree of rule.trees) {
+      // The native replacement inherits the same vocabulary guard during coexistence.
+      const trees = rule.trees.flatMap((tree) =>
+        tree === CLIENT ? [tree, UNITY_CLIENT] : [tree],
+      );
+      for (const tree of trees) {
         for (const file of await sourceFiles(tree)) {
           let lines = cache.get(file);
           if (!lines) {
@@ -392,6 +399,13 @@ describe("supersession", () => {
   it("keeps the deleted single-reroll model out of public product copy", async () => {
     const readme = await readFile(README, "utf8");
     expect(readme).not.toMatch(/carries one reroll/i);
+  });
+
+  it("keeps prepaid entry authority and bounded settlement truthful in documentation", async () => {
+    const rules = await readFile(AGENT_RULES, "utf8");
+    const readme = await readFile(README, "utf8");
+    expect(rules).not.toMatch(/signs every 0\.01 SOL entry|never signs entry payment/i);
+    expect(readme).not.toMatch(/Everyone who places made money|anything you are still\s+owed is collected automatically/i);
   });
 
   it("keeps the retired Android wrapper vocabulary out of authored surfaces", async () => {

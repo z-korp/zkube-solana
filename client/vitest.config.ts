@@ -13,6 +13,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    // Unity fixture producers read files and execute offline Node adapters.
+    environmentMatchGlobs: [["tools/unity/**", "node"]],
     setupFiles: "./src/test/setup.ts",
     include: [
       "src/**/*.{test,spec}.{js,ts,jsx,tsx}",

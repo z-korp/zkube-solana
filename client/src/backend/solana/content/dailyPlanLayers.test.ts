@@ -1,12 +1,13 @@
 // @vitest-environment node
 
-import { BorshAccountsCoder, convertIdlToCamelCase } from "@anchor-lang/core";
+import { BorshAccountsCoder, convertIdlToCamelCase, type IdlType } from "@anchor-lang/core";
+import BN from "bn.js";
 import { Buffer } from "buffer";
 import {
   Connection,
   Keypair,
   type AccountInfo,
-  type PublicKey,
+  PublicKey,
 } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -33,18 +34,35 @@ import {
 } from "../../../core/protocolVersions.generated";
 import { SessionWallet } from "../session/sessionWallet";
 
-const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
+const idl = convertIdlToCamelCase(IDL);
+const coder = new BorshAccountsCoder(idl);
 
-function account(
+function zero(type: IdlType): unknown {
+  if (typeof type === "string") {
+    if (type === "pubkey") return PublicKey.default;
+    if (type === "bool") return false;
+    return ["u64", "i64", "u128"].includes(type) ? new BN(0) : 0;
+  }
+  if ("array" in type) return Array.from({ length: Number(type.array[1]) }, () => zero(type.array[0]));
+  if ("option" in type) return null;
+  if ("defined" in type) {
+    const definition = idl.types.find(item => item.name === type.defined.name)?.type;
+    if (definition?.kind === "struct") return Object.fromEntries((definition.fields ?? []).map(field => {
+      if (!("name" in field)) throw new Error("Unsupported tuple fixture");
+      return [field.name, zero(field.type)];
+    }));
+    if (definition?.kind === "enum") return { [definition.variants[0].name]: {} };
+  }
+  throw new Error("Unsupported fixed account fixture");
+}
+
+async function account(
   name: string,
-  size: number,
-  initialize: (data: Buffer) => void = () => undefined,
+  fields: Record<string, unknown> = {},
   version = ARCADE_ACCOUNT_VERSION,
-): AccountInfo<Buffer> {
-  const data = Buffer.alloc(size);
-  coder.accountDiscriminator(name).copy(data);
-  data.writeUInt8(version, 8);
-  initialize(data);
+): Promise<AccountInfo<Buffer>> {
+  const data = Buffer.alloc(coder.size(name));
+  (await coder.encode(name, { ...(zero({ defined: { name } }) as object), version, ...fields })).copy(data);
   return {
     data,
     executable: false,
@@ -58,29 +76,21 @@ function writePublicKey(data: Buffer, offset: number, value: PublicKey): void {
   value.toBuffer().copy(data, offset);
 }
 
-function rankedDependencyInfos(
+async function rankedDependencyInfos(
   daily: DailyView,
-): Array<AccountInfo<Buffer> | null> {
+): Promise<Array<AccountInfo<Buffer> | null>> {
   const protocol = deriveProtocolConfigPda();
   const arcadeConfig = deriveArcadeConfigPda();
   const dailyAccount = (dayId: number) =>
-    account("arenaDaily", 235, (data) => {
-      data.writeUInt32LE(dayId, 9);
-      writePublicKey(data, 13, arcadeConfig);
-    });
+    account("arenaDaily", { dayId, arcadeConfig });
 
-  return [
-    account("protocolConfig", 156, () => undefined, PROTOCOL_ACCOUNT_VERSION),
-    account("arcadeConfig", 103, (data) => {
-      writePublicKey(data, 9, protocol);
-      data.writeBigUInt64LE(daily.entryLamports, 73);
-    }),
+  return Promise.all([
+    account("protocolConfig", {}, PROTOCOL_ACCOUNT_VERSION),
+    account("arcadeConfig", { protocol }),
     dailyAccount(daily.dayId),
     dailyAccount(daily.dayId + 1),
-    account("creditVault", 58, (data) =>
-      writePublicKey(data, 9, protocol),
-    ),
-  ];
+    account("creditVault", { protocol }),
+  ]);
 }
 
 function claimableBoard(
@@ -116,6 +126,21 @@ function claimableBoard(
 }
 
 describe("Daily transaction layer boundaries", () => {
+  it("uses current IDL allocations and protocol economics for entry dependencies", async () => {
+    const owner = Keypair.generate();
+    const daily = { address: deriveArenaDailyPda(20), dayId: 20, followingDayId: 21,
+      entryLamports: 10_000_000n } as DailyView;
+    const infos = await rankedDependencyInfos(daily);
+    const connection = { getMultipleAccountsInfo: vi.fn().mockResolvedValue(infos) } as unknown as Connection;
+    const args = { connection, wallet: new SessionWallet(owner), daily };
+    await expect(assertRankedEntryDependencies(args)).resolves.toHaveProperty("currentDaily", daily.address);
+    await expect(assertRankedEntryDependencies({ ...args, daily: { ...daily, entryLamports: 1n } }))
+      .rejects.toThrow("entry price does not match the protocol");
+    // A valid older-sized envelope cannot masquerade as the current account.
+    infos[1] = { ...infos[1]!, data: Buffer.concat([infos[1]!.data, Buffer.from([0])]) };
+    await expect(assertRankedEntryDependencies(args)).rejects.toThrow("Arcade config owner or allocation is invalid");
+  });
+
   it("keeps Daily preparation and challenge finalization on Solana base", async () => {
     const owner = Keypair.generate();
     const device = Keypair.generate();
@@ -142,7 +167,7 @@ describe("Daily transaction layer boundaries", () => {
     const claimBoards = Array<AccountInfo<Buffer> | null>(40).fill(null);
     claimBoards[38] = claimableBoard(claimDaily, 19, owner.publicKey);
     vi.spyOn(connection, "getMultipleAccountsInfo")
-      .mockResolvedValueOnce(rankedDependencyInfos(daily))
+      .mockResolvedValueOnce(await rankedDependencyInfos(daily))
       .mockResolvedValueOnce([null])
       .mockResolvedValueOnce(claimBoards);
 
@@ -234,7 +259,7 @@ describe("Daily transaction layer boundaries", () => {
       followingDayId: 21,
       entryLamports: 10_000_000n,
     } as DailyView;
-    const infos = rankedDependencyInfos(daily);
+    const infos = await rankedDependencyInfos(daily);
     infos[3] = null;
     const connection = {
       getMultipleAccountsInfo: vi.fn().mockResolvedValue(infos),

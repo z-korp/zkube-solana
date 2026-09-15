@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "path": "client/src/backend/solana/SolanaIdentitySessionLive.ts",
+      "sha256": "6bee3d223049901666799a255812aafdaa94dc993524143256befdf0842886a9"
+    },
+    {
+      "path": "client/src/backend/solana/session/deviceSessionFunding.ts",
+      "sha256": "614efc8d5ffe6c4cfb4f0a83a5e2716688787b0abaabd0ad60a26f634341f4c1"
+    },
+    {
+      "path": "client/src/backend/solana/session/deviceSessionLifecycle.ts",
+      "sha256": "819966f1d3b8cdad9c36dacb615f51cff68d3f4114273ca23bab20dae0b4472c"
+    },
+    {
+      "path": "client/src/config/kreditPacks.ts",
+      "sha256": "53f265f9b8fe01c6630298e22f08e9af499b5e0d0b1399e496cb6d8a716e652c"
+    }
+  ],
+  "policy": {
+    "readyReserveLamports": 10000,
+    "expiringSeconds": 86400,
+    "kreditPacks": [
+      1,
+      10,
+      25
+    ]
+  },
+  "expiry": [
+    {
+      "remaining": -1,
+      "validUntil": 1788911999,
+      "now": 1788912000,
+      "status": "expired",
+      "current": false,
+      "tokenMayClose": true
+    },
+    {
+      "remaining": 0,
+      "validUntil": 1788912000,
+      "now": 1788912000,
+      "status": "expired",
+      "current": false,
+      "tokenMayClose": true
+    },
+    {
+      "remaining": 59,
+      "validUntil": 1788912059,
+      "now": 1788912000,
+      "status": "expired",
+      "current": false,
+      "tokenMayClose": false
+    },
+    {
+      "remaining": 60,
+      "validUntil": 1788912060,
+      "now": 1788912000,
+      "status": "expired",
+      "current": false,
+      "tokenMayClose": false
+    },
+    {
+      "remaining": 61,
+      "validUntil": 1788912061,
+      "now": 1788912000,
+      "status": "expiring",
+      "current": true,
+      "tokenMayClose": false
+    },
+    {
+      "remaining": 86400,
+      "validUntil": 1788998400,
+      "now": 1788912000,
+      "status": "expiring",
+      "current": true,
+      "tokenMayClose": false
+    },
+    {
+      "remaining": 86401,
+      "validUntil": 1788998401,
+      "now": 1788912000,
+      "status": "live",
+      "current": true,
+      "tokenMayClose": false
+    },
+    {
+      "remaining": 604500,
+      "validUntil": 1789516500,
+      "now": 1788912000,
+      "status": "live",
+      "current": true,
+      "tokenMayClose": false
+    }
+  ],
+  "funding": [
+    {
+      "id": "missing",
+      "present": false,
+      "lamports": 0,
+      "owner": "11111111111111111111111111111111",
+      "executable": false,
+      "bytes": 0,
+      "rent": 890880,
+      "outcome": "needsRenewal"
+    },
+    {
+      "id": "drained",
+      "present": true,
+      "lamports": 0,
+      "owner": "11111111111111111111111111111111",
+      "executable": false,
+      "bytes": 0,
+      "rent": 890880,
+      "outcome": "needsRenewal"
+    },
+    {
+      "id": "one-short",
+      "present": true,
+      "lamports": 900879,
+      "owner": "11111111111111111111111111111111",
+      "executable": false,
+      "bytes": 0,
+      "rent": 890880,
+      "outcome": "needsRenewal"
+    },
+    {
+      "id": "exact",
+      "present": true,
+      "lamports": 900880,
+      "owner": "11111111111111111111111111111111",
+      "executable": false,
+      "bytes": 0,
+      "rent": 890880,
+      "outcome": "ready"
+    },
+    {
+      "id": "wrong-owner",
+      "present": true,
+      "lamports": 5000000,
+      "owner": "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      "executable": false,
+      "bytes": 0,
+      "rent": 890880,
+      "outcome": "invalid"
+    },
+    {
+      "id": "executable",
+      "present": true,
+      "lamports": 5000000,
+      "executable": true,
+      "owner": "11111111111111111111111111111111",
+      "bytes": 0,
+      "rent": 890880,
+      "outcome": "invalid"
+    },
+    {
+      "id": "nonempty",
+      "present": true,
+      "lamports": 5000000,
+      "bytes": 1,
+      "owner": "11111111111111111111111111111111",
+      "executable": false,
+      "rent": 890880,
+      "outcome": "invalid"
+    }
+  ]
+}

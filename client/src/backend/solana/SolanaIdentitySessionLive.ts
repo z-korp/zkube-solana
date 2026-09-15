@@ -91,7 +91,7 @@ import {
   type WalletConnector,
 } from "./wallet/walletStandard";
 
-const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
+export const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60 - 5 * 60;
 const SESSION_EXPIRING_SECONDS = 24 * 60 * 60;
 
 export interface SolanaIdentitySessionOptions {
@@ -114,7 +114,7 @@ interface InspectedSession {
   readonly session: DeviceSession;
   readonly balanceLamports: number;
   readonly funding: "ready" | "needsRenewal";
-  readonly expired: boolean;
+  readonly needsAuthorization: boolean;
 }
 
 /**
@@ -319,7 +319,7 @@ export function makeSolanaIdentitySessionLive(
                 owner,
                 nowUnix(),
               );
-              if (inspected && !inspected.expired) {
+              if (inspected && !inspected.needsAuthorization) {
                 if (inspected.funding === "needsRenewal") {
                   const refill = buildDeviceSessionRefillInstructions({
                     owner,
@@ -482,7 +482,7 @@ async function refreshSession(args: {
   Effect.runSync(SubscriptionRef.set(args.sessionRef, state));
 }
 
-async function inspectSession(
+export async function inspectSession(
   connection: Connection,
   owner: PublicKey,
   nowUnix: number,
@@ -518,7 +518,7 @@ async function inspectSession(
       info: signerInfo,
       rentFloorLamports: rentFloor,
     }),
-    expired: token.validUntil - nowUnix <= DEVICE_SESSION_READY_SKEW_SECONDS,
+    needsAuthorization: token.validUntil - nowUnix <= DEVICE_SESSION_READY_SKEW_SECONDS,
   };
 }
 
@@ -535,24 +535,56 @@ async function createSession(args: {
     authority: args.owner,
     sessionSigner: signer.publicKey,
   });
-  const wallet = createReadOnlyWallet(args.owner);
-  const program = zkubeProgram(args.connection, wallet);
-  const playerState = derivePlayerStatePda(args.owner);
-  const instructions: TransactionInstruction[] = [];
+  const renewal = await buildDeviceSessionRenewalInstructions({
+    connection: args.connection, owner: args.owner, signer: signer.publicKey,
+    validUntil, nowUnix: args.nowUnix, previous: args.previous ? {
+      sessionToken: args.previous.session.sessionToken, signer: args.previous.session.signer.publicKey,
+      validUntil: args.previous.session.validUntil, balanceLamports: args.previous.balanceLamports,
+    } : null,
+  });
   const signers = [signer];
+  if (renewal.previousSignerRequired && args.previous) signers.push(args.previous.session.signer);
+  await submitOwnerTransaction({
+    connection: args.connection,
+    driver: args.driver,
+    owner: args.owner,
+    label: args.previous
+      ? "Rotate zKube device session"
+      : "Enable zKube device session",
+    instructions: renewal.instructions,
+    signers,
+  });
+  return {
+    owner: args.owner,
+    signer,
+    sessionToken,
+    validUntil,
+    createdAt: args.nowUnix,
+  };
+}
+
+/** Same composition used by live renewal and the offline migration oracle. */
+export async function buildDeviceSessionRenewalInstructions(args: {
+  connection: Connection; owner: PublicKey; signer: PublicKey; validUntil: number; nowUnix: number;
+  previous: { sessionToken: PublicKey; signer: PublicKey; validUntil: number; balanceLamports: number } | null;
+}): Promise<{ instructions: TransactionInstruction[]; previousSignerRequired: boolean }> {
+  const instructions: TransactionInstruction[] = [];
+  let previousSignerRequired = false;
   if (args.previous) {
-    if (args.previous.expired) {
+    // The signing safety window is not on-chain expiry. Cleanup remains illegal
+    // in the final 60 seconds even though a new authorization is already needed.
+    if (args.previous.validUntil <= args.nowUnix) {
       const tokenInfo = await args.connection.getAccountInfo(
-        args.previous.session.sessionToken,
+        args.previous.sessionToken,
         "confirmed",
       );
       if (tokenInfo) {
         instructions.push(
           buildRevokeExpiredSessionInstruction(
             {
-              address: args.previous.session.sessionToken,
+              address: args.previous.sessionToken,
               ...decodeSessionTokenV2Account(
-                args.previous.session.sessionToken,
+                args.previous.sessionToken,
                 tokenInfo,
               ),
             },
@@ -563,19 +595,33 @@ async function createSession(args: {
     }
     const reclaim = buildDeviceSignerReclaimInstruction({
       owner: args.owner,
-      signer: args.previous.session.signer.publicKey,
+      signer: args.previous.signer,
       balanceLamports: args.previous.balanceLamports,
     });
     if (reclaim) {
       instructions.push(reclaim);
-      signers.push(args.previous.session.signer);
+      previousSignerRequired = true;
     }
   }
-  instructions.push(
+  instructions.push(...await buildDeviceSessionEnableInstructions({
+    connection: args.connection, owner: args.owner, signer: args.signer, validUntil: args.validUntil,
+  }));
+  return { instructions, previousSignerRequired };
+}
+
+/** Pure instruction composition shared by live onboarding and migration parity. */
+export async function buildDeviceSessionEnableInstructions(args: {
+  connection: Connection;
+  owner: PublicKey;
+  signer: PublicKey;
+  validUntil: number;
+}): Promise<TransactionInstruction[]> {
+  const program = zkubeProgram(args.connection, createReadOnlyWallet(args.owner));
+  return [
     await program.methods
       .initializePlayer()
       .accountsPartial({
-        playerState,
+        playerState: derivePlayerStatePda(args.owner),
         payer: args.owner,
         ownerAuthority: args.owner,
         sessionToken: null,
@@ -585,31 +631,14 @@ async function createSession(args: {
       .instruction(),
     buildCreateSessionV2Instruction({
       authority: args.owner,
-      sessionSigner: signer.publicKey,
+      sessionSigner: args.signer,
       feePayer: args.owner,
       targetProgram: ZKUBE_PROGRAM_ID,
       topUp: true,
-      validUntil,
+      validUntil: args.validUntil,
       lamports: DEVICE_FEE_ALLOWANCE_LAMPORTS,
     }),
-  );
-  await submitOwnerTransaction({
-    connection: args.connection,
-    driver: args.driver,
-    owner: args.owner,
-    label: args.previous
-      ? "Rotate zKube device session"
-      : "Enable zKube device session",
-    instructions,
-    signers,
-  });
-  return {
-    owner: args.owner,
-    signer,
-    sessionToken,
-    validUntil,
-    createdAt: args.nowUnix,
-  };
+  ];
 }
 
 async function submitOwnerTransaction(args: {

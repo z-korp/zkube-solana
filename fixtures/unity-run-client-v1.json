@@ -1,0 +1,1294 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "fixtures/unity-run-reconciliation-v1.json": "def4e657a89f3fb9c91c471872a7968cd3c03c2730da1533b4460204e56ccfdc",
+    "fixtures/unity-plans-v1.json": "ea92a8b469e387e6dbe59c53b8af75c070f6b053e288b2896dd8e2b77d78571c",
+    "client/src/backend/solana/runs/resumeRun.ts": "ce28f1c40d0739c676a62dce26ceaede93c74f0f068a325e21382d7edc8e6c45",
+    "client/src/backend/solana/runs/runPlan.ts": "c82fd00cb49594590afdd0211ffa44f6ff852b1b593b1602cf83ab2abf5087be",
+    "client/src/backend/solana/idl/solana.json": "56e545db6576cefb59d2aa04722671f944c7f0ecf058a5b08bc891cb29678540",
+    "client/src/backend/solana/session/deviceSessionFunding.ts": "614efc8d5ffe6c4cfb4f0a83a5e2716688787b0abaabd0ad60a26f634341f4c1",
+    "client/src/backend/solana/runs/runSessionStore.ts": "aa9c20e8fdfc7fa296a0fe9eb80640f8e1c281c48b373b0516e8b366de2c0649",
+    "client/tools/unity/run-client-fixtures.ts": "9a54ca9ea3b9e4aded3bca73642136b912dea8eb7dc294d927ba088e3a8bd3c9"
+  },
+  "cases": [
+    {
+      "id": "active-campaign-prepared",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "GozH8D5KbnoDmiWdM7R5wGVhYQb6fz6FtbwPGHofMjDB",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAIAAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQAAAAAAAAAAAAYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGAAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYQAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+        "state": "AQIAAwABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+      }
+    },
+    {
+      "id": "active-campaign-playing",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "GozH8D5KbnoDmiWdM7R5wGVhYQb6fz6FtbwPGHofMjDB",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAIAAAAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAACaZ6n9kcKvEaYVfxboHO2XVxbIJq3fq/yk/oGnKVbXuAAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEJpnqf2Rwq8RphV/Fugc7ZdXFsgmrd+r/KT+gacpVte4QAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+        "state": "AQEBAwABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEmmep/ZHCrxGmFX8W6Bztl1cWyCat36v8pP6BpylW17gQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+      }
+    },
+    {
+      "id": "active-campaign-awaitingVrf",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "GozH8D5KbnoDmiWdM7R5wGVhYQb6fz6FtbwPGHofMjDB",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAIAAAAgAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAMAAAACAAAAAgAAAAuyIi3Yav878Br3b8JoZFhC73oSMpikXyPSq1NeFSDBAAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEC7IiLdhq/zvwGvdvwmhkWELvehIymKRfI9KrU14VIMEQAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+        "state": "AQIBAwAAAAAAAAAAAAAAAAAAAQAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQELsiIt2Gr/O/Aa92/CaGRYQu96EjKYpF8j0qtTXhUgwQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+      }
+    },
+    {
+      "id": "active-campaign-rerolled",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "GozH8D5KbnoDmiWdM7R5wGVhYQb6fz6FtbwPGHofMjDB",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAIAAAAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAAQICAgIBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAMAAAACAAAAAAAAAGB/0pn4pdAi4ci+4gXgdf1ZmKnQAVbeClJelXvt/z/6AAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEYH/Smfil0CLhyL7iBeB1/VmYqdABVt4KUl6Ve+3/P/oQAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+        "state": "AQEBAwAAAAAAAAAAAAAAAAAAAQAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAAQICAgJgf9KZ+KXQIuHIvuIF4HX9WZip0AFW3gpSXpV77f8/+gQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+      }
+    },
+    {
+      "id": "active-campaign-finished",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "GozH8D5KbnoDmiWdM7R5wGVhYQb6fz6FtbwPGHofMjDB",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAIAAABQEABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAAAAAAAAEBAQoAAAAAAwAGCQIBAwECAAQCAgADAwMAAQACAgECAgICAgIBAAICAgIDAwMDAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAADAAAAAgAAAAAAAACZZ1ukYiAp7TsyhshmNpHyC7rqIcA+2I9vpzOxDZK2fYDnpWoAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEmWdbpGIgKe07MobIZjaR8gu66iHAPtiPb6czsQ2Stn0QAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+        "state": "AQQAAwAAAAAAAAAAAAAAAAAAAQAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACZZ1ukYiAp7TsyhshmNpHyC7rqIcA+2I9vpzOxDZK2fQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkD"
+      }
+    },
+    {
+      "id": "active-daily-prepared",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAABAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMQ4p2oAAAAAAQEBAAAAAAADAAYJAgEDAQIABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAgAAAAAAAAAAAAAAAAAAAAMAAQAAAAAAAAAAAAYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGAAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgZkAAMBAgAEAQAAAAAAAAAAAAAAAAEBAg==",
+        "state": "AQIAAwABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQET3fHmpCm1T8S8pQxtBLCIOQ5MAw8y+NgsAFvtiWORU0A"
+      }
+    },
+    {
+      "id": "active-daily-playing",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAABAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMQ4p2oAAAAAAQEBAAAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAABAgAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAAGxlhkoI7T6jEgO9bludWRhHaVrVkBfFR3lNL9hqhWUtAAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEbGWGSgjtPqMSA71uW51ZGEdpWtWQF8VHeU0v2GqFZS1kAAMBAgAEAQAAAAAAAAAAAAAAAAEBAg==",
+        "state": "AQEBAwABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQFsZYZKCO0+oxIDvW5bnVkYR2la1ZAXxUd5TS/YaoVlLQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQET3fHmpCm1T8S8pQxtBLCIOQ5MAw8y+NgsAFvtiWORU0A"
+      }
+    },
+    {
+      "id": "active-daily-awaitingVrf",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAABAgAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMQ4p2oAAAAAAQEBAAAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAABAgEAAAAAAAAAAAAAAAAAAAMAAAACAAAAAgAAALs3IRCcIcuzfYgs8wTnBiREwq9dSsD4o/K7n7i5OkhTAAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEuzchEJwhy7N9iCzzBOcGJETCr11KwPij8rufuLk6SFNkAAMBAgAEAQAAAAAAAAAAAAAAAAEBAg==",
+        "state": "AQIBAwAAAAAAAAAAAAAAAAAAAQAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQG7NyEQnCHLs32ILPME5wYkRMKvXUrA+KPyu5+4uTpIUwQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQET3fHmpCm1T8S8pQxtBLCIOQ5MAw8y+NgsAFvtiWORU0A"
+      }
+    },
+    {
+      "id": "active-daily-rerolled",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAABAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMQ4p2oAAAAAAQEBAAAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAAQICAgIBAAAAAAAAAAAAAAAAAAAAAAAAAAABAgEAAAAAAAAAAAAAAAAAAAMAAAACAAAAAAAAAFjFsq5CCA4LeT6uSHFv9xBVy/gHZSj3WzmGXGUczpYXAAAAAAAAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEWMWyrkIIDgt5Pq5IcW/3EFXL+AdlKPdbOYZcZRzOlhdkAAMBAgAEAQAAAAAAAAAAAAAAAAEBAg==",
+        "state": "AQEBAwAAAAAAAAAAAAAAAAAAAQAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEAAQICAgJYxbKuQggOC3k+rkhxb/cQVcv4B2Uo91s5hlxlHM6WFwQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQET3fHmpCm1T8S8pQxtBLCIOQ5MAw8y+NgsAFvtiWORU0A"
+      }
+    },
+    {
+      "id": "active-daily-finished",
+      "kind": "ActiveRun",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
+      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAABBQEABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBATEOKdqAAAAAAEBAQAAAAAAAwAGCQIBAwECAAQCAgADAwMAAQACAgECAgICAgIBAAICAgIDAwMDAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQIBAAAAAAAAAAAAAAAAAAADAAAAAgAAAAAAAACbHaobhCV7Jx8txu24v42rZDj4COX/gr8iun2UcfmAqoDnpWoAAAAAAA==",
+      "token": {
+        "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEmx2qG4QleycfLcbtuL+Nq2Q4+Ajl/4K/Irp9lHH5gKpkAAMBAgAEAQAAAAAAAAAAAAAAAAEBAg==",
+        "state": "AQQAAwAAAAAAAAAAAAAAAAAAAQAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACbHaobhCV7Jx8txu24v42rZDj4COX/gr8iun2UcfmAqgQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQET3fHmpCm1T8S8pQxtBLCIOQ5MAw8y+NgsAFvtiWORU0D"
+      }
+    }
+  ],
+  "routing": [
+    {
+      "id": "active-campaign-prepared",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-campaign-playing",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-campaign-awaitingVrf",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-campaign-rerolled",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-campaign-finished",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-daily-prepared",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-daily-playing",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-daily-awaitingVrf",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-daily-rerolled",
+      "delegated": true,
+      "phase": "delegated"
+    },
+    {
+      "id": "active-daily-finished",
+      "delegated": true,
+      "phase": "delegated"
+    }
+  ],
+  "player": {
+    "id": "player-valid",
+    "kind": "PlayerState",
+    "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+    "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+    "executable": false,
+    "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "decoded": {
+      "version": 1,
+      "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "next_run_id": "9007199254740995",
+      "active_run_id": "9007199254740993",
+      "active_run_daily": "11111111111111111111111111111111",
+      "active_run_mode": {
+        "Campaign": {}
+      },
+      "active_run_deadline_at": "0",
+      "orphan_run_id": "0",
+      "campaign_stars": [
+        255,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "featured_emblem": 0,
+      "lifetime_paid_entries": "0",
+      "score_record": {
+        "best_prize_rank": 0,
+        "podiums": 0,
+        "wins": 0,
+        "rewards_lamports": "0"
+      },
+      "theme_record": {
+        "best_prize_rank": 0,
+        "podiums": 0,
+        "wins": 0,
+        "rewards_lamports": "0"
+      },
+      "campaign_active_run_id": "9007199254740994",
+      "kredit_balance": "25",
+      "ladder_points": "9007199254740993",
+      "highest_ladder_tier": 3,
+      "featured_frame_tier": 2,
+      "best_daily_score": 0,
+      "last_entry_day_id": 20709,
+      "entry_streak_days": 42,
+      "reserved": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bump": 0
+    },
+    "error": null
+  },
+  "consumedPlayers": {
+    "campaign": {
+      "id": "player-valid",
+      "kind": "PlayerState",
+      "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "decoded": {
+        "version": 1,
+        "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "next_run_id": "9007199254740995",
+        "active_run_id": "9007199254740993",
+        "active_run_daily": "11111111111111111111111111111111",
+        "active_run_mode": {
+          "Campaign": {}
+        },
+        "active_run_deadline_at": "0",
+        "orphan_run_id": "0",
+        "campaign_stars": [
+          255,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "featured_emblem": 0,
+        "lifetime_paid_entries": "0",
+        "score_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "theme_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "campaign_active_run_id": "9007199254740994",
+        "kredit_balance": "25",
+        "ladder_points": "9007199254740993",
+        "highest_ladder_tier": 3,
+        "featured_frame_tier": 2,
+        "best_daily_score": 0,
+        "last_entry_day_id": 20709,
+        "entry_streak_days": 42,
+        "reserved": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "bump": 0
+      },
+      "error": null
+    },
+    "daily": {
+      "id": "player-valid",
+      "kind": "PlayerState",
+      "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "decoded": {
+        "version": 1,
+        "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "next_run_id": "9007199254740995",
+        "active_run_id": "9007199254740993",
+        "active_run_daily": "11111111111111111111111111111111",
+        "active_run_mode": {
+          "Campaign": {}
+        },
+        "active_run_deadline_at": "0",
+        "orphan_run_id": "0",
+        "campaign_stars": [
+          255,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "featured_emblem": 0,
+        "lifetime_paid_entries": "0",
+        "score_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "theme_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "campaign_active_run_id": "9007199254740994",
+        "kredit_balance": "25",
+        "ladder_points": "9007199254740993",
+        "highest_ladder_tier": 3,
+        "featured_frame_tier": 2,
+        "best_daily_score": 0,
+        "last_entry_day_id": 20709,
+        "entry_streak_days": 42,
+        "reserved": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "bump": 0
+      },
+      "error": null
+    }
+  },
+  "rulesChanged": {
+    "id": "active-campaign-playing",
+    "kind": "ActiveRun",
+    "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+    "executable": false,
+    "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "address": "GozH8D5KbnoDmiWdM7R5wGVhYQb6fz6FtbwPGHofMjDB",
+    "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAIAAAAwAFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAACaZ6n9kcKvEaYVfxboHO2XVxbIJq3fq/yk/oGnKVbXuAAAAAAAAAAAAAA==",
+    "token": {
+      "config": "AQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFJpnqf2Rwq8RphV/Fugc7ZdXFsgmrd+r/KT+gacpVte4QAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+      "state": "AQEBAwABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEmmep/ZHCrxGmFX8W6Bztl1cWyCat36v8pP6BpylW17gUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+    }
+  },
+  "initialPlayers": {
+    "campaign": {
+      "id": "player-valid",
+      "kind": "PlayerState",
+      "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wCAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "decoded": {
+        "version": 1,
+        "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "next_run_id": "9007199254740995",
+        "active_run_id": "9007199254740993",
+        "active_run_daily": "11111111111111111111111111111111",
+        "active_run_mode": {
+          "Campaign": {}
+        },
+        "active_run_deadline_at": "0",
+        "orphan_run_id": "0",
+        "campaign_stars": [
+          255,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "featured_emblem": 0,
+        "lifetime_paid_entries": "0",
+        "score_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "theme_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "campaign_active_run_id": "9007199254740994",
+        "kredit_balance": "25",
+        "ladder_points": "9007199254740993",
+        "highest_ladder_tier": 3,
+        "featured_frame_tier": 2,
+        "best_daily_score": 0,
+        "last_entry_day_id": 20709,
+        "entry_streak_days": 42,
+        "reserved": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "bump": 0
+      },
+      "error": null
+    },
+    "daily": {
+      "id": "player-valid",
+      "kind": "PlayerState",
+      "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "decoded": {
+        "version": 1,
+        "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "next_run_id": "9007199254740995",
+        "active_run_id": "9007199254740993",
+        "active_run_daily": "11111111111111111111111111111111",
+        "active_run_mode": {
+          "Campaign": {}
+        },
+        "active_run_deadline_at": "0",
+        "orphan_run_id": "0",
+        "campaign_stars": [
+          255,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "featured_emblem": 0,
+        "lifetime_paid_entries": "0",
+        "score_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "theme_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "campaign_active_run_id": "9007199254740994",
+        "kredit_balance": "25",
+        "ladder_points": "9007199254740993",
+        "highest_ladder_tier": 3,
+        "featured_frame_tier": 2,
+        "best_daily_score": 0,
+        "last_entry_day_id": 20709,
+        "entry_streak_days": 42,
+        "reserved": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "bump": 0
+      },
+      "error": null
+    }
+  },
+  "preparedPlayers": {
+    "campaign": {
+      "id": "player-valid",
+      "kind": "PlayerState",
+      "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "decoded": {
+        "version": 1,
+        "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "next_run_id": "9007199254740995",
+        "active_run_id": "9007199254740993",
+        "active_run_daily": "11111111111111111111111111111111",
+        "active_run_mode": {
+          "Campaign": {}
+        },
+        "active_run_deadline_at": "0",
+        "orphan_run_id": "0",
+        "campaign_stars": [
+          255,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "featured_emblem": 0,
+        "lifetime_paid_entries": "0",
+        "score_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "theme_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "campaign_active_run_id": "9007199254740994",
+        "kredit_balance": "25",
+        "ladder_points": "9007199254740993",
+        "highest_ladder_tier": 3,
+        "featured_frame_tier": 2,
+        "best_daily_score": 0,
+        "last_entry_day_id": 20709,
+        "entry_streak_days": 42,
+        "reserved": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "bump": 0
+      },
+      "error": null
+    },
+    "daily": {
+      "id": "player-valid",
+      "kind": "PlayerState",
+      "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+      "executable": false,
+      "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wCAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "decoded": {
+        "version": 1,
+        "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "next_run_id": "9007199254740995",
+        "active_run_id": "9007199254740993",
+        "active_run_daily": "11111111111111111111111111111111",
+        "active_run_mode": {
+          "Campaign": {}
+        },
+        "active_run_deadline_at": "0",
+        "orphan_run_id": "0",
+        "campaign_stars": [
+          255,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "featured_emblem": 0,
+        "lifetime_paid_entries": "0",
+        "score_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "theme_record": {
+          "best_prize_rank": 0,
+          "podiums": 0,
+          "wins": 0,
+          "rewards_lamports": "0"
+        },
+        "campaign_active_run_id": "9007199254740994",
+        "kredit_balance": "25",
+        "ladder_points": "9007199254740993",
+        "highest_ladder_tier": 3,
+        "featured_frame_tier": 2,
+        "best_daily_score": 0,
+        "last_entry_day_id": 20709,
+        "entry_streak_days": 42,
+        "reserved": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "bump": 0
+      },
+      "error": null
+    }
+  },
+  "successor": {
+    "id": "active-campaign-playing",
+    "kind": "ActiveRun",
+    "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+    "executable": false,
+    "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "address": "F36JWTcQ6qVRUf1969knCbageZByfqiTV19nCrBHwBoT",
+    "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAIAAAAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAACaZ6n9kcKvEaYVfxboHO2XVxbIJq3fq/yk/oGnKVbXuAAAAAAAAAAAAAA==",
+    "token": {
+      "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEJpnqf2Rwq8RphV/Fugc7ZdXFsgmrd+r/KT+gacpVte4QAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+      "state": "AQEBAwABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEmmep/ZHCrxGmFX8W6Bztl1cWyCat36v8pP6BpylW17gQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+    }
+  },
+  "successorPlayer": {
+    "id": "player-valid",
+    "kind": "PlayerState",
+    "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+    "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+    "executable": false,
+    "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wEAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "decoded": {
+      "version": 1,
+      "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "next_run_id": "9007199254740995",
+      "active_run_id": "9007199254740993",
+      "active_run_daily": "11111111111111111111111111111111",
+      "active_run_mode": {
+        "Campaign": {}
+      },
+      "active_run_deadline_at": "0",
+      "orphan_run_id": "0",
+      "campaign_stars": [
+        255,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "featured_emblem": 0,
+      "lifetime_paid_entries": "0",
+      "score_record": {
+        "best_prize_rank": 0,
+        "podiums": 0,
+        "wins": 0,
+        "rewards_lamports": "0"
+      },
+      "theme_record": {
+        "best_prize_rank": 0,
+        "podiums": 0,
+        "wins": 0,
+        "rewards_lamports": "0"
+      },
+      "campaign_active_run_id": "9007199254740994",
+      "kredit_balance": "25",
+      "ladder_points": "9007199254740993",
+      "highest_ladder_tier": 3,
+      "featured_frame_tier": 2,
+      "best_daily_score": 0,
+      "last_entry_day_id": 20709,
+      "entry_streak_days": 42,
+      "reserved": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bump": 0
+    },
+    "error": null
+  },
+  "successorPrepared": {
+    "id": "active-campaign-prepared",
+    "kind": "ActiveRun",
+    "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+    "executable": false,
+    "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "address": "F36JWTcQ6qVRUf1969knCbageZByfqiTV19nCrBHwBoT",
+    "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAIAAAAAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQAAAAAAAAAAAAYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGAAAAAAAAAAAAAA==",
+    "token": {
+      "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYQAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+      "state": "AQIAAwABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+    }
+  },
+  "ownerConsume": {
+    "campaign": "AfKy6LjoFWCmBoKsqX7q0zTCkEHZAdDFRLH3ggBxziRhD89J5vwFVWxLb+mw3dx21zfYlZSuFKXavGC2X6IYtgSAAQACBoqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29c6ujJGmkyD4YR/Az1Fh27uso5N9Gky7iLT+S0f+P+/Gr2XvgurboUW0OQTaU0HGMKel3H7BnVX3jMVMopw7sSQIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUAwZGb+UhFzL/7K26csOb57yM5bvF9xJrLEObOkAAAADA79+9gVrd9CuvZ0r6UNjet2t6EcKiYXkoXN8wkfrW4AkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJAwQABQKAGgYABAAJA+gDAAAAAAAABQQBAgADCKjYcjtSx7ALAA==",
+    "daily": "AUkAYA/8azO5M2LhrIHz4wTNokeeuH4U7PJhEeMxV/gdG7ATEwOVwUR5eqHf9wYGDobPu7dqxch42KF3HpNEugaAAQACCIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29c9l74Lq26FFtDkE2lNBxjCnpdx+wZ1V94zFTKKcO7EkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACuY58hfj7sHheCrYYISzHzym0xNvelOmd7mAmGVHepbEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPKBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAMGRm/lIRcy/+ytunLDm+e8jOW7xfcSayxDmzpAAAAAwO/fvYFa3fQrr2dK+lDY3rdrehHComF5KFzfMJH61uAJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQMGAAUCgBoGAAYACQPoAwAAAAAAAAcFAQIDBAUISumhbLUbxacA"
+  },
+  "deviceConsume": {
+    "campaign": "AS1gguA0PLMQVbaJ10pB6+jQ+ETK988s1nEMyrX16QwaKIhglg+EZFZB6L47LyvXsAuJYRvI9k9wbYP0OOC5Ew2AAQADBoE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU6ujJGmkyD4YR/Az1Fh27uso5N9Gky7iLT+S0f+P+/Gr2XvgurboUW0OQTaU0HGMKel3H7BnVX3jMVMopw7sSQAMGRm/lIRcy/+ytunLDm+e8jOW7xfcSayxDmzpAAAAAwO/fvYFa3fQrr2dK+lDY3rdrehHComF5KFzfMJH61uCKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJAwMABQKAGgYAAwAJA+gDAAAAAAAABAQBAgUACKjYcjtSx7ALAA==",
+    "daily": "Aepj8QxNgPJ5Uab2f4C0ustdhl6oaC2N/g0+NdMMmYEY38opALmqP2m/VJkxc3p0lJ7p8FlUjwW99qfbVNoKZQ6AAQACB4E5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOU9l74Lq26FFtDkE2lNBxjCnpdx+wZ1V94zFTKKcO7EkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACuY58hfj7sHheCrYYISzHzym0xNvelOmd7mAmGVHepbEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPIDBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbgCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkDBQAFAoAaBgAFAAkD6AMAAAAAAAAGBQECAwQACErpoWy1G8WnAA=="
+  },
+  "sessionDecisions": [
+    {
+      "mode": "campaign",
+      "condition": "ready",
+      "phase": "settleable",
+      "available": true,
+      "authorized": true,
+      "funding": "ready",
+      "payer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
+    },
+    {
+      "mode": "campaign",
+      "condition": "missing",
+      "phase": "settleable",
+      "available": false,
+      "authorized": true,
+      "funding": "ready",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    {
+      "mode": "campaign",
+      "condition": "expired",
+      "phase": "settleable",
+      "available": true,
+      "authorized": false,
+      "funding": "ready",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    {
+      "mode": "campaign",
+      "condition": "revoked",
+      "phase": "settleable",
+      "available": true,
+      "authorized": false,
+      "funding": "ready",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    {
+      "mode": "campaign",
+      "condition": "depleted",
+      "phase": "settleable",
+      "available": true,
+      "authorized": true,
+      "funding": "needsRenewal",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    {
+      "mode": "daily",
+      "condition": "ready",
+      "phase": "settleable",
+      "available": true,
+      "authorized": true,
+      "funding": "ready",
+      "payer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
+    },
+    {
+      "mode": "daily",
+      "condition": "missing",
+      "phase": "settleable",
+      "available": false,
+      "authorized": true,
+      "funding": "ready",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    {
+      "mode": "daily",
+      "condition": "expired",
+      "phase": "settleable",
+      "available": true,
+      "authorized": false,
+      "funding": "ready",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    {
+      "mode": "daily",
+      "condition": "revoked",
+      "phase": "settleable",
+      "available": true,
+      "authorized": false,
+      "funding": "ready",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    {
+      "mode": "daily",
+      "condition": "depleted",
+      "phase": "settleable",
+      "available": true,
+      "authorized": true,
+      "funding": "needsRenewal",
+      "payer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    }
+  ],
+  "successors": {
+    "campaign": {
+      "run": {
+        "id": "active-campaign-playing",
+        "kind": "ActiveRun",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "address": "F36JWTcQ6qVRUf1969knCbageZByfqiTV19nCrBHwBoT",
+        "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAIAAAAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAACaZ6n9kcKvEaYVfxboHO2XVxbIJq3fq/yk/oGnKVbXuAAAAAAAAAAAAAA==",
+        "token": {
+          "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEJpnqf2Rwq8RphV/Fugc7ZdXFsgmrd+r/KT+gacpVte4QAAMBAgAEAAABCgAAAAMABgkCAQAAAA==",
+          "state": "AQEBAwABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEmmep/ZHCrxGmFX8W6Bztl1cWyCat36v8pP6BpylW17gQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEgwCgcNk01YKHdZjrYzz1bjjF+k6v/8i9zixve1lFonkA"
+        }
+      },
+      "player": {
+        "id": "player-valid",
+        "kind": "PlayerState",
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wEAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "decoded": {
+          "version": 1,
+          "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+          "next_run_id": "9007199254740995",
+          "active_run_id": "9007199254740993",
+          "active_run_daily": "11111111111111111111111111111111",
+          "active_run_mode": {
+            "Campaign": {}
+          },
+          "active_run_deadline_at": "0",
+          "orphan_run_id": "0",
+          "campaign_stars": [
+            255,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "featured_emblem": 0,
+          "lifetime_paid_entries": "0",
+          "score_record": {
+            "best_prize_rank": 0,
+            "podiums": 0,
+            "wins": 0,
+            "rewards_lamports": "0"
+          },
+          "theme_record": {
+            "best_prize_rank": 0,
+            "podiums": 0,
+            "wins": 0,
+            "rewards_lamports": "0"
+          },
+          "campaign_active_run_id": "9007199254740994",
+          "kredit_balance": "25",
+          "ladder_points": "9007199254740993",
+          "highest_ladder_tier": 3,
+          "featured_frame_tier": 2,
+          "best_daily_score": 0,
+          "last_entry_day_id": 20709,
+          "entry_streak_days": 42,
+          "reserved": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "bump": 0
+        },
+        "error": null
+      }
+    },
+    "daily": {
+      "run": {
+        "id": "active-daily-playing",
+        "kind": "ActiveRun",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "address": "F36JWTcQ6qVRUf1969knCbageZByfqiTV19nCrBHwBoT",
+        "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAIAABAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMQ4p2oAAAAAAQEBAAAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAABAgAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAAGxlhkoI7T6jEgO9bludWRhHaVrVkBfFR3lNL9hqhWUtAAAAAAAAAAAAAA==",
+        "token": {
+          "config": "AQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEbGWGSgjtPqMSA71uW51ZGEdpWtWQF8VHeU0v2GqFZS1kAAMBAgAEAQAAAAAAAAAAAAAAAAEBAg==",
+          "state": "AQEBAwABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQFsZYZKCO0+oxIDvW5bnVkYR2la1ZAXxUd5TS/YaoVlLQQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQET3fHmpCm1T8S8pQxtBLCIOQ5MAw8y+NgsAFvtiWORU0A"
+        }
+      },
+      "player": {
+        "id": "player-valid",
+        "kind": "PlayerState",
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wEAAAAAAAgAAMAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADlUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "expectedAuthority": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "decoded": {
+          "version": 1,
+          "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+          "next_run_id": "9007199254740995",
+          "active_run_id": "9007199254740993",
+          "active_run_daily": "11111111111111111111111111111111",
+          "active_run_mode": {
+            "Campaign": {}
+          },
+          "active_run_deadline_at": "0",
+          "orphan_run_id": "0",
+          "campaign_stars": [
+            255,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "featured_emblem": 0,
+          "lifetime_paid_entries": "0",
+          "score_record": {
+            "best_prize_rank": 0,
+            "podiums": 0,
+            "wins": 0,
+            "rewards_lamports": "0"
+          },
+          "theme_record": {
+            "best_prize_rank": 0,
+            "podiums": 0,
+            "wins": 0,
+            "rewards_lamports": "0"
+          },
+          "campaign_active_run_id": "9007199254740994",
+          "kredit_balance": "25",
+          "ladder_points": "9007199254740993",
+          "highest_ladder_tier": 3,
+          "featured_frame_tier": 2,
+          "best_daily_score": 0,
+          "last_entry_day_id": 20709,
+          "entry_streak_days": 42,
+          "reserved": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "bump": 0
+        },
+        "error": null
+      }
+    }
+  }
+}

@@ -15,6 +15,7 @@ import {
   ZKUBE_PROGRAM_ID,
 } from "../constants";
 import type { DeviceSession } from "../session/deviceSessionStore";
+import { decodeSessionTokenV2Account } from "../session/sessionV2";
 import { derivePlayerStatePda, deriveRunAddresses } from "../pdas";
 import { PLAYER_STATE_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated";
 
@@ -110,14 +111,7 @@ export async function resolvePersistedRun(args: {
     if (marker) saveRunSession(marker);
   }
   if (!marker) return { phase: "none" };
-  const sessionAuthorized =
-    isRunSessionFresh(marker) &&
-    Boolean(
-      await args.baseConnection.getAccountInfo(
-        marker.sessionToken,
-        "confirmed",
-      ),
-    );
+  const sessionAuthorized = await hasAuthorizedRunSession(marker, args.baseConnection);
   const status = await (dependencies.getStatus ?? getDelegationStatus)(
     marker.addresses.activeRun,
   );
@@ -165,6 +159,15 @@ export async function resolvePersistedRun(args: {
     };
   }
 
+  // Inspect ownership before invoking the zKube decoder. While Router catches
+  // up, delegation-owned base bytes cannot be decoded as an ActiveRun.
+  const rawActiveRun = await args.baseConnection.getAccountInfo(
+    marker.addresses.activeRun,
+    "confirmed",
+  );
+  if (rawActiveRun?.owner.equals(DELEGATION_PROGRAM_ID)) {
+    return { phase: "resolving", marker, sessionAuthorized };
+  }
   const activeRun = await fetchRun(
     args.baseConnection,
     args.wallet,
@@ -191,17 +194,27 @@ export async function resolvePersistedRun(args: {
       sessionAuthorized,
     };
   }
-  // No decodable zKube ActiveRun on base. If the account exists but is owned by
-  // the delegation program, the run is delegated-on-base and the router/ER is
-  // still catching up — keep resolving instead of dead-ending as "missing".
-  const rawActiveRun = await args.baseConnection.getAccountInfo(
-    marker.addresses.activeRun,
-    "confirmed",
-  );
-  if (rawActiveRun?.owner.equals(DELEGATION_PROGRAM_ID)) {
-    return { phase: "resolving", marker, sessionAuthorized };
-  }
   return { phase: "missing", marker, sessionAuthorized };
+}
+
+async function hasAuthorizedRunSession(
+  marker: RunSessionMarker,
+  connection: Connection,
+): Promise<boolean> {
+  if (!isRunSessionFresh(marker)) return false;
+  const info = await connection.getAccountInfo(marker.sessionToken, "confirmed");
+  if (!info) return false;
+  try {
+    const token = decodeSessionTokenV2Account(marker.sessionToken, info);
+    return token.authority.equals(marker.owner) &&
+      token.targetProgram.equals(ZKUBE_PROGRAM_ID) &&
+      token.sessionSigner.equals(marker.session.publicKey) &&
+      token.feePayer.equals(marker.owner) &&
+      isRunSessionFresh({ validUntil: Math.min(marker.validUntil, token.validUntil) });
+  } catch {
+    // Invalid authorization disables writes, never the durable run locator.
+    return false;
+  }
 }
 
 /**

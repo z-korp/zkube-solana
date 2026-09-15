@@ -36,7 +36,7 @@ function stateById(id: number, input: readonly EmblemZoneInput[]) {
 }
 
 describe("emblem unlock and gold derivation", () => {
-  it("unlocks a guardian when its realm opens and turns it gold at 30/30", () => {
+  it("unlocks a guardian when defeated and turns it gold at 30/30", () => {
     const input = zones({
       1: zone(1, 15, true),
       2: zone(2, 30, true),
@@ -46,13 +46,13 @@ describe("emblem unlock and gold derivation", () => {
     expect(stateById(3, input)).toMatchObject({ unlocked: false, gold: false });
   });
 
-  it("unlocks an open realm's guardian before its trial is beaten", () => {
+  it("keeps an open realm's guardian locked until its trial is beaten", () => {
     // The Sobek case: realm open, stars earned, guardian still standing.
     const input = zones({
       1: zone(1, 30, true),
       2: zone(2, 17, false, true),
     });
-    expect(stateById(2, input)).toMatchObject({ unlocked: true, gold: false });
+    expect(stateById(2, input)).toMatchObject({ unlocked: false, gold: false });
   });
 
   it("keeps Realm Conqueror and World Perfect locked until earned", () => {
@@ -94,10 +94,10 @@ describe("emblem unlock and gold derivation", () => {
 });
 
 describe("auto emblem resolution", () => {
-  it("returns nothing unlocked for a fresh player", () => {
-    const input = zones();
+  it("keeps Automatic available and neutral for a fresh player", () => {
+    const input = zones({ 1: zone(1, 0, false, true) });
     expect(resolveAutoEmblemId(input)).toBe(AUTO_EMBLEM_ID);
-    expect(stateById(AUTO_EMBLEM_ID, input).unlocked).toBe(false);
+    expect(stateById(AUTO_EMBLEM_ID, input).unlocked).toBe(true);
   });
 
   it("picks the highest-numbered unlocked guardian", () => {

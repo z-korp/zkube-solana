@@ -80,6 +80,8 @@ import {
  * priority-fee field to inject into the exact message. */
 export const WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT = 400_000;
 export const WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS = 1_000;
+export const WALLET_SEND_OPTIONS = Object.freeze({ maxRetries: 5, skipPreflight: false });
+export const WALLET_SIMULATION_OPTIONS = Object.freeze({ sigVerify: false, replaceRecentBlockhash: false });
 
 export function withPinnedWalletComputeBudget(
   instructions: readonly TransactionInstruction[],
@@ -1056,10 +1058,7 @@ export async function compileWalletTransactionPlan(args: {
     }
   });
   const unsignedSimulation =
-    await transactionPlan.connection.simulateTransaction(transaction, {
-      sigVerify: false,
-      replaceRecentBlockhash: false,
-    });
+    await transactionPlan.connection.simulateTransaction(transaction, { ...WALLET_SIMULATION_OPTIONS });
   if (unsignedSimulation.value.err) {
     throw new Error(
       `Preflight failed before wallet signature for ${transactionPlan.label}: ${JSON.stringify(unsignedSimulation.value.err)}. The wallet was not prompted and no entry was charged.`,
@@ -1068,10 +1067,7 @@ export async function compileWalletTransactionPlan(args: {
   transaction = await args.wallet.signTransaction(transaction);
   const simulation = await transactionPlan.connection.simulateTransaction(
     transaction,
-    {
-      sigVerify: false,
-      replaceRecentBlockhash: false,
-    },
+    { ...WALLET_SIMULATION_OPTIONS },
   );
   if (simulation.value.err) {
     throw new Error(
@@ -1105,7 +1101,7 @@ export async function submitVersionedTransactionPlan(args: {
   });
   const signature = await args.transactionPlan.connection.sendRawTransaction(
     transaction.serialize(),
-    { maxRetries: 5, skipPreflight: false },
+    WALLET_SEND_OPTIONS,
   );
   await args.transactionPlan.connection.confirmTransaction(
     signature,

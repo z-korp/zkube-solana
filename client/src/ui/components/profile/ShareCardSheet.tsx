@@ -3,6 +3,7 @@ import { Flame, Share2 } from "lucide-react";
 
 import { getGuardianPortrait } from "@/config/bossCharacters";
 import Sheet from "@/ui/components/shared/Sheet";
+import { shareCardText } from "./shareCardText";
 
 export interface ShareCardData {
   readonly displayName: string;
@@ -35,11 +36,7 @@ export default function ShareCardSheet({
 }: ShareCardSheetProps) {
   const [sharing, setSharing] = useState(false);
   const [shared, setShared] = useState(false);
-  const shareText = [
-    `${data.displayName} faced ${data.guardianName} in ${data.realm}.`,
-    `${data.objective}: ${data.objectiveTotal.toString()}. Score: ${data.dailyScore.toLocaleString()}.`,
-    `${data.streak} day streak.`,
-  ].join(" ");
+  const shareText = shareCardText(data);
 
   const share = async () => {
     setSharing(true);

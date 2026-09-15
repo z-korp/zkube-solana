@@ -1,0 +1,5493 @@
+{
+  "schema": 1,
+  "oracleSha256": "27255d98b46235fbcec99f29eaf60b6f8d8fe2899c3f8dd6791a889bec66d5b9",
+  "emblems": [
+    {
+      "id": 0,
+      "kind": "auto",
+      "realm": 0,
+      "name": "Automatic"
+    },
+    {
+      "id": 1,
+      "kind": "guardian",
+      "realm": 1,
+      "name": "Mako"
+    },
+    {
+      "id": 2,
+      "kind": "guardian",
+      "realm": 2,
+      "name": "Sobek"
+    },
+    {
+      "id": 3,
+      "kind": "guardian",
+      "realm": 3,
+      "name": "Fenris"
+    },
+    {
+      "id": 4,
+      "kind": "guardian",
+      "realm": 4,
+      "name": "Noctua"
+    },
+    {
+      "id": 5,
+      "kind": "guardian",
+      "realm": 5,
+      "name": "Long"
+    },
+    {
+      "id": 6,
+      "kind": "guardian",
+      "realm": 6,
+      "name": "Lamassu"
+    },
+    {
+      "id": 7,
+      "kind": "guardian",
+      "realm": 7,
+      "name": "Kitsune"
+    },
+    {
+      "id": 8,
+      "kind": "guardian",
+      "realm": 8,
+      "name": "Balam"
+    },
+    {
+      "id": 9,
+      "kind": "guardian",
+      "realm": 9,
+      "name": "Mamba"
+    },
+    {
+      "id": 10,
+      "kind": "guardian",
+      "realm": 10,
+      "name": "Kuntur"
+    },
+    {
+      "id": 11,
+      "kind": "realm",
+      "realm": 0,
+      "name": "Realm Conqueror"
+    },
+    {
+      "id": 12,
+      "kind": "world",
+      "realm": 0,
+      "name": "World Perfect"
+    }
+  ],
+  "tiers": [
+    {
+      "id": 0,
+      "name": "Slate",
+      "color": "#6B7280"
+    },
+    {
+      "id": 1,
+      "name": "Copper",
+      "color": "#B4703C"
+    },
+    {
+      "id": 2,
+      "name": "Jade",
+      "color": "#10A37F"
+    },
+    {
+      "id": 3,
+      "name": "Azure",
+      "color": "#3B82F6"
+    },
+    {
+      "id": 4,
+      "name": "Prism",
+      "color": "#A855F7"
+    }
+  ],
+  "cases": [
+    {
+      "id": "fresh",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 0,
+      "unlocked": [
+        0
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-1-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-2-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        1,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-3-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-4-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-5-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-6-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-7-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-8-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-9-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVUFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVUVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-1-realm-10-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFdVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF9VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH9VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP9VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP9XVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP9fVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP9/VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//V1VVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": []
+    },
+    {
+      "id": "stars-3-realm-1-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//X1VVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//f1VVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///1VVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///1dVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///19VVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///39VVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////9VVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////9XVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////9fVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////9/VVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1
+      ]
+    },
+    {
+      "id": "stars-3-realm-2-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////VVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////V1VVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////X1VVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////f1VVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////1VVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////1dVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////19VVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////39VVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////9VVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////9XVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "stars-3-realm-3-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////9fVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////9/VVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////VVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////V1VVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////X1VVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////f1VVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////1VVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////1dVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////19VVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////39VVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "stars-3-realm-4-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////9VVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////9XVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////9fVVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////9/VVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////VVVVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////V1VVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////X1VVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////f1VVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////1VVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////1dVVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "stars-3-realm-5-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////19VVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////39VVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////9VVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////9XVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////9fVVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////9/VVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////VVVVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////V1VVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////X1VVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////f1VVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "stars-3-realm-6-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////1VVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////1dVVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////19VVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////39VVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////9VVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////9XVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////9fVVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////9/VVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////VVVVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////V1VVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "stars-3-realm-7-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////X1VVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////f1VVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////1VVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////1dVVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////19VVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////39VVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////9VVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////9XVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////9fVVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////9/VVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "stars-3-realm-8-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////VVVVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////V1VVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////X1VVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////f1VVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////1VVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////1dVVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////19VVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////39VVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////////9VVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////////9XVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "id": "stars-3-realm-9-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////////9fVVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////////9/VVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////////VVUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////////V1UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-4",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////////X1UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-5",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////////f1UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-6",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////////1UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-7",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////////1cAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-8",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////////18AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-9",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////////////38AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 11,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "gold": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "stars-3-realm-10-level-10",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 12,
+      "unlocked": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "gold": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    },
+    {
+      "id": "sparse-realm-1-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-1-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-1-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 1,
+      "unlocked": [
+        0,
+        1
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-2-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-2-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-2-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 2,
+      "unlocked": [
+        0,
+        2
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-3-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-3-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-3-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 3,
+      "unlocked": [
+        0,
+        3
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-4-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-4-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-4-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 4,
+      "unlocked": [
+        0,
+        4
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-5-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-5-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-5-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 5,
+      "unlocked": [
+        0,
+        5
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-6-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-6-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-6-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 6,
+      "unlocked": [
+        0,
+        6
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-7-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-7-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-7-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 7,
+      "unlocked": [
+        0,
+        7
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-8-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-8-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-8-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 8,
+      "unlocked": [
+        0,
+        8
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-9-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-9-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-9-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 9,
+      "unlocked": [
+        0,
+        9
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-10-stars-1",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 10,
+      "unlocked": [
+        0,
+        10
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-10-stars-2",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 10,
+      "unlocked": [
+        0,
+        10
+      ],
+      "gold": []
+    },
+    {
+      "id": "sparse-realm-10-stars-3",
+      "player": {
+        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+        "executable": false,
+        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wDAAAAAAAgAAEAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAgABkAAAAAAAAAAQAAAAAAIAADAgAAAADhUAAAKgAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "automatic": 10,
+      "unlocked": [
+        0,
+        10
+      ],
+      "gold": []
+    }
+  ]
+}

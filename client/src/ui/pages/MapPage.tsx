@@ -29,6 +29,7 @@ import LevelPreview from "@/ui/components/map/LevelPreview";
 import ZoneBackground from "@/ui/components/map/ZoneBackground";
 import {
   campaignZoneActionLabel,
+  canInspectCampaignNode,
   resolveCampaignMap,
   unavailableMap,
 } from "@/ui/components/map/mapLogic";
@@ -50,8 +51,6 @@ const STATE_COLORS: Record<
   current: { fill: "#0f2743", border: "#3b82f6", alpha: 1, text: "#bfdbfe" },
   playing: { fill: "#7c2d12", border: "#fb923c", alpha: 1, text: "#ffedd5" },
 };
-
-const canOpenPreview = (node: MapNodeData): boolean => node.state !== "locked";
 
 const getPathType = (
   fromState: NodeState,
@@ -453,10 +452,8 @@ const MapPage: React.FC = () => {
                 activeStoryRun !== null &&
                 node.zone === activeStoryRun.zoneId &&
                 node.contractLevel === activeStoryRun.level;
-              const blockedByActiveRun =
-                activeStoryRun !== null && !isPlayingNode;
-              const isInteractive =
-                node.state !== "locked" && !blockedByActiveRun;
+              const isInteractive = canInspectCampaignNode(node.state, node.zone, node.contractLevel,
+                activeStoryRun?.zoneId ?? null, activeStoryRun?.level ?? null);
               const label = getLabel(node);
               const isCleared = node.state === "cleared";
               const nodeImage =
@@ -483,7 +480,7 @@ const MapPage: React.FC = () => {
                       return;
                     }
                     if (!isInteractive) return;
-                    if (canOpenPreview(node)) setSelectedNode(node);
+                    setSelectedNode(node);
                   }}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: stateColors.alpha }}
