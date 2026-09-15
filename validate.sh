@@ -91,7 +91,8 @@ validate_mobile() {
   for target in solana store; do
     VITE_ZKUBE_BUILD="$target" NO_DNA=1 pnpm run build
     VITE_ZKUBE_BUILD="$target" NO_DNA=1 node tools/validate-mobile-config.mjs
-    mobile_tmp="$(mktemp -d)"
+    mkdir -p "$root/build/mobile-validation"
+    mobile_tmp="$(mktemp -d "$root/build/mobile-validation/sync.XXXXXX")"
     cp -a capacitor.config.ts package.json pnpm-lock.yaml dist android ios "$mobile_tmp/"
     ln -s "$root/client/node_modules" "$mobile_tmp/node_modules"
     if ! (
@@ -107,6 +108,20 @@ validate_mobile() {
       return 1
     fi
     rm -rf "$mobile_tmp"
+  done
+}
+
+validate_unity() {
+  cd "$root"
+  NO_DNA=1 python3 -m unittest discover -s unity/tools/tests -p 'test_*.py'
+  NO_DNA=1 python3 unity/tools/harness.py runner-regression --tests unity/tools/harness/RunnerTests.cs --filter HarnessRunnerTests
+  NO_DNA=1 python3 unity/tools/fixtures.py check
+  NO_DNA=1 python3 unity/tools/build.py test
+  NO_DNA=1 python3 unity/tools/build.py test --test-platform PlayMode
+  NO_DNA=1 python3 unity/tools/harness.py profiler-summary --tests unity/tools/harness/ProfilerSummaryTests.cs
+  for unity_identity in money store; do
+    NO_DNA=1 python3 unity/tools/build.py android --identity "$unity_identity"
+    NO_DNA=1 python3 unity/tools/build.py android --identity "$unity_identity" --mode production
   done
 }
 
@@ -129,6 +144,7 @@ case "$scope" in
     validate_program
     validate_frontend
     validate_mobile
+    validate_unity
     ;;
   *)
     echo "usage: $0 [program|program-sbf|frontend|mobile|all]" >&2

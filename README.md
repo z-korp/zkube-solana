@@ -64,7 +64,8 @@ The pot splits between **Score** and **Theme** over the same runs. Score ranks
 total performance; Theme ranks only the count attributable to the day's objective.
 Both require a positive metric, and Classic folds its empty Theme half back into
 Score. Board weights follow `1/rank` and extend through the last rounded payout
-that still covers the entry price. Payouts floor to 0.001 SOL and dust rolls
+that still covers the entry price, with a minimum width of four before limiting
+to qualifying players and dropping zero payouts. Payouts floor to 0.001 SOL and dust rolls
 forward. The retained board pays up to its explicit capacity, records when the
 full width exceeds that bound, and winners claim directly from the finalized
 rows.
@@ -86,11 +87,10 @@ prizes still pay in SOL. The shop offers 1-, 10-, and 25-Kredit packs at the
 same 0.01 SOL unit price.
 
 **Playing funds the pot, not buying.** Spending a Kredit sends 90% of its price
-to the following paid Daily's pot; the other 10% is operator revenue. Prior play
-funds today, so the pot rises with how much the game is actually played. It also
-swings across the week, and deliberately so — the biggest pots land on the
-quietest days, which is exactly when playing is worth the most. Nothing is held
-back from a daily pot for anything else.
+to the following paid Daily's pot. The operator's 10% is swept at purchase,
+leaving only prize money in the Kredit vault. Prior play funds today; today's
+entries grow the following paid Daily. Nothing is held back from a daily pot
+for anything else.
 
 The daily pot then divides across two boards scored from the same runs — **Score**
 takes 50% and **Theme** takes 50% — so one entry places on both. Score ranks the
@@ -103,8 +103,8 @@ to Score.
 
 **Payout width becomes a rule instead of a count.** Weights fall off as
 `1/rank`, and a board pays down to the last place whose payout still meets
-the entry price. Everyone who places made money, and the number of places grows
-with the field instead of staying at five.
+the entry price, subject to the minimum-width rule and qualifying field.
+Small pots can therefore pay less than an entry price. Zero payouts are dropped.
 
 **Winners claim instead of being pushed a payment.** Finalization allocates one
 exact-sized account for each board. The keeper submits the sorted rows in small
@@ -112,9 +112,10 @@ chunks, and the program verifies each row against that player's result, the full
 ordering, uniqueness, and the program-computed winner count before sealing the
 board. Claims stay disabled until sealing; afterwards the program looks up the
 owner's position and recomputes that rank's payout directly. Each board's reward
-stays claimable for thirty days from its sealing, and anything you are still
-owed is collected automatically the next time you spend a Kredit, so returning
-players never make a separate trip. After both windows, anything unclaimed
+stays claimable for thirty days from its sealing. Spending a Kredit can collect
+unclaimed rewards from up to two attached boards in the same transaction;
+unavailable attachments are skipped and explicit claiming remains available.
+After both windows, anything unclaimed
 returns to the next Daily pot, never to operator revenue.
 
 **A persistent points ladder replaces the season bands.** Placing on a board
@@ -139,15 +140,30 @@ before.
 | --- | --- |
 | `crates/zkube-core` | Deterministic Rust engine: grid, blocks, guardians, scoring, metrics, period and payout math, canonical encoding, replay schedule |
 | `crates/zkube-core-wasm` | WASM build of the same engine for the client |
+| `crates/zkube-core-ffi` | Native byte boundary over the same engine for Unity |
 | `programs/solana` | Anchor program: Campaign stars, competitive records, accounting, boards, settlement |
 | MagicBlock ER | Active gameplay and per-row VRF, on a Router-resolved validator |
 | `services` | Keeper worker: Daily cadence and last-resort permissionless recovery |
 | `client` | Static web/PWA plus Capacitor Android and iOS shells for the wallet, Campaign, and Arcade UI; no server signer |
+| `unity` | Native Android replacement in development, with money and local store identities sharing Rust gameplay |
 
 The engine is the single source of truth for game rules, and native Rust, WASM,
 and the on-chain program must all agree on the same committed golden vectors
 before an ABI can ship. The generated IDL is the contract between program,
 keeper, and client.
+
+The Unity migration retains the existing artwork and protocol behavior. It adds
+a native binding, generated C# sources and client parity checks, with no new
+protocol accounts or instructions. Both clients coexist until the Android
+replacement passes product and integration acceptance. The eventual removal
+of the React UI and Capacitor/PWA shells preserves operator tooling, its imports
+and the authoritative asset source; wallet compatibility alone does not trigger
+that removal. The money identity, `com.zkorp.zkube`, targets the Solana dApp
+Store. The local identity, `com.zkorp.zkube.store`, targets Google Play with an
+ARM64 and x86_64 AAB, a local name and UTC Daily, and a native purchase to
+unlock Campaign. It preserves the existing store client's local product data.
+Store backend, billing and bundle delivery are still in development. The iOS
+shell remains until a Unity store replacement is accepted from a Mac.
 
 Gameplay runs on a MagicBlock ephemeral rollup, then commits back to base
 layer. At a run's deadline the ER freezes the last fully accepted state and
@@ -175,40 +191,42 @@ crates/      deterministic engine (core, WASM bindings, codegen)
 programs/    Anchor program — state, instructions, game rules
 services/    keeper worker and chain services
 client/      React web/PWA and Capacitor mobile shells
+unity/       native Android client and reproducible Unity build tooling
 fixtures/    committed golden vectors and chain fixtures
 artifacts/   frozen build artifacts
-validate.sh  program validation entry point
+validate.sh  repository validation entry point
 ```
 
 ## Build and validate
 
 Requires Rust with the pinned toolchain in `rust-toolchain.toml`, Anchor, Node,
-and pnpm. The `NO_DNA=1` prefix is required by the maintainer workstation's
-sandbox tooling; it is inert elsewhere and safe to keep on every command.
+pnpm, Python 3, the Unity Editor and Android tools pinned in
+`unity/toolchain.json`, including the Rust targets listed for both Android identities. Set
+`UNITY_EDITOR` when the Editor is installed outside the default Hub location.
+The `NO_DNA=1` prefix is required by the maintainer workstation's sandbox
+tooling; it is inert elsewhere and safe to keep on every command.
 
 ```bash
-NO_DNA=1 ./validate.sh program
-
-cd services
-NO_DNA=1 pnpm install --frozen-lockfile
-NO_DNA=1 pnpm run build
-NO_DNA=1 pnpm test
-
-cd ../client
-NO_DNA=1 pnpm idl:check
-NO_DNA=1 pnpm core:wasm:sync
-NO_DNA=1 pnpm core:wasm:check
-NO_DNA=1 pnpm exec tsc -b --pretty false
-NO_DNA=1 pnpm lint
-NO_DNA=1 pnpm exec vitest run
-NO_DNA=1 pnpm build
+NO_DNA=1 ./validate.sh
 ```
 
-These local gates are authoritative. GitHub static validation is
-`workflow_dispatch` only and is not a push or pull-request gate. Tests must
-cover exact lamport conservation, period rollover, deadline freezing, replay
-parity, ER recovery, account validation, and Campaign's inability to mutate
-competitive records.
+`validate.sh` defines the gates and available iteration scopes. GitHub static
+validation is `workflow_dispatch` only and is not a push or pull-request gate.
+
+For Unity iteration, `NO_DNA=1 python3 unity/tools/build.py test` runs the managed
+agreement tests; add `--test-platform PlayMode` for board interaction tests with
+a graphics display. Desktop tests and `build.py board-gui` use Linux texture
+imports; Android artifacts use Android imports. With the graphics Editor running,
+`python3 unity/tools/evidence.py readiness` inspects the accepted board and
+`capture --output build/unity/board-evidence/board.png` records its rendered frame
+and readiness metadata. `NO_DNA=1 python3 unity/tools/build.py android` reproduces the
+asset imports, Rust libraries and verified Kotlin wallet AAR, then builds an Android evidence APK under
+`build/unity/`. Add `--identity store` to build the local store AAB and its
+installable inspection APK. Add `--mode production` to omit the development build flag and
+evidence define. Both modes produce package inspection and source provenance
+reports. These local artifacts use local signing; release certificate acceptance
+and publication are separate. Existing `ZKUBE_ANDROID_VERSION_CODE` and
+`ZKUBE_ANDROID_VERSION_NAME` overrides apply to Unity too.
 
 ## Platform support
 
@@ -217,13 +235,15 @@ competitive records.
 | Desktop browser | Development preview | Wallet Standard extension |
 | Android Chrome | Development preview | Mobile Wallet Adapter |
 | Chrome-installed PWA | Development preview | Mobile Wallet Adapter |
-| Capacitor Android (dApp Store / Seeker) | Target | Native Mobile Wallet Adapter bridge |
-| Capacitor iOS (App Store) | Target, pending distribution review | Phantom or Solflare wallet links |
+| Unity Android (dApp Store / Seeker) | Replacement in development | Native Mobile Wallet Adapter plugin |
+| Unity Android (Google Play) | Local store replacement in development | Local name; native Campaign purchase |
+| Capacitor Android | Retained during migration | Native Mobile Wallet Adapter bridge |
+| Capacitor iOS | Retained until a Unity store replacement is accepted from a Mac | Phantom or Solflare wallet links |
 | iOS browser | Not claimed supported | — |
 | Other Android browsers | Not claimed supported | — |
 
 Seed Vault Wallet is Seeker's built-in wallet and the reference MWA target;
-Phantom and Solflare on Android also work but are not requirements. The iOS
+Phantom and Solflare on Android are additional compatibility targets. The iOS
 shell uses sign-only wallet links; paid Arcade distribution remains subject to
 the counsel and distribution review stated above.
 

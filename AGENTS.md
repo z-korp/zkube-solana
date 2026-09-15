@@ -8,6 +8,28 @@ protocol reference below, and operator procedures live here. Implementation
 detail belongs in code comments next to the code. Do not add new Markdown
 documents, and do not move approval policy or operator runbooks into `README.md`.
 
+## Agent tooling discipline
+
+- Off-Editor C# harnesses use `unity/tools/harness.py` and its shared
+  `ZKube.TestMain`. Each case prints PASS or FAIL, failures include their first
+  stack frame, and the summary returns 0 or 1. Never rethrow from Main or use
+  an abort as a test result. Python tools use `unity/tools/cli.py` to report
+  expected failures with the result/log path instead of a traceback.
+  Regenerate Unity fixtures with `unity/tools/fixtures.py generate`, which
+  orders native, transport and presentation producers; do not run writers concurrently.
+- Every Unity Editor invocation goes through `unity/tools/build.py`, including
+  one-off methods via `exec --method`. One invocation holds the Editor lease
+  through its entire operation. A held lease means wait. The persistent graphics
+  Editor belongs to `board-gui`; send it commands through `evidence.py`.
+  Read the fresh log and completion result before interpreting a nonzero exit;
+  verified completion followed by a teardown crash is success with a noisy exit.
+- Reuse the session's MCP servers. Stop a wedged server before replacing it and
+  report its PID and reason. Report duplicate configuration entries to the owner.
+  Request a region or screenshot instead of parsing a multi-megabyte page DOM.
+- `/tmp` is RAM-backed. Large scratch work belongs in ignored `build/`, and is
+  removed when its step finishes. Never extract packages into `/tmp`; retain
+  only scratch data still needed by active work and explain what is kept.
+
 ## Deployment status — read this first
 
 **There is no live deployment.** The v4 Devnet protocol was deliberately
@@ -34,7 +56,14 @@ Source implements v5 partially. Current state:
 
 ## Product truth
 
-- zKube v5 targets the Solana dApp Store and Seeker. Google Play is out.
+- The Unity client ships two Android identities (owner scope decision,
+  2026-09-09): `com.zkorp.zkube` targets the Solana dApp Store and Seeker;
+  `com.zkorp.zkube.store` targets Google Play as an AAB with arm64-v8a and
+  x86_64. The store identity mirrors `client/src/ui/pageSets/store.tsx` and
+  `client/src/backend/local`: local name, UTC Daily, native-billing Campaign
+  unlock, profile and settings, with Solana assemblies and wallet plugins
+  excluded. The wallet, Kredit and on-chain rules below govern the money
+  identity. Do not start iOS work on this Linux machine.
 - The connected Solana address is the player identity. There are no embedded
   wallets and no recovery codes.
 - Campaign is free, never gates paid play, and changes only the compact
@@ -680,8 +709,8 @@ Emblems are identity display only with no monetary effect.
 
 | Boundary | Responsibility | Authority and funding |
 | --- | --- | --- |
-| Owner wallet | Durable identity and paid entry | Signs every 0.01 SOL entry |
-| Device session | Approximately seven days of safe gameplay | Owner-funded fee/rent float; never signs entry payment |
+| Owner wallet | Durable identity, Kredit purchases and device funding | Signs purchases at the protocol unit price and funds the device allowance |
+| Device session | Approximately seven days of authorized gameplay | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
 | Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation and finalization only |
 | Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
 | MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |

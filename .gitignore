@@ -59,3 +59,20 @@ run_logs.txt
 /zkube-v1-evol.md
 /zkube-v4-evol.md
 *:Zone.Identifier
+
+# Unity rebuild brief: design artboards and prompts, not a repo document
+unity/brief/
+
+# Unity generated workspace and native build products
+unity/Library/
+unity/Temp/
+unity/.utmp/
+unity/Logs/
+unity/obj/
+unity/UserSettings/
+unity/MemoryCaptures/
+unity/tools/__pycache__/
+unity/Assets/Plugins/**/*.so
+unity/Assets/Plugins/Android/*.aar
+unity/Assets/ZKube/Art/Generated/
+unity/Assets/ZKube/Branding/Generated/
