@@ -62,7 +62,6 @@ fn daily_rules_publications(catalog: &CampaignCatalog) -> Result<Vec<Value>, Str
             let rules = campaign_rules(map, 1, level, &catalog.difficulty_weights)?;
             let hash = daily_rules_hash(
                 day,
-                catalog.content_version,
                 rules.guardian,
                 rules.starting_height,
                 objective,

@@ -198,6 +198,11 @@ pub const OPERATIONS: &[Operation] = &[
         name: "EmptyContinuation",
         fields: fields![Counter: U32, Output: Bytes(32), RulesHash: Bytes(32), Weights: Bytes(10)],
     },
+    Operation {
+        id: 21,
+        name: "MergeCampaignStars",
+        fields: fields![Stored: Bytes(zkube_core::CAMPAIGN_STAR_BYTES), Incoming: Bytes(zkube_core::CAMPAIGN_STAR_BYTES)],
+    },
 ];
 
 /// One registry drives safe Rust indexing and generated managed layout.
@@ -460,6 +465,7 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
         )
         .map(|v| v.to_vec()),
         12 => Ok(daily_pair_index(u("Day")).to_le_bytes().to_vec()),
+        21 => crate::merge_campaign_stars(b("Stored"), b("Incoming")),
         13 => zkube_core::campaign_move_budget(n("Level"), n("Tier"))
             .map(|v| v.to_le_bytes().to_vec())
             .ok_or(BoundaryError::InvalidEncoding),

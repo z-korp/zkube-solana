@@ -39,6 +39,19 @@ impl CampaignStars {
         self.packed
     }
 
+    /// Merge a self-attested cosmetic record by each level's lifetime maximum.
+    /// Every packed array encodes exactly 100 valid two-bit values; progression
+    /// order is a local play rule and does not constrain this merge.
+    pub fn merge(&mut self, incoming: Self) {
+        for (stored, submitted) in self.packed.iter_mut().zip(incoming.packed) {
+            let mut merged = 0;
+            for shift in [0, 2, 4, 6] {
+                merged |= ((*stored >> shift) & 3).max((submitted >> shift) & 3) << shift;
+            }
+            *stored = merged;
+        }
+    }
+
     /// Return the lifetime-best star result for one Campaign level.
     ///
     /// # Errors
@@ -144,6 +157,43 @@ fn level_index(map_id: u8, level_id: u8) -> Result<usize, CampaignStarsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn campaign_stars_merge_per_level_maximum_and_never_decrease() {
+        // Exhaust every pair of packed bytes, including opposite improvements
+        // within one byte, at every position in the complete record.
+        for stored in 0..=u8::MAX {
+            for submitted in 0..=u8::MAX {
+                let before = CampaignStars::from_packed([stored; CAMPAIGN_STAR_BYTES]);
+                let incoming = CampaignStars::from_packed([submitted; CAMPAIGN_STAR_BYTES]);
+                let mut merged = before;
+                merged.merge(incoming);
+                for map in 1..=CAMPAIGN_MAP_COUNT_U8 {
+                    for level in 1..=CAMPAIGN_LEVELS_PER_MAP_U8 {
+                        assert_eq!(
+                            merged.best(map, level).unwrap(),
+                            before
+                                .best(map, level)
+                                .unwrap()
+                                .max(incoming.best(map, level).unwrap())
+                        );
+                    }
+                }
+                let mut reversed = incoming;
+                reversed.merge(before);
+                assert_eq!(merged, reversed);
+                reversed.merge(incoming);
+                reversed.merge(CampaignStars::new());
+                assert_eq!(merged, reversed);
+            }
+        }
+        let mut farthest = [0; CAMPAIGN_STAR_BYTES];
+        farthest[CAMPAIGN_STAR_BYTES - 1] = 3 << 6;
+        let mut merged = CampaignStars::new();
+        merged.merge(CampaignStars::from_packed(farthest));
+        assert_eq!(merged.best(10, 10), Ok(3));
+        assert_eq!(merged.best(1, 1), Ok(0));
+    }
 
     #[test]
     fn campaign_move_budget_is_derived_from_the_ladder_and_tier() {

@@ -35,6 +35,16 @@ mod replay;
 mod rules;
 mod simulation;
 include!("tier_weights.generated.rs");
+include!("realm_rules.generated.rs");
+
+/// Version of the protocol-owned realm and level catalog.
+pub const CATALOG_VERSION: u32 = 3;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RealmRules {
+    pub guardian: Guardian,
+    pub starting_height: u8,
+}
 
 /// One score target for each Campaign level, shared by all realms.
 pub const CAMPAIGN_TARGET_LADDER: [u16; CAMPAIGN_LEVELS_PER_MAP] =
@@ -58,9 +68,10 @@ pub const fn campaign_move_budget(level: u8, tier: u8) -> Option<u16> {
 
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
-pub const PROTOCOL_ACCOUNT_VERSION: u8 = 1;
-pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 1;
-pub const ARCADE_ACCOUNT_VERSION: u8 = 1;
+pub const PROTOCOL_ACCOUNT_VERSION: u8 = 2;
+pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 2;
+pub const PLAYER_STATE_RESERVED_BYTES: usize = 18;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 2;
 pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
 pub const ARCADE_DAILY_RESULT_HASH_DOMAIN: &str = "zkube-arcade-daily-result-v5";
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");

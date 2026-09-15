@@ -4,6 +4,7 @@ import {
   boardWidth,
   buildRunConfig,
   campaignMoveBudget,
+  mergeCampaignStars,
   dailyBoardPools,
   dailyPairIndex,
   default as initializeBindings,
@@ -232,6 +233,10 @@ export function coreLadderTierCount(): number {
 }
 
 /** Campaign difficulty is derived in core, never copied from a publication. */
+export function coreMergeCampaignStars(stored: Uint8Array, incoming: Uint8Array): Uint8Array {
+  return mergeCampaignStars(stored, incoming);
+}
+
 export function coreCampaignMoveBudget(level: number, tier: number): number {
   assertInitialized();
   assertUnsigned(level, 0xff, "level");

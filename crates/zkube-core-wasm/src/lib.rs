@@ -55,6 +55,24 @@ fn array_32(bytes: &[u8]) -> Result<[u8; 32], BoundaryError> {
     bytes.try_into().map_err(|_| BoundaryError::InvalidLength)
 }
 
+/// Merge two complete packed cosmetic records through the shared core rule.
+///
+/// # Errors
+/// Rejects records whose encoded length differs from the packed star array.
+pub fn merge_campaign_stars(stored: &[u8], incoming: &[u8]) -> Result<Vec<u8>, BoundaryError> {
+    let mut stars = zkube_core::CampaignStars::from_packed(
+        stored
+            .try_into()
+            .map_err(|_| BoundaryError::InvalidEncoding)?,
+    );
+    stars.merge(zkube_core::CampaignStars::from_packed(
+        incoming
+            .try_into()
+            .map_err(|_| BoundaryError::InvalidEncoding)?,
+    ));
+    Ok(stars.packed().to_vec())
+}
+
 /// Host-compilable wallet-to-player-ID boundary.
 ///
 /// # Errors
@@ -364,6 +382,11 @@ mod wasm {
             .ok_or_else(|| JsError::new("Campaign level or tier is invalid"))
     }
 
+    #[wasm_bindgen(js_name = mergeCampaignStars)]
+    pub fn js_merge_campaign_stars(stored: &[u8], incoming: &[u8]) -> Result<Vec<u8>, JsError> {
+        merge_campaign_stars(stored, incoming).map_err(js_error)
+    }
+
     #[wasm_bindgen(js_name = initializeRun)]
     pub fn js_initialize_run(config: &[u8]) -> Result<Vec<u8>, JsError> {
         initialize_run(config).map_err(js_error)
@@ -619,6 +642,20 @@ mod tests {
 
     #[test]
     fn validates_lengths_and_modes_at_the_boundary() {
+        for length in [0, 24, 26] {
+            assert_eq!(
+                merge_campaign_stars(&vec![0; length], &[0; 25]),
+                Err(BoundaryError::InvalidEncoding)
+            );
+            assert_eq!(
+                merge_campaign_stars(&[0; 25], &vec![0; length]),
+                Err(BoundaryError::InvalidEncoding)
+            );
+        }
+        assert_eq!(
+            merge_campaign_stars(&[0x55; 25], &[0xaa; 25]).unwrap(),
+            vec![0xaa; 25]
+        );
         assert_eq!(
             qualified_player_id(&[0; 31], &[0; 32]),
             Err(BoundaryError::InvalidLength)

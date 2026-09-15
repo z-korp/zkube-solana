@@ -31,6 +31,8 @@ export function ladderTierCount(): number;
 
 export function ladderTierFloor(tier: number): bigint;
 
+export function mergeCampaignStars(stored: Uint8Array, incoming: Uint8Array): Uint8Array;
+
 export function payoutForRank(pool: bigint, denominator: Uint8Array, rank: number, whole_unit: bigint): bigint;
 
 export function payoutPlan(pool: bigint, qualified_winners: number, capacity: number, entry_price: bigint, whole_unit: bigint): Uint8Array;
@@ -61,6 +63,7 @@ export interface InitOutput {
     readonly ladderTierFloor: (a: number) => bigint;
     readonly ladderTierCount: () => number;
     readonly campaignMoveBudget: (a: number, b: number) => [number, number, number];
+    readonly mergeCampaignStars: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly initializeRun: (a: number, b: number) => [number, number, number, number];
     readonly buildRunConfig: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number) => [number, number, number, number];
     readonly reconcileRunState: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: bigint, x: number, y: number, z: number, a1: number, b1: number, c1: number, d1: number) => [number, number, number, number];

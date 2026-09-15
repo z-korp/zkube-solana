@@ -750,31 +750,23 @@ impl Run {
 #[must_use]
 pub fn daily_rules_hash(
     day_id: u32,
-    content_version: u32,
     guardian: Guardian,
     starting_height: u8,
     objective: DailyTheme,
 ) -> RulesHash {
-    daily_rules_hash_with::<SoftwareSha256>(
-        day_id,
-        content_version,
-        guardian,
-        starting_height,
-        objective,
-    )
+    daily_rules_hash_with::<SoftwareSha256>(day_id, guardian, starting_height, objective)
 }
 
 #[must_use]
 pub fn daily_rules_hash_with<H: Sha256Provider>(
     day_id: u32,
-    content_version: u32,
     guardian: Guardian,
     starting_height: u8,
     objective: DailyTheme,
 ) -> RulesHash {
     daily_rules_hash_components_with::<H>(
         day_id,
-        content_version,
+        crate::CATALOG_VERSION,
         guardian,
         starting_height,
         objective,
@@ -782,7 +774,7 @@ pub fn daily_rules_hash_with<H: Sha256Provider>(
     )
 }
 
-fn daily_rules_hash_components_with<H: Sha256Provider>(
+pub(crate) fn daily_rules_hash_components_with<H: Sha256Provider>(
     day_id: u32,
     content_version: u32,
     guardian: Guardian,
@@ -1019,95 +1011,75 @@ mod tests {
     #[test]
     fn daily_rules_hash_binds_day_realm_objective_and_protocol_constants() {
         let rules = rules();
-        let baseline = daily_rules_hash(
-            32_000,
-            2,
-            rules.guardian,
-            rules.starting_height,
-            rules.objective.unwrap(),
-        );
-        let changed = |day_id, content_version, guardian, starting_height, objective| {
-            daily_rules_hash(
-                day_id,
-                content_version,
+        let objective = rules.objective.unwrap();
+        let baseline = daily_rules_hash(32_000, rules.guardian, rules.starting_height, objective);
+        let changed = |day, version, guardian, height, theme, rules_version| {
+            daily_rules_hash_components_with::<SoftwareSha256>(
+                day,
+                version,
                 guardian,
-                starting_height,
-                objective,
+                height,
+                theme,
+                rules_version,
             )
         };
-        assert_ne!(
-            baseline,
-            changed(
-                32_000 + u32::try_from(crate::DAILY_PAIR_COUNT).unwrap(),
-                2,
-                rules.guardian,
-                rules.starting_height,
-                rules.objective.unwrap()
-            )
-        );
-        assert_ne!(
+        assert_eq!(
             baseline,
             changed(
                 32_000,
-                3,
+                crate::CATALOG_VERSION,
                 rules.guardian,
                 rules.starting_height,
-                rules.objective.unwrap()
+                objective,
+                RULES_VERSION
             )
         );
+        for (day, version, rules_version) in [
+            (32_160, crate::CATALOG_VERSION, RULES_VERSION),
+            (32_000, crate::CATALOG_VERSION + 1, RULES_VERSION),
+            (32_000, crate::CATALOG_VERSION, RULES_VERSION + 1),
+        ] {
+            assert_ne!(
+                baseline,
+                changed(
+                    day,
+                    version,
+                    rules.guardian,
+                    rules.starting_height,
+                    objective,
+                    rules_version
+                )
+            );
+        }
         let mut guardian = rules.guardian;
         guardian.threshold += 1;
         assert_ne!(
             baseline,
-            changed(
-                32_000,
-                2,
-                guardian,
-                rules.starting_height,
-                rules.objective.unwrap()
-            )
+            daily_rules_hash(32_000, guardian, rules.starting_height, objective)
         );
-        let mut guardian = rules.guardian;
+        guardian = rules.guardian;
         guardian.bonus = Bonus::Hammer;
         assert_ne!(
             baseline,
-            changed(
-                32_000,
-                2,
-                guardian,
-                rules.starting_height,
-                rules.objective.unwrap()
-            )
+            daily_rules_hash(32_000, guardian, rules.starting_height, objective)
+        );
+        guardian = rules.guardian;
+        guardian.trigger = 2;
+        assert_ne!(
+            baseline,
+            daily_rules_hash(32_000, guardian, rules.starting_height, objective)
         );
         assert_ne!(
             baseline,
-            changed(
-                32_000,
-                2,
-                rules.guardian,
-                rules.starting_height + 1,
-                rules.objective.unwrap()
-            )
+            daily_rules_hash(32_000, rules.guardian, rules.starting_height + 1, objective)
         );
         assert_ne!(
             baseline,
-            changed(
+            daily_rules_hash(
                 32_000,
-                2,
                 rules.guardian,
                 rules.starting_height,
                 crate::DAILY_THEMES[2]
-            )
-        );
-        assert_ne!(
-            baseline,
-            daily_rules_hash_components_with::<SoftwareSha256>(
-                32_000,
-                2,
-                rules.guardian,
-                rules.starting_height,
-                rules.objective.unwrap(),
-                RULES_VERSION + 1,
             )
         );
     }

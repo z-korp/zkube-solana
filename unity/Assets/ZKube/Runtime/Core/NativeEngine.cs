@@ -77,6 +77,9 @@ namespace ZKube.Core
 
         public static byte[] BuildConfig(BuildConfigRequest input) => Call(BuildConfigRequest.Operation, input.Encode());
 
+        public static byte[] MergeCampaignStars(byte[] stored, byte[] incoming)
+            => Call(MergeCampaignStarsRequest.Operation, new MergeCampaignStarsRequest { Stored = stored, Incoming = incoming }.Encode());
+
         public static CoreRunToken Initialize(BuildConfigRequest input)
         {
             var config = BuildConfig(input);

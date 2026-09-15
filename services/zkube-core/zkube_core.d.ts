@@ -31,6 +31,8 @@ export function ladderTierCount(): number;
 
 export function ladderTierFloor(tier: number): bigint;
 
+export function mergeCampaignStars(stored: Uint8Array, incoming: Uint8Array): Uint8Array;
+
 export function payoutForRank(pool: bigint, denominator: Uint8Array, rank: number, whole_unit: bigint): bigint;
 
 export function payoutPlan(pool: bigint, qualified_winners: number, capacity: number, entry_price: bigint, whole_unit: bigint): Uint8Array;

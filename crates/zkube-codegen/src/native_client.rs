@@ -228,7 +228,7 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             "PlayerLabelAccountVersion",
             u32::from(PLAYER_LABEL_ACCOUNT_VERSION),
         ),
-        ("CampaignContentVersion", catalog.content_version),
+        ("CatalogVersion", zkube_core::CATALOG_VERSION),
     ] {
         writeln!(output, "        public const uint {name} = {value}U;").unwrap();
     }

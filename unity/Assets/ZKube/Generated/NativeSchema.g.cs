@@ -556,6 +556,22 @@ namespace ZKube.Core.Generated
         }
     }
 
+    public sealed class MergeCampaignStarsRequest
+    {
+        public const int ByteLength = 52;
+        public const uint Operation = 21;
+        public byte[] Stored { get; set; } = new byte[25];
+        public byte[] Incoming { get; set; } = new byte[25];
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Stored, bytes, 2, 25);
+            NativeWire.Copy(Incoming, bytes, 27, 25);
+            return bytes;
+        }
+    }
+
     public sealed class RunSummary
     {
         public const int ByteLength = 199;

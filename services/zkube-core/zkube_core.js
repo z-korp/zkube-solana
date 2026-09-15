@@ -272,6 +272,26 @@ function ladderTierFloor(tier) {
 exports.ladderTierFloor = ladderTierFloor;
 
 /**
+ * @param {Uint8Array} stored
+ * @param {Uint8Array} incoming
+ * @returns {Uint8Array}
+ */
+function mergeCampaignStars(stored, incoming) {
+    const ptr0 = passArray8ToWasm0(stored, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(incoming, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.mergeCampaignStars(ptr0, len0, ptr1, len1);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v3;
+}
+exports.mergeCampaignStars = mergeCampaignStars;
+
+/**
  * @param {bigint} pool
  * @param {Uint8Array} denominator
  * @param {number} rank

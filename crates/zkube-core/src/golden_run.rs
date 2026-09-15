@@ -150,7 +150,8 @@ fn verify_daily_run_vector(json: &str) {
         rules.snapshot_hash().to_bytes(),
         decode_32(&fixture.rules_snapshot_hash_hex)
     );
-    let rules_hash = daily_rules_hash(
+    // Historical replay vectors retain their original catalog identity.
+    let rules_hash = crate::simulation::daily_rules_hash_components_with::<SoftwareSha256>(
         fixture.day_id,
         fixture.content_version,
         rules.guardian,
@@ -161,6 +162,7 @@ fn verify_daily_run_vector(json: &str) {
                 .map_or(ConstraintKind::None, |theme| theme.kind),
             value: rules.objective.map_or(0, |theme| theme.value),
         },
+        RULES_VERSION,
     );
     assert_eq!(rules_hash.to_bytes(), decode_32(&fixture.rules_hash_hex));
     let domain = ChainDomain(decode_32(&fixture.chain_domain_hex));
