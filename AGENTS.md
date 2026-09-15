@@ -47,9 +47,9 @@ Source implements v5 partially. Current state:
 | Area | Status |
 | --- | --- |
 | Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed realm × objective draw |
-| Program surface | Built — Daily-only; Weekly, Season, and Practice removed |
+| Program surface | Built — 41 instructions and 11 account types; Arcade-only run lifecycle and one cosmetic Campaign star-record write |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
-| `PlayerState` | Built — Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
+| `PlayerState` | Built — 223 bytes; self-attested Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and Daily draw | Built — prepaid purchase/spend paths and protocol-derived realm × objective selection |
 | Points ladder | Built — integer Q64 `ln` in the core, streak-neutral points applied atomically with each Daily claim |
@@ -66,8 +66,14 @@ Source implements v5 partially. Current state:
   identity. Do not start iOS work on this Linux machine.
 - The connected Solana address is the player identity. There are no embedded
   wallets and no recovery codes.
-- Campaign is free, never gates paid play, and changes only the compact
-  lifetime-best star record. Arcade is immediately available.
+- Campaign runs locally through the shared local run client in both Android
+  identities. The money identity requires a connected address only; the store
+  identity uses no wallet. Local lifetime-best stars are authoritative for play,
+  and the money identity synchronizes them through the compact on-chain record.
+  `money_campaign_needs_an_address_and_no_session` guards address-only play.
+  Campaign remains free on the money identity and does not gate Arcade.
+  Realms 4–10 retain the store purchase policy;
+  `store_gate_is_a_store_identity_policy_over_shared_progression` guards it.
 - Entries are prepaid as Kredits at exactly 0.01 SOL each. A Kredit is one-way:
   no withdrawal, transfer, or cash-out. The owner funds the balance and a device
   session may spend within it, which is an owner-set spending cap rather than a
@@ -100,9 +106,11 @@ Source implements v5 partially. Current state:
   cadence funding PDA recycles Daily account rent after the on-chain archive
   root commits each finalized result. The cadence funding PDA signs only narrow self-CPI rent paths; there is
   no Kora or generic paymaster.
-- Separate durable Campaign and Arcade run slots prevent overlap within either
-  mode and support cross-device recovery while allowing one run of each. They
-  share one monotonic run-ID sequence. Base, Router, and resolved ER connections
+- Arcade retains its durable run slot and monotonic run-ID sequence for
+  cross-device recovery. An unfinished Campaign trial stays on its own device
+  as a seed and accepted action log; `local_campaign_run_survives_process_death`
+  guards recovery through the core in both identities. A player can play one
+  local trial alongside an Arcade run. Base, Router, and resolved ER connections
   remain separate; resolve ER placement with `getDelegationStatus`.
 - Fly runs only the independently funded Daily keeper, which has no inbound
   HTTP surface. The web client and Capacitor shells have no server signer.
@@ -126,6 +134,23 @@ approval under the transaction policy below.
 Three deliberate reversals of earlier product truth — a persistent ladder, a
 purchasable soft currency, and claim-based settlement — were reviewed together
 and approved on 2026-08-08.
+
+**Campaign amendment approved 2026-09-15.** The owner reversed the on-chain
+Campaign lifecycle because a free mode was spending owner SOL and requiring a
+funded device session. Campaign gameplay now runs locally, while the existing
+25-byte lifetime-best star array is a self-attested, cosmetic sync record.
+Emblems 1–12 consequently have self-attested trust; `emblem_unlocked` keeps its
+existing star gate. `campaign_badges_and_emblems_are_derived_from_stars` guards
+that unchanged gate. Daily, Kredits, boards, claims, the ladder, and keeper
+cadence retain their rules.
+
+The amendment adds one instruction and one 25-byte argument. It removes the
+three Campaign lifecycle instructions, one run slot, the content accounts, and
+16 Campaign-only bytes from `ActiveRun` (355 to 339 bytes). Removing the content
+accounts also removes their two publication/activation instructions: five
+instructions removed in total. The interface contract
+`locks the fresh-bootstrap interface at 41 instructions and 11 accounts` and
+`target_accounts_fit_normal_solana_account_limits` pin the resulting surface.
 
 **The systems below are locked. The balance is not.** Every structural rule in
 this section is settled and is not to be relitigated without an explicit new
@@ -192,11 +217,11 @@ ladder tier boundaries, and the flat qualifying credit.
   guardian trigger; it remains a Campaign constraint fact and the Arcade reroll
   grant.
   `bonus_trigger_threshold_is_valid` is the shared core/program constraint, and
-  the Campaign catalog parity test binds the client publication to the
+  the Campaign catalog parity test binds the compiled client catalog to the
   core-validated fixture. Types 3 and 5 are unsupported;
   `trigger_threshold_semantics_are_exhaustive` guards the sparse tag set.
 - **Guardian inventories start empty in both modes.** Starting height comes from
-  the drawn realm in Daily and the same realm publication in Campaign; Hammer,
+  the drawn realm in Daily and the same compiled realm in Campaign; Hammer,
   Totem, and Wave charges are earned only by firing that guardian's trigger.
   `campaign_opening_is_seeded_and_reproducible` and
   `daily_runs_start_without_guardian_charges` guard the two constructors.
@@ -548,15 +573,48 @@ Leaderboards order by primary metric descending, then earliest finalized
 achievement, then wallet bytes.
 ### Campaign progression
 
-Ten zones of ten levels: 100 levels, 300 stars, stored as one packed 25-byte
-two-bits-per-level array. Zone unlocked, cleared, perfected, total stars, and
-badges are derived views, never separately stored progression.
+Ten zones of ten levels: 100 levels and 300 stars. The local play record is
+owner-address-keyed on the money identity and walletless on the store identity.
+Zone unlocked, cleared, perfected, total stars, and badges are derived views.
+Only Zone 1 Level 1 starts playable; a later level requires one star on its
+predecessor, and a later realm requires one star on the previous guardian.
+Completed levels stay replayable. Store purchase policy overlays this shared
+progression without changing it or imposing a gate on the money identity;
+`store_gate_is_a_store_identity_policy_over_shared_progression` guards that split.
 
-Only Zone 1 Level 1 starts playable. Within a zone each later level requires at
-least one star on the preceding level; the first level of a later zone requires
-at least one star on the preceding zone's guardian, Level 10. Completed levels
-stay replayable and a level's best one-to-three-star result can only increase. A
-guardian emblem unlocks with its guardian and renders gold at 30/30 zone stars.
+`PlayerState` retains its packed 25-byte, two-bits-per-level array.
+`record_campaign_stars` takes the entire array and applies each level's maximum,
+using the exact owner-or-device-session authorization of `set_featured_emblem`.
+The program cannot verify these stars: the record and emblems 1–12 are
+self-attested and cosmetic. Apart from authorization and account constraints,
+only malformed encoding is rejected; all 100 two-bit values are valid.
+`campaign_stars_merge_per_level_maximum_and_never_decrease` in the core and
+program pins monotonic merging.
+`record_campaign_stars_is_idempotent_and_touches_no_other_field` checks repeated
+writes, lower values, malformed lengths, authorization, and byte-for-byte
+preservation of every other player field in SBF.
+
+On connect, the money identity reads the chain array and merges it into its
+local play record. A local maximum above the chain sets a durable pending bit
+in that same record. A current funded device session submits the array in the
+background; otherwise the next start or device-session enable retries it.
+A pending record write never gates play or another transaction;
+`campaign_record_write_never_gates_play_or_other_transactions` enforces that
+boundary. `campaign_record_retry_survives_restart_and_preserves_newer_stars`
+guards the durable retry and acknowledgement, and
+`campaign_record_enable_during_pending_attempt_retains_the_retry` guards an
+enable request arriving during an existing attempt. No cloud, server, indexer,
+or second progress store participates.
+
+An unfinished Campaign trial persists its seed and accepted action log before
+an action is acknowledged. Reopening replays that log through the core on the
+same device; losing the device means replaying the level. Only lifetime-best
+stars cross devices. `local_campaign_run_survives_process_death` tests both
+identities, and `campaign_action_is_accepted_only_after_durable_write` checks
+write failure before acceptance. A connected address is the money player's
+identity, while play requires no session, signature, funding, delegation, VRF
+request, or chain run account;
+`money_campaign_needs_an_address_and_no_session` guards this boundary.
 
 Each level has three independent star sources: score target, primary Shape, and
 secondary Blow. A source latches on the action that makes its fact true, in any
@@ -564,31 +622,28 @@ order, and one action may latch all three. The level completes when every
 authored source has latched; `constraint_stars_latch_in_any_order` and
 `constraint_stars_latch_zero_to_three_on_one_action` guard both paths. An absent
 constraint is not a source; `absent_constraints_limit_the_earnable_source_mask`
-guards the authored mask. Every published level still carries both constraints,
-as enforced by codegen and campaign publication.
+guards the authored mask. Every catalog level carries both constraints, as enforced by
+`codegen_enforces_constraint_class_per_slot`.
 
 Every realm shares the ten-level score ladder
 `[10, 14, 18, 22, 27, 32, 37, 42, 46, 50]`. A level authors only its tier,
 Shape, and Blow; its move budget is the ceiling of its ladder target times the
 protocol moves-per-point value for that tier. Neither target nor budget is a
-Campaign publication field. `campaign_move_budget_is_derived_from_the_ladder_and_tier`
-and `campaign_publication_rejects_an_authored_budget` guard the core, fixture,
-and program boundaries.
+catalog field. `campaign_move_budget_is_derived_from_the_ladder_and_tier`
+and `campaign_catalog_rejects_an_authored_budget` guard the core and generated fixture boundaries.
 
 Primary constraints are cumulative facts counted across a run; secondary
 constraints are moment facts that must be true on one action. Every authored
 primary must use a cumulative kind and every authored secondary must use a
 moment kind; `campaign_rules_require_valid_constraint_classes_counts_and_distinct_facts`,
-`codegen_enforces_constraint_class_per_slot`, and
-`campaign_publication_enforces_constraint_class_per_slot` enforce the core,
-fixture, and program boundaries. The six single-action kinds
+`codegen_enforces_constraint_class_per_slot` enforce the core
+and fixture boundaries. The six single-action kinds
 `ComboOfAtLeast`, `ComboOfExactly`, `AllWidthsInMove`, `BigMove`,
 `BonusLinesInMove`, and `PerfectClear` must carry a count of exactly one;
-`Streak` and `BreakInMove` retain their in-action N. These three tests guard
-that count rule at the core, fixture, and program boundaries:
+`Streak` and `BreakInMove` retain their in-action N. These tests guard
+that count rule at the core and fixture boundaries:
 `constraint_classes_and_tags_are_exhaustive_and_stable`,
-`codegen_enforces_constraint_class_per_slot`, and
-`campaign_publication_enforces_constraint_class_per_slot`. Player-facing
+`codegen_enforces_constraint_class_per_slot`. Player-facing
 constraint language is limited to lines, combos, streaks, breaks, bonus lines,
 perfect clears, guardian triggers, and points;
 `every_constraint_kind_reads_its_declared_action_fact` pins the engine fact
@@ -596,33 +651,22 @@ behind each kind.
 
 Every cumulative primary must carry a count of at least two;
 `campaign_rules_require_valid_constraint_classes_counts_and_distinct_facts`,
-`codegen_enforces_constraint_class_per_slot`, and
-`campaign_publication_enforces_constraint_class_per_slot` guard that rule at
-the core, fixture, and program boundaries. A secondary must never be an
+`codegen_enforces_constraint_class_per_slot` guard that rule at
+the core and fixture boundaries. A secondary must never be an
 instance of its primary's fact, including the moment fact that is the realm's
-own guardian trigger; the same three tests guard that rule at the same three
-boundaries.
+own guardian trigger; the same tests guard that rule at the core and fixture boundaries.
 
 A level ends as complete when every authored star source has latched, or ends
 incomplete when its move budget or board is exhausted; already-latched stars
 are retained and recorded in either terminal state.
-`exhausted_runs_keep_latched_stars` and
-`sbf_blocked_eleventh_row_keeps_and_records_its_latched_star` guard the engine
-and program boundaries. Storing the three-bit source mask costs one byte in
-`ActiveRun` and one byte in the run state codec; its popcount replaces the deleted post-run star
-calculation rather than adding a second rule.
-Move efficiency and an authored star-threshold modifier are not star sources;
-the `supersession > keeps reversed models out of authored source` test prevents
-their code and copy from returning. Removing that model deletes one byte from
-Campaign map rules, level snapshots, `ActiveRun`, and each encoded rules configuration.
-The constraint vocabulary adds one action-origin bit to the Campaign report
-codec and stores one streak byte plus one cumulative-trigger byte in `ActiveRun`
-and the run state codec; `shared_run_config_and_state_codecs_round_trip_both_rule_shapes` and
-`target_accounts_fit_normal_solana_account_limits` pin those costs.
-
-Campaign uses the same engine and generated catalog as Arcade but a separate
-progression boundary: completing Campaign content may only improve the packed
-star array.
+`exhausted_runs_keep_latched_stars` guards that core rule. The three-bit
+source mask remains one byte in the core Run state codec. Arcade's program
+projection omits Campaign progress and latch bytes and reconstructs those values
+as zero. Core Run golden vectors retain their values;
+`shared_run_config_and_state_codecs_round_trip_both_rule_shapes` and
+`target_accounts_fit_normal_solana_account_limits` pin those boundaries.
+Move efficiency and authored star-threshold modifiers are not star sources;
+`supersession > keeps reversed models out of authored source` guards the sweep.
 
 ### Replay and determinism
 
@@ -631,11 +675,11 @@ scoring, pressure, period math, payout math, canonical encoding, and
 the replay commitment schedule. One mode-agnostic `Run` owns every Campaign
 and Daily transition; optional star sources and an optional objective select
 only the rules each consumer needs. `one_run_drives_campaign_and_daily` guards
-that shared driver. The Solana lifecycle reconstructs that `Run` for every VRF,
+that shared driver. The Arcade Solana lifecycle reconstructs that `Run` for every VRF,
 move, bonus, and reroll transition rather than maintaining a second accounting
 path; `program_and_core_score_one_action_identically` guards the projection.
 `ActiveRun` stores only fields read by a handler, result row, hash, or client
-view, and its 325-byte account size is pinned by
+view, and its 339-byte account size is pinned by
 `target_accounts_fit_normal_solana_account_limits`. Native Rust, WASM, and the
 Solana program must pass the same committed golden vectors before an ABI is
 releasable; `wasm_run_matches_native_golden_vectors` and
@@ -646,7 +690,8 @@ mode, then folds ordered VRF, action, bonus, abandon, and deadline events with
 SHA-256. Permanent board rows retain the qualifying replay commitment; move
 lists may stay off-chain and be independently recomputed.
 
-A Daily rules hash binds its day, Campaign content version, selected realm's
+A Daily rules hash binds its day, the core `CATALOG_VERSION` emitted by codegen,
+and the selected realm's
 guardian and starting height, objective kind and value, and the core rules
 version. No catalog account or publisher-supplied version contributes to that
 identity; `daily_rules_hash_binds_day_realm_objective_and_protocol_constants`
@@ -666,7 +711,7 @@ from that partial state; an untouched run expires without a leaderboard row.
 Pending or late VRF output is ignored, and expired or orphaned state can never
 become scoreable later.
 
-Every opening, move, guardian bonus, and reroll request uses one `RunVrf`
+Every Arcade opening, move, guardian bonus, and reroll request uses one `RunVrf`
 account context and one VRF invoke helper. The opening `request_vrf` remains a
 separate ER instruction after Router placement resolves; delegation on Base
 cannot request against the resolved ER queue. `finish_run` accepts only
@@ -710,13 +755,14 @@ Emblems are identity display only with no monetary effect.
 | Boundary | Responsibility | Authority and funding |
 | --- | --- | --- |
 | Owner wallet | Durable identity, Kredit purchases and device funding | Signs purchases at the protocol unit price and funds the device allowance |
-| Device session | Approximately seven days of authorized gameplay | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
+| Device session | Approximately seven days of authorized Arcade gameplay and cosmetic record writes | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
 | Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation and finalization only |
 | Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
-| MagicBlock ER | Active gameplay and per-row VRF | Router-resolved validator |
-| Solana program | Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
+| MagicBlock ER | Arcade gameplay and per-row VRF | Router-resolved validator |
+| Solana program | Cosmetic attested Campaign stars, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
-| Static web/PWA and Capacitor shells | Wallet, Campaign, and Arcade UI; runs the core engine through WASM | No server signer or paymaster |
+| Unity and React local run client | Campaign play, durable seed/action replay and local lifetime stars | Connected address only on money; walletless store policy |
+| Static web/PWA and Capacitor shells | Wallet, local Campaign, and Arcade UI; core engine through WASM | No server signer or paymaster |
 
 Each `ActiveRun` and `ArenaPlayer` stores the signer that paid its rent, and every
 close returns rent to that exact address even when another device resumes the
@@ -733,11 +779,11 @@ signatures are rejected.
 
 Solana Base, the MagicBlock Router, and the Router-resolved ER are separate
 connections. Delegation placement resolves through `getDelegationStatus`;
-regional ER endpoints are never hardcoded. Player state has one durable
-Campaign run slot and one durable Arcade run slot, so one run of each may coexist
-while overlap within either mode is rejected across devices. Both slots allocate
-from one monotonic run-ID sequence. A separate Arcade orphan reservation prevents
-an unreachable delegated run from racing a replacement.
+regional ER endpoints are never hardcoded. Player state retains one durable
+Arcade run slot and its monotonic run-ID sequence. Campaign has no chain run
+reservation. Arcade's orphan reservation prevents an unreachable delegated run
+from racing a replacement. `ArcadeUsesMonotonicIdsAndBlocksAnOccupiedRun` and
+`local_campaign_run_survives_process_death` guard the two recovery boundaries.
 
 The program pins `ephemeral-rollups-sdk` 0.16.2 or newer. Its generated
 undelegation callback must constrain the canonical `undelegate-buffer` PDA and
@@ -761,7 +807,7 @@ and closes a Daily. Last-resort work finishes deadline runs, commits and consume
 terminal runs, expires unresolved Arena runs, and cleans orphaned runs. Every
 instruction is permissionless or funded through the narrow cadence PDA wrappers;
 governance remains owner work. `keeper_allowlist_is_exactly_its_plans` pins the
-fourteen instructions to the plan producers.
+thirteen instructions to the plan producers.
 
 A keeper outage is a degradation, not a loss of player authority: winners can
 still claim, interested callers can drive permissionless work, and no off-chain
@@ -782,7 +828,7 @@ withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. The
 runtime identity check pins Fly's unique deployment tag from `FLY_IMAGE_REF`.
 The release fingerprint pins every field checked at runtime: Devnet genesis,
 deployed ProgramData hash, program ID, keeper signer, schema and IDL identity,
-entry economics, the fourteen-instruction allowlist, a six-write general limit,
+entry economics, the thirteen-instruction allowlist, a six-write general limit,
 a separate 32-write board-construction limit, the 1,536-row board bound, the
 1,802,208,480-lamport recyclable board-rent ceiling, a 0.1 SOL simulated spend
 ceiling, a 0.1 SOL reserve floor, and Fly's unique deployment image reference.
@@ -799,8 +845,8 @@ The source program ID is not evidence that corresponding ProgramData or
 protocol accounts are current. A fresh v5 pass must derive and approve every
 live value from its own read-only observations.
 
-Manifest schema v6 binds the deployed ProgramData and allocation, Campaign
-content catalog, exact launch day and seed plan, and keeper release. The v5
+Manifest schema v7 binds the deployed ProgramData and allocation, compiled
+catalog version and hash, exact launch day and seed plan, and keeper release. The v5
 dependency is one-way: frozen SBF and observed ProgramData, unique Fly release
 tag, keeper fingerprint,
 launch-plan fingerprint, then the final manifest. Fly exposes a unique
@@ -821,10 +867,11 @@ After the program and independently fingerprinted keeper release exist,
 `NO_DNA=1 pnpm chain:devnet:launch-plan` produces the unsigned fresh-bootstrap
 bundle. It requires every protocol target to be absent, calculates the exact
 deployer funding transaction, initializes paused, initializes the Arcade archive
-with the explicitly approved recyclable cadence-rent float, publishes Campaign
-v3 and Arena rules, prepares the current and following Daily accounts, and ends
+with the explicitly approved recyclable cadence-rent float, prepares the current
+and following Daily accounts, and ends
 with one atomic transaction that seeds the first Daily, unpauses, and activates
-it. Its approval expires at the specified pre-entry cutoff. The planner has no
+it. Its approval expires at the specified pre-entry cutoff. The six-transaction bundle has no content-account stage;
+`launchPlanner.test.ts` pins its complete instruction order. The planner has no
 signing or sending path. Transaction indices and the cadence-rent funding amount
 come only from that v5 plan and are never inherited from an earlier shape.
 

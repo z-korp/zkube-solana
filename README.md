@@ -28,14 +28,17 @@ not a description of deployed state.
 The connected Solana address is the player identity. There are no embedded
 wallets or recovery codes.
 
-**Campaign** is free and optional, and never gates Arcade. It is ten zones of
-ten levels — 100 levels, 300 possible stars — stored as one packed 25-byte,
-two-bits-per-level array. The packed star record is Campaign's only progression,
-and Campaign never grants SOL, entries, or prize eligibility. A level's score
-target, authored cumulative Shape, and authored one-action Blow are three
-independent star sources that latch in any order. Reaching every authored source
-completes the level; exhausting the move budget or board ends it with latched
-stars kept.
+**Campaign** is free and optional on the money identity, and does not gate
+Arcade. Its 100 trials play locally. A connected Solana address identifies the
+player; playing needs no device session, signature, or SOL. Lifetime-best stars
+merge across devices through a self-attested, cosmetic 25-byte on-chain record.
+Updates wait for a funded device session and do not interrupt play. An unfinished
+trial resumes on its own device from its saved seed and actions.
+
+The store identity stays walletless and local, with its existing purchase gate
+on realms 4–10. Both identities use the same local Campaign client. Campaign
+stars grant no SOL, entries, or prize eligibility; emblems 1–12 reflect
+self-attested progress.
 
 **Arcade** is competition only. The owner prepays Kredits at exactly 0.01 SOL
 (10,000,000 lamports) each. Spending one Kredit routes:
