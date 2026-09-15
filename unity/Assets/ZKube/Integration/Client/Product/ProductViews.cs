@@ -136,18 +136,4 @@ namespace ZKube.Integration.Client
         internal DailyBoards(uint day, ulong slot, string status, PrizeBoard score, PrizeBoard theme)
         { DayId = day; Slot = slot; DailyStatus = status; Score = score; Theme = theme; }
     }
-    public sealed class SpectatorSnapshot
-    {
-        public string Phase { get; }
-        public string Owner { get; }
-        public ulong? RunId { get; }
-        public string Address { get; }
-        public string Endpoint { get; }
-        public AccountEnvelope Account { get; }
-        private readonly CoreRunToken token;
-        public CoreRunToken Token => token == null ? null : new CoreRunToken(token.Config, token.State);
-        internal SpectatorSnapshot(string phase, string owner, ulong? runId = null, string address = null,
-            string endpoint = null, AccountEnvelope account = null, CoreRunToken accepted = null)
-        { Phase = phase; Owner = owner; RunId = runId; Address = address; Endpoint = endpoint; Account = account; token = accepted; }
-    }
 }

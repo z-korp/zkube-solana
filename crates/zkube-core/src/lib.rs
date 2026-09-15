@@ -12,6 +12,12 @@
 extern crate std;
 
 #[cfg(test)]
+mod golden_rules {
+    use crate::*;
+    include!("golden_rules.rs");
+}
+
+#[cfg(test)]
 mod golden_run;
 
 // The extracted v4 engine preserves its already-reviewed arithmetic and
@@ -103,9 +109,9 @@ pub use periods::{DAILY_REWARD_CLAIM_WINDOW_SECONDS, PeriodError, SECONDS_PER_DA
 pub use presentation::{NoPresentation, PresentationEvent, PresentationObserver};
 pub use randomness::{
     BlockWeights, ContinuationLayout, MAX_OPENING_HEIGHT, MIN_OPENING_HEIGHT, OpeningLayout,
-    RandomnessError, continuation_from_vrf, continuation_from_vrf_with, opening_from_vrf,
-    opening_from_vrf_with, reroll_row_from_vrf, reroll_row_from_vrf_with, row_from_vrf,
-    row_from_vrf_with, sha256v, sha256v_with,
+    RandomnessError, continuation_from_vrf, continuation_from_vrf_with, local_row_randomness,
+    opening_from_vrf, opening_from_vrf_with, reroll_row_from_vrf, reroll_row_from_vrf_with,
+    row_from_vrf, row_from_vrf_with, sha256v, sha256v_with,
 };
 pub use replay::{
     CanonicalEventBytes, ChainDomain, ChallengeId, PlayerId, ReplayCommitment, ReplayEvent,

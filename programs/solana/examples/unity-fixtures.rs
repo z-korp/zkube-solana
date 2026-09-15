@@ -82,17 +82,6 @@ fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
     read_accounts["oldDaily"] = economy::finalized(DAY - 200);
     let mut read_inputs = inputs();
     read_inputs["oldDay"] = json!(DAY - 200);
-    let participant = solana::state::ArenaPlayer::initialize(
-        accounts::daily_address(DAY),
-        owner(),
-        device(),
-        pda(&[
-            solana::state::ARENA_PLAYER_SEED,
-            accounts::daily_address(DAY).as_ref(),
-            owner().as_ref(),
-        ])
-        .1,
-    );
     let mut board_cases: Vec<_> = [solana::state::DailyBoardKind::Score, solana::state::DailyBoardKind::Theme].into_iter().map(|kind| json!({
         "kind": if kind == solana::state::DailyBoardKind::Score { "score" } else { "theme" }, "variant": "sealed",
         "envelope": boards::board(DAY - 200, kind, false, true, false, owner()) })).collect();
@@ -106,8 +95,7 @@ fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
         "plans": {"inputs": inputs(), "accounts": accounts, "runs": {"daily": runs::row("playing", RUN_ID)},
             "terminalRuns": {"daily": runs::row("finished", RUN_ID)}, "boards": boards::scenarios()},
         "runs": runs, "device": device::scenarios(), "economy": economy::scenarios(), "ui": ui::scenarios(),
-        "reads": {"inputs": read_inputs, "accounts": read_accounts, "boardCases": board_cases,
-            "arenaPlayer": envelope(accounts::participant_address(DAY), &participant, 8 + solana::state::ArenaPlayer::INIT_SPACE)}});
+        "reads": {"inputs": read_inputs, "accounts": read_accounts, "boardCases": board_cases}});
     std::io::stdout()
         .lock()
         .write_all((serde_json::to_string_pretty(&output)? + "\n").as_bytes())?;

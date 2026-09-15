@@ -1,4 +1,3 @@
-// Generated from actual TypeScript audio settings calls; do not edit.
 namespace ZKube.Core.Generated
 {
     public static class AudioPolicy

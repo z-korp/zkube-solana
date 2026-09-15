@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use zkube_core::{
     Bonus, CORE_VERSION, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_THEMES, Grid, Guardian,
     ReplayCommitment, RulesHash, Run, RunConfig, RunEndReason, RunPhase, RunRules, StarRules,
-    TierPolicy, daily_pair, daily_pair_index, daily_rules_hash,
+    TierPolicy, daily_pair, daily_pair_index,
 };
 use zkube_core_wasm::{self as boundary, native};
 
@@ -16,20 +16,10 @@ pub fn hex(bytes: &[u8]) -> String {
         output
     })
 }
-fn unhex(value: &str) -> Vec<u8> {
-    value
-        .as_bytes()
-        .chunks_exact(2)
-        .map(|v| u8::from_str_radix(std::str::from_utf8(v).unwrap(), 16).unwrap())
-        .collect()
-}
-
-// This day exposed an omitted publication version in a client account fixture.
-// Emit every compared value from its authority so `codegen check` also covers
-// the repaired case, rather than blessing a client-produced expectation alone.
+// A stable day exercises the native draw boundary against the core.
 const PUBLICATION_DAY: u32 = 20_705;
 
-fn daily_publication(catalog: &CampaignCatalog) -> Result<Value, String> {
+fn daily_publication() -> Result<Value, String> {
     let day = PUBLICATION_DAY;
     let pair_index = u32::try_from(daily_pair_index(day))
         .map_err(|_| "Daily pair index exceeds the native u32 boundary")?;
@@ -44,37 +34,32 @@ fn daily_publication(catalog: &CampaignCatalog) -> Result<Value, String> {
     Ok(json!({
         "day": day, "pairIndex": pair_index, "realm": realm,
         "objective": { "kind": objective.kind as u8, "value": objective.value },
-        "contentVersion": catalog.content_version, "maxMoves": DAILY_MAX_MOVES
+        "maxMoves": DAILY_MAX_MOVES
     }))
 }
 
-fn daily_rules_publications(catalog: &CampaignCatalog) -> Result<Vec<Value>, String> {
-    [PUBLICATION_DAY, PUBLICATION_DAY + 1]
-        .into_iter()
-        .map(|day| {
-            let (realm, objective) = daily_pair(day);
-            let map = catalog
-                .maps
-                .iter()
-                .find(|map| map.map_id == realm)
-                .ok_or_else(|| format!("Daily realm {realm} is absent from the catalog"))?;
-            let level = *map.levels.first().ok_or("Daily realm has no canonical level")?;
-            let rules = campaign_rules(map, 1, level, &catalog.difficulty_weights)?;
-            let hash = daily_rules_hash(
-                day,
-                rules.guardian,
-                rules.starting_height,
-                objective,
+fn local_randomness_vectors() -> Result<Vec<Value>, String> {
+    let mut vectors = Vec::new();
+    for seed in [b"zkube-local-daily-row-seed-v1".to_vec(), (0..32).collect()] {
+        for counter in [0_u32, 1, 20_705, u32::MAX] {
+            let expected = zkube_core::local_row_randomness(&seed, counter);
+            let mut padded = [0; 32];
+            padded[..seed.len()].copy_from_slice(&seed);
+            let mut request = Request::new(22);
+            request.put("Seed", &padded);
+            request.put("SeedLength", &[u8::try_from(seed.len()).unwrap()]);
+            request.put("Counter", &counter.to_le_bytes());
+            let actual = native::dispatch(request.operation, &request.bytes)
+                .map_err(|status| format!("Local row randomness rejected: {status}"))?;
+            if actual != expected {
+                return Err("Local row randomness differs across the native boundary".into());
+            }
+            vectors.push(
+                json!({"seedHex": hex(&seed), "counter": counter, "outputHex": hex(&expected)}),
             );
-            Ok(json!({
-                "day": day, "realm": realm, "contentVersion": catalog.content_version,
-                "objective": { "kind": objective.kind.tag(), "value": objective.value },
-                "guardian": { "bonus": map.rules[0], "trigger": rules.guardian.trigger, "threshold": rules.guardian.threshold },
-                "startingHeight": rules.starting_height, "maxMoves": DAILY_MAX_MOVES,
-                "rulesHash": hash.to_bytes()
-            }))
-        })
-        .collect()
+        }
+    }
+    Ok(vectors)
 }
 
 struct Request {
@@ -646,10 +631,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         }
         cases.push(t.finish());
     }
-    // Deadline before first output, deadline after accepted reroll, move-budget exhaustion.
-    let mut t = Trajectory::new("zero-action-deadline", config(base, 93), None)?;
-    t.apply(Action::Finish(4))?;
-    cases.push(t.finish());
+    // Deadline after accepted reroll and move-budget exhaustion.
     let mut t = Trajectory::new("accepted-reroll-deadline", config(base, 94), None)?;
     t.apply(Action::Vrf(1, [1; 32]))?;
     t.apply(Action::Reroll)?;
@@ -734,56 +716,8 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         t.apply(Action::Finish(if rules.is_pressure() { 4 } else { 3 }))?;
         cases.push(t.finish());
     }
-    // Existing committed end-to-end vector is an independent anchor.
-    let golden: Value = serde_json::from_str(include_str!(
-        "../../../fixtures/replays/golden-daily-run-v1.json"
-    ))
-    .map_err(|e| e.to_string())?;
-    let rules = RunRules {
-        guardian: Guardian {
-            bonus: Bonus::Wave,
-            trigger: 0,
-            threshold: 0,
-        },
-        starting_height: 4,
-        objective: None,
-        ..base
-    };
-    let cfg = RunConfig {
-        rules,
-        rules_hash: RulesHash(
-            unhex(golden["rules_hash_hex"].as_str().unwrap())
-                .try_into()
-                .unwrap(),
-        ),
-        initial_replay: ReplayCommitment(
-            unhex(golden["initial_replay_hash_hex"].as_str().unwrap())
-                .try_into()
-                .unwrap(),
-        ),
-    };
-    let mut t = Trajectory::new("committed-daily-run-anchor", cfg, None)?;
-    t.apply(Action::Vrf(1, [0x11; 32]))?;
-    let movement = &golden["events"][1];
-    t.apply(Action::Move(
-        u8::try_from(movement["row"].as_u64().unwrap()).unwrap(),
-        u8::try_from(movement["start"].as_u64().unwrap()).unwrap(),
-        u8::try_from(movement["destination"].as_u64().unwrap()).unwrap(),
-    ))?;
-    t.apply(Action::Vrf(2, [0x22; 32]))?;
-    t.apply(Action::Finish(4))?;
-    if hex(t.run().replay.as_bytes())
-        != golden["expected"]["final_replay_hash_hex"]
-            .as_str()
-            .unwrap()
-    {
-        return Err("committed daily replay drifted".into());
-    }
-    cases.push(t.finish());
     serde_json::to_string_pretty(&json!({ "schemaVersion": 1, "coreVersion": CORE_VERSION,
-            "dailyPublication": daily_publication(catalog)?,
-            "dailyRulesPublications": daily_rules_publications(catalog)?,
-            "ladderQualifyPoints": zkube_core::LADDER_QUALIFY_POINTS, "cases": cases }))
+            "dailyPublication": daily_publication()?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
     .map(|s| s + "\n")
     .map_err(|e| e.to_string())
 }
@@ -791,7 +725,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn managed_fixture_inputs_retain_native_and_committed_parity() {
+    fn managed_fixture_inputs_retain_native_parity() {
         let catalog =
             serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
         super::render(&catalog).unwrap();

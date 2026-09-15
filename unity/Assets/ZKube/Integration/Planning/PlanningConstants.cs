@@ -1,4 +1,3 @@
-// Generated from TypeScript client orchestration constants. Do not edit.
 namespace ZKube.Integration.Planning
 {
     public static class PlanningConstants

@@ -174,31 +174,6 @@ namespace ZKube.Integration
             return fields;
         }
 
-        public JObject ArenaPlayer(AccountEnvelope envelope, uint dayId)
-        {
-            var fields = DecodeFixed("ArenaPlayer", envelope);
-            return ArenaPlayer(envelope, dayId, (string)fields["player"]);
-        }
-
-        // Only the fixed ArenaPlayer layout is scanned. Derive the field offset
-        // from generated IDL rather than maintaining a second wire layout.
-        public JArray ArenaPlayerScanFilters(uint dayId)
-        {
-            int offset = 8;
-            var fields = definitions["ArenaPlayer"]["fields"];
-            foreach (var field in fields)
-            {
-                if ((string)field["name"] == "challenge")
-                    return new JArray(
-                        new JObject { ["dataSize"] = FixedAccountBytes("ArenaPlayer") },
-                        new JObject { ["memcmp"] = new JObject { ["offset"] = 0, ["bytes"] =
-                            new Solana.Unity.Wallet.Utilities.Base58Encoder().EncodeData(idl["accounts"].Single(item => (string)item["name"] == "ArenaPlayer")["discriminator"].Values<byte>().ToArray()) } },
-                        new JObject { ["memcmp"] = new JObject { ["offset"] = offset, ["bytes"] = Address("arena_daily", LittleDay(dayId)) } });
-                offset = checked(offset + MaximumSize(field["type"]));
-            }
-            throw new FormatException("ArenaPlayer challenge field is absent from generated IDL");
-        }
-
         private string Address(string seed, params byte[][] parts) => SolanaAddress.Derive(ProgramId,
             new[] { Encoding.UTF8.GetBytes(seed) }.Concat(parts), out _);
         private static byte[] LittleDay(uint value)

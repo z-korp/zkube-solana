@@ -6,18 +6,18 @@ namespace ZKube.Tests
 {
     public sealed class ShareLocaleTests
     {
-        [Test] public void DefaultCultureUsesTheSameCompatibilityWithoutChangingPlayerText()
+        [Test] public void DefaultCultureFormatsTheScoreWithoutChangingPlayerText()
         {
             var previous = CultureInfo.CurrentCulture;
             try
             {
                 CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
                 Assert.That(StoreShareText.Build("A\u00a0B", "Mako", "Tiki", "Combo", "10000", 10000, 1),
-                    Is.EqualTo("A\u00a0B faced Mako in Tiki. Combo: 10000. Score: 10\u202f000. 1 day streak."));
+                    Is.EqualTo("A\u00a0B faced Mako in Tiki. Combo: 10000. Score: " + 10000UL.ToString("N0", CultureInfo.CurrentCulture) + ". 1 day streak."));
             }
             finally { CultureInfo.CurrentCulture = previous; }
         }
-        [Test] public void LocaleOutsideMeasuredScopePreservesTheCallersPlatformFormatting()
+        [Test] public void SharePreservesTheCallersPlatformFormatting()
         {
             var culture = (CultureInfo)CultureInfo.GetCultureInfo("ja-JP").Clone();
             culture.NumberFormat.NumberGroupSeparator = "_";

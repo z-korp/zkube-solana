@@ -23,6 +23,44 @@ namespace ZKube.Tests.ProductReads
             (bool)row["executable"], Convert.FromBase64String((string)row["data"]));
         private static string Root => Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,"../.."));
         private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("reads");
+        private static string PublicOwner(int index)
+        { var bytes = new byte[32]; bytes[0] = (byte)index; bytes[1] = (byte)(index >> 8); return new Solana.Unity.Wallet.PublicKey(bytes).Key; }
+        private static byte[] Number(ulong value, int width)
+        { var bytes = new byte[width]; for (int i=0;i<width;i++) bytes[i]=(byte)(value>>(8*i)); return bytes; }
+        // Test mutations locate fields through the real IDL rather than copied
+        // offsets. The encoded base account is the existing Anchor fixture.
+        private static readonly JObject MutationIdl = JObject.Parse(File.ReadAllText(Path.Combine(Root,"tools/chain/idl/solana.json")));
+        private static JObject PatchAccount(JToken source, string account, params (string Path, byte[] Bytes)[] patches)
+        {
+            var output = (JObject)source.DeepClone(); byte[] data = Convert.FromBase64String((string)source["data"]);
+            foreach (var patch in patches)
+            {
+                var located = Locate(account, patch.Path.Split('.'), 0, 8);
+                if (located.Size != patch.Bytes.Length) throw new ArgumentException("Invalid test field width");
+                Array.Copy(patch.Bytes,0,data,located.Offset,patch.Bytes.Length);
+            }
+            output["data"] = Convert.ToBase64String(data); return output;
+        }
+        private static (int Offset,int Size) Locate(string name, string[] path, int depth, int offset)
+        {
+            foreach (var field in MutationIdl["types"].Single(type=>(string)type["name"]==name)["type"]["fields"])
+            {
+                if ((string)field["name"]==path[depth]) return depth==path.Length-1 ? (offset,Size(field["type"]))
+                    : Locate((string)field["type"]["defined"]["name"],path,depth+1,offset);
+                offset += Size(field["type"]);
+            }
+            throw new ArgumentException("Unknown test fixture field");
+        }
+        private static int Size(JToken type)
+        {
+            if(type.Type==JTokenType.String) switch((string)type) {
+                case "u8": case "bool": return 1; case "u16": return 2; case "u32": return 4;
+                case "u64": case "i64": return 8; case "u128": return 16; case "pubkey": return 32; }
+            if(type["array"]!=null) return Size(type["array"][0])*(int)type["array"][1];
+            var definition=MutationIdl["types"].Single(item=>(string)item["name"]==(string)type["defined"]["name"])["type"];
+            if((string)definition["kind"]=="enum") return 1;
+            return definition["fields"].Sum(field=>Size(field["type"]));
+        }
         private sealed class Environment
         {
             public JObject Fixture; public Http Http; public ProductQueries Queries; public AccountBindings Accounts; public TransactionPlanner Addresses;
@@ -61,11 +99,8 @@ namespace ZKube.Tests.ProductReads
             public readonly string Genesis = "11111111111111111111111111111111";
             public readonly List<string> Methods = new List<string>();
             public readonly List<JObject> Requests = new List<JObject>();
-            public JArray ScanRows = new JArray(); public ulong ScanSlot = 100;
-            public Action<JObject> OnRequest; public Func<string,string> AlterScanResponse;
             public string WaitMethod = "getAccountInfo";
             private readonly Dictionary<string,JToken> data = new Dictionary<string,JToken>();
-            public bool Delegated, Relocate; private int placements;
             public TaskCompletionSource<bool> Wait; public readonly TaskCompletionSource<bool> Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             public void Put(JToken row) { if (row?["address"] != null) data[(string)row["address"]] = row.DeepClone(); }
             public void Remove(JToken row) => data.Remove((string)row["address"]);
@@ -74,17 +109,15 @@ namespace ZKube.Tests.ProductReads
             public async Task<string> Post(Uri endpoint, string json, int maximumResponseBytes, CancellationToken cancellation)
             {
                 var request = JObject.Parse(json); string method = (string)request["method"]; Methods.Add(method);
-                Requests.Add(request); OnRequest?.Invoke(request);
+                Requests.Add(request);
                 if (method == WaitMethod && Wait != null) { Entered.TrySetResult(true); await Wait.Task; }
                 JToken result;
                 if (method == "getGenesisHash") result = Genesis;
                 else if (method == "getAccountInfo") result = new JObject { ["context"] = new JObject { ["slot"] = 100 }, ["value"] = Account((string)request["params"][0]) };
                 else if (method == "getMultipleAccounts") result = new JObject { ["context"] = new JObject { ["slot"] = 100 }, ["value"] = new JArray(request["params"][0].Select(address => Account((string)address))) };
-                else if (method == "getProgramAccounts") result = new JObject { ["context"] = new JObject { ["slot"] = ScanSlot }, ["value"] = ScanRows };
-                else if (method == "getDelegationStatus") { placements++; bool delegated = Relocate ? placements % 2 == 0 : Delegated; result = new JObject { ["isDelegated"] = delegated, ["fqdn"] = delegated ? "https://er.invalid/" : null }; }
                 else throw new Exception("Forbidden product-query RPC: " + method);
                 string response = new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"], ["result"] = result }.ToString();
-                return method == "getProgramAccounts" && AlterScanResponse != null ? AlterScanResponse(response) : response;
+                return response;
             }
         }
     }

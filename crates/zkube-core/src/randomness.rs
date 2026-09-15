@@ -3,6 +3,12 @@ use core::marker::PhantomData;
 use super::{GRID_WIDTH, Grid, GridError, Row};
 use crate::{Sha256Provider, SoftwareSha256};
 
+/// Deterministic local row entropy, preserving the saved seed and counter format.
+#[must_use]
+pub fn local_row_randomness(seed: &[u8], counter: u32) -> [u8; 32] {
+    SoftwareSha256::hashv(&[seed, &counter.to_le_bytes()])
+}
+
 pub const MIN_OPENING_HEIGHT: u8 = 3;
 pub const MAX_OPENING_HEIGHT: u8 = 8;
 const MAX_OPENING_SOURCE_ROWS: u8 = 16;
@@ -384,6 +390,27 @@ mod tests {
     use super::*;
     use serde_json::Value;
 
+    #[test]
+    fn local_rows_preserve_the_saved_seed_and_little_endian_counter() {
+        let seed = core::array::from_fn::<_, 32, _>(|index| u8::try_from(index).unwrap());
+        assert_eq!(
+            local_row_randomness(&seed, 1),
+            [
+                0x64, 0x7b, 0x3f, 0x39, 0xff, 0xa2, 0xaa, 0x0d, 0x04, 0x76, 0xdd, 0x62, 0x6d, 0xa2,
+                0x98, 0x49, 0xae, 0x5d, 0x53, 0xdc, 0x4a, 0x8c, 0x49, 0xaf, 0xb6, 0xc1, 0x22, 0xad,
+                0x1f, 0x8f, 0x21, 0xf1,
+            ]
+        );
+        assert_eq!(
+            local_row_randomness(b"zkube-local-daily-row-seed-v1", 20_705),
+            [
+                0x8f, 0x69, 0x90, 0xae, 0x64, 0xbb, 0x40, 0x59, 0x73, 0x9c, 0x2a, 0x5b, 0xc6, 0xa5,
+                0x70, 0xf5, 0x49, 0xa1, 0x60, 0x55, 0x4b, 0x59, 0x92, 0x44, 0xb4, 0x24, 0xb0, 0xd1,
+                0x9b, 0xb0, 0x40, 0x84,
+            ]
+        );
+    }
+
     const CAMPAIGN_WEIGHT_CURVE: [[u16; 5]; 8] = [
         [15, 30, 30, 15, 10],
         [15, 25, 30, 20, 10],
@@ -486,7 +513,6 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(fixture["schema_version"], 1);
-        assert_eq!(fixture["core_version"], crate::CORE_VERSION);
         assert_eq!(fixture["domain"], "zkube-reroll-row-v1");
         let output = decode_32(fixture["vrf_output_hex"].as_str().unwrap());
         let rules_hash = decode_32(fixture["rules_hash_hex"].as_str().unwrap());

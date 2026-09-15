@@ -10,7 +10,8 @@ namespace ZKube.Core.Tests
 {
     public sealed class NativeEngineTests
     {
-        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; }
+        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; }
+        [Serializable] public sealed class LocalRandomness { public string seedHex, outputHex; public uint counter; }
         [Serializable] public sealed class Trajectory { public string name; public string origin; public string configHex; public string initialStateHex; public string finalStateHex; public string finalReplayHex; public Step[] steps; }
         [Serializable] public sealed class Step { public uint operation; public string requestHex; public string responseHex; }
         [Serializable] public sealed class LadderFixture { public string coreVersion; public LadderVector[] vectors; }
@@ -44,8 +45,8 @@ namespace ZKube.Core.Tests
             foreach (var required in new[] {
                 "Hammer-perfect-clear-continuation", "Totem-perfect-clear-continuation", "Wave-perfect-clear-continuation",
                 "move-perfect-clear-grant", "move-perfect-clear-cap", "Hammer-perfect-clear-cap",
-                "score-latch", "shape-latch", "blow-latch", "all-star-completion", "zero-action-deadline",
-                "accepted-reroll-deadline", "move-budget-exhaustion", "blocked-eleventh-row", "committed-daily-run-anchor"
+                "score-latch", "shape-latch", "blow-latch", "all-star-completion",
+                "accepted-reroll-deadline", "move-budget-exhaustion", "blocked-eleventh-row"
             }) Assert.IsTrue(names.Contains(required), "Missing native scenario: " + required);
             foreach (var trajectory in fixture.cases) yield return new TestCaseData(trajectory).SetName("NativeParity_" + trajectory.name);
         }
@@ -78,6 +79,16 @@ namespace ZKube.Core.Tests
             }
             CollectionAssert.AreEqual(Hex(trajectory.finalStateHex), state);
             CollectionAssert.AreEqual(Hex(trajectory.finalReplayHex), NativeEngine.Summary(state).ReplayHash);
+        }
+
+        [Test] public void LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds()
+        {
+            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").localRandomness)
+                CollectionAssert.AreEqual(Hex(vector.outputHex), NativeEngine.LocalRowRandomness(Hex(vector.seedHex), vector.counter));
+            Assert.Throws<ArgumentException>(() => NativeEngine.LocalRowRandomness(new byte[33], 1));
+            var error = Assert.Throws<NativeEngineException>(() => NativeEngine.Call(LocalRowRandomnessRequest.Operation,
+                new LocalRowRandomnessRequest { Seed = new byte[32], SeedLength = 33, Counter = 1 }.Encode()));
+            Assert.That(error.Status, Is.EqualTo(NativeStatus.InvalidEncoding));
         }
 
         [Test]

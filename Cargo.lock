@@ -5221,6 +5221,7 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
+ "solana",
  "zkube-core",
  "zkube-core-wasm",
 ]
@@ -5245,6 +5246,7 @@ dependencies = [
 name = "zkube-core-wasm"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
  "wasm-bindgen",
  "zkube-core",

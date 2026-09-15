@@ -25,16 +25,16 @@ namespace ZKube.Integration.Client
     // wallet operation, or per-owner cache belongs to this facade.
     public sealed partial class ProductQueries
     {
+        public const uint MaximumVerifiedQualifiedPlayers = 100000;
         private readonly ClientIdentity identity;
         private readonly AccountBindings accounts;
         private readonly TransactionPlanner addresses;
         private readonly SolanaRpcTransport rpc;
-        private readonly ActiveRunReconciler native;
         private readonly Func<long> now;
         public ProductQueries(ClientIdentity identity, AccountBindings accounts, TransactionPlanner addresses,
             SolanaRpcTransport rpc, Func<long> now)
         { this.identity = identity; this.accounts = accounts; this.addresses = addresses; this.rpc = rpc;
-            this.now = now; native = new ActiveRunReconciler(accounts); }
+            this.now = now; }
 
         public Task<ProductRead<PlayerProfile>> Profile(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
@@ -62,13 +62,8 @@ namespace ZKube.Integration.Client
                 profile, projection.Daily, dailyPlayer);
         });
 
-        private static void ValidateDailyPublication(JObject daily, JObject protocol, uint day) =>
-            PublicDailyQuery.ValidateDailyPublication(daily, protocol, day);
-
         // Explicit day reads have no discovery lookback restriction: an old
         // board sealed recently can still be claimed during its own window.
-        // Settled accounts only. This is not the current Daily's provisional
-        // leaderboard: that requires separate bounded ArenaPlayer discovery.
         public Task<ProductRead<DailyBoards>> SettledBoards(uint day, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             long timestamp = Clock();
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score"), addresses.Board(day, "theme") }, cancellation: token).ConfigureAwait(false);
@@ -88,43 +83,6 @@ namespace ZKube.Integration.Client
             return Board(day, kind, read.Accounts[1].Envelope, daily, lease.Owner, Clock());
         });
 
-        // Mirrors resolveSpectatedRun(player, runId?): omitted runId selects
-        // nextRunId-1. Own Arcade recovery reads the durable reservation.
-        public Task<ProductRead<SpectatorSnapshot>> Spectate(string owner, ulong? runId = null, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
-            SolanaAddress.Bytes(owner);
-            if (runId == null)
-            {
-                var player = await rpc.ReadAccount(rpc.Base, addresses.Player(owner), cancellation: token).ConfigureAwait(false);
-                if (player.Envelope == null) return new SpectatorSnapshot("not-found", owner);
-                ulong next = (ulong)accounts.PlayerState(player.Envelope, owner)["next_run_id"];
-                if (next <= 1) return new SpectatorSnapshot("not-found", owner);
-                runId = next - 1;
-            }
-            if (runId == 0) throw new ArgumentOutOfRangeException(nameof(runId));
-            return await ReadSpectator(owner, runId.Value, token).ConfigureAwait(false);
-        });
-
-        private async Task<SpectatorSnapshot> ReadSpectator(string owner, ulong runId, CancellationToken token, ulong? baseMinimum = null)
-        {
-            string address = addresses.ActiveRun(owner, runId);
-            token.ThrowIfCancellationRequested();
-            var before = await rpc.Placement(address).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
-            if (before.IsDelegated && before.Endpoint == null) return new SpectatorSnapshot("resolving", owner, runId, address);
-            AccountEnvelope envelope = before.IsDelegated ? await rpc.ReadEr(before.Endpoint, address).ConfigureAwait(false)
-                : (await rpc.ReadAccount(rpc.Base, address, minContextSlot: baseMinimum, cancellation: token).ConfigureAwait(false)).Envelope;
-            token.ThrowIfCancellationRequested();
-            var after = await rpc.Placement(address).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
-            if (before.IsDelegated != after.IsDelegated || before.Endpoint != after.Endpoint)
-                return new SpectatorSnapshot("resolving", owner, runId, address);
-            if (envelope == null) return new SpectatorSnapshot(before.IsDelegated ? "not-found" : "archived", owner, runId, address);
-            if (envelope.Owner == PlanningConstants.DelegationProgram) return new SpectatorSnapshot("resolving", owner, runId, address);
-            var accepted = native.Reconcile(envelope, owner);
-            return new SpectatorSnapshot(before.IsDelegated ? "delegated" : "base", owner, runId, address,
-                before.IsDelegated ? before.Endpoint : rpc.BaseEndpoint, envelope, accepted);
-        }
-
         private PrizeBoard Board(uint day, string kind, AccountEnvelope envelope, JObject daily, string owner, long timestamp)
         {
             var board = accounts.ArenaBoard(envelope, day, kind);
@@ -132,7 +90,7 @@ namespace ZKube.Integration.Client
             // Native width verification scans the full qualified count. Keep
             // untrusted reads inside the existing client/keeper work envelope;
             // this does not cap protocol width or substitute a truncated payout.
-            if (board.QualifiedCount > SolanaRpcTransport.MaximumArenaPlayerAccounts)
+            if (board.QualifiedCount > MaximumVerifiedQualifiedPlayers)
                 return new PrizeBoard(kind, "unsupported-verification", "unavailable", null, Array.Empty<PrizeRow>(), owner, null);
             var payouts = ValidateBoardEconomics(board, daily);
             if (!board.Sealed) return new PrizeBoard(kind, "unsealed", "unsealed", null, Array.Empty<PrizeRow>(), owner, board);

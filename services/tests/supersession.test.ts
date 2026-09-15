@@ -18,6 +18,7 @@ const TOOLS_PACKAGE = join(TOOLS, "package.json");
 const CONSTRAINT_COPY = [UNITY_CLIENT];
 const CORE = join(ROOT, "crates/zkube-core/src");
 const CORE_WASM = join(ROOT, "crates/zkube-core-wasm/src");
+const CODEGEN = join(ROOT, "crates/zkube-codegen/src");
 const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
 
@@ -25,11 +26,23 @@ const PROGRAM = join(ROOT, "programs/solana/src");
 const SKIPPED = [
   join(TOOLS, "node_modules"),
   join(TOOLS, "idl"),
-  join(UNITY_CLIENT, "Generated"),
+  join(UNITY_CLIENT, "Generated/Protocol.g.cs"),
+  join(UNITY_CLIENT, "Generated/NativeSchema.g.cs"),
+  join(UNITY_CLIENT, "Generated/ClientPolicy.g.cs"),
   join(UNITY_CLIENT, "Integration/Generated"),
 ];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  {
+    pattern: /dailyRulesPublications|"ladderQualifyPoints"|"committed-daily-run-anchor"|"zero-action-deadline"/,
+    trees: [CODEGEN, UNITY_CLIENT],
+    reversal: "Native trajectories omit duplicate Daily anchors and unused metadata (2026-09-15)",
+  },
+  {
+    pattern: /HashCounter|ShareNumberFormats|CurrentProvisionalBoards|SpectateSlot|ArenaPlayerScanFilters|LocalBackendLive\.ts|Generated from (?:actual TypeScript|TypeScript|TS)/,
+    trees: [UNITY_CLIENT],
+    reversal: "Local row randomness uses Rust; platform formatting and authored client policies replace removed producers; unused product reads are retired (2026-09-15)",
+  },
   {
     pattern: /MoneyEvidenceGraph|MoneySessionEvidenceGraph|MoneyPlayableEvidenceGraph|MoneyOverviewEvidenceHost|Money(?:Session|Playable|Economy|Claim|Profile)?EvidenceData/,
     trees: [UNITY_CLIENT],

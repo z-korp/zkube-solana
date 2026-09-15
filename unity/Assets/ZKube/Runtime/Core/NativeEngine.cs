@@ -75,6 +75,15 @@ namespace ZKube.Core
             return NativeWire.Bytes(output, 0, checked((int)written));
         }
 
+        public static byte[] LocalRowRandomness(byte[] seed, uint counter)
+        {
+            if (seed == null || seed.Length > 32) throw new ArgumentException("Local seed exceeds 32 bytes", nameof(seed));
+            var padded = new byte[32]; seed.CopyTo(padded, 0);
+            return Call(LocalRowRandomnessRequest.Operation, new LocalRowRandomnessRequest {
+                Seed = padded, SeedLength = checked((byte)seed.Length), Counter = counter
+            }.Encode());
+        }
+
         public static byte[] BuildConfig(BuildConfigRequest input) => Call(BuildConfigRequest.Operation, input.Encode());
 
         public static byte[] MergeCampaignStars(byte[] stored, byte[] incoming)

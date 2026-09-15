@@ -1,6 +1,5 @@
 {
   "schema_version": 1,
-  "core_version": "1.0.0",
   "domain": "zkube-reroll-row-v1",
   "request_counter": 2,
   "vrf_output_hex": "2222222222222222222222222222222222222222222222222222222222222222",

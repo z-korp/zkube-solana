@@ -1,4 +1,3 @@
-// Generated from TypeScript session and shop policy. Do not edit.
 namespace ZKube.Integration.Client
 {
     public static class SessionViewPolicy

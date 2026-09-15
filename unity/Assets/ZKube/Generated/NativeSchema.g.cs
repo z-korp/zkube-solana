@@ -556,6 +556,24 @@ namespace ZKube.Core.Generated
         }
     }
 
+    public sealed class LocalRowRandomnessRequest
+    {
+        public const int ByteLength = 39;
+        public const uint Operation = 22;
+        public byte[] Seed { get; set; } = new byte[32];
+        public byte SeedLength { get; set; }
+        public uint Counter { get; set; }
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Seed, bytes, 2, 32);
+            NativeWire.Write(bytes, 34, 1, SeedLength);
+            NativeWire.Write(bytes, 35, 4, Counter);
+            return bytes;
+        }
+    }
+
     public sealed class MergeCampaignStarsRequest
     {
         public const int ByteLength = 52;

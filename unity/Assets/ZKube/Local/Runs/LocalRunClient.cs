@@ -14,7 +14,7 @@ namespace ZKube.Local
         internal LocalRunPersistenceException(Exception inner)
             : base("The local action was accepted, but progress could not be saved", inner) { }
     }
-    // LocalBackendLive.ts orchestration only. NativeEngine owns configurations,
+    // NativeEngine owns configurations,
     // legal actions, metrics, star latches and terminal decisions. Campaign
     // recovery replays the accepted log stored with the local product.
     public sealed class LocalRunClient
@@ -99,8 +99,8 @@ namespace ZKube.Local
                 if (store.Read.DailyAttempt?.DayId == today.DayId) throw new InvalidOperationException("Today's Daily challenge has already been played");
                 var rules = Rules(Realm(today.Realm)); rules.TierPolicy = 1; rules.MaxMoves = checked((ushort)Protocol.DailyMaxMoves);
                 rules.ObjectiveKind = today.ObjectiveKind; rules.ObjectiveValue = today.ObjectiveValue;
-                var result = Start("arcade", today.Realm, 1, rules, HashCounter(Encoding.UTF8.GetBytes("zkube-local-daily-row-seed-v1"), today.DayId), today.DayId);
-                // Match TS order: opening and active slot exist before reservation
+                var result = Start("arcade", today.Realm, 1, rules, NativeEngine.LocalRowRandomness(Encoding.UTF8.GetBytes("zkube-local-daily-row-seed-v1"), today.DayId), today.DayId);
+                // Opening and active slot exist before reservation
                 // write; write failure propagates after normalized memory changes.
                 store.Write(current => {
                     var next = Copy(current); next.Streak = current.LastAttemptDayId.HasValue && (long)current.LastAttemptDayId.Value == (long)today.DayId - 1 ? checked(current.Streak + 1) : 1;
@@ -294,18 +294,12 @@ namespace ZKube.Local
         {
             uint counter = checked(++record.Counter);
             Accept(record, ApplyVrfRequest.Operation, new ApplyVrfRequest { Config = record.Token.Config, State = record.Token.State, Trace = 1,
-                Counter = counter, Output = HashCounter(record.Seed, counter) }.Encode(), transitions);
+                Counter = counter, Output = NativeEngine.LocalRowRandomness(record.Seed, counter) }.Encode(), transitions);
         }
         private static void Accept(Record record, uint operation, byte[] request, List<(byte[], byte[])> transitions)
         {
             byte[] config = record.Token.Config, response = NativeEngine.Call(operation, request);
             record.Token = RunTransition.Decode(config, response).Token; transitions.Add((config, response));
-        }
-        private static byte[] HashCounter(byte[] seed, uint value)
-        {
-            var input = new byte[seed.Length + 4]; seed.CopyTo(input, 0);
-            for (int i = 0; i < 4; i++) input[seed.Length + i] = (byte)(value >> (8 * i));
-            using var sha = SHA256.Create(); return sha.ComputeHash(input);
         }
         private static LocalProductState Copy(LocalProductState current) => LocalProductCodec.Decode(LocalProductCodec.Encode(current));
         private static RealmDefinition Realm(byte id) => Protocol.Realms.SingleOrDefault(realm => realm.MapId == id) ?? throw new ArgumentException($"Campaign realm {id} is not authored");

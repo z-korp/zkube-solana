@@ -4,6 +4,13 @@ use zkube_core_wasm::native::{self, Field, FieldType};
 
 pub fn outputs(catalog: &CampaignCatalog) -> Result<Vec<(&'static str, String)>, String> {
     Ok(vec![
+        (
+            "unity/Assets/ZKube/Generated/ClientPolicy.g.cs",
+            format!(
+                "// Generated from the program account bound; do not edit.\nnamespace ZKube.Core.Generated\n{{\n    public static partial class ClientPolicy\n    {{\n        public const uint ArenaBoardCapacity = {}U;\n    }}\n}}\n",
+                zkube_program::state::ARENA_BOARD_CAPACITY,
+            ),
+        ),
         ("unity/Assets/ZKube/Generated/NativeSchema.g.cs", schema()),
         (
             "unity/Assets/ZKube/Generated/Protocol.g.cs",

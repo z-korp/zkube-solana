@@ -778,6 +778,12 @@ states; the test code supplies RPC envelopes and synthetic signatures.
 `DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce` and
 `ForegroundPreservesArcadeWithoutDeviceKeysOrNewTransactions` exercise that
 composition. The runtime money evidence graphs and their recordings are removed.
+Local row randomness is SHA-256 over the saved seed and little-endian counter in
+the core. `LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds` verifies the
+native operation; Campaign resume keeps the same row sequence. Client display
+policies have one C# owner, program account bounds are generated from the program,
+and share numbers use .NET formatting. `SharePreservesTheCallersPlatformFormatting`
+guards the share boundary. Unused provisional-board and spectator reads are removed.
 The root `assets/` directory owns the artwork and authored presentation inputs;
 Rust codegen emits its theme catalog for Unity imports.
 

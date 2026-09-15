@@ -1,27 +1,7 @@
+use crate::golden_rules::{GoldenRules, bonus, fixture_rules};
 use crate::*;
 use serde::Deserialize;
 use std::{string::String, vec::Vec};
-
-#[derive(Deserialize)]
-struct GoldenGuardian {
-    bonus: String,
-    trigger: u8,
-    threshold: u16,
-}
-
-#[derive(Deserialize)]
-struct GoldenObjective {
-    kind: String,
-    parameter: u8,
-}
-
-#[derive(Deserialize)]
-struct GoldenRules {
-    max_moves: u16,
-    guardian: GoldenGuardian,
-    starting_height: u8,
-    objective: GoldenObjective,
-}
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -84,7 +64,6 @@ struct GoldenDailyRun {
     rules: GoldenRules,
     rules_snapshot_hash_hex: String,
     day_id: u32,
-    content_version: u32,
     rules_hash_hex: String,
     player_id_hex: String,
     initial_replay_hash_hex: String,
@@ -101,51 +80,10 @@ fn decode_32(value: &str) -> [u8; 32] {
     result
 }
 
-fn bonus(value: &str) -> Option<Bonus> {
-    match value {
-        "none" => None,
-        "hammer" => Some(Bonus::Hammer),
-        "totem" => Some(Bonus::Totem),
-        "wave" => Some(Bonus::Wave),
-        _ => panic!("unknown bonus"),
-    }
-}
-
-fn fixture_rules(value: &GoldenRules) -> RunRules {
-    let kind = match value.objective.kind.as_str() {
-        "classic" => ConstraintKind::None,
-        "combos_of_at_least" => ConstraintKind::CombosOfAtLeast,
-        "combos_of_exactly" => ConstraintKind::CombosOfExactly,
-        "break_blocks" => ConstraintKind::BreakBlocks,
-        "trigger_fired" => ConstraintKind::TriggerFired,
-        "bonus_lines" => ConstraintKind::BonusLines,
-        "bonus_breaks" => ConstraintKind::BonusBreaks,
-        "clutch_clears" => ConstraintKind::ClutchClears,
-        "clean_clears" => ConstraintKind::CleanClears,
-        _ => panic!("unknown objective"),
-    };
-    RunRules {
-        guardian: Guardian {
-            bonus: bonus(&value.guardian.bonus).unwrap(),
-            trigger: value.guardian.trigger,
-            threshold: value.guardian.threshold,
-        },
-        starting_height: value.starting_height,
-        max_moves: value.max_moves,
-        tier: TierPolicy::Pressure,
-        stars: None,
-        objective: (kind != ConstraintKind::None).then_some(DailyTheme {
-            kind,
-            value: value.objective.parameter,
-        }),
-    }
-}
-
 #[allow(clippy::too_many_lines)]
 fn verify_daily_run_vector(json: &str) {
     let fixture: GoldenDailyRun = serde_json::from_str(json).unwrap();
     assert_eq!(fixture.version, 2);
-    assert_eq!(fixture.content_version, CATALOG_VERSION);
     let rules = fixture_rules(&fixture.rules);
     assert_eq!(
         rules.snapshot_hash().to_bytes(),

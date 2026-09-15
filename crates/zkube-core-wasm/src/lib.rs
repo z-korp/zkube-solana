@@ -625,12 +625,13 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
+    mod golden_rules {
+        use zkube_core::*;
+        include!("../../zkube-core/src/golden_rules.rs");
+    }
     use super::*;
     use serde_json::Value;
-    use zkube_core::{
-        Bonus, ConstraintKind, DailyTheme, Guardian, Run, RunConfig, RunEndReason, RunRules,
-        TierPolicy,
-    };
+    use zkube_core::{Run, RunConfig, RunEndReason};
 
     fn decode_32(value: &str) -> [u8; 32] {
         let mut output = [0u8; 32];
@@ -756,21 +757,8 @@ mod tests {
             "../../../fixtures/replays/golden-daily-run-v1.json"
         ))
         .unwrap();
-        let rules = RunRules {
-            guardian: Guardian {
-                bonus: Bonus::Wave,
-                trigger: 0,
-                threshold: 0,
-            },
-            starting_height: 4,
-            max_moves: 100,
-            tier: TierPolicy::Pressure,
-            stars: None,
-            objective: Some(DailyTheme {
-                kind: ConstraintKind::None,
-                value: 0,
-            }),
-        };
+        let rules =
+            golden_rules::fixture_rules(&serde_json::from_value(fixture["rules"].clone()).unwrap());
         let config = RunConfig {
             rules_hash: RulesHash(decode_32(fixture["rules_hash_hex"].as_str().unwrap())),
             rules,

@@ -1,4 +1,3 @@
-// Generated from TS emblem descriptors and ladder labels. Do not edit.
 namespace ZKube.Integration.App
 {
     public static class ProfileIdentityCatalog
