@@ -92,12 +92,12 @@ fn emit_class(output: &mut String, name: &str, fields: &[Field], request_id: Opt
         }
         output.push_str("            return bytes;\n        }\n");
     }
-    // Presentation reads fixture config requests; opaque core config/state
-    // tokens continue to be decoded exclusively by the native engine.
-    if request_id.is_none() || name == "BuildConfigRequest" {
+    // Tests decode fixture input requests; opaque core config/state tokens
+    // continue to be decoded exclusively by the native engine.
+    if request_id.is_none() || matches!(request_id, Some(1 | 4..=8)) {
         writeln!(output, "        public static {name} Decode(byte[] bytes)\n        {{\n            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException(\"Invalid {name} byte length\");").unwrap();
         if request_id.is_some() {
-            output.push_str("            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException(\"Unsupported config request version\");\n");
+            output.push_str("            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException(\"Unsupported request version\");\n");
         }
         writeln!(output, "            return new {name}\n            {{").unwrap();
         for field in fields {
@@ -145,6 +145,9 @@ fn schema() -> String {
     }
     output.push_str("                default: throw new ArgumentException(\"Unknown presentation event\");\n            }\n        }\n    }\n\n");
     for op in native::OPERATIONS {
+        if matches!(op.id, 10 | 11 | 20) {
+            continue;
+        }
         emit_class(
             &mut output,
             &format!("{}Request", op.name),

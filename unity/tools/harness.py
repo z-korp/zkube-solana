@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--sources", nargs="*", default=[], help="library .cs files or directories compiled into <name>.dll")
     parser.add_argument("--refs", nargs="*", default=[], help="dependency .dll files, copied beside the harness")
     parser.add_argument("--exclude", nargs="*", default=[], help="path segments to skip when collecting directories")
-    parser.add_argument("--define", nargs="*", default=["ZKUBE_STANDALONE"], help="preprocessor symbols")
+    parser.add_argument("--define", nargs="*", default=[], help="preprocessor symbols")
     parser.add_argument("--filter", default="", help="run only cases whose full name contains this text")
     parser.add_argument("--no-unity-shim", action="store_true", help="omit harness/UnityShims.cs (UnityEngine.Application)")
     parser.add_argument("--compile-only", action="store_true")

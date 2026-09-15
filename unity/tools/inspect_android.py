@@ -35,8 +35,8 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def metadata_check(data, mode):
-    evidence = inspect_apk.metadata_check(data, mode)
+def metadata_check(data):
+    inspect_apk.metadata_check(data)
     for name in MONEY_ASSEMBLIES:
         if name.encode() + b'\x00' in data or name.encode() + b'.dll\x00' in data:
             raise RuntimeError('Store contains money assembly: ' + name)
@@ -44,14 +44,13 @@ def metadata_check(data, mode):
                   b'ZKube.Integration\x00', b'RunBoardActionProvider\x00', b'Chaos.NaCl\x00'):
         if token in data:
             raise RuntimeError('Store contains a Solana/wallet managed type')
-    return evidence
 
 
-def store_payload(path, prefix, selected_abis, native_hashes, mode):
+def store_payload(path, prefix, selected_abis, native_hashes):
     libraries = []
     with open_archive(path) as archive:
         names = archive.namelist()
-        metadata_check(read_member(archive, prefix + 'assets/bin/Data/Managed/Metadata/global-metadata.dat'), mode)
+        metadata_check(read_member(archive, prefix + 'assets/bin/Data/Managed/Metadata/global-metadata.dat'))
         for name in names:
             if name.endswith(('PerformanceTestRunInfo.json', 'PerformanceTestRunSettings.json', '.aar')):
                 raise RuntimeError('Player includes test metadata or an unprocessed Android archive')
@@ -79,7 +78,7 @@ def store_payload(path, prefix, selected_abis, native_hashes, mode):
     return libraries
 
 
-def store_manifest(xml, profile, toolchain, mode):
+def store_manifest(xml, profile, toolchain):
     root = ET.fromstring(xml)
     if root.tag != 'manifest' or root.get('package') != profile['package']:
         raise RuntimeError('AAB has the wrong package identity')
@@ -90,7 +89,7 @@ def store_manifest(xml, profile, toolchain, mode):
     if len(apps) != 1:
         raise RuntimeError('AAB must contain one application')
     app = apps[0]
-    if app.get(ANDROID + 'allowBackup') != 'false' or (app.get(ANDROID + 'debuggable', 'false') == 'true') != (mode == 'evidence'):
+    if app.get(ANDROID + 'allowBackup') != 'false' or app.get(ANDROID + 'debuggable', 'false') == 'true':
         raise RuntimeError('AAB backup/debug settings differ from build policy')
     splash = [node for node in app.findall('meta-data') if node.get(ANDROID + 'name') == 'unity.splash-enable']
     if len(splash) != 1 or splash[0].get(ANDROID + 'value') != 'false':
@@ -100,18 +99,18 @@ def store_manifest(xml, profile, toolchain, mode):
                for value in node.attrib.values()):
             raise RuntimeError('AAB manifest contains a Solana/wallet component or intent')
     return {'package': profile['package'], 'versionCode': int(root.get(ANDROID + 'versionCode')),
-            'versionName': root.get(ANDROID + 'versionName'), 'debuggable': mode == 'evidence',
+            'versionName': root.get(ANDROID + 'versionName'), 'debuggable': False,
             'minimumApi': toolchain['androidMinimumApi'], 'targetApi': toolchain['androidApi']}
 
 
-def inspect(artifact, android_tools, name, mode):
+def inspect(artifact, android_tools, name):
     toolchain = json.loads((PROJECT / 'toolchain.json').read_text())
     profile = identity(toolchain, name)
     if artifact.suffix != '.' + profile['format']:
         raise RuntimeError('Artifact suffix does not match its identity')
     if name == 'money':
         inspect_apk.inspect(artifact, android_tools,
-                            PROJECT / 'Assets/Plugins/Android/arm64-v8a/libzkube_core_ffi.so', mode)
+                            PROJECT / 'Assets/Plugins/Android/arm64-v8a/libzkube_core_ffi.so')
         destination = artifact.with_suffix('.inspection.json')
         report = json.loads(destination.read_text())
         report.update(identity=name, format='apk')
@@ -128,7 +127,7 @@ def inspect(artifact, android_tools, name, mode):
         temp = Path(temp_name)
         subprocess.run(command + ['validate', '--bundle=' + str(artifact)], check=True)
         manifest_xml = subprocess.check_output(command + ['dump', 'manifest', '--bundle=' + str(artifact), '--module=base'], text=True)
-        manifest = store_manifest(manifest_xml, profile, toolchain, mode)
+        manifest = store_manifest(manifest_xml, profile, toolchain)
         # The offline local AAB must be signed, but this does not approve its key
         # for Play. Self-signed-chain warning (bit 4) is permitted for local proof.
         verification = subprocess.run([str(android / 'OpenJDK/bin/jarsigner'), '-J-Duser.language=en',
@@ -146,7 +145,7 @@ def inspect(artifact, android_tools, name, mode):
             subprocess.run([str(android / 'NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'),
                             '--strip-unneeded', '-o', str(stripped), str(source)], check=True)
             hashes[abi] = dict(source=sha(source.read_bytes()), stripped=sha(stripped.read_bytes()))
-        libraries = store_payload(artifact, 'base/', selected, hashes, mode)
+        libraries = store_payload(artifact, 'base/', selected, hashes)
         # Never implicitly read/write ~/.android/debug.keystore. This disposable
         # key signs only the retained local inspection APK; delete the key here.
         keystore = temp / 'inspection.p12'
@@ -161,7 +160,7 @@ def inspect(artifact, android_tools, name, mode):
         apk = temp / 'universal.apk'
         with open_archive(apks) as archive:
             apk.write_bytes(read_member(archive, 'universal.apk'))
-        apk_libraries = store_payload(apk, '', selected, hashes, mode)
+        apk_libraries = store_payload(apk, '', selected, hashes)
         if {(x['abi'], Path(x['path']).name, x['sha256']) for x in libraries} != {
                 (x['abi'], Path(x['path']).name, x['sha256']) for x in apk_libraries}:
             raise RuntimeError('Bundletool changed the native payload')
@@ -175,7 +174,7 @@ def inspect(artifact, android_tools, name, mode):
         retained_apk = artifact.with_suffix('.universal.apk')
         shutil.copyfile(apk, retained_apk)
         report = dict(manifest, artifact=artifact.name, sha256=sha(artifact.read_bytes()), identity=name,
-                      format='aab', buildMode=mode, rustLibraryHashes=hashes, nativeLibraries=libraries,
+                      format='aab', rustLibraryHashes=hashes, nativeLibraries=libraries,
                       signingCertificateSha256=[sha(ssl.PEM_cert_to_DER_cert(value)) for value in certificates],
                       bundletoolVersion=toolchain['bundletool'], bundletoolSha256=sha(bundletool.read_bytes()),
                       generatedUniversalApk=retained_apk.name,
@@ -195,9 +194,8 @@ def main():
     parser.add_argument('artifact', type=Path)
     parser.add_argument('android_build_tools', type=Path)
     parser.add_argument('--identity', choices=['money', 'store'], required=True)
-    parser.add_argument('--mode', choices=['evidence', 'production'], required=True)
     args = parser.parse_args()
-    inspect(args.artifact.resolve(), args.android_build_tools.resolve(), args.identity, args.mode)
+    inspect(args.artifact.resolve(), args.android_build_tools.resolve(), args.identity)
 
 
 if __name__ == '__main__':

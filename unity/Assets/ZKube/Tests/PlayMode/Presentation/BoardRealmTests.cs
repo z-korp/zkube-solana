@@ -7,7 +7,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
-using ZKube.Presentation.Evidence;
 
 namespace ZKube.Presentation.Tests
 {
@@ -15,11 +14,11 @@ namespace ZKube.Presentation.Tests
     {
         private GameObject root;
         private BoardController board;
-        private BoardEvidenceHarness evidence;
+        private BoardHarness evidence;
         [UnitySetUp] public IEnumerator SetUp()
         {
             root = new GameObject("Explicit realm tests"); board = root.AddComponent<BoardController>();
-            evidence = root.AddComponent<BoardEvidenceHarness>(); evidence.AutoStart = false;
+            evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
             yield return null; board.SetMuted(true); board.SetReducedMotion(true);
         }
         [UnityTearDown] public IEnumerator TearDown() { UnityEngine.Object.Destroy(root); yield return null; }

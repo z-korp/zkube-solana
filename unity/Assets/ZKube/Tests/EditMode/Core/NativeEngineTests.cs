@@ -21,7 +21,6 @@ namespace ZKube.Core.Tests
         [Serializable] public sealed class Draw { public uint startsDay; public uint[] pairIndicesByDay; }
         [Serializable] public sealed class Split { public ulong poolLamports; public uint themeQualifiedWinners; public ulong scoreLamports; public ulong themeLamports; }
         [Serializable] public sealed class Payout { public ulong poolLamports; public uint qualifiedWinners; public ulong entryPriceLamports; public uint winnerCount; public ulong paidLamports; public ulong rolloverLamports; public ulong[] payoutsLamports; }
-        [Serializable] public sealed class Continuation { public uint request_counter; public string vrf_output_hex; public string rules_hash_hex; public ushort[] weights; public byte[] seed_row; public byte[] preview_row; }
 
         private static string FixturePath(string file) => Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures", file));
         private static T Read<T>(string file) => JsonUtility.FromJson<T>(File.ReadAllText(FixturePath(file)));
@@ -149,24 +148,15 @@ namespace ZKube.Core.Tests
         public void ManagedBoundaryRejectsBadInputsWithoutPublishingPartialBytes()
         {
             var request = new DailyPairIndexRequest { Day = 42 }.Encode();
-            var output = Enumerable.Repeat((byte)0xa5, 8).ToArray();
-            uint written = 991;
-            var undersized = Enumerable.Repeat((byte)0xa5, 3).ToArray();
-            Assert.AreEqual(NativeStatus.OutputTooSmall, NativeEngine.TryCall(DailyPairIndexRequest.Operation, request, undersized, ref written));
-            CollectionAssert.AreEqual(Enumerable.Repeat((byte)0xa5, 3), undersized);
-            Assert.AreEqual(991, written);
             request[0] = 255;
-            Assert.AreEqual(NativeStatus.UnsupportedVersion, NativeEngine.TryCall(DailyPairIndexRequest.Operation, request, output, ref written));
-            Assert.AreEqual(991, written);
-            CollectionAssert.AreEqual(Enumerable.Repeat((byte)0xa5, 8), output);
+            Assert.AreEqual(NativeStatus.UnsupportedVersion, Assert.Throws<NativeEngineException>(
+                () => NativeEngine.Call(DailyPairIndexRequest.Operation, request)).Status);
             request[0] = (byte)NativeSchema.AbiVersion;
-            Assert.AreEqual(NativeStatus.InvalidLength, NativeEngine.TryCall(DailyPairIndexRequest.Operation, request.Take(request.Length - 1).ToArray(), output, ref written));
-            Assert.AreEqual(NativeStatus.UnknownOperation, NativeEngine.TryCall(uint.MaxValue, request, output, ref written));
-            Assert.AreEqual(991, written);
-            CollectionAssert.AreEqual(Enumerable.Repeat((byte)0xa5, 8), output);
-            Assert.AreEqual(NativeStatus.Success, NativeEngine.TryCall(DailyPairIndexRequest.Operation, request, null, ref written));
-            Assert.AreEqual(4, written);
-            Assert.Throws<ArgumentException>(() => NativeEngine.TryCall(DailyPairIndexRequest.Operation, request, request, ref written));
+            Assert.AreEqual(NativeStatus.InvalidLength, Assert.Throws<NativeEngineException>(
+                () => NativeEngine.Call(DailyPairIndexRequest.Operation, request.Take(request.Length - 1).ToArray())).Status);
+            Assert.AreEqual(NativeStatus.UnknownOperation, Assert.Throws<NativeEngineException>(
+                () => NativeEngine.Call(uint.MaxValue, request)).Status);
+            Assert.Throws<ArgumentNullException>(() => NativeEngine.Call(DailyPairIndexRequest.Operation, null));
             Assert.Throws<ArgumentException>(() => new SummaryRequest { State = new byte[3] }.Encode());
             Assert.Throws<ArgumentException>(() => BuildConfigRequest.Decode(new byte[NativeSchema.RunConfigLength]));
             var configRequest = new BuildConfigRequest().Encode();
@@ -215,14 +205,7 @@ namespace ZKube.Core.Tests
             }
             Assert.AreEqual(payout.paidLamports, paid);
             Assert.AreEqual(payout.rolloverLamports, payout.poolLamports - paid);
-            var continuation = Read<Continuation>("replays/golden-perfect-clear-continuation-v1.json");
-            var weights = new byte[10];
-            for (int i = 0; i < continuation.weights.Length; i++) NativeWire.Write(weights, i * 2, 2, continuation.weights[i]);
-            var rows = NativeEngine.Call(EmptyContinuationRequest.Operation, new EmptyContinuationRequest {
-                Counter = continuation.request_counter, Output = Hex(continuation.vrf_output_hex),
-                RulesHash = Hex(continuation.rules_hash_hex), Weights = weights
-            }.Encode());
-            CollectionAssert.AreEqual(continuation.seed_row.Concat(continuation.preview_row), rows);
+
         }
 
         [Test]

@@ -142,8 +142,6 @@ def native(android, profile):
         destination = target / source.name
         if not destination.exists() or source.read_bytes() != destination.read_bytes():
             shutil.copyfile(source, destination)
-    # Keep the existing product icon authoritative; the Capacitor shell still
-    # contains starter artwork and is not the source for replacement branding.
     source = ROOT / "assets/pwa-512x512.png"
     directory = PROJECT / "Assets/ZKube/Branding/Generated"
     directory.mkdir(parents=True, exist_ok=True)
@@ -188,13 +186,13 @@ def source_snapshot():
             for name in sorted(paths) if name and (ROOT / name).is_file()}
 
 
-def record_artifact(apk, before, mode, started):
+def record_artifact(apk, before, started):
     after = source_snapshot()
     changed = sorted(name for name in before.keys() | after.keys() if before.get(name) != after.get(name))
     inspection = json.loads(apk.with_suffix(".inspection.json").read_text())
     report = {
         "schema": 2, "startedUtc": started, "completedUtc": datetime.now(timezone.utc).isoformat(),
-        "mode": mode, "identity": inspection["identity"],
+        "identity": inspection["identity"],
         "artifact": apk.name, "artifactSha256": inspection["sha256"],
         "gitHead": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "toolchain": LOCK, "inputs": before, "inputsChangedDuringBuild": changed,
@@ -212,11 +210,10 @@ def record_artifact(apk, before, mode, started):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["native", "probe", "prepare", "diagnose-art", "board-scene", "board-gui", "test", "android", "exec"])
+    parser.add_argument("action", choices=["native", "probe", "prepare", "diagnose-art", "test", "android", "exec"])
     parser.add_argument("--test-platform", choices=["EditMode", "PlayMode"], default="EditMode")
     parser.add_argument("--test-filter", default="ZKube")
     parser.add_argument("--identity", choices=["money", "store"], default="money")
-    parser.add_argument("--mode", choices=["evidence", "production"], default="evidence")
     parser.add_argument("--method", help="exec: fully qualified static method, e.g. ZKube.Editor.ZKubeBuild.Probe")
     parser.add_argument("--build-target", choices=["StandaloneLinux64", "Android"], help="exec: Editor build target (default StandaloneLinux64)")
     args = parser.parse_args()
@@ -226,16 +223,14 @@ def main():
         parser.error("--method must be a fully qualified C# method name")
     # Desktop inspection uses desktop imports: this Linux OpenGL driver reports
     # Android ASTC atlases unsupported, so they cannot establish visual parity.
-    target = "StandaloneLinux64" if args.action in ("board-gui", "test", "exec") else "Android"
+    target = "StandaloneLinux64" if args.action in ("test", "exec") else "Android"
     if args.action == "exec" and args.build_target:
         target = args.build_target
     if args.identity == "store" and target != "Android":
         parser.error("--identity store selects an Android Player build; Editor tests run the shared suite without this option")
     OUTPUT.mkdir(parents=True, exist_ok=True)
     method = {"probe": "ZKubeBuild.Probe", "prepare": "ZKubeBuild.Prepare",
-              "diagnose-art": "ZKubeAssetImports.DiagnoseSpriteImport",
-              "board-scene": "ZKubeBoardScene.Create",
-              "board-gui": "ZKubeBoardEvidence.Open"}.get(args.action, "ZKubeBuild.BuildAndroid")
+              "diagnose-art": "ZKubeAssetImports.DiagnoseSpriteImport"}.get(args.action, "ZKubeBuild.BuildAndroid")
     # Unity prints its process environment on Gradle failures. Pass only build
     # and desktop paths, so unrelated signer/service credentials cannot enter logs.
     inherited = {"HOME", "USER", "LOGNAME", "PATH", "LANG", "LC_ALL", "SHELL",
@@ -249,8 +244,8 @@ def main():
                                 "-Dsun.net.client.defaultReadTimeout=30000")
     profile = identity(json.loads((PROJECT / "toolchain.json").read_text()), args.identity)
     stem = "zkube" if args.identity == "money" else "zkube-store"
-    apk = OUTPUT / f'{stem}-{args.mode}.{profile["format"]}'
-    env.update(NO_DNA="1", ZKUBE_UNITY_APK=str(apk), ZKUBE_UNITY_BUILD_MODE=args.mode,
+    apk = OUTPUT / f'{stem}.{profile["format"]}'
+    env.update(NO_DNA="1", ZKUBE_UNITY_APK=str(apk),
                ZKUBE_UNITY_IDENTITY=args.identity)
     with editor_lease() as lease_fd:
         generated_idl = PROJECT / "Assets/ZKube/Integration/Generated/solana.json"
@@ -259,7 +254,7 @@ def main():
         editor, android = toolchain()
         if args.action == "android" and args.identity == "money":
             run(["python3", PROJECT / "NativeAndroid/verify.py"], env=env)
-        if args.action in ("prepare", "android", "board-gui", "test"):
+        if args.action in ("prepare", "android", "test"):
             run(["python3", PROJECT / "tools/import_assets.py", "--sync"],
                 env=dict(env, **{INHERITED_FD: str(lease_fd)}), pass_fds=(lease_fd,))
         if args.action == "exec":
@@ -279,7 +274,7 @@ def main():
             # A prior successful report cannot satisfy a run that exits before
             # the test runner writes its results (for example, import failure).
             result_path.unlink(missing_ok=True)
-            graphics = (["-executeMethod", "ZKube.Editor.ZKubeBoardEvidence.ConfigureGraphicsTests"]
+            graphics = (["-executeMethod", "ZKube.Editor.ZKubeGraphicsTests.Configure"]
                         if args.test_platform == "PlayMode" else ["-batchmode", "-nographics"])
             def tests_passed():
                 if not result_path.is_file():
@@ -306,7 +301,7 @@ def main():
                 raise RuntimeError("Unity test filters matched no cases: " + "; ".join(missing) + f"; inspect {result_path}")
             print(f"Unity {args.test_platform}: {passed}/{total} passed ({result_path})")
             return
-        if args.action in ("android", "board-gui"):
+        if args.action == "android":
             prepare(editor, target, env)
         if args.action == "prepare":
             prepare(editor, target, env)
@@ -317,16 +312,12 @@ def main():
             apk.unlink(missing_ok=True)
             apk.with_suffix(".inspection.json").unlink(missing_ok=True)
             apk.with_suffix(".provenance.json").unlink(missing_ok=True)
-        if args.action == "board-gui":
-            editor_run([editor, "-projectPath", PROJECT, "-buildTarget", target,
-                        "-executeMethod", f"ZKube.Editor.{method}"], OUTPUT / "board-gui.log", env)
-        else:
-            execute(editor, target, f"ZKube.Editor.{method}", env, OUTPUT / f"{args.action}.log")
+        execute(editor, target, f"ZKube.Editor.{method}", env, OUTPUT / f"{args.action}.log")
         if args.action == "android":
             run(["python3", PROJECT / "tools/inspect_android.py", apk,
                  android / "SDK/build-tools" / LOCK["sdkBuildTools"],
-                 "--identity", args.identity, "--mode", args.mode])
-            record_artifact(apk, before, args.mode, started)
+                 "--identity", args.identity])
+            record_artifact(apk, before, started)
 
 
 if __name__ == "__main__":

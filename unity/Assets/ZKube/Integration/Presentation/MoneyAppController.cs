@@ -52,13 +52,13 @@ namespace ZKube.Integration.Presentation
         private readonly Color ink = new Color(.045f, .065f, .105f, 1);
 
         public void Initialize(MoneyAppFlow flow, ClientIdentity clientIdentity, TMP_FontAsset displayFont,
-            TMP_FontAsset bodyFont, string evidenceLabel = null, Func<long> clock = null, float scale = 1, float? displayDensity = null)
+            TMP_FontAsset bodyFont, Func<long> clock = null, float scale = 1, float? displayDensity = null)
         {
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
             Flow = flow ?? throw new ArgumentNullException(nameof(flow));
             identity = clientIdentity ?? throw new ArgumentNullException(nameof(clientIdentity));
             now = clock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, evidenceLabel, scale);
+            injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, scale);
             observedDay = now() / 86400;
             _ = RefreshOverview();
         }
@@ -66,12 +66,12 @@ namespace ZKube.Integration.Presentation
         public void ShowUnavailable(TMP_FontAsset displayFont, TMP_FontAsset bodyFont, string message, float scale = 1, float? displayDensity = null)
         {
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
-            injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, null, scale);
+            injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, scale);
             status.text = message; daily.text = ""; owner.text = "";
             PageReady = true; Controls();
         }
 
-        private void InitializeView(TMP_FontAsset displayFont, TMP_FontAsset bodyFont, string label, float scale)
+        private void InitializeView(TMP_FontAsset displayFont, TMP_FontAsset bodyFont, float scale)
         {
             textScale = BoardController.SupportedTextScale(scale);
             heading = displayFont ?? throw new ArgumentNullException(nameof(displayFont));
@@ -100,7 +100,6 @@ namespace ZKube.Integration.Presentation
             layout.childForceExpandHeight = false; layout.childForceExpandWidth = true;
             content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize; scroll.content = content;
             Label(content, "zKube", 36, true);
-            if (!string.IsNullOrEmpty(label)) Label(content, label, 17, false);
             status = Label(content, "Loading Daily…", 19, false); status.name = "Overview status";
             pageContent = content;
             overviewPanel = Rect("Overview panel", content);

@@ -23,7 +23,7 @@ namespace ZKube.Tests.MoneyOverview
                 Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular"), textScale: scale);
             var build = MoneyTestEnvironment.Create(scenario); yield return Wait(build);
             environment = build.GetAwaiter().GetResult();
-            startup.InitializeEvidence(environment.Services, environment.Label, environment.Clock);
+            startup.InitializeForTests(environment.Services, environment.Clock);
             host.SetActive(true); yield return null; yield return Idle();
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick(page); yield return Idle();

@@ -34,6 +34,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /ZKUBE_EVIDENCE|ZKUBE_STANDALONE|BoardEvidenceHarness|BoardEvidenceData|EvidencePointer|BoardInputJourney|BoardFaultJourney|StoreStartupDiagnostic|OfflineCampaignStoreDriver|InitializeEvidence|evidenceLabel|ZKubeBoardEvidence|ZKubeProfilerEvidence|ZKubeBoardScene|StartupTestAccess/,
+    trees: [UNITY_CLIENT],
+    reversal: "Board input tests read Rust trajectories directly; runtime recording, diagnostic and alternate build paths are retired (2026-09-15)",
+  },
+  {
     pattern: /dailyRulesPublications|"ladderQualifyPoints"|"committed-daily-run-anchor"|"zero-action-deadline"/,
     trees: [CODEGEN, UNITY_CLIENT],
     reversal: "Native trajectories omit duplicate Daily anchors and unused metadata (2026-09-15)",

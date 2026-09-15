@@ -8,7 +8,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using ZKube.Core;
-using ZKube.Presentation.Evidence;
 
 namespace ZKube.Presentation.Tests
 {
@@ -16,13 +15,13 @@ namespace ZKube.Presentation.Tests
     {
         private GameObject root;
         private BoardController board;
-        private BoardEvidenceHarness evidence;
+        private BoardHarness evidence;
 
         [UnitySetUp] public IEnumerator SetUp()
         {
             root = new GameObject("Native accepted cue tests");
             board = root.AddComponent<BoardController>();
-            evidence = root.AddComponent<BoardEvidenceHarness>(); evidence.AutoStart = false;
+            evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
             evidence.Load("realm-8-daily");
             yield return Wait(() => board.Ready && !board.Busy);
             board.SetMuted(true);
@@ -187,8 +186,8 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-daily", false);
             var art = (BoardArt)typeof(BoardController).GetField("art", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(board);
             var plan = BoardTypography.Build(art, board.State, board.Session, new Rect(0, 0, 320, 568), 1, 1.3f);
-            var source = BoardEvidenceHarness.Fixtures.Single(f => f.name == "Hammer-perfect-clear-continuation");
-            var token = new CoreRunToken(BoardEvidenceHarness.Hex(source.configHex), BoardEvidenceHarness.Hex(source.initialStateHex));
+            var source = BoardHarness.Fixtures.Single(f => f.name == "Hammer-perfect-clear-continuation");
+            var token = new CoreRunToken(BoardHarness.Hex(source.configHex), BoardHarness.Hex(source.initialStateHex));
             var fact = NativeEngine.ApplyBonus(token, NativeEngine.Summary(token).ActionCounter, 1, 0).Events
                 .Single(e => e.Kind == ZKube.Core.Generated.PresentationKind.PerfectClear);
             foreach (bool reduced in new[] { false, true })

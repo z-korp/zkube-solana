@@ -216,16 +216,12 @@ validation is `workflow_dispatch` only and is not a push or pull-request gate.
 
 For Unity iteration, `NO_DNA=1 python3 unity/tools/build.py test` runs the
 managed tests against Rust fixtures; add `--test-platform PlayMode` for board interaction tests with
-a graphics display. Desktop tests and `build.py board-gui` use Linux texture
-imports; Android artifacts use Android imports. With the graphics Editor running,
-`python3 unity/tools/evidence.py readiness` inspects the accepted board and
-`capture --output build/unity/board-evidence/board.png` records its rendered frame
-and readiness metadata. `NO_DNA=1 python3 unity/tools/build.py android` reproduces the
-asset imports, Rust libraries and verified Kotlin wallet AAR, then builds an Android evidence APK under
-`build/unity/`. Add `--identity store` to build the local store AAB and its
-installable inspection APK. Add `--mode production` to omit the development build flag and
-evidence define. Both modes produce package inspection and source provenance
-reports. These local artifacts use local signing; release certificate acceptance
+a graphics display. Desktop tests use Linux texture imports; Android artifacts
+use Android imports. `NO_DNA=1 python3 unity/tools/build.py android` reproduces the
+asset imports, Rust libraries and verified Kotlin wallet AAR, then builds the
+money APK under `build/unity/`. Add `--identity store` to build the local store
+AAB and its installable inspection APK. Each build produces package inspection
+and source provenance reports. These local artifacts use local signing; release certificate acceptance
 and publication are separate. Existing `ZKUBE_ANDROID_VERSION_CODE` and
 `ZKUBE_ANDROID_VERSION_NAME` overrides apply to Unity too.
 

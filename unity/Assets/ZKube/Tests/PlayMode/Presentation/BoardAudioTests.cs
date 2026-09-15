@@ -4,7 +4,6 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using ZKube.Core.Generated;
-using ZKube.Presentation.Evidence;
 
 namespace ZKube.Presentation.Tests
 {
@@ -12,7 +11,7 @@ namespace ZKube.Presentation.Tests
     {
         private GameObject root;
         private BoardController board;
-        private BoardEvidenceHarness evidence;
+        private BoardHarness evidence;
         private string savedAudio;
         private int savedMute, savedMotion;
         private bool hadAudio, hadMute, hadMotion;
@@ -29,7 +28,7 @@ namespace ZKube.Presentation.Tests
         private void Create()
         {
             root = new GameObject("Independent audio channels"); board = root.AddComponent<BoardController>();
-            evidence = root.AddComponent<BoardEvidenceHarness>(); evidence.AutoStart = false;
+            evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
         }
         [UnityTearDown] public IEnumerator TearDown()
         {

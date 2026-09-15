@@ -139,7 +139,7 @@ namespace ZKube.Core.Generated
         public static BuildConfigRequest Decode(byte[] bytes)
         {
             if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid BuildConfigRequest byte length");
-            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported config request version");
+            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
             return new BuildConfigRequest
             {
                 RulesHash = NativeWire.Bytes(bytes, 2, 32),
@@ -264,6 +264,19 @@ namespace ZKube.Core.Generated
             NativeWire.Copy(Output, bytes, 326, 32);
             return bytes;
         }
+        public static ApplyVrfRequest Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid ApplyVrfRequest byte length");
+            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
+            return new ApplyVrfRequest
+            {
+                Config = NativeWire.Bytes(bytes, 2, 88),
+                State = NativeWire.Bytes(bytes, 90, 231),
+                Trace = bytes[321],
+                Counter = (uint)NativeWire.Read(bytes, 322, 4),
+                Output = NativeWire.Bytes(bytes, 326, 32),
+            };
+        }
     }
 
     public sealed class PlayMoveRequest
@@ -292,6 +305,22 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 330, 1, Destination);
             return bytes;
         }
+        public static PlayMoveRequest Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid PlayMoveRequest byte length");
+            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
+            return new PlayMoveRequest
+            {
+                Config = NativeWire.Bytes(bytes, 2, 88),
+                State = NativeWire.Bytes(bytes, 90, 231),
+                Trace = bytes[321],
+                Action = (uint)NativeWire.Read(bytes, 322, 4),
+                ExpectedMove = (ushort)NativeWire.Read(bytes, 326, 2),
+                Row = bytes[328],
+                Start = bytes[329],
+                Destination = bytes[330],
+            };
+        }
     }
 
     public sealed class ApplyBonusRequest
@@ -316,6 +345,20 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 327, 1, Column);
             return bytes;
         }
+        public static ApplyBonusRequest Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid ApplyBonusRequest byte length");
+            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
+            return new ApplyBonusRequest
+            {
+                Config = NativeWire.Bytes(bytes, 2, 88),
+                State = NativeWire.Bytes(bytes, 90, 231),
+                Trace = bytes[321],
+                Action = (uint)NativeWire.Read(bytes, 322, 4),
+                Row = bytes[326],
+                Column = bytes[327],
+            };
+        }
     }
 
     public sealed class RequestRerollRequest
@@ -335,6 +378,18 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 321, 1, Trace);
             NativeWire.Write(bytes, 322, 4, Action);
             return bytes;
+        }
+        public static RequestRerollRequest Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid RequestRerollRequest byte length");
+            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
+            return new RequestRerollRequest
+            {
+                Config = NativeWire.Bytes(bytes, 2, 88),
+                State = NativeWire.Bytes(bytes, 90, 231),
+                Trace = bytes[321],
+                Action = (uint)NativeWire.Read(bytes, 322, 4),
+            };
         }
     }
 
@@ -356,6 +411,18 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 322, 1, Reason);
             return bytes;
         }
+        public static FinishRequest Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid FinishRequest byte length");
+            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
+            return new FinishRequest
+            {
+                Config = NativeWire.Bytes(bytes, 2, 88),
+                State = NativeWire.Bytes(bytes, 90, 231),
+                Trace = bytes[321],
+                Reason = bytes[322],
+            };
+        }
     }
 
     public sealed class SummaryRequest
@@ -368,46 +435,6 @@ namespace ZKube.Core.Generated
             var bytes = new byte[ByteLength];
             NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Copy(State, bytes, 2, 231);
-            return bytes;
-        }
-    }
-
-    public sealed class PlayerIdRequest
-    {
-        public const int ByteLength = 66;
-        public const uint Operation = 10;
-        public byte[] ChainDomain { get; set; } = new byte[32];
-        public byte[] Account { get; set; } = new byte[32];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(ChainDomain, bytes, 2, 32);
-            NativeWire.Copy(Account, bytes, 34, 32);
-            return bytes;
-        }
-    }
-
-    public sealed class InitialReplayRequest
-    {
-        public const int ByteLength = 139;
-        public const uint Operation = 11;
-        public byte[] ChainDomain { get; set; } = new byte[32];
-        public byte[] Challenge { get; set; } = new byte[32];
-        public byte[] RulesHash { get; set; } = new byte[32];
-        public byte[] Account { get; set; } = new byte[32];
-        public ulong RunId { get; set; }
-        public byte Mode { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(ChainDomain, bytes, 2, 32);
-            NativeWire.Copy(Challenge, bytes, 34, 32);
-            NativeWire.Copy(RulesHash, bytes, 66, 32);
-            NativeWire.Copy(Account, bytes, 98, 32);
-            NativeWire.Write(bytes, 130, 8, RunId);
-            NativeWire.Write(bytes, 138, 1, Mode);
             return bytes;
         }
     }
@@ -532,26 +559,6 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 2, 8, Pool);
             NativeWire.Copy(Denominator, bytes, 10, 16);
             NativeWire.Write(bytes, 26, 4, Rank);
-            return bytes;
-        }
-    }
-
-    public sealed class EmptyContinuationRequest
-    {
-        public const int ByteLength = 80;
-        public const uint Operation = 20;
-        public uint Counter { get; set; }
-        public byte[] Output { get; set; } = new byte[32];
-        public byte[] RulesHash { get; set; } = new byte[32];
-        public byte[] Weights { get; set; } = new byte[10];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 4, Counter);
-            NativeWire.Copy(Output, bytes, 6, 32);
-            NativeWire.Copy(RulesHash, bytes, 38, 32);
-            NativeWire.Copy(Weights, bytes, 70, 10);
             return bytes;
         }
     }

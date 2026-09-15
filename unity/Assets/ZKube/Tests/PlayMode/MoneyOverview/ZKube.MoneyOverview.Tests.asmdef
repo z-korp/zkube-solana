@@ -21,7 +21,7 @@
   ],
   "defineConstraints": [
     "!ZKUBE_STORE",
-    "UNITY_EDITOR || ZKUBE_EVIDENCE"
+    "UNITY_EDITOR"
   ],
   "overrideReferences": true,
   "precompiledReferences": [

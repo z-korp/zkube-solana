@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.Android;
 using UnityEditor.Build;
@@ -34,7 +33,6 @@ namespace ZKube.Editor
             public string name, rustTarget, linkerPrefix, unityCpu;
             public int elfMachine;
         }
-        internal static bool ExportingForLocks { get; private set; }
         internal static AndroidIdentity Identity
         {
             get
@@ -235,7 +233,6 @@ namespace ZKube.Editor
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 AssetDatabase.LoadAssetAtPath<Shader>("Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile.shader");
                 ZKubeAssetImports.Prepare();
-                if (!File.Exists(ZKubeBoardScene.Path)) ZKubeBoardScene.Create();
                 if (!File.Exists(ZKubeStoreScene.Path)) ZKubeStoreScene.Create();
                 if (!File.Exists(ZKubeMoneyScene.Path)) ZKubeMoneyScene.Create();
                 EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ZKubeMoneyScene.Path, true) };
@@ -246,48 +243,27 @@ namespace ZKube.Editor
             catch (Exception error) { PreparationFailed(error); }
         }
 
-        public static void BuildAndroid() => BuildAndroid(false);
-
-        // Invoke through build.py exec under the existing shared lease, then
-        // gradle_locks.py --write-locks. This exports; it does not produce an app.
-        public static void ExportAndroidForLocks() => BuildAndroid(true);
-
-        private static void BuildAndroid(bool exportForLocks)
+        public static void BuildAndroid()
         {
             Probe();
             const string walletPath = "Assets/Plugins/Android/zkube-unity-wallet-release.aar";
             if (Identity.name == "money" && !File.Exists(walletPath)) throw new InvalidOperationException("Missing verified native wallet plugin");
-            var output = exportForLocks
-                ? Path.GetFullPath("../build/unity/gradle-export-" + Identity.name)
-                : Environment.GetEnvironmentVariable("ZKUBE_UNITY_APK");
+            var output = Environment.GetEnvironmentVariable("ZKUBE_UNITY_APK");
             if (string.IsNullOrEmpty(output)) throw new InvalidOperationException("ZKUBE_UNITY_APK is required");
-            var mode = Environment.GetEnvironmentVariable("ZKUBE_UNITY_BUILD_MODE");
-            if (mode != "evidence" && mode != "production")
-                throw new InvalidOperationException("ZKUBE_UNITY_BUILD_MODE must be evidence or production");
-            var evidence = mode == "evidence";
-            string scenePath = Identity.name == "store" ? ZKubeStoreScene.Path
-                : ZKubeMoneyScene.Path;
+            string scenePath = Identity.name == "store" ? ZKubeStoreScene.Path : ZKubeMoneyScene.Path;
             if (!File.Exists(scenePath)) throw new InvalidOperationException("Prepare the selected application scene before building");
-            var defines = new List<string>();
-            if (evidence) defines.Add("ZKUBE_EVIDENCE");
-            if (Identity.name == "store") defines.Add("ZKUBE_STORE");
             var previousExport = EditorUserBuildSettings.exportAsGoogleAndroidProject;
-            ExportingForLocks = exportForLocks;
-            EditorUserBuildSettings.exportAsGoogleAndroidProject = exportForLocks;
+            EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
             BuildReport report;
             try { report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { scenePath },
                 locationPathName = output,
                 target = BuildTarget.Android,
-                options = evidence ? BuildOptions.Development : BuildOptions.None,
-                extraScriptingDefines = defines.ToArray()
+                options = BuildOptions.None,
+                extraScriptingDefines = Identity.name == "store" ? new[] { "ZKUBE_STORE" } : Array.Empty<string>()
             }); }
-            finally
-            {
-                ExportingForLocks = false;
-                EditorUserBuildSettings.exportAsGoogleAndroidProject = previousExport;
-            }
+            finally { EditorUserBuildSettings.exportAsGoogleAndroidProject = previousExport; }
             if (report.summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException("Android build failed: " + report.summary.result);
             Debug.Log("ZKUBE_ANDROID_BUILD " + output);

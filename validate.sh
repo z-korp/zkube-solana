@@ -89,10 +89,8 @@ validate_unity() {
   NO_DNA=1 python3 unity/tools/fixtures.py check
   NO_DNA=1 python3 unity/tools/build.py test
   NO_DNA=1 python3 unity/tools/build.py test --test-platform PlayMode
-  NO_DNA=1 python3 unity/tools/harness.py profiler-summary --tests unity/tools/harness/ProfilerSummaryTests.cs
   for unity_identity in money store; do
     NO_DNA=1 python3 unity/tools/build.py android --identity "$unity_identity"
-    NO_DNA=1 python3 unity/tools/build.py android --identity "$unity_identity" --mode production
   done
 }
 

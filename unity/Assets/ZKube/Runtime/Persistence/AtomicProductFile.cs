@@ -3,8 +3,8 @@ using System.Text;
 
 namespace ZKube.Persistence
 {
-    // Scene-owned product file and separate evidence-store file use the same
-    // flushed sibling write + atomic publication. Never promote an incomplete
+    // Product files use a flushed sibling write + atomic publication.
+    // Never promote an incomplete
     // .pending file after restart.
     public static class AtomicProductFile
     {

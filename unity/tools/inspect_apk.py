@@ -54,22 +54,15 @@ def open_archive(path):
     return archive
 
 
-def metadata_check(data, mode):
-    if mode == "production" and any(token + b"\x00" in data for token in
-                                    (b"MoneyEvidenceGraph", b"MoneyEvidenceData", b"MoneyOverviewEvidenceHost",
-                                     b"MoneySessionEvidenceGraph", b"MoneySessionEvidenceData",
-                                     b"MoneyPlayableEvidenceGraph", b"MoneyPlayableEvidenceData", b"EvidencePointer")):
-        raise RuntimeError("Production Player contains offline money evidence")
-    if mode == "production" and b"OfflineCampaignStoreDriver\x00" in data:
-        raise RuntimeError("Production Player contains the offline purchase driver")
-    if mode == "production" and b"StoreStartupDiagnostic\x00" in data:
-        raise RuntimeError("Production Player contains the store startup diagnostic")
-    evidence = b"BoardEvidenceHarness\x00" in data
-    if evidence != (mode == "evidence"):
-        raise RuntimeError("Compiled board evidence harness differs from the declared build mode")
+def metadata_check(data):
+    if any(token + b"\x00" in data for token in
+           (b"BoardHarness", b"TestBoardPointer", b"BoardEvidenceHarness", b"BoardEvidenceData",
+            b"MoneyEvidenceGraph", b"MoneyEvidenceData", b"MoneyOverviewEvidenceHost",
+            b"MoneySessionEvidenceGraph", b"MoneySessionEvidenceData", b"MoneyPlayableEvidenceGraph",
+            b"MoneyPlayableEvidenceData", b"EvidencePointer", b"OfflineCampaignStoreDriver", b"StoreStartupDiagnostic")):
+        raise RuntimeError("Player contains a test driver or retired diagnostic")
     if re.search(rb"ZKube\.[A-Za-z0-9_.]+\.Tests(?:\.dll)?\x00", data):
-        raise RuntimeError("Ordinary Player contains managed test assemblies")
-    return evidence
+        raise RuntimeError("Player contains managed test assemblies")
 
 
 def manifest_nodes(dump):
@@ -93,7 +86,7 @@ def manifest_nodes(dump):
     return nodes
 
 
-def inspect(apk, android_tools, expected_native, mode):
+def inspect(apk, android_tools, expected_native):
     toolchain = json.loads((Path(__file__).resolve().parents[1] / "toolchain.json").read_text())
     badging = subprocess.check_output([str(android_tools / "aapt2"), "dump", "badging", str(apk)], text=True)
     package = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging, re.M)
@@ -104,8 +97,8 @@ def inspect(apk, android_tools, expected_native, mode):
     if minimum is None or target is None or int(minimum[1]) != toolchain["androidMinimumApi"] or int(target[1]) != toolchain["androidApi"]:
         raise RuntimeError("APK SDK levels differ from the pinned toolchain")
     debuggable = "application-debuggable" in badging.splitlines()
-    if debuggable != (mode == "evidence"):
-        raise RuntimeError("APK debug flag differs from its declared build mode")
+    if debuggable:
+        raise RuntimeError("APK enables debugging")
     permissions = re.findall(r"^uses-permission: name='([^']+)'", badging, re.M)
     if "android.permission.INTERNET" not in permissions:
         raise RuntimeError("APK lacks the permission required by the RPC transport")
@@ -146,7 +139,7 @@ def inspect(apk, android_tools, expected_native, mode):
     libraries = []
     with open_archive(apk) as archive:
         metadata = read_member(archive, "assets/bin/Data/Managed/Metadata/global-metadata.dat")
-        has_evidence = metadata_check(metadata, mode)
+        metadata_check(metadata)
         if any(token in metadata for token in (b"Unity.Purchasing.dll\x00", b"UnityEngine.Purchasing\x00",
                                                b"ZKube.Local.Billing.dll\x00", b"ZKube.Local.Billing.Unity.dll\x00")):
             raise RuntimeError("Money APK contains store billing managed code")
@@ -174,11 +167,10 @@ def inspect(apk, android_tools, expected_native, mode):
         raise RuntimeError("APK does not contain the Rust engine library")
     subprocess.run([str(android_tools / "zipalign"), "-c", "-P", "16", "4", str(apk)], check=True)
     report = {"apk": apk.name, "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-              "buildMode": mode, "package": package[1], "versionCode": int(package[2]),
+              "package": package[1], "versionCode": int(package[2]),
               "versionName": package[3], "minimumApi": int(minimum[1]), "targetApi": int(target[1]),
               "debuggable": debuggable, "permissions": permissions,
               "allowBackup": False, "walletActivityExported": False, "unitySplashEnabled": False,
-              "compiledBoardEvidenceHarness": has_evidence,
               "signingCertificateSha256": certificate_hashes,
               "releaseSigningAcceptance": "pending; local build signing only",
               "rustSourceLibrarySha256": source_hash,
@@ -194,9 +186,8 @@ def main():
     parser.add_argument("apk", type=Path)
     parser.add_argument("android_build_tools", type=Path)
     parser.add_argument("expected_native", type=Path)
-    parser.add_argument("--mode", choices=["evidence", "production"], required=True)
     options = parser.parse_args()
-    inspect(options.apk, options.android_build_tools, options.expected_native, options.mode)
+    inspect(options.apk, options.android_build_tools, options.expected_native)
 
 
 if __name__ == "__main__":

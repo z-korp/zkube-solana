@@ -10,7 +10,6 @@ using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
 using ZKube.Core;
 using ZKube.Core.Generated;
-using ZKube.Presentation.Evidence;
 
 namespace ZKube.Presentation.Tests
 {
@@ -18,12 +17,12 @@ namespace ZKube.Presentation.Tests
     {
         private GameObject root;
         private BoardController board;
-        private BoardEvidenceHarness evidence;
+        private BoardHarness evidence;
 
         [UnitySetUp] public IEnumerator SetUp()
         {
             root = new GameObject("Presentation test board"); board = root.AddComponent<BoardController>();
-            evidence = root.AddComponent<BoardEvidenceHarness>(); evidence.AutoStart = false;
+            evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
             evidence.Load("realm-8-daily");
             yield return Wait(() => board.Ready && !board.Busy);
             board.SetMuted(true); board.SetReducedMotion(true);
@@ -53,11 +52,10 @@ namespace ZKube.Presentation.Tests
             UnityEngine.Object.Destroy(empty); yield return null;
             yield return Load("realm-8-daily");
             Assert.IsTrue(board.Ready);
-            board.RefreshLayout(); Assert.IsFalse(board.Ready, "Rebuilt geometry must render before it can be captured");
+            board.RefreshLayout(); Assert.IsFalse(board.Ready, "Rebuilt geometry must render before it is ready");
             yield return Wait(() => board.Ready);
             UnityEngine.Object.Destroy(board.View.gameObject); yield return null;
             Assert.IsFalse(board.Ready, "A stale controller flag cannot outlive its view");
-            Assert.Throws<InvalidOperationException>(() => evidence.Capture("unused-invalid.png").MoveNext());
         }
 
         [UnityTest] public IEnumerator EmptyGuardianCannotBeSpentAndRerollHasAnAcceptanceBoundary()
@@ -217,8 +215,8 @@ namespace ZKube.Presentation.Tests
         {
             public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
             {
-                var foreign = BoardEvidenceHarness.Fixtures.Single(f => f.name == "realm-8-campaign");
-                var token = new CoreRunToken(BoardEvidenceHarness.Hex(foreign.configHex), BoardEvidenceHarness.Hex(foreign.initialStateHex));
+                var foreign = BoardHarness.Fixtures.Single(f => f.name == "realm-8-campaign");
+                var token = new CoreRunToken(BoardHarness.Hex(foreign.configHex), BoardHarness.Hex(foreign.initialStateHex));
                 return Task.FromResult<BoardActionResult>(NativeEngine.ApplyVrf(token, 1, Enumerable.Repeat((byte)8, 32).ToArray()));
             }
             public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)

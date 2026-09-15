@@ -27,7 +27,6 @@ namespace ZKube.Integration.App.Tests
         private int forbidden;
         public int ForbiddenCalls => forbidden;
         public string UiScenario { get; private set; }
-        public string Label => "Offline test";
         public Func<long> Clock => () => Now;
         public string SentSignature { get; private set; }
         public bool HasActiveKey => Native.Seed != null;

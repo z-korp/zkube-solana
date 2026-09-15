@@ -52,24 +52,16 @@ namespace ZKube.Core
         private static extern int Invoke(uint operation, [In] byte[] request, uint requestLength,
             [In, Out] byte[] response, uint capacity, ref uint written);
 
-        // Retained as a narrow diagnostic/test boundary. The managed signature
-        // permits no pointers, aliasing, or native memory ownership to escape.
-        public static NativeStatus TryCall(uint operation, byte[] request, byte[] response, ref uint written)
-        {
-            if (request == null) throw new ArgumentNullException(nameof(request));
-            if (ReferenceEquals(request, response)) throw new ArgumentException("Native input/output must not alias");
-            if (NativeCore.AbiVersion() != NativeSchema.AbiVersion || NativeCore.RunStateLength() != NativeSchema.RunStateLength)
-                throw new InvalidOperationException("Native engine and generated client versions differ");
-            return (NativeStatus)Invoke(operation, request, checked((uint)request.Length), response,
-                response == null ? 0 : checked((uint)response.Length), ref written);
-        }
-
         public static byte[] Call(uint operation, byte[] request)
         {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            if (NativeCore.AbiVersion() != NativeSchema.AbiVersion || NativeCore.RunStateLength() != NativeSchema.RunStateLength)
+                throw new InvalidOperationException("Native engine and generated client versions differ");
             // Generated conservative envelope: no size-query double execution on input.
             var output = new byte[NativeSchema.ResponseCapacity];
             uint written = 0;
-            var status = TryCall(operation, request, output, ref written);
+            var status = (NativeStatus)Invoke(operation, request, checked((uint)request.Length), output,
+                checked((uint)output.Length), ref written);
             if (status != NativeStatus.Success) throw new NativeEngineException(status);
             if (written > output.Length) throw new InvalidOperationException("Native output exceeded capacity");
             return NativeWire.Bytes(output, 0, checked((int)written));
@@ -145,10 +137,6 @@ namespace ZKube.Core
         public static ulong LadderTierFloor(byte tier)
             => NativeWire.Read(Call(LadderTierFloorRequest.Operation, new LadderTierFloorRequest { Tier = tier }.Encode()), 0, 8);
 
-        public static byte[] PlayerId(byte[] domain, byte[] account)
-            => Call(PlayerIdRequest.Operation, new PlayerIdRequest { ChainDomain = domain, Account = account }.Encode());
-
-        public static byte[] InitialReplay(InitialReplayRequest input) => Call(InitialReplayRequest.Operation, input.Encode());
         public static byte[] BoardPools(ulong pool, uint themeQualified)
             => Call(DailyBoardPoolsRequest.Operation, new DailyBoardPoolsRequest { Pool = pool, ThemeQualified = themeQualified }.Encode());
         public static byte[] BoardWidth(ulong pool, uint qualified)

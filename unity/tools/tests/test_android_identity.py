@@ -76,23 +76,20 @@ class StaticTests(unittest.TestCase):
         with self.assertRaises(RuntimeError): elf(value, 183)
 
     def test_metadata_rejects_every_money_assembly_and_tests(self):
-        self.assertFalse(metadata_check(b'ZKube.Core.dll\x00ZKube.Presentation.dll\x00', 'production'))
+        self.assertFalse(metadata_check(b'ZKube.Core.dll\x00ZKube.Presentation.dll\x00'))
         for name in MONEY_ASSEMBLIES:
             with self.subTest(name=name), self.assertRaises(RuntimeError):
-                metadata_check(name.encode() + b'.dll\x00', 'production')
-        with self.assertRaises(RuntimeError): metadata_check(b'ZKube.Core.Tests.dll\x00', 'production')
+                metadata_check(name.encode() + b'.dll\x00')
+        with self.assertRaises(RuntimeError): metadata_check(b'ZKube.Core.Tests.dll\x00')
 
-    def test_metadata_evidence_is_explicit(self):
-        for name in (b'MoneyEvidenceGraph', b'MoneyEvidenceData', b'MoneyOverviewEvidenceHost',
-                     b'MoneySessionEvidenceGraph', b'MoneySessionEvidenceData'):
+    def test_metadata_rejects_test_drivers_and_retired_diagnostics(self):
+        self.assertIsNone(metadata_check(b"BoardPointer\x00"))
+        for name in (b'BoardHarness', b'TestBoardPointer', b'BoardEvidenceHarness', b'BoardEvidenceData',
+                     b'MoneyEvidenceGraph', b'MoneyEvidenceData', b'MoneyOverviewEvidenceHost',
+                     b'MoneySessionEvidenceGraph', b'MoneySessionEvidenceData',
+                     b'OfflineCampaignStoreDriver', b'StoreStartupDiagnostic'):
             with self.subTest(name=name), self.assertRaises(RuntimeError):
-                metadata_check(name + b'\x00', 'production')
-        self.assertTrue(metadata_check(b'BoardEvidenceHarness\x00', 'evidence'))
-        self.assertTrue(metadata_check(b'BoardEvidenceHarness\x00OfflineCampaignStoreDriver\x00', 'evidence'))
-        with self.assertRaises(RuntimeError): metadata_check(b'OfflineCampaignStoreDriver\x00', 'production')
-        with self.assertRaises(RuntimeError): metadata_check(b'StoreStartupDiagnostic\x00', 'production')
-        with self.assertRaises(RuntimeError): metadata_check(b'BoardEvidenceHarness\x00', 'production')
-        with self.assertRaises(RuntimeError): metadata_check(b'', 'evidence')
+                metadata_check(name + b'\x00')
 
     def payload(self, omit=None, wrong_hash=False, dex=b'', extra=None):
         from inspect_android import sha
@@ -109,7 +106,7 @@ class StaticTests(unittest.TestCase):
                     if path != omit: archive.writestr(path, native(abi['elfMachine']))
             if extra: archive.writestr(extra, native())
         stream.seek(0)
-        return store_payload(stream, 'base/', selected, hashes, 'production')
+        return store_payload(stream, 'base/', selected, hashes)
 
     def test_archive_requires_both_abis_and_exact_rust_hash(self):
         self.assertEqual(6, len(self.payload()))
@@ -142,9 +139,9 @@ class StaticTests(unittest.TestCase):
     def test_store_manifest_rejects_wallet_and_wrong_identity(self):
         xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false"><meta-data android:name="unity.splash-enable" android:value="false"/></application></manifest>'''
         profile = identity(self.toolchain, 'store')
-        self.assertEqual('com.zkorp.zkube.store', store_manifest(xml, profile, self.toolchain, 'production')['package'])
-        with self.assertRaises(RuntimeError): store_manifest(xml.replace('com.zkorp.zkube.store', 'com.zkorp.zkube'), profile, self.toolchain, 'production')
-        with self.assertRaises(RuntimeError): store_manifest(xml.replace('</application>', '<activity android:name="com.zkorp.zkube.unitywallet.WalletActivity"/></application>'), profile, self.toolchain, 'production')
+        self.assertEqual('com.zkorp.zkube.store', store_manifest(xml, profile, self.toolchain)['package'])
+        with self.assertRaises(RuntimeError): store_manifest(xml.replace('com.zkorp.zkube.store', 'com.zkorp.zkube'), profile, self.toolchain)
+        with self.assertRaises(RuntimeError): store_manifest(xml.replace('</application>', '<activity android:name="com.zkorp.zkube.unitywallet.WalletActivity"/></application>'), profile, self.toolchain)
 
 
 def main():

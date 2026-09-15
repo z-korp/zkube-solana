@@ -7,7 +7,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
-using ZKube.Presentation.Evidence;
 
 namespace ZKube.Presentation.Tests
 {
@@ -15,14 +14,14 @@ namespace ZKube.Presentation.Tests
     {
         private GameObject root;
         private BoardController board;
-        private BoardEvidenceHarness evidence;
+        private BoardHarness evidence;
         private int previousTextSize;
         [UnitySetUp] public IEnumerator SetUp()
         {
             previousTextSize = PlayerPrefs.GetInt("zkube.text.larger", 0);
             PlayerPrefs.SetInt("zkube.text.larger", 0);
             root = new GameObject("Typography test board"); board = root.AddComponent<BoardController>();
-            evidence = root.AddComponent<BoardEvidenceHarness>(); evidence.AutoStart = false;
+            evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
             evidence.Load("realm-8-daily");
             yield return Wait(() => board.Ready && !board.Busy);
             board.SetMuted(true); board.SetReducedMotion(true);

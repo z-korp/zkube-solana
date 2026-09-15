@@ -137,13 +137,13 @@ namespace ZKube.Tests
                     if (canvases[n].transform.IsChildOf(root.transform)) canvases[n].enabled = canvasStates[n];
                 yield return null;
                 yield return new WaitForEndOfFrame();
-                pixels = ScreenCapture.CaptureScreenshotAsTexture();
-                var output = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../../build/unity/store-standalone-name.png"));
-                System.IO.File.WriteAllBytes(output, pixels.EncodeToPNG());
+                pixels = new Texture2D(Screen.width, Screen.height, TextureFormat.RGBA32, false);
+                pixels.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+                pixels.Apply();
                 var colors = pixels.GetPixels32();
                 int visible = colors.Count(value => Math.Max(value.r, Math.Max(value.g, value.b)) > 24);
                 Assert.That(visible, Is.GreaterThan(colors.Length / 20),
-                    "Store reports ready but its standalone frame is blank; inspect " + output);
+                    "Store reports ready but its standalone frame is blank");
             }
             finally
             {

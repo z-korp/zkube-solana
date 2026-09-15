@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Check or regenerate Unity native, transport and presentation fixtures in order."""
+"""Check or regenerate Unity native and program fixtures in order."""
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
-import sys
 
 from cli import run_main
 
@@ -50,10 +49,7 @@ def main():
     subprocess.run(["cargo", "run", "-p", "zkube-codegen", "--", args.action], cwd=ROOT, env=env, check=True)
     profile_eligibility(args.action, env)
     program_scenarios(args.action, env)
-    evidence = ROOT / "unity/Assets/ZKube/Runtime/Presentation/Evidence/generate_evidence.py"
-    subprocess.run([sys.executable, str(evidence), *(["--check"] if args.action == "check" else [])],
-                   cwd=ROOT, env=env, check=True)
-    print(f"Unity fixtures: native, program integration scenarios and presentation {args.action} passed")
+    print(f"Unity fixtures: native and program integration scenarios {args.action} passed")
 
 
 if __name__ == "__main__":

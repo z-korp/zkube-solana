@@ -48,10 +48,9 @@ namespace ZKube.Editor
                 var modulePath = Path.GetFullPath(Path.Combine(path, "..", module));
                 var lockPath = Path.Combine(identity.locks, module, "gradle.lockfile");
                 var exportedLock = Path.Combine(modulePath, "gradle.lockfile");
-                if (!File.Exists(lockPath) && !ZKubeBuild.ExportingForLocks)
+                if (!File.Exists(lockPath))
                     throw new BuildFailedException("Missing reviewed Android dependency lock: " + lockPath);
-                if (File.Exists(lockPath)) File.Copy(lockPath, exportedLock, true);
-                else if (File.Exists(exportedLock)) File.Delete(exportedLock);
+                File.Copy(lockPath, exportedLock, true);
                 File.Copy("NativeAndroid/unity-dependencies.gradle",
                     Path.Combine(modulePath, "zkube-dependencies.gradle"), true);
                 var moduleGradle = Path.Combine(modulePath, "build.gradle");

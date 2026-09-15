@@ -139,9 +139,6 @@ namespace ZKube.Local.App
         }
         private void DrawLoadError(Exception error)
         {
-#if UNITY_EDITOR || ZKUBE_EVIDENCE
-            GetComponent<StoreStartupDiagnostic>()?.RecordError("page-load", error);
-#endif
             // A missing imported asset is an explicit retry page, not an
             // exception-driven per-frame load loop.
             dirty = false; PageReady = false;

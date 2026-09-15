@@ -29,15 +29,13 @@ namespace ZKube.Integration.App
         public TextAsset SolanaSchema => solanaSchema;
         public TextAsset SessionSchema => sessionSchema;
         public MoneyAppController Controller => controller;
-#if UNITY_EDITOR || ZKUBE_EVIDENCE
-        private MoneyClientServices evidence;
-        private string evidenceLabel;
-        private Func<long> evidenceClock;
-        public void InitializeEvidence(MoneyClientServices services, string label = "Offline evidence", Func<long> clock = null)
+#if UNITY_EDITOR
+        private MoneyClientServices testServices;
+        private Func<long> testClock;
+        public void InitializeForTests(MoneyClientServices services, Func<long> clock = null)
         {
-            if (started || stopping || evidence != null) throw new InvalidOperationException("Initialize evidence once before startup");
-            if (string.IsNullOrWhiteSpace(label)) throw new ArgumentException("Evidence must be visibly labeled", nameof(label));
-            evidence = services ?? throw new ArgumentNullException(nameof(services)); evidenceLabel = label; evidenceClock = clock;
+            if (started || stopping || testServices != null) throw new InvalidOperationException("Initialize test services once before startup");
+            testServices = services ?? throw new ArgumentNullException(nameof(services)); testClock = clock;
         }
 #endif
         // Root's scene preparation serializes these canonical asset references.
@@ -57,8 +55,8 @@ namespace ZKube.Integration.App
             try
             {
                 MoneyClientServices services;
-#if UNITY_EDITOR || ZKUBE_EVIDENCE
-                if (evidence != null) services = evidence;
+#if UNITY_EDITOR
+                if (testServices != null) services = testServices;
                 else
 #endif
                 {
@@ -81,10 +79,10 @@ namespace ZKube.Integration.App
                 }
                 flow = new MoneyAppFlow(services);
                 controller.Initialize(flow, services.Identity, displayFont, bodyFont,
-#if UNITY_EDITOR || ZKUBE_EVIDENCE
-                    evidence == null ? null : evidenceLabel, evidenceClock,
+#if UNITY_EDITOR
+                    testClock,
 #else
-                    null, null,
+                    null,
 #endif
                     injectedTextScale ?? BoardController.ReadSavedTextScale(), injectedDensity
                 );

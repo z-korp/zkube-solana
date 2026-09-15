@@ -137,7 +137,7 @@ namespace ZKube.Tests.MoneyOverview
             session = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
             startup.Configure(solana, session, Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"), Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular"), textScale: scale, displayDensity: density);
             var build = MoneyTestEnvironment.Create(scenario); yield return Wait(build);
-            environment = build.GetAwaiter().GetResult(); startup.InitializeEvidence(environment.Services, environment.Label, environment.Clock);
+            environment = build.GetAwaiter().GetResult(); startup.InitializeForTests(environment.Services, environment.Clock);
             host.SetActive(true); yield return null; yield return Idle();
         }
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()

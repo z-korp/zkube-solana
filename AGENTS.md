@@ -16,11 +16,10 @@ documents, and do not move approval policy or operator runbooks into `README.md`
   an abort as a test result. Python tools use `unity/tools/cli.py` to report
   expected failures with the result/log path instead of a traceback.
   Regenerate Unity fixtures with `unity/tools/fixtures.py generate`, which
-  orders native, transport and presentation producers; do not run writers concurrently.
+  orders native and program producers; do not run writers concurrently.
 - Every Unity Editor invocation goes through `unity/tools/build.py`, including
   one-off methods via `exec --method`. One invocation holds the Editor lease
-  through its entire operation. A held lease means wait. The persistent graphics
-  Editor belongs to `board-gui`; send it commands through `evidence.py`.
+  through its entire operation. A held lease means wait.
   Read the fresh log and completion result before interpreting a nonzero exit;
   verified completion followed by a teardown crash is success with a noisy exit.
 - Reuse the session's MCP servers. Stop a wedged server before replacing it and
@@ -777,7 +776,12 @@ native-wallet and memory-store implementation. Rust produces their account
 states; the test code supplies RPC envelopes and synthetic signatures.
 `DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce` and
 `ForegroundPreservesArcadeWithoutDeviceKeysOrNewTransactions` exercise that
-composition. The runtime money evidence graphs and their recordings are removed.
+composition. The runtime recording and diagnostic subsystem is removed. Board PlayMode tests
+read native Rust trajectories directly through generated request codecs;
+`NativeFixtureJourneyUsesRealDragAndOrderedTrace` exercises ordinary pointer input.
+`test_metadata_rejects_test_drivers_and_retired_diagnostics` checks package isolation.
+`FlushedProductPublicationReplacesWholeDocumentAndClearsStalePending` retains the
+real save-file persistence check.
 Local row randomness is SHA-256 over the saved seed and little-endian counter in
 the core. `LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds` verifies the
 native operation; Campaign resume keeps the same row sequence. Client display

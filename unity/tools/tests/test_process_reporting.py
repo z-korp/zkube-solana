@@ -16,7 +16,6 @@ sys.path.insert(0, str(TOOLS))
 import build
 import cli
 import editor_lease
-import evidence
 
 
 class ProcessReportingTests(unittest.TestCase):
@@ -158,28 +157,6 @@ class ProcessReportingTests(unittest.TestCase):
         self.assertFalse(build.completed_method(path, "Example.Run"))
         path.write_text(json.dumps({"method": "Other.Run", "status": "ok"}))
         self.assertFalse(build.completed_method(path, "Example.Run"))
-
-    def test_pending_command_is_preserved(self):
-        (self.output / "request.json").write_text('{"id":"other-command"}')
-        with patch.object(evidence, "COMMANDS", self.output):
-            with self.assertRaisesRegex(RuntimeError, "already queued"):
-                evidence.command("readiness")
-        self.assertIn("other-command", (self.output / "request.json").read_text())
-
-    def test_response_is_bounded_before_json_parse(self):
-        (self.output / "response.json").write_bytes(b"x" * 17)
-        with patch.object(evidence, "COMMANDS", self.output), \
-             patch.object(evidence, "MAX_RESPONSE_BYTES", 16), patch.object(evidence.json, "loads") as loads:
-            with self.assertRaisesRegex(RuntimeError, "exceeds"):
-                evidence.command("readiness")
-            loads.assert_not_called()
-
-    def test_timeout_preserves_request_and_names_response(self):
-        with patch.object(evidence, "COMMANDS", self.output), \
-             patch.object(evidence.time, "monotonic", side_effect=[0, 46]):
-            with self.assertRaisesRegex(TimeoutError, "response.json"):
-                evidence.command("readiness")
-        self.assertTrue((self.output / "request.json").exists())
 
 
 if __name__ == "__main__":
