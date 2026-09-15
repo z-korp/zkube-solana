@@ -89,7 +89,7 @@ describe("zKube deployment manifest v6", () => {
           programDataAddress: Keypair.generate().publicKey.toBase58(),
         },
       },
-      { ...base, content: { ...base.content, campaignVersion: 2 } },
+      { ...base, content: { ...base.content, catalogVersion: 2 } },
       { ...base, launch: { ...base.launch, dayId: 11 } },
       {
         ...base,
@@ -158,7 +158,7 @@ function candidate(): ZkubeDeploymentManifest {
   )[0].toBase58();
   return {
     schema: "zkube-solana-deployment",
-    schemaVersion: 6,
+    schemaVersion: 7,
     cluster: "devnet",
     createdAt: "2026-07-11T00:00:00.000Z",
     approval: { status: "candidate" },
@@ -189,8 +189,7 @@ function candidate(): ZkubeDeploymentManifest {
       operatorRevenueVault: deriveOperatorRevenueVaultPda().toBase58(),
     },
     content: {
-      baseVersion: 1,
-      campaignVersion: 3,
+      catalogVersion: 3,
       catalogSha256: "c".repeat(64),
     },
     launch: {
@@ -231,9 +230,8 @@ function environment(
     ZKUBE_PROTOCOL_AUTHORITY: manifest.protocol.authority,
     ZKUBE_TEAM_DESTINATION: manifest.protocol.teamDestination,
     ZKUBE_OPERATOR_REVENUE_VAULT: manifest.protocol.operatorRevenueVault,
-    ZKUBE_BASE_CONTENT_VERSION: String(manifest.content.baseVersion),
-    ZKUBE_CAMPAIGN_CONTENT_VERSION: String(manifest.content.campaignVersion),
-    ZKUBE_CAMPAIGN_CATALOG_SHA256: manifest.content.catalogSha256,
+    ZKUBE_CATALOG_VERSION: String(manifest.content.catalogVersion),
+    ZKUBE_CATALOG_SHA256: manifest.content.catalogSha256,
     ZKUBE_LAUNCH_DAY_ID: String(manifest.launch.dayId),
     ZKUBE_LAUNCH_CUTOFF_UNIX: String(manifest.launch.cutoffUnixTimestamp),
     ZKUBE_LAUNCH_PLAN_FINGERPRINT: manifest.launch.planFingerprint,

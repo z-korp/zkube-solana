@@ -47,17 +47,17 @@ describe("read-only paused bootstrap and launch planner", () => {
     const plan = await buildZkubeLaunchPlan(
       input,
       launchConnection({ upgradeAuthority, team, allocationBytes }),
-      (dayId) => dayId % 160,
+
     );
 
-    expect(plan.plans).toHaveLength(17);
-    expect(plan.plans[16]?.transaction.instructions).toHaveLength(3);
+    expect(plan.plans).toHaveLength(6);
+    expect(plan.plans[5]?.transaction.instructions).toHaveLength(3);
     expect(plan.phases.at(-1)).toEqual({
       label: "Atomic 1 SOL seed, unpause, and activation",
-      transactionIndexes: [16],
+      transactionIndexes: [5],
     });
     expect(plan.costs.seedLamports).toBe(1_500_000_000);
-    expect(plan.costs.transactionCount).toBe(17);
+    expect(plan.costs.transactionCount).toBe(6);
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(
       "No transaction was signed or sent. This planner has no send path.",
@@ -98,7 +98,7 @@ describe("read-only paused bootstrap and launch planner", () => {
           allocationBytes,
           observedUnixTimestamp: input.launchCutoffUnixTimestamp + 1,
         }),
-        (dayId) => dayId % 160,
+
       ),
     ).rejects.toThrow("approval window has already closed");
   });

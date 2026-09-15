@@ -11,20 +11,13 @@ import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "../../src/backend/solana/pdas";
-import {
-  CANONICAL_CAMPAIGN_MAP_COUNT,
-  MAX_CAMPAIGN_MAPS,
-  canonicalCampaignMap,
-} from "../../src/core/campaignCatalog";
 import { zkubeProgram, type TransactionPlan } from "../../src/backend/solana/runs/runPlan";
 import type { WalletLike } from "../../src/backend/solana/session/sessionWallet";
 import BN from "bn.js";
-import { dailyContentFromPairIndex } from "../../src/core/dailyRules";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
@@ -34,7 +27,6 @@ export type PrizePoolKind = "daily";
 
 export interface ProtocolInitialization {
   teamDestination: PublicKey;
-  contentVersion: number;
   replayDomain: Uint8Array;
 }
 
@@ -43,7 +35,6 @@ export async function buildInitializeProtocolPlan(args: {
   authority: WalletLike;
   config: ProtocolInitialization;
 }): Promise<TransactionPlan> {
-  assertPositiveInteger(args.config.contentVersion, "contentVersion");
   if (
     args.config.replayDomain.length !== 32 ||
     args.config.replayDomain.every((byte) => byte === 0)
@@ -62,7 +53,6 @@ export async function buildInitializeProtocolPlan(args: {
   const instruction = await zkubeProgram(args.connection, args.authority)
     .methods.initializeProtocol({
       teamDestination: args.config.teamDestination,
-      contentVersion: args.config.contentVersion,
       replayDomain: [...args.config.replayDomain],
     })
     .accountsPartial({
@@ -74,136 +64,6 @@ export async function buildInitializeProtocolPlan(args: {
     .instruction();
   return basePlan(
     "Initialize protocol",
-    args.connection,
-    args.authority.publicKey,
-    [instruction],
-  );
-}
-
-export async function buildPublishCanonicalMapsPlan(args: {
-  connection: Connection;
-  authority: WalletLike;
-  contentVersion: number;
-  mapIds?: readonly number[];
-}): Promise<TransactionPlan> {
-  assertPositiveInteger(args.contentVersion, "contentVersion");
-  const mapIds =
-    args.mapIds ??
-    Array.from(
-      { length: CANONICAL_CAMPAIGN_MAP_COUNT },
-      (_, index) => index + 1,
-    );
-  if (mapIds.length === 0 || new Set(mapIds).size !== mapIds.length) {
-    throw new Error("mapIds must be a non-empty unique list");
-  }
-  const program = zkubeProgram(args.connection, args.authority);
-  const instructions = await Promise.all(
-    mapIds.map(async (mapId) => {
-      if (
-        !Number.isInteger(mapId) ||
-        mapId < 1 ||
-        mapId > CANONICAL_CAMPAIGN_MAP_COUNT
-      ) {
-        throw new Error(
-          `mapId must be between 1 and ${CANONICAL_CAMPAIGN_MAP_COUNT}`,
-        );
-      }
-      const map = canonicalCampaignMap(args.contentVersion, mapId);
-      return program.methods
-        .writeMapCatalog({
-          contentVersion: args.contentVersion,
-          mapId,
-          themeId: map.themeId,
-          enabled: map.enabled,
-          mapRules: map.mapRules,
-          levels: map.levels,
-        })
-        .accountsPartial({
-          protocol: deriveProtocolConfigPda(),
-          mapCatalog: deriveMapCatalogPda(args.contentVersion, mapId),
-          authority: args.authority.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-    }),
-  );
-  return basePlan(
-    `Publish canonical maps ${mapIds.join(",")}`,
-    args.connection,
-    args.authority.publicKey,
-    instructions,
-  );
-}
-
-export async function buildActivateCampaignMapPlan(args: {
-  connection: Connection;
-  authority: WalletLike;
-  contentVersion: number;
-  mapId: number;
-}): Promise<TransactionPlan> {
-  assertPositiveInteger(args.contentVersion, "contentVersion");
-  if (
-    !Number.isInteger(args.mapId) ||
-    args.mapId < 1 ||
-    args.mapId > MAX_CAMPAIGN_MAPS
-  ) {
-    throw new Error(`mapId must be between 1 and ${MAX_CAMPAIGN_MAPS}`);
-  }
-  const instruction = await zkubeProgram(args.connection, args.authority)
-    .methods.activateCampaignMap()
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      mapCatalog: deriveMapCatalogPda(args.contentVersion, args.mapId),
-      authority: args.authority.publicKey,
-    })
-    .instruction();
-  return basePlan(
-    `Activate campaign map ${args.mapId}`,
-    args.connection,
-    args.authority.publicKey,
-    [instruction],
-  );
-}
-
-/**
- * Builds the paused, atomic switch to a completely staged content release.
- * Every enabled Campaign map is passed in map-id order so the program can
- * validate the exact immutable release before changing either live version.
- */
-export async function buildActivateContentReleasePlan(args: {
-  connection: Connection;
-  authority: WalletLike;
-  contentVersion: number;
-  campaignMapCount?: number;
-}): Promise<TransactionPlan> {
-  assertPositiveInteger(args.contentVersion, "contentVersion");
-  const campaignMapCount =
-    args.campaignMapCount ?? CANONICAL_CAMPAIGN_MAP_COUNT;
-  if (
-    !Number.isInteger(campaignMapCount) ||
-    campaignMapCount < 1 ||
-    campaignMapCount > MAX_CAMPAIGN_MAPS
-  ) {
-    throw new Error(
-      `campaignMapCount must be between 1 and ${MAX_CAMPAIGN_MAPS}`,
-    );
-  }
-  const instruction = await zkubeProgram(args.connection, args.authority)
-    .methods.activateContentRelease(args.contentVersion, campaignMapCount)
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      authority: args.authority.publicKey,
-    })
-    .remainingAccounts(
-      Array.from({ length: campaignMapCount }, (_, index) => ({
-        pubkey: deriveMapCatalogPda(args.contentVersion, index + 1),
-        isSigner: false,
-        isWritable: false,
-      })),
-    )
-    .instruction();
-  return basePlan(
-    `Activate content release v${args.contentVersion}`,
     args.connection,
     args.authority.publicKey,
     [instruction],
@@ -309,28 +169,18 @@ export async function buildPrepareLaunchPeriodPlans(args: {
   connection: Connection;
   authority: WalletLike;
   dayId: number;
-  contentVersion: number;
-  dailyPairIndex: (dayId: number) => number;
 }): Promise<TransactionPlan[]> {
   assertU32(args.dayId, "dayId");
   const program = zkubeProgram(args.connection, args.authority);
   const plans: TransactionPlan[] = [];
   for (const dayId of [args.dayId, args.dayId + 1]) {
     assertU32(dayId, "dayId");
-    const content = dailyContentFromPairIndex(
-      dayId,
-      args.dailyPairIndex(dayId),
-    );
     const instruction = await program.methods
       .prepareArenaDaily(dayId)
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
         arcadeArchive: deriveArcadeArchivePda(),
-        realmMapCatalog: deriveMapCatalogPda(
-          args.contentVersion,
-          content.realmMapId,
-        ),
         arenaDaily: deriveArenaDailyPda(dayId),
         payer: args.authority.publicKey,
         caller: args.authority.publicKey,
@@ -462,11 +312,6 @@ function basePlan(
     feePayer,
     signers: [],
   };
-}
-
-function assertPositiveInteger(value: number, label: string): void {
-  if (!Number.isSafeInteger(value) || value <= 0)
-    throw new Error(`${label} must be positive`);
 }
 
 function assertU32(value: number, label: string): void {

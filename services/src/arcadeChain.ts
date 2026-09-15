@@ -3,11 +3,12 @@ import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
-  CAMPAIGN_CONTENT_VERSION,
+  CATALOG_VERSION,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   ENTRY_DAILY_LAMPORTS,
   ENTRY_OPERATOR_LAMPORTS,
   PLAYER_STATE_ACCOUNT_VERSION,
+  PLAYER_STATE_RESERVED_BYTES,
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
@@ -22,11 +23,12 @@ import { dailyPairIndex as coreDailyPairIndex } from "./zkubeCore.js";
 export {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
-  CAMPAIGN_CONTENT_VERSION,
+  CATALOG_VERSION,
   DAILY_PAIR_COUNT,
   DAILY_PAIR_SELECTION_SEED,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PLAYER_STATE_ACCOUNT_VERSION,
+  PLAYER_STATE_RESERVED_BYTES,
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
@@ -61,7 +63,6 @@ export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
   finish_run: "finish_run",
   commit_run: "commit_run",
   consume_arena_run: "consume_arena_run",
-  consume_campaign_run: "consume_campaign_run",
   expire_unresolved_arena_run: "expire_unresolved_arena_run",
   cleanup_orphan_active_run: "cleanup_orphan_active_run",
 } as const);
@@ -74,7 +75,7 @@ export const KEEPER_INSTRUCTION_ALLOWLIST = Object.freeze(
 
 export type CompetitionKind = "daily";
 export type DailyBoardKind = "score" | "theme";
-export type RunMode = "campaign" | "ranked";
+export type RunMode = "ranked";
 export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
 
 export interface KeeperPlanContext {
@@ -83,7 +84,6 @@ export interface KeeperPlanContext {
   deadlineDayId?: number;
   followingDayId?: number;
   competition?: CompetitionKind;
-  contentVersion?: number;
   suspendedUntilDay?: number;
   pairIndex?: number;
   realmMapId?: number;
@@ -188,13 +188,6 @@ export const operatorRevenuePda = () => derivePda("operator_revenue");
 export const creditVaultPda = () => derivePda("credit_vault");
 export const cadenceFundingPda = () => derivePda("cadence_funding");
 export const arcadeArchivePda = () => derivePda("arcade_archive");
-export const mapCatalogPda = (contentVersion: number, mapId: number) => {
-  assertCadenceId(contentVersion, "content version");
-  if (!Number.isSafeInteger(mapId) || mapId < 1 || mapId > 32) {
-    throw new Error("map id is outside the supported range");
-  }
-  return derivePda("map", u32(contentVersion), Uint8Array.from([mapId]));
-};
 export const arenaDailyPda = (dayId: number) =>
   derivePda("arena_daily", u32(dayId));
 export const arenaBoardPda = (daily: PublicKey, board: DailyBoardKind) =>

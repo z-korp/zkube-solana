@@ -3,33 +3,28 @@
 import { Keypair, PublicKey, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
-  buildActivateCampaignMapPlan,
-  buildActivateContentReleasePlan,
   buildAtomicArcadeLaunchPlan,
   buildInitializeArcadeArchivePlan,
   buildInitializeArcadePlan,
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
-  buildPublishCanonicalMapsPlan,
   buildSetArenaSuspensionPlan,
   buildSetProtocolPausePlan,
   buildDepositArenaDailyPlan,
 } from "./adminClient";
-import { CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
 import {
   deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveMapCatalogPda,
   deriveArenaDailyPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "../../src/backend/solana/pdas";
 import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
 
-describe("authority publication client", () => {
+describe("authority initialization client", () => {
   it("initializes the lean protocol with its team destination", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const keys = Array.from({ length: 8 }, () => Keypair.generate().publicKey);
@@ -38,7 +33,7 @@ describe("authority publication client", () => {
       authority,
       config: {
         teamDestination: keys[2],
-        contentVersion: 1,
+
         replayDomain: new Uint8Array(32).fill(9),
       },
     });
@@ -57,67 +52,11 @@ describe("authority publication client", () => {
         authority,
         config: {
           teamDestination: PublicKey.default,
-          contentVersion: 1,
+
           replayDomain: new Uint8Array(32).fill(9),
         },
       }),
     ).rejects.toThrow("nonzero");
-  });
-
-  it("publishes all ten maps from the authored canonical catalog", async () => {
-    const authority = new SessionWallet(Keypair.generate());
-    const connection = {} as Connection;
-    const plan = await buildPublishCanonicalMapsPlan({
-      connection,
-      authority,
-      contentVersion: CAMPAIGN_CONTENT_VERSION,
-    });
-
-    expect(plan.transaction.instructions).toHaveLength(10);
-    expect(
-      plan.transaction.instructions.map((instruction) =>
-        instruction.keys[1].pubkey.toBase58(),
-      ),
-    ).toEqual(
-      Array.from({ length: 10 }, (_, index) =>
-        deriveMapCatalogPda(CAMPAIGN_CONTENT_VERSION, index + 1).toBase58(),
-      ),
-    );
-  });
-
-  it("activates a published campaign map through its content-version PDA", async () => {
-    const authority = new SessionWallet(Keypair.generate());
-    const plan = await buildActivateCampaignMapPlan({
-      connection: {} as Connection,
-      authority,
-      contentVersion: 7,
-      mapId: 10,
-    });
-
-    const accounts = plan.transaction.instructions[0].keys;
-    expect(accounts[0].pubkey.equals(deriveProtocolConfigPda())).toBe(true);
-    expect(accounts[1].pubkey.equals(deriveMapCatalogPda(7, 10))).toBe(true);
-    expect(accounts[2].pubkey.equals(authority.publicKey)).toBe(true);
-  });
-
-  it("activates one fully staged release with exact ordered map accounts", async () => {
-    const authority = new SessionWallet(Keypair.generate());
-    const plan = await buildActivateContentReleasePlan({
-      connection: {} as Connection,
-      authority,
-      contentVersion: 8,
-      campaignMapCount: 3,
-    });
-
-    const accounts = plan.transaction.instructions[0].keys;
-    expect(accounts.slice(-3).map(({ pubkey }) => pubkey.toBase58())).toEqual(
-      [1, 2, 3].map((mapId) => deriveMapCatalogPda(8, mapId).toBase58()),
-    );
-    expect(
-      accounts
-        .slice(-3)
-        .every((account) => !account.isWritable && !account.isSigner),
-    ).toBe(true);
   });
 
   it("builds explicit pause and unpause governance instructions", async () => {
@@ -187,8 +126,7 @@ describe("authority publication client", () => {
       connection: {} as Connection,
       authority,
       dayId: 100,
-      contentVersion: 2,
-      dailyPairIndex: (dayId) => dayId % 160,
+
     });
 
     expect(plans.map(({ label }) => label)).toEqual([

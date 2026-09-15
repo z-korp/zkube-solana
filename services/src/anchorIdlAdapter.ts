@@ -20,12 +20,12 @@ import {
 import {
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
-  CAMPAIGN_CONTENT_VERSION,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_ENTRY_SIZE,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RUN_CLOSE_OFFSET,
   PLAYER_STATE_ACCOUNT_VERSION,
+  PLAYER_STATE_RESERVED_BYTES,
   PROTOCOL_ACCOUNT_VERSION,
   RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
@@ -40,7 +40,6 @@ import {
   assertCadenceId,
   currentDayId,
   cadenceFundingPda,
-  mapCatalogPda,
   nextScheduledDaily,
   playerStatePda,
   protocolPda,
@@ -75,14 +74,13 @@ export const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "56e545db6576cefb59d2aa04722671f944c7f0ecf058a5b08bc891cb29678540";
+  "7a22ac80ee1857ea3645f5193536d89259626ffb33db94aba0f648897fd692ee";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
   "arenaDaily",
   "arenaBoard",
   "arenaPlayer",
-  "mapCatalog",
   "playerState",
   "protocolConfig",
 ] as const;
@@ -92,7 +90,6 @@ const REQUIRED_INSTRUCTIONS = [
   "skipSuspendedArenaDaily",
   "finishRun",
   "commitRun",
-  "consumeCampaignRun",
   "consumeArenaRun",
   "expireUnresolvedArenaRun",
   "cleanupOrphanActiveRun",
@@ -133,9 +130,8 @@ interface PlayerStateRecord {
   owner: PublicKey;
   nextRunId: bigint;
   activeRunId: bigint;
-  campaignActiveRunId: bigint;
   activeRunDaily: PublicKey;
-  activeRunMode: "campaign" | "ranked";
+  activeRunMode: "ranked";
   activeRunDeadlineAt: number;
   orphanRunId: bigint;
 }
@@ -226,7 +222,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error("keeper rejects invalid launch cadence");
     }
     this.requireReleaseLaunchDay(launchDayId);
-    const contentVersion = u32(protocol.value.contentVersion, "content version");
     const suspendedUntilDay = u32(
       config.value.suspendedUntilDay,
       "suspended-until day",
@@ -272,7 +267,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     return {
       paused,
       launchDayId,
-      contentVersion,
       suspendedUntilDay,
       dailies: dailies.map(({ snapshot }) => snapshot),
       runs,
@@ -443,14 +437,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       return "active";
     }
     if (!boolean(protocol.value.paused, "protocol pause state") ||
-        u32(config.value.launchDayId, "launch day id") !== 0 ||
-        u32(protocol.value.contentVersion, "protocol content version") !==
-          CAMPAIGN_CONTENT_VERSION ||
-        u8(protocol.value.campaignMapCount, "Campaign map count") !== 10) {
+        u32(config.value.launchDayId, "launch day id") !== 0) {
       throw new Error("paused launch carrier is incomplete or active");
     }
 
-    await this.loadCanonicalCampaignMaps();
     await this.loadStagedLaunchPeriods(release.launchDayId);
     return "staged_launch_ready";
   }
@@ -474,22 +464,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private requireReleaseLaunchDay(launchDayId: number): void {
     if (launchDayId !== this.requiredRelease().launchDayId) {
       throw new Error("Arcade launch day does not match keeper release");
-    }
-  }
-
-  private async loadCanonicalCampaignMaps(): Promise<void> {
-    for (let mapId = 1; mapId <= 10; mapId += 1) {
-      const map = await this.loadRequired(
-        "mapCatalog",
-        mapCatalogPda(CAMPAIGN_CONTENT_VERSION, mapId),
-        PROTOCOL_ACCOUNT_VERSION,
-      );
-      if (u32(map.value.contentVersion, "Campaign content version") !==
-            CAMPAIGN_CONTENT_VERSION ||
-          u8(map.value.mapId, "Campaign map id") !== mapId ||
-          !boolean(map.value.enabled, "Campaign map enabled")) {
-        throw new Error("paused Campaign release is incomplete");
-      }
     }
   }
 
@@ -550,8 +524,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     switch (input.operation) {
       case "prepare_arena_daily": {
         const following = requiredNumber(context.followingDayId, "following day id");
-        const contentVersion = requiredNumber(context.contentVersion, "content version");
-        const realmMapId = requiredMapId(context.realmMapId, true, "realm map id");
         return {
           name: "fundedPrepareArenaDaily",
           args: { dayId: following },
@@ -560,7 +532,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             protocol: protocolPda(),
             arcadeConfig: arcadeConfigPda(),
             arcadeArchive: arcadeArchivePda(),
-            realmMapCatalog: mapCatalogPda(contentVersion, Math.max(realmMapId, 1)),
             arenaDaily: arenaDailyPda(following),
             cadenceFunding: cadenceFundingPda(),
             zkubeProgram: ZKUBE_PROGRAM_ID,
@@ -614,19 +585,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             activeRun: activeRunPda(requiredOwner(owner), requiredRunId(runId)),
           },
         };
-      case "consume_campaign_run": {
-        const player = requiredOwner(owner);
-        return {
-          name: "consumeCampaignRun",
-          args: {},
-          accounts: {
-            activeRun: activeRunPda(player, requiredRunId(runId)),
-            playerState: playerStatePda(player),
-            owner: player,
-            rentRecipient: requireRentRecipient(context.rentRecipient),
-          },
-        };
-      }
       case "consume_arena_run": {
         const player = requiredOwner(owner);
         const challenge = requiredNumber(dayId, "challenge day id");
@@ -1147,10 +1105,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       }
       const nextRunId = bigint(loaded.value.nextRunId, "PlayerState next run id");
       const activeRunId = bigint(loaded.value.activeRunId, "PlayerState active run id");
-      const campaignActiveRunId = bigint(
-        loaded.value.campaignActiveRunId,
-        "PlayerState Campaign active run id",
-      );
       const orphanRunId = bigint(loaded.value.orphanRunId, "PlayerState orphan run id");
       const activeRunDaily = publicKey(
         loaded.value.activeRunDaily,
@@ -1167,23 +1121,20 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         "PlayerState highest ladder tier",
       );
       const reserved = array(loaded.value.reserved, "PlayerState reserved bytes");
-      if (highestLadderTier > 4 || reserved.length !== 47 ||
+      if (highestLadderTier > 4 || reserved.length !== PLAYER_STATE_RESERVED_BYTES ||
           reserved.some((value) => u8(value, "PlayerState reserved byte") !== 0)) {
         throw new Error("PlayerState reserved bytes are nonzero");
       }
       if (nextRunId === 0n || activeRunId >= nextRunId ||
-          campaignActiveRunId >= nextRunId || orphanRunId >= nextRunId ||
-          (activeRunId !== 0n && activeRunId === campaignActiveRunId) ||
+          orphanRunId >= nextRunId ||
           (activeRunId !== 0n && orphanRunId !== 0n)) {
         throw new Error("PlayerState run reservations are invalid");
       }
       const idle = activeRunId === 0n;
       const noArenaCadence = activeRunDaily.equals(SystemProgram.programId) &&
         activeRunDeadlineAt === 0;
-      if ((idle && (!noArenaCadence || activeRunMode !== "campaign")) ||
-          (!idle && activeRunMode === "campaign") ||
-          (!idle && activeRunMode !== "campaign" &&
-            (activeRunDaily.equals(SystemProgram.programId) || activeRunDeadlineAt <= 0))) {
+      if ((idle && !noArenaCadence) ||
+          (!idle && (activeRunDaily.equals(SystemProgram.programId) || activeRunDeadlineAt <= 0))) {
         throw new Error("PlayerState active reservation fields are inconsistent");
       }
       return {
@@ -1191,7 +1142,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         owner,
         nextRunId,
         activeRunId,
-        campaignActiveRunId,
         activeRunDaily,
         activeRunMode,
         activeRunDeadlineAt,
@@ -1209,19 +1159,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     );
     const output: RunSnapshot[] = [];
     for (const player of players) {
-      if (player.campaignActiveRunId !== 0n) {
-        output.push(await this.loadRun(
-          player,
-          player.campaignActiveRunId,
-          true,
-          dailyByAddress,
-          {
-            mode: "campaign",
-            daily: SystemProgram.programId,
-            deadlineAt: 0,
-          },
-        ));
-      }
       if (player.activeRunId !== 0n) {
         try {
           output.push(await this.loadRun(
@@ -1289,7 +1226,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     reservationActive: boolean,
     dailyByAddress: ReadonlyMap<string, DailySnapshot>,
     expected?: {
-      mode: "campaign" | "ranked";
+      mode: "ranked";
       daily: PublicKey;
       deadlineAt: number;
     },
@@ -1332,22 +1269,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         (!expected || mode !== expected.mode || !dailyAddress.equals(expected.daily) ||
           deadlineAt !== expected.deadlineAt)) {
       throw new Error("ActiveRun does not match its durable reservation");
-    }
-    if (mode === "campaign") {
-      if (!dailyAddress.equals(SystemProgram.programId) || deadlineAt !== 0) {
-        throw new Error("Campaign ActiveRun carries Arena cadence state");
-      }
-      return {
-        owner,
-        rentPayer,
-        runId,
-        mode,
-        arenaPlayerExists: false,
-        lifecycle: runLifecycle(loaded.value.lifecycle, "ActiveRun lifecycle"),
-        location,
-        acceptedActions: u32(loaded.value.actionCounter, "ActiveRun action counter"),
-        reservationActive,
-      };
     }
     const daily = dailyByAddress.get(dailyAddress.toBase58());
     const cadence = daily
@@ -1685,9 +1606,8 @@ function periodStatus(value: unknown, label: string): PeriodStatus {
   return variant;
 }
 
-function runMode(value: unknown, label: string): "campaign" | "ranked" {
+function runMode(value: unknown, label: string): "ranked" {
   const variant = enumVariant(value, label);
-  if (variant === "campaign") return "campaign";
   if (variant === "daily") return "ranked";
   throw new Error(`${label} is invalid`);
 }
@@ -1698,7 +1618,7 @@ function runLifecycle(value: unknown, label: string): RunLifecycle {
     return variant;
   }
   if (variant === "awaitingVrf") return "awaiting_vrf";
-  if (variant === "levelComplete" || variant === "finished") return "terminal";
+  if (variant === "finished") return "terminal";
   throw new Error(`${label} is invalid`);
 }
 
@@ -1877,17 +1797,6 @@ function requiredNumber(value: number | undefined, label: string): number {
   return value;
 }
 
-function requiredMapId(
-  value: number | undefined,
-  allowWildcard: boolean,
-  label: string,
-): number {
-  if (!Number.isSafeInteger(value) || value === undefined ||
-      value < (allowWildcard ? 0 : 1) || value > 10) {
-    throw new Error(`IDL materializer is missing ${label}`);
-  }
-  return value;
-}
 
 function dailyBoardKind(
   value: KeeperPlanContext["boardKind"],

@@ -67,15 +67,15 @@ describe("keeper bounds", () => {
       data: Buffer.alloc(8),
     });
     const plan: KeeperInstructionPlan = {
-      operation: "consume_campaign_run",
+      operation: "consume_arena_run",
       execution: "instruction",
       connection: "base",
       context: {
         owner,
         runId,
-        runMode: "campaign",
+        runMode: "ranked",
         runLocation: "base",
-        includeArenaPlayer: false,
+        includeArenaPlayer: true,
       },
       instruction,
       instructions: [instruction],

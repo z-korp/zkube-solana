@@ -68,25 +68,15 @@ describe("v5 Daily keeper reconciliation", () => {
     })).toBe(false);
   });
 
-  it("routes terminal Campaign and ranked runs by location", () => {
-    const campaignOwner = Keypair.generate().publicKey;
+  it("routes terminal Arcade runs by location", () => {
+    const baseOwner = Keypair.generate().publicKey;
     const rankedOwner = Keypair.generate().publicKey;
     const plans = discoverReconciliationPlans({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
         runs: [
-          {
-            owner: campaignOwner,
-            rentPayer: Keypair.generate().publicKey,
-            runId: 1n,
-            mode: "campaign",
-            arenaPlayerExists: false,
-            lifecycle: "terminal",
-            location: "base",
-            acceptedActions: 1,
-            reservationActive: true,
-          },
+          { ...rankedRun(baseOwner, "terminal", "base"), runId: 1n },
           rankedRun(rankedOwner, "terminal", "ephemeral_rollup"),
         ],
       }),
@@ -95,7 +85,7 @@ describe("v5 Daily keeper reconciliation", () => {
     expect(plans.map(({ operation }) => operation)
       .filter((operation) => operation.includes("run") || operation === "commit_run"))
       .toEqual([
-      "consume_campaign_run",
+      "consume_arena_run",
       "commit_run",
     ]);
   });
@@ -106,28 +96,6 @@ describe("v5 Daily keeper reconciliation", () => {
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
         runs: [
-          {
-            owner: Keypair.generate().publicKey,
-            rentPayer: Keypair.generate().publicKey,
-            runId: 1n,
-            mode: "campaign",
-            arenaPlayerExists: false,
-            lifecycle: "terminal",
-            location: "base",
-            acceptedActions: 1,
-            reservationActive: true,
-          },
-          {
-            owner: Keypair.generate().publicKey,
-            rentPayer: Keypair.generate().publicKey,
-            runId: 3n,
-            mode: "campaign",
-            arenaPlayerExists: false,
-            lifecycle: "playing",
-            location: "base",
-            acceptedActions: 0,
-            reservationActive: false,
-          },
           rankedRun(Keypair.generate().publicKey, "terminal", "ephemeral_rollup"),
           { ...rankedRun(Keypair.generate().publicKey, "terminal", "base"), runId: 4n },
           rankedRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
@@ -146,40 +114,12 @@ describe("v5 Daily keeper reconciliation", () => {
       "expire_unresolved_arena_run",
       "commit_run",
       "consume_arena_run",
-      "consume_campaign_run",
       "cleanup_orphan_active_run",
     ]);
     const runPlans = plans.filter(({ operation }) => runOperations.has(operation));
     expect(new Set(runPlans.map(({ operation }) => operation))).toEqual(runOperations);
     expect(runPlans.every(({ execution }) => execution === "validation_only"))
       .toBe(true);
-  });
-
-  it("cleans an orphaned Campaign run that has no recovery deadline", () => {
-    const plans = discoverReconciliationPlans({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [daily(DAY, "open")],
-        runs: [
-          {
-            owner: Keypair.generate().publicKey,
-            rentPayer: Keypair.generate().publicKey,
-            runId: 1n,
-            mode: "campaign",
-            arenaPlayerExists: false,
-            lifecycle: "playing",
-            location: "base",
-            acceptedActions: 0,
-            reservationActive: false,
-          },
-        ],
-      }),
-      nowUnix: NOW,
-    });
-    expect(plans.some(({ operation, context }) =>
-      operation === "cleanup_orphan_active_run" &&
-      context.runMode === "campaign" &&
-      context.recoveryDeadlineAt === undefined)).toBe(true);
   });
 
   it("finishes reachable ER state and expires unavailable ranked state", () => {
@@ -313,7 +253,6 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
   return {
     paused: true,
     launchDayId: DAY,
-    contentVersion: 2,
     suspendedUntilDay: 0,
     dailies: [],
     runs: [],

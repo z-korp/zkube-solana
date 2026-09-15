@@ -79,7 +79,6 @@ function usesEphemeralRollup(operation: KeeperOperation): boolean {
     case "prepare_arena_daily":
     case "activate_arena_daily":
     case "skip_suspended_arena_daily":
-    case "consume_campaign_run":
     case "consume_arena_run":
     case "expire_unresolved_arena_run":
     case "cleanup_orphan_active_run":

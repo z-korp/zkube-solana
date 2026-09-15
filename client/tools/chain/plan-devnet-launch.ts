@@ -4,7 +4,6 @@ import {
   launchPlannerInputFromEnv,
 } from "./launchPlanner";
 import { Connection } from "@solana/web3.js";
-import { dailyPairIndex } from "./core";
 
 async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -45,7 +44,6 @@ async function main(): Promise<void> {
   const plan = await buildZkubeLaunchPlan(
     input,
     new Connection(input.baseRpc, "confirmed"),
-    dailyPairIndex,
   );
   process.stdout.write(`${formatZkubeLaunchPlan(plan)}\n`);
 }

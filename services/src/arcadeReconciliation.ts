@@ -102,7 +102,7 @@ export interface RunSnapshot {
   rentPayer?: PublicKey;
   runId: bigint;
   mode: RunMode;
-  /** Required for ranked runs and absent for Campaign. */
+  /** The Daily owning this ranked run. */
   challengeDayId?: number;
   /** Ranked runs use their challenge day. */
   deadlineDayId?: number;
@@ -134,7 +134,6 @@ export interface CadenceArchiveCandidate {
 export interface ProtocolSnapshot {
   paused: boolean;
   launchDayId: number;
-  contentVersion: number;
   suspendedUntilDay: number;
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
@@ -151,7 +150,6 @@ export interface ReconciliationDiscovery {
 export const EMPTY_PROTOCOL_SNAPSHOT: ProtocolSnapshot = Object.freeze({
   paused: true,
   launchDayId: 4,
-  contentVersion: 0,
   suspendedUntilDay: 0,
   dailies: Object.freeze([]),
   runs: Object.freeze([]),
@@ -236,7 +234,6 @@ export function discoverReconciliation(args: {
       dayId: predecessor,
       followingDayId: missingDay,
       launchCadenceId: args.snapshot.launchDayId,
-      contentVersion: args.snapshot.contentVersion,
       suspendedUntilDay: args.snapshot.suspendedUntilDay,
       pairIndex: content.pairIndex,
       realmMapId: content.realmMapId,
@@ -245,8 +242,7 @@ export function discoverReconciliation(args: {
   }
 
   for (const run of args.snapshot.runs) {
-    if (run.mode === "campaign" ||
-        (run.challengeDayId !== undefined && run.challengeDayId >= oldestKeeperDay)) {
+    if (run.challengeDayId !== undefined && run.challengeDayId >= oldestKeeperDay) {
       appendRunPlan(plans, run, args.nowUnix);
     }
   }
@@ -367,13 +363,6 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
       requireRunContext(context);
       if (context.runLocation !== "ephemeral_rollup") {
         throw new Error("run commit routing is invalid");
-      }
-      return;
-    case "consume_campaign_run":
-      requireRunContext(context, "campaign");
-      requireRentRecipient(context);
-      if (context.runLocation !== "base" || context.includeArenaPlayer) {
-        throw new Error("Campaign consumption routing is invalid");
       }
       return;
     case "consume_arena_run":
@@ -590,17 +579,13 @@ function appendRunPlan(
   }
   if (run.reservationActive && run.lifecycle === "terminal" && run.location === "base") {
     plans.push(validationOnlyPlan(
-      run.mode === "campaign" ? "consume_campaign_run" : "consume_arena_run",
+      "consume_arena_run",
       context,
     ));
     return;
   }
-  // Campaign runs carry no recovery deadline: an orphaned one is already
-  // unreferenced by its durable slot and can never score, so it cleans as
-  // soon as it sits undelegated on base.
   if (!run.reservationActive && run.location === "base" &&
-      (run.mode === "campaign" ||
-        (run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt))) {
+      run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt) {
     plans.push(validationOnlyPlan("cleanup_orphan_active_run", context));
   }
 }
@@ -610,11 +595,7 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     throw new Error("protocol pause state is invalid");
   }
   assertCadenceId(snapshot.launchDayId, "launch day id");
-  assertCadenceId(snapshot.contentVersion, "content version");
   assertCadenceId(snapshot.suspendedUntilDay, "suspended-until day");
-  if (snapshot.contentVersion === 0) {
-    throw new Error("Daily content version is invalid");
-  }
   assertUnique(snapshot.dailies.map(({ dayId }) => dayId), "Daily id");
   assertUnique(snapshot.runs.map(({ owner, runId }) => `${owner.toBase58()}:${runId}`), "run");
   validateArchiveSnapshot(snapshot);
@@ -730,14 +711,6 @@ function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
   if (!Number.isSafeInteger(run.acceptedActions) || run.acceptedActions < 0 ||
       run.acceptedActions > 0xffff_ffff) {
     throw new Error("run accepted-action count is invalid");
-  }
-  if (run.mode === "campaign") {
-    if (run.challengeDayId !== undefined || run.deadlineDayId !== undefined ||
-        run.arenaPlayerExists || run.runsCloseAt !== undefined ||
-        run.recoveryDeadlineAt !== undefined) {
-      throw new Error("Campaign run carries ranked cadence state");
-    }
-    return;
   }
   if (run.mode !== "ranked" || run.challengeDayId === undefined ||
       run.deadlineDayId !== run.challengeDayId) {

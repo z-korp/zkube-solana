@@ -364,8 +364,7 @@ export async function verifyConfirmedWrite(
 
 function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string> {
   const closed = new Set<string>();
-  if (plan.operation === "consume_campaign_run" ||
-      plan.operation === "consume_arena_run" ||
+  if (plan.operation === "consume_arena_run" ||
       plan.operation === "cleanup_orphan_active_run") {
     const owner = plan.context?.owner;
     const runId = plan.context?.runId;
@@ -495,7 +494,6 @@ export function operationPriority(operation: KeeperOperation): number {
     case "skip_suspended_arena_daily": return 2;
     case "finish_run": return 3;
     case "commit_run": return 4;
-    case "consume_campaign_run": return 5;
     case "consume_arena_run": return 6;
     case "expire_unresolved_arena_run": return 7;
     case "finalize_arena_daily": return 8;

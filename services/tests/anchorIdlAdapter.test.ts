@@ -17,17 +17,17 @@ import {
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "56e545db6576cefb59d2aa04722671f944c7f0ecf058a5b08bc891cb29678540";
+  "7a22ac80ee1857ea3645f5193536d89259626ffb33db94aba0f648897fd692ee";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = KeeperOperation;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 45 instructions and 12 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 41 instructions and 11 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(45);
-    expect(idl.accounts).toHaveLength(12);
+    expect(idl.instructions).toHaveLength(41);
+    expect(idl.accounts).toHaveLength(11);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
       "finalize_season",
@@ -70,7 +70,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       ["prepare_arena_daily", {
         dayId: DAY,
         followingDayId: DAY + 1,
-        contentVersion: 2,
         suspendedUntilDay: 0,
         pairIndex: 0,
         realmMapId: 1,
@@ -87,14 +86,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       }, "skip_suspended_arena_daily"],
       ["finish_run", ranked(owner, "ephemeral_rollup"), "finish_run"],
       ["commit_run", ranked(owner, "ephemeral_rollup"), "commit_run"],
-      ["consume_campaign_run", {
-        owner,
-        rentRecipient: Keypair.generate().publicKey,
-        runId: RUN_ID,
-        runMode: "campaign",
-        runLocation: "base",
-        includeArenaPlayer: false,
-      }, "consume_campaign_run"],
       ["consume_arena_run", ranked(owner, "base"), "consume_arena_run"],
       ["expire_unresolved_arena_run", ranked(owner, "unavailable"),
         "expire_unresolved_arena_run"],

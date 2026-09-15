@@ -7,7 +7,7 @@ import {
   ZKUBE_PROGRAM_ID,
 } from "../../src/backend/solana/constants";
 import { VRF_QUEUE } from "../../src/backend/solana/runs/runPlan";
-import { CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
+import { CATALOG_VERSION } from "../../src/core/protocolVersions.generated";
 import { deriveOperatorRevenueVaultPda } from "../../src/backend/solana/pdas";
 import { SECONDS_PER_DAY } from "../../src/core/protocolVersions.generated";
 
@@ -23,7 +23,7 @@ const UPGRADEABLE_LOADER_ID = new PublicKey(
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
-  schemaVersion: 6;
+  schemaVersion: 7;
   cluster: DeploymentCluster;
   createdAt: string;
   approval: {
@@ -61,8 +61,7 @@ export interface ZkubeDeploymentManifest {
     operatorRevenueVault: string;
   };
   content: {
-    baseVersion: 1;
-    campaignVersion: typeof CAMPAIGN_CONTENT_VERSION;
+    catalogVersion: typeof CATALOG_VERSION;
     catalogSha256: string;
   };
   launch: {
@@ -119,7 +118,7 @@ export function deploymentManifestFromEnv(
   }
   const manifest: ZkubeDeploymentManifest = {
     schema: "zkube-solana-deployment",
-    schemaVersion: 6,
+    schemaVersion: 7,
     cluster,
     createdAt: createdAt.toISOString(),
     approval: {
@@ -169,15 +168,14 @@ export function deploymentManifestFromEnv(
       operatorRevenueVault: deriveOperatorRevenueVaultPda().toBase58(),
     },
     content: {
-      baseVersion: requiredLiteralInteger(env, "ZKUBE_BASE_CONTENT_VERSION", 1),
-      campaignVersion: requiredLiteralInteger(
+      catalogVersion: requiredLiteralInteger(
         env,
-        "ZKUBE_CAMPAIGN_CONTENT_VERSION",
-        CAMPAIGN_CONTENT_VERSION,
+        "ZKUBE_CATALOG_VERSION",
+        CATALOG_VERSION,
       ),
       catalogSha256: required(
         env,
-        "ZKUBE_CAMPAIGN_CATALOG_SHA256",
+        "ZKUBE_CATALOG_SHA256",
       ).toLowerCase(),
     },
     launch: {
@@ -248,7 +246,7 @@ export function validateDeploymentManifest(
       "schema",
       "Schema",
       manifest.schema === "zkube-solana-deployment" &&
-        manifest.schemaVersion === 6,
+        manifest.schemaVersion === 7,
       "Expected zkube-solana-deployment@6",
     ),
     check(
@@ -333,11 +331,10 @@ export function validateDeploymentManifest(
     ),
     check(
       "content",
-      "Campaign content",
-      content?.baseVersion === 1 &&
-        content?.campaignVersion === CAMPAIGN_CONTENT_VERSION &&
+      "Compiled catalog",
+        content?.catalogVersion === CATALOG_VERSION &&
         HASH_PATTERN.test(string(content?.catalogSha256) ?? ""),
-      `Manifest must bind base content v1, Campaign v${CAMPAIGN_CONTENT_VERSION}, and the Campaign catalog hash`,
+      `Manifest binds catalog v${CATALOG_VERSION}, and its source hash`,
     ),
     check(
       "launch",
@@ -414,12 +411,11 @@ export function deploymentManifestMismatches(
     ["ZKUBE_PROTOCOL_AUTHORITY", manifest.protocol.authority],
     ["ZKUBE_TEAM_DESTINATION", manifest.protocol.teamDestination],
     ["ZKUBE_OPERATOR_REVENUE_VAULT", manifest.protocol.operatorRevenueVault],
-    ["ZKUBE_BASE_CONTENT_VERSION", String(manifest.content.baseVersion)],
     [
-      "ZKUBE_CAMPAIGN_CONTENT_VERSION",
-      String(manifest.content.campaignVersion),
+      "ZKUBE_CATALOG_VERSION",
+      String(manifest.content.catalogVersion),
     ],
-    ["ZKUBE_CAMPAIGN_CATALOG_SHA256", manifest.content.catalogSha256],
+    ["ZKUBE_CATALOG_SHA256", manifest.content.catalogSha256],
     ["ZKUBE_LAUNCH_DAY_ID", String(manifest.launch.dayId)],
     ["ZKUBE_LAUNCH_CUTOFF_UNIX", String(manifest.launch.cutoffUnixTimestamp)],
     ["ZKUBE_LAUNCH_PLAN_FINGERPRINT", manifest.launch.planFingerprint],

@@ -1,3 +1,5 @@
+import { BorshAccountsCoder, convertIdlToCamelCase } from "@anchor-lang/core";
+import { IDL } from "../../src/backend/solana/idl";
 import { createHash } from "node:crypto";
 import {
   Connection,
@@ -8,15 +10,12 @@ import {
 } from "@solana/web3.js";
 import {
   CADENCE_FUNDING_SEED_LAMPORTS,
-  buildActivateContentReleasePlan,
   buildAtomicArcadeLaunchPlan,
   buildInitializeArcadeArchivePlan,
   buildInitializeArcadePlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
-  buildPublishCanonicalMapsPlan,
 } from "./adminClient";
-import { CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
@@ -25,7 +24,6 @@ import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
 } from "../../src/backend/solana/pdas";
@@ -34,22 +32,21 @@ import { createReadOnlyWallet } from "../../src/backend/solana/identity/readOnly
 import type { TransactionPlan } from "../../src/backend/solana/runs/runPlan";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../src/backend/solana/constants";
 
-const BASE_CONTENT_VERSION = 1;
 const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;
 const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
 const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
 const TEAM_DESTINATION_FUNDING_LAMPORTS = 1_000_000;
 const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
-/** Exact `8 + INIT_SPACE` allocations enforced by the deployed Rust program. */
+/** Fixed account allocations come from the same IDL as the instruction builders. */
+const accountCoder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
 export const LAUNCH_ACCOUNT_SPACES = {
-  protocolConfig: 156,
-  mapCatalog: 275,
-  arcadeConfig: 75,
-  operatorRevenueVault: 58,
-  creditVault: 58,
-  arcadeArchive: 82,
-  arenaDaily: 235,
+  protocolConfig: accountCoder.size("protocolConfig"),
+  arcadeConfig: accountCoder.size("arcadeConfig"),
+  operatorRevenueVault: accountCoder.size("operatorRevenueVault"),
+  creditVault: accountCoder.size("creditVault"),
+  arcadeArchive: accountCoder.size("arcadeArchive"),
+  arenaDaily: accountCoder.size("arenaDaily"),
 } as const;
 
 export interface LaunchPlannerInput {
@@ -178,7 +175,6 @@ export function launchPlannerInputFromEnv(
 export async function buildZkubeLaunchPlan(
   input: LaunchPlannerInput,
   connection: Connection,
-  dailyPairIndex: (dayId: number) => number,
 ): Promise<ZkubeLaunchPlan> {
   const genesisHash = await connection.getGenesisHash();
   if (genesisHash !== input.expectedGenesisHash) {
@@ -257,29 +253,10 @@ export async function buildZkubeLaunchPlan(
       authority: wallet,
       config: {
         teamDestination,
-        contentVersion: BASE_CONTENT_VERSION,
         replayDomain: Uint8Array.from(
           Buffer.from(input.replayDomainHex, "hex"),
         ),
       },
-    }),
-  );
-  for (let mapId = 1; mapId <= 10; mapId += 1) {
-    plans.push(
-      await buildPublishCanonicalMapsPlan({
-        connection,
-        authority: wallet,
-        contentVersion: CAMPAIGN_CONTENT_VERSION,
-        mapIds: [mapId],
-      }),
-    );
-  }
-  plans.push(
-    await buildActivateContentReleasePlan({
-      connection,
-      authority: wallet,
-      contentVersion: CAMPAIGN_CONTENT_VERSION,
-      campaignMapCount: 10,
     }),
   );
   plans.push(
@@ -300,8 +277,6 @@ export async function buildZkubeLaunchPlan(
       connection,
       authority: wallet,
       dayId: input.launchDayId,
-      contentVersion: CAMPAIGN_CONTENT_VERSION,
-      dailyPairIndex,
     })),
   );
   plans.push(
@@ -314,7 +289,6 @@ export async function buildZkubeLaunchPlan(
 
   const accountSpaces = [
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
-    ...Array.from({ length: 10 }, () => LAUNCH_ACCOUNT_SPACES.mapCatalog),
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
     LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
     LAUNCH_ACCOUNT_SPACES.creditVault,
@@ -398,21 +372,13 @@ export async function buildZkubeLaunchPlan(
     requiredDeployerBalanceLamports,
   };
   const phases = [
-    { label: "Initialize paused base content v1", transactionIndexes: [0] },
-    {
-      label: `Stage Campaign content v${CAMPAIGN_CONTENT_VERSION}`,
-      transactionIndexes: Array.from({ length: 10 }, (_, index) => index + 1),
-    },
-    { label: "Activate staged content", transactionIndexes: [11] },
-    { label: "Initialize paused Arcade", transactionIndexes: [12] },
+    { label: "Initialize paused protocol", transactionIndexes: [0] },
+    { label: "Initialize paused Arcade", transactionIndexes: [1] },
     {
       label: "Initialize archive and prepare current/following Daily",
-      transactionIndexes: [13, 14, 15],
+      transactionIndexes: [2, 3, 4],
     },
-    {
-      label: "Atomic 1 SOL seed, unpause, and activation",
-      transactionIndexes: [16],
-    },
+    { label: "Atomic 1 SOL seed, unpause, and activation", transactionIndexes: [5] },
   ];
   const approvalPayload = {
     operation: "fresh-paused-bootstrap-and-launch",
@@ -510,9 +476,6 @@ function assertLaunchWindow(
 function bootstrapTargetAccounts(dayId: number): PublicKey[] {
   return [
     deriveProtocolConfigPda(),
-    ...Array.from({ length: 10 }, (_, index) =>
-      deriveMapCatalogPda(CAMPAIGN_CONTENT_VERSION, index + 1),
-    ),
     deriveArcadeConfigPda(),
     deriveOperatorRevenueVaultPda(),
     deriveCreditVaultPda(),

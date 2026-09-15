@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /activate_campaign_map|prepare_campaign_run|consume_campaign_run|activateCampaignMap|prepareCampaignRun|consumeCampaignRun|write_map_catalog|activate_content_release|writeMapCatalog|activateContentRelease|campaign_active_run_id|campaignActiveRunId|Campaign run slot|Campaign publication|Campaign delegation|set up (?:this |a |your )?device before (?:a |your )?Campaign trial/i,
+    trees: [CLIENT, CLIENT_TOOLS, UNITY_CLIENT, SERVICES, PROGRAM],
+    reversal: "Campaign runs locally; only cosmetic lifetime stars synchronize through an attested record (2026-09-15)",
+  },
+  {
     pattern: /\bHomePage\b|\bCampaignPage\b/,
     trees: [CLIENT],
     reversal: "Arcade is the one lobby and Map is the one Campaign chooser",
@@ -174,7 +179,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
       /\bderive_randomness\b|\bCAMPAIGN_LEVEL_MODE_TAG\b|OpeningLayout\.hash_blocks/,
     trees: [CORE, CLIENT, SERVICES, PROGRAM],
     reversal:
-      "Campaign stays on the ER and every row comes from a verified VRF output",
+      "the core owns deterministic replay; Arcade alone uses verified VRF outputs",
   },
   {
     pattern: /\bCampaignSimulation\b|\bDailySimulation\b/,

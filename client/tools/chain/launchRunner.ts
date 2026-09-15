@@ -17,10 +17,6 @@ import {
   CADENCE_FUNDING_SEED_LAMPORTS,
   buildAtomicArcadeLaunchPlan,
 } from "./adminClient";
-import {
-  CAMPAIGN_CONTENT_VERSION,
-  canonicalCampaignMap,
-} from "../../src/core/campaignCatalog";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest";
 import { inspectUpgradeableProgram } from "./deploymentRunner";
 import {
@@ -37,7 +33,6 @@ import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
 } from "../../src/backend/solana/pdas";
@@ -70,7 +65,7 @@ interface LaunchProgress {
 
 interface LaunchBundle {
   schema: "zkube-v5-devnet-launch-bundle";
-  schemaVersion: 3;
+  schemaVersion: 4;
   approvalFingerprint: string;
   approvalEvidenceSha256: string;
   approvalPayload: unknown;
@@ -92,7 +87,6 @@ const DEFAULT_BUNDLE_PATH = "/tmp/zkube-v5-launch.json";
 
 export async function runLaunchFromEnv(
   env: Record<string, string | undefined> = process.env,
-  dailyPairIndex: (dayId: number) => number,
 ): Promise<LaunchRunnerResult> {
   const mode = launchMode(env.ZKUBE_LAUNCH_MODE);
   const bundlePath =
@@ -102,7 +96,7 @@ export async function runLaunchFromEnv(
 
   const input = launchPlannerInputFromEnv(env);
   const connection = new Connection(input.baseRpc, "confirmed");
-  const plan = await buildZkubeLaunchPlan(input, connection, dailyPairIndex);
+  const plan = await buildZkubeLaunchPlan(input, connection);
   const result: LaunchRunnerResult = {
     mode,
     approvalFingerprint: plan.approvalFingerprint,
@@ -127,11 +121,11 @@ export async function runLaunchFromEnv(
     input.authority,
     "protocol authority",
   );
-  const activation = plan.plans[16];
+  const activation = plan.plans[5];
   if (!activation) throw new Error("launch plan omitted its atomic activation");
   const bundle: LaunchBundle = {
     schema: "zkube-v5-devnet-launch-bundle",
-    schemaVersion: 3,
+    schemaVersion: 4,
     approvalFingerprint: plan.approvalFingerprint,
     approvalEvidenceSha256: plan.approvalEvidenceSha256,
     approvalPayload: plan.approvalPayload,
@@ -158,7 +152,7 @@ export async function runLaunchFromEnv(
   if (bundle.progress.staged.length === 0) {
     await verifyFunding(connection, bundle);
   }
-  for (const [index, transaction] of plan.plans.slice(0, 16).entries()) {
+  for (const [index, transaction] of plan.plans.slice(0, 5).entries()) {
     const receipt = await executeApprovedTransaction({
       plan: transaction,
       signer: authority,
@@ -204,7 +198,7 @@ async function resumeStaging(
     payload.transactions,
     "approved transactions",
   );
-  if (publicTransactions.length !== 17) {
+  if (publicTransactions.length !== 6) {
     throw new Error("approved launch must contain exactly 17 transactions");
   }
   const plans = publicTransactions.map((value) =>
@@ -230,7 +224,7 @@ async function resumeStaging(
     await verifyFunding(connection, bundle);
   }
 
-  if (bundle.progress.staged.length > 16) {
+  if (bundle.progress.staged.length > 5) {
     throw new Error("bundle contains excess staging receipts");
   }
   for (let index = 0; index < 16; index += 1) {
@@ -375,34 +369,9 @@ async function verifyStagedLaunch(
       new PublicKey(bundle.input.teamDestination),
     ) ||
     bytesHex(protocol.replayDomain) !== bundle.input.replayDomainHex ||
-    integer(protocol.contentVersion) !== CAMPAIGN_CONTENT_VERSION ||
-    integer(protocol.campaignMapCount) !== 10 ||
     protocol.paused !== true
   ) {
     throw new Error("paused protocol carrier does not match launch approval");
-  }
-
-  for (let mapId = 1; mapId <= 10; mapId += 1) {
-    const map = await fetchExact(
-      connection,
-      program,
-      "mapCatalog",
-      deriveMapCatalogPda(CAMPAIGN_CONTENT_VERSION, mapId),
-      LAUNCH_ACCOUNT_SPACES.mapCatalog,
-    );
-    const expected = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, mapId);
-    if (
-      integer(map.contentVersion) !== CAMPAIGN_CONTENT_VERSION ||
-      integer(map.mapId) !== mapId ||
-      integer(map.themeId) !== expected.themeId ||
-      map.enabled !== true ||
-      !isDeepStrictEqual(normalize(map.mapRules), expected.mapRules) ||
-      !isDeepStrictEqual(normalize(map.levels), expected.levels)
-    ) {
-      throw new Error(
-        `Campaign map ${mapId} does not match the approved release`,
-      );
-    }
   }
 
   const arcade = await fetchExact(
@@ -879,7 +848,7 @@ function parseBundle(source: string): LaunchBundle {
     typeof value !== "object" ||
     (value as { schema?: unknown }).schema !==
       "zkube-v5-devnet-launch-bundle" ||
-    (value as { schemaVersion?: unknown }).schemaVersion !== 3
+    (value as { schemaVersion?: unknown }).schemaVersion !== 4
   ) {
     throw new Error("launch bundle is malformed or unsupported");
   }
@@ -902,9 +871,9 @@ function parseBundle(source: string): LaunchBundle {
     !isDeepStrictEqual(payload.input, bundle.input) ||
     !isDeepStrictEqual(payload.costs, bundle.costs) ||
     observed.programDataAddress !== bundle.programDataAddress ||
-    transactions.length !== 17 ||
+    transactions.length !== 6 ||
     createHash("sha256")
-      .update(JSON.stringify(transactions[16]))
+      .update(JSON.stringify(transactions[5]))
       .digest("hex") !== bundle.activationTransactionSha256
   ) {
     throw new Error("launch bundle fields drifted from approved evidence");
@@ -912,7 +881,7 @@ function parseBundle(source: string): LaunchBundle {
   const progress = object(bundle.progress, "launch progress");
   if (
     !Array.isArray(progress.staged) ||
-    progress.staged.length > 16 ||
+    progress.staged.length > 5 ||
     (progress.funding !== undefined &&
       (typeof progress.funding !== "object" || progress.funding === null)) ||
     (progress.activation !== undefined &&
@@ -1024,21 +993,6 @@ function enumName(value: unknown): string {
   const keys = Object.keys(record);
   if (keys.length !== 1) throw new Error("decoded enum is malformed");
   return keys[0]!;
-}
-
-function normalize(value: unknown): unknown {
-  if (BN.isBN(value)) return value.toNumber();
-  if (value instanceof PublicKey) return value.toBase58();
-  if (Array.isArray(value)) return value.map(normalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([name, child]) => [
-        name,
-        normalize(child),
-      ]),
-    );
-  }
-  return value;
 }
 
 export function formatLaunchRunnerResult(result: LaunchRunnerResult): string {
