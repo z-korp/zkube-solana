@@ -27,7 +27,7 @@ function collisionConnection(
 describe("run identity invariants", () => {
   it("starts a fresh profile at the shared run ID and derives every PDA from it", () => {
     const owner = Keypair.generate().publicKey;
-    const resolved = resolvePreparedRunAddresses(owner, null, "campaign");
+    const resolved = resolvePreparedRunAddresses(owner, null, "arcade");
     const expected = deriveRunAddresses(owner, 1n);
 
     expect(INITIAL_RUN_ID).toBe(BigInt(invariants.initialRunId));
@@ -43,9 +43,8 @@ describe("run identity invariants", () => {
         version: PLAYER_STATE_ACCOUNT_VERSION,
         nextRunId: { toString: () => "42" },
         activeRunId: { toString: () => "0" },
-        campaignActiveRunId: { toString: () => "0" },
       },
-      "campaign",
+      "arcade",
     );
 
     expect(resolved.runId).toBe(42n);
@@ -56,25 +55,13 @@ describe("run identity invariants", () => {
     ).toBe(true);
   });
 
-  it("allows Campaign and Arcade to remain active concurrently", () => {
-    const profile = {
-      version: PLAYER_STATE_ACCOUNT_VERSION,
-      activeRunId: { toString: () => "41" },
-      campaignActiveRunId: { toString: () => "42" },
-    };
-
-    expect(activeRunIdForSlot(profile, "arcade")).toBe(41n);
-    expect(activeRunIdForSlot(profile, "campaign")).toBe(42n);
-  });
-
   it("rejects an old PlayerState run-slot layout", () => {
     const profile = {
-      version: 2,
+      version: PLAYER_STATE_ACCOUNT_VERSION - 1,
       activeRunId: { toString: () => "9" },
-      activeRunMode: { campaign: {} },
     };
 
-    expect(() => activeRunIdForSlot(profile, "campaign")).toThrow(
+    expect(() => activeRunIdForSlot(profile, "arcade")).toThrow(
       /unsupported run-slot version/,
     );
   });
@@ -85,15 +72,13 @@ describe("run identity invariants", () => {
       version: PLAYER_STATE_ACCOUNT_VERSION,
       nextRunId: { toString: () => "43" },
       activeRunId: { toString: () => "41" },
-      campaignActiveRunId: { toString: () => "0" },
     };
 
     expect(() =>
       resolvePreparedRunAddresses(owner, profile, "arcade"),
     ).toThrow(/Arcade run 41 is already active/);
-    expect(
-      resolvePreparedRunAddresses(owner, profile, "campaign").runId,
-    ).toBe(43n);
+    profile.activeRunId = { toString: () => "0" };
+    expect(resolvePreparedRunAddresses(owner, profile, "arcade").runId).toBe(43n);
   });
 
   it("keeps identical run IDs isolated by owner", () => {

@@ -1,3 +1,4 @@
+import { MoneyCampaign } from "../content/MoneyCampaignLive";
 import { hasAcceptedRunAction, isAcceptedRunActionReady, hasResolvedRunVrf } from "./runObservation";
 import { Duration, Effect, Layer, Schedule, Stream, SubscriptionRef } from "effect";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -8,7 +9,6 @@ import type {
   RunAction,
   RunEvent,
   RunFinishReason,
-  RunMode,
   RunView,
 } from "../../views";
 import {
@@ -38,11 +38,9 @@ import { submitErTransactionPlan } from "./erTransport";
 import { resolvePersistedRun } from "./resumeRun";
 import {
   buildApplyBonusPlan,
-  buildCommitRunPlan,
   buildFinalizeRunPlan,
   buildFinishRunPlan,
   buildPlayMovePlan,
-  buildPrepareCampaignRunPlan,
   buildRequestRerollPlan,
   buildRequestRowPlan,
   combinePreparedAndDelegatePlan,
@@ -78,11 +76,12 @@ interface AttachedRun {
 
 export function makeSolanaRunsLive(
   options: SolanaRunsOptions,
-): Layer.Layer<Runs, never, SolanaIdentitySessionState | SolanaWalletDriver> {
+): Layer.Layer<Runs, never, SolanaIdentitySessionState | SolanaWalletDriver | MoneyCampaign> {
   return Layer.scoped(
     Runs,
     Effect.gen(function* () {
       const identitySession = yield* SolanaIdentitySessionState;
+      const campaign = yield* MoneyCampaign;
       yield* SolanaWalletDriver;
       const records = new Map<string, AttachedRun>();
       const eventRefs = new Map<
@@ -90,7 +89,6 @@ export function makeSolanaRunsLive(
         SubscriptionRef.SubscriptionRef<RunEvent>
       >();
       const activeRefs = {
-        campaign: yield* SubscriptionRef.make<RunView | null>(null),
         arcade: yield* SubscriptionRef.make<RunView | null>(null),
       };
 
@@ -105,7 +103,7 @@ export function makeSolanaRunsLive(
       );
 
       const launch = async (
-        mode: RunMode,
+        mode: "arcade",
         prepare: (
           owner: PublicKey,
           signer: SessionWallet,
@@ -137,7 +135,7 @@ export function makeSolanaRunsLive(
           owner,
           wallet,
           sessionSigner: device.signer,
-          ...(mode === "arcade" ? { mode: "daily" as const } : {}),
+          mode: "daily",
         });
         await publish(eventRef, { _tag: "Delegated" });
         const erConnection = await resolveRunErConnection(
@@ -173,7 +171,7 @@ export function makeSolanaRunsLive(
         return view;
       };
 
-      const resume = async (mode: RunMode): Promise<RunView | null> => {
+      const resume = async (mode: "arcade"): Promise<RunView | null> => {
         const { owner, device, readOnly } = requireActor(identitySession);
         const resumed = await resolvePersistedRun({
           owner,
@@ -223,20 +221,7 @@ export function makeSolanaRunsLive(
       };
 
       const runs: RunsService = {
-        startCampaign: (realm, level) =>
-          runEffect(() =>
-            launch("campaign", (owner, wallet, device) =>
-              buildPrepareCampaignRunPlan({
-                wallet,
-                ownerAuthority: owner,
-                sessionToken: device.sessionToken,
-                mapId: realm,
-                level,
-                connection: options.connection,
-                sessionValidUntil: device.validUntil,
-              }),
-            ),
-          ),
+        startCampaign: campaign.start,
         enterDaily: () =>
           runEffect(async () => {
             const { readOnly } = requireActor(identitySession);
@@ -257,7 +242,7 @@ export function makeSolanaRunsLive(
               }),
             );
           }),
-        act: (runId, action) =>
+        act: (runId, action) => runId.startsWith("-") ? campaign.act(runId, action) :
           runEffect(() =>
             act({
               runId,
@@ -268,8 +253,8 @@ export function makeSolanaRunsLive(
               baseConnection: options.connection,
             }),
           ),
-        resume: (mode) => runEffect(() => resume(mode)),
-        spectate: (address, mode) =>
+        resume: (mode) => mode === "campaign" ? campaign.resume() : runEffect(() => resume(mode)),
+        spectate: (address, mode) => mode === "campaign" ? Effect.succeed(null) :
           runEffect(async () => {
             const target = await resolveSpectatedRun({
               baseConnection: options.connection,
@@ -281,12 +266,13 @@ export function makeSolanaRunsLive(
             const view = projectSolanaRun(target.activeRun);
             return view.mode === mode ? view : null;
           }),
-        active: (mode) =>
+        active: (mode) => mode === "campaign" ? campaign.resume() :
           Effect.gen(function* () {
             const current = yield* SubscriptionRef.get(activeRefs[mode]);
             return current ?? (yield* Effect.promise(() => resume(mode)));
           }).pipe(Effect.mapError(asRunsError)),
         events: (runId) => {
+          if (runId.startsWith("-")) return campaign.events(runId);
           const ref = eventRefs.get(runId);
           return ref
             ? ref.changes
@@ -306,7 +292,7 @@ async function act(args: {
   runId: string;
   action: RunAction;
   records: Map<string, AttachedRun>;
-  activeRefs: Record<RunMode, SubscriptionRef.SubscriptionRef<RunView | null>>;
+  activeRefs: Record<"arcade", SubscriptionRef.SubscriptionRef<RunView | null>>;
   identitySession: SolanaIdentitySessionStateService;
   baseConnection: Connection;
 }): Promise<RunView> {
@@ -501,21 +487,10 @@ async function settle(
   active: ActiveRunView,
 ): Promise<void> {
   await attached.observer.close();
-  const commit =
-    attached.marker.mode === "daily"
-      ? await buildCommitDailyRunPlan({
-          owner: attached.marker.owner,
-          payerWallet: wallet,
-          addresses: attached.marker.addresses,
-          dailyChallenge: active.dailyChallenge,
-          erConnection: attached.connection,
-        })
-      : await buildCommitRunPlan({
-          owner: attached.marker.owner,
-          payerWallet: wallet,
-          addresses: attached.marker.addresses,
-          erConnection: attached.connection,
-        });
+  const commit = await buildCommitDailyRunPlan({
+    owner: attached.marker.owner, payerWallet: wallet, addresses: attached.marker.addresses,
+    dailyChallenge: active.dailyChallenge, erConnection: attached.connection,
+  });
   await submitErTransactionPlan({ transactionPlan: commit, wallet });
   await publish(attached.events, { _tag: "Committed" });
   await waitForCopyback(
@@ -666,12 +641,10 @@ function requireActor(state: SolanaIdentitySessionStateService) {
   };
 }
 
-export function projectSolanaRun(active: ActiveRunView): RunView {
-  const mode: RunMode = active.mode === "daily" ? "arcade" : "campaign";
+export function projectSolanaRun(active: ActiveRunView): RunView & { mode: "arcade" } {
+  const mode = "arcade";
   const phase =
-    active.lifecycle === "levelComplete"
-      ? "levelComplete"
-      : active.lifecycle === "finished"
+    active.lifecycle === "finished"
         ? "finished"
         : active.lifecycle === "playing"
           ? "playing"
@@ -684,14 +657,13 @@ export function projectSolanaRun(active: ActiveRunView): RunView {
     ...(active.deadlineAt && active.deadlineAt > 0
       ? { deadlineAt: active.deadlineAt }
       : {}),
-    ...(phase === "finished" || phase === "levelComplete"
+    ...(phase === "finished"
       ? { finishReason: finishReason(active) }
       : {}),
   };
 }
 
 function finishReason(active: ActiveRunView): RunFinishReason {
-  if (active.lifecycle === "levelComplete") return "levelComplete";
   if (active.finishReason === "abandon") return "abandon";
   if (active.finishReason === "deadline") return "deadline";
   if (active.finishReason === "overflow") return "overflow";
@@ -708,8 +680,8 @@ function actionKind(action: RunAction): "move" | "bonus" | "reroll" | "finish" {
   return action._tag.toLowerCase() as "move" | "bonus" | "reroll" | "finish";
 }
 
-function slotForMode(mode: RunMode): RunSlot {
-  return mode === "campaign" ? "campaign" : "arcade";
+function slotForMode(mode: "arcade"): RunSlot {
+  return mode;
 }
 
 function recordsHasSlot(
@@ -718,12 +690,12 @@ function recordsHasSlot(
 ): boolean {
   return [...records.values()].some(
     ({ marker }) =>
-      (marker.mode === "campaign" ? "campaign" : "arcade") === slot,
+      marker.mode === "daily" && slot === "arcade",
   );
 }
 
 function isTerminal(lifecycle: string): boolean {
-  return lifecycle === "levelComplete" || lifecycle === "finished";
+  return lifecycle === "finished";
 }
 
 function publish(

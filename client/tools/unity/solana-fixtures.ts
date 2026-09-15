@@ -24,7 +24,7 @@ import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
 import { generateRecoveryFixtures } from "./recovery-fixtures";
 import { generateAccountFixtures } from "./account-fixtures";
 import { dailyContentFromPairIndex } from "../../src/core/dailyRules";
-import { CAMPAIGN_CONTENT_VERSION, DAILY_MAX_MOVES } from "../../src/core/protocolVersions.generated";
+import { CATALOG_VERSION, DAILY_MAX_MOVES } from "../../src/core/protocolVersions.generated";
 import { coreDailyPairIndex } from "../../src/core/zkubeCore";
 import BN from "bn.js";
 import bs58 from "bs58";
@@ -155,8 +155,6 @@ export async function generateSolanaFixtures() {
   pda("arena-player", [Buffer.from("arena_player"), daily.toBytes(), owner.toBytes()], pdas.deriveArenaPlayerPda(daily, owner));
   const runBytes = Buffer.alloc(8); runBytes.writeBigUInt64LE(runId);
   pda("run-high-u64", [Buffer.from("run"), Buffer.from("active"), owner.toBytes(), runBytes], activeRun);
-  const versionBytes = Buffer.alloc(4); versionBytes.writeUInt32LE(3);
-  pda("map", [Buffer.from("map"), versionBytes, Buffer.from([8])], pdas.deriveMapCatalogPda(3, 8));
   pda("session", [Buffer.from("session_token_v2"), ZKUBE_PROGRAM_ID.toBytes(), device.toBytes(), owner.toBytes()], sessionToken, SESSION_KEYS_PROGRAM_ID);
 
   const sessionData = Buffer.concat([Buffer.from(SESSION_TOKEN_V2_DISCRIMINATOR), owner.toBuffer(),
@@ -218,7 +216,7 @@ export async function generateSolanaFixtures() {
   inputs: { nowUnix, dayId, runId: runId.toString(), owner: owner.toBase58(), device: device.toBase58(), blockhash,
     programId: ZKUBE_PROGRAM_ID.toBase58(), delegationProgramId: DELEGATION_PROGRAM_ID.toBase58() },
   dailyAuthority: { day: dayId, pairIndex: dailyPublication.pairIndex, realm: dailyPublication.realmMapId,
-    objective: dailyPublication.objective, contentVersion: CAMPAIGN_CONTENT_VERSION, maxMoves: DAILY_MAX_MOVES },
+    objective: dailyPublication.objective, contentVersion: CATALOG_VERSION, maxMoves: DAILY_MAX_MOVES },
   pdas: pdaCases, transactions, accounts: [...accounts, ...nativeAccounts], walletCases, walletSignature: bs58.encode(signed.signatures[0]),
   recovery: await generateRecoveryFixtures(nowUnix, ownerKey, deviceKey) };
 }

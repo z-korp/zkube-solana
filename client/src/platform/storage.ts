@@ -4,6 +4,7 @@ import { Preferences } from "@capacitor/preferences";
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  setItemDurable?(key: string, value: string): Promise<void>;
   removeItem(key: string): void;
 }
 
@@ -13,6 +14,14 @@ let nativeWriteQueue = Promise.resolve();
 
 const nativeStorage: StorageLike = {
   getItem: (key) => nativeValues.get(key) ?? null,
+  setItemDurable: (key, value) => {
+    const written = nativeWriteQueue.then(async () => {
+      await Preferences.set({ key, value });
+      nativeValues.set(key, value);
+    });
+    nativeWriteQueue = written.catch(reportPersistenceFailure);
+    return written;
+  },
   setItem: (key, value) => {
     nativeValues.set(key, value);
     nativeWriteQueue = nativeWriteQueue

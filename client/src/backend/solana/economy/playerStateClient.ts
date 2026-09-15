@@ -1,3 +1,4 @@
+import { DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS } from "../session/deviceSessionFunding";
 import {
   PublicKey,
   Transaction,
@@ -151,6 +152,24 @@ export async function buildSetFeaturedEmblemPlan(args: {
     })
     .instruction();
   return plan("Set featured identity", args.connection, actor, instruction);
+}
+
+/** Self-attested cosmetic stars; the program merges each level by maximum. */
+export async function buildRecordCampaignStarsPlan(args: {
+  connection: Connection;
+  wallet: WalletLike;
+  ownerAuthority: PublicKey;
+  sessionToken: PublicKey | null;
+  stars: Uint8Array;
+}): Promise<TransactionPlan> {
+  if (args.stars.length !== 25) throw new Error("Campaign record requires 25 packed bytes");
+  const instruction = await zkubeProgram(args.connection, args.wallet)
+    .methods.recordCampaignStars([...args.stars])
+    .accountsPartial({ playerState: derivePlayerStatePda(args.ownerAuthority), ownerAuthority: args.ownerAuthority,
+      sessionToken: args.sessionToken, actor: args.wallet.publicKey })
+    .instruction();
+  return { ...plan("Record Campaign stars", args.connection, args.wallet.publicKey, instruction),
+    postFeeRentReserveLamports: DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS };
 }
 
 function toEmblemView(view: PlayerStateView): PlayerEmblemView {

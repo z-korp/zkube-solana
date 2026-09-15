@@ -11,6 +11,7 @@ import { saveDeviceSession } from "../../src/backend/solana/session/deviceSessio
 import { fetchDailyView, assertRankedEntryDependencies, buildPrepareDailyRunPlan } from "../../src/backend/solana/content/dailyClient";
 import { computeArcadeLifecycle } from "../../src/ui/components/arcade/arcadeLifecycle";
 import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
+import { deriveRunAddresses } from "../../src/backend/solana/pdas";
 
 export const readinessFixturePath=resolve(repositoryRoot,"fixtures/unity-money-readiness-v1.json");
 interface FixtureEnvelope { address: string; owner: string; executable: boolean; data: string }
@@ -55,7 +56,7 @@ export async function generateReadinessFixtures() {
     // session variants at the same PDA; importing those would replace a valid
     // session in a positive readiness case.
     const rows=Object.fromEntries(["protocol","arcade","credit","daily","following","player"].map(name=>[name,products.accounts[name]]));
-    rows.player=await encode("playerState",rows.player,{activeRunId:new BN(variant==="resume"?"9007199254740993":"0"),campaignActiveRunId:new BN(0),kreditBalance:new BN(variant==="zero-kredits"?0:3)});
+    rows.player=await encode("playerState",rows.player,{activeRunId:new BN(variant==="resume"?"9007199254740993":"0"),kreditBalance:new BN(variant==="zero-kredits"?0:3)});
     if(variant==="missing-receiver")rows.following=null;
     if(variant==="missing-vault")rows.credit=null;
     if(variant==="wrong-vault-owner")rows.credit={...rows.credit,owner:SystemProgram.programId.toBase58()};
@@ -79,6 +80,7 @@ export async function generateReadinessFixtures() {
     try{await assertRankedEntryDependencies({connection,wallet:reader,daily:view});}catch{dependency="unavailable";}
     if(variant==="occupied"){
       const run=JSON.parse(readFileSync(resolve(repositoryRoot,"fixtures/unity-run-client-v1.json"),"utf8")).successor;
+      run.address = deriveRunAddresses(owner.publicKey, view.nextRunId).activeRun.toBase58();
       map.set(run.address,run);rows.occupied=run;
     }
     try{await buildPrepareDailyRunPlan({connection,wallet,ownerAuthority:owner.publicKey,sessionToken:new PublicKey(plans.accounts.session.address),daily:view,sessionValidUntil:now+3600});}catch{preparation="unavailable";}

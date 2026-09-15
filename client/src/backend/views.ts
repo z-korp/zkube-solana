@@ -48,6 +48,8 @@ export type RunFinishReason = typeof RunFinishReason.Type;
 export const RunView = Schema.Struct({
   mode: RunMode,
   runId: Schema.String,
+  realm: Schema.optional(Schema.Number),
+  level: Schema.optional(Schema.Number),
   token: Schema.Uint8ArrayFromSelf,
   phase: RunPhase,
   deadlineAt: Schema.optional(Schema.Number),

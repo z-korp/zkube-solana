@@ -11,7 +11,6 @@ import {
   Keypair,
   SystemProgram,
   Transaction,
-  TransactionMessage,
   VersionedTransaction,
   type Connection,
 } from "@solana/web3.js";
@@ -24,7 +23,6 @@ import {
   deriveArenaDailyPda,
   deriveArenaPlayerPda,
   deriveCreditVaultPda,
-  deriveMapCatalogPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
   deriveRunAddresses,
@@ -86,45 +84,17 @@ describe("native SOL transaction boundaries", () => {
     expect(Buffer.from(pinned[1]!.data).readUInt8(0)).toBe(3);
   });
 
-  it("makes the device signer the campaign run payer", async () => {
+  it("records cosmetic stars with one device signer and no run account", async () => {
     const owner = Keypair.generate().publicKey;
     const actor = new SessionWallet(Keypair.generate());
     const sessionToken = Keypair.generate().publicKey;
-    const runId = 7n;
-    const run = deriveRunAddresses(owner, runId);
     const instruction = await zkubeProgram({} as Connection, actor)
-      .methods.prepareCampaignRun(new BN(runId.toString()), 1, 1)
-      .accountsPartial({
-        protocol: deriveProtocolConfigPda(),
-        playerState: derivePlayerStatePda(owner),
-        mapCatalog: deriveMapCatalogPda(1, 1),
-        activeRun: run.activeRun,
-        payer: actor.publicKey,
-        ownerAuthority: owner,
-        sessionToken,
-        actor: actor.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
+      .methods.recordCampaignStars(new Array(25).fill(228))
+      .accountsPartial({ playerState: derivePlayerStatePda(owner), ownerAuthority: owner, sessionToken, actor: actor.publicKey })
       .instruction();
-
-    const signers = instruction.keys.filter((key) => key.isSigner);
-    expect(signers).toHaveLength(2);
-    expect(signers.every(({ pubkey }) => pubkey.equals(actor.publicKey))).toBe(
-      true,
-    );
-    expect(instruction.keys.map(({ pubkey }) => pubkey.toBase58())).toEqual(
-      [
-        deriveProtocolConfigPda(),
-        derivePlayerStatePda(owner),
-        deriveMapCatalogPda(1, 1),
-        run.activeRun,
-        actor.publicKey,
-        owner,
-        sessionToken,
-        actor.publicKey,
-        SystemProgram.programId,
-      ].map((publicKey) => publicKey.toBase58()),
-    );
+    expect(instruction.data.length).toBe(8 + 25);
+    expect(instruction.keys.filter(key => key.isSigner).map(key => key.pubkey.toBase58())).toEqual([actor.publicKey.toBase58()]);
+    expect(instruction.keys.map(key => key.pubkey.toBase58())).toEqual([derivePlayerStatePda(owner), owner, sessionToken, actor.publicKey].map(key => key.toBase58()));
   });
 
   it("pins every funded self-CPI wrapper to the executable zKube program", () => {
@@ -156,7 +126,7 @@ describe("native SOL transaction boundaries", () => {
     expect(instructionNames.has("seal_run")).toBe(false);
     expect(instructionNames.has("funded_claim_quest")).toBe(false);
     expect(instructionNames.has("funded_claim_level_milestone")).toBe(false);
-    expect(instructionNames.has("activate_content_release")).toBe(true);
+    expect(instructionNames.has("record_campaign_stars")).toBe(true);
   });
 
   it("funds delegation rent from the device signer", async () => {
@@ -276,68 +246,6 @@ describe("native SOL transaction boundaries", () => {
     expect(Buffer.from(restored.signatures[0]!)).toEqual(
       Buffer.from(signed.signatures[0]!),
     );
-  });
-
-  it("fits atomic prepare plus delegation in one v0 packet", async () => {
-    const owner = Keypair.generate().publicKey;
-    const actor = new SessionWallet(Keypair.generate());
-    const sessionToken = Keypair.generate().publicKey;
-    const run = deriveRunAddresses(owner, 1n);
-    const program = zkubeProgram({} as Connection, actor);
-    const prepare = await program.methods
-      .prepareCampaignRun(new BN(1), 1, 1)
-      .accountsPartial({
-        protocol: deriveProtocolConfigPda(),
-        playerState: derivePlayerStatePda(owner),
-        mapCatalog: deriveMapCatalogPda(1, 1),
-        activeRun: run.activeRun,
-        payer: actor.publicKey,
-        ownerAuthority: owner,
-        sessionToken,
-        actor: actor.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction();
-    const delegate = await program.methods
-      .delegateActiveRun()
-      .accountsPartial({
-        payer: actor.publicKey,
-        ownerAuthority: owner,
-        sessionToken,
-        actor: actor.publicKey,
-        bufferPda: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(
-          run.activeRun,
-          ZKUBE_PROGRAM_ID,
-        ),
-        delegationRecordPda: delegationRecordPdaFromDelegatedAccount(
-          run.activeRun,
-        ),
-        delegationMetadataPda: delegationMetadataPdaFromDelegatedAccount(
-          run.activeRun,
-        ),
-        pda: run.activeRun,
-        ownerProgram: ZKUBE_PROGRAM_ID,
-        delegationProgram: DELEGATION_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .remainingAccounts([
-        {
-          pubkey: Keypair.generate().publicKey,
-          isSigner: false,
-          isWritable: false,
-        },
-      ])
-      .instruction();
-    const message = new TransactionMessage({
-      payerKey: actor.publicKey,
-      recentBlockhash: Keypair.generate().publicKey.toBase58(),
-      instructions: withPinnedWalletComputeBudget([prepare, delegate]),
-    }).compileToV0Message();
-    const serialized = new VersionedTransaction(message).serialize();
-
-    expect(message.compiledInstructions).toHaveLength(4);
-    expect(message.header.numRequiredSignatures).toBe(1);
-    expect(serialized.byteLength).toBeLessThanOrEqual(1_232);
   });
 
   it("lets the device spend a Kredit, pay fees, and delegate without an owner signature", async () => {

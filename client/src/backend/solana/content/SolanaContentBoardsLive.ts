@@ -1,3 +1,4 @@
+import { MoneyCampaign } from "./MoneyCampaignLive";
 import { Effect, Layer, Schedule, Stream } from "effect";
 import { PublicKey, type Connection } from "@solana/web3.js";
 
@@ -63,10 +64,11 @@ export interface SolanaContentBoardsOptions {
 /** Unwired Content and Boards slice; composed only after Economy exists. */
 export function makeSolanaContentBoardsLive(
   options: SolanaContentBoardsOptions,
-): Layer.Layer<Content | Boards, never, SolanaIdentitySessionState> {
+): Layer.Layer<Content | Boards, never, SolanaIdentitySessionState | MoneyCampaign> {
   return Layer.scopedContext(
     Effect.gen(function* () {
       const identity = yield* SolanaIdentitySessionState;
+      const campaign = yield* MoneyCampaign;
       const nowUnix = options.nowUnix ?? (() => Math.floor(Date.now() / 1_000));
       const readOnly = () =>
         createReadOnlyWallet(
@@ -89,18 +91,7 @@ export function makeSolanaContentBoardsLive(
       const content: ContentService = {
         today: () =>
           Effect.tryPromise({ try: loadToday, catch: asContentError }),
-        catalog: () =>
-          Effect.tryPromise({
-            try: async () => {
-              const campaign = await fetchCampaignView({
-                connection: options.connection,
-                wallet: readOnly(),
-              });
-              if (!campaign) throw new Error("Campaign catalog is unavailable");
-              return projectSolanaCatalog(campaign);
-            },
-            catch: asContentError,
-          }),
+        catalog: campaign.catalog,
         tierTable: () => Effect.succeed(projectSolanaTierTable()),
         todayChanges,
       };

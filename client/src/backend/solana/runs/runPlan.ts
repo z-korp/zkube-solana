@@ -18,14 +18,12 @@ import {
   convertIdlToCamelCase,
   type Program,
 } from "@anchor-lang/core";
-import BN from "bn.js";
 import { Buffer } from "buffer";
 import {
   ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
-  SystemProgram,
   Transaction,
   TransactionMessage,
   VersionedTransaction,
@@ -46,9 +44,7 @@ import { saveRunSession, type RunSlot } from "./runSessionStore.js";
 import { SessionWallet, type WalletLike } from "../session/sessionWallet.js";
 import {
   deriveArenaPlayerPda,
-  deriveMapCatalogPda,
   derivePlayerStatePda,
-  deriveProtocolConfigPda,
   deriveRunAddresses,
   type RunAddresses,
 } from "../pdas.js";
@@ -63,7 +59,7 @@ import {
   DEVICE_SETTLEMENT_FEE_RESERVE_LAMPORTS,
 } from "../session/deviceSessionFunding.js";
 import { deriveSessionTokenV2Pda } from "../session/sessionV2.js";
-import { PLAYER_STATE_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated.js";
+import { PLAYER_STATE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION } from "../../../core/protocolVersions.generated.js";
 import {
   coreBuildRunConfig,
   coreReconcileRunState,
@@ -71,7 +67,7 @@ import {
   type CoreRunToken,
 } from "../../../core/zkubeCore.js";
 import {
-  mapLevelRuleSnapshot,
+  mapDailyRuleSnapshot,
   projectCoreRun,
   type ActiveRunRulesView,
 } from "../../../core/runProjection.js";
@@ -161,7 +157,7 @@ export interface ActiveRunView {
   rules: ActiveRunRulesView;
   lifecycle: string;
   finishReason?: string | null;
-  /** Authoritative chain deadline for Daily; Campaign uses zero. */
+  /** Authoritative chain deadline for Daily. */
   deadlineAt?: number;
   score: number;
   dailyScore: number;
@@ -211,85 +207,15 @@ export function zkubeProgram(
   return new AnchorProgram<ZkubeProgram>(IDL, provider);
 }
 
-export async function buildPrepareCampaignRunPlan(args: {
-  wallet: WalletLike;
-  ownerAuthority: PublicKey;
-  sessionToken: PublicKey;
-  mapId: number;
-  level: number;
-  connection?: Connection;
-  sessionValidUntil: number;
-}): Promise<PreparedRunPlan> {
-  const connection =
-    args.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
-  const program = zkubeProgram(connection, args.wallet);
-  const owner = args.ownerAuthority;
-  const actor = args.wallet.publicKey;
-  const profileAddress = derivePlayerStatePda(owner);
-  const profile =
-    await program.account.playerState.fetchNullable(profileAddress);
-  const protocolAddress = deriveProtocolConfigPda();
-  const protocol = await program.account.protocolConfig.fetch(protocolAddress);
-  const { runId, addresses } = resolvePreparedRunAddresses(
-    owner,
-    profile,
-    "campaign",
-  );
-  await assertPreparedRunAddressesAvailable(
-    connection,
-    owner,
-    runId,
-    addresses,
-  );
-  const mapCatalog = deriveMapCatalogPda(
-    Number(protocol.contentVersion),
-    args.mapId,
-  );
-  if (!profile) {
-    throw new Error("Enable zKube before starting a Campaign run");
-  }
-  const instructions = [
-    await program.methods
-      .prepareCampaignRun(new BN(runId.toString()), args.mapId, args.level)
-      .accountsPartial({
-        protocol: protocolAddress,
-        playerState: profileAddress,
-        mapCatalog,
-        activeRun: addresses.activeRun,
-        payer: actor,
-        ownerAuthority: owner,
-        sessionToken: args.sessionToken,
-        actor,
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction(),
-  ];
-
-  return {
-    runId,
-    addresses,
-    sessionToken: args.sessionToken,
-    sessionValidUntil: args.sessionValidUntil,
-    transactionPlan: plan(
-      "solana-base",
-      "Prepare campaign run",
-      connection,
-      actor,
-      instructions,
-      [],
-    ),
-  };
-}
-
 export function resolvePreparedRunAddresses(
   owner: PublicKey,
   profile: RunSlotProfile | null,
-  slot: RunSlot,
+  _slot: RunSlot,
 ): { runId: bigint; addresses: RunAddresses } {
-  const activeRunId = activeRunIdForSlot(profile, slot);
+  const activeRunId = activeRunIdForSlot(profile, _slot);
   if (activeRunId > 0n) {
     throw new Error(
-      `${slot === "campaign" ? "Campaign" : "Arcade"} run ${activeRunId.toString()} is already active. Resume it before starting another.`,
+      `Arcade run ${activeRunId.toString()} is already active. Resume it before starting another.`,
     );
   }
   const runId = profile ? BigInt(profile.nextRunId.toString()) : INITIAL_RUN_ID;
@@ -300,17 +226,17 @@ interface RunSlotProfile {
   version: number | { toString(): string };
   nextRunId: { toString(): string };
   activeRunId?: { toString(): string };
-  campaignActiveRunId?: { toString(): string };
 }
 
 /** Return the exact fresh-bootstrap PlayerState slot for a run family. */
 export function activeRunIdForSlot(
   profile: Pick<
     RunSlotProfile,
-    "version" | "activeRunId" | "campaignActiveRunId"
+    "version" | "activeRunId"
   > | null,
   slot: RunSlot,
 ): bigint {
+  if (slot !== "arcade") throw new Error("Unsupported run slot");
   if (!profile) return 0n;
   const version = Number(profile.version);
   const sharedRunId = profile.activeRunId
@@ -319,11 +245,7 @@ export function activeRunIdForSlot(
   if (version !== PLAYER_STATE_ACCOUNT_VERSION) {
     throw new Error("PlayerState has an unsupported run-slot version");
   }
-  if (slot === "arcade") return sharedRunId;
-  if (!profile.campaignActiveRunId) {
-    throw new Error("PlayerState is missing its Campaign run slot");
-  }
-  return BigInt(profile.campaignActiveRunId.toString());
+  return sharedRunId;
 }
 
 export async function assertPreparedRunAddressesAvailable(
@@ -697,7 +619,7 @@ export async function buildFinalizeRunPlan(args: {
   sessionToken: PublicKey | null;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily";
+  mode: "daily";
   dailyChallenge?: PublicKey | null;
   /** Owner-signed abandon prepended for a stuck non-terminal base run. */
   abandonFirst?: boolean;
@@ -735,7 +657,7 @@ export async function buildConsumeRunRecoveryPlan(args: {
   owner: PublicKey;
   runId: bigint;
   addresses: RunAddresses;
-  mode: "campaign" | "daily";
+  mode: "daily";
   dailyChallenge?: PublicKey | null;
   connection: Connection;
 }): Promise<TransactionPlan> {
@@ -756,35 +678,22 @@ async function buildConsumeRunInstruction(
   args: {
     owner: PublicKey;
     addresses: RunAddresses;
-    mode: "campaign" | "daily";
+    mode: "daily";
     dailyChallenge?: PublicKey | null;
   },
 ): Promise<TransactionInstruction> {
   const { rentPayer } = await program.account.activeRun.fetch(
     args.addresses.activeRun,
   );
-  if (args.mode === "daily") {
-    const dailyChallenge = args.dailyChallenge;
-    if (!dailyChallenge) {
-      throw new Error("Daily settlement requires the challenge address");
-    }
-    return program.methods
-      .consumeArenaRun()
-      .accountsPartial({
-        activeRun: args.addresses.activeRun,
-        playerState: derivePlayerStatePda(args.owner),
-        arenaDaily: dailyChallenge,
-        arenaPlayer: deriveArenaPlayerPda(dailyChallenge, args.owner),
-        rentRecipient: rentPayer,
-      })
-      .instruction();
-  }
+  const dailyChallenge = args.dailyChallenge;
+  if (!dailyChallenge) throw new Error("Daily settlement requires the challenge address");
   return program.methods
-    .consumeCampaignRun()
+    .consumeArenaRun()
     .accountsPartial({
       activeRun: args.addresses.activeRun,
       playerState: derivePlayerStatePda(args.owner),
-      owner: args.owner,
+      arenaDaily: dailyChallenge,
+      arenaPlayer: deriveArenaPlayerPda(dailyChallenge, args.owner),
       rentRecipient: rentPayer,
     })
     .instruction();
@@ -819,7 +728,6 @@ export const ACTIVE_RUN_FIELD_PROJECTIONS = {
   rulesHash: "runToken",
   deadlineAt: "deadlineAt",
   mapId: "mapId",
-  level: "level",
   rules: "rules",
   grid: "runToken",
   nextRow: "runToken",
@@ -833,9 +741,6 @@ export const ACTIVE_RUN_FIELD_PROJECTIONS = {
   moves: "runToken",
   comboCounter: "runToken",
   maxCombo: "runToken",
-  primaryProgress: "runToken",
-  secondaryProgress: "runToken",
-  latchedStarSources: "runToken",
   streak: "runToken",
   chargesEarned: "runToken",
   levelLinesCleared: "runToken",
@@ -885,19 +790,20 @@ export function decodeActiveRunAccount(
 export function reconcileRunFromChain(
   account: DecodedActiveRunAccount,
 ): ActiveRunView {
+  if (Number(account.version) !== PROTOCOL_ACCOUNT_VERSION) throw new Error("Unsupported ActiveRun account version");
   const lifecycle = Object.keys(account.lifecycle)[0] ?? "unknown";
   const finishReason =
     account.finishReason === null
       ? null
       : (Object.keys(account.finishReason)[0] ?? null);
   const mode = Object.keys(account.mode)[0] ?? "unknown";
-  if (mode !== "campaign" && mode !== "daily") {
+  if (mode !== "daily") {
     throw new Error("ActiveRun mode is invalid");
   }
   const dailyPressure = CANONICAL_DAILY_PRESSURE;
   const mapId = Number(account.mapId);
-  const level = Number(account.level);
-  const rules = mapLevelRuleSnapshot(account.rules, mapId, level, mode);
+  const level = 1;
+  const rules = mapDailyRuleSnapshot(account.rules, mapId);
   const dailyTheme = {
     kind: Number(account.dailyTheme.kind),
     value: Number(account.dailyTheme.value),
@@ -927,9 +833,9 @@ export function reconcileRunFromChain(
     rerollCharges: Number(account.rerollCharges),
     comboCounter: Number(account.comboCounter),
     maxCombo: Number(account.maxCombo),
-    primaryProgress: Number(account.primaryProgress),
-    secondaryProgress: Number(account.secondaryProgress),
-    latchedStarSources: Number(account.latchedStarSources),
+    primaryProgress: 0,
+    secondaryProgress: 0,
+    latchedStarSources: 0,
     streak: Number(account.streak),
     chargesEarned: Number(account.chargesEarned),
     currentTier: Number(account.currentTier),
@@ -972,7 +878,6 @@ export function reconcileRunFromChain(
 
 function chainCorePhase(lifecycle: string): CoreRunPhase {
   if (lifecycle === "playing") return "playing";
-  if (lifecycle === "levelComplete") return "levelComplete";
   if (lifecycle === "finished") return "finished";
   if (
     lifecycle === "prepared" ||
@@ -988,7 +893,6 @@ function chainEndReason(
   lifecycle: string,
   finishReason: string | null,
 ): number {
-  if (lifecycle === "levelComplete" && finishReason === null) return 1;
   if (lifecycle !== "finished") return finishReason === null ? 0 : 255;
   if (finishReason === null) return 2;
   if (finishReason === "abandon") return 3;
@@ -1115,7 +1019,7 @@ export async function submitPreparedRunPlan(args: {
   owner: PublicKey;
   wallet: WalletLike;
   sessionSigner: Keypair;
-  mode?: "campaign" | "daily";
+  mode?: "daily";
 }): Promise<string> {
   const signature = await submitVersionedTransactionPlan({
     transactionPlan: args.preparedRun.transactionPlan,
@@ -1128,7 +1032,7 @@ export async function submitPreparedRunPlan(args: {
   saveRunSession({
     owner: args.owner,
     runId: args.preparedRun.runId,
-    mode: args.mode ?? "campaign",
+    mode: args.mode ?? "daily",
     session: args.sessionSigner,
     sessionToken: args.preparedRun.sessionToken,
     addresses: args.preparedRun.addresses,

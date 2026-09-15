@@ -12,7 +12,6 @@ const SERVICE_WORKER_VERSION_PLACEHOLDER = "__ZKUBE_BUILD_VERSION__";
 const HTTPS_CERT_PATH_ENV = "ZKUBE_HTTPS_CERT_PATH";
 const HTTPS_KEY_PATH_ENV = "ZKUBE_HTTPS_KEY_PATH";
 const DEV_PLAYTEST_ACTION_SENTINEL = "zkube_playtest_action_v1";
-const LOCAL_BACKEND_SENTINEL = "zkube_local_backend_v1";
 const PLAYTEST_BUILD_SENTINEL = "zkube_owner_playtest_v1";
 const SOLANA_BACKEND_SENTINEL = "zkube_solana_backend_v1";
 const MONEY_SURFACE_SENTINEL = "zkube_money_surface_v1";
@@ -21,7 +20,7 @@ type BuildTarget = "solana" | "store" | "playtest";
 const BUILD_TARGET_EXCLUSIONS: Readonly<
   Record<BuildTarget, readonly string[]>
 > = {
-  solana: [LOCAL_BACKEND_SENTINEL, PLAYTEST_BUILD_SENTINEL],
+  solana: [PLAYTEST_BUILD_SENTINEL],
   store: [
     SOLANA_BACKEND_SENTINEL,
     PLAYTEST_BUILD_SENTINEL,

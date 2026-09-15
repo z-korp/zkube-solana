@@ -9,6 +9,7 @@ import {
 
 import {
   coreCampaignMoveBudget,
+  coreMergeCampaignStars,
   coreApplyRunBonus,
   coreApplyRunVrf,
   coreBuildRunConfig,
@@ -28,6 +29,7 @@ import {
 } from "@/core/dailyRules";
 import {
   CAMPAIGN_TARGET_LADDER,
+  CATALOG_VERSION,
   DAILY_MAX_MOVES,
   PRESSURE_STEP,
   TIER_BLOCK_WEIGHTS,
@@ -76,9 +78,44 @@ import {
   localProductStorage,
   normalizeLocalName,
   type LocalProductState,
+  type LocalCampaignAction,
 } from "./localPersistence";
 import type { CampaignBilling, CampaignStoreAnswer } from "./storeBilling";
 export const LOCAL_BACKEND_SENTINEL = "zkube_local_backend_v1";
+
+export class LocalCampaignProgress extends Context.Tag("zkube/local/CampaignProgress")<
+  LocalCampaignProgress, {
+    read: () => LocalProductState;
+    changes: Stream.Stream<readonly number[]>;
+    merge: (chain: Uint8Array) => Effect.Effect<void, RunsRejected>;
+    acknowledge: (submitted: Uint8Array) => Effect.Effect<void, RunsRejected>;
+  }
+>() {}
+
+export function packCampaignStars(stars: readonly number[]): Uint8Array {
+  const packed = new Uint8Array(25);
+  for (let i = 0; i < 100; i++) packed[i >> 2] |= (stars[i] ?? 0) << ((i % 4) * 2);
+  return packed;
+}
+export function unpackCampaignStars(packed: Uint8Array): number[] {
+  return Array.from({ length: 100 }, (_, i) => (packed[i >> 2]! >> ((i % 4) * 2)) & 3);
+}
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && a.every((value, i) => value === b[i]);
+}
+function savedAction(action: RunAction): LocalCampaignAction {
+  return { kind: action._tag, row: "row" in action ? action.row : 0,
+    start: "start" in action ? action.start : "column" in action ? action.column : 0,
+    destination: "destination" in action ? action.destination : 0, reason: 3 };
+}
+function restoredAction(action: LocalCampaignAction): RunAction {
+  switch (action.kind) {
+    case "Move": return { _tag: "Move", row: action.row, start: action.start, destination: action.destination };
+    case "Bonus": return { _tag: "Bonus", row: action.row, column: action.start };
+    case "Reroll": return { _tag: "Reroll" };
+    case "Finish": return { _tag: "Finish", reason: "abandon" };
+  }
+}
 
 const LOCAL_WALLET: WalletChoice = {
   id: "local",
@@ -104,10 +141,12 @@ interface LocalRunRecord {
   state: Uint8Array;
   requestCounter: number;
   recorded: boolean;
+  actions: LocalCampaignAction[];
 }
 
 export interface LocalBackendOptions {
-  readonly target: "store" | "playtest";
+  readonly target: "store" | "playtest" | "money";
+  readonly owner?: string;
   readonly seed?: Uint8Array;
   readonly dailyVrfOutputs?: ReadonlyArray<Uint8Array>;
   readonly dailyConfig?: CoreRunConfigInput;
@@ -182,7 +221,7 @@ export async function localRowStream(args: {
 export function makeLocalBackendLive(
   options: LocalBackendOptions,
 ): Layer.Layer<
-  Identity | Session | Runs | Content | Boards | Economy | StoreEconomy
+  Identity | Session | Runs | Content | Boards | Economy | StoreEconomy | LocalCampaignProgress
 > {
   return Layer.scopedContext(
     Effect.gen(function* () {
@@ -191,7 +230,7 @@ export function makeLocalBackendLive(
         () => Effect.sync(() => options.onRuntimeStop?.()),
       );
 
-      const persistence = localProductStorage(options.storage);
+      const persistence = localProductStorage(options.storage, options.owner);
       const initialProduct = persistence.read();
       const identityRef = yield* SubscriptionRef.make<IdentityState>({
         status: "disconnected",
@@ -224,6 +263,31 @@ export function makeLocalBackendLive(
       };
       const records = new Map<string, LocalRunRecord>();
       let nextRunId = 1n;
+      let restoring = false;
+      const campaignGuard = yield* Effect.makeSemaphore(1);
+      const updateCampaign = (update: (current: LocalProductState) => LocalProductState) =>
+        Effect.tryPromise({ try: () => persistence.writeCampaign(update), catch: asRunsRejected }).pipe(
+          Effect.tap(product => SubscriptionRef.set(economyRef, localEconomy(product, options.target))),
+        );
+      const saveCampaign = (record: LocalRunRecord, terminal: boolean) => {
+        if (restoring) return Effect.void;
+        return updateCampaign(current => {
+          const next = { ...current };
+          if (terminal) {
+            const earned = countStarSources(coreRunSummary(record.state).latchedStarSources);
+            const index = (record.realm - 1) * 10 + record.level - 1;
+            next.stars = [...current.stars];
+            if (earned > next.stars[index]!) {
+              next.stars[index] = earned;
+              if (options.owner) next.campaignWritePending = true;
+            }
+            delete next.campaignRun;
+          } else next.campaignRun = { id: record.runId, catalogVersion: CATALOG_VERSION, realm: record.realm,
+            level: record.level, seed: [...record.seed], actions: record.actions };
+          return next;
+        }).pipe(Effect.asVoid);
+      };
+
 
       const refreshToday = (force = false) =>
         Effect.gen(function* () {
@@ -244,7 +308,7 @@ export function makeLocalBackendLive(
           const state = localStoreEconomy(product, options.target);
           yield* SubscriptionRef.set(storeEconomyRef, state);
           return state;
-        });
+        }).pipe(campaignGuard.withPermits(1));
 
       const queryCampaignStore = () => {
         if (options.target !== "store" || !options.campaignBilling) {
@@ -312,14 +376,11 @@ export function makeLocalBackendLive(
               ]).pipe(Effect.asVoid),
         disconnect: () =>
           SubscriptionRef.set(identityRef, { status: "disconnected" }),
-        setLabel: (label) => {
+        setLabel: (label) => Effect.gen(function* () {
           const normalized = normalizeLocalName(label);
           persistence.write((current) => ({ ...current, name: normalized }));
-          return SubscriptionRef.update(identityRef, (state) => ({
-            ...state,
-            label: normalized,
-          }));
-        },
+          yield* SubscriptionRef.update(identityRef, (state) => ({ ...state, label: normalized }));
+        }).pipe(campaignGuard.withPermits(1)),
         state: identityRef.changes,
       };
 
@@ -390,10 +451,12 @@ export function makeLocalBackendLive(
             requestCounter: 0,
             events: eventRef,
             recorded: false,
+            actions: [],
           };
-          records.set(runId, record);
           yield* SubscriptionRef.set(eventRef, { _tag: "Delegated" });
           yield* applyNextRow(record, options);
+          if (mode === "campaign") yield* saveCampaign(record, false);
+          records.set(runId, record);
           const view = runView(record);
           yield* SubscriptionRef.set(activeRefs[mode], view);
           return view;
@@ -402,6 +465,7 @@ export function makeLocalBackendLive(
       const runs: RunsService = {
         startCampaign: (realm, level) =>
           Effect.gen(function* () {
+            if (yield* SubscriptionRef.get(activeRefs.campaign)) return yield* Effect.fail(new RunsRejected({ message: "Resume the saved Campaign run first" }));
             const lock = localRealmLock(
               options.target,
               persistence.read(),
@@ -422,7 +486,7 @@ export function makeLocalBackendLive(
               catch: asRunsRejected,
             });
             return yield* start("campaign", realm, level, config);
-          }),
+          }).pipe(campaignGuard.withPermits(1)),
         enterDaily: () =>
           Effect.gen(function* () {
             yield* refreshToday();
@@ -472,10 +536,10 @@ export function makeLocalBackendLive(
               );
             }
             return view;
-          }),
+          }).pipe(campaignGuard.withPermits(1)),
         act: (runId, action) =>
           Effect.gen(function* () {
-            const record = records.get(runId);
+            let record = records.get(runId);
             if (!record) {
               return yield* Effect.fail(
                 new RunsUnavailable({
@@ -483,6 +547,7 @@ export function makeLocalBackendLive(
                 }),
               );
             }
+            if (record.mode === "campaign") record = { ...record, actions: [...record.actions] };
             const before = yield* Effect.try({
               try: () => coreRunSummary(record.state),
               catch: asRunsRejected,
@@ -497,10 +562,10 @@ export function makeLocalBackendLive(
               index: before.actionCounter,
               token: record.state,
             };
-            yield* SubscriptionRef.set(record.events, accepted);
+            if (record.mode !== "campaign") yield* SubscriptionRef.set(record.events, accepted);
             const afterAction = coreRunSummary(record.state);
             if (afterAction.phase === "awaitingVrf") {
-              if (action._tag === "Reroll") {
+              if (action._tag === "Reroll" && record.mode !== "campaign") {
                 yield* SubscriptionRef.set(record.events, {
                   _tag: "RerollPending",
                 });
@@ -522,6 +587,12 @@ export function makeLocalBackendLive(
             const summary = coreRunSummary(record.state);
             const terminal =
               summary.phase === "finished" || summary.phase === "levelComplete";
+            if (record.mode === "campaign") {
+              record.actions.push(savedAction(action));
+              yield* saveCampaign(record, terminal);
+              records.set(runId, record);
+              yield* SubscriptionRef.set(record.events, accepted);
+            }
             const view = runView(record);
             yield* SubscriptionRef.update(
               activeRefs[record.mode],
@@ -552,19 +623,6 @@ export function makeLocalBackendLive(
                       localEconomy(product, options.target),
                     );
                   }
-                } else {
-                  const earned = countStarSources(summary.latchedStarSources);
-                  const starIndex = (record.realm - 1) * 10 + record.level - 1;
-                  const product = persistence.write((current) => ({
-                    ...current,
-                    stars: current.stars.map((value, index) =>
-                      index === starIndex ? Math.max(value, earned) : value,
-                    ),
-                  }));
-                  yield* SubscriptionRef.set(
-                    economyRef,
-                    localEconomy(product, options.target),
-                  );
                 }
               }
               yield* SubscriptionRef.set(record.events, {
@@ -573,7 +631,7 @@ export function makeLocalBackendLive(
               });
             }
             return view;
-          }).pipe(Effect.mapError(asRunsRejected)),
+          }).pipe(Effect.mapError(asRunsRejected), campaignGuard.withPermits(1)),
         resume: (mode) => SubscriptionRef.get(activeRefs[mode]),
         spectate: (_address, mode) => SubscriptionRef.get(activeRefs[mode]),
         active: (mode) => SubscriptionRef.get(activeRefs[mode]),
@@ -587,6 +645,36 @@ export function makeLocalBackendLive(
                 }),
               );
         },
+      };
+
+      const saved = initialProduct.campaignRun;
+      if (saved) {
+        if (saved.catalogVersion !== CATALOG_VERSION) throw new Error("Saved Campaign catalog version is unsupported");
+        restoring = true;
+        nextRunId = BigInt(saved.id);
+        yield* start("campaign", saved.realm, saved.level, campaignConfig(catalog, saved.realm, saved.level),
+          Uint8Array.from(saved.seed)).pipe(Effect.orDie);
+        for (const action of saved.actions) yield* runs.act(saved.id, restoredAction(action)).pipe(Effect.orDie);
+        if (!(yield* SubscriptionRef.get(activeRefs.campaign))) throw new Error("Saved Campaign log contains a terminal action");
+        restoring = false;
+      }
+
+      const progress = {
+        read: persistence.read,
+        changes: economyRef.changes.pipe(Stream.map(value => value.profile.stars)),
+        merge: (chain: Uint8Array) => updateCampaign(current => {
+          const merged = coreMergeCampaignStars(packCampaignStars(current.stars), chain);
+          const next = { ...current, stars: unpackCampaignStars(merged) };
+          if (options.owner && !sameBytes(merged, chain)) next.campaignWritePending = true;
+          else delete next.campaignWritePending;
+          return next;
+        }).pipe(campaignGuard.withPermits(1), Effect.asVoid),
+        acknowledge: (submitted: Uint8Array) => updateCampaign(current => {
+          const next = { ...current };
+          if (options.owner && !sameBytes(packCampaignStars(current.stars), submitted)) next.campaignWritePending = true;
+          else delete next.campaignWritePending;
+          return next;
+        }).pipe(campaignGuard.withPermits(1), Effect.asVoid),
       };
 
       const content: ContentService = {
@@ -637,6 +725,7 @@ export function makeLocalBackendLive(
                 Effect.as(next),
               );
             }),
+            campaignGuard.withPermits(1),
           ),
         state: economyRef.changes,
       };
@@ -646,7 +735,7 @@ export function makeLocalBackendLive(
         price: null,
       };
       const storeEconomy: StoreEconomyService =
-        options.target === "playtest"
+        options.target !== "store"
           ? {
               unlockCampaign: () => Effect.succeed(fullCampaignState),
               restorePurchases: () => Effect.succeed(fullCampaignState),
@@ -689,6 +778,7 @@ export function makeLocalBackendLive(
             };
 
       return Context.mergeAll(
+        Context.make(LocalCampaignProgress, progress),
         Context.make(Identity, identity),
         Context.make(Session, session),
         Context.make(Runs, runs),
@@ -769,11 +859,9 @@ function applyNextRow(record: LocalRunRecord, options: LocalBackendOptions) {
     },
     catch: asRunsRejected,
   }).pipe(
-    Effect.andThen(
-      SubscriptionRef.set(record.events, {
-        _tag: "RowReady",
-      }),
-    ),
+    Effect.andThen(record.mode === "campaign" ? Effect.void :
+      SubscriptionRef.set(record.events, { _tag: "RowReady" })),
+
   );
 }
 
@@ -784,6 +872,8 @@ function runView(record: LocalRunRecord): RunView {
   return {
     mode: record.mode,
     runId: record.runId,
+    realm: record.realm,
+    level: record.level,
     token: record.state,
     phase: summary.phase,
     deadlineAt:
@@ -894,7 +984,7 @@ function defaultCatalog(
         realm: map.mapId,
         theme: map.mapId,
         locked:
-          target === "playtest"
+          target !== "store"
             ? null
             : map.mapId >= 4
               ? "purchase"
@@ -983,7 +1073,7 @@ function localStoreEconomy(
   product: LocalProductState,
   target: LocalBackendOptions["target"],
 ): StoreEconomyState {
-  return target === "playtest"
+  return target !== "store"
     ? { campaignOwned: true, price: null }
     : {
         campaignOwned: product.campaignOwned,
@@ -997,7 +1087,7 @@ function localRealmLock(
   realm: number,
 ): null | "stars" | "purchase" {
   if (target === "playtest") return null;
-  if (realm >= 4 && !product.campaignOwned) return "purchase";
+  if (target === "store" && realm >= 4 && !product.campaignOwned) return "purchase";
   if (realm > 1 && (product.stars[(realm - 1) * 10 - 1] ?? 0) === 0) {
     return "stars";
   }

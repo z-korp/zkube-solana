@@ -25,7 +25,6 @@ import {
   deriveArenaPlayerPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveMapCatalogPda,
   deriveOperatorRevenueVaultPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
@@ -39,13 +38,12 @@ import {
   type TransactionPlan,
 } from "@/backend/solana/runs/runPlan.js";
 import {
-  mapLevelRuleSnapshot,
+  mapDailyRuleSnapshot,
   type ActiveRunRulesView,
 } from "@/core/runProjection.js";
 import {
   currentDailyDayId,
   mapDailyPressureProfile,
-  dailyContentFromPairIndex,
   nextScheduledDaily,
   type DailyPressureProfileView,
   type DailyThemeView,
@@ -53,7 +51,6 @@ import {
 import { fetchPlayerLabels } from "../identity/playerLabelClient.js";
 import type { WalletLike } from "../session/sessionWallet.js";
 import {
-  coreDailyPairIndex,
   corePayoutForRank as payoutForRank,
 } from "@/core/zkubeCore";
 import { formatSolBalanceLamports } from "@/utils/currency";
@@ -252,11 +249,9 @@ export async function fetchDailyView(args: {
     })),
     scoreQualifiedPlayers: Number(challenge.scoreQualifiedPlayers),
     themeQualifiedPlayers: Number(challenge.themeQualifiedPlayers),
-    rules: mapLevelRuleSnapshot(
+    rules: mapDailyRuleSnapshot(
       challenge.rules,
       Number(challenge.mapId),
-      1,
-      "daily",
     ),
     dailyTheme: {
       kind: Number(challenge.dailyTheme.kind),
@@ -912,21 +907,12 @@ export async function buildOpenDailyChallengePlan(args: {
   const dayId = args.dayId ?? currentDailyDayId();
   const challenge = deriveArenaDailyPda(dayId);
   const program = zkubeProgram(args.connection, args.wallet);
-  const protocol = await program.account.protocolConfig.fetch(
-    deriveProtocolConfigPda(),
-  );
-  const content = dailyContentFromPairIndex(
-    dayId,
-    await coreDailyPairIndex(dayId),
-  );
-  const contentVersion = Number(protocol.contentVersion);
   const instruction = await program.methods
     .prepareArenaDaily(dayId)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
       arcadeArchive: deriveArcadeArchivePda(),
-      realmMapCatalog: deriveMapCatalogPda(contentVersion, content.realmMapId),
       arenaDaily: challenge,
       payer: args.payer ?? args.wallet.publicKey,
       caller: args.wallet.publicKey,

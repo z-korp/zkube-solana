@@ -1,4 +1,4 @@
-/** Offline Campaign and Daily trajectories: native transitions and actual TS wire plans. */
+/** Offline Daily trajectory: native transitions and actual TS wire plans. */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -10,7 +10,7 @@ import { generateAccountFixtures } from "./account-fixtures";
 import { repositoryRoot } from "./solana-fixtures";
 import { IDL } from "../../src/backend/solana/idl";
 import { ZKUBE_PROGRAM_ID } from "../../src/backend/solana/constants";
-import { deriveRunAddresses, derivePlayerStatePda, deriveArenaDailyPda, deriveArenaPlayerPda } from "../../src/backend/solana/pdas";
+import { deriveRunAddresses, deriveArenaDailyPda, deriveArenaPlayerPda } from "../../src/backend/solana/pdas";
 import { fetchCampaignView } from "../../src/backend/solana/content/campaignClient";
 import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
 import { deriveSessionTokenV2Pda } from "../../src/backend/solana/session/sessionV2";
@@ -27,11 +27,11 @@ type Gesture = { kind: "move"; row: number; start: number; destination: number }
   { kind: "bonus"; row: number; column: number } | { kind: "reroll" };
 const bytes = (value: Uint8Array) => Buffer.from(value).toString("base64");
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
-export const moneyPlayableFixturePath = resolve(repositoryRoot, "fixtures/unity-money-playable-v1.json");
 export const moneyDailyPlayableFixturePath = resolve(repositoryRoot, "fixtures/unity-money-daily-playable-v1.json");
 export const moneyPlayableDataPath = resolve(repositoryRoot, "unity/Assets/ZKube/Integration/App/Evidence/MoneyPlayableEvidenceData.g.cs");
 
-export async function generateMoneyPlayableFixtures(mode: "campaign" | "daily" = "campaign") {
+export async function generateMoneyPlayableFixtures() {
+  const mode = "daily";
   const overview = JSON.parse(readFileSync(resolve(repositoryRoot, "fixtures/unity-money-overview-v1.json"), "utf8"));
   const plans = JSON.parse(readFileSync(resolve(repositoryRoot, "fixtures/unity-plans-v1.json"), "utf8"));
   const rpc = JSON.parse(readFileSync(resolve(repositoryRoot, "fixtures/unity-rpc-v1.json"), "utf8"));
@@ -43,7 +43,7 @@ export async function generateMoneyPlayableFixtures(mode: "campaign" | "daily" =
   const template = accountRows.find(row => row.id === `active-${mode}-prepared`)!;
   const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
   const activeFields = coder.decode("activeRun", Buffer.from(template.data, "base64"));
-  const day = Math.floor(now / 86400), challenge = mode === "daily" ? deriveArenaDailyPda(day) : PublicKey.default;
+  const day = Math.floor(now / 86400), challenge = deriveArenaDailyPda(day);
   let config = decodeActiveRunAccount(Buffer.from(template.data, "base64"), ZKUBE_PROGRAM_ID).runToken!.config;
   if (mode === "daily") {
     const publication = native.dailyRulesPublications.find((row: { day: number }) => row.day === day);
@@ -110,7 +110,7 @@ export async function generateMoneyPlayableFixtures(mode: "campaign" | "daily" =
   await record({ kind: "requestVrf" }, opening);
 
   async function resolveVrf() {
-    const output = Buffer.alloc(32, (mode === "daily" ? 9 : 7) + requestCounter);
+    const output = Buffer.alloc(32, 9 + requestCounter);
     state = coreApplyRunVrf({ config, state, requestCounter, vrfOutput: output });
     await record({ kind: "oracleVrf", requestCounter, output: bytes(output) }, null);
   }
@@ -138,7 +138,7 @@ export async function generateMoneyPlayableFixtures(mode: "campaign" | "daily" =
   let usedBonus = false;
   const scoreCandidate = (next: ReturnType<typeof coreRunSummary>) => {
     const height = Math.ceil((next.grid.reduce((last, value, index) => value ? index : last, -1) + 1) / 8);
-    return next.latchedStarSources * 100000 + next.score * 100 + (mode === "daily" ? Number(next.objectiveTotal) * 50 : 0) - height * 10 - next.grid.filter(Boolean).length;
+    return next.latchedStarSources * 100000 + next.score * 100 + Number(next.objectiveTotal) * 50 - height * 10 - next.grid.filter(Boolean).length;
   };
   for (let turn = 0; turn < 110 && coreRunSummary(state).phase === "playing"; turn++) {
     const summary = coreRunSummary(state);
@@ -171,28 +171,24 @@ export async function generateMoneyPlayableFixtures(mode: "campaign" | "daily" =
   const consume = wire(await buildFinalizeRunPlan({ wallet, owner: owner.publicKey, sessionToken, runId, addresses,
     mode, dailyChallenge: challenge, connection: er }), true);
   const background: Envelope[] = overview.scenarios.find((row: { id: string }) => row.id === "owner-overview").baseAccounts;
-  const playerTemplate: Envelope = mode === "daily" ? plans.accounts.player :
-    background.find(row => row.address === derivePlayerStatePda(owner.publicKey).toBase58())!;
+  const playerTemplate: Envelope = plans.accounts.player;
   const playerFields = coder.decode("playerState", Buffer.from(playerTemplate.data, "base64"));
-  Object.assign(playerFields, { activeRunId: new BN(0), campaignActiveRunId: new BN(runId.toString()),
+  Object.assign(playerFields, { activeRunId: new BN(0),
     nextRunId: new BN((runId + 1n).toString()), campaignStars: Array(25).fill(0) });
   const encode = async (name: string, fields: object, original: Envelope): Promise<Envelope> => {
     const data = Buffer.alloc(coder.size(name)); (await coder.encode(name, fields)).copy(data);
     return { ...original, data: data.toString("base64") };
   };
   const player = () => encode("playerState", playerFields, playerTemplate);
-  if (mode === "daily") Object.assign(playerFields, { campaignActiveRunId: new BN(0), nextRunId: new BN(runId.toString()),
-    activeRunDaily: PublicKey.default, activeRunMode: { campaign: {} }, activeRunDeadlineAt: new BN(0),
+  if (mode === "daily") Object.assign(playerFields, { nextRunId: new BN(runId.toString()),
+    activeRunDaily: PublicKey.default, activeRunMode: { daily: {} }, activeRunDeadlineAt: new BN(0),
     lastEntryDayId: 0, entryStreakDays: 0 });
   const playerBefore = await player();
   const baseAccounts: Array<Envelope & { lamports?: number }> = [...background.filter(row => row.address !== playerTemplate.address), playerBefore, plans.accounts.session,
     { address: device.publicKey.toBase58(), owner: PublicKey.default.toBase58(), executable: false, data: "", lamports: 20000000 }];
   const entryAccounts: Envelope[] = [], resultAccounts: Envelope[] = [];
   let dailyResult: { score: number; theme: string; qualifyingPoints: number; followingContribution: string; kreditsBefore: string; kreditsAfter: string; streakAfter: number } | null = null;
-  if (mode === "campaign") {
-    if (terminal.latchedStarSources !== 7) throw new Error("This consumption fixture requires all three native star sources");
-    playerFields.campaignActiveRunId = new BN(0); playerFields.campaignStars[0] = 3;
-  } else {
+  {
     if (!usedBonus || terminal.dailyScore <= 0 || terminal.objectiveTotal <= 0n)
       throw new Error("Daily evidence requires earned guardian use and both qualifying metrics");
     const currentTemplate = plans.accounts.daily as Envelope, followingTemplate = plans.accounts.following as Envelope;
@@ -261,7 +257,7 @@ export async function generateMoneyPlayableFixtures(mode: "campaign" | "daily" =
     playerFields.highestLadderTier = Math.max(playerFields.highestLadderTier, coreLadderTier(BigInt(playerFields.ladderPoints.toString())));
     playerFields.bestDailyScore = Math.max(playerFields.bestDailyScore, terminal.dailyScore);
     Object.assign(playerFields, { activeRunId: new BN(0), activeRunDaily: PublicKey.default,
-      activeRunMode: { campaign: {} }, activeRunDeadlineAt: new BN(0) });
+      activeRunMode: { daily: {} }, activeRunDeadlineAt: new BN(0) });
     dailyResult = { score: terminal.dailyScore, theme: terminal.objectiveTotal.toString(), qualifyingPoints,
       followingContribution: ENTRY_DAILY_LAMPORTS.toString(), kreditsBefore, kreditsAfter: playerFields.kreditBalance.toString(), streakAfter: playerFields.entryStreakDays };
   }
@@ -299,7 +295,7 @@ export async function generateMoneyPlayableFixtures(mode: "campaign" | "daily" =
   return { ...body, sourceSha256: hash(JSON.stringify(body)) };
 }
 
-export function generatedMoneyPlayableData(value: Awaited<ReturnType<typeof generateMoneyPlayableFixtures>>, daily: Awaited<ReturnType<typeof generateMoneyPlayableFixtures>>) {
+export function generatedMoneyPlayableData(daily: Awaited<ReturnType<typeof generateMoneyPlayableFixtures>>) {
   const property = (name: string, data: unknown) => `        internal static string ${name} => System.Text.Encoding.UTF8.GetString(System.Convert.FromBase64String("${Buffer.from(JSON.stringify(data)).toString("base64")}"));\n`;
-  return "// Generated offline evidence only. Excluded from production and Store.\n#if (UNITY_EDITOR || ZKUBE_EVIDENCE) && !ZKUBE_STORE\nnamespace ZKube.Integration.App.Evidence\n{\n    internal static class MoneyPlayableEvidenceData\n    {\n" + property("Json", value) + property("DailyJson", daily) + "    }\n}\n#endif\n";
+  return "// Generated offline evidence only. Excluded from production and Store.\n#if (UNITY_EDITOR || ZKUBE_EVIDENCE) && !ZKUBE_STORE\nnamespace ZKube.Integration.App.Evidence\n{\n    internal static class MoneyPlayableEvidenceData\n    {\n" + property("DailyJson", daily) + "    }\n}\n#endif\n";
 }

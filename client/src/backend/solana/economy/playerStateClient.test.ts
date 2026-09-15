@@ -39,19 +39,18 @@ const OFFSET = {
   lifetimePaidEntries: 132,
   scoreRecord: 140,
   themeRecord: 158,
-  campaignActiveRunId: 176,
-  kreditBalance: 184,
-  ladderPoints: 192,
-  highestLadderTier: 200,
-  featuredFrameTier: 201,
-  bestDailyScore: 202,
-  lastEntryDayId: 206,
-  entryStreakDays: 210,
-  reserved: 212,
-  bump: 230,
+  kreditBalance: 176,
+  ladderPoints: 184,
+  highestLadderTier: 192,
+  featuredFrameTier: 193,
+  bestDailyScore: 194,
+  lastEntryDayId: 198,
+  entryStreakDays: 202,
+  reserved: 204,
+  bump: 222,
 } as const;
 
-const PLAYER_STATE_SIZE = 231;
+const PLAYER_STATE_SIZE = 223;
 
 function program() {
   return zkubeProgram(
@@ -94,7 +93,6 @@ function playerStateBuffer(
   data.writeUInt8(0, OFFSET.activeRunMode);
   data.writeBigInt64LE(0n, OFFSET.activeRunDeadlineAt);
   data.writeBigUInt64LE(0n, OFFSET.orphanRunId);
-  data.writeBigUInt64LE(0n, OFFSET.campaignActiveRunId);
   campaignStars.forEach((byte, index) => {
     data[OFFSET.campaignStars + index] = byte;
   });

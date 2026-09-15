@@ -95,7 +95,7 @@ describe("run session persistence", () => {
     const marker = {
       owner,
       runId: 17n,
-      mode: "campaign" as const,
+      mode: "daily" as const,
       session,
       sessionToken: deriveSessionTokenV2Pda({
         authority: owner,
@@ -106,7 +106,7 @@ describe("run session persistence", () => {
       createdAt: 1_000,
     };
     saveRunSession(marker, storage);
-    const restored = loadRunSession(owner, "campaign", { storage });
+    const restored = loadRunSession(owner, "arcade", { storage });
     expect(restored?.runId).toBe(17n);
     expect(restored?.session.publicKey.equals(session.publicKey)).toBe(true);
     expect(
@@ -116,7 +116,7 @@ describe("run session persistence", () => {
     expect(isRunSessionFresh(marker, 1_939)).toBe(true);
     expect(isRunSessionFresh(marker, 1_940)).toBe(false);
     expect(isRunSessionFresh(marker, 2_100)).toBe(false);
-    expect(loadRunSession(owner, "campaign", { storage })?.runId).toBe(17n);
+    expect(loadRunSession(owner, "arcade", { storage })?.runId).toBe(17n);
     expect(storage.getItem(RUN_SESSION_STORAGE_KEY)).not.toBeNull();
   });
 
@@ -163,7 +163,7 @@ describe("run session persistence", () => {
         {
           owner,
           runId: 1n,
-          mode: "campaign",
+          mode: "daily",
           session,
           sessionToken: deriveSessionTokenV2Pda({
             authority: owner,
@@ -177,41 +177,10 @@ describe("run session persistence", () => {
       );
     }
     clearRunSession(first.publicKey, undefined, storage);
-    expect(loadRunSession(first.publicKey, "campaign", { storage })).toBeNull();
+    expect(loadRunSession(first.publicKey, "arcade", { storage })).toBeNull();
     expect(
-      loadRunSession(second.publicKey, "campaign", { storage }),
+      loadRunSession(second.publicKey, "arcade", { storage }),
     ).not.toBeNull();
   });
 
-  it("keeps one Campaign marker and one Arcade marker for the same owner", () => {
-    const storage = new MemoryStorage();
-    const owner = Keypair.generate().publicKey;
-    for (const [runId, mode] of [
-      [31n, "campaign"],
-      [32n, "daily"],
-    ] as const) {
-      const session = Keypair.generate();
-      saveRunSession(
-        {
-          owner,
-          runId,
-          mode,
-          session,
-          sessionToken: deriveSessionTokenV2Pda({
-            authority: owner,
-            sessionSigner: session.publicKey,
-          }).sessionToken,
-          addresses: deriveRunAddresses(owner, runId),
-          validUntil: 5_000,
-          createdAt: 1_000,
-        },
-        storage,
-      );
-    }
-    expect(loadRunSession(owner, "campaign", { storage })?.runId).toBe(31n);
-    expect(loadRunSession(owner, "arcade", { storage })?.runId).toBe(32n);
-    clearRunSession(owner, "campaign", storage);
-    expect(loadRunSession(owner, "campaign", { storage })).toBeNull();
-    expect(loadRunSession(owner, "arcade", { storage })?.runId).toBe(32n);
-  });
 });

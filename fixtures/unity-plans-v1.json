@@ -1,23 +1,23 @@
 {
   "schemaVersion": 1,
   "sourceHashes": {
-    "client/src/backend/solana/economy/playerStateClient.ts": "1a3d560fc06c814c99de3158eb3b4f98d7dc081c99fa89b008c00011cfe39352",
+    "client/src/backend/solana/economy/playerStateClient.ts": "f5a5e538245f9c8578980aa5aae96a50880cde6455d29c67427a197414af4af0",
     "client/src/config/emblems.ts": "f6ec96c27762ee7c7c71349fac3bae2e52cf8f8824b60e9d3ace92626e7d6d33",
     "client/src/config/ladderTiers.ts": "0513cd79cd4ebb58d1e737bc02315f619a03db8222d0d2b8fba1c87b2f9b383f",
-    "client/tools/unity/planner-fixtures.ts": "faa049af019e5c6c2cfc1203112274dbee44b932100f538759121600f16aaa78",
+    "client/tools/unity/planner-fixtures.ts": "ccc4d0f4592ba4a976cb104126da1c26130f55592150b2d3851475921a2420e0",
     "fixtures/native-run-trajectories.json": "5e66be2c363450756ec546fb73192ab802685b40f40d3dc103946eb719afc87c",
     "client/src/core/dailyRules.ts": "304b13cc5654692ce7472fcca3c905cd487562121e1a10244a8cda448f40f738",
     "client/src/core/dailyRules.generated.ts": "b27d9d38d37d120b6d403d664ea2b054139139a5794a8847380cc6ddbfe34bf6",
     "client/src/core/campaignCatalog.ts": "b54a33d3fb379d8a175d22038fff5989475a4f20b23ab34ede4db0bfb7d152b5",
-    "client/src/core/protocolVersions.generated.ts": "a736199c1302400a41517440253eeeee6dc59751271bcf869e4fb3997098491e",
-    "client/src/core/generated/zkube_core_bg.wasm": "7ea84ca560ce7c792bd95d53164c6bcf354cd406d8437b413065e94fc6280f06",
-    "client/src/backend/solana/runs/runPlan.ts": "c82fd00cb49594590afdd0211ffa44f6ff852b1b593b1602cf83ab2abf5087be",
-    "client/src/backend/solana/content/dailyClient.ts": "1a3fa3803bd01f2ca58d2014fa2e50d752457f241b723dd98c8b4cb9bb833eef",
+    "client/src/core/protocolVersions.generated.ts": "c4aa8677559bc7a97f4989e842346b3707aa9840321fdaa60bb988c6c7c0e002",
+    "client/src/core/generated/zkube_core_bg.wasm": "6085fce2ce86e89e51a33e039ad6291d477c0f97be07de9170fa1f819e789d06",
+    "client/src/backend/solana/runs/runPlan.ts": "448edcedd77b9f81d14e7b3355b0f472068ba67fe6d39be5aa8c567c4d95f06f",
+    "client/src/backend/solana/content/dailyClient.ts": "a162d33df8f5b2f8da8a0858164c381988d2a135e9c33c112082179b995fd368",
     "client/src/backend/solana/SolanaIdentitySessionLive.ts": "6bee3d223049901666799a255812aafdaa94dc993524143256befdf0842886a9",
     "client/src/backend/solana/session/deviceSessionFunding.ts": "614efc8d5ffe6c4cfb4f0a83a5e2716688787b0abaabd0ad60a26f634341f4c1",
     "client/src/backend/solana/session/deviceSessionLifecycle.ts": "819966f1d3b8cdad9c36dacb615f51cff68d3f4114273ca23bab20dae0b4472c",
     "client/src/backend/solana/session/sessionCleanup.ts": "a8849089b3fb2971ac57805520699d0142ec41e344486b735575901f34700178",
-    "client/src/backend/solana/idl/solana.json": "56e545db6576cefb59d2aa04722671f944c7f0ecf058a5b08bc891cb29678540"
+    "client/src/backend/solana/idl/solana.json": "7a22ac80ee1857ea3645f5193536d89259626ffb33db94aba0f648897fd692ee"
   },
   "inputs": {
     "owner": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
@@ -33,37 +33,37 @@
       "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "z1v6HJiz19EBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAACgAA"
+      "data": "z1v6HJiz19ECAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
     },
     "arcade": {
       "address": "88rXTK8ePfD194tyi4QAseLHvcLvhAAVuarRStf73KwU",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "SEhVQbn2fWAB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
+      "data": "SEhVQbn2fWAC4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHEAAAAAAeBQAAAA"
     },
     "credit": {
       "address": "12LgFrXj8kFhTzrrs9CRy9CCAeX4Wxhf9Dti6JPspgXn",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "j7SH+FRVt0YB4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
+      "data": "j7SH+FRVt0YC4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHFAOmkNAAAAAAAAAAAAAAAAAA=="
     },
     "daily": {
       "address": "2ppy8hWZk9uf5otAu6QQBgLvSMaZCbxgsSBiyTjTXm3w",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "5J15UvYZWdgB4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBAAAAAAMDAAUKAgEBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      "data": "5J15UvYZWdgC4VAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAQADAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgHEgMBBAMABGQAgKGgagAAAADE8qFqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     },
     "following": {
       "address": "D1rky8awHW3kS2ENn3hzQhvA9P52ZHGFAkfQQX8UoVhH",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "5J15UvYZWdgB4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgIBAAAAAAQDAAUJAwECAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      "data": "5J15UvYZWdgC4lAAAGoE31ARQJtFt/eOVC6A7dVZwpBRKvmAGKUL6Sqy4YyPAAADAAAAmJD9fHqjuz+9dq2u4hzWf7hQ7OG1mYA26Sl+eUqFEC8IAgICAQMABmQAAPOhagAAAABERKNqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     },
     "player": {
       "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      "data": "OAM8Vq4Q9MMCiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
     },
     "session": {
       "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
@@ -79,31 +79,19 @@
     }
   },
   "runs": {
-    "campaign": {
-      "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-      "executable": false,
-      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAAAAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAQEBCgAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAACaZ6n9kcKvEaYVfxboHO2XVxbIJq3fq/yk/oGnKVbXuAAAAAAAAAAAAAA=="
-    },
     "daily": {
       "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlBscOOo1Dkh8ezDVDy+MSmCKaAed/+N9H98081Q+rVLqAQAAAAAAIAABAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMTyoWoAAAAAAQEBAAAAAAADAAYJAgEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQEBAQAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAABAgAAAAAAAAAAAAAAAAAAAAMAAQABAAAAAAAAAGxlhkoI7T6jEgO9bludWRhHaVrVkBfFR3lNL9hqhWUtAAAAAAAAAAAAAA=="
+      "data": "EtVxKSwB9+kCiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlBscOOo1Dkh8ezDVDy+MSmCKaAed/+N9H98081Q+rVLqAQAAAAAAIAAAAwAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBMTyoWoAAAAAAQMBAgAEAgIAAwMDAAEAAgIBAgICAgICAQACAgICAwMDAwMDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBAQEBAABAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAECAAAAAAAAAAAAAAAAAwABAAEAAAAAAAAAbGWGSgjtPqMSA71uW51ZGEdpWtWQF8VHeU0v2GqFZS0AAAAAAAAAAAAA"
     }
   },
   "terminalRuns": {
-    "campaign": {
-      "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-      "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-      "executable": false,
-      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAIAAABQEABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQAAAAAAAAAAAEBAQoAAAAAAwAGCQIBAwECAAQCAgADAwMAAQACAgECAgICAgIBAAICAgIDAwMDAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAEAAQAAAAAAAABTPW8FYLp+qR2I3ILMI0Ebj49iY/MRynHzL8BiTM6Vj4ChoGoAAAAAAA=="
-    },
     "daily": {
       "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
       "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
       "executable": false,
-      "data": "EtVxKSwB9+kBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlBscOOo1Dkh8ezDVDy+MSmCKaAed/+N9H98081Q+rVLqAQAAAAAAIAABBQEABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBATE8qFqAAAAAAEBAQAAAAAAAwAGCQIBAwECAAQCAgADAwMAAQACAgECAgICAgIBAAICAgIDAwMDAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQIAAAAAAAAAAAAAAAAAAAADAAEAAQAAAAAAAAARfBx0KJyfRizy5p69QJZeMpJ8wRcCBKPVm5TGqFEiXIChoGoAAAAAAA=="
+      "data": "EtVxKSwB9+kCiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1yBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlBscOOo1Dkh8ezDVDy+MSmCKaAed/+N9H98081Q+rVLqAQAAAAAAIAAABAEABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBATE8qFqAAAAAAEDAQIABAICAAMDAwABAAICAQICAgICAgEAAgICAgMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAgAAAAAAAAAAAAAAAAMAAQABAAAAAAAAABF8HHQonJ9GLPLmnr1All4yknzBFwIEo9WblMaoUSJcgKGgagAAAAAA"
     }
   },
   "boards": [
@@ -115,7 +103,7 @@
         "address": "EDzzbKLtg4VPXzw8ReHA94RuHekVZkhT7tuv3rrYbxRw",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "HAPRGpLX2GkB5lO7Q7LKB/eCE44uB9Qch3LPWcobbhHdzaNzehlf25PeUAAAAQEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAFUoKBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
+        "data": "HAPRGpLX2GkC5lO7Q7LKB/eCE44uB9Qch3LPWcobbhHdzaNzehlf25PeUAAAAQEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAFUoKBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
       }
     },
     {
@@ -126,7 +114,7 @@
         "address": "3zCUu6v9uDnC8H367Ri95eRvv5LcDH9iuB8LKFMQopev",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "HAPRGpLX2GkBCSJQyL7c/L+rMTEtlnRlfRuUrDkft42yxEpNYqm+d6nfUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAG4oKBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
+        "data": "HAPRGpLX2GkCCSJQyL7c/L+rMTEtlnRlfRuUrDkft42yxEpNYqm+d6nfUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAG4oKBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
       }
     },
     {
@@ -137,7 +125,7 @@
         "address": "899HxtyudFR69mUP8L8WhaqTbcAqAinkcGMWTSsDbXEh",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "HAPRGpLX2GkBamnMsseajPLym6MsFWyV0FYU6rPnuNOmUB5BSq/XFK/gUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAEcoaBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
+        "data": "HAPRGpLX2GkCamnMsseajPLym6MsFWyV0FYU6rPnuNOmUB5BSq/XFK/gUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAEcoaBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
       }
     },
     {
@@ -148,7 +136,7 @@
         "address": "3rNgCM3dNhoW9Sw761mXSeTZBZ8HHdwsEeki6oPTD3P9",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "HAPRGpLX2GkBNarRAjDv+8VohqPUuTngKM4oVOzSy4y8KcWyl8FAq3jdUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAHwn6BqAAAAAADKmjsAAAAAAQAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcB"
+        "data": "HAPRGpLX2GkCNarRAjDv+8VohqPUuTngKM4oVOzSy4y8KcWyl8FAq3jdUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAHwn6BqAAAAAADKmjsAAAAAAQAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcB"
       }
     },
     {
@@ -159,7 +147,7 @@
         "address": "FUmuCp8pzSN1QCJ9d2fbhJ3BsrFdmvHw5tHSm3SeDKUo",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "HAPRGpLX2GkBRLPNI2B+HfAQGAhikZkNSVfzHOj2j1Ihvd9J/QQjS4zcUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAF/FHlqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
+        "data": "HAPRGpLX2GkCRLPNI2B+HfAQGAhikZkNSVfzHOj2j1Ihvd9J/QQjS4zcUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAF/FHlqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
       }
     },
     {
@@ -170,7 +158,7 @@
         "address": "474jg5wh9Nm4jgXn3HkD5hjEbB3AMB7vFTZLrUrzDo1H",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "HAPRGpLX2GkB7vcTQ+790NX70D8QHLRb/VQVDi2RYeGSy6krXeloxALbUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
+        "data": "HAPRGpLX2GkC7vcTQ+790NX70D8QHLRb/VQVDi2RYeGSy6krXeloxALbUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
       }
     },
     {
@@ -181,7 +169,7 @@
         "address": "8Z42BXLQQWQ6AcPWfuF6gCvF5W4FTbjNKY8JkM5q6Bb7",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "HAPRGpLX2GkBWevBgt5J45FHMnYmt7qO0D0jBp6F5FMisWh9UGYR5EXaUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAHEnqBqAAAAAAAAAAAAAAAAAAAAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
+        "data": "HAPRGpLX2GkCWevBgt5J45FHMnYmt7qO0D0jBp6F5FMisWh9UGYR5EXaUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAHEnqBqAAAAAAAAAAAAAAAAAAAAAAADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
       }
     },
     {
@@ -198,7 +186,7 @@
         "address": "2azH2wAykFbKU5w4ESwVjvoqU71MwH7NAQfJsBZVKmLx",
         "owner": "11111111111111111111111111111111",
         "executable": false,
-        "data": "HAPRGpLX2GkBxUh097XK35UJ1Fd1Y+beeB7SBWfQFvcCHwWBT5ANIEfYUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAH8naBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
+        "data": "HAPRGpLX2GkCxUh097XK35UJ1Fd1Y+beeB7SBWfQFvcCHwWBT5ANIEfYUAAAAAEAAAABAAAAAQAAAP//////////AAAAAAAAAAAAypo7AAAAAADKmjsAAAAAAAAAAAAAAAAAAQAAAAH8naBqAAAAAAAAAAAAAAAAAAAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAEAAAABAAAAAAAAAByhoGoAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcA"
       }
     }
   ],
@@ -3834,84 +3822,37 @@
       }
     },
     {
-      "id": "campaign-prepare",
+      "id": "campaign-record-false",
       "input": {
-        "operation": "campaign",
-        "map": 8,
-        "level": 3
-      },
-      "expected": {
-        "route": "solana-base",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": true,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
+        "operation": "recordCampaignStars",
+        "stars": [
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228
         ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "xGLqp22Rnl4BAAAAAAAgAAgD",
-            "accounts": [
-              {
-                "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "CiuGDo9U58iZYEtdVJzTNhX4dkswGnWWnAA9HUNNmWWn",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": false
-              },
-              {
-                "address": "11111111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "gAEABwqBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlPZe+C6tuhRbQ5BNpTQcYwp6XcfsGdVfeMxUyinDuxJAEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPIDBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbg4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHGuLHZxxtJW2JA1kEKGGYQSRpyHyPV0Ngy32cDu/ZuZ44qI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cwr9Xsg5hUgxbFL06hAxJciO8d5XA/9mRvo1U2wcAmsIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJAwMABQKAGgYAAwAJA+gDAAAAAAAABAkFAQYCAAcIAAkSxGLqp22Rnl4BAAAAAAAgAAgDAA=="
-      }
-    },
-    {
-      "id": "campaign-prepare-delegate",
-      "input": {
-        "operation": "campaign",
-        "map": 8,
-        "level": 3,
-        "delegate": true
+        "ownerSigner": false
       },
       "expected": {
         "route": "solana-base",
@@ -3925,34 +3866,14 @@
         "instructions": [
           {
             "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "xGLqp22Rnl4BAAAAAAAgAAgD",
+            "data": "bpaAD/GRyGDk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk",
             "accounts": [
-              {
-                "address": "G6AsmU4mmifT5RB25SbMEwJ8m6oT3PFky9hGwRKSbAPJ",
-                "signer": false,
-                "writable": false
-              },
               {
                 "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
                 "signer": false,
                 "writable": true
               },
               {
-                "address": "CiuGDo9U58iZYEtdVJzTNhX4dkswGnWWnAA9HUNNmWWn",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": true
-              },
-              {
                 "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
                 "signer": false,
                 "writable": false
@@ -3965,58 +3886,68 @@
               {
                 "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
                 "signer": true,
-                "writable": false
-              },
-              {
-                "address": "11111111111111111111111111111111",
-                "signer": false,
                 "writable": false
               }
             ]
-          },
+          }
+        ],
+        "message": "gAEABAaBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlPZe+C6tuhRbQ5BNpTQcYwp6XcfsGdVfeMxUyinDuxJAAwZGb+UhFzL/7K26csOb57yM5bvF9xJrLEObOkAAAADA79+9gVrd9CuvZ0r6UNjet2t6EcKiYXkoXN8wkfrW4IqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cwr9Xsg5hUgxbFL06hAxJciO8d5XA/9mRvo1U2wcAmsIJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQMCAAUCgBoGAAIACQPoAwAAAAAAAAMEAQQFACFuloAP8ZHIYOTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OQA"
+      }
+    },
+    {
+      "id": "campaign-record-true",
+      "input": {
+        "operation": "recordCampaignStars",
+        "stars": [
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228,
+          228
+        ],
+        "ownerSigner": true
+      },
+      "expected": {
+        "route": "solana-base",
+        "feePayer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+        "ownerRequired": true,
+        "versionZero": true,
+        "deviceSigners": [],
+        "reserve": 5000,
+        "instructions": [
           {
             "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "2+7dz3fZAmM=",
+            "data": "bpaAD/GRyGDk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk",
             "accounts": [
               {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
+                "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
+                "signer": false,
                 "writable": true
               },
               {
                 "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
                 "signer": false,
                 "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": false
-              },
-              {
-                "address": "DN2eDnUubgh51X2MGJ4W6ATq2GYb8aEJtu676PWPdkm5",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "98PGnq7m5oG2j3RjC9XFt1BT4Bb46AEouqf6oXbZBgnZ",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "2KtPCvLiiGmWZzQzybzPDknm9fQGtrQK3SFtaZD7k2gJ",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
               },
               {
                 "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
@@ -4024,24 +3955,14 @@
                 "writable": false
               },
               {
-                "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "11111111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
-                "signer": false,
+                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+                "signer": true,
                 "writable": false
               }
             ]
           }
         ],
-        "message": "gAEACQ+BOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlPZe+C6tuhRbQ5BNpTQcYwp6XcfsGdVfeMxUyinDuxJAEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPK3r0viEkPf15O3FYvpvhTHu1w9h9oopFyrnqafecVdKHjBvo/D5DIDmPCtIu4twtYk9WZWvi/jOykbcWOgjZEeE7I9gixm65ELlDIJ00GbtmLqsrC+XJ4rr+f+nvnewiMDBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbg4DJfvBUmnxk7fLakM/PmIBFU3CdiSKKxz4wBvjt/PHGuLHZxxtJW2JA1kEKGGYQSRpyHyPV0Ngy32cDu/ZuZ44qI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cwr9Xsg5hUgxbFL06hAxJciO8d5XA/9mRvo1U2wcAmsIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALW3AOHyVzrAzAYiATRKz5e4NQbrjOUZmMxifhiTgKc+AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQQGAAUCgBoGAAYACQPoAwAAAAAAAAcJCAEJAgAKCwAMEsRi6qdtkZ5eAQAAAAAAIAAIAwcMAAoLAAMEBQIHDQwOCNvu3c932QJjAA=="
+        "message": "gAEAAgSKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXPZe+C6tuhRbQ5BNpTQcYwp6XcfsGdVfeMxUyinDuxJAAwZGb+UhFzL/7K26csOb57yM5bvF9xJrLEObOkAAAADA79+9gVrd9CuvZ0r6UNjet2t6EcKiYXkoXN8wkfrW4AkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJAwIABQKAGgYAAgAJA+gDAAAAAAAAAwQBAAMAIW6WgA/xkchg5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5AA="
       }
     },
     {
@@ -4648,591 +4569,6 @@
       }
     },
     {
-      "id": "campaign-vrf",
-      "input": {
-        "mode": "campaign",
-        "row": 1,
-        "start": 2,
-        "destination": 4,
-        "column": 5,
-        "operation": "vrf"
-      },
-      "expected": {
-        "route": "magicblock-er",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": false,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "BVdPmKSwvuIHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": true
-              },
-              {
-                "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "98PGnq7m5oG2j3RjC9XFt1BT4Bb46AEouqf6oXbZBgnZ",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "AbszdQgVwqJLxSWNkukEJiN2a2LzXZ17jjEJedAm8A1h",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "SysvarS1otHashes111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "11111111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "AQAIC4E5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPJFucGg4nYr5/ARugp1X9YajwM9uYRL7VnyOwWAiCjKpwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeMG+j8PkMgOY8K0i7i3C1iT1Zla+L+M7KRtxY6CNkR6OqJamHPsJD+wM4Mq+r+OfCm35OhZ4OptoaFisGiqvZIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cwO/fvYFa3fQrr2dK+lDY3rdrehHComF5KFzfMJH61uDCv1eyDmFSDFsUvTqEDElyI7x3lcD/2ZG+jVTbBwCawgan1RcZLwqvxvJl4/t3zHragsUp0L47E24tAFUgAAAAB2Rod8jx/SueufNc6utdGT+insRcB7Vl8hunsSes938JCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQEHCgEGCAACBAUKCQMoBVdPmKSwvuIHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw=="
-      }
-    },
-    {
-      "id": "campaign-move",
-      "input": {
-        "mode": "campaign",
-        "row": 1,
-        "start": 2,
-        "destination": 4,
-        "column": 5,
-        "operation": "move"
-      },
-      "expected": {
-        "route": "magicblock-er",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": false,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "7kY5jjO02x8AAAAAAAABAgQHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": true
-              },
-              {
-                "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "98PGnq7m5oG2j3RjC9XFt1BT4Bb46AEouqf6oXbZBgnZ",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "AbszdQgVwqJLxSWNkukEJiN2a2LzXZ17jjEJedAm8A1h",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "SysvarS1otHashes111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "11111111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "AQAIC4E5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPJFucGg4nYr5/ARugp1X9YajwM9uYRL7VnyOwWAiCjKpwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeMG+j8PkMgOY8K0i7i3C1iT1Zla+L+M7KRtxY6CNkR6OqJamHPsJD+wM4Mq+r+OfCm35OhZ4OptoaFisGiqvZIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cwO/fvYFa3fQrr2dK+lDY3rdrehHComF5KFzfMJH61uDCv1eyDmFSDFsUvTqEDElyI7x3lcD/2ZG+jVTbBwCawgan1RcZLwqvxvJl4/t3zHragsUp0L47E24tAFUgAAAAB2Rod8jx/SueufNc6utdGT+insRcB7Vl8hunsSes938JCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQEHCgEGCAACBAUKCQMx7kY5jjO02x8AAAAAAAABAgQHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw=="
-      }
-    },
-    {
-      "id": "campaign-bonus",
-      "input": {
-        "mode": "campaign",
-        "row": 1,
-        "start": 2,
-        "destination": 4,
-        "column": 5,
-        "operation": "bonus"
-      },
-      "expected": {
-        "route": "magicblock-er",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": false,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "MovMy1+XTbQAAAAAAQUHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": true
-              },
-              {
-                "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "98PGnq7m5oG2j3RjC9XFt1BT4Bb46AEouqf6oXbZBgnZ",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "AbszdQgVwqJLxSWNkukEJiN2a2LzXZ17jjEJedAm8A1h",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "SysvarS1otHashes111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "11111111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "AQAIC4E5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPJFucGg4nYr5/ARugp1X9YajwM9uYRL7VnyOwWAiCjKpwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeMG+j8PkMgOY8K0i7i3C1iT1Zla+L+M7KRtxY6CNkR6OqJamHPsJD+wM4Mq+r+OfCm35OhZ4OptoaFisGiqvZIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cwO/fvYFa3fQrr2dK+lDY3rdrehHComF5KFzfMJH61uDCv1eyDmFSDFsUvTqEDElyI7x3lcD/2ZG+jVTbBwCawgan1RcZLwqvxvJl4/t3zHragsUp0L47E24tAFUgAAAAB2Rod8jx/SueufNc6utdGT+insRcB7Vl8hunsSes938JCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQEHCgEGCAACBAUKCQMuMovMy1+XTbQAAAAAAQUHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw=="
-      }
-    },
-    {
-      "id": "campaign-reroll",
-      "input": {
-        "mode": "campaign",
-        "row": 1,
-        "start": 2,
-        "destination": 4,
-        "column": 5,
-        "operation": "reroll"
-      },
-      "expected": {
-        "route": "magicblock-er",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": false,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "jyvbT1VwifwAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": true
-              },
-              {
-                "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "98PGnq7m5oG2j3RjC9XFt1BT4Bb46AEouqf6oXbZBgnZ",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "AbszdQgVwqJLxSWNkukEJiN2a2LzXZ17jjEJedAm8A1h",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "SysvarS1otHashes111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "11111111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "AQAIC4E5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPJFucGg4nYr5/ARugp1X9YajwM9uYRL7VnyOwWAiCjKpwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeMG+j8PkMgOY8K0i7i3C1iT1Zla+L+M7KRtxY6CNkR6OqJamHPsJD+wM4Mq+r+OfCm35OhZ4OptoaFisGiqvZIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cwO/fvYFa3fQrr2dK+lDY3rdrehHComF5KFzfMJH61uDCv1eyDmFSDFsUvTqEDElyI7x3lcD/2ZG+jVTbBwCawgan1RcZLwqvxvJl4/t3zHragsUp0L47E24tAFUgAAAAB2Rod8jx/SueufNc6utdGT+insRcB7Vl8hunsSes938JCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQEHCgEGCAACBAUKCQMsjyvbT1VwifwAAAAABwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
-      }
-    },
-    {
-      "id": "campaign-finish",
-      "input": {
-        "mode": "campaign",
-        "row": 1,
-        "start": 2,
-        "destination": 4,
-        "column": 5,
-        "operation": "finish"
-      },
-      "expected": {
-        "route": "magicblock-er",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": false,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "fZLz1Tjc1hkA",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "AQADBYE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPKKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbgwr9Xsg5hUgxbFL06hAxJciO8d5XA/9mRvo1U2wcAmsIJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQEDBAECBAAJfZLz1Tjc1hkA"
-      }
-    },
-    {
-      "id": "campaign-owner-finish",
-      "input": {
-        "mode": "campaign",
-        "row": 1,
-        "start": 2,
-        "destination": 4,
-        "column": 5,
-        "operation": "finish",
-        "ownerSigner": true
-      },
-      "expected": {
-        "route": "magicblock-er",
-        "feePayer": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-        "ownerRequired": true,
-        "versionZero": true,
-        "deviceSigners": [],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "fZLz1Tjc1hkA",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": true,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "gAEAAgSKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXBLGnb5+4g44g1o0Vh2FNItoJAGzC75VN8vfbEzjMwzyAwZGb+UhFzL/7K26csOb57yM5bvF9xJrLEObOkAAAADA79+9gVrd9CuvZ0r6UNjet2t6EcKiYXkoXN8wkfrW4AkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJAwIABQKAGgYAAgAJA+gDAAAAAAAAAwQBAAMACX2S89U43NYZAAA="
-      }
-    },
-    {
-      "id": "campaign-commit",
-      "input": {
-        "mode": "campaign",
-        "operation": "commit"
-      },
-      "expected": {
-        "route": "magicblock-er",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": false,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "OJxtVZyiP5Y=",
-            "accounts": [
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": true
-              },
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "MagicContext1111111111111111111111111111111",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "Magic11111111111111111111111111111111111111",
-                "signer": false,
-                "writable": false
-              }
-            ]
-          }
-        ],
-        "message": "AQACBYE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUEsadvn7iDjiDWjRWHYU0i2gkAbMLvlU3y99sTOMzDPIFRbQkxKUov1+0Ay9EUoKOuzirwdLcl/c/i5RUgAAAAMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbgBUW0JLDacJXsudbew3fXKJG2546S6hLW37s6QAAAAAAJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQEDBAABAgQIOJxtVZyiP5Y="
-      }
-    },
-    {
-      "id": "campaign-consume-false",
-      "input": {
-        "mode": "campaign",
-        "operation": "consume",
-        "abandonFirst": false
-      },
-      "expected": {
-        "route": "solana-base",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": true,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "qNhyO1LHsAs=",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": false,
-                "writable": true
-              }
-            ]
-          }
-        ],
-        "message": "gAEAAwaBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlBLGnb5+4g44g1o0Vh2FNItoJAGzC75VN8vfbEzjMwzy9l74Lq26FFtDkE2lNBxjCnpdx+wZ1V94zFTKKcO7EkADBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbgiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQMDAAUCgBoGAAMACQPoAwAAAAAAAAQEAQIFAAio2HI7UsewCwA="
-      }
-    },
-    {
-      "id": "campaign-consume-true",
-      "input": {
-        "mode": "campaign",
-        "operation": "consume",
-        "abandonFirst": true
-      },
-      "expected": {
-        "route": "solana-base",
-        "feePayer": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-        "ownerRequired": false,
-        "versionZero": true,
-        "deviceSigners": [
-          "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
-        ],
-        "reserve": 0,
-        "instructions": [
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "fZLz1Tjc1hkA",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "E7DKRjNECdAasg8xp2WQ1haePgk2DYVv73T1DdFWX55B",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": true,
-                "writable": false
-              }
-            ]
-          },
-          {
-            "programId": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-            "data": "qNhyO1LHsAs=",
-            "accounts": [
-              {
-                "address": "2GHzkcYnRYgeqajqriWba2S3gmc5pqkfWn8HJqowRpqP",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
-                "signer": false,
-                "writable": true
-              },
-              {
-                "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
-                "signer": false,
-                "writable": false
-              },
-              {
-                "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
-                "signer": false,
-                "writable": true
-              }
-            ]
-          }
-        ],
-        "message": "gAEABAeBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlBLGnb5+4g44g1o0Vh2FNItoJAGzC75VN8vfbEzjMwzy9l74Lq26FFtDkE2lNBxjCnpdx+wZ1V94zFTKKcO7EkADBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAMDv372BWt30K69nSvpQ2N63a3oRwqJheShc3zCR+tbgiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1zCv1eyDmFSDFsUvTqEDElyI7x3lcD/2ZG+jVTbBwCawgkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJBAMABQKAGgYAAwAJA+gDAAAAAAAABAQBBQYACX2S89U43NYZAAQEAQIFAAio2HI7UsewCwA="
-      }
-    },
-    {
       "id": "daily-vrf",
       "input": {
         "mode": "daily",
@@ -5830,75 +5166,25 @@
   ],
   "slotCases": [
     {
-      "mode": "campaign",
-      "campaign": "0",
+      "mode": "daily",
       "arcade": "0",
       "accepted": true,
       "player": {
         "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "data": "OAM8Vq4Q9MMCiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
       }
     },
     {
       "mode": "daily",
-      "campaign": "0",
-      "arcade": "0",
-      "accepted": true,
-      "player": {
-        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
-        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-        "executable": false,
-        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      }
-    },
-    {
-      "mode": "campaign",
-      "campaign": "1",
-      "arcade": "0",
-      "accepted": false,
-      "player": {
-        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
-        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-        "executable": false,
-        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      }
-    },
-    {
-      "mode": "daily",
-      "campaign": "0",
       "arcade": "1",
       "accepted": false,
       "player": {
         "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
         "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
         "executable": false,
-        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      }
-    },
-    {
-      "mode": "campaign",
-      "campaign": "0",
-      "arcade": "1",
-      "accepted": true,
-      "player": {
-        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
-        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-        "executable": false,
-        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      }
-    },
-    {
-      "mode": "daily",
-      "campaign": "1",
-      "arcade": "0",
-      "accepted": true,
-      "player": {
-        "address": "HajHY9wi5EiDhhReYeDCSRXABCijL7Q4he6cqxvKAJij",
-        "owner": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-        "executable": false,
-        "data": "OAM8Vq4Q9MMBiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAABkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        "data": "OAM8Vq4Q9MMCiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wBAAAAAAAgAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
       }
     }
   ],

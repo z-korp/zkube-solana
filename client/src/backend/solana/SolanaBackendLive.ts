@@ -1,3 +1,4 @@
+import { makeMoneyCampaignLive } from "./content/MoneyCampaignLive";
 import { Context, Effect, Layer, Stream } from "effect";
 import { Connection } from "@solana/web3.js";
 
@@ -30,6 +31,8 @@ export function makeSolanaBackendLive(
   const connection =
     options.connection ?? new Connection(SOLANA_ENDPOINT, "confirmed");
   const identity = makeSolanaIdentitySessionLive({ connection });
+  const campaign = makeMoneyCampaignLive(connection).pipe(Layer.provide(identity));
+  const dependencies = Layer.merge(identity, campaign);
   const campaignState = { campaignOwned: true, price: null } as const;
   const storeEconomy: StoreEconomyService = {
     unlockCampaign: () => Effect.succeed(campaignState),
@@ -38,9 +41,9 @@ export function makeSolanaBackendLive(
   };
   const complete = Layer.mergeAll(
     identity,
-    makeSolanaRunsLive({ connection }).pipe(Layer.provide(identity)),
-    makeSolanaContentBoardsLive({ connection }).pipe(Layer.provide(identity)),
-    makeSolanaEconomyLive({ connection }).pipe(Layer.provide(identity)),
+    makeSolanaRunsLive({ connection }).pipe(Layer.provide(dependencies)),
+    makeSolanaContentBoardsLive({ connection }).pipe(Layer.provide(dependencies)),
+    makeSolanaEconomyLive({ connection }).pipe(Layer.provide(dependencies)),
     Layer.succeed(StoreEconomy, storeEconomy),
   );
   return Layer.scopedContext(

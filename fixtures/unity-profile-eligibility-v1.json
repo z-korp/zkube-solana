@@ -113424,8 +113424,8 @@
     }
   ],
   "sources": {
-    "programs/solana/examples/profile-fixtures.rs": "654c646b5440f6461c42efa235b242d9486a4a5115e19b843ed991b71a185727",
-    "programs/solana/src/state/protocol.rs": "46ec9940c83c7f5ad626fa0ee90aeeebdaa7b77db2c5cd10374d932f16fdd55f",
-    "crates/zkube-core/src/campaign.rs": "c62aae148b45a43340cbdd94050a4cb94e5b8ce5b435ec4338b9dc297c182daa"
+    "programs/solana/examples/profile-fixtures.rs": "a329325308c5b645a8b93021f2f40d021c1582d1bf0b2d108cd7b2e99b161182",
+    "programs/solana/src/state/protocol.rs": "6b5ca3c7e37d93565558d465c03aab95828841691ca18de4d55eda7c3e6f9679",
+    "crates/zkube-core/src/campaign.rs": "ae2d14be84fd52d0ed3f0f872b00796230f9e0e3543767c9a27cfaf9e8a68279"
   }
 }

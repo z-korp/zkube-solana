@@ -40,7 +40,7 @@ export async function generatePublicDailyFixtures() {
     if (variant === "suspended-missing" || variant === "missing-daily") rows.daily = null;
     if (variant === "missing-config") rows.arcade = null;
     const map = new Map<string, { owner: string; executable: boolean; data: string }>(
-      [...Object.values(rows), ...products.accounts.catalogs].filter(Boolean).map(row => [row.address, row]));
+      Object.values(rows).filter(Boolean).map(row => [row.address, row]));
     const requests: string[] = [];
     const info = (address: PublicKey) => {
       requests.push(address.toBase58());

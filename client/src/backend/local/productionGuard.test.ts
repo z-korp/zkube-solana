@@ -7,14 +7,13 @@ describe("LocalBackendLive production boundary", () => {
       new URL("../../../vite.config.ts", import.meta.url),
       "utf8",
     );
-    expect(config).toContain("zkube_local_backend_v1");
     expect(config).toContain("zkube_owner_playtest_v1");
     expect(config).toContain("zkube_solana_backend_v1");
     expect(config).toContain("zkube_money_surface_v1");
     expect(config).toContain("VITE_ZKUBE_BUILD");
     expect(config).toContain("Dev-only code entered release asset");
     expect(config).toContain(
-      "solana: [LOCAL_BACKEND_SENTINEL, PLAYTEST_BUILD_SENTINEL]",
+      "solana: [PLAYTEST_BUILD_SENTINEL]",
     );
     expect(config).toContain("store: [");
     expect(config).toContain("playtest: [SOLANA_BACKEND_SENTINEL]");

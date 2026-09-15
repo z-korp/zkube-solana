@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { BorshAccountsCoder, convertIdlToCamelCase } from "@anchor-lang/core";
 import { IDL } from "../../src/backend/solana/idl";
-import { CAMPAIGN_CONTENT_VERSION, DAILY_MAX_MOVES } from "../../src/core/protocolVersions.generated";
+import { CATALOG_VERSION, DAILY_MAX_MOVES } from "../../src/core/protocolVersions.generated";
 import { canonicalJson, clientPolicyPath, generatedClientPolicy, generatedPlannerConstants, generatePlannerFixtures, plannerConstantsPath, plannerFixturePath } from "./planner-fixtures";
 
 import { coreDailyPairIndex, coreLadderTierCount } from "../../src/core/zkubeCore";
@@ -40,15 +40,13 @@ describe("Unity high-level transaction planner agreement", () => {
       // Zero-filled omitted fields are not valid publication identities. Decode
       // the actual encoded accounts so a future fixture edit cannot hide this.
       const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
-      const protocol = coder.decode<{ contentVersion: number }>("protocolConfig", Buffer.from(fixture.accounts.protocol.data, "base64"));
       const nativeRules = JSON.parse(readFileSync(resolve(repositoryRoot, "fixtures/native-run-trajectories.json"), "utf8"))
         .dailyRulesPublications as Array<{ day: number; rulesHash: number[] }>;
-      expect(protocol.contentVersion).toBe(CAMPAIGN_CONTENT_VERSION);
       for (const name of ["daily", "following"] as const) {
-        const daily = coder.decode<{ contentVersion: number; dayId: number; mapId: number; rulesHash: number[]; dailyTheme: { kind: number; value: number }; pressure: { maxMoves: number }; rules: { guardian: unknown; startingRows: number }; opensAt: { toNumber(): number }; runsCloseAt: { toNumber(): number } }>("arenaDaily", Buffer.from(fixture.accounts[name].data, "base64"));
-        expect(daily.contentVersion, name + " publication").toBe(protocol.contentVersion);
+        const daily = coder.decode<{ catalogVersion: number; dayId: number; mapId: number; rulesHash: number[]; dailyTheme: { kind: number; value: number }; pressure: { maxMoves: number }; rules: { guardian: unknown; startingRows: number }; opensAt: { toNumber(): number }; runsCloseAt: { toNumber(): number } }>("arenaDaily", Buffer.from(fixture.accounts[name].data, "base64"));
+        expect(daily.catalogVersion, name + " catalog").toBe(CATALOG_VERSION);
         const pair = dailyContentFromPairIndex(daily.dayId, await coreDailyPairIndex(daily.dayId));
-        const realm = canonicalCampaignMap(protocol.contentVersion, pair.realmMapId);
+        const realm = canonicalCampaignMap(CATALOG_VERSION, pair.realmMapId);
         expect(daily.mapId).toBe(pair.realmMapId);
         expect(daily.dailyTheme).toEqual(pair.objective);
         expect(daily.pressure.maxMoves).toBe(DAILY_MAX_MOVES);

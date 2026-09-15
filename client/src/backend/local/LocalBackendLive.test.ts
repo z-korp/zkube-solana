@@ -15,7 +15,7 @@ import {
 import { currentDailyDayId } from "@/core/dailyRules";
 import { computeArcadeLifecycle } from "@/ui/components/arcade/arcadeLifecycle";
 import { Content, Runs, StoreEconomy } from "../services";
-import { localRowsFromVrf, makeLocalBackendLive } from "./LocalBackendLive";
+import { LocalCampaignProgress, localRowsFromVrf, makeLocalBackendLive, packCampaignStars } from "./LocalBackendLive";
 import { localProductStorage } from "./localPersistence";
 import type { CampaignBilling } from "./storeBilling";
 import type { StorageLike } from "@/platform/storage";
@@ -27,6 +27,71 @@ initializeZkubeCoreSync(
 );
 
 describe("LocalBackendLive", () => {
+  it.each(["store", "money"] as const)("local_campaign_run_survives_process_death (%s)", async target => {
+    const values = new Map<string, string>();
+    const storage = { getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
+    const options = { target, storage, ...(target === "money" ? { owner: "player-address" } : {}) };
+    let runtime = ManagedRuntime.make(makeLocalBackendLive(options));
+    try {
+      const started = await runtime.runPromise(Effect.flatMap(Runs, runs => runs.startCampaign(1, 1)));
+      const accepted = await runtime.runPromise(Effect.flatMap(Runs, runs => runs.act(started.runId, { _tag: "Reroll" })));
+      await runtime.dispose();
+      runtime = ManagedRuntime.make(makeLocalBackendLive(options));
+      const restored = await runtime.runPromise(Effect.flatMap(Runs, runs => runs.active("campaign")));
+      expect(restored?.token).toEqual(accepted.token);
+      await expect(runtime.runPromise(Effect.flatMap(Runs, runs => runs.startCampaign(1, 2)))).rejects.toThrow("Resume");
+      await runtime.runPromise(Effect.flatMap(Runs, runs => runs.act(started.runId, { _tag: "Finish", reason: "abandon" })));
+      await runtime.dispose();
+      runtime = ManagedRuntime.make(makeLocalBackendLive(options));
+      expect(await runtime.runPromise(Effect.flatMap(Runs, runs => runs.active("campaign")))).toBeNull();
+    } finally { await runtime.dispose(); }
+  });
+
+  it("campaign_action_is_accepted_only_after_durable_write", async () => {
+    let saved: string | null = null, fail = false;
+    const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; }, removeItem: () => {},
+      setItemDurable: async (_key: string, value: string) => { if (fail) throw new Error("disk-full"); saved = value; } };
+    const runtime = ManagedRuntime.make(makeLocalBackendLive({ target: "store", storage }));
+    try {
+      const first = await runtime.runPromise(Effect.flatMap(Runs, runs => runs.startCampaign(1, 1)));
+      const before = saved; fail = true;
+      await expect(runtime.runPromise(Effect.flatMap(Runs, runs => runs.act(first.runId, { _tag: "Reroll" })))).rejects.toThrow("disk-full");
+      expect((await runtime.runPromise(Effect.flatMap(Runs, runs => runs.active("campaign"))))?.token).toEqual(first.token);
+      expect(saved).toEqual(before);
+      fail = false;
+      await runtime.runPromise(Effect.flatMap(Runs, runs => runs.act(first.runId, { _tag: "Reroll" })));
+    } finally { await runtime.dispose(); }
+  });
+
+  it("campaign_record_preserves_newer_stars_during_acknowledgement_and_restart", async () => {
+    const values = new Map<string, string>();
+    const storage = { getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: () => {} };
+    const options = { target: "money" as const, owner: "player-address", storage };
+    let runtime = ManagedRuntime.make(makeLocalBackendLive(options));
+    try {
+      await runtime.runPromise(Effect.gen(function* () {
+        const progress = yield* LocalCampaignProgress;
+        const older = new Uint8Array(25); older[0] = 1;
+        yield* progress.merge(older);
+        const newer = new Uint8Array(25); newer[24] = 192;
+        yield* progress.merge(newer);
+        yield* progress.acknowledge(older);
+        expect(progress.read().campaignWritePending).toBe(true);
+      }));
+      await runtime.dispose(); runtime = ManagedRuntime.make(makeLocalBackendLive(options));
+      await runtime.runPromise(Effect.gen(function* () {
+        const progress = yield* LocalCampaignProgress;
+        expect(progress.read().campaignWritePending).toBe(true);
+        expect(progress.read().stars[0]).toBe(1);
+        expect(progress.read().stars[99]).toBe(3);
+        yield* progress.acknowledge(packCampaignStars(progress.read().stars));
+        expect(progress.read().campaignWritePending).toBeUndefined();
+      }));
+    } finally { await runtime.dispose(); }
+  });
+
   it("local_backend_plays_a_golden_replay", async () => {
     const runtime = ManagedRuntime.make(
       makeLocalBackendLive({
@@ -92,7 +157,7 @@ describe("LocalBackendLive", () => {
 
   it("terminal_campaign_run_leaves_the_resumable_slot_empty", async () => {
     const runtime = ManagedRuntime.make(
-      makeLocalBackendLive({ target: "store" }),
+      makeLocalBackendLive({ target: "store", storage: memoryStorage() }),
     );
     try {
       const slot = await runtime.runPromise(
@@ -111,6 +176,14 @@ describe("LocalBackendLive", () => {
     } finally {
       await runtime.dispose();
     }
+  });
+
+  it("Campaign cannot acknowledge a run when durable storage is unavailable", async () => {
+    const runtime = ManagedRuntime.make(makeLocalBackendLive({ target: "money", owner: "player-address", storage: null }));
+    try {
+      await expect(runtime.runPromise(Effect.flatMap(Runs, runs => runs.startCampaign(1, 1)))).rejects.toThrow("storage is unavailable");
+      expect(await runtime.runPromise(Effect.flatMap(Runs, runs => runs.active("campaign")))).toBeNull();
+    } finally { await runtime.dispose(); }
   });
 
   it("local_daily_is_open_on_the_shared_current_utc_day", async () => {

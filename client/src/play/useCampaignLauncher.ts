@@ -6,15 +6,7 @@ import { useNavigationStore } from "@/stores/navigationStore";
 import { showToast } from "@/utils/toast";
 import { describeRunStartError } from "@/core/runStartError";
 
-/**
- * In-place campaign run launch, mirroring the Daily flow: the run is created
- * while the player is still looking at the level's constraints (Map preview /
- * boss reveal), and navigation to the play screen happens only once the run is
- * delegated and hydrated. Failures keep the player where they are with a
- * toast; a launch that timed out after the base delegate committed is healed
- * by the run watcher, surfacing through the existing "playing node" / resume
- * affordances.
- */
+/** Start and persist the local trial before opening its board. */
 export function useCampaignLauncher(): {
   starting: boolean;
   startLevel: (mapId: number, level: number) => Promise<void>;
@@ -40,8 +32,7 @@ export function useCampaignLauncher(): {
         });
         return;
       }
-      // "missing" (stale local marker, nothing on-chain) may start fresh;
-      // anything else means a run is attached and must be finished first.
+      // Resume the saved local trial before beginning another.
       if (runPhase !== "none" && runPhase !== "missing") {
         showToast({
           message: "Finish your current run before starting a new one.",

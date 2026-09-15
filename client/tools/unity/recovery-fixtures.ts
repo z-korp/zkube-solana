@@ -36,7 +36,6 @@ export async function generateRecoveryFixtures(nowUnix: number, ownerKey: Keypai
     { id: "missing-run" },
     { id: "base-prepared", base: "program", run: "prepared" },
     { id: "terminal-copyback", base: "program", run: "finished" },
-    { id: "completed-copyback", base: "program", run: "levelComplete" },
     { id: "expired-session-keeps-run", delegated: true, er: "program", run: "playing", expired: true },
     { id: "session-skew-59", delegated: true, er: "program", run: "playing", expirySeconds: 59 },
     { id: "session-skew-60", delegated: true, er: "program", run: "playing", expirySeconds: 60 },
@@ -53,7 +52,7 @@ export async function generateRecoveryFixtures(nowUnix: number, ownerKey: Keypai
       const spec: { id: string; marker?: boolean; delegated?: boolean; er?: string; base?: string; run?: string;
         expired?: boolean; expirySeconds?: number; invalidSession?: boolean; wrongRun?: boolean; daily?: boolean } = definition;
       Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: new MemoryStorage() } });
-      const mode = spec.daily ? "daily" : "campaign";
+      const mode = "daily";
       const validUntil = nowUnix + (spec.expirySeconds ?? (spec.expired ? 60 : 3600));
       if (spec.marker !== false) saveRunSession({ owner, runId, mode, session: deviceKey, sessionToken,
         addresses: deriveRunAddresses(owner, runId), validUntil, createdAt: nowUnix });
@@ -67,7 +66,7 @@ export async function generateRecoveryFixtures(nowUnix: number, ownerKey: Keypai
       const run = spec.run ? { owner, runId: runId + (spec.wrongRun ? 1n : 0n), mode, lifecycle: spec.run } as ActiveRunView : null;
       let output: object;
       try {
-        const result = await resolvePersistedRun({ owner, slot: mode === "daily" ? "arcade" : "campaign",
+        const result = await resolvePersistedRun({ owner, slot: "arcade",
           wallet: new SessionWallet(ownerKey), baseConnection: base,
           dependencies: { getStatus: async () => ({ isDelegated: spec.delegated ?? false,
             ...(spec.delegated ? { fqdn: er.rpcEndpoint } : {}) }), makeErConnection: () => er,

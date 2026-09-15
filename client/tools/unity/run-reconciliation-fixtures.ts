@@ -39,7 +39,7 @@ export async function generateRunReconciliationFixtures() {
     const sessionToken = deriveSessionTokenV2Pda({ authority: owner, sessionSigner: device }).sessionToken;
     const blockhash = new PublicKey(new Uint8Array(32).fill(9)).toBase58();
     const transactions = [];
-    for (const mode of ["campaign", "daily"] as const) {
+    for (const mode of ["daily"] as const) {
       const finished = cases.find((value) => value.id === `active-${mode}-finished`)!;
       const connection = { rpcEndpoint: "https://er.invalid/", getAccountInfoAndContext: async () => ({ context: { slot: 100 }, value: {
         owner: ZKUBE_PROGRAM_ID, executable: false, lamports: 1, data: Buffer.from(finished.data, "base64"), rentEpoch: 0 } }) } as unknown as Connection;
@@ -60,25 +60,24 @@ export async function generateRunReconciliationFixtures() {
     }
     const planner = await generatePlannerFixtures();
     const plannerPlans = planner.plans as Array<{ id: string; expected: { message: string } }>;
-    for (const id of ["campaign-prepare", "campaign-prepare-delegate", "daily-prepare-delegate", "delegate"]) {
+    for (const id of ["daily-no-claims", "daily-prepare-delegate", "delegate"]) {
       const plan = plannerPlans.find(value => value.id === id)!;
       const tx = new VersionedTransaction(VersionedMessage.deserialize(Buffer.from(plan.expected.message, "base64")));
       tx.sign([ownerKey, deviceKey].filter(key => tx.message.staticAccountKeys.slice(0, tx.message.header.numRequiredSignatures).some(address => address.equals(key.publicKey))));
-      transactions.push({ id, mode: id.startsWith("daily") ? "daily" : "campaign", action: id.replace(/^(campaign|daily)-/, ""), owner: owner.toBase58(),
+      transactions.push({ id, mode: "daily", action: id.replace(/^daily-/, ""), owner: owner.toBase58(),
         blockhash: tx.message.recentBlockhash, bytes: Buffer.from(tx.serialize()).toString("base64") });
     }
     const player = accounts.find((value) => value.kind === "PlayerState" && value.id.endsWith("valid"))!;
     const coder = new BorshAccountsCoder(IDL);
     const preparedPlayers: Record<string, object> = {};
-    for (const mode of ["campaign", "daily"] as const) {
+    for (const mode of ["daily"] as const) {
       const fields = coder.decode("PlayerState", Buffer.from(player.data, "base64"));
-      fields[mode === "campaign" ? "campaign_active_run_id" : "active_run_id"] = new BN(runId.toString());
-      fields[mode === "campaign" ? "active_run_id" : "campaign_active_run_id"] = new BN(0);
+      fields["active_run_id"] = new BN(runId.toString());
       const bytes = Buffer.alloc(coder.size("PlayerState")); (await coder.encode("PlayerState", fields)).copy(bytes);
       preparedPlayers[mode] = { ...player, data: bytes.toString("base64") };
     }
     const consumedFields = coder.decode("PlayerState", Buffer.from(player.data, "base64"));
-    consumedFields.campaign_active_run_id = new BN(0); consumedFields.active_run_id = new BN(0);
+    consumedFields.active_run_id = new BN(0);
     const consumedBytes = Buffer.alloc(coder.size("PlayerState")); (await coder.encode("PlayerState", consumedFields)).copy(consumedBytes);
     const consumedPlayer = { ...player, data: consumedBytes.toString("base64") };
     const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
@@ -92,12 +91,12 @@ export async function generateRunReconciliationFixtures() {
           Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: {
             getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value),
             removeItem: (key: string) => storage.delete(key) } } });
-          const mode = row.id.includes("-campaign-") ? "campaign" : "daily";
+          const mode = "daily";
           saveRunSession({ owner, runId, mode, session: deviceKey, sessionToken, addresses, validUntil: 1789261200, createdAt: 1789257600 });
           const info = { owner: ZKUBE_PROGRAM_ID, executable: false, data: Buffer.from(row.data, "base64"), lamports: 1, rentEpoch: 0 };
           const er = { rpcEndpoint: "https://new-er.invalid/", getAccountInfo: async () => info } as unknown as Connection;
           const base = { rpcEndpoint: "https://base.invalid/", getAccountInfo: async (address: PublicKey) => address.equals(sessionToken) ? null : info } as unknown as Connection;
-          const resolution = await resolvePersistedRun({ owner, slot: mode === "campaign" ? "campaign" : "arcade", wallet: new SessionWallet(ownerKey), baseConnection: base,
+          const resolution = await resolvePersistedRun({ owner, slot: "arcade", wallet: new SessionWallet(ownerKey), baseConnection: base,
             dependencies: { getStatus: async () => ({ isDelegated: delegated, ...(delegated ? { fqdn: er.rpcEndpoint } : {}) }), makeErConnection: () => er } });
           routing.push({ id: row.id, delegated, phase: resolution.phase, endpoint: "connection" in resolution ? resolution.connection.rpcEndpoint : null });
         }

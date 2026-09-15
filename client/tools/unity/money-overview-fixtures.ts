@@ -34,7 +34,7 @@ export async function generateMoneyOverviewFixtures() {
     return matches[0];
   };
   const publicAccounts = [products.accounts.protocol, products.accounts.arcade, products.accounts.daily];
-  const acceptedRuns = [select<ExistingAccount>(runs.cases, "active-campaign-playing"), select<ExistingAccount>(runs.cases, "active-daily-playing")];
+  const acceptedRuns = [select<ExistingAccount>(runs.cases, "active-daily-playing")];
   // The run oracle is intentionally a wide-integer serialization specimen, not
   // a positive player history. Preserve its owner/slot identities, then encode
   // separate, reachable product evidence through the canonical account coder.
@@ -50,8 +50,7 @@ export async function generateMoneyOverviewFixtures() {
   (await coder.encode("playerState", playerFields)).copy(bytes);
   const player = { address: runs.player.address as string, owner: runs.player.owner as string,
     executable: runs.player.executable as boolean, data: bytes.toString("base64") };
-  const ownerAccounts: Omit<ExistingAccount, "id">[] = [...publicAccounts, player, products.accounts.credit, economy.revenue,
-    ...products.accounts.catalogs];
+  const ownerAccounts: Omit<ExistingAccount, "id">[] = [...publicAccounts, player, products.accounts.credit, economy.revenue];
   const lookup = (address: PublicKey) => {
     const row = ownerAccounts.find(value => value.address === address.toBase58());
     return row ? { owner: new PublicKey(row.owner), executable: row.executable,
@@ -64,18 +63,13 @@ export async function generateMoneyOverviewFixtures() {
   const campaign = await fetchCampaignView({ connection, wallet });
   if (!profile || !campaign) throw new Error("Actual TS product reads rejected the overview profile");
   const projected = projectSolanaEconomy(profile, []);
-  const activeCampaign = coder.decode("activeRun", Buffer.from(acceptedRuns[0]!.data, "base64"));
-  const map = campaign.maps.find(value => value.mapId === Number(activeCampaign.mapId));
-  const level = Number(activeCampaign.level);
-  if (!map?.unlocked || level < 1 || level > map.levelStars.length ||
-      (level > 1 && map.levelStars[level - 2] === 0)) throw new Error("Active Campaign fixture must be reachable from overview progress");
   if (projected.profile.highestTier < projected.profile.ladderTier ||
       projected.profile.wornBorder > projected.profile.highestTier) throw new Error("Invalid overview ladder history");
   const expectedProfile = JSON.parse(JSON.stringify({ ...projected.profile, kredits: projected.kredits,
     lifetimePaidEntries: profile.lifetimePaidEntries, lastEntryDayId: profile.lastEntryDayId,
     campaign: campaign.maps.map(value => ({ mapId: value.mapId, unlocked: value.unlocked,
       cleared: value.cleared, perfected: value.perfected, levelStars: value.levelStars })),
-    activeCampaign: { mapId: map.mapId, level } }, (_, value: unknown) => typeof value === "bigint" ? value.toString() : value));
+    activeCampaign: null }, (_, value: unknown) => typeof value === "bigint" ? value.toString() : value));
   const purchase = select<ExistingTransaction>(solana.transactions, "purchase-1");
   const result = <T>(id: string) => select<ExistingRpcCase>(rpc.cases, id).result as T;
   const lease = result<{ value: { blockhash: string; lastValidBlockHeight: number } }>("base-blockhash");
@@ -107,6 +101,7 @@ export async function generateMoneyOverviewFixtures() {
       { id: "public-disconnected", label: "Offline evidence · Public Daily", baseAccounts: publicAccounts, erAccounts: [], pending: null },
       { id: "owner-overview", label: "Offline evidence · Owner overview", baseAccounts: ownerAccounts, erAccounts: acceptedRuns, pending: null },
       { id: "pending-confirmed-failure", label: "Offline evidence · Pending transaction", baseAccounts: ownerAccounts, erAccounts: acceptedRuns, pending },
+      { id: "campaign-playable", label: "Offline evidence · Local Campaign", baseAccounts: publicAccounts, erAccounts: [], pending: null },
     ],
   };
   return { ...payload, sourceSha256: hash(JSON.stringify(payload)) };

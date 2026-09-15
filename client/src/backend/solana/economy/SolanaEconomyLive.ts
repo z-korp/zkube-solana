@@ -1,3 +1,4 @@
+import { MoneyCampaign } from "../content/MoneyCampaignLive";
 import { Effect, Layer, Schedule, Stream, SubscriptionRef } from "effect";
 import type { Connection } from "@solana/web3.js";
 
@@ -39,11 +40,12 @@ export interface SolanaEconomyOptions {
 /** Unwired Economy slice; composed with the other five services at the switch. */
 export function makeSolanaEconomyLive(
   options: SolanaEconomyOptions,
-): Layer.Layer<Economy, never, SolanaIdentitySessionState | SolanaWalletDriver> {
+): Layer.Layer<Economy, never, SolanaIdentitySessionState | SolanaWalletDriver | MoneyCampaign> {
   return Layer.scoped(
     Economy,
     Effect.gen(function* () {
       const identity = yield* SolanaIdentitySessionState;
+      const campaign = yield* MoneyCampaign;
       yield* SolanaWalletDriver;
       const stateRef = yield* SubscriptionRef.make<EconomyState>(emptyEconomy());
       const reload = () => loadEconomy(options.connection, identity);
@@ -129,7 +131,9 @@ export function makeSolanaEconomyLive(
             });
             await options.connection.confirmTransaction(signature, "confirmed");
           }),
-        state: stateRef.changes,
+        state: Stream.zipLatest(stateRef.changes, campaign.stars).pipe(Stream.map(([state, stars]) => ({
+          ...state, profile: { ...state.profile, stars: [...stars] },
+        }))),
       };
       return economy;
     }),

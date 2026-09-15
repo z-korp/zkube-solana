@@ -388,7 +388,7 @@ function useRunSlot(
   const [error, setError] = useState<string | null>(null);
   const connected = args.identity.status === "connected";
   const sessionAuthorized =
-    args.session.status === "live" || args.session.status === "expiring";
+    mode === "campaign" || args.session.status === "live" || args.session.status === "expiring";
 
   const project = useCallback(
     (view: RunView, selection?: RunSelection) =>
@@ -559,8 +559,8 @@ function projectClientRun(
   today: DailyContent | null,
 ): ClientRunView {
   const summary = coreRunSummary(view.token);
-  const realmId = selection?.realm ?? today?.realm ?? 1;
-  const level = selection?.level ?? 1;
+  const realmId = view.realm ?? selection?.realm ?? today?.realm ?? 1;
+  const level = view.level ?? selection?.level ?? 1;
   const realm = catalog?.realms.find(
     (candidate) => candidate.realm === realmId,
   );

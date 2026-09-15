@@ -303,7 +303,8 @@ async function discoverActiveRunMarker(args: {
       "The discovered ActiveRun does not match its owner and run id",
     );
   }
-  const mode = activeRun.mode === "daily" ? "daily" : "campaign";
+  if (activeRun.mode !== "daily") throw new Error("ActiveRun mode is invalid");
+  const mode = "daily";
   if (runSlotForMode(mode) !== args.slot) {
     throw new Error("The discovered ActiveRun belongs to the other run slot");
   }
@@ -325,6 +326,7 @@ async function fetchActiveRunId(
   owner: PublicKey,
   slot: RunSlot,
 ): Promise<bigint> {
+  if (slot !== "arcade") throw new Error("Unsupported run slot");
   const profileAddress = derivePlayerStatePda(owner);
   const info = await connection.getAccountInfo(profileAddress, "confirmed");
   if (!info) return 0n;
@@ -338,21 +340,13 @@ async function fetchActiveRunId(
   }
   const profile = (await program.account.playerState.fetch(
     profileAddress,
-  )) as Awaited<ReturnType<typeof program.account.playerState.fetch>> & {
-    campaignActiveRunId?: { toString(): string };
-  };
+  ));
   if (!profile.owner.equals(owner)) {
     throw new Error("PlayerState owner does not match the connected wallet");
   }
   const version = Number(profile.version);
   if (version !== PLAYER_STATE_ACCOUNT_VERSION) {
     throw new Error("PlayerState has an unsupported run-slot version");
-  }
-  if (slot === "campaign") {
-    if (!profile.campaignActiveRunId) {
-      throw new Error("PlayerState is missing its Campaign run slot");
-    }
-    return BigInt(profile.campaignActiveRunId.toString());
   }
   return BigInt(profile.activeRunId.toString());
 }
@@ -368,7 +362,6 @@ function matchesMarker(
   return (
     activeRun.owner.equals(marker.owner) &&
     activeRun.runId === marker.runId &&
-    runSlotForMode(activeRun.mode === "daily" ? "daily" : "campaign") ===
-      runSlotForMode(marker.mode)
+    activeRun.mode === marker.mode
   );
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "authority": "client/src/backend/local/localPersistence.ts",
-  "sourceSha256": "132ac642d6bcbbf812a0bfa67596f85599ed77cdca19fdc2f027e51805bf9e80",
+  "sourceSha256": "cf1e8d926937f9056046070b8014e5e569fb6f6a33040173fb96239805f0d2f9",
   "cases": [
     {
       "name": "missing",

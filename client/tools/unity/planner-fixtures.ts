@@ -10,7 +10,7 @@ import { IDL } from "../../src/backend/solana/idl";
 import { DELEGATION_PROGRAM_ID, ZKUBE_PROGRAM_ID, SOLANA_DEVNET_GENESIS_HASH } from "../../src/backend/solana/constants";
 import * as pdas from "../../src/backend/solana/pdas";
 import { buildApplyBonusPlan, buildCommitRunPlan, buildDelegateRunPlan, buildFinalizeRunPlan,
-  buildFinishRunPlan, buildPlayMovePlan, buildPrepareCampaignRunPlan, buildRequestRerollPlan,
+  buildFinishRunPlan, buildPlayMovePlan, buildRequestRerollPlan,
   buildRequestRowPlan, combinePreparedAndDelegatePlan, resolvePreparedRunAddresses, withPinnedWalletComputeBudget,
   WALLET_TRANSACTION_COMPUTE_UNIT_LIMIT, WALLET_TRANSACTION_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
   decodeActiveRunAccount, type TransactionPlan } from "../../src/backend/solana/runs/runPlan";
@@ -25,9 +25,9 @@ import { buildRevokeExpiredSessionPlan, REVOKE_SESSION_V2_DISCRIMINATOR } from "
 import { deriveSessionTokenV2Pda, SESSION_KEYS_PROGRAM_ID, SESSION_TOKEN_V2_DISCRIMINATOR } from "../../src/backend/solana/session/sessionV2";
 import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
 import { ARCADE_ACCOUNT_VERSION, ARENA_ENTRY_LAMPORTS, PLAYER_STATE_ACCOUNT_VERSION,
-  PROTOCOL_ACCOUNT_VERSION, CAMPAIGN_CONTENT_VERSION, ENTRY_DAILY_LAMPORTS, DAILY_MAX_MOVES } from "../../src/core/protocolVersions.generated";
+  PROTOCOL_ACCOUNT_VERSION, CATALOG_VERSION, ENTRY_DAILY_LAMPORTS, DAILY_MAX_MOVES } from "../../src/core/protocolVersions.generated";
 import { generateAccountFixtures } from "./account-fixtures";
-import { buildSetFeaturedEmblemPlan } from "../../src/backend/solana/economy/playerStateClient";
+import { buildRecordCampaignStarsPlan, buildSetFeaturedEmblemPlan } from "../../src/backend/solana/economy/playerStateClient";
 import { MAX_EMBLEM_ID } from "../../src/config/emblems";
 import { LADDER_TIERS } from "../../src/config/ladderTiers";
 import { coreFinishRun, coreRunSummary, coreRankPayoutPlan, coreDailyPairIndex, initializeZkubeCoreSync } from "../../src/core/zkubeCore";
@@ -110,7 +110,7 @@ export async function generatePlannerFixtures() {
     accounts[name] = envelope(address, data, program);
     infos.set(address.toBase58(), { owner: program, data, executable: false, lamports: 5000000, rentEpoch: 0 });
   }
-  put("protocol", pdas.deriveProtocolConfigPda(), await encoded("protocolConfig", { version: PROTOCOL_ACCOUNT_VERSION, contentVersion: CAMPAIGN_CONTENT_VERSION, campaignMapCount: 10 }));
+  put("protocol", pdas.deriveProtocolConfigPda(), await encoded("protocolConfig", { version: PROTOCOL_ACCOUNT_VERSION }));
   put("arcade", pdas.deriveArcadeConfigPda(), await encoded("arcadeConfig", { version: ARCADE_ACCOUNT_VERSION,
     protocol: pdas.deriveProtocolConfigPda(), launchSeeded: true, launchDayId: day - 1 }));
   put("credit", pdas.deriveCreditVaultPda(), await encoded("creditVault", { version: ARCADE_ACCOUNT_VERSION, protocol: pdas.deriveProtocolConfigPda(),
@@ -125,16 +125,16 @@ export async function generatePlannerFixtures() {
         publications[0]!.rulesHash.some(value => !Number.isInteger(value) || value < 0 || value > 255))
       throw new Error("Missing canonical native Daily rules hash for " + dayId);
     const pair = dailyContentFromPairIndex(dayId, await coreDailyPairIndex(dayId));
-    const realm = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, pair.realmMapId);
+    const realm = canonicalCampaignMap(CATALOG_VERSION, pair.realmMapId);
     put(offset ? "following" : "daily", pdas.deriveArenaDailyPda(dayId), await encoded("arenaDaily", {
-      version: ARCADE_ACCOUNT_VERSION, contentVersion: CAMPAIGN_CONTENT_VERSION, rulesHash: publications[0]!.rulesHash,
+      version: ARCADE_ACCOUNT_VERSION, catalogVersion: CATALOG_VERSION, rulesHash: publications[0]!.rulesHash,
       dayId, arcadeConfig: pdas.deriveArcadeConfigPda(), mapId: pair.realmMapId, dailyTheme: pair.objective,
       rules: { ...realm.levels[0], pointsRequired: 0, guardian: realm.mapRules.guardian, startingRows: realm.mapRules.startingRows },
       pressure: { maxMoves: DAILY_MAX_MOVES },
       status: offset ? { funding: {} } : { open: {} }, opensAt: new BN(opensAt), runsCloseAt: new BN(opensAt + 86340) }));
   }
   const player = { version: PLAYER_STATE_ACCOUNT_VERSION, owner, nextRunId: new BN(nextRunId.toString()),
-    activeRunId: new BN(0), campaignActiveRunId: new BN(0), kreditBalance: new BN(25) };
+    activeRunId: new BN(0), kreditBalance: new BN(25) };
   put("player", pdas.derivePlayerStatePda(owner), await encoded("playerState", player));
   const sessionData = Buffer.concat([Buffer.from(SESSION_TOKEN_V2_DISCRIMINATOR), owner.toBuffer(), ZKUBE_PROGRAM_ID.toBuffer(),
     device.toBuffer(), owner.toBuffer(), Buffer.alloc(8)]);
@@ -144,10 +144,10 @@ export async function generatePlannerFixtures() {
   const accountRows = await generateAccountFixtures(ownerKey, deviceKey, now) as Array<{ id: string; data: string }>;
   const runAccounts: Record<string, ReturnType<typeof envelope>> = {};
   const terminalRuns: Record<string, ReturnType<typeof envelope>> = {};
-  for (const mode of ["campaign", "daily"] as const) {
+  for (const mode of ["daily"] as const) {
     const source = accountRows.find(row => row.id === `active-${mode}-playing`)!;
     const fields = coder.decode<Record<string, unknown>>("activeRun", Buffer.from(source.data, "base64"));
-    fields.dailyChallenge = mode === "daily" ? pdas.deriveArenaDailyPda(day) : PublicKey.default;
+    fields.dailyChallenge = pdas.deriveArenaDailyPda(day);
     const data = await encoded("activeRun", fields);
     runAccounts[mode] = envelope(pdas.deriveRunAddresses(owner, nextRunId).activeRun, data);
     const token = decodeActiveRunAccount(data, ZKUBE_PROGRAM_ID).runToken!;
@@ -197,11 +197,15 @@ export async function generatePlannerFixtures() {
     for (let emblem = 0; emblem <= MAX_EMBLEM_ID; emblem++) for (let frame = 0; frame < LADDER_TIERS.length; frame++)
       add(`featured-${emblem}-${frame}`, { operation: "featured", emblem, frame },
         await buildSetFeaturedEmblemPlan({ connection: base, wallet: deviceWallet, ownerAuthority: owner, sessionToken, emblemId: emblem, frameTier: frame }));
-    const prepared = await buildPrepareCampaignRunPlan({ connection: base, wallet: deviceWallet, ownerAuthority: owner, sessionToken, mapId: 8, level: 3, sessionValidUntil: now + SESSION_LIFETIME_SECONDS });
-    add("campaign-prepare", { operation: "campaign", map: 8, level: 3 }, prepared.transactionPlan);
-    add("campaign-prepare-delegate", { operation: "campaign", map: 8, level: 3, delegate: true },
-      (await combinePreparedAndDelegatePlan({ prepared, ownerAuthority: owner, sessionToken, sessionSigner: deviceKey })).transactionPlan);
-    add("delegate", { operation: "delegate" }, await buildDelegateRunPlan({ connection: base, wallet: deviceWallet, ownerAuthority: owner, sessionToken, addresses: prepared.addresses }));
+    for (const ownerSigner of [false, true]) {
+      const stars = new Uint8Array(25).fill(228);
+      add("campaign-record-" + ownerSigner, { operation: "recordCampaignStars", stars: [...stars], ownerSigner },
+        await buildRecordCampaignStarsPlan({ connection: base, wallet: ownerSigner ? ownerWallet : deviceWallet,
+          ownerAuthority: owner, sessionToken: ownerSigner ? null : sessionToken, stars }));
+    }
+    const prepared = { addresses: pdas.deriveRunAddresses(owner, nextRunId) };
+    add("delegate", { operation: "delegate" }, await buildDelegateRunPlan({ connection: base, wallet: deviceWallet,
+      ownerAuthority: owner, sessionToken, addresses: prepared.addresses }));
     const daily = { address: pdas.deriveArenaDailyPda(day), dayId: day, followingDayId: day + 1, kreditBalance: 25n,
       nextRunId, activeRunId: 0n, entryLamports: ARENA_ENTRY_LAMPORTS } as DailyView;
     const boards: Array<{ id: string; day: number; kind: string; envelope: ReturnType<typeof envelope> | null }> = [];
@@ -249,7 +253,7 @@ export async function generatePlannerFixtures() {
     add("daily-max-two-eligible", { operation: "daily", boards: boards.map(row => row.id) }, paid.transactionPlan);
     add("daily-prepare-delegate", { operation: "daily", boards: boards.map(row => row.id), delegate: true },
       (await combinePreparedAndDelegatePlan({ prepared: paid, ownerAuthority: owner, sessionToken, sessionSigner: deviceKey })).transactionPlan);
-    for (const mode of ["campaign", "daily"] as const) {
+    for (const mode of ["daily"] as const) {
       const activeRun = prepared.addresses.activeRun, seed = new Uint8Array(32).fill(7);
       const context = { owner, sessionWallet: deviceWallet, sessionToken, activeRun, erConnection: er, clientSeed: seed };
       const high = { mode, row: 1, start: 2, destination: 4, column: 5 };
@@ -265,17 +269,16 @@ export async function generatePlannerFixtures() {
         infos.set(activeRun.toBase58(), { data: Buffer.from(run.data, "base64"), owner: ZKUBE_PROGRAM_ID, executable: false, lamports: 1, rentEpoch: 0 });
         add(`${mode}-consume-${abandonFirst}`, { mode, operation: "consume", abandonFirst },
           await buildFinalizeRunPlan({ wallet: deviceWallet, owner, sessionToken, runId: nextRunId, addresses: prepared.addresses, mode,
-            dailyChallenge: mode === "daily" ? pdas.deriveArenaDailyPda(day) : null, abandonFirst, connection: base }));
+            dailyChallenge: pdas.deriveArenaDailyPda(day), abandonFirst, connection: base }));
       }
       infos.delete(activeRun.toBase58());
     }
     const slotCases = [];
-    for (const [mode, campaign, arcade] of [["campaign", 0n, 0n], ["daily", 0n, 0n], ["campaign", 1n, 0n],
-      ["daily", 0n, 1n], ["campaign", 0n, 1n], ["daily", 1n, 0n]] as const) {
-      const profile = { ...player, campaignActiveRunId: new BN(campaign.toString()), activeRunId: new BN(arcade.toString()) };
+    for (const arcade of [0n, 1n]) {
+      const profile = { ...player, activeRunId: new BN(arcade.toString()) };
       let accepted = true;
-      try { resolvePreparedRunAddresses(owner, profile, mode === "campaign" ? "campaign" : "arcade"); } catch { accepted = false; }
-      slotCases.push({ mode, campaign: campaign.toString(), arcade: arcade.toString(), accepted,
+      try { resolvePreparedRunAddresses(owner, profile, "arcade"); } catch { accepted = false; }
+      slotCases.push({ mode: "daily", arcade: arcade.toString(), accepted,
         player: envelope(pdas.derivePlayerStatePda(owner), await encoded("playerState", profile)) });
     }
     const funding = [890879, 890880, 895879, 895880, 900879, 900880, 900881].map(balance => {

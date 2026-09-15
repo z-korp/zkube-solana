@@ -34,8 +34,8 @@ test("overview evidence encodes a valid product profile while preserving account
     expect(profile.campaign[0].perfected).toBe(true);
     expect(profile.lastEntryDayId).toBe(read("product-reads").inputs.day);
     expect(BigInt(profile.lifetimePaidEntries)).toBeGreaterThanOrEqual(BigInt(profile.streak));
-    expect(ownerCase.baseAccounts.slice(6)).toEqual(read("product-reads").accounts.catalogs);
-    expect(ownerCase.erAccounts).toEqual(["campaign", "daily"].map(mode => read("run-client").cases.find((row: { id: string }) => row.id === `active-${mode}-playing`)));
+    expect(ownerCase.baseAccounts).toHaveLength(6);
+    expect(ownerCase.erAccounts).toEqual(["daily"].map(mode => read("run-client").cases.find((row: { id: string }) => row.id === `active-${mode}-playing`)));
     expect(pendingCase.pending?.transaction).toBe(read("solana").transactions.find((row: { id: string }) => row.id === "purchase-1").signedTransaction);
     expect(fixture.inputs.confirmedFailure).toEqual(read("rpc").cases.find((row: { id: string }) => row.id === "status-confirmed-error").result);
     expect(fixture.inputs.now).toBe(read("product-reads").inputs.now);

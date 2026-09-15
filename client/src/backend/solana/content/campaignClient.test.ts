@@ -1,7 +1,7 @@
 // @vitest-environment node
 
-import { Keypair, type AccountInfo, type Connection } from "@solana/web3.js";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Keypair, type Connection } from "@solana/web3.js";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   campaignMapCleared,
@@ -11,84 +11,14 @@ import {
   fetchCampaignView,
   unpackCompactLevelStars,
 } from "./campaignClient";
-import { ZKUBE_PROGRAM_ID } from "../constants";
 import { CAMPAIGN_CONTENT_VERSION } from "@/core/campaignCatalog";
-import { PROTOCOL_ACCOUNT_VERSION } from "@/core/protocolVersions.generated";
-
-const mocks = vi.hoisted(() => ({
-  decode: vi.fn(),
-}));
-
-vi.mock("@/backend/solana/runs/runPlan", async () => ({
-  zkubeProgram: () => ({
-    programId: ZKUBE_PROGRAM_ID,
-    account: {
-      protocolConfig: { size: 10 },
-      playerState: { size: 11 },
-      mapCatalog: { size: 13 },
-    },
-    coder: { accounts: { decode: mocks.decode } },
-  }),
-}));
-
-vi.mock("@/core/runProjection", () => ({
-  mapLevelRuleSnapshot: (value: unknown) => value,
-}));
-
-function account(size: number, marker: number): AccountInfo<Buffer> {
-  const data = Buffer.alloc(size);
-  data[0] = marker;
-  return {
-    data,
-    executable: false,
-    lamports: 1,
-    owner: ZKUBE_PROGRAM_ID,
-    rentEpoch: 0,
-  };
-}
 
 describe("fetchCampaignView", () => {
-  beforeEach(() => {
-    mocks.decode.mockReset();
-  });
-
-  it("builds fresh-player progress from the verified live catalog", async () => {
+  it("builds fresh-player progress from the compiled catalog without chain content", async () => {
     const owner = Keypair.generate().publicKey;
-    mocks.decode.mockImplementation((name: string, data: Buffer) => {
-      if (name === "protocolConfig") {
-        return {
-          version: PROTOCOL_ACCOUNT_VERSION,
-          contentVersion: CAMPAIGN_CONTENT_VERSION,
-          campaignMapCount: 10,
-        };
-      }
-      const mapId = data[0] - 20;
-      return {
-        version: PROTOCOL_ACCOUNT_VERSION,
-        contentVersion: CAMPAIGN_CONTENT_VERSION,
-        mapId,
-        themeId: mapId,
-        enabled: true,
-        mapRules: {
-          activeMutatorId: 20 + mapId * 2 - 1,
-          bossId: mapId,
-          guardian: { bonus: 1, trigger: 1, threshold: 2 },
-          startingRows: 4,
-        },
-        levels: Array.from({ length: 10 }, (_, index) => ({
-          level: index + 1,
-        })),
-      };
-    });
-    const getMultipleAccountsInfo = vi
-      .fn()
-      .mockResolvedValueOnce([account(10, 1), null])
-      .mockResolvedValueOnce(
-        Array.from({ length: 10 }, (_, index) => account(13, 21 + index)),
-      );
-
+    const getAccountInfo = vi.fn().mockResolvedValue(null);
     const campaign = await fetchCampaignView({
-      connection: { getMultipleAccountsInfo } as unknown as Connection,
+      connection: { getAccountInfo } as unknown as Connection,
       wallet: { publicKey: owner },
     });
 

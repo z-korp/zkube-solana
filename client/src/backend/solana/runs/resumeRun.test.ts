@@ -100,7 +100,7 @@ describe("persisted run resolution", () => {
     const prepared = {
       owner: owner.publicKey,
       runId: 1n,
-      mode: "campaign",
+      mode: "daily",
       lifecycle: "prepared",
       mapId: 1,
       level: 1,
@@ -120,7 +120,7 @@ describe("persisted run resolution", () => {
 
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection,
       deviceSession,
@@ -137,7 +137,7 @@ describe("persisted run resolution", () => {
       "prepared",
     );
     expect(result.phase === "base" && result.sessionAuthorized).toBe(true);
-    expect(loadRunSession(owner.publicKey, "campaign")?.runId).toBe(1n);
+    expect(loadRunSession(owner.publicKey, "arcade")?.runId).toBe(1n);
   });
 
   it("re-resolves the ER and verifies the active run identity", async () => {
@@ -152,7 +152,7 @@ describe("persisted run resolution", () => {
     } as unknown as Connection;
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -164,6 +164,7 @@ describe("persisted run resolution", () => {
         fetchRun: vi.fn().mockResolvedValue({
           owner: owner.publicKey,
           runId: 9n,
+          mode: "daily",
           lifecycle: "playing",
           score: 10,
           actionCounter: 1,
@@ -196,7 +197,7 @@ describe("persisted run resolution", () => {
 
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -208,6 +209,7 @@ describe("persisted run resolution", () => {
         fetchRun: vi.fn().mockResolvedValue({
           owner: owner.publicKey,
           runId: 10n,
+          mode: "daily",
           lifecycle: "playing",
           score: 0,
           actionCounter: 0,
@@ -243,7 +245,7 @@ describe("persisted run resolution", () => {
 
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -255,6 +257,7 @@ describe("persisted run resolution", () => {
         fetchRun: vi.fn().mockResolvedValue({
           owner: owner.publicKey,
           runId: 11n,
+          mode: "daily",
           lifecycle: "playing",
           score: 0,
           actionCounter: 0,
@@ -282,7 +285,7 @@ describe("persisted run resolution", () => {
     } as unknown as Connection;
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection,
       dependencies: {
@@ -299,7 +302,7 @@ describe("persisted run resolution", () => {
     persist(owner, session, 2n);
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection: {
         getAccountInfo: vi.fn().mockResolvedValue({}),
@@ -337,7 +340,7 @@ describe("persisted run resolution", () => {
     await expect(
       resolvePersistedRun({
         owner: owner.publicKey,
-        slot: "campaign",
+        slot: "arcade",
         wallet: new SessionWallet(owner),
         baseConnection: {
           getAccountInfo: vi.fn().mockResolvedValue({}),
@@ -370,7 +373,7 @@ describe("persisted run resolution", () => {
     persist(owner, session, 5n);
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection: {
         getAccountInfo: vi
@@ -399,7 +402,7 @@ describe("persisted run resolution", () => {
     persist(owner, session, 6n);
     const result = await resolvePersistedRun({
       owner: owner.publicKey,
-      slot: "campaign",
+      slot: "arcade",
       wallet: new SessionWallet(owner),
       baseConnection: {
         getAccountInfo: vi
@@ -427,7 +430,7 @@ describe("persisted run resolution", () => {
       if (mutation === "relationship") signer.publicKey.toBuffer().copy(info.data, 8);
       if (mutation === "expiry") info.data.writeBigInt64LE(BigInt(Math.floor(Date.now() / 1000)), 136);
       const result = await resolvePersistedRun({
-        owner: owner.publicKey, slot: "campaign", wallet: new SessionWallet(owner),
+        owner: owner.publicKey, slot: "arcade", wallet: new SessionWallet(owner),
         baseConnection: { getAccountInfo: vi.fn().mockResolvedValue(info) } as unknown as Connection,
         dependencies: {
           getStatus: async () => ({ isDelegated: true, fqdn: "https://er.example/" }),
@@ -436,7 +439,7 @@ describe("persisted run resolution", () => {
       });
       expect(result.phase).toBe("resolving");
       expect(result.phase === "resolving" && result.sessionAuthorized).toBe(false);
-      expect(loadRunSession(owner.publicKey, "campaign")?.runId).toBe(marker.runId);
+      expect(loadRunSession(owner.publicKey, "arcade")?.runId).toBe(marker.runId);
     },
   );
 
@@ -447,7 +450,7 @@ describe("persisted run resolution", () => {
     const info = sessionInfo(owner, signer);
     signer.publicKey.toBuffer().copy(info.data, 104);
     const result = await resolvePersistedRun({
-      owner: owner.publicKey, slot: "campaign", wallet: new SessionWallet(owner),
+      owner: owner.publicKey, slot: "arcade", wallet: new SessionWallet(owner),
       baseConnection: { getAccountInfo: vi.fn().mockResolvedValue(info) } as unknown as Connection,
       dependencies: {
         getStatus: async () => ({ isDelegated: true, fqdn: "https://er.example/" }),
@@ -475,7 +478,7 @@ function persist(
   const marker = {
     owner: owner.publicKey,
     runId,
-    mode: "campaign" as const,
+    mode: "daily" as const,
     session,
     sessionToken: deriveSessionTokenV2Pda({
       authority: owner.publicKey,

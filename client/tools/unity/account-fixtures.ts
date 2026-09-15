@@ -8,9 +8,9 @@ import { decodeActiveRunAccount, zkubeProgram } from "../../src/backend/solana/r
 import { decodePlayerStateAccount } from "../../src/backend/solana/content/campaignClient";
 import { derivePlayerStatePda, deriveRunAddresses } from "../../src/backend/solana/pdas";
 import { SessionWallet } from "../../src/backend/solana/session/sessionWallet";
-import { PLAYER_STATE_ACCOUNT_VERSION, DAILY_MAX_MOVES, CAMPAIGN_TARGET_LADDER } from "../../src/core/protocolVersions.generated";
+import { PLAYER_STATE_ACCOUNT_VERSION, PROTOCOL_ACCOUNT_VERSION, DAILY_MAX_MOVES } from "../../src/core/protocolVersions.generated";
 import { canonicalCampaignMap, CAMPAIGN_CONTENT_VERSION } from "../../src/core/campaignCatalog";
-import { coreApplyRunVrf, coreBuildRunConfig, coreCampaignMoveBudget, coreInitializeRun,
+import { coreApplyRunVrf, coreBuildRunConfig, coreInitializeRun,
   coreRunSummary, coreRequestRunReroll, coreFinishRun, initializeZkubeCoreSync } from "../../src/core/zkubeCore";
 
 export async function generateAccountFixtures(ownerKey: Keypair, deviceKey: Keypair, nowUnix: number, includeRecoveryStates = false) {
@@ -48,7 +48,7 @@ export async function generateAccountFixtures(ownerKey: Keypair, deviceKey: Keyp
   const accounts: object[] = [];
   const profile = zero({ defined: { name: "playerState" } }) as Record<string, unknown>;
   Object.assign(profile, { version: PLAYER_STATE_ACCOUNT_VERSION, owner, nextRunId: new BN("9007199254740995"),
-    activeRunId: new BN("9007199254740993"), campaignActiveRunId: new BN("9007199254740994"),
+    activeRunId: new BN("9007199254740993"),
     kreditBalance: new BN(25), ladderPoints: new BN("9007199254740993"), highestLadderTier: 3,
     featuredFrameTier: 2, entryStreakDays: 42, lastEntryDayId: Math.floor(nowUnix / 86400),
     campaignStars: Array.from({ length: 25 }, (_, index) => index === 0 ? 255 : 0) });
@@ -69,16 +69,16 @@ export async function generateAccountFixtures(ownerKey: Keypair, deviceKey: Keyp
       expectedAuthority: owner.toBase58(), decoded: error ? null : rawCoder.decode("PlayerState", data), error });
   }
 
-  for (const mode of ["campaign", "daily"] as const) {
+  for (const mode of ["daily"] as const) {
     const realm = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, 1);
-    const rules = { ...realm.levels[0], pointsRequired: mode === "campaign" ? CAMPAIGN_TARGET_LADDER[0] : 0,
+    const rules = { ...realm.levels[0], pointsRequired: 0,
       guardian: realm.mapRules.guardian, startingRows: realm.mapRules.startingRows };
     const rulesHash = new Uint8Array(32).fill(4), initialReplay = new Uint8Array(32).fill(6);
     const config = coreBuildRunConfig({ mode, rulesHash, initialReplay,
-      maxMoves: mode === "campaign" ? coreCampaignMoveBudget(1, rules.difficulty) : DAILY_MAX_MOVES,
+      maxMoves: DAILY_MAX_MOVES,
       bonusType: rules.guardian.bonus, trigger: rules.guardian.trigger, triggerThreshold: rules.guardian.threshold,
       startingHeight: rules.startingRows, fixedTier: rules.difficulty, pointsRequired: rules.pointsRequired,
-      primary: rules.primary, secondary: rules.secondary, objective: { kind: mode === "daily" ? 1 : 0, value: mode === "daily" ? 2 : 0, requiredCount: 0 } });
+      primary: { kind: 0, value: 0, requiredCount: 0 }, secondary: { kind: 0, value: 0, requiredCount: 0 }, objective: { kind: 1, value: 2, requiredCount: 0 } });
     const initial = coreInitializeRun(config);
     const playing = coreApplyRunVrf({ config, state: initial, requestCounter: 1, vrfOutput: new Uint8Array(32).fill(8) });
     const reroll = coreRequestRunReroll(config, playing, 0);
@@ -87,12 +87,12 @@ export async function generateAccountFixtures(ownerKey: Keypair, deviceKey: Keyp
     for (const [phase, state] of [["prepared", initial], ["playing", playing], ...(includeRecoveryStates ? [["awaitingVrf", reroll], ["rerolled", rerolled], ["finished", finished]] as const : [])] as const) {
       const summary = coreRunSummary(state);
       const active = zero({ defined: { name: "activeRun" } }) as Record<string, unknown>;
-      Object.assign(active, summary, { version: 1, owner, rentPayer: deviceKey.publicKey, runId: new BN("9007199254740993"),
-        mode: { [mode]: {} }, lifecycle: { [phase === "rerolled" ? "playing" : phase]: {} }, mapId: 1, level: 1, rules,
+      Object.assign(active, summary, { version: PROTOCOL_ACCOUNT_VERSION, owner, rentPayer: deviceKey.publicKey, runId: new BN("9007199254740993"),
+        mode: { [mode]: {} }, lifecycle: { [phase === "rerolled" ? "playing" : phase]: {} }, mapId: 1, rules: { guardian: rules.guardian, startingRows: rules.startingRows },
         rulesHash: [...rulesHash], replayHash: summary.replayHash, objectiveTotal: new BN(summary.objectiveTotal.toString()),
-        deadlineAt: new BN(mode === "daily" ? nowUnix + 86340 : 0), finishedAt: new BN(phase === "finished" ? nowUnix : 0), finishReason: phase === "finished" ? { abandon: {} } : null,
+        deadlineAt: new BN(nowUnix + 86340), finishedAt: new BN(phase === "finished" ? nowUnix : 0), finishReason: phase === "finished" ? { abandon: {} } : null,
         nextRow: summary.nextRow ?? new Array(8).fill(0), hasNextRow: summary.nextRow != null,
-        dailyTheme: { kind: mode === "daily" ? 1 : 0, value: mode === "daily" ? 2 : 0 }, vrfRequestCounter: phase === "prepared" ? 0 : phase === "playing" ? 1 : 2,
+        dailyTheme: { kind: 1, value: 2 }, vrfRequestCounter: phase === "prepared" ? 0 : phase === "playing" ? 1 : 2,
         pendingVrfCounter: phase === "awaitingVrf" ? 2 : 0 });
       const data = await encoded("activeRun", active);
       const view = decodeActiveRunAccount(data, ZKUBE_PROGRAM_ID);
@@ -102,7 +102,7 @@ export async function generateAccountFixtures(ownerKey: Keypair, deviceKey: Keyp
         executable: false, data: data.toString("base64"), expectedAuthority: owner.toBase58(),
         decoded: rawCoder.decode("ActiveRun", data), error: null,
         token: { config: Buffer.from(view.runToken.config).toString("base64"), state: Buffer.from(view.runToken.state).toString("base64") } });
-      if (mode === "campaign" && phase === "playing") {
+      if (phase === "playing") {
         const invalid = { ...active, grid: [255, ...summary.grid.slice(1)] };
         const malformed = await encoded("activeRun", invalid);
         let nativeError: string | null = null;

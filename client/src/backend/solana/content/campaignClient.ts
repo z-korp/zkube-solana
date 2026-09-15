@@ -1,9 +1,7 @@
 import { PublicKey, type AccountInfo, type Connection } from "@solana/web3.js";
 import type { WalletLike } from "../session/sessionWallet.js";
 import {
-  deriveMapCatalogPda,
   derivePlayerStatePda,
-  deriveProtocolConfigPda,
 } from "../pdas.js";
 import { zkubeProgram } from "../runs/runPlan.js";
 import {
@@ -11,10 +9,10 @@ import {
   type ActiveRunRulesView,
   type RawLevelRuleSnapshot,
 } from "@/core/runProjection.js";
-import { CANONICAL_CAMPAIGN_MAP_COUNT } from "@/core/campaignCatalog.js";
+import { canonicalCampaignMap, CAMPAIGN_CONTENT_VERSION, CANONICAL_CAMPAIGN_MAP_COUNT } from "@/core/campaignCatalog.js";
 import {
   PLAYER_STATE_ACCOUNT_VERSION,
-  PROTOCOL_ACCOUNT_VERSION,
+  PLAYER_STATE_RESERVED_BYTES,
 } from "@/core/protocolVersions.generated.js";
 import { coreLadderTier, initializeZkubeCore } from "@/core/zkubeCore.js";
 
@@ -83,125 +81,33 @@ export async function fetchCampaignView(args: {
 }): Promise<CampaignView | null> {
   const program = zkubeProgram(args.connection, args.wallet);
   const owner = args.wallet.publicKey;
-  const protocolAddress = deriveProtocolConfigPda();
   const playerAddress = derivePlayerStatePda(owner);
-  const [protocolInfo, playerInfo] =
-    await args.connection.getMultipleAccountsInfo(
-      [protocolAddress, playerAddress],
-      "confirmed",
-    );
-  if (!protocolInfo) return null;
-  assertProgramAccount(
-    protocolInfo,
-    program.programId,
-    program.account.protocolConfig.size,
-    "ProtocolConfig",
-  );
+  const playerInfo = await args.connection.getAccountInfo(playerAddress, "confirmed");
+  const stars = playerInfo
+    ? decodePlayerStateAccount(program, playerAddress, owner, playerInfo).campaignStars
+    : new Array(CAMPAIGN_STAR_BYTES).fill(0);
+  return campaignViewFromStars(stars);
+}
 
-  type ProtocolAccount = Awaited<
-    ReturnType<typeof program.account.protocolConfig.fetch>
-  >;
-  const protocol = program.coder.accounts.decode(
-    "protocolConfig",
-    protocolInfo.data,
-  ) as unknown as ProtocolAccount;
-  if (Number(protocol.version) !== PROTOCOL_ACCOUNT_VERSION) {
-    return null;
-  }
-  let playerView: PlayerStateView | null = null;
-  if (playerInfo) {
-    try {
-      playerView = decodePlayerStateAccount(
-        program,
-        playerAddress,
-        owner,
-        playerInfo,
-      );
-    } catch {
-      // Untrusted RPC: a malformed PlayerState never fabricates progression.
-      return null;
-    }
-  }
-  const contentVersion = Number(protocol.contentVersion);
-  const campaignMapCount = Number(protocol.campaignMapCount);
-  if (
-    !Number.isInteger(campaignMapCount) ||
-    campaignMapCount !== CANONICAL_CAMPAIGN_MAP_COUNT
-  )
-    return null;
-  const catalogAddresses = Array.from(
-    { length: campaignMapCount },
-    (_, index) => deriveMapCatalogPda(contentVersion, index + 1),
-  );
-  const catalogInfos = await args.connection.getMultipleAccountsInfo(
-    catalogAddresses,
-    "confirmed",
-  );
-  type MapCatalogAccount = Awaited<
-    ReturnType<typeof program.account.mapCatalog.fetch>
-  >;
-  const catalogs = catalogInfos.map((info, index): MapCatalogAccount | null => {
-    if (!info) return null;
-    assertProgramAccount(
-      info,
-      program.programId,
-      program.account.mapCatalog.size,
-      `MapCatalog ${index + 1}`,
-    );
-    return program.coder.accounts.decode(
-      "mapCatalog",
-      info.data,
-    ) as unknown as MapCatalogAccount;
-  });
-  if (
-    !catalogs.every(
-      (catalog, index) =>
-        catalog &&
-        Number(catalog.version) === PROTOCOL_ACCOUNT_VERSION &&
-        Number(catalog.contentVersion) === contentVersion &&
-        Number(catalog.mapId) === index + 1 &&
-        catalog.levels.length === 10,
-    )
-  )
-    return null;
-  const maps = catalogs.map((catalog, index) => {
-    if (!catalog) {
-      throw new Error("active campaign catalog disappeared during decode");
-    }
-    const mapId = index + 1;
-    return {
-      mapId,
-      themeId: Number(catalog.themeId),
-      enabled: Boolean(catalog.enabled),
-      unlocked: playerView
-        ? campaignMapUnlocked(playerView.campaignStars, index)
-        : mapId === 1,
-      cleared: playerView
-        ? campaignMapCleared(playerView.campaignStars, index)
-        : false,
-      perfected: playerView
-        ? campaignMapPerfected(playerView.campaignStars, index)
-        : false,
-      levelStars: playerView
-        ? unpackCompactLevelStars(playerView.campaignStars, index)
-        : Array.from({ length: 10 }, () => 0),
-      levels: catalog.levels.map((level, levelIndex) =>
-        mapLevelRuleSnapshot(
-          {
-            ...level,
-            guardian: catalog.mapRules.guardian,
-            startingRows: catalog.mapRules.startingRows,
-          } as RawLevelRuleSnapshot,
-          mapId,
-          levelIndex + 1,
-          "campaign",
-        ),
-      ),
-    };
-  });
+/** The compiled catalog is available before any player account exists. */
+export function campaignViewFromStars(stars: readonly number[]): CampaignView {
   return {
-    contentVersion,
-    maps,
+    contentVersion: CAMPAIGN_CONTENT_VERSION,
+    maps: Array.from({ length: CANONICAL_CAMPAIGN_MAP_COUNT }, (_, index) => {
+      const mapId = index + 1;
+      const catalog = canonicalCampaignMap(CAMPAIGN_CONTENT_VERSION, mapId);
+      return {
+        mapId, themeId: catalog.themeId, enabled: true,
+        unlocked: campaignMapUnlocked(stars, index),
+        cleared: campaignMapCleared(stars, index),
+        perfected: campaignMapPerfected(stars, index),
+        levelStars: unpackCompactLevelStars(stars, index),
+        levels: catalog.levels.map((level, levelIndex) => mapLevelRuleSnapshot({
+          ...level, guardian: catalog.mapRules.guardian,
+          startingRows: catalog.mapRules.startingRows,
+        } as RawLevelRuleSnapshot, mapId, levelIndex + 1, "campaign")),
+      };
+    }),
   };
 }
 
@@ -337,7 +243,7 @@ export function decodePlayerStateAccount(
     campaignStars.length !== CAMPAIGN_STAR_BYTES ||
     Number(raw.highestLadderTier) > 4 ||
     Number(raw.featuredFrameTier) > Number(raw.highestLadderTier) ||
-    reserved.length !== 18 ||
+    reserved.length !== PLAYER_STATE_RESERVED_BYTES ||
     reserved.some((byte) => byte !== 0)
   ) {
     throw new Error("PlayerState relationship is invalid");

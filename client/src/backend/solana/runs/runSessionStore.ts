@@ -32,11 +32,12 @@ export interface RunSessionMarker {
   createdAt: number;
 }
 
-export type RunSessionMode = "campaign" | "daily";
-export type RunSlot = "campaign" | "arcade";
+export type RunSessionMode = "daily";
+export type RunSlot = "arcade";
 
 export function runSlotForMode(mode: RunSessionMode): RunSlot {
-  return mode === "campaign" ? "campaign" : "arcade";
+  if (mode !== "daily") throw new Error("Unsupported chain run mode");
+  return "arcade";
 }
 
 function sessionKey(owner: PublicKey, slot: RunSlot): string {
@@ -104,7 +105,6 @@ export function clearRunSession(
   delete sessions[owner.toBase58()];
   if (slot) delete sessions[sessionKey(owner, slot)];
   else {
-    delete sessions[sessionKey(owner, "campaign")];
     delete sessions[sessionKey(owner, "arcade")];
   }
   try {
@@ -179,7 +179,7 @@ function isStoredRunSession(value: unknown): value is StoredRunSession {
     value.version === 3 &&
     typeof value.owner === "string" &&
     typeof value.runId === "string" &&
-    (value.mode === "campaign" || value.mode === "daily") &&
+    value.mode === "daily" &&
     validSecretKey(value.sessionSecretKey) &&
     typeof value.sessionToken === "string" &&
     typeof value.activeRun === "string" &&

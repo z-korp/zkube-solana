@@ -10,7 +10,7 @@ describe("Unity run reconciliation agreement", () => {
       const fixture = await generateRunReconciliationFixtures();
       const actual = canonicalJson(fixture);
       expect(canonicalJson(await generateRunReconciliationFixtures())).toBe(actual);
-      for (const mode of ["campaign", "daily"]) {
+      for (const mode of ["daily"]) {
         const pending = fixture.cases.find(value => value.id === `active-${mode}-awaitingVrf`)!;
         const resolved = fixture.cases.find(value => value.id === `active-${mode}-rerolled`)!;
         expect(pending.action[1]).toEqual({ expected: 1, accepted: true, ready: false });
