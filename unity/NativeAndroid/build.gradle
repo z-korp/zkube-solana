@@ -1,0 +1,29 @@
+plugins { id 'com.android.library' }
+def toolchain = new groovy.json.JsonSlurper().parse(file('../toolchain.json'))
+def runtimeDependencies = new groovy.json.JsonSlurper().parse(file('dependencies.json'))
+assert runtimeDependencies.schemaVersion == 1
+
+android {
+    namespace 'com.zkorp.zkube.unitywallet'
+    compileSdk toolchain.androidApi
+    buildToolsVersion toolchain.sdkBuildTools
+    defaultConfig { minSdk toolchain.androidMinimumApi; consumerProguardFiles 'consumer-rules.pro' }
+    compileOptions {
+        sourceCompatibility JavaVersion.toVersion(toolchain.jdk.tokenize('.')[0])
+        targetCompatibility JavaVersion.toVersion(toolchain.jdk.tokenize('.')[0])
+    }
+    testOptions { unitTests.includeAndroidResources = true }
+    buildFeatures { buildConfig = false }
+}
+
+dependencies {
+    runtimeDependencies.runtime.each { implementation it }
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+}
+
+dependencyLocking { lockAllConfigurations() }
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}

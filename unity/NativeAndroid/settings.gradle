@@ -1,0 +1,10 @@
+pluginManagement {
+    def toolchain = new groovy.json.JsonSlurper().parse(file('../toolchain.json'))
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+    plugins { id 'com.android.library' version toolchain.androidGradlePlugin }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = 'zkube-unity-wallet'

@@ -1,0 +1,23 @@
+// Lock the final application's compile/runtime closure in both variants.
+// The native plugin's separate lockfile cannot constrain Unity's added libraries.
+def zkubeClasspaths = ['debugCompileClasspath', 'debugRuntimeClasspath',
+                       'releaseCompileClasspath', 'releaseRuntimeClasspath']
+dependencyLocking {
+    lockMode = LockMode.STRICT
+}
+configurations.matching { it.name in zkubeClasspaths }.configureEach {
+    resolutionStrategy.activateDependencyLocking()
+}
+tasks.register('zkubeResolveLockedDependencies') {
+    doLast {
+        // Resolve the graph without requesting Android's ambiguous default
+        // artifact type (classes, manifest and lint are separate variants).
+        zkubeClasspaths.each { name ->
+            configurations.getByName(name).incoming.resolutionResult.allDependencies.each { dependency ->
+                if (dependency instanceof UnresolvedDependencyResult) {
+                    throw new GradleException("Unresolved ${name}: ${dependency.attempted}", dependency.failure)
+                }
+            }
+        }
+    }
+}

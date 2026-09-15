@@ -1,0 +1,31 @@
+Native zKube Unity wallet bridge
+
+Production dependency versions and their full resolved closure are recorded in
+dependencies.json and gradle.lockfile. Both this build and Unity consume the
+same runtime coordinates. Unity toolchain.json owns build tool versions.
+
+The official Mobile Wallet Adapter Android library is pinned to 2.0.7:
+https://github.com/solana-mobile/mobile-wallet-adapter
+https://repo1.maven.org/maven2/com/solanamobile/mobile-wallet-adapter-clientlib-ktx/2.0.7/
+Upstream license: Apache-2.0. No upstream sources are vendored here.
+
+This library uses only the official byte transport. Required capabilities are
+version-zero transactions and solana:signTransactions. Wallets that do not
+advertise those are rejected; there is no sign-and-send fallback. The SDK's
+default authorization currently omits requested feature/address lists, so the
+bridge checks returned capability and account lists before requesting signing.
+Actual wallet compatibility remains an external acceptance test.
+
+Production secrets use an AndroidKeyStore AES-GCM key and encrypted preferences.
+Offline tests use a JCE key through the same encryption adapter; they validate
+tamper rejection, key-loss behavior and concurrent startup, not hardware keys.
+Activity tests never launch an external wallet. A recreated/lost request fails
+closed and the client must reconcile its durable transaction journal.
+
+Public run locators and signed transaction journals use separate preferences.
+Synchronous commit and atomic compare-exchange precede transaction submission;
+secret loss cannot delete a locator or permit concurrent journal replacement.
+
+Run verify.py using the same toolchain as Unity. It verifies a locked release
+AAR and offline JVM/Robolectric tests and writes build/verification.json with
+source and artifact hashes. It never invokes the Unity Editor or chain RPC.

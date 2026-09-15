@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "compatibility": {
+    "reason": "The pinned Unity AGP 9 toolchain rejects the shared clientlib/KTX namespace in MWA 2.0.7 and 2.1.1. The AGP 9 beta fixes that namespace and supports compileSdk 36; stable 2.2.0 requires compileSdk 37 and a newer AGP through its AndroidX dependencies.",
+    "upstreamFix": "https://github.com/solana-mobile/mobile-wallet-adapter/pull/1531",
+    "release": "https://github.com/solana-mobile/mobile-wallet-adapter/releases/tag/v2.2.0-agp9-beta1"
+  },
+  "runtime": [
+    "com.solanamobile:mobile-wallet-adapter-clientlib-ktx:2.2.0-agp9-beta1",
+    "androidx.activity:activity-ktx:1.10.1",
+    "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
+  ]
+}

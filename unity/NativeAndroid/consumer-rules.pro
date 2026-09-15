@@ -1,0 +1,4 @@
+-keep class com.zkorp.zkube.unitywallet.UnityWalletBridge { public *; }
+-keep class com.zkorp.zkube.unitywallet.ClientStore { public *; }
+-keep interface com.zkorp.zkube.unitywallet.BridgeCallback { *; }
+-keep class com.zkorp.zkube.unitywallet.WalletActivity { *; }
