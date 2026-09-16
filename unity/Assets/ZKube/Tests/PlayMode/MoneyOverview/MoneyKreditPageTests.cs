@@ -31,7 +31,7 @@ namespace ZKube.Tests.MoneyOverview
                 var label = button.GetComponentInChildren<TMPro.TMP_Text>(); label.ForceMeshUpdate();
                 Assert.That(label.preferredHeight, Is.LessThanOrEqualTo(label.rectTransform.rect.height + 1), button.name);
             }
-            yield return SessionClick(MoneyAppController.KreditPurchaseLabel(pack)); yield return Idle();
+            yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(pack)); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
@@ -53,7 +53,7 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator RefusedPurchase(string scenario, ExecutionOutcome expected, int signatures)
         {
             yield return PrepareDeviceScenario(scenario, page: "Kredits");
-            yield return SessionClick(MoneyAppController.KreditPurchaseLabel(environment.KreditPack)); yield return Idle();
+            yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(environment.KreditPack)); yield return Idle();
             Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt.Outcome, Is.EqualTo(expected));
             StringAssert.Contains("Balance · 25", SessionText());
             Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.EqualTo(signatures));
@@ -67,7 +67,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario(failure ? "kredit-pending-failure" : "kredit-pending-success", page: "Kredits");
             uint pack = environment.KreditPack;
-            yield return SessionClick(MoneyAppController.KreditPurchaseLabel(pack)); yield return Idle();
+            yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(pack)); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller; string signature = controller.LastReceipt.Signature;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             StringAssert.Contains("Balance · 25", SessionText());
@@ -138,7 +138,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("kredit-buy-10", page: "Kredits");
             environment.FailFirstReadAfterJournalClear();
-            yield return SessionClick(MoneyAppController.KreditPurchaseLabel(10)); yield return Idle();
+            yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(10)); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));

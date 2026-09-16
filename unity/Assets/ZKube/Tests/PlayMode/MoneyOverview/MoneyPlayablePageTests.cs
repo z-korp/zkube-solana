@@ -19,7 +19,7 @@ namespace ZKube.Tests.MoneyOverview
             var start = local.StartCampaign(1, 1);
             var accepted = local.Act(start.View.RunId, new ZKube.Local.LocalRunAction(ZKube.Local.LocalActionKind.Reroll));
             yield return SessionClick("Campaign"); yield return Idle();
-            yield return SessionClick("Resume Campaign"); yield return Idle();
+            yield return SessionClick("Resume run"); yield return Idle();
             var board = host.GetComponent<MoneyBoardHost>().Board;
             float until = Time.realtimeSinceStartup + 15;
             while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) && Time.realtimeSinceStartup < until) yield return null;
@@ -53,7 +53,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(run.Board.Session.Accepted.State, Is.EqualTo(state.Token.State));
             Assert.That(ZKube.Tests.Presentation.BoardTestState.Art(run.Board).RealmId, Is.EqualTo(run.Board.Session.RealmId));
             Assert.That(run.Board.HostInputEnabled, Is.True);
-            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Start trial" || button.name == "Resume Campaign"), Is.False);
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Play" || button.name == "Resume run"), Is.False);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

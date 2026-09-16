@@ -875,6 +875,16 @@ composition and shipped package. `store_gate_is_a_store_identity_policy_over_sha
 retains the store purchase boundary. Both identity constructors are covered by
 `campaign_seed_is_fresh_per_attempt_and_replays_on_resume` and
 `local_campaign_run_survives_process_death`.
+Navigation, Campaign browsing, level details, the Daily lobby, results, profiles,
+settings and result sharing live in the shared presentation assembly. The two
+identity adapters supply page data and actions through `IAppPageSource`;
+`EverySharedPageRendersUnderBothIdentityImplementations` checks every shared page
+under both adapters. Store purchase and name controls and money wallet, device,
+Kredit, claim and receipt controls remain identity slots. The existing store and
+money journeys retain their action boundaries; `DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce`
+also checks the shared result and share text after confirmed settlement.
+`CampaignStaysVisibleWhenAnEarlierOverviewReadCompletes` guards the active-page
+boundary for delayed public reads during free Campaign navigation.
 The chain run client has one Arcade path with no mode argument. The existing
 v1 Daily recovery locator remains readable. `AConsumedRunsReceiptCanFinishWithoutClaimingItsNewSuccessor`
 and `RunReceiptRejectsReuseWrongOwnerAndRunBeforeSending` retain the recovery and

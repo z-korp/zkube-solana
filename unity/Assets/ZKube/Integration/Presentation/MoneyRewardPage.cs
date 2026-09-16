@@ -12,10 +12,9 @@ using ZKube.Integration.Execution;
 
 namespace ZKube.Integration.Presentation
 {
-    public sealed partial class MoneyAppController
+    public sealed partial class MoneyAppAdapter
     {
         private RectTransform rewardPanel;
-        private Button rewardButton;
         private MoneyRead<MoneyRewardState> rewardRead;
         private bool browsingRewards;
         private uint rewardDay;
@@ -97,10 +96,7 @@ namespace ZKube.Integration.Presentation
             if (rewardDay > 0) Button(rewardPanel, "Previous day", () => _ = OpenRewards(rewardDay - 1));
             if (rewardDay < now() / 86400) Button(rewardPanel, "Next day", () => _ = OpenRewards(rewardDay + 1));
             Button(rewardPanel, "Refresh results", () => _ = RefreshOverview());
-            Button(rewardPanel, "Daily", () => _ = OpenDaily());
-            Button(rewardPanel, "This device", () => _ = OpenSession());
-            Button(rewardPanel, "Overview", () => _ = OpenOverview());
-            Button(rewardPanel, "Disconnect", () => _ = Disconnect());
+            shared.Navigation(rewardPanel);
         }
         private void DrawRewardNotice(string message)
         { BeginRewardPanel(); Label(rewardPanel, message, 20, false); RewardNavigation(); }
@@ -195,7 +191,6 @@ namespace ZKube.Integration.Presentation
         }
         private void RewardControls(bool available)
         {
-            if (rewardButton != null) rewardButton.interactable = available && !Busy && identity?.Owner != null;
             if (rewardPanel == null) return;
             foreach (var button in rewardPanel.GetComponentsInChildren<Button>(true))
                 button.interactable = available && (button.name == "Disconnect" || (!Busy &&

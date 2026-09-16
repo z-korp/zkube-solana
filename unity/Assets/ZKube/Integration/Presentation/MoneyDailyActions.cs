@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -10,10 +11,9 @@ using ZKube.Presentation;
 
 namespace ZKube.Integration.Presentation
 {
-    public sealed partial class MoneyAppController
+    public sealed partial class MoneyAppAdapter
     {
         private RectTransform dailyPanel;
-        private Button dailyButton;
         private MoneyRead<MoneyDailyState> dailyRead;
         private bool browsingDaily, confirmingDaily;
         private long dailyRefreshAt = long.MaxValue;
@@ -46,6 +46,8 @@ namespace ZKube.Integration.Presentation
             var result = await Flow.RefreshDaily(token);
             if (!Current(epoch) || !browsingDaily) return;
             dailyRead = result;
+            if (ResultAvailable("Daily") && lastResult.Day == result.Value.Lobby.DayId)
+                lastResult.Streak = (uint?)result.Value.Lobby.Profile.Fields?["entry_streak_days"];
             var value = result.Value.Lobby; long timestamp = now();
             dailyRefreshAt = checked(((long)value.DayId + 1) * 86400);
             if (value.PotLamports.HasValue)
@@ -92,48 +94,55 @@ namespace ZKube.Integration.Presentation
         private void DailyNavigation()
         {
             Button(dailyPanel, "Refresh Daily", () => _ = RefreshOverview());
-            Button(dailyPanel, "Campaign", () => _ = OpenCampaign());
-            Button(dailyPanel, "This device", () => _ = OpenSession());
-            Button(dailyPanel, "Kredits", () => _ = OpenKredits());
-            Button(dailyPanel, "Results", () => _ = OpenRewards());
-            Button(dailyPanel, "Overview", () => _ = OpenOverview());
+            shared.Navigation(dailyPanel);
         }
         private void DrawDailyNotice(string message)
         { BeginDailyPanel(); Label(dailyPanel, "Daily", 32, true); Label(dailyPanel, message, 20, false); DailyNavigation(); }
         private void DrawDaily()
         {
+            BeginDailyPanel(); shared.Render(AppPage.Daily, dailyPanel);
+            DailyNavigation(); Controls();
+        }
+        public DailyPageView DailyPage()
+        {
+            if (dailyRead == null)
+            {
+                var value = publicRead.Value;
+                return new DailyPageView { Day = value.DayId, Realm = value.Realm,
+                    ObjectiveKind = value.ObjectiveKind, ObjectiveValue = value.ObjectiveValue,
+                    Status = PublicStatus(value.Status), Facts = value.PotLamports.HasValue ?
+                        new[] { "Prize pot · " + (value.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL" } : Array.Empty<string>() };
+            }
             var state = dailyRead.Value; var lobby = state.Lobby;
-            if (catalog == null) catalog = PageCatalog.Load();
-            var realm = catalog.Realm(lobby.Realm); var objective = catalog.Objective(lobby.ObjectiveKind, lobby.ObjectiveValue);
-            BeginDailyPanel();
-            Label(dailyPanel, "Daily · " + DateTimeOffset.FromUnixTimeSeconds((long)lobby.DayId * 86400).ToString("d MMM yyyy", CultureInfo.InvariantCulture) + " UTC", 25, true);
-            Label(dailyPanel, realm.realmName + " · " + realm.guardianName, 29, true);
-            Label(dailyPanel, objective.name, 25, true); Label(dailyPanel, objective.description, 19, false);
-            Label(dailyPanel, PublicStatus(lobby.Status), 21, false);
+            var facts = new List<string>(); var actions = new List<PageAction>();
+            if (ResultAvailable("Daily")) actions.Add(PageAction("View result", () => OpenSharedPage(AppPage.Result), CanUseDaily));
             if (lobby.PotLamports.HasValue)
-                Label(dailyPanel, "Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)NativeEngine.DailyWindow(lobby.DayId).FreezesAt).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC", 19, false);
-            if (lobby.PotLamports.HasValue)
-                Label(dailyPanel, "Prize pot · " + (lobby.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL", 25, true);
-            Label(dailyPanel, lobby.ObjectiveKind == 0 ? "Classic pays the prize pot to Score." : "One run competes on Score and Theme.", 19, false);
-            Label(dailyPanel, "Kredits · " + lobby.Profile.Kredits, 22, true);
-            if (sessionActionPending) Label(dailyPanel, "Your device request is still finishing. Wait before opening a run.", 19, false);
-            Label(dailyPanel, DailyEntryNotice(state.Entry.Status), 19, false);
+            {
+                facts.Add("Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)NativeEngine.DailyWindow(lobby.DayId).FreezesAt).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC");
+                facts.Add("Prize pot · " + (lobby.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL");
+            }
+            facts.Add(lobby.ObjectiveKind == 0 ? "Classic pays the prize pot to Score." : "One run competes on Score and Theme.");
+            facts.Add("Kredits · " + lobby.Profile.Kredits);
+            if (sessionActionPending) facts.Add("Your device request is still finishing. Wait before opening a run.");
+            facts.Add(DailyEntryNotice(state.Entry.Status));
             if (state.Entry.Status == "pending-transaction")
-                Button(dailyPanel, "Check transaction", () => _ = CheckTransaction());
+                actions.Add(PageAction("Check transaction", () => _ = CheckTransaction(), CanUseDaily));
             else if (state.Entry.Status == "resume" || state.Run.Phase != "none")
-                Button(dailyPanel, "Resume Daily", () => _ = ResumeDailyRun());
+                actions.Add(PageAction("Resume Daily", () => _ = ResumeDailyRun(), () => CanUseDaily() && boardHost != null));
             else if (state.Entry.Ready)
             {
                 if (confirmingDaily)
                 {
-                    Label(dailyPanel, "Spend 1 Kredit?", 26, true);
-                    Label(dailyPanel, "This enters today's Daily. Your entry funds the following paid Daily, including across a suspension.", 19, false);
-                    Button(dailyPanel, "Confirm 1 Kredit", () => _ = ConfirmDailyEntry());
-                    Button(dailyPanel, "Cancel entry", () => { if (!CanUseDaily()) return; confirmingDaily = false; DrawDaily(); });
+                    facts.Add("Spend 1 Kredit?");
+                    facts.Add("This enters today's Daily. Your entry funds the following paid Daily, including across a suspension.");
+                    actions.Add(PageAction("Confirm 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null));
+                    actions.Add(PageAction("Cancel entry", () => { confirmingDaily = false; DrawDaily(); }, CanUseDaily));
                 }
-                else Button(dailyPanel, "Enter · 1 Kredit", AskDailyEntry);
+                else actions.Add(PageAction("Enter · 1 Kredit", AskDailyEntry, () => CanEnterDaily() && boardHost != null));
             }
-            DailyNavigation(); RequestArt(lobby.Realm); Controls();
+            return new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm,
+                ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue,
+                Status = PublicStatus(lobby.Status), Facts = facts.ToArray(), Actions = actions.ToArray() };
         }
         private static string DailyEntryNotice(string status) => status switch {
             "ready" => "One prepaid Kredit per entry.", "resume" => "Your saved Daily is ready to check.",
@@ -146,17 +155,5 @@ namespace ZKube.Integration.Presentation
             "run-address-occupied" => "A saved run needs checking before another entry.",
             _ => "Daily entry is unavailable. Refresh to check again."
         };
-        private void DailyControls(bool available)
-        {
-            if (dailyButton != null) dailyButton.interactable = available && !Busy && identity?.Owner != null;
-            if (dailyPanel == null) return;
-            foreach (var button in dailyPanel.GetComponentsInChildren<Button>(true))
-            {
-                bool navigation = button.name == "Overview" || button.name == "Refresh Daily" || button.name == "Campaign" || button.name == "This device" || button.name == "Kredits" || button.name == "Results";
-                button.interactable = available && !Busy && (navigation || CanUseDaily());
-                if (button.name == "Enter · 1 Kredit" || button.name == "Confirm 1 Kredit")
-                    button.interactable = available && CanEnterDaily() && boardHost != null;
-            }
-        }
     }
 }

@@ -18,7 +18,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick("Campaign"); yield return Idle();
             yield return SessionClick("Trial 1"); yield return Idle();
-            yield return SessionClick("Start trial"); yield return Idle();
+            yield return SessionClick("Play"); yield return Idle();
             var board = host.GetComponent<MoneyBoardHost>().Board;
             yield return BoardReady();
             Assert.That(board.Session.Daily, Is.False);
@@ -66,6 +66,12 @@ namespace ZKube.Tests.MoneyOverview
             Click("Dialog Continue"); yield return Idle();
             Assert.That(controller.PlayingRun, Is.False);
             Assert.That(controller.BrowsingDaily, Is.True);
+            yield return SessionClick("View result"); yield return Idle();
+            Assert.That(controller.ResultPage().HasResult, Is.True);
+            Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));
+            Assert.That(controller.ResultPage().ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
+            yield return SessionClick("Copy result"); yield return null;
+            StringAssert.StartsWith(Application.productName + " · Daily", GUIUtility.systemCopyBuffer);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

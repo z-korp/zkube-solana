@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /StoreAppController|MoneyAppController|StoreShareText|StoreResultSharing|MoneyCampaignBrowse|MoneyDailyPage\b|MoneyProfilePage\b/,
+    trees: [UNITY_CLIENT, README, AGENT_RULES],
+    reversal: "Both products use the shared presentation pages with identity data and actions (2026-09-16)",
+  },
+  {
     pattern: /chain:devnet:launch-plan|chain:devnet:extend|--built-packages|store-unity-locks|unity\/tools\/(?:fixtures|import_assets|android_identity|editor_lease|inspect_apk)\.py/,
     trees: [TOOLS, UNITY_CLIENT, join(ROOT, "unity/tools"), AGENT_RULES, README],
     reversal: "The build driver owns preparation and tests, one inspector checks both products, and launch planning uses the launch runner (2026-09-16)",

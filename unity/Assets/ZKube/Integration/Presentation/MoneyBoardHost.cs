@@ -30,6 +30,7 @@ namespace ZKube.Integration.Presentation
         public BoardController Board => board;
         public bool OperationPending => observing || settling;
         public event Action Closed;
+        public event Action<ResultPageView> ResultClosed;
         public event Action<MoneyRunOperation> ObservedOperation;
 
         public void Initialize(MoneyAppFlow value, Func<long> clock)
@@ -225,6 +226,15 @@ namespace ZKube.Integration.Presentation
         public void Close()
         {
             if (!HasRun) return;
+            if (Current(generation) && Terminal() && settled)
+                ResultClosed?.Invoke(new ResultPageView { HasResult = true, ProductName = Application.productName,
+                    Mode = board.Session.Daily ? "Daily" : "Campaign", Realm = board.Session.RealmId,
+                    Day = run == null ? 0 : checked((uint)(run.DeadlineAt / 86400)),
+                    ObjectiveKind = board.Session.Daily ? board.Session.Rules.ObjectiveKind : board.Session.Rules.PrimaryKind,
+                    ObjectiveValue = board.Session.Daily ? board.Session.Rules.ObjectiveValue : board.Session.Rules.PrimaryValue,
+                    Score = board.Session.Daily ? board.State.DailyScore : board.State.Score,
+                    ObjectiveTotal = board.Session.Daily ? board.State.ObjectiveTotal : board.State.PrimaryProgress, ShowStars = !board.Session.Daily,
+                    StarSources = board.State.LatchedStarSources, Notice = "Result saved." });
             generation++; run = null; campaign = null;
             var previous = board; board = null;
             try { lifetime?.Cancel(); }

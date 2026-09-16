@@ -3,9 +3,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace ZKube.Local.App
+namespace ZKube.Presentation
 {
-    public static class StoreResultSharing
+    public static class ResultSharing
     {
         public static bool NativeAvailable => Application.platform == RuntimePlatform.Android && !Application.isEditor;
         // User gesture only. ACTION_SEND opens the system chooser; its return
@@ -13,8 +13,8 @@ namespace ZKube.Local.App
         public static Task<bool> Open(string text, CancellationToken cancellation)
         {
             cancellation.ThrowIfCancellationRequested();
-#if UNITY_ANDROID && !UNITY_EDITOR && ZKUBE_STORE
-            var shareTitle = Application.productName + " · Daily";
+#if UNITY_ANDROID && !UNITY_EDITOR
+            var shareTitle = text.Split('\n')[0];
             var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             using (var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
             using (var activity = unity.GetStatic<AndroidJavaObject>("currentActivity"))

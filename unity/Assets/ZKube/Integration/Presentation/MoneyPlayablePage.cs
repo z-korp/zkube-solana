@@ -6,7 +6,7 @@ using ZKube.Integration.App;
 
 namespace ZKube.Integration.Presentation
 {
-    public sealed partial class MoneyAppController
+    public sealed partial class MoneyAppAdapter
     {
         private MoneyBoardHost boardHost;
         public bool PlayingRun => boardHost != null && boardHost.HasRun;
@@ -16,6 +16,11 @@ namespace ZKube.Integration.Presentation
             if (boardHost != null || Flow == null) throw new InvalidOperationException("Attach one host after initialization");
             boardHost = host ?? throw new ArgumentNullException(nameof(host));
             boardHost.Initialize(Flow, now);
+            boardHost.ResultClosed += result => {
+                result.PlayerName = identity.Owner;
+                result.Streak = profileRead != null && profileRead.IsCurrent ? (uint?)profileRead.Value.Profile.Fields?["entry_streak_days"] : null;
+                lastResult = result;
+            };
             boardHost.ObservedOperation += operation => {
                 if (detached || identity.Owner == null) return;
                 foreach (var step in operation.Receipts)
@@ -64,15 +69,5 @@ namespace ZKube.Integration.Presentation
             _ = RefreshOverview();
         }
 
-        private void DrawRunControls(MoneyCampaignState state)
-        {
-            if (boardHost == null) return;
-            if (state.Run != null)
-                Button(campaignPanel, "Resume Campaign", () => _ = ResumeCampaignRun());
-            if (browseLevel == 0 || state.Run != null) return;
-            var realm = state.Browse.Realms.Single(value => value.MapId == browseRealm);
-            if (realm.Unlocked && realm.Levels[browseLevel - 1].CanInspect)
-                Button(campaignPanel, "Start trial", () => _ = StartSelectedTrial());
-        }
     }
 }

@@ -24,7 +24,7 @@ namespace ZKube.Local.App
                     new GameObject("Store input", typeof(EventSystem), typeof(StandaloneInputModule));
                 var board = new GameObject("Store board", typeof(BoardController)).GetComponent<BoardController>();
                 board.transform.SetParent(transform, false);
-                gameObject.AddComponent<StoreAppController>().Initialize(product, runs, billing, board);
+                gameObject.AddComponent<StoreAppAdapter>().Initialize(product, runs, billing, board);
             }
             catch (Exception error)
             {

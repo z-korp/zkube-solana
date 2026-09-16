@@ -40,7 +40,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview");
             Assert.That(environment.Services.Identity.Owner, Is.Null);
-            StringAssert.Contains(System.DateTimeOffset.FromUnixTimeSeconds(environment.Clock()).ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + " UTC", Text("Daily facts"));
+            StringAssert.Contains(System.DateTimeOffset.FromUnixTimeSeconds(environment.Clock()).ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + " · UTC", Text("Daily facts"));
             Assert.That(environment.Calls.Any(call => call.Operation == "authorize"), Is.False);
             Click("Connect"); yield return Idle();
             StringAssert.Contains(environment.Owner, Text("Owner facts"));
@@ -226,13 +226,13 @@ namespace ZKube.Tests.MoneyOverview
             }
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
-        private static bool PageDrawn(ZKube.Integration.Presentation.MoneyAppController controller)
+        private static bool PageDrawn(ZKube.Integration.Presentation.MoneyAppAdapter controller)
         {
             const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             return !controller.Busy && controller.isActiveAndEnabled &&
                 !(bool)controller.GetType().GetField("paused", flags).GetValue(controller) &&
-                !(bool)controller.GetType().GetField("artLoading", flags).GetValue(controller) &&
-                controller.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Emblem ")).All(image => !image.enabled || image.sprite != null);
+                !controller.GetComponent<ZKube.Presentation.AppShell>().Loading &&
+                controller.GetComponentsInChildren<Image>().Where(image => image.name == "Guardian portrait").All(image => !image.enabled || image.sprite != null);
         }
         private IEnumerator Idle()
         {
@@ -247,7 +247,9 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(button.interactable, Is.True, name);
             ExecuteEvents.Execute(button.gameObject, new PointerEventData(EventSystem.current) { button = PointerEventData.InputButton.Left }, ExecuteEvents.pointerClickHandler);
         }
-        private string Text(string name) => host.GetComponentsInChildren<TMP_Text>(true).Single(value => value.name == name).text;
+        private string Text(string name) => name == "Daily facts" ? string.Join("\n",
+            host.GetComponentsInChildren<RectTransform>(true).Single(value => value.name == name).GetComponentsInChildren<TMP_Text>().Select(value => value.text)) :
+            host.GetComponentsInChildren<TMP_Text>(true).Single(value => value.name == name).text;
         [UnityTest] public IEnumerator UnconfiguredSceneHasReadableTextAndNoEnabledOperation()
         {
             var startup = Create(); host.SetActive(true); yield return null;

@@ -11,10 +11,9 @@ using ZKube.Integration.Planning;
 
 namespace ZKube.Integration.Presentation
 {
-    public sealed partial class MoneyAppController
+    public sealed partial class MoneyAppAdapter
     {
         private RectTransform sessionPanel;
-        private Button sessionButton;
         private MoneyRead<MoneySessionState> sessionRead;
         private bool browsingSession, sessionActionPending, sessionReadbackNeeded;
         public bool BrowsingSession => browsingSession;
@@ -73,8 +72,7 @@ namespace ZKube.Integration.Presentation
         private void SessionNavigation()
         {
             Button(sessionPanel, "Refresh session", () => _ = RefreshOverview());
-            Button(sessionPanel, "Overview", () => _ = OpenOverview());
-            Button(sessionPanel, "Disconnect", () => _ = Disconnect());
+            shared.Navigation(sessionPanel);
         }
         private void DrawSessionNotice(string message)
         { BeginSessionPanel(); Label(sessionPanel, message, 20, false); SessionNavigation(); }
@@ -154,7 +152,6 @@ namespace ZKube.Integration.Presentation
         }
         private void SessionControls(bool available)
         {
-            if (sessionButton != null) sessionButton.interactable = available && !Busy && identity?.Owner != null;
             if (sessionPanel == null) return;
             foreach (var button in sessionPanel.GetComponentsInChildren<Button>(true))
                 button.interactable = available && (button.name == "Disconnect" || (!Busy &&

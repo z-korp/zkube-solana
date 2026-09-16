@@ -10,7 +10,8 @@
     "ZKube.Money",
     "ZKube.Money.Tests",
     "ZKube.Presentation",
-    "ZKube.Presentation.Tests"
+    "ZKube.Presentation.Tests",
+    "ZKube.Store"
   ],
   "autoReferenced": false,
   "overrideReferences": true,

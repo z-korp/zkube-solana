@@ -10,10 +10,9 @@ using ZKube.Integration.Client;
 
 namespace ZKube.Integration.Presentation
 {
-    public sealed partial class MoneyAppController
+    public sealed partial class MoneyAppAdapter
     {
         private RectTransform kreditPanel;
-        private Button kreditButton;
         private MoneyRead<MoneyKreditState> kreditRead;
         private bool browsingKredits, economyActionPending, economyReadbackNeeded;
         public bool BrowsingKredits => browsingKredits;
@@ -66,9 +65,7 @@ namespace ZKube.Integration.Presentation
         private void KreditNavigation()
         {
             Button(kreditPanel, "Refresh Kredits", () => _ = RefreshOverview());
-            Button(kreditPanel, "Daily", () => _ = OpenDaily());
-            Button(kreditPanel, "Overview", () => _ = OpenOverview());
-            Button(kreditPanel, "Disconnect", () => _ = Disconnect());
+            shared.Navigation(kreditPanel);
         }
         private void DrawKreditNotice(string message)
         { BeginKreditPanel(); Label(kreditPanel, message, 20, false); KreditNavigation(); }
@@ -121,7 +118,6 @@ namespace ZKube.Integration.Presentation
         }
         private void KreditControls(bool available)
         {
-            if (kreditButton != null) kreditButton.interactable = available && !Busy && identity?.Owner != null;
             if (kreditPanel == null) return;
             foreach (var button in kreditPanel.GetComponentsInChildren<Button>(true))
                 button.interactable = available && (button.name == "Disconnect" || (!Busy &&

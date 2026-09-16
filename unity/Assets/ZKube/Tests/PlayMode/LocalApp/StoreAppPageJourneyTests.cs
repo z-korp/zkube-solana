@@ -39,7 +39,7 @@ namespace ZKube.Tests
             public void Dispose() { }
         }
         private GameObject root;
-        private StoreAppController app;
+        private StoreAppAdapter app;
         private BoardController board;
         private CampaignBilling billing;
         private LocalProductStore product;
@@ -68,7 +68,7 @@ namespace ZKube.Tests
             runs = new StoreRunClient(product, () => 20705L * 86400);
             billing = new CampaignBilling(new Driver(), () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
-            app = appRoot.AddComponent<StoreAppController>(); app.Initialize(product, runs, billing, board);
+            app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board);
             yield return Page(StorePage.Name);
         }
         [UnityTearDown] public IEnumerator TearDown()
@@ -96,9 +96,9 @@ namespace ZKube.Tests
             while (!predicate()) { if (Time.realtimeSinceStartup > deadline) Assert.Fail(reason); yield return null; }
             yield return null;
         }
-        private bool PageDrawn() => !(bool)typeof(StoreAppController).GetField("dirty", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
-            !(bool)typeof(StoreAppController).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
-            app.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Emblem ")).All(image => !image.enabled || image.sprite != null);
+        private bool PageDrawn() => !(bool)typeof(StoreAppAdapter).GetField("dirty", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
+            !(bool)typeof(StoreAppAdapter).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
+            app.GetComponentsInChildren<Image>().Where(image => image.name == "Guardian portrait").All(image => image.enabled && image.sprite != null);
         private IEnumerator Page(StorePage page) => Wait(() => app != null && app.Flow.Page == page && PageDrawn(), "Page did not become ready: " + page);
         private IEnumerator BoardReady() => Wait(() => board != null && ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy, "Board did not become ready: " + "Board is still busy or loading");
         private IEnumerator NamePlayer()
@@ -199,8 +199,8 @@ namespace ZKube.Tests
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             nodes = app.GetComponentInChildren<CampaignPathGraphic>().GetComponentsInChildren<Button>();
             AssertNodeCaptions(nodes);
-            var first = nodes.Single(button => button.name.StartsWith("Trial 1 ·")); Assert.That(first.interactable, Is.True);
-            Assert.That(nodes.Single(button => button.name.StartsWith("Trial 2 ·")).interactable, Is.False);
+            var first = nodes.Single(button => button.name == "Trial 1"); Assert.That(first.interactable, Is.True);
+            Assert.That(nodes.Single(button => button.name == "Trial 2").interactable, Is.False);
             first.onClick.Invoke(); yield return Page(StorePage.Level);
             Click(app, "Play"); yield return BoardReady(); Assert.That(board.Session.RealmId, Is.EqualTo(1));
         }
@@ -228,21 +228,21 @@ namespace ZKube.Tests
             var before = leases.Keys.Cast<string>().Where(key => key.Contains("/theme-")).ToHashSet();
             product.Write(state => { for (int realm = 1; realm <= 10; realm++) state.Stars[realm * 10 - 1] = 1; return state; });
             Click(app, "Profile"); yield return Page(StorePage.Profile);
-            var faces = app.GetComponentsInChildren<Image>().Where(value => value.name.StartsWith("Emblem ")).ToArray();
+            var faces = app.GetComponentsInChildren<Image>().Where(value => value.name == "Guardian portrait").ToArray();
             Assert.That(faces.Length, Is.EqualTo(10)); Assert.That(faces.All(value => value.enabled && value.sprite != null), Is.True);
             Assert.That(faces.Select(value => value.sprite.texture).Distinct().Count(), Is.EqualTo(1), "All profile thumbnails share the one generated texture");
             Assert.That(faces[0].sprite.texture.width, Is.LessThanOrEqualTo(2048)); Assert.That(faces[0].sprite.texture.height, Is.LessThanOrEqualTo(2048));
             var added = leases.Keys.Cast<string>().Where(key => key.Contains("/theme-") && !before.Contains(key)).ToArray();
             Assert.That(added.All(key => key == "ZKube/Atlases/theme-1"), Is.True, "Only the worn profile background may acquire a new realm atlas");
             Assert.That(leases.Contains("ZKube/Atlases/portraits"), Is.True);
-            var portraitOwner = (BoardArt)typeof(StoreAppController).GetField("portraitArt", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app);
+            var portraitOwner = (BoardArt)typeof(AppPages).GetField("portraits", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app.GetComponent<AppPages>());
             var portraitAtlas = (UnityEngine.Object)typeof(BoardArt).GetField("atlas", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(portraitOwner);
             var nativePointer = typeof(UnityEngine.Object).GetField("m_CachedPtr", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That((IntPtr)nativePointer.GetValue(portraitAtlas), Is.Not.EqualTo(IntPtr.Zero));
             Click(app, "Campaign"); yield return Page(StorePage.Campaign); Click(app, "Next"); yield return Page(StorePage.Campaign);
             Assert.That(leases.Contains("ZKube/Atlases/portraits"), Is.False);
             Assert.That((IntPtr)nativePointer.GetValue(portraitAtlas), Is.EqualTo(IntPtr.Zero));
-            Assert.That(app.GetComponentsInChildren<Image>().Any(value => value.name.StartsWith("Emblem ")), Is.False);
+            Assert.That(app.GetComponentsInChildren<Image>().Any(value => value.name == "Guardian portrait"), Is.False);
             Assert.That(app.Flow.Realm, Is.EqualTo(2)); Assert.That(retainedArt.Sprite("boss__celebrate"), Is.Not.Null);
             var common = (UnityEngine.U2D.SpriteAtlas)typeof(BoardArt).GetField("common", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(retainedArt);
             var uncached = common.GetSprite("bonus__tiki");
@@ -253,14 +253,14 @@ namespace ZKube.Tests
         {
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Next"); Assert.That(PageDrawn(), Is.False); yield return null;
-            Assert.That((bool)typeof(StoreAppController).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app), Is.True);
+            Assert.That((bool)typeof(StoreAppAdapter).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app), Is.True);
             // Same public navigation command that page buttons dispatch, while
             // the old page's renderer is deliberately retired during loading.
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
             Assert.That(app.GetComponentInChildren<CampaignPathGraphic>(), Is.Null);
             app.Flow.SelectRealm(3); yield return null;
             UnityEngine.Object.Destroy(app.gameObject); yield return null; yield return null;
-            Assert.That(app == null, Is.True); Assert.That(root.GetComponentsInChildren<StoreAppController>().Length, Is.Zero);
+            Assert.That(app == null, Is.True); Assert.That(root.GetComponentsInChildren<StoreAppAdapter>().Length, Is.Zero);
             LogAssert.NoUnexpectedReceived();
         }
         [UnityTest] public IEnumerator AcceptedSaveFailureIsVisibleAcrossRecoveryAndResultExit()

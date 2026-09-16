@@ -18,8 +18,7 @@ namespace ZKube.Presentation
         private readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
         private AudioSource effects, music;
         private AudioPreferences audioPreferences;
-        private AudioPreferences AudioSettings => audioPreferences ??= new AudioPreferences(
-            key => PlayerPrefs.GetString(key, ""), (key, value) => { PlayerPrefs.SetString(key, value); PlayerPrefs.Save(); });
+        private AudioPreferences AudioSettings => audioPreferences ??= AppPreferences.Audio();
         public double MusicVolume => AudioSettings.MusicVolume;
         public double EffectsVolume => AudioSettings.EffectsVolume;
         private bool paused, busy, guardianSelected, recoveryRequired, recoveryUnavailable;
@@ -79,9 +78,9 @@ namespace ZKube.Presentation
 
         private void Awake()
         {
-            ReducedMotion = PlayerPrefs.GetInt("zkube.motion.reduced", 0) == 1;
-            Muted = PlayerPrefs.GetInt("zkube.sound.muted", 0) == 1;
-            Haptics = PlayerPrefs.GetInt("zkube.haptics.enabled", 0) == 1;
+            ReducedMotion = AppPreferences.ReducedMotion;
+            Muted = AppPreferences.Muted;
+            Haptics = AppPreferences.Haptics;
             TextScale = ReadSavedTextScale();
             // The listener belongs to the board session, not its replaceable
             // camera/view. Reuse an existing active scene listener when present.
@@ -462,10 +461,9 @@ namespace ZKube.Presentation
         }
         // Android may kill the process without a quit callback. A settings action
         // must finish its save while the app is still running.
-        private static void SavePreference(string key, int value) { PlayerPrefs.SetInt(key, value); PlayerPrefs.Save(); }
-        public void SetReducedMotion(bool value) { ReducedMotion = value; SavePreference("zkube.motion.reduced", value ? 1 : 0); }
-        public void SetHaptics(bool value) { Haptics = value; SavePreference("zkube.haptics.enabled", value ? 1 : 0); }
-        public static float ReadSavedTextScale() => PlayerPrefs.GetInt("zkube.text.larger", 0) == 1 ? 1.3f : 1;
+        public void SetReducedMotion(bool value) { ReducedMotion = value; AppPreferences.SetReducedMotion(value); }
+        public void SetHaptics(bool value) { Haptics = value; AppPreferences.SetHaptics(value); }
+        public static float ReadSavedTextScale() => AppPreferences.TextScale;
         public static float ReadDisplayDensity() => Application.isEditor || Screen.dpi <= 0 ? 1 : Screen.dpi / 160;
         public static float SupportedTextScale(float value)
         {
@@ -474,12 +472,12 @@ namespace ZKube.Presentation
         }
         public void SetTextScale(float value)
         {
-            TextScale = SupportedTextScale(value); SavePreference("zkube.text.larger", TextScale > 1 ? 1 : 0);
+            TextScale = SupportedTextScale(value); AppPreferences.SetTextScale(TextScale);
             if (PresentationInitialized && !busy) RefreshLayout();
         }
         public void SetMuted(bool value)
         {
-            Muted = value; SavePreference("zkube.sound.muted", value ? 1 : 0);
+            Muted = value; AppPreferences.SetMuted(value);
             if (effects != null) effects.mute = value;
             if (music != null) { music.mute = value; if (!value && !paused && music.clip != null && !music.isPlaying) music.Play(); }
         }

@@ -19,7 +19,7 @@ namespace ZKube.Integration.App
         [SerializeField] private TextAsset solanaSchema, sessionSchema;
         [SerializeField] private TMP_FontAsset displayFont, bodyFont;
         [SerializeField] private string baseUri, routerUri, expectedGenesis;
-        [SerializeField] private MoneyAppController controller;
+        [SerializeField] private MoneyAppAdapter controller;
         private HttpClientJsonRpc http;
         private MoneyAppFlow flow;
         private bool started, stopping;
@@ -28,7 +28,7 @@ namespace ZKube.Integration.App
         private float? injectedDensity;
         public TextAsset SolanaSchema => solanaSchema;
         public TextAsset SessionSchema => sessionSchema;
-        public MoneyAppController Controller => controller;
+        public MoneyAppAdapter Controller => controller;
 #if UNITY_EDITOR
         private MoneyClientServices testServices;
         private Func<long> testClock;
@@ -51,7 +51,7 @@ namespace ZKube.Integration.App
         private void Start()
         {
             if (started || stopping) return; started = true;
-            if (controller == null) controller = gameObject.AddComponent<MoneyAppController>();
+            if (controller == null) controller = gameObject.AddComponent<MoneyAppAdapter>();
             try
             {
                 MoneyClientServices services;

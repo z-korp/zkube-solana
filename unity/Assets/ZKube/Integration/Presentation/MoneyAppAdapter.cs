@@ -15,7 +15,7 @@ using ZKube.Presentation;
 namespace ZKube.Integration.Presentation
 {
     // Money pages coordinate explicit operations; accepted launches bind the shared board host.
-    public sealed partial class MoneyAppController : MonoBehaviour
+    public sealed partial class MoneyAppAdapter : MonoBehaviour, IAppPageSource
     {
         public MoneyAppFlow Flow { get; private set; }
         public bool Busy { get; private set; }
@@ -28,21 +28,22 @@ namespace ZKube.Integration.Presentation
         private float textScale;
         private float? injectedDensity;
         private float lastCanvasScale, lastDensity;
-        private TMP_Text status, daily, owner, receipt;
+        private TMP_Text status, owner, receipt;
+        private RectTransform publicDailyPanel;
         private Button connect, disconnect, refresh, check;
         private Button receiptDetails;
         private bool fullReceipt;
         private GameObject root;
+        private AppShell shell;
+        private AppPages shared;
         private RectTransform safe;
         private Image background;
-        private BoardArt art;
         private PageCatalog catalog;
         private CancellationTokenSource reads;
         private MoneyRead<PublicDaily> publicRead;
         private MoneyRead<MoneyOwnerState> ownerRead;
-        private bool paused, detached, initialized, artLoading;
+        private bool paused, detached, initialized;
         private long generation, observedDay, freezeAttempt = -1;
-        private byte requestedRealm;
         private string receiptOwner;
         private IdentityLease receiptLease;
         private Rect lastSafe;
@@ -65,7 +66,7 @@ namespace ZKube.Integration.Presentation
         {
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
             injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, scale);
-            status.text = message; daily.text = ""; owner.text = "";
+            status.text = message; publicDailyPanel.gameObject.SetActive(false); owner.text = "";
             Controls();
         }
 
@@ -74,36 +75,18 @@ namespace ZKube.Integration.Presentation
             textScale = BoardController.SupportedTextScale(scale);
             heading = displayFont ?? throw new ArgumentNullException(nameof(displayFont));
             body = bodyFont ?? throw new ArgumentNullException(nameof(bodyFont)); initialized = true;
-            var camera = new GameObject("Money page background", typeof(Camera)).GetComponent<Camera>();
-            camera.transform.SetParent(transform, false); camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = ink; camera.cullingMask = 0; camera.depth = -100;
-            camera.allowHDR = false; camera.allowMSAA = false;
-            root = new GameObject("Money overview", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            root.transform.SetParent(transform, false); root.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = root.GetComponent<CanvasScaler>(); scaler.enabled = false; scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(430, 932);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; scaler.enabled = true;
-            background = Rect("Realm background", root.transform).gameObject.AddComponent<Image>(); Stretch(background.rectTransform);
-            background.color = Color.clear; background.raycastTarget = false;
-            safe = Rect("Safe overview", root.transform); PlaceSafe();
-            var viewport = Rect("Viewport", safe); Stretch(viewport); viewport.gameObject.AddComponent<RectMask2D>();
-            // Empty space must route drag gestures to ScrollRect, just like a button.
-            viewport.gameObject.AddComponent<Image>().color = Color.clear;
-            var scroll = safe.gameObject.AddComponent<ScrollRect>(); scroll.horizontal = false;
-            scroll.viewport = viewport; scroll.movementType = ScrollRect.MovementType.Clamped;
-            var content = Rect("Content", viewport); content.anchorMin = new Vector2(0, 1); content.anchorMax = Vector2.one;
-            content.pivot = new Vector2(.5f, 1); content.offsetMin = content.offsetMax = Vector2.zero;
-            var layout = content.gameObject.AddComponent<VerticalLayoutGroup>(); layout.spacing = 12;
-            layout.padding = new RectOffset(10, 10, 18, 30); layout.childControlHeight = true;
-            layout.childForceExpandHeight = false; layout.childForceExpandWidth = true;
-            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize; scroll.content = content;
+            shell = gameObject.AddComponent<AppShell>(); shell.Initialize(Application.productName);
+            root = shell.Root; safe = shell.Safe; background = shell.Background;
+            var content = shell.Content;
+            shared = gameObject.AddComponent<AppPages>();
+            shared.Initialize(this, heading, body, textScale, () => injectedDensity ?? BoardController.ReadDisplayDensity());
             Label(content, Application.productName, 36, true);
             status = Label(content, "Loading Daily…", 19, false); status.name = "Overview status";
             pageContent = content;
             overviewPanel = Rect("Overview panel", content);
             Stack(overviewPanel);
             var overview = overviewPanel;
-            daily = Label(overview, "", 23, true); daily.name = "Daily facts";
+            publicDailyPanel = Rect("Daily facts", overview); Stack(publicDailyPanel);
             owner = Label(overview, "Connect your wallet to view your profile and runs.", 20, false); owner.name = "Owner facts";
             receipt = Label(content, "", 18, false); receipt.name = "Transaction receipt";
             receiptDetails = Button(content, "Receipt details", ToggleReceiptDetails);
@@ -112,19 +95,14 @@ namespace ZKube.Integration.Presentation
             disconnect = Button(overview, "Disconnect", () => _ = Disconnect());
             refresh = Button(overview, "Refresh", () => _ = RefreshOverview());
             check = Button(overview, "Check transaction", () => _ = CheckTransaction());
-            campaignButton = Button(overview, "Campaign", () => _ = OpenCampaign());
-            sessionButton = Button(overview, "This device", () => _ = OpenSession());
-            dailyButton = Button(overview, "Daily", () => _ = OpenDaily());
-            kreditButton = Button(overview, "Kredits", () => _ = OpenKredits());
-            rewardButton = Button(overview, "Results", () => _ = OpenRewards());
-            profileButton = Button(overview, "Profile", () => _ = OpenProfile());
+            shared.Navigation(overview);
             Controls();
         }
 
         public Task RefreshOverview() => Run(RefreshVisiblePage);
         private Task RefreshVisiblePage(long epoch, CancellationToken token) =>
             browsingProfile ? RefreshProfilePage(epoch, token) : browsingRewards ? RefreshRewardPage(epoch, token) : browsingKredits ? RefreshKreditPage(epoch, token) : browsingDaily ? RefreshDailyPage(epoch, token) : browsingSession ? RefreshSessionPage(epoch, token) :
-            browsingCampaign ? RefreshCampaignPage(epoch, token) : Refresh(epoch, token);
+            browsingCampaign ? RefreshCampaignPage(epoch, token) : sharedPage.HasValue ? RefreshSharedPage() : Refresh(epoch, token);
         public Task Connect() => Run(async (epoch, token) => {
             await Flow.Connect(); if (Current(epoch)) await Refresh(epoch, token);
         });
@@ -169,15 +147,13 @@ namespace ZKube.Integration.Presentation
         private async Task Refresh(long epoch, CancellationToken token)
         {
             var publication = await Flow.RefreshPublic(token);
-            if (!Current(epoch)) return;
+            if (!Current(epoch) || !overviewPanel.gameObject.activeSelf) return;
             var value = publication.Value; publicRead = publication;
             if (value.FreezesAt.HasValue && value.ObservedAt >= value.FreezesAt.Value) freezeAttempt = value.FreezesAt.Value;
             if (catalog == null) catalog = PageCatalog.Load();
-            string pot = value.PotLamports.HasValue ? "\nPot: " + (value.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL" : "";
-            daily.text = "Daily · " + DateTimeOffset.FromUnixTimeSeconds(value.ObservedAt).ToString("d MMM yyyy", CultureInfo.InvariantCulture) + " UTC\n" +
-                catalog.Realm(value.Realm).realmName + " · " + catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).name +
-                "\n" + PublicStatus(value.Status) + pot;
-            status.text = "Daily updated"; RequestArt(value.Realm);
+            foreach (Transform child in publicDailyPanel) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
+            publicDailyPanel.gameObject.SetActive(true); shared.Render(AppPage.Daily, publicDailyPanel);
+            status.text = "Daily updated";
             if (identity.Owner == null) { owner.text = "Connect your wallet to view your profile and runs."; return; }
             var privateRead = await Flow.RefreshOwner(token);
             if (!Current(epoch)) return;
@@ -252,7 +228,7 @@ namespace ZKube.Integration.Presentation
             disconnect.interactable = available; check.interactable = available && !Busy && identity.Owner != null;
             receiptDetails.gameObject.SetActive(!string.IsNullOrEmpty(LastReceipt?.Signature));
             receiptDetails.interactable = available && !Busy;
-            CampaignControls(available); SessionControls(available); DailyControls(available); KreditControls(available); RewardControls(available); ProfileControls(available);
+            SessionControls(available); KreditControls(available); RewardControls(available);
         }
         private void Update()
         {
@@ -260,11 +236,12 @@ namespace ZKube.Integration.Presentation
             if (PlayingRun) return;
             if (lastSafe != Screen.safeArea || lastSize != new Vector2Int(Screen.width, Screen.height)) { PlaceSafe(); RefreshCampaignLayout(); }
             if (Flow == null || paused) return;
+            if (shell.ArtworkError != null) status.text = "Realm artwork unavailable. Refresh to try again.";
             if (ownerRead != null && !ownerRead.IsCurrent) { ownerRead = null; owner.text = "Owner information changed. Refresh to update."; }
             if (receiptOwner != null && !identity.IsCurrent(receiptLease)) { receipt.text = ""; receiptOwner = null; receiptLease = null; lastReceipt = null; }
             RefreshCampaignIdentity(); RefreshSessionIdentity(); RefreshDailyIdentity(); RefreshKreditIdentity(); RefreshRewardIdentity(); RefreshProfileIdentity();
             Controls();
-            if (Busy || browsingCampaign || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile) return;
+            if (Busy || browsingCampaign || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || sharedPage.HasValue) return;
             long timestamp = now(), day = timestamp / 86400;
             long? freeze = publicRead != null && publicRead.IsCurrent ? publicRead.Value.FreezesAt : null;
             if (day != observedDay || (freeze.HasValue && timestamp >= freeze.Value && freezeAttempt != freeze.Value))
@@ -289,7 +266,7 @@ namespace ZKube.Integration.Presentation
             {
                 RetireRead(); Busy = false; publicRead = null; ownerRead = null;
                 if (owner != null) owner.text = "Refresh to view your profile and runs.";
-                if (daily != null) daily.text = "";
+                if (publicDailyPanel != null) publicDailyPanel.gameObject.SetActive(false);
                 ClearProductObservations();
                 if (root != null) root.SetActive(false);
             }
@@ -329,81 +306,24 @@ namespace ZKube.Integration.Presentation
         private void OnDestroy() => Detach();
         private void CloseProductViews()
         {
-            CloseSessionView(); CloseCampaignView(); CloseDailyView(); CloseKreditView(); CloseRewardView(); CloseProfileView();
+            CloseSharedView(); CloseSessionView(); CloseCampaignView(); CloseDailyView(); CloseKreditView(); CloseRewardView(); CloseProfileView();
         }
         private void ClearProductObservations()
         {
             ClearCampaignObservation(); ClearSessionObservation(); ClearDailyObservation(); ClearKreditObservation(); ClearRewardObservation(); ClearProfileObservation();
         }
-        private void RetireArtwork()
-        {
-            StopAllCoroutines(); artLoading = false; requestedRealm = 0;
-            if (background != null) { background.sprite = null; background.color = Color.clear; }
-            art?.Dispose(); art = null;
-        }
-        private void RequestArt(byte realm)
-        {
-            requestedRealm = realm;
-            if (!artLoading && isActiveAndEnabled) StartCoroutine(LoadArt());
-        }
-        private IEnumerator LoadArt()
-        {
-            artLoading = true;
-            while (!detached && requestedRealm != 0 && (art == null || art.RealmId != requestedRealm))
-            {
-                byte realm = requestedRealm; background.sprite = null; background.color = Color.clear;
-                if (art == null) art = new BoardArt();
-                var iterator = art.Load(realm);
-                while (true)
-                {
-                    bool more;
-                    try { more = iterator.MoveNext(); }
-                    catch (Exception) { status.text = "Realm artwork unavailable. Refresh to try again."; artLoading = false; art.Dispose(); art = null; yield break; }
-                    if (!more) break; yield return iterator.Current;
-                }
-                if (!detached && realm == requestedRealm)
-                { background.sprite = art.Sprite("background"); background.color = new Color(.12f, .12f, .12f, 1); }
-            }
-            artLoading = false;
-
-        }
+        private void RetireArtwork() => shell.ReleaseArtwork();
         private void PlaceSafe()
-        {
-            if (safe == null || Screen.width <= 0 || Screen.height <= 0) return;
-            lastSafe = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height);
-            safe.anchorMin = new Vector2(lastSafe.xMin / Screen.width, lastSafe.yMin / Screen.height);
-            safe.anchorMax = new Vector2(lastSafe.xMax / Screen.width, lastSafe.yMax / Screen.height);
-            safe.offsetMin = new Vector2(14, 12); safe.offsetMax = new Vector2(-14, -12);
-        }
-        private void ResetPageScroll()
-        {
-            // Pages share a viewport, but not the previous page's offset or
-            // drag inertia. Reset the top-anchored content before its new
-            // layout grows; normalized positions still read the old height.
-            var scroll = safe.GetComponent<ScrollRect>();
-            scroll.StopMovement(); scroll.content.anchoredPosition = Vector2.zero;
-        }
+        { shell.PlaceSafe(); lastSafe = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height); }
+        private void ResetPageScroll() => shell.ResetScroll();
         private void ReplacePagePanel(ref RectTransform panel, string name)
         {
             if (panel != null) { panel.gameObject.SetActive(false); Destroy(panel.gameObject); }
             panel = Rect(name, pageContent); Stack(panel); ResetPageScroll();
         }
-        private TMP_Text Label(Transform parent, string text, float size, bool title)
-        {
-            var value = Rect(text.Length > 30 ? "Text" : text, parent).gameObject.AddComponent<TextMeshProUGUI>();
-            value.font = title ? heading : body; value.fontSize = size * textScale; value.text = text; value.color = new Color(1, .97f, .87f);
-            value.richText = false; value.raycastTarget = false; value.overflowMode = TextOverflowModes.Overflow;
-            return value;
-        }
-        private Button Button(Transform parent, string title, UnityEngine.Events.UnityAction action)
-        {
-            var rect = Rect(title, parent); rect.gameObject.AddComponent<LayoutElement>().minHeight = BoardLayout.CanvasTouchSize(52,
-                injectedDensity ?? BoardController.ReadDisplayDensity(), root.GetComponent<Canvas>().scaleFactor);
-            var image = rect.gameObject.AddComponent<Image>(); image.color = new Color(.15f, .25f, .34f, .98f);
-            var button = rect.gameObject.AddComponent<Button>(); button.targetGraphic = image; button.onClick.AddListener(action);
-            var label = Label(rect, title, 21, false); Stretch(label.rectTransform); label.alignment = TextAlignmentOptions.Center;
-            return button;
-        }
+        private TMP_Text Label(Transform parent, string text, float size, bool title) => shared.Label(parent, text, size, title);
+        private Button Button(Transform parent, string title, UnityEngine.Events.UnityAction action) =>
+            shared.Button(parent, new PageAction { Label = title, Invoke = () => action() }, observe: false);
         private static RectTransform Rect(string name, Transform parent)
         { var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>(); rect.SetParent(parent, false); return rect; }
         private static void Stretch(RectTransform rect) { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = rect.offsetMax = Vector2.zero; }
