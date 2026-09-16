@@ -80,7 +80,7 @@ namespace ZKube.Integration.Planning
         }
 
         public static IReadOnlyList<ValidatedBoardReward> ReadEntryClaims(AccountBindings bindings, IEnumerable<BoardObservation> observations,
-            string owner, uint currentDay, long now)
+            string owner)
         {
             var candidates = new List<ValidatedBoardReward>();
             int count = 0;
@@ -91,7 +91,7 @@ namespace ZKube.Integration.Planning
                 try { candidates.AddRange(bindings.BoardRewards(observation.Account, observation.DayId, observation.Kind, owner)); }
                 catch (FormatException) { /* Optional malformed claims never prevent entry. */ }
             }
-            return SelectEntryClaims(candidates, owner, currentDay, now);
+            return candidates.AsReadOnly();
         }
 
         private static void RequireFreeSlot(PlannerActor actor, PlayerPlanSnapshot player, AccountEnvelope occupied)

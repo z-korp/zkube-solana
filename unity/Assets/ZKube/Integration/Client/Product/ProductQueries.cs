@@ -11,15 +11,18 @@ using ZKube.Integration.Transport;
 
 namespace ZKube.Integration.Client
 {
-    public sealed class ProductRead<T>
+    // Hosts read Value at publication, after dispatching onto their UI thread.
+    // Retained data is rejected after identity change, supersession or shutdown.
+    public sealed class MoneyRead<T>
     {
-        private readonly ClientIdentity identity;
         private readonly T value;
-        public IdentityLease Identity { get; }
-        public T Value => identity.IsCurrent(Identity) ? value : throw new OperationCanceledException("Product result identity changed");
-        internal ProductRead(ClientIdentity identity, IdentityLease lease, T value) { this.identity = identity; Identity = lease; this.value = value; }
+        private readonly Func<bool> current;
+        public bool IsCurrent => current();
+        public T Value => IsCurrent ? value : throw new OperationCanceledException("Money application observation changed");
+        public MoneyRead(T value, Func<bool> current) { this.value = value; this.current = current; }
+        internal MoneyRead(ClientIdentity identity, IdentityLease lease, T value)
+            : this(value, () => identity.HasCurrentData(lease)) { }
     }
-
     // Finite, read-only queries. Account transport verifies Base genesis, and
     // AccountBindings owns byte/PDA validation. No subscription, durable write,
     // wallet operation, or per-owner cache belongs to this facade.
@@ -36,25 +39,25 @@ namespace ZKube.Integration.Client
         { this.identity = identity; this.accounts = accounts; this.addresses = addresses; this.rpc = rpc;
             this.now = now; }
 
-        public Task<ProductRead<PlayerProfile>> Profile(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+        public Task<MoneyRead<PlayerProfile>> Profile(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
             return Profile(lease.Owner, read);
         });
 
-        internal Task<ProductRead<string>> PurchaseDestination(CancellationToken cancellation) => Read(cancellation, async (_, token) => {
+        internal Task<MoneyRead<string>> PurchaseDestination(CancellationToken cancellation) => Read(cancellation, async (_, token) => {
             var read = await rpc.ReadAccount(rpc.Base, addresses.ProtocolAddress, cancellation: token).ConfigureAwait(false);
             if (read.Envelope == null) throw new InvalidOperationException("Protocol is unavailable");
             return (string)accounts.ProtocolConfig(read.Envelope)["team_destination"];
         });
 
-        public Task<ProductRead<CampaignProgress>> Campaign(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+        public Task<MoneyRead<CampaignProgress>> Campaign(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
             var player = Profile(lease.Owner, read);
             byte[] packed = player.Fields?["campaign_stars"].Values<byte>().ToArray() ?? new byte[25];
             return CampaignProgress.FromStars(lease.Owner, NativeEngine.CampaignProgress(packed).Stars, player);
         });
 
-        public Task<ProductRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+        public Task<MoneyRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             long timestamp = Clock(); uint day = CurrentDay(timestamp);
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress,
                 addresses.Daily(day), addresses.Player(lease.Owner) }, cancellation: token).ConfigureAwait(false);
@@ -68,7 +71,7 @@ namespace ZKube.Integration.Client
 
         // Explicit day reads have no discovery lookback restriction: an old
         // board sealed recently can still be claimed during its own window.
-        public Task<ProductRead<DailyBoards>> SettledBoards(uint day, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+        public Task<MoneyRead<DailyBoards>> SettledBoards(uint day, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             long timestamp = Clock();
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score"), addresses.Board(day, "theme") }, cancellation: token).ConfigureAwait(false);
             var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
@@ -80,7 +83,7 @@ namespace ZKube.Integration.Client
 
         // A single-board action must not depend on the peer board being present.
         // Both the page and preflight use Board for binding, payouts and expiry.
-        public Task<ProductRead<PrizeBoard>> SettledBoard(uint day, string kind, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+        public Task<MoneyRead<PrizeBoard>> SettledBoard(uint day, string kind, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             if (kind != "score" && kind != "theme") throw new ArgumentException("Invalid reward board", nameof(kind));
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, kind) }, cancellation: token).ConfigureAwait(false);
             var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
@@ -150,7 +153,7 @@ namespace ZKube.Integration.Client
         private long Clock() => PublicDailyQuery.ValidateClock(now());
         private static uint CurrentDay(long timestamp) => PublicDailyQuery.CurrentDay(timestamp);
         private static string DailyStatus(JObject daily, long timestamp) => PublicDailyQuery.DailyStatus(daily, timestamp);
-        private async Task<ProductRead<T>> Read<T>(CancellationToken cancellation, Func<IdentityLease, CancellationToken, Task<T>> query)
+        private async Task<MoneyRead<T>> Read<T>(CancellationToken cancellation, Func<IdentityLease, CancellationToken, Task<T>> query)
         {
             var lease = identity.Lease();
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(lease.Cancellation, cancellation);
@@ -158,7 +161,7 @@ namespace ZKube.Integration.Client
             var value = await query(lease, linked.Token).ConfigureAwait(false);
             linked.Token.ThrowIfCancellationRequested();
             if (!identity.IsCurrent(lease)) throw new OperationCanceledException("Product read identity changed");
-            return new ProductRead<T>(identity, lease, value);
+            return new MoneyRead<T>(identity, lease, value);
         }
     }
 }

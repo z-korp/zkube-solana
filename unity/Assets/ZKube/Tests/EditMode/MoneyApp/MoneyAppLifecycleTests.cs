@@ -59,7 +59,7 @@ namespace ZKube.Integration.App.Tests
             await e.Flow.StopAsync();
         }
         [Test]
-        public async Task NewPublicGenerationRejectsAnOldCallbackAndRetainedPublication()
+        public async Task NewPublicReadRejectsAnOldCallbackAndRetainedPublication()
         {
             var e = new MoneyTestEnvironment(); var retained = await e.Flow.RefreshPublic();
             e.Http.DelayMethod = "getMultipleAccounts"; e.Http.Entered = Signal(); e.Http.Release = Signal();

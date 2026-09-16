@@ -7,8 +7,8 @@ namespace ZKube.Integration.App
 {
     public sealed partial class MoneyAppFlow
     {
-        // All connected product pages publish under the same owner epoch,
-        // economy revision and shutdown drain. A read never repairs a session
+        // All connected product pages share the identity epoch and shutdown
+        // drain. A read never repairs a session
         // or resumes a transaction; those remain explicit owner actions.
         private Task<MoneyRead<T>> ReadOwnerProduct<T>(CancellationToken cancellation,
             Func<IdentityLease, CancellationToken, Task<T>> action) => Track(async () => {
@@ -18,13 +18,9 @@ namespace ZKube.Integration.App
                     await ownerReads.WaitAsync(read.Token).ConfigureAwait(false);
                     try
                     {
-                        long revision = services.EconomyRevision(lease.Owner);
                         var value = await action(lease, read.Token).ConfigureAwait(false);
                         Require(read, lease);
-                        if (services.EconomyRevision(lease.Owner) != revision)
-                            throw new OperationCanceledException("Owner economy changed during product refresh");
-                        return new MoneyRead<T>(value, () => Current(read, lease) &&
-                            services.EconomyRevision(lease.Owner) == revision);
+                        return new MoneyRead<T>(value, () => Current(read, lease));
                     }
                     finally { ownerReads.Release(); }
                 }

@@ -8,9 +8,9 @@ namespace ZKube.Integration.Client
     {
         private readonly RunStateStore store;
         public RunPersistence(RunStateStore store) { this.store = store; }
-        public async Task Accept(RunSemanticObservation observation)
+        public async Task Accept(RunRecordChange observation)
         {
-            if (observation.Phase == RunSemanticPhase.Consumed)
+            if (observation.State == RunRecordState.Consumed)
             {
                 if (observation.PlayerAfter == null) throw new FormatException("Consumed run has no validated player observation");
                 var marker = await store.Load(observation.Owner).ConfigureAwait(false);
@@ -18,7 +18,7 @@ namespace ZKube.Integration.Client
                     await store.ClearAfterConsumption(marker, observation.PlayerAfter, null, new DelegationPlacement { IsDelegated = false }).ConfigureAwait(false);
                 return;
             }
-            if (observation.Phase == RunSemanticPhase.Absent) return;
+            if (observation.State == RunRecordState.Absent) return;
             if (!observation.RunId.HasValue) throw new FormatException("Accepted run has no durable locator");
             var existing = await store.Load(observation.Owner).ConfigureAwait(false);
             if (existing?.ActiveRun == observation.Address) return;

@@ -1,5 +1,6 @@
 using ZKube.Local;
 using System;
+using ZKube.Integration.Client;
 using System.Linq;
 using System.Threading.Tasks;
 using ZKube.Integration.App;

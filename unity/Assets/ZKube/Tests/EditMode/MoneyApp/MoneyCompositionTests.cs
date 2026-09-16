@@ -77,13 +77,19 @@ namespace ZKube.Integration.App.Tests
             Assert.That(e.Native.Calls, Is.EqualTo(1)); e.AssertReadOnly(); await e.Flow.StopAsync();
         }
         [Test]
-        public async Task PendingPurchaseUsesRealDispatcherAndInvalidatesRetainedEconomyProjection()
+        public async Task PendingPurchaseUsesRealReconcilerAndInvalidatesRetainedEconomyProjection()
         {
             var e = new MoneyTestEnvironment(); e.UseDailyRun(); e.AddEconomy(); await e.Flow.Connect(e.Owner);
-            var retained = await e.Flow.RefreshOwner(); await e.Services.Journal.Begin(e.Purchase());
-            var result = await e.Services.Executor.Resume(e.Owner, e.Services.Dispatcher);
+            var retained = await e.Flow.RefreshOwner();
+            var product = await e.Services.Products.Profile();
+            var identity = e.Services.Identity.Lease(); long epoch = e.Services.Identity.Epoch;
+            await e.Services.Journal.Begin(e.Purchase());
+            var result = await e.Services.Executor.Resume(e.Owner, e.Services.Reconciler);
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
             Assert.That(retained.IsCurrent, Is.False); Assert.Throws<OperationCanceledException>(() => _ = retained.Value);
+            Assert.That(product.IsCurrent, Is.False); Assert.Throws<OperationCanceledException>(() => _ = product.Value);
+            Assert.That(e.Services.Identity.Epoch, Is.EqualTo(epoch + 1));
+            Assert.That(e.Services.Identity.IsCurrent(identity), Is.True, "Data changes preserve the connected identity");
             Assert.That(await e.Services.Journal.Load(e.Owner), Is.Null); e.AssertReadOnly(); await e.Flow.StopAsync();
         }
         [Test]

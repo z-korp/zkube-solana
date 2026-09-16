@@ -283,7 +283,7 @@ namespace ZKube.Integration.Execution.Tests
             var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
             var protocol = new ProtocolBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
             var journal = new TransactionJournal(store);
-            var reconciler = new SessionInstructionReconciler(protocol, accounts, sessions, records, planner);
+            var reconciler = new ExecutionReconciler(protocol, accounts, sessions, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
             var lifecycle = new SessionLifecycle(identity, wallet, records, sessions, planner, rpc, journal, executor, reconciler, accounts.ProgramId, () => (long)fixture["inputs"]["now"]);
             Assert.That((await lifecycle.EnableOrRenew()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -306,7 +306,7 @@ namespace ZKube.Integration.Execution.Tests
             var funded = new JObject { ["address"] = device, ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 1000000 };
             http.ExtraAccounts[device] = funded;
             var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
-            var journal = new TransactionJournal(store); var reconciler = new SessionMaintenanceReconciler(records, sessions, accounts.ProgramId);
+            var journal = new TransactionJournal(store); var reconciler = new ExecutionReconciler(new ProtocolBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json"))), accounts, sessions, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
             var lifecycle = new SessionLifecycle(identity, wallet, records, sessions, planner, rpc, journal, executor, reconciler, accounts.ProgramId, () => (long)plans["inputs"]["now"]);
             http.AfterSend = () => funded["lamports"] = PlanningConstants.DeviceAllowanceLamports;
@@ -334,8 +334,8 @@ namespace ZKube.Integration.Execution.Tests
             foreach (string name in new[] { "oldDaily", "oldScore", "oldExpiredTheme" }) http.ExtraAccounts[(string)economy[name]["address"]] = economy[name];
             var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
             var protocol = new ProtocolBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
-            var journal = new TransactionJournal(store); EconomyObservation accepted = null;
-            var reconciler = new EconomyInstructionReconciler(protocol, accounts, rpc, value => { accepted = value; return Task.CompletedTask; });
+            var journal = new TransactionJournal(store); string accepted = null;
+            var reconciler = new ExecutionReconciler(protocol, accounts, sessions, records, planner, rpc, value => { accepted = value; return Task.CompletedTask; }, _ => Task.CompletedTask);
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
             var sessionAccess = new SessionAccess(wallet, records, sessions, rpc, accounts.ProgramId, () => (long)plans["inputs"]["now"]);
             var client = new EconomyClient(identity, sessionAccess, new ProductQueries(identity, accounts, planner, rpc, () => (long)plans["inputs"]["now"]), planner, journal, executor, reconciler);
@@ -346,7 +346,7 @@ namespace ZKube.Integration.Execution.Tests
             http.AfterSend = () => http.ExtraAccounts[(string)economy["oldScore"]["address"]] = economy["oldScoreClaimed"];
             Assert.That((await client.Claim(day, "score")).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             ZKube.Integration.Tests.ProgramScenarios.Equivalent(http.Sent, Convert.FromBase64String((string)economy["oldScoreTransaction"]));
-            Assert.That(accepted.ClaimState, Is.EqualTo("claimed")); Assert.That(accepted.DayId, Is.EqualTo(day));
+            Assert.That(accepted, Is.EqualTo(owner));
             Assert.That(native.Calls, Is.EqualTo(1), "The device claim must not open the wallet again");
         }
 

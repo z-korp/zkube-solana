@@ -1,4 +1,5 @@
 using System;
+using ZKube.Integration.Client;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -141,7 +142,7 @@ namespace ZKube.Integration.Presentation
         private void RenderTerminal()
         {
             if (board?.View == null || terminalTitle == null) return;
-            string receipt = ReceiptText(run?.LastReceiptOperation);
+            string receipt = ReceiptText(flow.LastRunReceipts(run));
             string body = terminalBody + "\n\n" + (settled ? "Result saved." : settling || !settlementAttempted ?
                 "Saving your result…" : settlementError ?? "Check settlement before continuing.") + receipt;
             if (settled) board.View.OpenModal(terminalTitle, body, ("Continue", Close));
@@ -205,10 +206,10 @@ namespace ZKube.Integration.Presentation
             finally { if (Current(epoch)) observing = false; }
         }
 
-        private static string ReceiptText(MoneyRunOperation operation)
+        private static string ReceiptText(RunOperationReceipts operation)
         {
-            if (operation == null || operation.Receipts.Count == 0) return "";
-            return "\n\n" + MoneyReceiptText.Describe(operation.Receipts.Last().Result);
+            if (operation == null || operation.Steps.Count == 0) return "";
+            return "\n\n" + MoneyReceiptText.Describe(operation.Steps.Last().Result);
         }
         public void Suspend(bool value)
         {

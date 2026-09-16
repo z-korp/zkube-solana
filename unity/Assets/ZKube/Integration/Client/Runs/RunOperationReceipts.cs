@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using ZKube.Integration.Execution;
 
@@ -15,6 +16,15 @@ namespace ZKube.Integration.Client.Runs
         private string address;
         private int started;
         public string Owner { get; }
+        public IdentityLease Identity { get; private set; }
+        public bool Recovered { get; private set; }
+        public static RunOperationReceipts Retained(IdentityLease identity, IEnumerable<RunExecutionReceipt> values, bool recovered = false)
+        {
+            var result = new RunOperationReceipts(identity.Owner) { Identity = identity, Recovered = recovered, started = 1 };
+            result.steps.AddRange(values);
+            return result;
+        }
+        public ExecutionResult Last => Steps.LastOrDefault()?.Result;
         public IReadOnlyList<RunExecutionReceipt> Steps
         { get { lock (sync) return Array.AsReadOnly(steps.ToArray()); } }
 
@@ -47,7 +57,7 @@ namespace ZKube.Integration.Client.Runs
         public string Owner { get; }
         public string Address { get; }
         public ExecutionResult Result { get; }
-        internal RunExecutionReceipt(string owner, string address, ExecutionResult result)
+        public RunExecutionReceipt(string owner, string address, ExecutionResult result)
         { Owner = owner; Address = address; Result = result; }
     }
 }

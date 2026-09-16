@@ -908,6 +908,16 @@ The chain run client has one Arcade path with no mode argument. The existing
 v1 Daily recovery locator remains readable. `AConsumedRunsReceiptCanFinishWithoutClaimingItsNewSuccessor`
 and `RunReceiptRejectsReuseWrongOwnerAndRunBeforeSending` retain the recovery and
 receipt boundaries.
+One identity epoch invalidates retained chain reads after reconciliation;
+`PendingPurchaseUsesRealReconcilerAndInvalidatesRetainedEconomyProjection` checks
+that boundary, while `campaign_record_write_never_gates_play_or_other_transactions`
+keeps local Campaign play independent. Superseded reads use cancellation;
+`NewPublicReadRejectsAnOldCallbackAndRetainedPublication` checks late publication.
+`RunOperationReceipts` is the single retained operation record for the connected
+identity. `MoneyRunReadFailureRetainsActualConfirmedReceiptAndReportsTheNewFailure`
+and `TheLastOperationIsSharedAcrossPagesAndClearedOnReconnect` guard retention
+and identity changes. `MoneyRunSettlementUsesTheActualReconcilerAndKeepsOrderedCommitConsumeReceipts`
+checks the shared reconciliation path and ordered settlement results.
 The root `assets/` directory owns the artwork and authored presentation inputs;
 Rust codegen emits its theme catalog for Unity imports.
 `unity/toolchain.json` owns each Android identity's package, display name, ABIs

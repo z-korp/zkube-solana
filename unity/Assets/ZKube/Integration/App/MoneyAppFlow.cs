@@ -9,16 +9,6 @@ using ZKube.Integration.Execution;
 
 namespace ZKube.Integration.App
 {
-    // Hosts read Value at publication, after dispatching onto their UI thread.
-    // Retained data is rejected after identity change, supersession or shutdown.
-    public sealed class MoneyRead<T>
-    {
-        private readonly T value;
-        private readonly Func<bool> current;
-        public bool IsCurrent => current();
-        public T Value => IsCurrent ? value : throw new OperationCanceledException("Money application observation changed");
-        internal MoneyRead(T value, Func<bool> current) { this.value = value; this.current = current; }
-    }
     public sealed class MoneyOwnerState
     {
         public string Owner { get; }
@@ -44,47 +34,46 @@ namespace ZKube.Integration.App
         private readonly SemaphoreSlim publicReads = new SemaphoreSlim(1, 1), ownerReads = new SemaphoreSlim(1, 1);
         private readonly HashSet<Task> operations = new HashSet<Task>();
         private CancellationTokenSource publicCancellation, ownerCancellation;
-        private long publicGeneration, ownerGeneration;
         private bool stopped;
         private Task stopTask;
         private MoneyRead<PublicDaily> publicValue;
         private MoneyRead<MoneyOwnerState> ownerValue;
-        // One exact receipt for the connected identity, shared by all owner
-        // pages. Read supersession preserves it; reconnect and shutdown do not.
-        private ExecutionResult ownerOperation;
-        private IdentityLease ownerOperationLease;
-        private bool ownerOperationRecovered;
-        private void ClearOwnerOperation()
+        // One operation record belongs to the connected identity. Pages and
+        // the board read this same record; a read failure cannot erase it.
+        private RunOperationReceipts lastOperation;
+        private void ClearOwnerOperation() { lock (gate) lastOperation = null; }
+        private RunOperationReceipts CurrentOperation()
         {
-            lock (gate) { ownerOperation = null; ownerOperationLease = null; ownerOperationRecovered = false; }
+            lock (gate)
+            {
+                if (lastOperation != null && !services.Identity.IsCurrent(lastOperation.Identity)) lastOperation = null;
+                return lastOperation;
+            }
+        }
+        public RunOperationReceipts LastRunReceipts(MoneyRunHandle run)
+        {
+            var value = CurrentOperation();
+            return RunIdentityCurrent(run) && value != null && value.Steps.All(step => step.Address == run.Address)
+                ? value : null;
         }
         private ExecutionResult ReadOwnerOperation(out bool recovered)
         {
-            lock (gate)
-            {
-                if (!services.Identity.IsCurrent(ownerOperationLease)) ClearOwnerOperation();
-                recovered = ownerOperation != null && ownerOperationRecovered;
-                return ownerOperation;
-            }
+            var value = CurrentOperation(); recovered = value?.Recovered ?? false; return value?.Last;
         }
-        private bool CurrentOwnerOperation(ExecutionResult operation)
+        private bool CurrentOwnerOperation(ExecutionResult operation) => ReferenceEquals(operation, CurrentOperation()?.Last);
+        private void RememberOperation(IdentityLease lease, IEnumerable<RunExecutionReceipt> receipts, bool recovered = false)
         {
+            var steps = receipts.ToArray();
             lock (gate)
             {
-                if (!services.Identity.IsCurrent(ownerOperationLease)) ClearOwnerOperation();
-                return ReferenceEquals(operation, ownerOperation);
+                if (stopped || !services.Identity.IsCurrent(lease) || steps.Length == 0) return;
+                lastOperation = RunOperationReceipts.Retained(lease, steps, recovered);
             }
         }
         private void RememberOwnerOperation(IdentityLease lease, ExecutionResult operation, bool recovered = false)
         {
-            lock (gate)
-            {
-                // A check after the journal has cleared observes no transaction;
-                // it cannot replace the last real operation with a local rejection.
-                if (stopped || !services.Identity.IsCurrent(lease) || operation == null ||
-                    operation.Code == "no-pending-transaction") return;
-                ownerOperation = operation; ownerOperationLease = lease; ownerOperationRecovered = recovered;
-            }
+            if (operation == null || operation.Code == "no-pending-transaction") return;
+            RememberOperation(lease, new[] { new RunExecutionReceipt(lease.Owner, null, operation) }, recovered);
         }
         public MoneyRead<PublicDaily> Public { get { lock (gate) return publicValue; } }
         public MoneyRead<MoneyOwnerState> Owner { get { lock (gate) return ownerValue; } }
@@ -117,13 +106,13 @@ namespace ZKube.Integration.App
                     ExecutionResult previous = null;
                     if (pending != null)
                     {
-                        previous = await services.Executor.Resume(lease.Owner, services.Dispatcher, read.Token, pending.Signature).ConfigureAwait(false);
+                        previous = await services.Executor.Resume(lease.Owner, services.Reconciler, read.Token, pending.Signature).ConfigureAwait(false);
                         RememberOwnerOperation(lease, previous, true);
+                        read.Epoch = services.Identity.Epoch;
                         Require(read, lease);
                         if (!Resolved(previous)) return PublishOwner(read, lease,
-                            new MoneyOwnerState(lease.Owner, null, null, null, null, pending, previous), services.EconomyRevision(lease.Owner));
+                            new MoneyOwnerState(lease.Owner, null, null, null, null, pending, previous));
                     }
-                    long revision = services.EconomyRevision(lease.Owner);
                     // Inspect never creates a key or prompts. It has its own
                     // identity cancellation; hold this read slot until it ends.
                     var session = await services.SessionLifecycle.Inspect().ConfigureAwait(false); Require(read, lease);
@@ -133,7 +122,7 @@ namespace ZKube.Integration.App
                     var remaining = await services.Journal.Load(lease.Owner).ConfigureAwait(false); Require(read, lease);
                     previous = ReadOwnerOperation(out _);
                     return PublishOwner(read, lease, new MoneyOwnerState(lease.Owner, profile.Value, session,
-                        campaign, daily, remaining, previous), revision);
+                        campaign, daily, remaining, previous));
                 }
                 finally { ownerReads.Release(); }
             }
@@ -142,23 +131,23 @@ namespace ZKube.Integration.App
 
         public Task<MoneyRead<string>> Connect(string expectedOwner = null) => Track(async () => {
             ClearOwnerOperation();
-            long generation = InvalidateOwner();
+            var observation = InvalidateOwner();
             string owner = await services.Identity.Connect(expectedOwner).ConfigureAwait(false);
             var lease = services.Identity.Lease();
             services.SyncCampaign(lease);
-            RequireOwnerGeneration(generation, lease);
-            return new MoneyRead<string>(owner, () => CurrentOwnerGeneration(generation, lease));
+            RequireOwnerObservation(observation, lease);
+            return new MoneyRead<string>(owner, () => CurrentOwnerObservation(observation, lease));
         });
 
         // Explicit user action only. SessionLifecycle retains its own change
         // gate and distinguishes an old recovered receipt from a new repair.
         public Task<MoneyRead<SessionEnsureResult>> EnsureSession() => Track(async () => {
-            var lease = services.Identity.Lease(); long generation = InvalidateOwner();
+            var lease = services.Identity.Lease(); var observation = InvalidateOwner();
             var result = await services.SessionLifecycle.Ensure().ConfigureAwait(false);
             services.SyncCampaign(lease);
             RememberOwnerOperation(lease, result.Operation, result.Action == "recover");
-            RequireOwnerGeneration(generation, lease);
-            return new MoneyRead<SessionEnsureResult>(result, () => CurrentOwnerGeneration(generation, lease));
+            RequireOwnerObservation(observation, lease);
+            return new MoneyRead<SessionEnsureResult>(result, () => CurrentOwnerObservation(observation, lease));
         });
 
         public Task<MoneyRead<ExecutionResult>> ResumePending(CancellationToken cancellation = default) => Track(async () => {
@@ -170,8 +159,9 @@ namespace ZKube.Integration.App
                 {
                     var pending = await services.Journal.Load(lease.Owner).ConfigureAwait(false); Require(read, lease);
                     var result = pending == null ? ExecutionResult.Rejected(null, "no-pending-transaction") :
-                        await services.Executor.Resume(lease.Owner, services.Dispatcher, read.Token, pending.Signature).ConfigureAwait(false);
+                        await services.Executor.Resume(lease.Owner, services.Reconciler, read.Token, pending.Signature).ConfigureAwait(false);
                     RememberOwnerOperation(lease, result, true);
+                    read.Epoch = services.Identity.Epoch;
                     Require(read, lease);
                     return new MoneyRead<ExecutionResult>(result, () => Current(read, lease));
                 }
@@ -188,12 +178,11 @@ namespace ZKube.Integration.App
             return true;
         });
 
-        private MoneyRead<MoneyOwnerState> PublishOwner(ReadRequest read, IdentityLease lease, MoneyOwnerState result, long revision)
+        private MoneyRead<MoneyOwnerState> PublishOwner(ReadRequest read, IdentityLease lease, MoneyOwnerState result)
         {
             Require(read, lease);
-            if (services.EconomyRevision(lease.Owner) != revision) throw new OperationCanceledException("Owner economy changed during refresh");
             var value = new MoneyRead<MoneyOwnerState>(result,
-                () => Current(read, lease) && services.EconomyRevision(lease.Owner) == revision &&
+                () => Current(read, lease) &&
                     CurrentOwnerOperation(result.PreviousOperation));
             lock (gate) { Require(read, lease); ownerValue = value; } return value;
         }
@@ -203,9 +192,10 @@ namespace ZKube.Integration.App
         private sealed class ReadRequest
         {
             public bool Public;
-            public long Generation;
+            public long Epoch;
             public CancellationTokenSource Cancellation;
             public CancellationToken Token;
+            public CancellationTokenRegistration CallerCancellation;
         }
         private ReadRequest BeginRead(bool isPublic, CancellationToken external, IdentityLease lease = null)
         {
@@ -213,10 +203,14 @@ namespace ZKube.Integration.App
             lock (gate)
             {
                 Check();
-                var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, external, lease?.Cancellation ?? CancellationToken.None);
-                read = new ReadRequest { Public = isPublic, Cancellation = cancellation, Token = cancellation.Token };
-                if (isPublic) { prior = publicCancellation; publicCancellation = cancellation; read.Generation = ++publicGeneration; publicValue = null; }
-                else { prior = ownerCancellation; ownerCancellation = cancellation; read.Generation = ++ownerGeneration; ownerValue = null; }
+                var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, lease?.Cancellation ?? CancellationToken.None);
+                read = new ReadRequest { Public = isPublic, Cancellation = cancellation, Token = cancellation.Token, Epoch = services.Identity.Epoch };
+                read.CallerCancellation = external.Register(() => {
+                    try { cancellation.Cancel(); }
+                    catch (ObjectDisposedException) { /* Superseded before the caller cancelled. */ }
+                });
+                if (isPublic) { prior = publicCancellation; publicCancellation = cancellation; publicValue = null; }
+                else { prior = ownerCancellation; ownerCancellation = cancellation; ownerValue = null; }
             }
             var errors = CancelAll(prior);
             if (errors.Count != 0) { EndRead(read); Report(errors); }
@@ -224,35 +218,44 @@ namespace ZKube.Integration.App
         }
         private void EndRead(ReadRequest read)
         {
+            // The caller's request ends here; starting its next button action
+            // does not invalidate the values it is about to render. A newer
+            // flow read, identity change or reconciliation still does.
+            read.CallerCancellation.Dispose();
+            // A completed publication keeps its cancellation source until the
+            // next read replaces it. This also invalidates retained values.
             lock (gate)
-            {
-                if (read.Public && publicCancellation == read.Cancellation) publicCancellation = null;
-                if (!read.Public && ownerCancellation == read.Cancellation) ownerCancellation = null;
-            }
-            read.Cancellation.Dispose();
+                if (read.Cancellation != publicCancellation && read.Cancellation != ownerCancellation)
+                    read.Cancellation.Dispose();
         }
         private bool Current(ReadRequest read, IdentityLease lease = null)
         {
             lock (gate) return !stopped && !read.Token.IsCancellationRequested &&
-                read.Generation == (read.Public ? publicGeneration : ownerGeneration) && (lease == null || services.Identity.IsCurrent(lease));
+                (read.Public || read.Epoch == services.Identity.Epoch) &&
+                (lease == null || services.Identity.IsCurrent(lease));
         }
         private void Require(ReadRequest read, IdentityLease lease = null)
         { if (!Current(read, lease)) throw new OperationCanceledException("Money read was superseded"); }
-        private bool CurrentOwnerGeneration(long generation, IdentityLease lease)
-        { lock (gate) return !stopped && generation == ownerGeneration && services.Identity.IsCurrent(lease); }
-        private void RequireOwnerGeneration(long generation, IdentityLease lease)
-        { if (!CurrentOwnerGeneration(generation, lease)) throw new OperationCanceledException("Money action identity changed"); }
-        private long InvalidateOwner()
+        private bool CurrentOwnerObservation(CancellationToken observation, IdentityLease lease)
+        { lock (gate) return !stopped && !observation.IsCancellationRequested && services.Identity.IsCurrent(lease); }
+        private void RequireOwnerObservation(CancellationToken observation, IdentityLease lease)
+        { if (!CurrentOwnerObservation(observation, lease)) throw new OperationCanceledException("Money action identity changed"); }
+        private CancellationToken InvalidateOwner()
         {
-            CancellationTokenSource prior; long generation;
-            lock (gate) { Check(); generation = ++ownerGeneration; ownerValue = null; prior = ownerCancellation; ownerCancellation = null; }
-            Report(CancelAll(prior)); return generation;
+            CancellationTokenSource prior; CancellationToken token;
+            lock (gate)
+            {
+                Check(); ownerValue = null; prior = ownerCancellation;
+                ownerCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+                token = ownerCancellation.Token;
+            }
+            Report(CancelAll(prior)); return token;
         }
         private List<Exception> InvalidateAll()
         {
             CancellationTokenSource oldPublic, oldOwner;
             lock (gate)
-            { publicGeneration++; ownerGeneration++; publicValue = null; ownerValue = null; ClearOwnerOperation();
+            { publicValue = null; ownerValue = null; ClearOwnerOperation();
                 oldPublic = publicCancellation; oldOwner = ownerCancellation; publicCancellation = ownerCancellation = null; }
             return CancelAll(oldPublic, oldOwner);
         }
@@ -264,6 +267,7 @@ namespace ZKube.Integration.App
                 try { source?.Cancel(); }
                 catch (ObjectDisposedException) { /* Completed concurrently with supersession. */ }
                 catch (Exception error) { errors.Add(error); }
+                finally { source?.Dispose(); }
             }
             return errors;
         }

@@ -30,14 +30,6 @@ namespace ZKube.Integration.App
         public string Owner => Binding.Owner;
         public string Address => Binding.Address;
         public long DeadlineAt => Binding.DeadlineAt;
-        private MoneyRunOperation lastReceiptOperation;
-        public MoneyRunOperation LastReceiptOperation => Volatile.Read(ref lastReceiptOperation);
-        internal void Record(MoneyRunOperation value)
-        {
-            // A read failure before execution is a new operation outcome, but
-            // cannot erase the last actual transaction accepted for this run.
-            if (value.Receipts.Count != 0) Volatile.Write(ref lastReceiptOperation, value);
-        }
         internal MoneyRunHandle(IdentityLease identity, RunClientState initial, ActiveRunReconciler native)
         { Identity = identity; Binding = new RunPresentationBinding(initial, native); }
     }
@@ -98,7 +90,7 @@ namespace ZKube.Integration.App
                     services.Runs.ResolveVrf(handle.Binding, token, scope)).ConfigureAwait(false);
                 operation = new MoneyRunOperation(opening.State, opening.Error, first.Receipts.Concat(opening.Receipts));
             }
-            handle?.Record(operation); return new MoneyRunLaunch(handle, operation);
+            RememberOperation(lease, operation.Receipts); return new MoneyRunLaunch(handle, operation);
         }
 
         public Task<MoneyRead<MoneyRunOperation>> ObserveBoundRun(MoneyRunHandle run, CancellationToken cancellation = default) =>
@@ -132,21 +124,19 @@ namespace ZKube.Integration.App
                     // Retry is an explicit reconciliation first. It cannot send
                     // another intent while confirmation or copy-back is pending.
                     if (prior.Error != null || prior.State?.Token == null)
-                    { run.Record(prior); return prior; }
+                    { return prior; }
                 }
                 var next = await CaptureRun(lease, run.Address, scope =>
                     services.Runs.FinishAndSettle(run.Binding, token, scope)).ConfigureAwait(false);
                 var result = prior == null ? next : new MoneyRunOperation(next.State, next.Error, prior.Receipts.Concat(next.Receipts));
-                run.Record(result); return result;
+                RememberOperation(lease, result.Receipts); return result;
             });
 
         private Task<MoneyRead<MoneyRunOperation>> BoundRun(MoneyRunHandle run, CancellationToken cancellation,
             Func<CancellationToken, RunOperationReceipts, Task<RunClientState>> action) =>
             WithRunOwner(run, cancellation, async (lease, token) => {
                 var result = await CaptureRun(lease, run.Address, scope => action(token, scope)).ConfigureAwait(false);
-                // Store before cancellation/publication checks, scoped to this
-                // handle. A late callback never becomes another owner's receipt.
-                run.Record(result); return result;
+                RememberOperation(lease, result.Receipts); return result;
             });
 
         private async Task<MoneyRunOperation> CaptureRun(IdentityLease lease, string address,
@@ -156,7 +146,7 @@ namespace ZKube.Integration.App
             RunClientState state = null; Exception failure = null;
             try { state = await action(scope).ConfigureAwait(false); }
             catch (Exception error) { failure = error; }
-            foreach (var receipt in scope.Steps) RememberOwnerOperation(lease, receipt.Result);
+            RememberOperation(lease, scope.Steps);
             return new MoneyRunOperation(state, failure, scope.Steps);
         }
 

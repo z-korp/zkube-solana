@@ -68,7 +68,7 @@ namespace ZKube.Integration.Tests
                 var pending = new PendingTransaction(owner, "session-renew", (string)rpcFixture["inputs"]["base"], true,
                     Convert.FromBase64String((string)plan["signedTransaction"]), (string)plans["inputs"]["blockhash"], 500);
                 await journal.Begin(pending);
-                var reconciler = new SessionInstructionReconciler(protocol, accounts, tokens, records, planner);
+                var reconciler = new ExecutionReconciler(protocol, accounts, tokens, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
                 TransactionExecutor Restart() => new TransactionExecutor(planner, rpc, new WalletClient(native), journal);
                 http.AccountSlot = 999;
                 Assert.That((await Restart().Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
@@ -102,7 +102,7 @@ namespace ZKube.Integration.Tests
             var journal = new TransactionJournal(store);
             await journal.Begin(new PendingTransaction(owner, "session-renew", (string)rpcFixture["inputs"]["base"], true,
                 Convert.FromBase64String((string)plan["signedTransaction"]), (string)plans["inputs"]["blockhash"], 500));
-            var reconciler = new SessionInstructionReconciler(protocol, accounts, tokens, records, planner);
+            var reconciler = new ExecutionReconciler(protocol, accounts, tokens, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
             var executor = new TransactionExecutor(planner, rpc, new WalletClient(native), journal);
             Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             http.Confirmation = "confirmed";
@@ -112,7 +112,7 @@ namespace ZKube.Integration.Tests
         }
 
         [Test]
-        public async Task PurchasePublishesFreshDecodedBalanceAndAwaitsAcceptanceBeforeClearingJournal()
+        public async Task PurchaseValidatesFreshAccountsAndAwaitsInvalidationBeforeClearingJournal()
         {
             var solana = Fixture("solana"); var plans = Fixture("plans"); var economy = Fixture("economy"); var rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
@@ -128,13 +128,13 @@ namespace ZKube.Integration.Tests
             var transaction = solana["transactions"].Single(row => (string)row["id"] == "purchase-1");
             await journal.Begin(new PendingTransaction(owner, "purchase-kredits", (string)rpcFixture["inputs"]["base"], true,
                 Convert.FromBase64String((string)transaction["signedTransaction"]), (string)solana["inputs"]["blockhash"], 500));
-            EconomyObservation accepted = null;
+            string accepted = null;
             var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var reconciler = new EconomyInstructionReconciler(protocol, accounts, rpc, async value => { accepted = value; entered.SetResult(true); await release.Task; });
+            var reconciler = new ExecutionReconciler(protocol, accounts, tokens, new SessionRecordStore(store, tokens, protocol.ProgramId), planner, rpc, async value => { accepted = value; entered.SetResult(true); await release.Task; }, _ => Task.CompletedTask);
             var executor = new TransactionExecutor(planner, rpc, new WalletClient(new SessionRecordTests.Native()), journal);
             var result = executor.Resume(owner, reconciler); await entered.Task;
-            Assert.That(await journal.Load(owner), Is.Not.Null); Assert.That(accepted.Kredits, Is.EqualTo(25));
+            Assert.That(await journal.Load(owner), Is.Not.Null); Assert.That(accepted, Is.EqualTo(owner));
             release.SetResult(true);
             Assert.That((await result).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess)); Assert.That(await journal.Load(owner), Is.Null);
             Assert.That(http.Requests.Where(row => (string)row["method"] == "getMultipleAccounts").All(row => (ulong)row["params"][1]["minContextSlot"] == 1000), Is.True);
@@ -161,8 +161,8 @@ namespace ZKube.Integration.Tests
                 var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], http.Genesis, protocol.ProgramId);
                 await journal.Begin(new PendingTransaction(owner, "claim-daily", (string)rpcFixture["inputs"]["base"], true,
                     Convert.FromBase64String(signedClaim), (string)solana["inputs"]["blockhash"], 500));
-                EconomyObservation accepted = null;
-                var reconciler = new EconomyInstructionReconciler(protocol, accounts, rpc, value => { accepted = value; return Task.CompletedTask; });
+                string accepted = null;
+                var reconciler = new ExecutionReconciler(protocol, accounts, tokens, new SessionRecordStore(store, tokens, protocol.ProgramId), planner, rpc, value => { accepted = value; return Task.CompletedTask; }, _ => Task.CompletedTask);
                 var executor = new TransactionExecutor(planner, rpc, new WalletClient(new SessionRecordTests.Native()), journal);
                 http.Accounts[(string)board["address"]]["owner"] = owner;
                 Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(accepted, Is.Null);
@@ -170,7 +170,7 @@ namespace ZKube.Integration.Tests
                 { http.Accounts.Remove((string)board["address"]); http.Accounts.Remove((string)daily["address"]); }
                 else http.Add(board);
                 Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-                Assert.That(accepted.ClaimState, Is.EqualTo(outcome)); Assert.That(accepted.Kredits, Is.EqualTo(25));
+                Assert.That(accepted, Is.EqualTo(owner));
                 Assert.That(await journal.Load(owner), Is.Null);
             }
         }

@@ -474,7 +474,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                     new SessionRecord(value.Owner, (string)plans["inputs"]["device"], (string)plans["accounts"]["session"]["address"], decoded.ValidUntil)));
                 Func<long> now = () => value.Now;
                 var persistence = new RunPersistence(value.Markers);
-                var reconciler = new RunInstructionReconciler(protocol, value.Accounts, planner, rpc, persistence.Accept);
+                var reconciler = new ExecutionReconciler(protocol, value.Accounts, tokens, records, planner, rpc, _ => Task.CompletedTask, persistence.Accept);
                 var executor = new TransactionExecutor(planner, rpc, wallet, value.Journal);
                 value.Client = new RunClient(identity, new SessionAccess(wallet, records, tokens, rpc, protocol.ProgramId, now), value.Accounts,
                     planner, rpc, value.Markers, new RunRecovery(protocol.ProgramId, PlanningConstants.DelegationProgram, value.Accounts),

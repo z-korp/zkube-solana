@@ -1,26 +1,19 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ZKube.Integration.Execution;
+using ZKube.Integration.Client;
 using ZKube.Integration.Planning;
 using ZKube.Integration.Transport;
 
-namespace ZKube.Integration.Client
+namespace ZKube.Integration.Execution
 {
-    public sealed class SessionMaintenanceReconciler : IExecutionReconciler
+    public sealed partial class ExecutionReconciler
     {
-        private readonly SessionRecordStore records;
-        private readonly SessionTokenBindings tokens;
-        private readonly string program;
-        public SessionMaintenanceReconciler(SessionRecordStore records, SessionTokenBindings tokens, string program)
-        { this.records = records; this.tokens = tokens; this.program = program; }
-        public async Task<bool> Reconcile(ExecutionReconciliation evidence, CancellationToken cancellation)
+        private async Task<bool> ReconcileMaintenance(ExecutionReconciliation evidence, SolanaInstruction[] calls)
         {
-            if (!evidence.Pending.IsBase || (!evidence.Expired && evidence.Status.Confirmation != RpcConfirmation.Confirmed &&
-                evidence.Status.Confirmation != RpcConfirmation.Finalized)) return false;
-            var calls = evidence.Transaction.Instructions.Where(i => i.ProgramId != PlanningConstants.ComputeBudgetProgram).ToArray();
-            if (calls.Length < 1 || calls.Length > 2) return false;
+            if (!evidence.Pending.IsBase || calls.Length < 1 || calls.Length > 2) return false;
             string owner = evidence.Pending.Owner;
             var saved = await records.Load(owner).ConfigureAwait(false);
             bool refill = calls.Length == 2 && calls.All(i => i.ProgramId == PlanningConstants.SystemProgram);
@@ -46,7 +39,7 @@ namespace ZKube.Integration.Client
                     if (observation.Envelope != null)
                     {
                         var token = tokens.Decode(observation.Envelope);
-                        if (token.Authority != owner || token.FeePayer != owner || token.TargetProgram != program) return false;
+                        if (token.Authority != owner || token.FeePayer != owner || token.TargetProgram != protocol.ProgramId) return false;
                         if (!evidence.Expired && evidence.Status.ErrorJson == null) return false;
                     }
                     transfer = 1;
@@ -57,7 +50,7 @@ namespace ZKube.Integration.Client
                     device = calls[transfer].Accounts.FirstOrDefault()?.Address;
                     if (device == null || device == owner || !Transfer(calls[transfer], device, owner, false)) return false;
                     if (saved.Active != null && saved.Active.Signer != device) return false;
-                    if (tokenAddress != null && tokenAddress != tokens.Derive(owner, device, program)) return false;
+                    if (tokenAddress != null && tokenAddress != tokens.Derive(owner, device, protocol.ProgramId)) return false;
                 }
             }
             if (device != null)
@@ -68,12 +61,6 @@ namespace ZKube.Integration.Client
             if (!refill && !evidence.Expired && evidence.Status.ErrorJson == null && saved.Active != null)
                 await records.Replace(saved, new SessionRecords(owner, null)).ConfigureAwait(false);
             return true;
-        }
-        private static RpcAccount Observed(ExecutionReconciliation evidence, string address)
-        {
-            var observation = evidence.Accounts.SingleOrDefault(a => a.Address == address)?.Observation;
-            if (observation == null || observation.Slot < evidence.MinimumSlot) throw new FormatException("Missing fresh session observation");
-            return observation;
         }
         private static bool Transfer(SolanaInstruction instruction, string from, string to, bool zero)
         {

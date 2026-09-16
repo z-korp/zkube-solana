@@ -91,15 +91,15 @@ namespace ZKube.Integration.Client.Runs.Tests
                     env.Http.FailObservation = true;
                     var retry = (await flow.RecoverRun(launch.Run)).Value;
                     Assert.That(retry.Error, Is.TypeOf<IOException>()); Assert.That(retry.Receipts, Is.Empty);
-                    Assert.That(launch.Run.LastReceiptOperation, Is.SameAs(accepted));
-                    Assert.That(launch.Run.LastReceiptOperation.Receipts[0].Result, Is.SameAs(exact));
+                    Assert.That(flow.LastRunReceipts(launch.Run).Steps.Select(row => row.Result), Is.EqualTo(accepted.Receipts.Select(row => row.Result)));
+                    Assert.That(flow.LastRunReceipts(launch.Run).Steps[0].Result, Is.SameAs(exact));
                     Assert.That(env.Http.SentTransactions.Count, Is.EqualTo(sent));
                 }
                 finally { await flow.StopAsync(); }
             }
         }
 
-        [Test] public async Task MoneyRunSettlementUsesTheActualDispatcherAndKeepsOrderedCommitConsumeReceipts()
+        [Test] public async Task MoneyRunSettlementUsesTheActualReconcilerAndKeepsOrderedCommitConsumeReceipts()
         {
             foreach (string mode in new[] { "daily" })
             {
@@ -116,7 +116,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                         step.Result.Outcome == ExecutionOutcome.ConfirmedSuccess), Is.True);
                     Assert.That(await env.Journal.Load(env.Owner), Is.Null);
                     Assert.That(await env.Markers.Load(env.Owner), Is.Null);
-                    Assert.That(launch.Run.LastReceiptOperation, Is.SameAs(result));
+                    Assert.That(flow.LastRunReceipts(launch.Run).Steps.Select(row => row.Result), Is.EqualTo(result.Receipts.Select(row => row.Result)));
                 }
                 finally { await flow.StopAsync(); }
             }

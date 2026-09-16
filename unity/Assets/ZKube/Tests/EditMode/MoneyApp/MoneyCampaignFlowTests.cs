@@ -58,7 +58,7 @@ namespace ZKube.Integration.App.Tests
                 var run = await e.Flow.StartCampaignRun(1, 1);
                 Assert.That(run.Value.Bind("Campaign").Accepted, Is.Not.Null);
                 Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
-                var result = await e.Services.Executor.Resume(e.Owner, e.Services.Dispatcher);
+                var result = await e.Services.Executor.Resume(e.Owner, e.Services.Reconciler);
                 Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
                 Assert.That(run.IsCurrent, Is.True, "Economy preserves the Campaign identity lease");
                 Assert.That(sync.Pending.IsCompleted, Is.False, "Write remains pending");

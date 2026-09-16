@@ -9,6 +9,28 @@ namespace ZKube.Integration.App.Tests
 {
     public sealed class MoneyEconomyFlowTests
     {
+        [Test] public async Task TheLastOperationIsSharedAcrossPagesAndClearedOnReconnect()
+        {
+            var e = new MoneyTestEnvironment();
+            try
+            {
+                await e.Flow.Connect(e.Owner); e.AddEconomy();
+                e.Http.AllowFeeQuote = true; e.Http.Blockhash = (string)e.Plans["inputs"]["blockhash"];
+                var first = (await e.Flow.BuyKredits(1)).Value;
+                var retained = await e.Flow.RefreshKredits();
+                Assert.That(retained.Value.PreviousOperation, Is.SameAs(first));
+                var next = (await e.Flow.BuyKredits(10)).Value;
+                Assert.That(retained.IsCurrent, Is.False);
+                Assert.That((await e.Flow.RefreshSession()).Value.PreviousOperation, Is.SameAs(next));
+                Assert.That((await e.Flow.RefreshOwner()).Value.PreviousOperation, Is.SameAs(next));
+                Assert.That((await e.Flow.ResumePending()).Value.Code, Is.EqualTo("no-pending-transaction"));
+                Assert.That((await e.Flow.RefreshKredits()).Value.PreviousOperation, Is.SameAs(next));
+                await e.Flow.Disconnect(); await e.Flow.Connect(e.Owner);
+                Assert.That((await e.Flow.RefreshKredits()).Value.PreviousOperation, Is.Null);
+            }
+            finally { await e.Flow.StopAsync(); }
+        }
+
         [TestCase(1U), TestCase(10U), TestCase(25U)]
         public async Task EveryPackUsesItsActualAgreedOwnerMessageAndPreservesAFeeShortageReceipt(uint pack)
         {

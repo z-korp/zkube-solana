@@ -23,6 +23,11 @@ namespace ZKube.Integration.Client
         private CancellationTokenSource lifetime = new CancellationTokenSource();
         private string owner;
         public string Owner => Volatile.Read(ref owner);
+        public long Epoch { get { lock (gate) return epoch; } }
+        public void InvalidateData(string observedOwner)
+        { lock (gate) { if (owner == observedOwner) epoch++; } }
+        internal bool HasCurrentData(IdentityLease lease)
+        { lock (gate) return IsCurrent(lease) && lease.Epoch == epoch; }
         public ClientIdentity(WalletClient wallet) { this.wallet = wallet; }
         public async Task<string> Connect(string expectedOwner = null)
         {
@@ -93,6 +98,6 @@ namespace ZKube.Integration.Client
             lock (gate) return new IdentityLease(owner ?? throw new InvalidOperationException("Connect the owner wallet first"), epoch, lifetime.Token);
         }
         public bool IsCurrent(IdentityLease lease)
-        { lock (gate) return lease != null && owner == lease.Owner && epoch == lease.Epoch && !lease.Cancellation.IsCancellationRequested; }
+        { lock (gate) return lease != null && owner == lease.Owner && lifetime.Token == lease.Cancellation && !lease.Cancellation.IsCancellationRequested; }
     }
 }

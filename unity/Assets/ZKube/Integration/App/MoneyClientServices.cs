@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using ZKube.Core.Generated;
 using ZKube.Integration.Client;
@@ -44,8 +43,6 @@ namespace ZKube.Integration.App
     // Constructing the graph performs no read, authorization or key operation.
     public sealed partial class MoneyClientServices
     {
-        private readonly object revisionsGate = new object();
-        private readonly Dictionary<string, long> economyRevisions = new Dictionary<string, long>(StringComparer.Ordinal);
         public ProtocolBindings Protocol { get; }
         public SessionTokenBindings Tokens { get; }
         public AccountBindings Accounts { get; }
@@ -56,7 +53,7 @@ namespace ZKube.Integration.App
         public TransactionJournal Journal { get; }
         public SessionRecordStore Sessions { get; }
         public RunStateStore RunMarkers { get; }
-        public ExecutionDispatcher Dispatcher { get; }
+        public ExecutionReconciler Reconciler { get; }
         public TransactionExecutor Executor { get; }
         public SessionAccess SessionAccess { get; }
         public SessionLifecycle SessionLifecycle { get; }
@@ -87,32 +84,24 @@ namespace ZKube.Integration.App
             Journal = new TransactionJournal(storage); Sessions = new SessionRecordStore(storage, Tokens, Protocol.ProgramId);
             RunMarkers = new RunStateStore(storage, Accounts);
             var persistence = new RunPersistence(RunMarkers);
-            Dispatcher = new ExecutionDispatcher(
-                new SessionInstructionReconciler(Protocol, Accounts, Tokens, Sessions, Planner),
-                new SessionMaintenanceReconciler(Sessions, Tokens, Protocol.ProgramId),
-                new EconomyInstructionReconciler(Protocol, Accounts, Rpc, AcceptedEconomy),
-                new RunInstructionReconciler(Protocol, Accounts, Planner, Rpc, persistence.Accept));
+            Reconciler = new ExecutionReconciler(Protocol, Accounts, Tokens, Sessions, Planner, Rpc,
+                AcceptOwnerChange, persistence.Accept);
             Executor = new TransactionExecutor(Planner, Rpc, Wallet, Journal);
             SessionAccess = new SessionAccess(Wallet, Sessions, Tokens, Rpc, Protocol.ProgramId, now);
             SessionLifecycle = new SessionLifecycle(Identity, Wallet, Sessions, Tokens, Planner, Rpc,
-                Journal, Executor, Dispatcher, Protocol.ProgramId, now);
+                Journal, Executor, Reconciler, Protocol.ProgramId, now);
             var recovery = new RunRecovery(Protocol.ProgramId, PlanningConstants.DelegationProgram, Accounts);
             Runs = new RunClient(Identity, SessionAccess, Accounts, Planner, Rpc, RunMarkers, recovery,
-                Journal, Executor, Dispatcher, now, Protocol, runClientSeed);
+                Journal, Executor, Reconciler, now, Protocol, runClientSeed);
             Products = new ProductQueries(Identity, Accounts, Planner, Rpc, now);
             EntryReadiness = new DailyEntryReadinessQuery(Identity, SessionLifecycle, Accounts, Planner, Rpc, Journal, now);
             PublicDaily = new PublicDailyQuery(Accounts, Planner, Rpc, now);
-            Economy = new EconomyClient(Identity, SessionAccess, Products, Planner, Journal, Executor, Dispatcher);
+            Economy = new EconomyClient(Identity, SessionAccess, Products, Planner, Journal, Executor, Reconciler);
         }
-        private Task AcceptedEconomy(EconomyObservation accepted)
+        private Task AcceptOwnerChange(string owner)
         {
-            // Reconciliation cannot depend on a visible page or a UI callback.
-            // A matching owner view becomes stale; only ExecutionResult reports
-            // whether the signed transaction succeeded, failed or expired.
-            lock (revisionsGate) economyRevisions[accepted.Owner] = unchecked(EconomyRevision(accepted.Owner) + 1);
+            Identity.InvalidateData(owner);
             return Task.CompletedTask;
         }
-        internal long EconomyRevision(string owner)
-        { lock (revisionsGate) return economyRevisions.TryGetValue(owner, out long revision) ? revision : 0; }
     }
 }

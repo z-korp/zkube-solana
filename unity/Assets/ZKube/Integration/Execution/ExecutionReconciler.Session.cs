@@ -3,29 +3,17 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ZKube.Integration.Execution;
+using ZKube.Integration.Client;
 using ZKube.Integration.Planning;
 using ZKube.Integration.Transport;
 
-namespace ZKube.Integration.Client
+namespace ZKube.Integration.Execution
 {
-    public sealed class SessionInstructionReconciler : IExecutionReconciler
+    public sealed partial class ExecutionReconciler
     {
-        private readonly ProtocolBindings protocol;
-        private readonly AccountBindings accounts;
-        private readonly SessionTokenBindings tokens;
-        private readonly SessionRecordStore records;
-        private readonly TransactionPlanner planner;
-        public SessionInstructionReconciler(ProtocolBindings protocol, AccountBindings accounts, SessionTokenBindings tokens,
-            SessionRecordStore records, TransactionPlanner planner)
-        { this.protocol = protocol; this.accounts = accounts; this.tokens = tokens; this.records = records; this.planner = planner; }
-
-        public async Task<bool> Reconcile(ExecutionReconciliation evidence, CancellationToken cancellation)
+        private async Task<bool> ReconcileSession(ExecutionReconciliation evidence, SolanaInstruction[] calls)
         {
-            if (!evidence.Pending.IsBase || (!evidence.Expired && evidence.Status.Confirmation != RpcConfirmation.Confirmed &&
-                evidence.Status.Confirmation != RpcConfirmation.Finalized)) return false;
-            var calls = evidence.Transaction.Instructions.Where(i => i.ProgramId != PlanningConstants.ComputeBudgetProgram).ToArray();
-            if (calls.Length < 2 || calls.Length > 4) return false;
+            if (!evidence.Pending.IsBase || calls.Length < 2 || calls.Length > 4) return false;
             var create = calls[calls.Length - 1];
             if (create.ProgramId != tokens.ProgramId || create.Accounts.Count != 6 || create.Data.Length != 28) return false;
             string owner = evidence.Pending.Owner;
@@ -82,12 +70,6 @@ namespace ZKube.Integration.Client
                 await records.Replace(current, new SessionRecords(owner, expected)).ConfigureAwait(false);
             }
             return true;
-        }
-        private static RpcAccount Observed(ExecutionReconciliation evidence, string address)
-        {
-            var row = evidence.Accounts.SingleOrDefault(value => value.Address == address);
-            if (row?.Observation == null || row.Observation.Slot < evidence.MinimumSlot) throw new FormatException("Missing fresh session observation");
-            return row.Observation;
         }
         private static bool Matches(SolanaInstruction actual, SolanaInstruction expected) => actual.ProgramId == expected.ProgramId &&
             actual.Data.SequenceEqual(expected.Data) && actual.Accounts.Count == expected.Accounts.Count &&

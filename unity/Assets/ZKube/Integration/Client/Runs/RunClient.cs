@@ -112,19 +112,14 @@ namespace ZKube.Integration.Client.Runs
                 await RequireNoPending(lease, token).ConfigureAwait(false);
                 var prior = await Observe(lease, token).ConfigureAwait(false);
                 if (prior.Marker != null) throw new InvalidOperationException("Recover the run already occupying the Arcade slot");
-                var batch = await rpc.ReadAccounts(rpc.Base, new[] { planner.Player(lease.Owner), planner.ProtocolAddress }, cancellation: token).ConfigureAwait(false);
-                var player = PlayerPlanSnapshot.Decode(accounts, batch.Accounts[0].Envelope, lease.Owner);
+                var observation = await DailyEntryObservation.Read(accounts, planner, rpc, lease.Owner, now(), token).ConfigureAwait(false);
+                var player = observation.Player ?? throw new InvalidOperationException("Initialize the player before entering Daily");
                 receipts?.Bind(planner.ActiveRun(lease.Owner, player.NextRunId));
                 using var session = await sessions.Load(lease).ConfigureAwait(false);
-                var occupied = await rpc.ReadAccount(rpc.Base, planner.ActiveRun(lease.Owner, player.NextRunId), cancellation: token).ConfigureAwait(false);
-                TransactionPlan prepared;
-                    long observedNow = now(); uint day = checked((uint)(observedNow / 86400));
-                    uint following = Math.Max(checked(day + 1), (uint)accounts.ProtocolConfig(batch.Accounts[1].Envelope)["suspended_until_day"]);
-                    var daily = await rpc.ReadAccounts(rpc.Base, new[] { planner.Daily(day), planner.Daily(following), planner.CreditVaultAddress }, cancellation: token).ConfigureAwait(false);
-                    var entry = DailyEntrySnapshot.Decode(accounts, batch.Accounts[1].Envelope,
-                        daily.Accounts[0].Envelope, daily.Accounts[1].Envelope, daily.Accounts[2].Envelope, day, observedNow);
-                    var claims = await EntryClaims(lease.Owner, day, observedNow, token).ConfigureAwait(false);
-                    prepared = planner.PrepareDaily(session.Actor, player, entry, claims, observedNow, occupied.Envelope);
+                var entry = observation.Assess(accounts, observation.ObservedAt);
+                if (entry.Snapshot == null) throw new InvalidOperationException("Daily entry unavailable: " + entry.Status);
+                var claims = await EntryClaims(lease.Owner, observation.Day, token).ConfigureAwait(false);
+                var prepared = planner.PrepareDaily(session.Actor, player, entry.Snapshot, claims, now(), observation.Occupied);
                 var validator = await rpc.ClosestValidator(token).ConfigureAwait(false);
                 var plan = planner.PrepareAndDelegate(prepared, session.Actor, validator.Identity);
                 // Persist the locator before any signing/send. A failed or
@@ -374,7 +369,7 @@ namespace ZKube.Integration.Client.Runs
         }
         private static RunClientState ForRun(RunClientState state, string address) =>
             state.Marker?.ActiveRun == address ? state : new RunClientState("consumed");
-        private async Task<IReadOnlyList<ValidatedBoardReward>> EntryClaims(string owner, uint day, long observedNow, CancellationToken cancellation)
+        private async Task<IReadOnlyList<ValidatedBoardReward>> EntryClaims(string owner, uint day, CancellationToken cancellation)
         {
             uint first = day > PlanningConstants.ClaimLookbackDays ? day - PlanningConstants.ClaimLookbackDays : 0;
             var wanted = new List<(uint Day, string Kind)>();
@@ -392,7 +387,7 @@ namespace ZKube.Integration.Client.Runs
                 catch (OperationCanceledException) { throw; }
                 catch (Exception) { cancellation.ThrowIfCancellationRequested(); /* Optional attachments never block entry. */ }
             }
-            return TransactionPlanner.ReadEntryClaims(accounts, boards, owner, day, observedNow);
+            return TransactionPlanner.ReadEntryClaims(accounts, boards, owner);
         }
 
     }
