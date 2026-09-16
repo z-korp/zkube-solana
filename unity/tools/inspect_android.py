@@ -24,10 +24,7 @@ from inspect_apk import elf, open_archive, read_member
 
 PROJECT = Path(__file__).resolve().parents[1]
 ANDROID = '{http://schemas.android.com/apk/res/android}'
-MONEY_ASSEMBLIES = ('ZKube.Integration', 'ZKube.Client', 'ZKube.Planning', 'ZKube.Transport',
-                    'ZKube.Execution', 'ZKube.RunReconciliation', 'ZKube.AndroidWallet',
-                    'ZKube.SolanaPrimitives', 'ZKube.MoneyPresentation', 'ZKube.MoneyApp',
-                    'ZKube.MoneyStartup', 'ZKube.MoneyEvidence', 'ZKube.MoneyEvidenceHost', 'Chaos.NaCl')
+MONEY_ASSEMBLIES = ('ZKube.Chain', 'ZKube.Money', 'Chaos.NaCl')
 MONEY_DEX = (b'Lcom/solana/', b'Lcom/solanamobile/', b'Lcom/zkorp/zkube/unitywallet/')
 
 

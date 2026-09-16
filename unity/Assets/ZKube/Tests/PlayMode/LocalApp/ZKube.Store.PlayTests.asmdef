@@ -1,6 +1,8 @@
 {
-  "name": "ZKube.Local.Tests",
+  "name": "ZKube.Store.PlayTests",
   "references": [
+    "Unity.TextMeshPro",
+    "Unity.ugui",
     "ZKube.Core",
     "ZKube.Local",
     "ZKube.Presentation",
@@ -15,7 +17,7 @@
   "optionalUnityReferences": [
     "TestAssemblies"
   ],
-  "includePlatforms": [
-    "Editor"
+  "defineConstraints": [
+    "UNITY_EDITOR"
   ]
 }

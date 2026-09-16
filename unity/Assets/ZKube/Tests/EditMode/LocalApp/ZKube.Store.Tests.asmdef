@@ -1,6 +1,7 @@
 {
-  "name": "ZKube.Local.Tests",
+  "name": "ZKube.Store.Tests",
   "references": [
+    "Unity.ugui",
     "ZKube.Core",
     "ZKube.Local",
     "ZKube.Presentation",

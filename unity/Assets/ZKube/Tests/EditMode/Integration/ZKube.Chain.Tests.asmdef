@@ -1,16 +1,19 @@
 {
-  "name": "ZKube.Local.Tests",
+  "name": "ZKube.Chain.Tests",
   "references": [
+    "Unity.Newtonsoft.Json",
+    "ZKube.Chain",
     "ZKube.Core",
-    "ZKube.Local",
-    "ZKube.Presentation",
-    "ZKube.Store"
+    "ZKube.Local"
   ],
   "autoReferenced": false,
   "overrideReferences": true,
   "precompiledReferences": [
     "Newtonsoft.Json.dll",
     "nunit.framework.dll"
+  ],
+  "defineConstraints": [
+    "!ZKUBE_STORE"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

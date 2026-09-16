@@ -1,16 +1,15 @@
 {
   "name": "ZKube.Editor",
-  "rootNamespace": "ZKube.Editor",
   "references": [
-    "ZKube.Core",
-    "ZKube.Presentation",
-    "ZKube.StoreStartup",
-    "ZKube.MoneyStartup",
     "Unity.TextMeshPro",
-    "Unity.ugui"
+    "Unity.ugui",
+    "ZKube.Core",
+    "ZKube.Money",
+    "ZKube.Presentation",
+    "ZKube.Store"
   ],
+  "autoReferenced": true,
   "includePlatforms": [
     "Editor"
-  ],
-  "autoReferenced": true
+  ]
 }

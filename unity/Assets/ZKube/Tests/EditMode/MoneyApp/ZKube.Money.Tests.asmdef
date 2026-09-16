@@ -1,16 +1,21 @@
 {
-  "name": "ZKube.Local.Tests",
+  "name": "ZKube.Money.Tests",
   "references": [
+    "ZKube.Chain",
+    "ZKube.Chain.Tests",
     "ZKube.Core",
     "ZKube.Local",
-    "ZKube.Presentation",
-    "ZKube.Store"
+    "ZKube.Money",
+    "ZKube.Presentation"
   ],
   "autoReferenced": false,
   "overrideReferences": true,
   "precompiledReferences": [
     "Newtonsoft.Json.dll",
     "nunit.framework.dll"
+  ],
+  "defineConstraints": [
+    "!ZKUBE_STORE"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

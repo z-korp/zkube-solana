@@ -1,9 +1,0 @@
-{
-  "name": "ZKube.Local.App.PlayTests",
-  "references": ["ZKube.Local.App", "ZKube.Local", "ZKube.Local.Runs", "ZKube.Local.Presentation", "ZKube.Local.Billing", "ZKube.Core", "ZKube.Generated", "ZKube.Presentation", "Unity.ugui", "Unity.TextMeshPro"],
-  "defineConstraints": ["UNITY_EDITOR"],
-  "optionalUnityReferences": ["TestAssemblies"],
-  "overrideReferences": true,
-  "precompiledReferences": ["nunit.framework.dll", "Newtonsoft.Json.dll"],
-  "autoReferenced": false
-}

@@ -1,8 +1,0 @@
-{
-  "name": "ZKube.Local.Billing",
-  "rootNamespace": "ZKube.Local.Billing",
-  "references": [],
-  "defineConstraints": ["UNITY_EDITOR || ZKUBE_STORE"],
-  "autoReferenced": true,
-  "noEngineReferences": true
-}

@@ -1,16 +1,15 @@
 {
-  "name": "ZKube.Presentation.Tests",
+  "name": "ZKube.Store",
   "references": [
+    "Unity.Purchasing",
     "Unity.TextMeshPro",
     "Unity.ugui",
     "ZKube.Core",
+    "ZKube.Local",
     "ZKube.Presentation"
   ],
-  "autoReferenced": false,
-  "optionalUnityReferences": [
-    "TestAssemblies"
-  ],
+  "autoReferenced": true,
   "defineConstraints": [
-    "UNITY_EDITOR"
+    "UNITY_EDITOR || ZKUBE_STORE"
   ]
 }

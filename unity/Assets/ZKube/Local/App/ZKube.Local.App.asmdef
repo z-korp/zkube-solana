@@ -1,7 +1,0 @@
-{
-  "name": "ZKube.Local.App",
-  "rootNamespace": "ZKube.Local.App",
-  "references": ["ZKube.Local", "ZKube.Local.Runs", "ZKube.Local.Presentation", "ZKube.Local.Billing", "ZKube.Core", "ZKube.Generated", "ZKube.Presentation", "Unity.TextMeshPro", "Unity.ugui"],
-  "defineConstraints": ["UNITY_EDITOR || ZKUBE_STORE"],
-  "autoReferenced": true
-}

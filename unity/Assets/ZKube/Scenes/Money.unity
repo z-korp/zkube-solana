@@ -147,7 +147,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8cb297a4eb0a5fc4a864d8e7931e64f0, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: ZKube.MoneyStartup::ZKube.Integration.App.MoneyStartup
+  m_EditorClassIdentifier: ZKube.Money::ZKube.Integration.App.MoneyStartup
   solanaSchema: {fileID: 4900000, guid: f68d95c8464798ffea7dc137d60dc5dd, type: 3}
   sessionSchema: {fileID: 4900000, guid: 5e7e6f33e9ee7dcce9555b6274fd4180, type: 3}
   displayFont: {fileID: 1, guid: 8691ecda07135dd2bc71f1fb1b234af1, type: 2}

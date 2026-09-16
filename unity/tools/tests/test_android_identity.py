@@ -80,12 +80,15 @@ class StaticTests(unittest.TestCase):
         for name in MONEY_ASSEMBLIES:
             with self.subTest(name=name), self.assertRaises(RuntimeError):
                 metadata_check(name.encode() + b'.dll\x00')
-        with self.assertRaises(RuntimeError): metadata_check(b'ZKube.Core.Tests.dll\x00')
+        for name in (b'ZKube.Core.Tests', b'ZKube.Store.PlayTests', b'ZKube.Money.PlayTests'):
+            for suffix in (b'\x00', b'.dll\x00'):
+                with self.subTest(name=name, suffix=suffix), self.assertRaises(RuntimeError):
+                    metadata_check(name + suffix)
 
     def test_money_metadata_excludes_the_local_daily_and_store_policy(self):
         from inspect_apk import money_metadata_check
         money_metadata_check(b"LocalRunClient\x00CampaignRecordSync\x00")
-        for token in (b"StoreRunClient", b"StoreCampaignPolicy", b"ZKube.Local.App.dll"):
+        for token in (b"StoreRunClient", b"StoreCampaignPolicy", b"ZKube.Store.dll"):
             with self.subTest(token=token), self.assertRaises(RuntimeError):
                 money_metadata_check(token + b"\x00")
 
@@ -135,13 +138,24 @@ class StaticTests(unittest.TestCase):
             with self.assertRaises(RuntimeError): read_member(archive, 'universal.apk')
 
     def test_store_assembly_closure(self):
-        paths = list((ROOT / 'unity/Assets/ZKube/Integration').rglob('*.asmdef'))
-        paths += list((ROOT / 'unity/Assets/ThirdParty/Solana').rglob('*.asmdef'))
-        self.assertGreaterEqual(len(paths), 9)
-        for path in paths:
-            self.assertIn('!ZKUBE_STORE', json.loads(path.read_text())['defineConstraints'])
-        presentation = json.loads((ROOT / 'unity/Assets/ZKube/Runtime/Presentation/ZKube.Presentation.asmdef').read_text())
-        self.assertFalse(set(presentation['references']) & set(MONEY_ASSEMBLIES))
+        definitions = [json.loads(path.read_text()) for path in (ROOT / 'unity/Assets').rglob('*.asmdef')]
+        names = {definition['name']: definition for definition in definitions}
+        code = {'ZKube.' + name for name in ('Core', 'Presentation', 'Local', 'Chain', 'Money', 'Store', 'Editor')}
+        expected = code | {name + '.Tests' for name in code} | {'ZKube.Store.PlayTests', 'ZKube.Money.PlayTests'}
+        self.assertEqual(expected, set(names))
+        self.assertEqual(len(expected), len(definitions))
+        for name in ('ZKube.Chain', 'ZKube.Money'):
+            self.assertEqual(['!ZKUBE_STORE'], names[name]['defineConstraints'])
+        self.assertEqual(['UNITY_EDITOR || ZKUBE_STORE'], names['ZKube.Store']['defineConstraints'])
+        self.assertIn('Chaos.NaCl.dll', names['ZKube.Chain']['precompiledReferences'])
+        def closure(name, seen):
+            self.assertNotIn(name, seen, 'Assembly reference cycle')
+            self.assertNotIn(name, MONEY_ASSEMBLIES)
+            for reference in names[name].get('references', []):
+                if reference.startswith('ZKube.'):
+                    self.assertIn(reference, code)
+                    closure(reference, seen | {name})
+        closure('ZKube.Store', set())
 
     def test_store_manifest_rejects_wallet_and_wrong_identity(self):
         xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false"><meta-data android:name="unity.splash-enable" android:value="false"/></application></manifest>'''

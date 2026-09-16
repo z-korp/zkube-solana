@@ -1,7 +1,7 @@
 {
-  "name": "ZKube.Core.Tests",
+  "name": "ZKube.Editor.Tests",
   "references": [
-    "ZKube.Core"
+    "ZKube.Editor"
   ],
   "autoReferenced": false,
   "optionalUnityReferences": [

@@ -61,13 +61,13 @@ def metadata_check(data):
             b"MoneySessionEvidenceGraph", b"MoneySessionEvidenceData", b"MoneyPlayableEvidenceGraph",
             b"MoneyPlayableEvidenceData", b"EvidencePointer", b"OfflineCampaignStoreDriver", b"StoreStartupDiagnostic")):
         raise RuntimeError("Player contains a test driver or retired diagnostic")
-    if re.search(rb"ZKube\.[A-Za-z0-9_.]+\.Tests(?:\.dll)?\x00", data):
+    if re.search(rb"ZKube\.[A-Za-z0-9_.]+\.(?:Tests|PlayTests)(?:\.dll)?\x00", data):
         raise RuntimeError("Player contains managed test assemblies")
 
 
 def money_metadata_check(data):
     metadata_check(data)
-    for token in (b"StoreRunClient", b"StoreCampaignPolicy", b"ZKube.Local.App.dll", b"ZKube.Local.App"):
+    for token in (b"StoreRunClient", b"StoreCampaignPolicy", b"ZKube.Store.dll", b"ZKube.Store"):
         if token + b"\x00" in data:
             raise RuntimeError("Money player contains the store Daily client or policy")
 
@@ -147,8 +147,7 @@ def inspect(apk, android_tools, expected_native):
     with open_archive(apk) as archive:
         metadata = read_member(archive, "assets/bin/Data/Managed/Metadata/global-metadata.dat")
         money_metadata_check(metadata)
-        if any(token in metadata for token in (b"Unity.Purchasing.dll\x00", b"UnityEngine.Purchasing\x00",
-                                               b"ZKube.Local.Billing.dll\x00", b"ZKube.Local.Billing.Unity.dll\x00")):
+        if any(token in metadata for token in (b"Unity.Purchasing.dll\x00", b"UnityEngine.Purchasing\x00")):
             raise RuntimeError("Money APK contains store billing managed code")
         for name in archive.namelist():
             if name.endswith(".dex"):

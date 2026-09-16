@@ -1,7 +1,0 @@
-{
-  "name": "ZKube.Generated",
-  "rootNamespace": "ZKube.Core.Generated",
-  "references": [],
-  "allowUnsafeCode": false,
-  "autoReferenced": true
-}

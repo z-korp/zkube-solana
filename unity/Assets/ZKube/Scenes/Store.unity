@@ -147,7 +147,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 64bd1625abfa8c947eb5f864df10040a, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: ZKube.StoreStartup::ZKube.Local.App.StoreStartup
+  m_EditorClassIdentifier: ZKube.Store::ZKube.Local.App.StoreStartup
 --- !u!4 &623998925
 Transform:
   m_ObjectHideFlags: 0

@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /ZKube\.(?:Generated|Persistence|Integration|Transport|Planning|Execution|RunReconciliation|Client|ClientRuns|ProductReads|SolanaPrimitives|AndroidWallet|MoneyApp|MoneyPresentation|MoneyStartup|MoneyOverview|StoreStartup|Local\.(?:Runs|Presentation|App|Billing(?:\.Unity)?))(?:\.Tests|\.PlayTests)?(?:\.asmdef|\.dll|")/,
+    trees: [UNITY_CLIENT, join(ROOT, "unity/Assets/ThirdParty/Solana")],
+    reversal: "Unity compiles shared code and each identity in the consolidated Core, Presentation, Local, Chain, Money and Store assemblies (2026-09-16)",
+  },
+  {
     pattern: /run_latched_star_sources|runLatchedStarSources|CAMPAIGN_REPLAY_FOLD_DOMAIN|\bLevelRules\b|campaign-v2\.json/,
     trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS, CORE, CORE_WASM, CODEGEN],
     reversal: "The native host owns local runs; Arcade reconstruction has no Campaign fields, and star rules and replay folding each have one form (2026-09-16)",
@@ -420,7 +425,7 @@ async function sourceFiles(dir: string): Promise<string[]> {
     const path = join(dir, entry.name);
     if (SKIPPED.some((skipped) => path.startsWith(skipped))) continue;
     if (entry.isDirectory()) files.push(...(await sourceFiles(path)));
-    else if (/\.(mjs|ts|tsx|rs|cs|kt)$/.test(entry.name)) files.push(path);
+    else if (/\.(mjs|ts|tsx|rs|cs|kt|asmdef|asmref)$/.test(entry.name)) files.push(path);
   }
   return files;
 }

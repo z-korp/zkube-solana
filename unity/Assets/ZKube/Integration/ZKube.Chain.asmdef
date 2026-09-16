@@ -1,13 +1,18 @@
 {
-  "name": "ZKube.Local",
+  "name": "ZKube.Chain",
   "references": [
+    "Unity.Newtonsoft.Json",
     "ZKube.Core",
-    "ZKube.Presentation"
+    "ZKube.Local"
   ],
   "autoReferenced": true,
   "overrideReferences": true,
   "precompiledReferences": [
+    "Chaos.NaCl.dll",
     "Newtonsoft.Json.dll"
+  ],
+  "defineConstraints": [
+    "!ZKUBE_STORE"
   ],
   "noEngineReferences": true
 }

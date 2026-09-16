@@ -1,7 +1,9 @@
 {
   "name": "ZKube.Core",
-  "rootNamespace": "ZKube.Core",
-  "references": ["ZKube.Generated"],
-  "allowUnsafeCode": false,
-  "autoReferenced": true
+  "references": [],
+  "autoReferenced": true,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ]
 }

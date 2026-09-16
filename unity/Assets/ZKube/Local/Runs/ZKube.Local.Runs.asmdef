@@ -1,7 +1,0 @@
-{
-  "name": "ZKube.Local.Runs",
-  "rootNamespace": "ZKube.Local",
-  "references": ["ZKube.Local", "ZKube.Core", "ZKube.Generated"],
-  "autoReferenced": true,
-  "noEngineReferences": true
-}

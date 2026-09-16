@@ -1,14 +1,13 @@
 {
   "name": "ZKube.Presentation",
-  "rootNamespace": "ZKube.Presentation",
   "references": [
-    "ZKube.Core",
-    "ZKube.Generated",
-    "ZKube.Persistence",
     "Unity.TextMeshPro",
-    "Unity.ugui"
+    "Unity.ugui",
+    "ZKube.Core"
   ],
   "autoReferenced": true,
   "overrideReferences": true,
-  "precompiledReferences": ["Newtonsoft.Json.dll"]
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ]
 }
