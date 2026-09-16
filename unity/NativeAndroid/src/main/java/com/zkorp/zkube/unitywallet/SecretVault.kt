@@ -20,13 +20,6 @@ internal class SecretVault(context: Context,
         check(commit(storage.edit().putString(name, encrypt(name, value))))
     }
 
-    // Re-encryption binds the promoted ciphertext to its new AAD name. Both
-    // mutations reach the durable store in the same commit.
-    fun putAndRemove(name: String, value: ByteArray, removedName: String) {
-        require(name != removedName)
-        check(commit(storage.edit().putString(name, encrypt(name, value)).remove(removedName)))
-    }
-
     private fun encrypt(name: String, value: ByteArray): String {
         require(value.size <= 16384)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

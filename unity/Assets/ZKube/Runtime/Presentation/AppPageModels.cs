@@ -63,6 +63,7 @@ namespace ZKube.Presentation
     public sealed class ProfilePageView
     {
         public string Name, Worn, Notice;
+        public Action<string> ChangeName;
         public byte Realm;
         public int Stars;
         public ulong Streak, BestDailyScore;

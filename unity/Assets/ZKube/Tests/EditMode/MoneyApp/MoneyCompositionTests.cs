@@ -169,23 +169,23 @@ namespace ZKube.Integration.App.Tests
             Assert.That(await e.Services.Journal.Load(e.Owner), Is.Null); e.AssertReadOnly(); await e.Flow.StopAsync();
         }
         [Test]
-        public async Task ExistingSignedRenewalRunsDurableHandoffExactlyOnceAcrossGraphRestart()
+        public async Task ExistingSignedRenewalSavesItsExpiryAcrossRestart()
         {
             var e = new MoneyTestEnvironment(); var fixture = MoneyTestEnvironment.Fixture("device");
-            var plan = fixture["cases"][0]; e.Native.Seed = Enumerable.Repeat((byte)2, 32).ToArray(); e.Native.Candidate = Enumerable.Repeat((byte)3, 32).ToArray();
-            var old = new SessionRecord(e.Owner, (string)fixture["inputs"]["previous"], (string)plan["oldToken"]["address"], e.Now + (long)plan["remaining"]);
-            var candidate = new SessionRecord(e.Owner, (string)fixture["inputs"]["candidate"], (string)fixture["candidateToken"]["address"], (long)fixture["candidateToken"]["validUntil"]);
-            await e.Services.Sessions.Replace(await e.Services.Sessions.Load(e.Owner), new SessionRecords(e.Owner, old, candidate));
-            e.Http.Add(fixture["candidateToken"]); e.Http.Add(e.Solana["accounts"].Single(x => (string)x["id"] == "player-valid"));
+            var plan = fixture["cases"][0]; e.Native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
+            var old = new SessionRecord(e.Owner, (string)fixture["inputs"]["device"], (string)plan["oldToken"]["address"], e.Now + (long)plan["remaining"]);
+            var renewed = new SessionRecord(e.Owner, (string)fixture["inputs"]["device"], (string)fixture["renewedToken"]["address"], (long)fixture["renewedToken"]["validUntil"]);
+            await e.Services.Sessions.Replace(await e.Services.Sessions.Load(e.Owner), new SessionRecords(e.Owner, old));
+            e.Http.Add(fixture["renewedToken"]); e.Http.Add(e.Solana["accounts"].Single(x => (string)x["id"] == "player-valid"));
             var pending = new PendingTransaction(e.Owner, "session-renew", e.Config.BaseUri, true, Convert.FromBase64String((string)plan["signedTransaction"]), (string)fixture["inputs"]["blockhash"], 500);
             await e.Services.Journal.Begin(pending); await e.Flow.StopAsync();
             var restarted = e.Create(e.Config); var flow = new MoneyAppFlow(restarted); await flow.Connect(e.Owner);
             var result = (await flow.ResumePending()).Value;
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
-            Assert.That((await restarted.Sessions.Load(e.Owner)).Active.Signer, Is.EqualTo(candidate.Signer));
-            Assert.That(e.Native.Promotions, Is.EqualTo(1)); Assert.That(await restarted.Journal.Load(e.Owner), Is.Null);
+            Assert.That((await restarted.Sessions.Load(e.Owner)).Active.Signer, Is.EqualTo(renewed.Signer));
+            Assert.That(e.Native.Creations, Is.Zero); Assert.That(await restarted.Journal.Load(e.Owner), Is.Null);
             Assert.That((await flow.ResumePending()).Value.Code, Is.EqualTo("no-pending-transaction"));
-            Assert.That(e.Native.Promotions, Is.EqualTo(1)); e.AssertReadOnly(); await flow.StopAsync();
+            Assert.That(e.Native.Creations, Is.Zero); e.AssertReadOnly(); await flow.StopAsync();
         }
     }
 

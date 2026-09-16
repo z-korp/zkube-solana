@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /DeviceKeyLifecycle|SessionHandoff|LoadCandidateSeed|CreateCandidateSeed|PromoteCandidateSeed|device-candidate|candidateToken|name gate|NameGate|RequireName|StorePage\.Name|store-save-format-v1|removes its signing key here|does not immediately revoke that token|preserves the v1 local save format|Pick the name shown with your progress|DrainsExecutorBeforeDeletingKey/i,
+    trees: [UNITY_CLIENT, join(ROOT, "unity/NativeAndroid/src"), README, AGENT_RULES],
+    reversal: "One install key is reused; the local name is edited in Profile and codec tests construct their state (2026-09-16)",
+  },
+  {
     pattern: /chain:devnet:(?:deploy|launch|top-up|set-suspension)|chain:manifest|deploymentManifest|programExtension|ZKUBE_DEPLOY_APPROVAL|ZKUBE_PRIZE_TOP_UP_APPROVAL|ZKUBE_LAUNCH_MODE|final manifest|public launch bundle under `\/tmp`|stage mode|activate mode/,
     trees: [SERVICES, TOOLS, AGENT_RULES, README],
     reversal: "One public plan bundle and one receipt pipeline serve operator commands (2026-09-16)",

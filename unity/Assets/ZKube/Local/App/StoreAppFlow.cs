@@ -9,7 +9,7 @@ using ZKube.Local.Billing;
 
 namespace ZKube.Local.App
 {
-    public enum StorePage { Name, Daily, Campaign, Level, Profile, Settings, Board, Result }
+    public enum StorePage { Daily, Campaign, Level, Profile, Settings, Board, Result }
 
     // The concrete store page flow. Campaign recovery uses the same durable
     // local record as the money identity, with the store purchase policy.
@@ -36,7 +36,7 @@ namespace ZKube.Local.App
             Product = product ?? throw new ArgumentNullException(nameof(product));
             Runs = runs ?? throw new ArgumentNullException(nameof(runs));
             Billing = billing ?? throw new ArgumentNullException(nameof(billing));
-            Page = Product.Read.Name == null ? StorePage.Name : StorePage.Daily;
+            Page = StorePage.Daily;
         }
         public LocalDaily Today => Runs.Today();
         public LocalRunView TodayRun => Product.Read.DailyAttempt?.DayId == Today.DayId ? Runs.Active("arcade") : null;
@@ -57,29 +57,29 @@ namespace ZKube.Local.App
         {
             Check();
             if (page == StorePage.Board || page == StorePage.Level || page == StorePage.Result) throw new ArgumentException("Use the bound page action");
-            Navigate(Product.Read.Name == null ? StorePage.Name : page);
+            Navigate(page);
         }
         public void SetName(string name)
         {
             Check();
-            try { Write(state => state.Name = LocalProductCodec.NormalizeName(name)); Navigate(StorePage.Daily); }
+            try { Write(state => state.Name = LocalProductCodec.NormalizeName(name)); Changed?.Invoke(); }
             catch (Exception error) { Error = error.Message; Changed?.Invoke(); }
         }
         public void SelectRealm(byte realm)
         {
-            Check(); RequireName();
+            Check();
             if (realm < 1 || realm > Protocol.Realms.Length) throw new ArgumentOutOfRangeException(nameof(realm));
             Realm = realm; Navigate(StorePage.Campaign);
         }
         public void Preview(byte level)
         {
-            Check(); RequireName();
+            Check();
             if (!LevelAvailable(Realm, level)) throw new InvalidOperationException("Clear the preceding trial first");
             Level = level; Navigate(StorePage.Level);
         }
         public void PlayCampaign()
         {
-            Check(); RequireName();
+            Check();
             var current = Runs.Active("campaign");
             if (current != null)
             {
@@ -92,7 +92,7 @@ namespace ZKube.Local.App
         }
         public void PlayDaily()
         {
-            Check(); RequireName();
+            Check();
             if (TodayRun != null) { Open(TodayRun); return; }
             if (AttemptedToday) { Navigate(StorePage.Result); return; }
             try { Open(Runs.StartDaily()); }
@@ -106,7 +106,7 @@ namespace ZKube.Local.App
         }
         public void Wear(byte realm)
         {
-            Check(); RequireName();
+            Check();
             if (realm < 1 || realm > Protocol.Realms.Length || !Cleared(realm)) throw new InvalidOperationException("Defeat this guardian first");
             Write(state => state.WornEmblem = realm); Changed?.Invoke();
         }
@@ -161,7 +161,6 @@ namespace ZKube.Local.App
             Page = page; Error = null; BillingNotice = null; old.Cancel(); old.Dispose(); Changed?.Invoke();
         }
         private bool Current(long value) => !disposed && value == generation;
-        private void RequireName() { if (Product.Read.Name == null) throw new InvalidOperationException("Choose your player name first"); }
         private void Check() { if (disposed) throw new ObjectDisposedException(nameof(StoreAppFlow)); }
         public void Dispose() { if (disposed) return; disposed = true; generation++; pageWait.Cancel(); pageWait.Dispose(); }
     }

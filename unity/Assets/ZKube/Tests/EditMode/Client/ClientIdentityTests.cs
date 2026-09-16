@@ -28,8 +28,7 @@ namespace ZKube.Integration.Tests
                 return new JObject { ["requestId"] = request["requestId"], ["ok"] = true,
                     ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(Owner)) }.ToString();
             }
-            public Task<byte[]> LoadDeviceSeed(string owner) => Task.FromResult<byte[]>(null);
-            public Task RemoveDeviceSeed(string owner) => throw new InvalidOperationException();
+            public Task<byte[]> LoadDeviceSeed(bool create) => Task.FromResult<byte[]>(null);
         }
         [Test]
         public async Task DisconnectDuringAuthorizationRejectsLateSuccessAndAllowsExplicitOtherOwner()

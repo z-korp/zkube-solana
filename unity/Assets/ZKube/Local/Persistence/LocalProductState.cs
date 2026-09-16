@@ -39,7 +39,7 @@ namespace ZKube.Local
     public sealed class LocalProductState
     {
         public int Version { get; set; } = LocalProductCodec.Version;
-        public string Name { get; set; }
+        public string Name { get; set; } = LocalProductCodec.DefaultName;
         public byte[] Stars { get; set; } = new byte[100];
         public LocalDailyAttempt DailyAttempt { get; set; }
         public ulong Streak { get; set; }
@@ -56,6 +56,7 @@ namespace ZKube.Local
     {
         public const string StorageKey = "zkube:local-product:v1";
         public const int Version = 1;
+        public const string DefaultName = "Player";
 
         public static LocalProductState Decode(string json)
         {
@@ -69,7 +70,7 @@ namespace ZKube.Local
                 for (int i = 0; i < Math.Min(array.Count, stars.Length); i++) stars[i] = (byte)Math.Min(3UL, Nonnegative(array[i]));
             string name;
             try { name = NormalizeName(parsed["name"]?.Type == JTokenType.String ? (string)parsed["name"] : null); }
-            catch (ArgumentException) { name = null; }
+            catch (ArgumentException) { name = DefaultName; }
             string price = parsed["campaignPrice"]?.Type == JTokenType.String ? ((string)parsed["campaignPrice"]).Trim() : null;
             return new LocalProductState {
                 Name = name, Stars = stars, DailyAttempt = Attempt(parsed["dailyAttempt"] as JObject),

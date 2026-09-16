@@ -52,7 +52,6 @@ namespace ZKube.Integration.App
         public TransactionPlanner Planner { get; }
         public WalletClient Wallet { get; }
         public ClientIdentity Identity { get; }
-        public DeviceKeyLifecycle Keys { get; }
         public SolanaRpcTransport Rpc { get; }
         public TransactionJournal Journal { get; }
         public SessionRecordStore Sessions { get; }
@@ -68,7 +67,7 @@ namespace ZKube.Integration.App
         public EconomyClient Economy { get; }
 
         public MoneyClientServices(string solanaJson, string sessionJson, MoneyConnectionConfig config,
-            IJsonRpcHttp http, INativeDeviceKeyLifecycle native, IPublicClientStore storage, Func<long> now,
+            IJsonRpcHttp http, INativeWalletTransport native, IPublicClientStore storage, Func<long> now,
             Func<string, LocalProductStore> localCampaignStore,
             Func<byte[]> runClientSeed = null)
         {
@@ -83,20 +82,19 @@ namespace ZKube.Integration.App
             Accounts = new AccountBindings(solanaJson, ZKube.Core.Generated.Protocol.PlayerStateAccountVersion,
                 ZKube.Core.Generated.Protocol.ProtocolAccountVersion);
             Planner = new TransactionPlanner(Protocol, Tokens);
-            Wallet = new WalletClient(native); Identity = new ClientIdentity(Wallet); Keys = new DeviceKeyLifecycle(native);
+            Wallet = new WalletClient(native); Identity = new ClientIdentity(Wallet);
             Rpc = new SolanaRpcTransport(http, config.BaseUri, config.RouterUri, config.ExpectedGenesis, Protocol.ProgramId);
             Journal = new TransactionJournal(storage); Sessions = new SessionRecordStore(storage, Tokens, Protocol.ProgramId);
             RunMarkers = new RunStateStore(storage, Accounts);
-            var handoff = new SessionHandoff(Sessions, Keys, Tokens, Protocol.ProgramId);
             var persistence = new RunPersistence(RunMarkers);
             Dispatcher = new ExecutionDispatcher(
-                new SessionInstructionReconciler(Protocol, Accounts, Tokens, Sessions, handoff, Planner),
-                new SessionMaintenanceReconciler(Wallet, Sessions),
+                new SessionInstructionReconciler(Protocol, Accounts, Tokens, Sessions, Planner),
+                new SessionMaintenanceReconciler(Sessions, Tokens, Protocol.ProgramId),
                 new EconomyInstructionReconciler(Protocol, Accounts, Rpc, AcceptedEconomy),
                 new RunInstructionReconciler(Protocol, Accounts, Planner, Rpc, persistence.Accept));
             Executor = new TransactionExecutor(Planner, Rpc, Wallet, Journal);
             SessionAccess = new SessionAccess(Wallet, Sessions, Tokens, Rpc, Protocol.ProgramId, now);
-            SessionLifecycle = new SessionLifecycle(Identity, Wallet, Keys, Sessions, Tokens, Planner, Rpc,
+            SessionLifecycle = new SessionLifecycle(Identity, Wallet, Sessions, Tokens, Planner, Rpc,
                 Journal, Executor, Dispatcher, Protocol.ProgramId, now);
             var recovery = new RunRecovery(Protocol.ProgramId, PlanningConstants.DelegationProgram, Accounts);
             Runs = new RunClient(Identity, SessionAccess, Accounts, Planner, Rpc, RunMarkers, recovery,

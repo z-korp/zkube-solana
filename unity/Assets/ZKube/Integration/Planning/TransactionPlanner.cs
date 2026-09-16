@@ -213,37 +213,34 @@ namespace ZKube.Integration.Planning
                 Transfer(owner, device, PlanningConstants.DeviceAllowanceLamports - balance), Transfer(device, owner, 0) });
         }
 
-        public TransactionPlan RenewSession(string owner, string candidate, long now, AccountEnvelope oldToken,
-            string oldDevice, ulong oldBalance)
+        public TransactionPlan RenewSession(string owner, string device, long now, AccountEnvelope oldToken, ulong balance)
         {
-            if (candidate == oldDevice || now < 0 || now > 9007199254740991L - PlanningConstants.SessionLifetimeSeconds ||
-                (oldDevice == null && oldBalance != 0)) throw new ArgumentException("Invalid session renewal inputs");
+            if (now < 0 || now > 9007199254740991L - PlanningConstants.SessionLifetimeSeconds)
+                throw new ArgumentException("Invalid session renewal time");
             var instructions = new List<SolanaInstruction>();
-            if (oldToken != null)
-            {
-                var token = sessions.Decode(oldToken);
-                if (token.Authority != owner || token.SessionSigner != oldDevice || token.FeePayer != owner || token.TargetProgram != protocol.ProgramId)
-                    throw new ArgumentException("Previous session relationships are invalid");
-                if (token.ValidUntil <= now) instructions.AddRange(RevokeExpiredSession(owner, oldToken, now).Instructions);
-            }
-            if (oldBalance != 0) instructions.Add(Transfer(oldDevice, owner, oldBalance));
-            instructions.AddRange(EnableSession(owner, candidate, now).Instructions);
+            if (oldToken != null) instructions.Add(RevokeToken(owner, device, oldToken));
+            if (balance != 0) instructions.Add(Transfer(device, owner, balance));
+            instructions.AddRange(EnableSession(owner, device, now).Instructions);
             return Plan(PlannerActor.Wallet(owner), PlanRoute.Base, instructions);
         }
 
-        // Reclaim the allowance and delete the local
-        // signer only after confirmation. The token remains until its expiry.
-        public TransactionPlan RevokeSession(string owner, string device, ulong balance) => balance == 0 ? null :
-            Plan(PlannerActor.Wallet(owner), PlanRoute.Base, new[] { Transfer(device, owner, balance) });
+        public TransactionPlan RevokeSession(string owner, string device, AccountEnvelope token, ulong balance)
+        {
+            var instructions = new List<SolanaInstruction>();
+            if (token != null) instructions.Add(RevokeToken(owner, device, token));
+            if (balance != 0) instructions.Add(Transfer(device, owner, balance));
+            return instructions.Count == 0 ? null : Plan(PlannerActor.Wallet(owner), PlanRoute.Base, instructions);
+        }
 
-        public TransactionPlan RevokeExpiredSession(string payer, AccountEnvelope envelope, long now)
+        private SolanaInstruction RevokeToken(string owner, string device, AccountEnvelope envelope)
         {
             var token = sessions.Decode(envelope);
-            if (token.TargetProgram != protocol.ProgramId || token.ValidUntil > now) throw new ArgumentException("Session is not expired");
-            return Plan(PlannerActor.Wallet(payer), PlanRoute.Base, new[] { new SolanaInstruction(sessions.ProgramId,
-                new[] { new AccountMeta(envelope.Address, false, true), new AccountMeta(token.FeePayer, false, true),
-                    new AccountMeta(token.Authority, false, false), new AccountMeta(PlanningConstants.SystemProgram, false, false) },
-                PlanningConstants.RevokeSessionDiscriminator) });
+            if (token.Authority != owner || token.SessionSigner != device || token.FeePayer != owner || token.TargetProgram != protocol.ProgramId)
+                throw new ArgumentException("Session relationships are invalid");
+            return new SolanaInstruction(sessions.ProgramId,
+                new[] { new AccountMeta(envelope.Address, false, true), new AccountMeta(owner, false, true),
+                    new AccountMeta(owner, true, false), new AccountMeta(PlanningConstants.SystemProgram, false, false) },
+                PlanningConstants.RevokeSessionDiscriminator);
         }
 
         private static SolanaInstruction Transfer(string from, string to, ulong amount)

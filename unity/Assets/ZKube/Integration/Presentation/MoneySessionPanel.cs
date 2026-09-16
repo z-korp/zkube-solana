@@ -108,7 +108,7 @@ namespace ZKube.Integration.Presentation
                 else if (session.Funding != "ready") Button(sessionPanel, "Refill allowance", () => _ = RefillDeviceSession());
                 if (session.ValidUntil > 0)
                 {
-                    Label(sessionPanel, "Disable this device returns its remaining fee allowance to your wallet and removes its signing key here. Its on-chain authorization expires at the time shown above; this does not immediately revoke that token.", 18, false);
+                    Label(sessionPanel, "Disable this device revokes its authorization and returns the remaining fee allowance to your wallet. Its install key stays on this device for later reauthorization.", 18, false);
                     Button(sessionPanel, "Disable this device", () => _ = DisableDeviceSession());
                 }
             }

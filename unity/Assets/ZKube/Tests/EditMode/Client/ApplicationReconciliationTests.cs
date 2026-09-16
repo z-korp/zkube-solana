@@ -47,7 +47,7 @@ namespace ZKube.Integration.Tests
                 ["executable"] = envelope["executable"], ["lamports"] = 5000000, ["data"] = new JArray(envelope["data"], "base64") };
         }
         [Test]
-        public async Task RealSignedRenewalsRequireFreshValidTokenAndResumeHandoffBeforeJournalRemoval()
+        public async Task SignedRenewalResumesPublicSaveBeforeJournalRemoval()
         {
             var plans = Fixture("device"); var solana = Fixture("solana"); var rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
@@ -57,57 +57,58 @@ namespace ZKube.Integration.Tests
             string owner = (string)plans["inputs"]["owner"];
             foreach (var plan in plans["cases"])
             {
-                var store = new SessionHandoffTests.Store(); var native = new SessionHandoffTests.Native(); var records = new SessionRecordStore(store, tokens, protocol.ProgramId);
-                var old = new SessionRecord(owner, (string)plans["inputs"]["previous"], (string)plan["oldToken"]["address"], (long)plans["inputs"]["now"] + (long)plan["remaining"]);
-                var candidate = new SessionRecord(owner, (string)plans["inputs"]["candidate"], (string)plans["candidateToken"]["address"], (long)plans["candidateToken"]["validUntil"]);
-                await records.Replace(await records.Load(owner), new SessionRecords(owner, old, candidate));
+                var store = new SessionRecordTests.Store(); var native = new SessionRecordTests.Native(); var records = new SessionRecordStore(store, tokens, protocol.ProgramId);
+                var old = new SessionRecord(owner, (string)plans["inputs"]["device"], (string)plan["oldToken"]["address"], (long)plans["inputs"]["now"] + (long)plan["remaining"]);
+                var renewed = new SessionRecord(owner, (string)plans["inputs"]["device"], (string)plans["renewedToken"]["address"], (long)plans["renewedToken"]["validUntil"]);
+                await records.Replace(await records.Load(owner), new SessionRecords(owner, old));
                 var http = new Http { Genesis = (string)rpcFixture["inputs"]["expectedGenesis"] };
-                http.Add(solana["accounts"].Single(row => (string)row["id"] == "player-valid")); http.Add(plans["candidateToken"]);
+                http.Add(solana["accounts"].Single(row => (string)row["id"] == "player-valid")); http.Add(plans["renewedToken"]);
                 var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], http.Genesis, protocol.ProgramId);
                 var journal = new TransactionJournal(store);
                 var pending = new PendingTransaction(owner, "session-renew", (string)rpcFixture["inputs"]["base"], true,
                     Convert.FromBase64String((string)plan["signedTransaction"]), (string)plans["inputs"]["blockhash"], 500);
                 await journal.Begin(pending);
-                var reconciler = new SessionInstructionReconciler(protocol, accounts, tokens, records, new SessionHandoff(records, new DeviceKeyLifecycle(native), tokens, protocol.ProgramId), planner);
+                var reconciler = new SessionInstructionReconciler(protocol, accounts, tokens, records, planner);
                 TransactionExecutor Restart() => new TransactionExecutor(planner, rpc, new WalletClient(native), journal);
                 http.AccountSlot = 999;
                 Assert.That((await Restart().Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-                Assert.That(native.Promotions, Is.Zero);
-                http.AccountSlot = 1000; http.Accounts[candidate.Token]["owner"] = owner;
+                Assert.That((await records.Load(owner)).Active.ValidUntil, Is.EqualTo(old.ValidUntil));
+                http.AccountSlot = 1000; http.Accounts[renewed.Token]["owner"] = owner;
                 Assert.That((await Restart().Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-                http.Add(plans["candidateToken"]);
+                http.Add(plans["renewedToken"]); store.FailBeforeCommit = true;
+                Assert.That((await Restart().Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
+                Assert.That((await records.Load(owner)).Active.ValidUntil, Is.EqualTo(old.ValidUntil));
+                Assert.That(await journal.Load(owner), Is.Not.Null); store.FailBeforeCommit = false;
                 Assert.That((await Restart().Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-                Assert.That(native.Promotions, Is.EqualTo(1)); Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(candidate.Signer));
+                Assert.That((await records.Load(owner)).Active.ValidUntil, Is.EqualTo(renewed.ValidUntil)); Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(renewed.Signer));
                 Assert.That(await journal.Load(owner), Is.Null);
             }
         }
         [Test]
-        public async Task ProcessedErrorsKeepBothKeysAndConfirmedFailureNeverPromotesTheCandidate()
+        public async Task FailedRenewalRetainsThePreviousExpiryAndInstallKey()
         {
             var plans = Fixture("device"); var rpcFixture = Fixture("transport");
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
             string idl = File.ReadAllText(Path.Combine(generated, "solana.json")); var protocol = new ProtocolBindings(idl);
             var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
             var tokens = new SessionTokenBindings(File.ReadAllText(Path.Combine(generated, "session.json"))); var planner = new TransactionPlanner(protocol, tokens);
-            string owner = (string)plans["inputs"]["owner"]; var plan = plans["cases"][0];
-            var store = new SessionHandoffTests.Store(); var native = new SessionHandoffTests.Native(); var records = new SessionRecordStore(store, tokens, protocol.ProgramId);
-            var old = new SessionRecord(owner, (string)plans["inputs"]["previous"], (string)plan["oldToken"]["address"], (long)plans["inputs"]["now"] - 1);
-            var candidate = new SessionRecord(owner, (string)plans["inputs"]["candidate"], (string)plans["candidateToken"]["address"], (long)plans["candidateToken"]["validUntil"]);
-            await records.Replace(await records.Load(owner), new SessionRecords(owner, old, candidate));
+            string owner = (string)plans["inputs"]["owner"]; var plan = plans["cases"].Single(value => (long)value["remaining"] == 61 && (ulong)value["balance"] == 0);
+            var store = new SessionRecordTests.Store(); var native = new SessionRecordTests.Native(); var records = new SessionRecordStore(store, tokens, protocol.ProgramId);
+            var old = new SessionRecord(owner, (string)plans["inputs"]["device"], (string)plan["oldToken"]["address"], (long)plans["inputs"]["now"] + 61);
+            await records.Replace(await records.Load(owner), new SessionRecords(owner, old));
             var http = new Http { Genesis = (string)rpcFixture["inputs"]["expectedGenesis"], Confirmation = "processed", Error = new JObject { ["InstructionError"] = new JArray(0, "InvalidArgument") } };
             http.Add(plan["oldToken"]);
             var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], http.Genesis, protocol.ProgramId);
             var journal = new TransactionJournal(store);
             await journal.Begin(new PendingTransaction(owner, "session-renew", (string)rpcFixture["inputs"]["base"], true,
                 Convert.FromBase64String((string)plan["signedTransaction"]), (string)plans["inputs"]["blockhash"], 500));
-            var reconciler = new SessionInstructionReconciler(protocol, accounts, tokens, records, new SessionHandoff(records, new DeviceKeyLifecycle(native), tokens, protocol.ProgramId), planner);
+            var reconciler = new SessionInstructionReconciler(protocol, accounts, tokens, records, planner);
             var executor = new TransactionExecutor(planner, rpc, new WalletClient(native), journal);
             Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             http.Confirmation = "confirmed";
             Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
             Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(old.Signer));
-            Assert.That((await records.Load(owner)).Candidate.Signer, Is.EqualTo(candidate.Signer));
-            Assert.That(native.Promotions, Is.Zero); Assert.That(await journal.Load(owner), Is.Null);
+            Assert.That((await records.Load(owner)).Active.ValidUntil, Is.EqualTo(old.ValidUntil)); Assert.That(await journal.Load(owner), Is.Null);
         }
 
         [Test]
@@ -119,7 +120,7 @@ namespace ZKube.Integration.Tests
             var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
             var tokens = new SessionTokenBindings(File.ReadAllText(Path.Combine(generated, "session.json"))); var planner = new TransactionPlanner(protocol, tokens);
             string owner = (string)solana["inputs"]["owner"];
-            var store = new SessionHandoffTests.Store(); var journal = new TransactionJournal(store);
+            var store = new SessionRecordTests.Store(); var journal = new TransactionJournal(store);
             var http = new Http { Genesis = (string)rpcFixture["inputs"]["expectedGenesis"] };
             var profile = solana["accounts"].Single(row => (string)row["id"] == "player-valid"); http.Add(profile);
             foreach (string name in new[] { "protocol", "credit" }) http.Add(plans["accounts"][name]); http.Add(economy["team"]);
@@ -131,7 +132,7 @@ namespace ZKube.Integration.Tests
             var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var reconciler = new EconomyInstructionReconciler(protocol, accounts, rpc, async value => { accepted = value; entered.SetResult(true); await release.Task; });
-            var executor = new TransactionExecutor(planner, rpc, new WalletClient(new SessionHandoffTests.Native()), journal);
+            var executor = new TransactionExecutor(planner, rpc, new WalletClient(new SessionRecordTests.Native()), journal);
             var result = executor.Resume(owner, reconciler); await entered.Task;
             Assert.That(await journal.Load(owner), Is.Not.Null); Assert.That(accepted.Kredits, Is.EqualTo(25));
             release.SetResult(true);
@@ -150,7 +151,7 @@ namespace ZKube.Integration.Tests
             string owner = (string)solana["inputs"]["owner"];
             foreach (string outcome in new[] { "claimed", "removed", "expired" })
             {
-                var store = new SessionHandoffTests.Store(); var journal = new TransactionJournal(store);
+                var store = new SessionRecordTests.Store(); var journal = new TransactionJournal(store);
                 var board = economy[outcome == "expired" ? "oldScore" : "claimedBoard"];
                 var daily = economy[outcome == "expired" ? "oldDaily" : "claimDaily"];
                 string signedClaim = outcome == "expired" ? (string)economy["oldScoreTransaction"] : (string)economy["claim"]["signedTransaction"];
@@ -162,7 +163,7 @@ namespace ZKube.Integration.Tests
                     Convert.FromBase64String(signedClaim), (string)solana["inputs"]["blockhash"], 500));
                 EconomyObservation accepted = null;
                 var reconciler = new EconomyInstructionReconciler(protocol, accounts, rpc, value => { accepted = value; return Task.CompletedTask; });
-                var executor = new TransactionExecutor(planner, rpc, new WalletClient(new SessionHandoffTests.Native()), journal);
+                var executor = new TransactionExecutor(planner, rpc, new WalletClient(new SessionRecordTests.Native()), journal);
                 http.Accounts[(string)board["address"]]["owner"] = owner;
                 Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(accepted, Is.Null);
                 if (outcome == "removed")

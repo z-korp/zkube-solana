@@ -10,40 +10,76 @@ namespace ZKube.Integration.Client
 {
     public sealed class SessionMaintenanceReconciler : IExecutionReconciler
     {
-        private readonly WalletClient wallet;
         private readonly SessionRecordStore records;
-        public SessionMaintenanceReconciler(WalletClient wallet, SessionRecordStore records)
-        { this.wallet = wallet; this.records = records; }
+        private readonly SessionTokenBindings tokens;
+        private readonly string program;
+        public SessionMaintenanceReconciler(SessionRecordStore records, SessionTokenBindings tokens, string program)
+        { this.records = records; this.tokens = tokens; this.program = program; }
         public async Task<bool> Reconcile(ExecutionReconciliation evidence, CancellationToken cancellation)
         {
             if (!evidence.Pending.IsBase || (!evidence.Expired && evidence.Status.Confirmation != RpcConfirmation.Confirmed &&
                 evidence.Status.Confirmation != RpcConfirmation.Finalized)) return false;
             var calls = evidence.Transaction.Instructions.Where(i => i.ProgramId != PlanningConstants.ComputeBudgetProgram).ToArray();
-            if (calls.Length < 1 || calls.Length > 2 || calls.Any(i => i.ProgramId != PlanningConstants.SystemProgram)) return false;
+            if (calls.Length < 1 || calls.Length > 2) return false;
             string owner = evidence.Pending.Owner;
-            bool refill = calls.Length == 2;
-            string device = refill ? calls[0].Accounts.LastOrDefault()?.Address : calls[0].Accounts.FirstOrDefault()?.Address;
-            if (device == null || device == owner || !Transfer(calls[0], refill ? owner : device, refill ? device : owner, false) ||
-                (refill && !Transfer(calls[1], device, owner, true))) return false;
             var saved = await records.Load(owner).ConfigureAwait(false);
-            if (saved.Active != null && saved.Active.Signer != device) return false;
-            if (refill && saved.Active == null) return false;
-            var observation = evidence.Accounts.SingleOrDefault(a => a.Address == device)?.Observation;
-            if (observation == null || observation.Slot < evidence.MinimumSlot) return false;
-            if (observation.Envelope != null) SessionReadiness.Funding(observation.Envelope, observation.Lamports, 0);
-            if (!refill && !evidence.Expired && evidence.Status.ErrorJson == null)
+            bool refill = calls.Length == 2 && calls.All(i => i.ProgramId == PlanningConstants.SystemProgram);
+            string device = null, tokenAddress = null;
+            if (refill)
             {
-                using var key = await wallet.LoadDeviceSigner(owner).ConfigureAwait(false);
-                if (key != null && key.Address != device) return false;
-                await wallet.RemoveDeviceSigner(owner).ConfigureAwait(false);
-                if (saved.Active != null) await records.Replace(saved, new SessionRecords(owner, null, saved.Candidate)).ConfigureAwait(false);
+                device = calls[0].Accounts.LastOrDefault()?.Address;
+                if (device == null || device == owner || !Transfer(calls[0], owner, device, false) ||
+                    !Transfer(calls[1], device, owner, true) || saved.Active?.Signer != device) return false;
             }
+            else
+            {
+                int transfer = 0;
+                if (calls[0].ProgramId == tokens.ProgramId)
+                {
+                    var call = calls[0]; var keys = call.Accounts;
+                    if (!call.Data.SequenceEqual(PlanningConstants.RevokeSessionDiscriminator) || keys.Count != 4 ||
+                        !keys[0].Writable || keys[1].Address != owner || !keys[1].Writable ||
+                        keys[2].Address != owner || !keys[2].Signer || keys[3].Address != PlanningConstants.SystemProgram) return false;
+                    tokenAddress = keys[0].Address;
+                    if (saved.Active != null && saved.Active.Token != tokenAddress) return false;
+                    var observation = Observed(evidence, tokenAddress);
+                    if (observation.Envelope != null)
+                    {
+                        var token = tokens.Decode(observation.Envelope);
+                        if (token.Authority != owner || token.FeePayer != owner || token.TargetProgram != program) return false;
+                        if (!evidence.Expired && evidence.Status.ErrorJson == null) return false;
+                    }
+                    transfer = 1;
+                }
+                if (transfer < calls.Length)
+                {
+                    if (calls.Length != transfer + 1) return false;
+                    device = calls[transfer].Accounts.FirstOrDefault()?.Address;
+                    if (device == null || device == owner || !Transfer(calls[transfer], device, owner, false)) return false;
+                    if (saved.Active != null && saved.Active.Signer != device) return false;
+                    if (tokenAddress != null && tokenAddress != tokens.Derive(owner, device, program)) return false;
+                }
+            }
+            if (device != null)
+            {
+                var observation = Observed(evidence, device);
+                if (observation.Envelope != null) SessionReadiness.Funding(observation.Envelope, observation.Lamports, 0);
+            }
+            if (!refill && !evidence.Expired && evidence.Status.ErrorJson == null && saved.Active != null)
+                await records.Replace(saved, new SessionRecords(owner, null)).ConfigureAwait(false);
             return true;
+        }
+        private static RpcAccount Observed(ExecutionReconciliation evidence, string address)
+        {
+            var observation = evidence.Accounts.SingleOrDefault(a => a.Address == address)?.Observation;
+            if (observation == null || observation.Slot < evidence.MinimumSlot) throw new FormatException("Missing fresh session observation");
+            return observation;
         }
         private static bool Transfer(SolanaInstruction instruction, string from, string to, bool zero)
         {
             var bytes = instruction.Data;
-            return instruction.Accounts.Count == 2 && instruction.Accounts[0].Address == from && instruction.Accounts[1].Address == to &&
+            return instruction.ProgramId == PlanningConstants.SystemProgram && instruction.Accounts.Count == 2 &&
+                instruction.Accounts[0].Address == from && instruction.Accounts[1].Address == to &&
                 instruction.Accounts[0].Signer && instruction.Accounts[0].Writable && instruction.Accounts[1].Writable && bytes.Length == 12 &&
                 bytes[0] == 2 && bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0 && bytes.Skip(4).All(value => value == 0) == zero;
         }

@@ -22,13 +22,11 @@ namespace ZKube.Integration.Client
     {
         public string Owner { get; }
         public SessionRecord Active { get; }
-        public SessionRecord Candidate { get; }
-        public SessionRecords(string owner, SessionRecord active, SessionRecord candidate)
+        public SessionRecords(string owner, SessionRecord active)
         {
             SolanaAddress.Bytes(owner);
-            if ((active != null && active.Owner != owner) || (candidate != null && candidate.Owner != owner) ||
-                (active != null && candidate != null && active.Signer == candidate.Signer)) throw new FormatException("Invalid session record identities");
-            Owner = owner; Active = active; Candidate = candidate;
+            if (active != null && active.Owner != owner) throw new FormatException("Invalid session record identity");
+            Owner = owner; Active = active;
         }
     }
     public sealed class SessionRecordStore
@@ -42,7 +40,7 @@ namespace ZKube.Integration.Client
         {
             SolanaAddress.Bytes(owner);
             string json = await storage.Read(owner, "session").ConfigureAwait(false);
-            if (json == null) return new SessionRecords(owner, null, null);
+            if (json == null) return new SessionRecords(owner, null);
             if (json.Length > 4096) throw new FormatException("Session records are too large");
             var fields = JObject.Parse(json);
             if ((int?)fields["version"] != 1 || (string)fields["owner"] != owner) throw new FormatException("Invalid session records");
@@ -52,17 +50,17 @@ namespace ZKube.Integration.Client
                 var record = new SessionRecord(owner, (string)value["signer"], (string)value["token"], (long)value["validUntil"]);
                 Validate(record); return record;
             }
-            return new SessionRecords(owner, Read(fields["active"]), Read(fields["candidate"]));
+            return new SessionRecords(owner, Read(fields["active"]));
         }
         public async Task Replace(SessionRecords expected, SessionRecords next)
         {
             if (expected.Owner != next.Owner) throw new FormatException("Session owner changed");
-            Validate(next.Active); Validate(next.Candidate);
+            Validate(next.Active);
             string current = await storage.Read(expected.Owner, "session").ConfigureAwait(false);
             // Compare the exact serialized identities supplied by the caller with
             // the captured bytes; never validate a second storage observation.
             string canonical = Serialize(expected);
-            if (current != canonical && !(current == null && expected.Active == null && expected.Candidate == null))
+            if (current != canonical && !(current == null && expected.Active == null))
                 throw new InvalidOperationException("Session records changed");
             if (!await storage.CompareExchange(expected.Owner, "session", current, Serialize(next)).ConfigureAwait(false))
                 throw new InvalidOperationException("Session records changed while saving");
@@ -75,7 +73,7 @@ namespace ZKube.Integration.Client
         {
             JToken Entry(SessionRecord record) => record == null ? JValue.CreateNull() : new JObject {
                 ["signer"] = record.Signer, ["token"] = record.Token, ["validUntil"] = record.ValidUntil };
-            return new JObject { ["version"] = 1, ["owner"] = records.Owner, ["active"] = Entry(records.Active), ["candidate"] = Entry(records.Candidate) }.ToString(Formatting.None);
+            return new JObject { ["version"] = 1, ["owner"] = records.Owner, ["active"] = Entry(records.Active) }.ToString(Formatting.None);
         }
     }
 }

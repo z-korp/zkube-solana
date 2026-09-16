@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,11 +15,10 @@ namespace ZKube.Integration.Client
         private readonly AccountBindings accounts;
         private readonly SessionTokenBindings tokens;
         private readonly SessionRecordStore records;
-        private readonly SessionHandoff handoff;
         private readonly TransactionPlanner planner;
         public SessionInstructionReconciler(ProtocolBindings protocol, AccountBindings accounts, SessionTokenBindings tokens,
-            SessionRecordStore records, SessionHandoff handoff, TransactionPlanner planner)
-        { this.protocol = protocol; this.accounts = accounts; this.tokens = tokens; this.records = records; this.handoff = handoff; this.planner = planner; }
+            SessionRecordStore records, TransactionPlanner planner)
+        { this.protocol = protocol; this.accounts = accounts; this.tokens = tokens; this.records = records; this.planner = planner; }
 
         public async Task<bool> Reconcile(ExecutionReconciliation evidence, CancellationToken cancellation)
         {
@@ -26,16 +26,19 @@ namespace ZKube.Integration.Client
                 evidence.Status.Confirmation != RpcConfirmation.Finalized)) return false;
             var calls = evidence.Transaction.Instructions.Where(i => i.ProgramId != PlanningConstants.ComputeBudgetProgram).ToArray();
             if (calls.Length < 2 || calls.Length > 4) return false;
-            if (calls[calls.Length - 1].ProgramId != tokens.ProgramId || calls[calls.Length - 2].ProgramId != protocol.ProgramId) return false;
+            var create = calls[calls.Length - 1];
+            if (create.ProgramId != tokens.ProgramId || create.Accounts.Count != 6 || create.Data.Length != 28) return false;
             string owner = evidence.Pending.Owner;
-            var current = await records.Load(owner).ConfigureAwait(false);
-            // Following native and public promotion, a restart has only Active.
-            // Its exact create bytes must still match the persisted transaction.
-            var expected = current.Candidate ?? current.Active;
-            if (expected == null || expected.ValidUntil < PlanningConstants.SessionLifetimeSeconds) return false;
-            var enable = planner.EnableSession(owner, expected.Signer, expected.ValidUntil - PlanningConstants.SessionLifetimeSeconds);
-            if (!Matches(calls[calls.Length - 2], enable.Instructions[0]) || !Matches(calls[calls.Length - 1], enable.Instructions[1])) return false;
-            bool succeeded = !evidence.Expired && evidence.Status.ErrorJson == null;
+            // The signed create instruction is the durable renewal intent.
+            // Public metadata stays on the previous expiry until confirmation.
+            using var reader = new BinaryReader(new MemoryStream(create.Data, false));
+            reader.BaseStream.Position = 11;
+            long expiry = reader.ReadInt64();
+            if (expiry < PlanningConstants.SessionLifetimeSeconds || expiry > 9007199254740991L) return false;
+            string device = create.Accounts[1].Address;
+            var expected = new SessionRecord(owner, device, tokens.Derive(owner, device, protocol.ProgramId), expiry);
+            var enable = planner.EnableSession(owner, device, expiry - PlanningConstants.SessionLifetimeSeconds);
+            if (!Matches(calls[calls.Length - 2], enable.Instructions[0]) || !Matches(create, enable.Instructions[1])) return false;
             bool revoked = false, reclaimed = false;
             for (int i = 0; i < calls.Length - 2; i++)
             {
@@ -43,49 +46,41 @@ namespace ZKube.Integration.Client
                 if (instruction.ProgramId == tokens.ProgramId && !revoked && !reclaimed)
                 {
                     if (!instruction.Data.SequenceEqual(PlanningConstants.RevokeSessionDiscriminator) || instruction.Accounts.Count != 4 ||
-                        instruction.Accounts[1].Address != owner || instruction.Accounts[2].Address != owner ||
-                        instruction.Accounts[3].Address != PlanningConstants.SystemProgram || !instruction.Accounts[0].Writable || !instruction.Accounts[1].Writable ||
-                        instruction.Accounts[0].Address == expected.Token) return false;
-                    var previous = Observed(evidence, instruction.Accounts[0].Address).Envelope;
-                    if (previous != null)
-                    {
-                        var token = tokens.Decode(previous);
-                        if (token.Authority != owner || token.FeePayer != owner || token.TargetProgram != protocol.ProgramId) return false;
-                        if (succeeded) return false;
-                    }
+                        instruction.Accounts[0].Address != expected.Token || !instruction.Accounts[0].Writable ||
+                        instruction.Accounts[1].Address != owner || !instruction.Accounts[1].Writable ||
+                        instruction.Accounts[2].Address != owner || !instruction.Accounts[2].Signer ||
+                        instruction.Accounts[3].Address != PlanningConstants.SystemProgram) return false;
                     revoked = true;
                 }
                 else if (instruction.ProgramId == PlanningConstants.SystemProgram && !reclaimed)
                 {
                     var data = instruction.Data;
                     if (instruction.Accounts.Count != 2 || data.Length != 12 || data[0] != 2 || data[1] != 0 || data[2] != 0 || data[3] != 0 ||
-                        !data.Skip(4).Any(value => value != 0) || !instruction.Accounts[0].Signer || !instruction.Accounts[0].Writable ||
-                        !instruction.Accounts[1].Writable || instruction.Accounts[1].Address != owner ||
-                        instruction.Accounts[0].Address == owner || instruction.Accounts[0].Address == expected.Signer) return false;
-                    var old = Observed(evidence, instruction.Accounts[0].Address);
-                    if (old.Envelope != null) SessionReadiness.Funding(old.Envelope, old.Lamports, 0);
-                    // A later transfer can fund the old address again. Confirmation,
-                    // rather than a zero-balance assumption, proves this reclaim.
+                        !data.Skip(4).Any(value => value != 0) || instruction.Accounts[0].Address != device ||
+                        !instruction.Accounts[0].Signer || !instruction.Accounts[0].Writable ||
+                        !instruction.Accounts[1].Writable || instruction.Accounts[1].Address != owner) return false;
                     reclaimed = true;
                 }
                 else return false;
             }
+            bool succeeded = !evidence.Expired && evidence.Status.ErrorJson == null;
             var player = Observed(evidence, planner.Player(owner)).Envelope;
             if (player != null) accounts.PlayerState(player, owner);
             if (succeeded && player == null) return false;
-            var freshToken = Observed(evidence, expected.Token).Envelope;
-            if (freshToken != null)
+            var fresh = Observed(evidence, expected.Token).Envelope;
+            if (fresh != null)
             {
-                var token = tokens.Decode(freshToken);
+                var token = tokens.Decode(fresh);
                 if (token.Authority != owner || token.FeePayer != owner || token.TargetProgram != protocol.ProgramId ||
-                    token.SessionSigner != expected.Signer || token.ValidUntil != expected.ValidUntil) return false;
+                    token.SessionSigner != device || (succeeded && token.ValidUntil != expiry)) return false;
             }
-            var signer = Observed(evidence, expected.Signer);
+            var signer = Observed(evidence, device);
             if (signer.Envelope != null) SessionReadiness.Funding(signer.Envelope, signer.Lamports, 0);
-            if (succeeded && freshToken != null)
-                await handoff.Accept(expected, freshToken).ConfigureAwait(false);
-            // Failed/expired transactions retain both identities. A successful
-            // token already removed by later cleanup also cannot authorize play.
+            if (succeeded && fresh != null)
+            {
+                var current = await records.Load(owner).ConfigureAwait(false);
+                await records.Replace(current, new SessionRecords(owner, expected)).ConfigureAwait(false);
+            }
             return true;
         }
         private static RpcAccount Observed(ExecutionReconciliation evidence, string address)

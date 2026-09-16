@@ -103,5 +103,5 @@ pub fn scenarios() -> Value {
         "profiles": profiles, "claims": claims, "claimDay": day,
         "claimDaily": envelope(accounts::daily_address(day), &daily, 8 + ArenaDaily::INIT_SPACE),
         "currentToken": device::token(device(), NOW + 3_600),
-        "renewedToken": device::token(device::candidate(), NOW + 604_500)})
+        "renewedToken": device::token(device(), NOW + 604_500)})
 }

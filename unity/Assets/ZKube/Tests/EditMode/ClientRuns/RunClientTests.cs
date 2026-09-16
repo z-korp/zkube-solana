@@ -471,7 +471,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var decoded = tokens.Decode(Envelope(plans["accounts"]["session"]));
                 value.SessionValidUntil = decoded.ValidUntil; value.Now = (long)plans["inputs"]["now"];
                 await records.Replace(await records.Load(value.Owner), new SessionRecords(value.Owner,
-                    new SessionRecord(value.Owner, (string)plans["inputs"]["device"], (string)plans["accounts"]["session"]["address"], decoded.ValidUntil), null));
+                    new SessionRecord(value.Owner, (string)plans["inputs"]["device"], (string)plans["accounts"]["session"]["address"], decoded.ValidUntil)));
                 Func<long> now = () => value.Now;
                 var persistence = new RunPersistence(value.Markers);
                 var reconciler = new RunInstructionReconciler(protocol, value.Accounts, planner, rpc, persistence.Accept);
@@ -505,8 +505,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 }
                 return Task.FromResult(result.ToString());
             }
-            public Task<byte[]> LoadDeviceSeed(string owner) { KeyLoads++; return Task.FromResult(HasKey ? Enumerable.Repeat(SeedByte, 32).ToArray() : null); }
-            public Task RemoveDeviceSeed(string owner) => throw new InvalidOperationException("No key deletion in run recovery");
+            public Task<byte[]> LoadDeviceSeed(bool create) { KeyLoads++; return Task.FromResult(HasKey ? Enumerable.Repeat(SeedByte, 32).ToArray() : null); }
         }
         private sealed class Http : IJsonRpcHttp
         {

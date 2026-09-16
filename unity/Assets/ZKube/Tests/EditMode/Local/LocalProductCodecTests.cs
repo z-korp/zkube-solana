@@ -1,60 +1,59 @@
 using System;
-using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json.Linq;
 using NUnit.Framework;
-using UnityEngine;
 
 namespace ZKube.Local.Tests
 {
     public sealed class LocalProductCodecTests
     {
-        private static string Root => Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
-        private static JObject Fixture => JObject.Parse(File.ReadAllText(Path.Combine(Root,
-            "fixtures/store-save-format-v1.json"
-        )));
-        public static IEnumerable Cases()
+        [Test]
+        public void LocalProductRoundTripPreservesProgressAndSavedRun()
         {
-            foreach (var row in Fixture["cases"].Where(row => (string)row["name"] == "default" || (string)row["name"] == "full")) yield return new TestCaseData((string)row["name"]);
-        }
-        [TestCaseSource(nameof(Cases))]
-        public void ReadsTheV1StoreSaveFormat(string name)
-        {
-            var row = (JObject)Fixture["cases"].Single(item => (string)item["name"] == name);
-            var state = LocalProductCodec.Decode((string)row["raw"]);
-            AssertState(state, row);
-            AssertState(LocalProductCodec.Decode(LocalProductCodec.Encode(state)), row);
+            var state = new LocalProductState {
+                Name = "Mira 🚀", CampaignPrice = "€4.99", CampaignOwned = true,
+                Stars = Enumerable.Range(0, 100).Select(i => (byte)(i % 4)).ToArray(),
+                WornEmblem = 7, Streak = 12, LastAttemptDayId = 20705, BestDailyScore = 9000,
+                DailyAttempt = new LocalDailyAttempt { DayId = 20705, Realm = 3, ObjectiveKind = 4,
+                    ObjectiveValue = 2, DailyScore = 840, ObjectiveTotal = "13", Finished = true },
+                CampaignRun = new LocalCampaignRun { Id = "1", CatalogVersion = ZKube.Core.Generated.Protocol.CatalogVersion, Realm = 2, Level = 5,
+                    Seed = Enumerable.Range(0, 32).ToArray(), Actions = {
+                        new LocalCampaignAction { Kind = "Move", Row = 2, Start = 1, Destination = 3 },
+                        new LocalCampaignAction { Kind = "Reroll" } } },
+                CampaignWritePending = true,
+            };
+            string encoded = LocalProductCodec.Encode(state);
             var utf8 = new UTF8Encoding(false, true);
-            AssertState(LocalProductCodec.Decode(utf8.GetString(utf8.GetBytes(LocalProductCodec.Encode(state)))), row);
+            var restored = LocalProductCodec.Decode(utf8.GetString(utf8.GetBytes(encoded)));
+            Assert.That(LocalProductCodec.Encode(restored), Is.EqualTo(encoded));
+            CollectionAssert.AreEqual(state.Stars, restored.Stars);
+            CollectionAssert.AreEqual(state.CampaignRun.Seed, restored.CampaignRun.Seed);
+            Assert.That(restored.CampaignRun.Actions[0].Destination, Is.EqualTo(3));
+            Assert.That(restored.DailyAttempt.ObjectiveTotal, Is.EqualTo("13"));
         }
-        private static void AssertState(LocalProductState state, JObject row)
-        {
-            CollectionAssert.AreEqual(Units(row["nameUnits"]), Units(state.Name), "UTF-16 name");
-            CollectionAssert.AreEqual(Units(row["priceUnits"]), Units(state.CampaignPrice), "UTF-16 price");
-            var actual = JObject.Parse(LocalProductCodec.Encode(state));
-            var expected = (JObject)row["expected"].DeepClone();
-            // The fixture transport parser can replace a lone surrogate. Its
-            // code-unit arrays above remain the independent exact string oracle.
-            actual.Remove("name"); expected.Remove("name"); actual.Remove("campaignPrice"); expected.Remove("campaignPrice");
-            Assert.That(JToken.DeepEquals(expected, actual), Is.True, "expected " + expected + " actual " + actual);
-        }
+        [TestCase(null)]
+        [TestCase("{}")]
+        [TestCase("{\"version\":1,\"name\":\"   \"}")]
+        public void MissingOrBlankNamesUseTheDefault(string json) =>
+            Assert.That(LocalProductCodec.Decode(json).Name, Is.EqualTo(LocalProductCodec.DefaultName));
+
         [Test]
         public void WritesNormalizeThroughTheSameVersionedKey()
         {
             string savedKey = null, saved = null;
             var store = new LocalProductStore(key => null, (key, value) => { savedKey = key; saved = value; });
             store.Write(current => { current.Name = "  Mira  "; current.Stars = new byte[] { 9, 2 }; current.WornEmblem = 99; current.CampaignPrice = "  €0.99  "; return current; });
-            var expected = Fixture["writes"].Single();
-            Assert.That(savedKey, Is.EqualTo((string)expected[0]));
-            Assert.That(JToken.DeepEquals(JObject.Parse(saved), JObject.Parse((string)expected[1])), Is.True);
+            Assert.That(savedKey, Is.EqualTo(LocalProductCodec.StorageKey));
             var reloaded = new LocalProductStore(key => { Assert.That(key, Is.EqualTo(savedKey)); return saved; });
             Assert.That(reloaded.Read.Name, Is.EqualTo("Mira"));
             Assert.That(reloaded.Read.Stars.Length, Is.EqualTo(100));
+            Assert.That(reloaded.Read.Stars.Take(3), Is.EqualTo(new byte[] { 3, 2, 0 }));
+            Assert.That(reloaded.Read.WornEmblem, Is.EqualTo(10));
+            Assert.That(reloaded.Read.CampaignPrice, Is.EqualTo("€0.99"));
         }
         [Test]
-        public void StorageFailurePropagatesAfterNormalizedMemoryUpdateAsInReference()
+        public void StorageFailurePropagatesAfterNormalizedMemoryUpdate()
         {
             var store = new LocalProductStore(write: (_, __) => throw new IOException("disk-full"));
             Assert.Throws<IOException>(() => store.Write(current => { current.Name = "  Kept  "; return current; }));
@@ -62,7 +61,5 @@ namespace ZKube.Local.Tests
             var memory = new LocalProductStore();
             Assert.That(memory.Write(current => { current.Name = "Memory"; return current; }).Name, Is.EqualTo("Memory"));
         }
-        private static int[] Units(string value) => value == null ? null : value.Select(c => (int)c).ToArray();
-        private static int[] Units(JToken value) => value.Type == JTokenType.Null ? null : value.Values<int>().ToArray();
     }
 }

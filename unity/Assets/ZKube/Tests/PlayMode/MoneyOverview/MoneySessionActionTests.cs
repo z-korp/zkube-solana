@@ -39,7 +39,6 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.Contains("Device session ready", SessionText());
             Assert.That(environment.HasActiveKey, Is.True);
-            Assert.That(environment.HasCandidateKey, Is.False);
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(true), Is.Empty);
             Canvas.ForceUpdateCanvases();
             foreach (var text in host.GetComponentsInChildren<TMP_Text>())
@@ -64,13 +63,13 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.EqualTo(calls));
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
             Assert.That(environment.SentSignature, Is.EqualTo(signature));
-            Assert.That(environment.HasActiveKey, Is.True); Assert.That(environment.HasCandidateKey, Is.False);
+            Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
-        [UnityTest] public IEnumerator PendingDisableKeepsTheKeyUntilCheckAndThenRemovesOnlyThisDevice()
+        [UnityTest] public IEnumerator PendingDisableKeepsTheInstallKeyAndRevokesAfterConfirmation()
         {
             yield return PrepareDeviceScenario("session-disable-pending-success");
-            StringAssert.Contains("does not immediately revoke that token", SessionText());
+            StringAssert.Contains("revokes its authorization", SessionText());
             yield return SessionClick("Disable this device"); yield return Idle();
             var controller = host.GetComponent<MoneyStartup>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
@@ -80,7 +79,7 @@ namespace ZKube.Tests.MoneyOverview
             environment.ConfirmPendingSuccess(); yield return SessionClick("Check transaction"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
-            Assert.That(environment.HasActiveKey, Is.False);
+            Assert.That(environment.HasActiveKey, Is.True);
             StringAssert.Contains("Device session not set up", SessionText());
             Assert.That(environment.Services.Identity.Owner, Is.EqualTo(environment.Owner));
             var exact = controller.LastReceipt;
@@ -92,14 +91,15 @@ namespace ZKube.Tests.MoneyOverview
             StringAssert.Contains(signature, Text("Transaction receipt"));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
-        [UnityTest] public IEnumerator EmptyAllowanceDisableCompletesLocallyWithoutWalletOrSend()
+        [UnityTest] public IEnumerator EmptyAllowanceDisableStillRevokesTheToken()
         {
             yield return PrepareDeviceScenario("session-disable-zero");
             yield return SessionClick("Disable this device"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.CompletedLocally));
-            Assert.That(environment.HasActiveKey, Is.False); Assert.That(environment.SentSignature, Is.Null);
-            Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
-            StringAssert.Contains("No transaction was needed", Text("Transaction receipt"));
+            var receipt = host.GetComponent<MoneyStartup>().Controller.LastReceipt;
+            Assert.That(receipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), receipt.Code);
+            Assert.That(environment.HasActiveKey, Is.True); Assert.That(environment.SentSignature, Is.Not.Null);
+            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            StringAssert.Contains("Device session not set up", SessionText());
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator FailedEnableKeepsItsOriginalReceiptAndDoesNotReportReady()
@@ -114,7 +114,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
             StringAssert.DoesNotContain("Device session ready", SessionText());
-            Assert.That(environment.HasActiveKey, Is.False);
+            Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator AWalletRequestAcrossDisableAndForegroundCannotCreateASecondRequest()

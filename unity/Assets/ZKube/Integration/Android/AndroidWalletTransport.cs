@@ -8,7 +8,7 @@ namespace ZKube.Integration.Android
 {
     // Construct on Unity's main thread. JNI invocation is marshalled there;
     // wallet responses may arrive from Android's activity thread.
-    public sealed class AndroidWalletTransport : INativeDeviceKeyLifecycle, IPublicClientStore
+    public sealed class AndroidWalletTransport : INativeWalletTransport, IPublicClientStore
     {
         private const string BridgeClass = "com.zkorp.zkube.unitywallet.UnityWalletBridge";
         private readonly SynchronizationContext unityContext;
@@ -51,25 +51,6 @@ namespace ZKube.Integration.Android
             });
             return result.Task;
         }
-        public Task<byte[]> LoadDeviceSeed(string owner) => Seed("loadDeviceSeed", owner);
-        public Task<byte[]> LoadCandidateSeed(string owner) => Seed("loadCandidateSeed", owner);
-        public Task<byte[]> CreateCandidateSeed(string owner) => Seed("createCandidateSeed", owner);
-        public async Task PromoteCandidateSeed(string owner, byte[] expectedActiveFingerprint, byte[] expectedCandidateFingerprint)
-        {
-            if ((expectedActiveFingerprint != null && expectedActiveFingerprint.Length != 32) || expectedCandidateFingerprint?.Length != 32)
-                throw new FormatException("Invalid device fingerprint");
-            string active = expectedActiveFingerprint == null ? null : Convert.ToBase64String(expectedActiveFingerprint);
-            string candidate = Convert.ToBase64String(expectedCandidateFingerprint);
-            await OnUnityThread(() => {
-                RequireAndroid();
-                string key = Convert.ToBase64String(SolanaAddress.Bytes(owner));
-                using var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                using var activity = unity.GetStatic<AndroidJavaObject>("currentActivity");
-                using var bridge = new AndroidJavaClass(BridgeClass);
-                bridge.CallStatic("promoteCandidateSeed", activity, key, active, candidate);
-                return true;
-            });
-        }
         public Task<string> Read(string owner, string field) => Store(owner, (bridge, activity, key) =>
             bridge.CallStatic<string>("read", activity, key, field));
         public Task<bool> CompareExchange(string owner, string field, string expected, string value) => Store(owner, (bridge, activity, key) =>
@@ -82,31 +63,18 @@ namespace ZKube.Integration.Android
             using var bridge = new AndroidJavaClass("com.zkorp.zkube.unitywallet.ClientStore");
             return call(bridge, activity, key);
         });
-        private Task<byte[]> Seed(string method, string owner) => OnUnityThread(() => {
+        public Task<byte[]> LoadDeviceSeed(bool create) => OnUnityThread(() => {
             RequireAndroid();
-            string key = Convert.ToBase64String(SolanaAddress.Bytes(owner));
             using var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             using var activity = unity.GetStatic<AndroidJavaObject>("currentActivity");
             using var bridge = new AndroidJavaClass(BridgeClass);
-            string encoded = bridge.CallStatic<string>(method, activity, key);
+            string encoded = bridge.CallStatic<string>("loadDeviceSeed", activity, create);
             if (encoded == null) return null;
             if (encoded.Length != 44) throw new FormatException("Invalid native device seed");
             var bytes = Convert.FromBase64String(encoded);
             if (bytes.Length != 32) throw new FormatException("Invalid native device seed");
             return bytes;
         });
-        public async Task RemoveDeviceSeed(string owner)
-        {
-            await OnUnityThread(() => {
-                RequireAndroid();
-                string key = Convert.ToBase64String(SolanaAddress.Bytes(owner));
-                using var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                using var activity = unity.GetStatic<AndroidJavaObject>("currentActivity");
-                using var bridge = new AndroidJavaClass(BridgeClass);
-                bridge.CallStatic("removeDeviceSeed", activity, key);
-                return true;
-            });
-        }
         private Task<T> OnUnityThread<T>(Func<T> call)
         {
             var result = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);

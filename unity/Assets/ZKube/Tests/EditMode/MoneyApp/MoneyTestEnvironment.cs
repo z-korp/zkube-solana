@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -55,7 +54,7 @@ namespace ZKube.Integration.App.Tests
         {
             Native.Seed = Enumerable.Repeat((byte)2, 32).ToArray(); var row = Plans["accounts"]["session"]; var token = Services.Tokens.Decode(Envelope(row));
             await Services.Sessions.Replace(await Services.Sessions.Load(Owner), new SessionRecords(Owner,
-                new SessionRecord(Owner, (string)Plans["inputs"]["device"], (string)row["address"], token.ValidUntil), null));
+                new SessionRecord(Owner, (string)Plans["inputs"]["device"], (string)row["address"], token.ValidUntil)));
             Http.Add(row); Http.Add(new JObject { ["address"] = Plans["inputs"]["device"], ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["lamports"] = 5000000, ["data"] = "" });
         }
         public void AssertReadOnly() => Assert.That(Http.Requests.Any(x => new[] { "sendTransaction", "simulateTransaction", "getLatestBlockhash" }.Contains((string)x["method"])), Is.False);
@@ -70,10 +69,10 @@ namespace ZKube.Integration.App.Tests
             { lock (values) { Calls++; values.TryGetValue(owner + field, out var prior); if (prior != expected) return Task.FromResult(false); values[owner + field] = value; return Task.FromResult(true); } }
             public void Dispose() { Disposed = true; }
         }
-        public sealed class FakeNative : INativeDeviceKeyLifecycle, IDisposable
+        public sealed class FakeNative : INativeWalletTransport, IDisposable
         {
             public MoneyTestEnvironment Environment; public readonly ConcurrentQueue<string> Operations = new ConcurrentQueue<string>();
-            public string Owner; public int Calls, KeyLoads, Promotions, Deletions; public byte[] Seed, Candidate; public bool Disposed;
+            public string Owner; public int Calls, KeyLoads, Creations; public byte[] Seed; public bool Disposed;
             public TaskCompletionSource<bool> Entered, Release;
             public async Task<string> Request(string json)
             {
@@ -84,17 +83,15 @@ namespace ZKube.Integration.App.Tests
                 return new JObject { ["requestId"] = request["requestId"], ["ok"] = true,
                     ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(Owner)) }.ToString();
             }
-            public Task<byte[]> LoadDeviceSeed(string owner) { KeyLoads++; return Task.FromResult(Seed?.ToArray()); }
-            public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult(Candidate?.ToArray());
-            public Task<byte[]> CreateCandidateSeed(string owner)
-            { if (Environment.UiScenario == null) throw new InvalidOperationException("Unexpected candidate creation"); Candidate = Enumerable.Repeat((byte)3, 32).ToArray(); return Task.FromResult(Candidate.ToArray()); }
-            public Task RemoveDeviceSeed(string owner) { Deletions++; Seed = null; return Task.CompletedTask; }
-            public Task PromoteCandidateSeed(string owner, byte[] oldHash, byte[] nextHash)
+            public Task<byte[]> LoadDeviceSeed(bool create)
             {
-                bool Match(byte[] seed, byte[] hash) { if (seed == null || hash == null) return seed == null && hash == null; using var sha = SHA256.Create(); return sha.ComputeHash(seed).SequenceEqual(hash); }
-                if (Candidate == null && Match(Seed, nextHash)) return Task.CompletedTask;
-                if (!Match(Seed, oldHash) || !Match(Candidate, nextHash)) throw new InvalidOperationException("Changed key snapshot");
-                Seed = Candidate; Candidate = null; Promotions++; return Task.CompletedTask;
+                KeyLoads++;
+                if (create && Seed == null)
+                {
+                    if (Environment.UiScenario == null) throw new InvalidOperationException("Unexpected device key creation");
+                    Seed = Enumerable.Repeat((byte)2, 32).ToArray(); Creations++;
+                }
+                return Task.FromResult(Seed?.ToArray());
             }
             public void Dispose() { Disposed = true; }
         }

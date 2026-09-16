@@ -64,9 +64,11 @@ Source implements v5 partially. Current state:
 - The Unity client ships two Android identities (owner scope decision,
   2026-09-09): `com.zkorp.zkube` (**zKube: Arena**) targets the Solana dApp Store
   and Seeker; `com.zkorp.zkube.store` (**zKube: Realms**) targets Google Play as an
-  AAB with arm64-v8a and x86_64. The store identity has a local name, UTC Daily,
-  native-billing Campaign unlock, profile and settings, with Solana assemblies and wallet plugins
-  excluded. Unity is the only client; all gameplay uses the Rust core over the FFI. The wallet, Kredit and on-chain rules below govern the money
+  AAB with arm64-v8a and x86_64. The store identity starts with the name Player,
+  editable in Profile, plus a UTC Daily and native-billing Campaign unlock.
+  `StoreStartsWithDefaultNameAndEditsItInProfile` guards immediate play and naming.
+  Solana assemblies and wallet plugins are excluded from the store package.
+  Unity is the only client; all gameplay uses the Rust core over the FFI. The wallet, Kredit and on-chain rules below govern the money
   identity. Do not start iOS work on this Linux machine.
 - The connected Solana address is the player identity. There are no embedded
   wallets and no recovery codes.
@@ -858,8 +860,9 @@ PDAs, instructions and transaction messages come from
 `programs/solana/examples/unity-fixtures.rs`.
 `RustProgramInstructionsDecodeAndReencodeWithTheSharedBorshReader` and
 `BoardRewardsValidateActualAnchorAccountsAndKeepClaimedPositionsVisible` exercise
-that boundary. RPC envelopes are authored in the C# tests. The compatibility
-record `store-save-format-v1.json` retains the v1 store save format.
+that boundary. RPC envelopes are authored in the C# tests.
+`LocalProductRoundTripPreservesProgressAndSavedRun` checks the local codec with
+state constructed in the test.
 Money EditMode and PlayMode tests share `MoneyTestEnvironment`, with one HTTP,
 native-wallet and memory-store implementation. Rust produces their account
 states; the test code supplies RPC envelopes and synthetic signatures.
@@ -920,13 +923,24 @@ guards replacing the reviewed files only after both module resolutions succeed.
 | Boundary | Responsibility | Authority and funding |
 | --- | --- | --- |
 | Owner wallet | Durable identity, Kredit purchases and device funding | Signs purchases at the protocol unit price and funds the device allowance |
-| Device session | Approximately seven days of authorized Arcade gameplay and Campaign save writes | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
+| Device session | Approximately seven days of authorized Arcade gameplay and Campaign save writes, using one key per install | Owner-funded fee/rent allowance; atomic revoke-and-create renewal; `RenewalRevokesAndCreatesTheSameTokenAtomicallyWithTheInstallKey` |
 | Cadence funding PDA | Recyclable Daily rent float | Separately seeded; signs the System creation calls in Daily preparation and finalization only |
 | ProtocolConfig | Scheduling and rolling finalized-result commitment | Launch day supplies the first day; program-derived append-only root |
 | MagicBlock ER | Arcade gameplay and per-row VRF | Router-resolved validator |
 | Solana program | The player's reported Campaign save, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
 | Unity local Campaign client | Campaign play, durable seed/action replay and local lifetime stars | Connected address only on money; walletless store policy |
+
+The install key survives wallet changes, disconnect and explicit revocation;
+`OneInstallKeyIsReusedAcrossWalletsAndRestarts`,
+`DisconnectPreservesBothDurableSessionAndActiveKeyWhenJournalIsUnresolved` and
+`RefillKeepsIdentityAndRevokeClosesTheTokenWhileRetainingTheInstallKey` guard
+those boundaries. Renewal keeps the previous public expiry until its signed
+intent is confirmed, and a failed renewal retains it;
+`SignedRenewalResumesPublicSaveBeforeJournalRemoval` and
+`FailedRenewalRetainsThePreviousExpiryAndInstallKey` guard recovery.
+`oneInstallKeyIsSavedBeforeUseAndReusedAfterRestart` and
+`failedDurableSaveReturnsNoUsableKey` check the native persistence boundary.
 
 Each `ActiveRun` and `ArenaPlayer` stores the signer that paid its rent, and every
 close returns rent to that exact address even when another device resumes the

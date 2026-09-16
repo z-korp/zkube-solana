@@ -69,7 +69,7 @@ namespace ZKube.Tests
             billing = new CampaignBilling(new Driver(), () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
             app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board);
-            yield return Page(StorePage.Name);
+            yield return Page(StorePage.Daily);
         }
         [UnityTearDown] public IEnumerator TearDown()
         {
@@ -103,8 +103,10 @@ namespace ZKube.Tests
         private IEnumerator BoardReady() => Wait(() => board != null && ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy, "Board did not become ready: " + "Board is still busy or loading");
         private IEnumerator NamePlayer()
         {
+            Click(app, "Profile"); yield return Page(StorePage.Profile);
             var field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
-            Click(app, "Play"); yield return Page(StorePage.Daily);
+            Click(app, "Save name"); yield return Page(StorePage.Profile);
+            Click(app, "Daily"); yield return Page(StorePage.Daily);
         }
         private IEnumerator EndRun()
         {
@@ -114,7 +116,7 @@ namespace ZKube.Tests
         }
         private bool WarningVisible => app.GetComponentsInChildren<TMP_Text>().Any(text => text.gameObject.activeInHierarchy && text.text.StartsWith("Progress is not saved."));
 
-        [UnityTest] public IEnumerator StandaloneNameGateDrawsVisiblePixelsWithoutInheritedSceneRendering()
+        [UnityTest] public IEnumerator StandaloneDailyDrawsVisiblePixelsWithoutInheritedSceneRendering()
         {
             // A ready component tree is insufficient: a packaged Store scene
             // must submit visible UI without a board/test-scene camera.
@@ -157,16 +159,23 @@ namespace ZKube.Tests
             }
         }
 
-        [UnityTest] public IEnumerator NameKeyboardHandlerRejectsBlankAndPlayButtonOpensLocalDaily()
+        [UnityTest] public IEnumerator StoreStartsWithDefaultNameAndEditsItInProfile()
         {
+            Assert.That(product.Read.Name, Is.EqualTo(LocalProductCodec.DefaultName));
+            Assert.That(FindButton(app, "Play today").interactable, Is.True);
             var leases = (System.Collections.IDictionary)typeof(BoardArt).GetField("atlasLoads", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             var common = leases["ZKube/Atlases/common"];
+            Click(app, "Profile"); yield return Page(StorePage.Profile);
             var field = app.GetComponentInChildren<TMP_InputField>(); field.onSubmit.Invoke(" \t ");
-            yield return Page(StorePage.Name); Assert.That(product.Read.Name, Is.Null);
+            yield return Page(StorePage.Profile);
+            Assert.That(product.Read.Name, Is.EqualTo(LocalProductCodec.DefaultName));
             Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Enter a name"), Is.True);
-            yield return NamePlayer(); Assert.That(product.Read.Name, Is.EqualTo("Page tester"));
+            field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
+            Click(app, "Save name"); yield return Page(StorePage.Profile);
+            Assert.That(product.Read.Name, Is.EqualTo("Page tester"));
+            Click(app, "Daily"); yield return Page(StorePage.Daily);
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
-            Assert.That(leases["ZKube/Atlases/common"], Is.SameAs(common), "Navigation must retain shared art instead of reloading it");
+            Assert.That(leases["ZKube/Atlases/common"], Is.SameAs(common));
         }
         [UnityTest] public IEnumerator PageButtonBindsLocalBoardAndTerminalContinueReturnsToResult()
         {

@@ -26,6 +26,7 @@ namespace ZKube.Presentation
         private readonly Color ink = new Color(.07f, .12f, .2f), pale = new Color(1, .96f, .84f);
         private double lastMusic = AudioPolicy.ToggleOnLevel, lastEffects = AudioPolicy.ToggleOnLevel;
         private AppPage? previousPage;
+        private string editedName, savedName;
 
         public void Initialize(IAppPageSource pageSource, TMP_FontAsset displayFont,
             TMP_FontAsset bodyFont, float scale, Func<float> displayDensity = null)
@@ -42,6 +43,7 @@ namespace ZKube.Presentation
             Retire(); content = parent;
             if (page == AppPage.Settings && previousPage != page)
             { lastMusic = AudioPolicy.ToggleOnLevel; lastEffects = AudioPolicy.ToggleOnLevel; }
+            if (page != AppPage.Profile) { editedName = null; savedName = null; }
             previousPage = page;
             switch (page)
             {
@@ -124,7 +126,23 @@ namespace ZKube.Presentation
         private void Profile(ProfilePageView value)
         {
             GetComponent<AppShell>()?.RequestRealm(value.Realm);
-            Text("Profile", 38, true); Text(value.Name, 26, true); Notice(value.Worn);
+            Text("Profile", 38, true);
+            if (value.ChangeName == null) Text(value.Name, 26, true);
+            else
+            {
+                if (savedName != value.Name) { savedName = value.Name; editedName = value.Name; }
+                var holder = Rect("Player name", content); Height(holder, TouchSize(64));
+                holder.gameObject.AddComponent<Image>().color = ink;
+                var field = holder.gameObject.AddComponent<TMP_InputField>(); field.characterLimit = 24;
+                var area = Rect("Text area", holder); Stretch(area, 12); area.gameObject.AddComponent<RectMask2D>();
+                var label = Label(area, "", 24); Stretch(label.rectTransform);
+                field.textViewport = area; field.textComponent = label; field.text = editedName;
+                field.onValueChanged.AddListener(text => editedName = text);
+                field.onSubmit.AddListener(text => Try(() => value.ChangeName(text)));
+                Button(content, new PageAction { Label = "Save name", Invoke = () => value.ChangeName(field.text),
+                    CanInvoke = () => field != null && !string.IsNullOrWhiteSpace(field.text) });
+            }
+            Notice(value.Worn);
             Text("Campaign · " + value.Stars + " / 300 stars · " + value.Streak + " day streak", 20);
             Text("Best Daily score · " + value.BestDailyScore.ToString("N0"), 20);
             foreach (var fact in value.Facts) Text(fact, 20);

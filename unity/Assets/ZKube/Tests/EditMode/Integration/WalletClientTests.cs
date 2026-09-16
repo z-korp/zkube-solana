@@ -13,7 +13,7 @@ namespace ZKube.Integration.Tests
         private sealed class Native : INativeWalletTransport
         {
             public Func<JObject, Task<JObject>> Reply;
-            public int Calls, Creates;
+            public int Calls, Creates; public byte[] Seed;
             public async Task<string> Request(string json)
             {
                 Calls++;
@@ -23,10 +23,26 @@ namespace ZKube.Integration.Tests
                 reply["ok"] ??= true;
                 return reply.ToString();
             }
-            public Task<byte[]> LoadDeviceSeed(string owner) => Task.FromResult<byte[]>(null);
-            public Task RemoveDeviceSeed(string owner) => Task.CompletedTask;
+            public Task<byte[]> LoadDeviceSeed(bool create)
+            {
+                if (create && Seed == null) { Seed = Enumerable.Repeat((byte)2, 32).ToArray(); Creates++; }
+                return Task.FromResult(Seed?.ToArray());
+            }
         }
         private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");
+        [Test]
+        public async Task OneInstallKeyIsReusedAcrossWalletsAndRestarts()
+        {
+            var fixture = Fixture(); var native = new Native();
+            string owner = (string)fixture["inputs"]["owner"], other = (string)fixture["inputs"]["device"];
+            using var first = await new WalletClient(native).LoadDeviceSigner(owner, create: true);
+            using var second = await new WalletClient(native).LoadDeviceSigner(other, create: true);
+            using var restored = await new WalletClient(native).LoadDeviceSigner(owner);
+            Assert.That(first.Address, Is.EqualTo(second.Address));
+            Assert.That(first.Address, Is.EqualTo(restored.Address));
+            Assert.That(native.Creates, Is.EqualTo(1));
+            Assert.That(native.Calls, Is.Zero);
+        }
         [Test]
         public void RustMessagesAcceptSyntheticSignaturesAndRejectUnsignedPackets()
         {

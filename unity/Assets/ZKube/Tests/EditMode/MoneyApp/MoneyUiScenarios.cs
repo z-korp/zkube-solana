@@ -30,7 +30,6 @@ namespace ZKube.Integration.App.Tests
         public Func<long> Clock => () => Now;
         public string SentSignature { get; private set; }
         public bool HasActiveKey => Native.Seed != null;
-        public bool HasCandidateKey => Native.Candidate != null;
         public uint KreditPack { get; private set; } = 1;
         public uint ClaimDay => (uint)Ui["claimDay"];
         public uint ClaimPoints => (uint)claim["points"];
@@ -109,7 +108,7 @@ namespace ZKube.Integration.App.Tests
                     Http.Add(Ui["currentToken"]);
                     var token = Services.Tokens.Decode(Envelope(Ui["currentToken"]));
                     await Services.Sessions.Replace(await Services.Sessions.Load(Owner), new SessionRecords(Owner,
-                        new SessionRecord(Owner, (string)Plans["inputs"]["device"], (string)Ui["currentToken"]["address"], token.ValidUntil), null));
+                        new SessionRecord(Owner, (string)Plans["inputs"]["device"], (string)Ui["currentToken"]["address"], token.ValidUntil)));
                 }
                 if (scenario.Contains("refill") || scenario.EndsWith("-zero")) SetBalance((string)Plans["inputs"]["device"], 0);
                 if (scenario.Contains("refill"))
@@ -117,7 +116,7 @@ namespace ZKube.Integration.App.Tests
                 else if (!scenario.Contains("disable") && scenario != "session-current")
                 {
                     after.Add(Ui["renewedToken"]);
-                    after.Add(SystemAccount((string)Fixture("device")["inputs"]["candidate"], 5_000_000));
+                    after.Add(SystemAccount((string)Fixture("device")["inputs"]["device"], 5_000_000));
                 }
             }
         }
@@ -138,7 +137,13 @@ namespace ZKube.Integration.App.Tests
         private void ApplyAfter()
         {
             if (applied || SentSignature == null || Http.StatusError != null) return;
-            foreach (var row in after) Http.Add(row); applied = true;
+            foreach (var row in after) Http.Add(row);
+            if (UiScenario.Contains("disable"))
+            {
+                Http.Accounts.Remove((string)Ui["currentToken"]["address"]);
+                SetBalance((string)Plans["inputs"]["device"], 0);
+            }
+            applied = true;
         }
         private async Task<string> SignOwner(JObject request)
         {

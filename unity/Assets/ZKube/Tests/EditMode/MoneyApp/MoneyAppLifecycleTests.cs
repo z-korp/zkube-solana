@@ -33,7 +33,7 @@ namespace ZKube.Integration.App.Tests
             var error = await MoneyTestEnvironment.Fails<AggregateException>(() => cleanup);
             Assert.That(error.Flatten().InnerExceptions.Count(x => x.Message.StartsWith("Injected cancellation callback:")), Is.EqualTo(2));
             Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
-            Assert.That(e.Native.Seed, Is.Not.Null); Assert.That(e.Native.Deletions, Is.Zero);
+            Assert.That(e.Native.Seed, Is.Not.Null);
             Assert.That(e.Native.Calls, Is.EqualTo(stop ? 1 : 2), "Explicit disconnect still reaches the wallet bridge; Stop borrows it");
             if (stop)
             {
@@ -56,7 +56,7 @@ namespace ZKube.Integration.App.Tests
             await e.Flow.Disconnect(); e.Native.Release.SetResult(true);
             await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await connecting);
             Assert.That(e.Services.Identity.Owner, Is.Null); Assert.That(e.Flow.Owner, Is.Null);
-            Assert.That(e.Native.Deletions, Is.Zero); await e.Flow.StopAsync();
+            await e.Flow.StopAsync();
         }
         [Test]
         public async Task NewPublicGenerationRejectsAnOldCallbackAndRetainedPublication()
@@ -95,7 +95,7 @@ namespace ZKube.Integration.App.Tests
             var disconnect = e.Flow.Disconnect(); Assert.That(e.Flow.Owner, Is.Null); Assert.That(e.Services.Identity.Owner, Is.Null);
             e.Http.Release.SetResult(true); await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await read); await disconnect;
             Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
-            Assert.That(e.Native.Seed, Is.Not.Null); Assert.That(e.Native.Deletions, Is.Zero); e.AssertReadOnly(); await e.Flow.StopAsync();
+            Assert.That(e.Native.Seed, Is.Not.Null); e.AssertReadOnly(); await e.Flow.StopAsync();
         }
         [Test]
         public async Task StopDrainsOutstandingReadsRejectsNewWorkAndBorrowsAllPlatformDependencies()

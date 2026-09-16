@@ -11,8 +11,7 @@ namespace ZKube.Integration
     public interface INativeWalletTransport
     {
         Task<string> Request(string requestJson);
-        Task<byte[]> LoadDeviceSeed(string owner);
-        Task RemoveDeviceSeed(string owner);
+        Task<byte[]> LoadDeviceSeed(bool create);
     }
 
     public sealed class WalletRequestException : Exception
@@ -42,15 +41,14 @@ namespace ZKube.Integration
             return WalletSignatureVerifier.VerifySignedTransaction(original, ReadBase64(response, "transaction", SolanaWire.PacketBytes), owner);
         }
         public async Task Disconnect(string owner) { await Request("disconnect", owner, null); }
-        public async Task<DeviceSigner> LoadDeviceSigner(string owner)
+        public async Task<DeviceSigner> LoadDeviceSigner(string owner, bool create = false)
         {
             SolanaAddress.Bytes(owner);
-            var seed = await native.LoadDeviceSeed(owner);
+            var seed = await native.LoadDeviceSeed(create);
             if (seed == null) return null;
             try { return new DeviceSigner(seed); }
             finally { Array.Clear(seed, 0, seed.Length); }
         }
-        public Task RemoveDeviceSigner(string owner) { SolanaAddress.Bytes(owner); return native.RemoveDeviceSeed(owner); }
         private async Task<JObject> Request(string operation, string owner, byte[] transaction)
         {
             if (Interlocked.CompareExchange(ref pending, 1, 0) != 0) throw new WalletRequestException("wallet-busy");

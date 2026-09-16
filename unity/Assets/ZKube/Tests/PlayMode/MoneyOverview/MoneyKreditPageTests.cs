@@ -44,7 +44,7 @@ namespace ZKube.Tests.MoneyOverview
             controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(environment.HasActiveKey, Is.False); Assert.That(environment.HasCandidateKey, Is.False);
+            Assert.That(environment.HasActiveKey, Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

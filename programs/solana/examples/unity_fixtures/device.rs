@@ -2,9 +2,6 @@ use super::*;
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::{InstructionData, ToAccountMetas};
 
-pub fn candidate() -> Pubkey {
-    Pubkey::from_str("GyGKxMyg1p9SsHfm15MkNUu1u9TN2JtTspcdmrtGUdse").unwrap()
-}
 pub fn token_address(signer: Pubkey) -> Pubkey {
     Pubkey::find_program_address(
         &[
@@ -36,8 +33,8 @@ pub fn token(signer: Pubkey, valid_until: i64) -> Value {
 }
 fn renew(remaining: i64, balance: u64) -> Value {
     let mut ix = Vec::new();
-    if remaining <= 0 {
-        ix.push(Instruction {
+    {
+        let mut revoke = Instruction {
             program_id: session_keys::ID,
             data: session_keys::instruction::RevokeSessionV2 {}.data(),
             accounts: session_keys::accounts::RevokeSessionTokenV2 {
@@ -47,7 +44,9 @@ fn renew(remaining: i64, balance: u64) -> Value {
                 system_program: Pubkey::default(),
             }
             .to_account_metas(None),
-        });
+        };
+        revoke.accounts[2].is_signer = true;
+        ix.push(revoke);
     }
     if balance > 0 {
         let mut data = 2u32.to_le_bytes().to_vec();
@@ -81,8 +80,8 @@ fn renew(remaining: i64, balance: u64) -> Value {
         }
         .data(),
         accounts: session_keys::accounts::CreateSessionTokenV2 {
-            session_token: token_address(candidate()),
-            session_signer: candidate(),
+            session_token: token_address(device()),
+            session_signer: device(),
             fee_payer: owner(),
             authority: owner(),
             target_program: solana::ID,
@@ -97,13 +96,11 @@ fn renew(remaining: i64, balance: u64) -> Value {
     row
 }
 pub fn scenarios() -> Value {
-    let mut inputs = inputs();
-    inputs["previous"] = json!(device().to_string());
-    inputs["candidate"] = json!(candidate().to_string());
+    let inputs = inputs();
     let cases = [-1, 0, 59, 60, 61]
         .into_iter()
         .flat_map(|remaining| [0, 1_000_000].map(|balance| renew(remaining, balance)))
         .collect::<Vec<_>>();
-    json!({"inputs": inputs, "candidateToken": token(candidate(), NOW + 604_500),
+    json!({"inputs": inputs, "renewedToken": token(device(), NOW + 604_500),
         "cases": cases})
 }

@@ -11,16 +11,12 @@ namespace ZKube.Integration.Client.Runs.Tests
 {
     public sealed partial class RunClientTests
     {
-        private sealed class RunFlowNative : INativeDeviceKeyLifecycle
+        private sealed class RunFlowNative : INativeWalletTransport
         {
             private readonly NativeWallet native;
             public RunFlowNative(NativeWallet value) { native = value; }
             public Task<string> Request(string json) => native.Request(json);
-            public Task<byte[]> LoadDeviceSeed(string owner) => native.LoadDeviceSeed(owner);
-            public Task RemoveDeviceSeed(string owner) => native.RemoveDeviceSeed(owner);
-            public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult<byte[]>(null);
-            public Task<byte[]> CreateCandidateSeed(string owner) => throw new InvalidOperationException("No session creation during run operations");
-            public Task PromoteCandidateSeed(string owner, byte[] active, byte[] candidate) => throw new InvalidOperationException("No key promotion during run operations");
+            public Task<byte[]> LoadDeviceSeed(bool create) => native.LoadDeviceSeed(create);
         }
         private static async Task<MoneyAppFlow> CreateFlow(Environment env, Func<byte[]> runClientSeed = null)
         {

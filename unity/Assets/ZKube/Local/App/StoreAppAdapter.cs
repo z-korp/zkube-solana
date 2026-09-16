@@ -26,7 +26,6 @@ namespace ZKube.Local.App
         private GameObject pageRoot, warningRoot;
         private RectTransform content;
         private TMP_Text warning;
-        private TMP_InputField name;
         private bool loading, dirty, lastBusy, lastUnsaved;
         private uint lastDay;
         private LocalProductState lastProduct;
@@ -34,7 +33,6 @@ namespace ZKube.Local.App
         private Vector2Int lastSize;
         private Exception lastFulfillment;
         private PageCatalog pages;
-        private readonly Color pale = new Color(1, .96f, .84f), panel = new Color(.06f, .10f, .17f, .95f);
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
         public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController)
@@ -122,32 +120,15 @@ namespace ZKube.Local.App
         private void Draw()
         {
             if (pages == null) pages = PageCatalog.Load();
-            string typed = name == null ? null : name.text;
             RetirePage();
             shared.Initialize(this, art.Display, art.Body, TextScale);
             shell.Background.sprite = art.Sprite("background"); shell.Background.color = new Color(.4f, .4f, .4f);
-            if (Flow.Page == StorePage.Name) NameGate(typed);
-            else shared.Render((AppPage)Enum.Parse(typeof(AppPage), Flow.Page.ToString()), content);
+            shared.Render((AppPage)Enum.Parse(typeof(AppPage), Flow.Page.ToString()), content);
             if (!string.IsNullOrEmpty(Flow.Error)) Text(Flow.Error, 19);
             if (Flow.Billing.Busy) Text("A store operation is still in progress.", 18);
             else if (!string.IsNullOrEmpty(Flow.BillingNotice)) Text(Flow.BillingNotice, 18);
             if (Flow.Billing.LastFulfillmentError != null) Text("Store confirmation needs attention. Restore purchases to retry.", 18);
-            if (Flow.Page != StorePage.Name) shared.Navigation(content);
-        }
-        private void NameGate(string typed)
-        {
-            Text("Welcome to " + Application.productName, 36, true); Portrait();
-            Text("Pick the name shown with your progress. It stays on this device.");
-            var holder = Rect("Player name", content); Height(holder, TouchSize(64)); holder.gameObject.AddComponent<Image>().color = panel;
-            name = holder.gameObject.AddComponent<TMP_InputField>(); name.characterLimit = 24;
-            var area = Rect("Text area", holder); Stretch(area, 12); area.gameObject.AddComponent<RectMask2D>();
-            var value = Label(area, "", 24, 50); Stretch(value.rectTransform);
-            var placeholder = Label(area, "Name", 24, 50); Stretch(placeholder.rectTransform); placeholder.color = new Color(1, 1, 1, .45f);
-            name.textViewport = area; name.textComponent = value; name.placeholder = placeholder; name.text = typed ?? "";
-            var play = shared.Button(content, new PageAction { Label = "Play", Invoke = () => Flow.SetName(name.text),
-                CanInvoke = () => name != null && !string.IsNullOrWhiteSpace(name.text) });
-            name.onValueChanged.AddListener(text => play.interactable = !string.IsNullOrWhiteSpace(text));
-            name.onSubmit.AddListener(text => Try(() => Flow.SetName(text)));
+            shared.Navigation(content);
         }
         private static PageAction Action(string label, Action invoke, bool enabled = true) =>
             new PageAction { Label = label, Invoke = invoke, Enabled = enabled };
@@ -194,7 +175,7 @@ namespace ZKube.Local.App
         public ProfilePageView ProfilePage()
         {
             var state = Flow.Product.Read;
-            return new ProfilePageView { Name = state.Name, Realm = (byte)Math.Max(1, state.WornEmblem),
+            return new ProfilePageView { Name = state.Name, ChangeName = Flow.SetName, Realm = (byte)Math.Max(1, state.WornEmblem),
                 Stars = state.Stars.Sum(value => (int)value), Streak = state.Streak, BestDailyScore = state.BestDailyScore,
                 Emblems = Protocol.Realms.Where(realm => Flow.Cleared(realm.MapId)).Select(realm => {
                     byte id = realm.MapId;
@@ -221,20 +202,15 @@ namespace ZKube.Local.App
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));
         public IReadOnlyList<PageAction> IdentityNavigation => Array.Empty<PageAction>();
         public void Report(Exception error) => Flow.Report(error);
-        private void Portrait()
-        { var rect = Rect("Guardian", content); Height(rect, 116); var image = rect.gameObject.AddComponent<Image>(); image.sprite = art.Sprite("boss__idle"); image.preserveAspect = true; }
         private TMP_Text Text(string value, float size = 22, bool display = false) => Label(content, value, size, 0, display);
         private TMP_Text Label(Transform parent, string value, float size, float height, bool display = false)
         { var label = shared.Label(parent, value, size, display); if (height > 0) label.GetComponent<LayoutElement>().minHeight = height; return label; }
         private Button Button(Transform parent, string label, Action action, bool enabled = true) => shared.Button(parent, Action(label, action, enabled));
-        private float TouchSize(float preferred) => BoardLayout.CanvasTouchSize(preferred,
-            BoardController.ReadDisplayDensity(), pageRoot.GetComponent<Canvas>().scaleFactor);
         private void OpenBoard(LocalBoardActionProvider provider)
         { board.gameObject.SetActive(true); board.Bind(provider.Bind(null)); if (pageRoot != null) pageRoot.SetActive(false); }
         private void ExitBoard() { board.gameObject.SetActive(false); Flow.LeaveBoard(); }
         private void Accepted(CoreRunToken _) { Flow.ObservePersistence(); Refresh(); }
         private void Rejected(string _) { Flow.ObservePersistence(); Refresh(); }
-        private void Try(Action action) { try { action(); } catch (Exception error) { Flow.Report(error); } }
         private void OnApplicationPause(bool paused) { if (!paused && Flow != null) { Refresh(); _ = Flow.RefreshBilling(); } }
         private static RectTransform Rect(string name, Transform parent)
         { var value = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>(); value.SetParent(parent, false); return value; }
@@ -245,7 +221,7 @@ namespace ZKube.Local.App
         private GameObject CanvasRoot(string name, int order) => AppShell.CanvasRoot(name, transform, order);
         private void RetirePage()
         {
-            shared.Retire(); shell.Background.sprite = null; shell.Clear(); name = null;
+            shared.Retire(); shell.Background.sprite = null; shell.Clear();
         }
         private void OnDestroy()
         {

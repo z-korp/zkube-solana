@@ -166,8 +166,8 @@ over the native FFI. The money identity,
 `com.zkorp.zkube`, targets the Solana dApp Store. The store identity,
 `com.zkorp.zkube.store`, targets Google Play with an ARM64 and x86_64 AAB,
 a local name, a local UTC Daily, and a native purchase to unlock Campaign.
-The store identity preserves the v1 local save format. Arcade is on chain only
-for the money identity. Store billing and distribution remain in development.
+Arcade is on chain only for the money identity. Store billing and distribution
+remain in development.
 
 Arcade gameplay runs on a MagicBlock ephemeral rollup, then commits back to base
 layer. At a run's deadline the ER freezes the last fully accepted state and
