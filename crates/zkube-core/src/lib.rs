@@ -74,11 +74,10 @@ pub const fn campaign_move_budget(level: u8, tier: u8) -> Option<u16> {
 
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
-pub const PROTOCOL_ACCOUNT_VERSION: u8 = 2;
-pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 2;
+pub const PROTOCOL_ACCOUNT_VERSION: u8 = 3;
+pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 3;
 pub const PLAYER_STATE_RESERVED_BYTES: usize = 18;
-pub const ARCADE_ACCOUNT_VERSION: u8 = 2;
-pub const PLAYER_LABEL_ACCOUNT_VERSION: u8 = 1;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 3;
 pub const ARCADE_DAILY_RESULT_HASH_DOMAIN: &str = "zkube-arcade-daily-result-v5";
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -106,7 +105,10 @@ pub use payouts::{
     SOL_PAYOUT_UNIT_LAMPORTS, board_width, daily_board_pools, payout_for_rank,
     rank_weighted_payouts, sol_rank_weighted_payouts,
 };
-pub use periods::{DAILY_REWARD_CLAIM_WINDOW_SECONDS, PeriodError, SECONDS_PER_DAY, day_id_at};
+pub use periods::{
+    DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_RUN_CLOSE_OFFSET, PeriodError, RUN_RECOVERY_SECONDS,
+    SECONDS_PER_DAY, daily_window, day_id_at,
+};
 pub use presentation::{NoPresentation, PresentationEvent, PresentationObserver};
 pub use randomness::{
     BlockWeights, ContinuationLayout, MAX_OPENING_HEIGHT, MIN_OPENING_HEIGHT, OpeningLayout,
@@ -116,7 +118,7 @@ pub use randomness::{
 };
 pub use replay::{
     CanonicalEventBytes, ChainDomain, ChallengeId, PlayerId, ReplayCommitment, ReplayEvent,
-    ReplayMode, RulesHash, derive_player_id, derive_player_id_with,
+    RulesHash, derive_player_id, derive_player_id_with,
 };
 pub use rules::{
     BONUS_CHARGE_CAP, Constraint, ConstraintClass, ConstraintKind, Guardian, LevelRules,

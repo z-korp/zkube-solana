@@ -12,8 +12,7 @@ pub use run::{
 
 use zkube_core::{
     BlockWeights, ChainDomain, ChallengeId, DailyBoardPools, PayoutError, ReplayCommitment,
-    ReplayMode, RulesHash, continuation_from_vrf, derive_player_id,
-    ladder_points as core_ladder_points,
+    RulesHash, continuation_from_vrf, derive_player_id, ladder_points as core_ladder_points,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,17 +100,15 @@ pub fn initial_replay_commitment(
 ) -> Result<[u8; 32], BoundaryError> {
     let domain = ChainDomain(array_32(chain_domain)?);
     let player_id = derive_player_id(domain, array_32(raw_account)?);
-    let mode = match mode_tag {
-        0 => ReplayMode::Ranked,
-        _ => return Err(BoundaryError::InvalidMode),
-    };
+    if mode_tag != 0 {
+        return Err(BoundaryError::InvalidMode);
+    }
     Ok(ReplayCommitment::initial(
         domain,
         ChallengeId(array_32(challenge_id)?),
         RulesHash(array_32(rules_hash)?),
         player_id,
         run_id,
-        mode,
     )
     .to_bytes())
 }

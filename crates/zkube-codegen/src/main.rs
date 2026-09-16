@@ -12,9 +12,8 @@ use zkube_core::{
     ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_ENTRY_LAMPORTS, Bonus,
     CAMPAIGN_TARGET_LADDER, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT,
     DAILY_PAIR_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES,
-    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_LABEL_ACCOUNT_VERSION,
-    PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules,
-    SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS,
+    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_STATE_ACCOUNT_VERSION,
+    PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -325,7 +324,6 @@ fn render_protocol_constants(catalog: &CampaignCatalog) -> String {
          export const PLAYER_STATE_ACCOUNT_VERSION = {PLAYER_STATE_ACCOUNT_VERSION} as const;\n\
          export const PLAYER_STATE_RESERVED_BYTES = {reserved_bytes} as const;\n\
          export const ARCADE_ACCOUNT_VERSION = {ARCADE_ACCOUNT_VERSION} as const;\n\
-         export const PLAYER_LABEL_ACCOUNT_VERSION = {PLAYER_LABEL_ACCOUNT_VERSION} as const;\n\
          export const ARCADE_DAILY_RESULT_HASH_DOMAIN = \"{ARCADE_DAILY_RESULT_HASH_DOMAIN}\" as const;\n\
          export const ARENA_ENTRY_LAMPORTS = {ARENA_ENTRY_LAMPORTS}n;\n\
          export const ENTRY_DAILY_LAMPORTS = {ENTRY_DAILY_LAMPORTS}n;\n\
@@ -449,9 +447,9 @@ mod tests {
         assert!(rendered_daily.contains("DAILY_PAIR_COUNT = 160"));
         assert!(rendered_daily.contains("kind: 18"));
         let versions = render_protocol_constants(&catalog);
-        assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 2"));
-        assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 2"));
-        assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 2"));
+        assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 3"));
+        assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 3"));
+        assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 3"));
         assert!(versions.contains("CATALOG_VERSION = 3"));
         assert!(versions.contains("PLAYER_STATE_RESERVED_BYTES = 18"));
         assert!(

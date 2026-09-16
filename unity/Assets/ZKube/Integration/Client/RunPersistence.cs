@@ -19,8 +19,7 @@ namespace ZKube.Integration.Client
                 return;
             }
             if (observation.Phase == RunSemanticPhase.Absent) return;
-            string selected = observation.Mode?.ToLowerInvariant();
-            if (!observation.RunId.HasValue || selected != RunMarker.StorageKey) throw new FormatException("Accepted run has no durable locator");
+            if (!observation.RunId.HasValue) throw new FormatException("Accepted run has no durable locator");
             var existing = await store.Load(observation.Owner).ConfigureAwait(false);
             if (existing?.ActiveRun == observation.Address) return;
             await store.Save(new RunMarker(observation.Owner, observation.RunId.Value, observation.Address, null, null, 0)).ConfigureAwait(false);

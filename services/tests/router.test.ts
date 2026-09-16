@@ -43,7 +43,6 @@ describe("MagicBlock Router boundary", () => {
     const plan = validationOnlyPlan("commit_run", {
       owner,
       runId: 1n,
-      runMode: "campaign",
       runLocation: "ephemeral_rollup",
       includeArenaPlayer: false,
     });
@@ -72,7 +71,6 @@ describe("MagicBlock Router boundary", () => {
     const plan = validationOnlyPlan("commit_run", {
       owner,
       runId: 1n,
-      runMode: "campaign",
       runLocation: "ephemeral_rollup",
       includeArenaPlayer: false,
     });

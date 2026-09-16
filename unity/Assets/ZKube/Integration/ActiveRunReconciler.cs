@@ -55,8 +55,6 @@ namespace ZKube.Integration
 
         private static BuildConfigRequest Configuration(JObject account)
         {
-            string mode = Variant(account["mode"]);
-            if (mode != "Daily") throw new FormatException("Invalid ActiveRun mode");
             var rules = account["rules"];
             return new BuildConfigRequest {
                 RulesHash = Bytes(account["rules_hash"]), InitialReplay = Bytes(account["replay_hash"]),

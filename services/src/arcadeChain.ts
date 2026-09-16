@@ -75,7 +75,6 @@ export const KEEPER_INSTRUCTION_ALLOWLIST = Object.freeze(
 
 export type CompetitionKind = "daily";
 export type DailyBoardKind = "score" | "theme";
-export type RunMode = "ranked";
 export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
 
 export interface KeeperPlanContext {
@@ -90,7 +89,6 @@ export interface KeeperPlanContext {
   launchCadenceId?: number;
   owner?: PublicKey;
   runId?: bigint;
-  runMode?: RunMode;
   runLocation?: RunLocation;
   includeArenaPlayer?: boolean;
   predecessorRolloverApplied?: boolean;

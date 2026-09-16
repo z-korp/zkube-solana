@@ -49,18 +49,7 @@ bytes32_newtype!(RulesHash);
 bytes32_newtype!(PlayerId);
 bytes32_newtype!(ReplayCommitment);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum ReplayMode {
-    Ranked = 0,
-}
-
-impl ReplayMode {
-    #[must_use]
-    pub const fn tag(self) -> u8 {
-        self as u8
-    }
-}
+const REPLAY_MODE_TAG: u8 = 0;
 
 /// One event in the canonical replay stream.
 ///
@@ -196,9 +185,8 @@ impl ReplayCommitment {
         rules_hash: RulesHash,
         player_id: PlayerId,
         run_id: u64,
-        mode: ReplayMode,
     ) -> Self {
-        Self::initial_with::<SoftwareSha256>(domain, challenge, rules_hash, player_id, run_id, mode)
+        Self::initial_with::<SoftwareSha256>(domain, challenge, rules_hash, player_id, run_id)
     }
 
     #[must_use]
@@ -208,7 +196,6 @@ impl ReplayCommitment {
         rules_hash: RulesHash,
         player_id: PlayerId,
         run_id: u64,
-        mode: ReplayMode,
     ) -> Self {
         Self(H::hashv(&[
             REPLAY_INIT_DOMAIN,
@@ -217,7 +204,7 @@ impl ReplayCommitment {
             rules_hash.as_bytes(),
             player_id.as_bytes(),
             &run_id.to_le_bytes(),
-            &[mode.tag()],
+            &[REPLAY_MODE_TAG],
         ]))
     }
 
@@ -257,7 +244,6 @@ mod tests {
         rules_hash_hex: String,
         raw_account_hex: String,
         run_id: String,
-        mode: String,
         player_id_hex: String,
         initial_commitment_hex: String,
         events: std::vec::Vec<GoldenEvent>,
@@ -364,14 +350,10 @@ mod tests {
         let rules_hash = RulesHash(decode_32(&fixture.rules_hash_hex));
         let raw_account = decode_32(&fixture.raw_account_hex);
         let run_id = fixture.run_id.parse::<u64>().unwrap();
-        let mode = match fixture.mode.as_str() {
-            "ranked" => ReplayMode::Ranked,
-            _ => panic!("unknown fixture mode"),
-        };
         let player_id = derive_player_id(domain, raw_account);
         assert_eq!(player_id.to_bytes(), decode_32(&fixture.player_id_hex));
         let mut commitment =
-            ReplayCommitment::initial(domain, challenge, rules_hash, player_id, run_id, mode);
+            ReplayCommitment::initial(domain, challenge, rules_hash, player_id, run_id);
         assert_eq!(
             commitment.to_bytes(),
             decode_32(&fixture.initial_commitment_hex)
@@ -397,18 +379,10 @@ mod tests {
         let challenge = ChallengeId([2; 32]);
         let rules = RulesHash([3; 32]);
         let player = derive_player_id(domain, [4; 32]);
-        let baseline =
-            ReplayCommitment::initial(domain, challenge, rules, player, 7, ReplayMode::Ranked);
+        let baseline = ReplayCommitment::initial(domain, challenge, rules, player, 7);
         assert_ne!(
             baseline,
-            ReplayCommitment::initial(
-                ChainDomain([9; 32]),
-                challenge,
-                rules,
-                player,
-                7,
-                ReplayMode::Ranked
-            )
+            ReplayCommitment::initial(ChainDomain([9; 32]), challenge, rules, player, 7,)
         );
         assert_ne!(
             baseline,
@@ -418,12 +392,11 @@ mod tests {
                 rules,
                 derive_player_id(domain, [5; 32]),
                 7,
-                ReplayMode::Ranked
             )
         );
         assert_ne!(
             baseline,
-            ReplayCommitment::initial(domain, challenge, rules, player, 8, ReplayMode::Ranked)
+            ReplayCommitment::initial(domain, challenge, rules, player, 8)
         );
     }
 }

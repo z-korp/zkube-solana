@@ -78,6 +78,9 @@ namespace ZKube.Core
 
         public static byte[] BuildConfig(BuildConfigRequest input) => Call(BuildConfigRequest.Operation, input.Encode());
 
+        public static DailyWindow DailyWindow(uint day) => ZKube.Core.Generated.DailyWindow.Decode(
+            Call(DailyWindowRequest.Operation, new DailyWindowRequest { Day = day }.Encode()));
+
         public static byte[] MergeCampaignStars(byte[] stored, byte[] incoming)
             => Call(MergeCampaignStarsRequest.Operation, new MergeCampaignStarsRequest { Stored = stored, Incoming = incoming }.Encode());
 

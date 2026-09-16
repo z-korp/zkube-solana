@@ -34,6 +34,16 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /PlayerLabel|player_label|PLAYER_LABEL_ACCOUNT_VERSION|\bRunMode\b|active_run_mode|activeRunMode|lifetime_paid_entries|lifetimePaidEntries|\bpodiums\b|DailyPressureProfile/,
+    trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS, CORE, CODEGEN],
+    reversal: "The address is the identity; Arcade has one run path and compact displayed profile records (2026-09-15)",
+  },
+  {
+    pattern: /ChallengeNotStarted|MapDisabled|ContentVersionMismatch|CadenceArchived|DailyPrizeClaimed|DailyClaimsExpired|SuspendedArenaDailySkipped|PrizePoolFunded|KreditsPurchased|ProtocolPauseChanged|ArenaSuspensionChanged|ProtocolAuthorityProposed|ProtocolAuthorityAccepted|TeamDestinationChanged|FeaturedEmblemSet|ARCADE_SECONDS_PER_DAY/,
+    trees: [PROGRAM],
+    reversal: "Unused events, unreachable errors and the duplicate day constant are removed (2026-09-15)",
+  },
+  {
     pattern: /MoneyLocalCampaign|MoneyCampaignRun|LocalCampaignBoardActions|generateMapData|actual TS resolver|CatalogRules\(JObject|unity-profile-eligibility/,
     trees: [UNITY_CLIENT],
     reversal: "The shared Campaign client uses core progression and configuration; store Daily and money save synchronization each have one identity owner (2026-09-15)",

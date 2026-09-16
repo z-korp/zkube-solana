@@ -82,8 +82,9 @@ namespace ZKube.Integration.Planning
             if (current == null) return new DailyEntryAssessment("missing-daily");
             var daily = bindings.ArenaDaily(current, dayId);
             if (((JObject)daily["status"]).Properties().Single().Name != "Open") return new DailyEntryAssessment("closed");
-            if (now < (long)daily["opens_at"]) return new DailyEntryAssessment("not-open");
-            if (now >= (long)daily["runs_close_at"]) return new DailyEntryAssessment("frozen");
+            var window = NativeEngine.DailyWindow(dayId);
+            if (now < (long)window.OpensAt) return new DailyEntryAssessment("not-open");
+            if (now >= (long)window.FreezesAt) return new DailyEntryAssessment("frozen");
             uint followingDay = Math.Max(checked(dayId + 1), suspension);
             if (following == null) return new DailyEntryAssessment("missing-receiver");
             bindings.ArenaDaily(following, followingDay);
@@ -104,14 +105,13 @@ namespace ZKube.Integration.Planning
     {
         public string Owner { get; }
         public ulong RunId { get; }
-        public string Mode { get; }
         public string RentPayer { get; }
         public string DailyAddress { get; }
         internal RunSummary Summary { get; }
         public bool Terminal { get; }
         private RunPlanSnapshot(string owner, JObject fields, RunSummary summary)
         {
-            Owner = owner; RunId = (ulong)fields["run_id"]; Mode = ((JObject)fields["mode"]).Properties().Single().Name;
+            Owner = owner; RunId = (ulong)fields["run_id"];
             RentPayer = (string)fields["rent_payer"]; DailyAddress = (string)fields["daily_challenge"]; Summary = summary;
             Terminal = (summary.Phase == (byte)CorePhase.Finished || summary.Phase == (byte)CorePhase.LevelComplete) &&
                 (long)fields["finished_at"] > 0 && (uint)fields["pending_vrf_counter"] == 0;

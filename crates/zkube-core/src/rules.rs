@@ -577,6 +577,42 @@ impl Default for RunEngine {
 }
 
 impl RunEngine {
+    #[allow(clippy::too_many_arguments)]
+    pub const fn daily(
+        grid: Grid,
+        next_row: Option<Row>,
+        phase: RunPhase,
+        score: u32,
+        moves: u16,
+        combo_counter: u8,
+        max_combo: u8,
+        streak: u8,
+        charges_earned: u8,
+        level_lines_cleared: u16,
+        bonus: Option<Bonus>,
+        bonus_charges: u8,
+        reroll_charges: u8,
+    ) -> Self {
+        Self {
+            grid,
+            next_row,
+            phase,
+            score,
+            moves,
+            combo_counter,
+            max_combo,
+            primary_progress: 0,
+            secondary_progress: 0,
+            latched_star_sources: 0,
+            streak,
+            charges_earned,
+            level_lines_cleared,
+            bonus,
+            bonus_charges,
+            reroll_charges,
+        }
+    }
+
     pub fn start(grid: Grid, next_row: Row) -> Result<Self, RunError> {
         Grid::validate_row(&next_row)?;
         Ok(Self {

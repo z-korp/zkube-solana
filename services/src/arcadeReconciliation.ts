@@ -23,7 +23,6 @@ import {
   type DailyBoardKind,
   type KeeperPlanContext,
   type KeeperInstructionPlan,
-  type RunMode,
 } from "./arcadeChain.js";
 import { dailyBoardPools, payoutPlan } from "./zkubeCore.js";
 
@@ -101,7 +100,6 @@ export interface RunSnapshot {
   owner: PublicKey;
   rentPayer?: PublicKey;
   runId: bigint;
-  mode: RunMode;
   /** The Daily owning this ranked run. */
   challengeDayId?: number;
   /** Ranked runs use their challenge day. */
@@ -353,7 +351,7 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
       }
       return;
     case "finish_run":
-      requireRunContext(context, "ranked");
+      requireRunContext(context);
       if (context.runLocation !== "ephemeral_rollup" ||
           context.deadlineAt === undefined || context.deadlineAt > nowUnix) {
         throw new Error("deadline finish timing or routing is invalid");
@@ -366,14 +364,14 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
       }
       return;
     case "consume_arena_run":
-      requireRunContext(context, "ranked");
+      requireRunContext(context);
       requireRentRecipient(context);
       if (context.runLocation !== "base" || context.includeArenaPlayer !== true) {
         throw new Error("Arena consumption routing is invalid");
       }
       return;
     case "expire_unresolved_arena_run":
-      requireRunContext(context, "ranked");
+      requireRunContext(context);
       if (context.runLocation === "ephemeral_rollup" ||
           context.recoveryDeadlineAt === undefined ||
           context.recoveryDeadlineAt > nowUnix) {
@@ -384,9 +382,8 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
       requireRunContext(context);
       requireRentRecipient(context);
       if (context.runLocation !== "base" ||
-          (context.runMode === "ranked" &&
-            (context.recoveryDeadlineAt === undefined ||
-              context.recoveryDeadlineAt > nowUnix))) {
+          (context.recoveryDeadlineAt === undefined ||
+              context.recoveryDeadlineAt > nowUnix)) {
         throw new Error("orphan cleanup timing or routing is invalid");
       }
       return;
@@ -442,11 +439,9 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
 
 function requireRunContext(
   context: KeeperPlanContext,
-  mode?: RunMode,
 ): void {
   if (!context.owner || context.owner.equals(PublicKey.default) ||
-      context.runId === undefined || context.runId < 1n ||
-      (mode !== undefined && context.runMode !== mode)) {
+      context.runId === undefined || context.runId < 1n) {
     throw new Error("keeper run identity is invalid");
   }
 }
@@ -551,20 +546,19 @@ function appendRunPlan(
     owner: run.owner,
     rentRecipient: run.rentPayer,
     runId: run.runId,
-    runMode: run.mode,
     runLocation: run.location,
     includeArenaPlayer: run.arenaPlayerExists,
     deadlineAt: run.runsCloseAt,
     recoveryDeadlineAt: run.recoveryDeadlineAt,
   } as const;
 
-  if (run.mode === "ranked" && forceFinishEligible &&
+  if (forceFinishEligible &&
       run.location === "ephemeral_rollup" && run.runsCloseAt !== undefined &&
       nowUnix >= run.runsCloseAt) {
     plans.push(validationOnlyPlan("finish_run", context));
     return;
   }
-  if (run.mode === "ranked" && run.reservationActive &&
+  if (run.reservationActive &&
       (inProgress || run.lifecycle === "unavailable") &&
       run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt) {
     plans.push(validationOnlyPlan("expire_unresolved_arena_run", {
@@ -712,7 +706,7 @@ function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
       run.acceptedActions > 0xffff_ffff) {
     throw new Error("run accepted-action count is invalid");
   }
-  if (run.mode !== "ranked" || run.challengeDayId === undefined ||
+  if (run.challengeDayId === undefined ||
       run.deadlineDayId !== run.challengeDayId) {
     throw new Error("ranked run cadence is invalid");
   }

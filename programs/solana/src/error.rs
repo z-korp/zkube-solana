@@ -29,9 +29,6 @@ pub enum ErrorCode {
     #[msg("The run is not ready to finish")]
     GameNotFinished,
 
-    #[msg("The Daily challenge has not started")]
-    ChallengeNotStarted,
-
     #[msg("The Daily challenge entry or play window has ended")]
     ChallengeEnded,
 
@@ -44,12 +41,8 @@ pub enum ErrorCode {
     // ── Domain and accounting ────────────────────────────────────────────────
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
-    #[msg("Invalid map")]
-    InvalidMap,
     #[msg("Invalid level")]
     InvalidLevel,
-    #[msg("Invalid star rating")]
-    InvalidStars,
     #[msg("Protocol is paused")]
     ProtocolPaused,
     #[msg("Unsupported account version")]
@@ -58,12 +51,6 @@ pub enum ErrorCode {
     InvalidRunId,
     #[msg("Finish or abandon the active run before starting another")]
     ActiveRunExists,
-    #[msg("Map is locked")]
-    MapLocked,
-    #[msg("Map is disabled")]
-    MapDisabled,
-    #[msg("Content version mismatch")]
-    ContentVersionMismatch,
     #[msg("Invalid block weights")]
     InvalidBlockWeights,
     #[msg("A VRF request is already pending")]
@@ -104,8 +91,6 @@ pub enum ErrorCode {
     InvalidSession,
     #[msg("The scoped player session has expired")]
     SessionExpired,
-    #[msg("The player label is invalid")]
-    InvalidPlayerLabel,
     #[msg("The featured emblem is invalid or not unlocked")]
     InvalidEmblem,
     #[msg("The provided period is not the canonical current or successor period")]

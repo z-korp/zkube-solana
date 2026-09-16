@@ -20,6 +20,7 @@ import {
 } from "./deploymentManifest.js";
 import { inspectUpgradeableProgram } from "./deploymentRunner.js";
 import { LAUNCH_ACCOUNT_SPACES } from "./launchPlanner.js";
+import { DAILY_RUN_CLOSE_OFFSET } from "../../services/src/arcadeChain.js";
 import {
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
@@ -828,7 +829,7 @@ async function inspectPool(args: {
       `${args.operation.kind} ${args.operation.cadenceId} is not live`,
     );
   }
-  const closesAt = integer(value.runsCloseAt, "pool close time");
+  const closesAt = decodedCadence * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET;
   if (args.observedUnixTimestamp >= closesAt) {
     throw new Error(
       `${args.operation.kind} ${args.operation.cadenceId} has closed`,

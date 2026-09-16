@@ -73,7 +73,6 @@ describe("keeper bounds", () => {
       context: {
         owner,
         runId,
-        runMode: "ranked",
         runLocation: "base",
         includeArenaPlayer: true,
       },

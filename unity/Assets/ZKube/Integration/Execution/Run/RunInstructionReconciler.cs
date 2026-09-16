@@ -61,7 +61,6 @@ namespace ZKube.Integration.Execution
             if (consume != null)
             {
                 if (!evidence.Pending.IsBase) throw new FormatException("Consumption must reconcile on Base");
-                string mode = "daily";
                 var playerInfo = Fresh(evidence, consume.Accounts["player_state"]);
                 if (playerInfo.Envelope == null) return false;
                 var player = accounts.PlayerState(playerInfo.Envelope, owner);
@@ -69,15 +68,14 @@ namespace ZKube.Integration.Execution
                 if (observation.Envelope == null)
                 {
                     if ((current != 0 && addresses.ActiveRun(owner, current) == address) || (await rpc.Placement(address)).IsDelegated) return false;
-                    await accept(new RunSemanticObservation(owner, address, mode, null, evidence.Pending.Endpoint,
+                    await accept(new RunSemanticObservation(owner, address, null, evidence.Pending.Endpoint,
                         observation.Slot, RunSemanticPhase.Consumed, null, false, playerInfo.Envelope));
                     return true;
                 }
                 if (succeeded) return false;
-                return await AcceptRun(observation, owner, address, evidence.Pending.Endpoint, instructions, false, mode);
+                return await AcceptRun(observation, owner, address, evidence.Pending.Endpoint, instructions, false);
             }
             var prepare = instructions.FirstOrDefault(i => i.Name == "enter_arena");
-            string expectedMode = prepare == null ? null : "daily";
             ulong? expectedRun = prepare == null ? (ulong?)null : (ulong)prepare.Arguments["run_id"];
             if (prepare != null)
             {
@@ -89,11 +87,11 @@ namespace ZKube.Integration.Execution
                 ulong slot = (ulong)player["active_run_id"];
                 if (succeeded && (ulong)player["next_run_id"] <= expectedRun.Value) return false;
                 if (succeeded && slot != expectedRun)
-                    return await ConsumedAfterProgress(evidence, address, expectedMode, expectedRun, cancellation);
+                    return await ConsumedAfterProgress(evidence, address, expectedRun, cancellation);
                 if (!succeeded && observation.Envelope == null)
                 {
                     if (slot == expectedRun || (await rpc.Placement(address)).IsDelegated) return false;
-                    await accept(new RunSemanticObservation(owner, address, expectedMode, expectedRun, evidence.Pending.Endpoint,
+                    await accept(new RunSemanticObservation(owner, address, expectedRun, evidence.Pending.Endpoint,
                         observation.Slot, RunSemanticPhase.Absent, null, false));
                     return true;
                 }
@@ -115,7 +113,7 @@ namespace ZKube.Integration.Execution
                     endpoint = rpc.BaseEndpoint;
                     if ((await rpc.Placement(address)).IsDelegated) return false;
                     if (observation.Envelope == null)
-                        return succeeded && await ConsumedAfterProgress(evidence, address, expectedMode, expectedRun, cancellation);
+                        return succeeded && await ConsumedAfterProgress(evidence, address, expectedRun, cancellation);
                     if (observation.Envelope.Owner != protocol.ProgramId ||
                         !RunObservation.IsTerminal(NativeEngine.Summary(native.Reconcile(observation.Envelope, owner)))) return false;
                 }
@@ -138,22 +136,20 @@ namespace ZKube.Integration.Execution
                 }
             }
             if (observation.Envelope == null)
-                return succeeded && await ConsumedAfterProgress(evidence, address, expectedMode, expectedRun, cancellation);
+                return succeeded && await ConsumedAfterProgress(evidence, address, expectedRun, cancellation);
             // A delegated Base envelope is deliberately not decoded as ActiveRun.
             if (observation.Envelope.Owner != protocol.ProgramId) return false;
-            return await AcceptRun(observation, owner, address, endpoint, instructions, succeeded, expectedMode, expectedRun);
+            return await AcceptRun(observation, owner, address, endpoint, instructions, succeeded, expectedRun);
         }
 
         private async Task<bool> AcceptRun(RpcAccount observation, string owner, string address, string endpoint,
-            DecodedProtocolInstruction[] instructions, bool succeeded, string expectedMode = null, ulong? expectedRun = null)
+            DecodedProtocolInstruction[] instructions, bool succeeded, ulong? expectedRun = null)
         {
             var account = accounts.ActiveRun(observation.Envelope, owner);
             var token = native.Reconcile(observation.Envelope, owner);
             var summary = NativeEngine.Summary(token);
-            string mode = Variant(account["mode"]).ToLowerInvariant();
             ulong runId = (ulong)account["run_id"];
-            if (address != addresses.ActiveRun(owner, runId) || (expectedMode != null && mode != expectedMode) ||
-                (expectedRun.HasValue && runId != expectedRun.Value)) throw new FormatException("Observed run does not match signed intent");
+            if (address != addresses.ActiveRun(owner, runId) || (expectedRun.HasValue && runId != expectedRun.Value)) throw new FormatException("Observed run does not match signed intent");
             bool acceptedAction = false;
             if (succeeded)
             {
@@ -172,7 +168,7 @@ namespace ZKube.Integration.Execution
             var phase = RunObservation.IsTerminal(summary) ? RunSemanticPhase.Terminal : lifecycle == "Prepared" || lifecycle == "Delegated"
                 ? RunSemanticPhase.Prepared : RunObservation.IsAcceptedActionReady(summary, (uint)account["pending_vrf_counter"], 0)
                 ? RunSemanticPhase.Ready : RunSemanticPhase.AwaitingRow;
-            await accept(new RunSemanticObservation(owner, address, mode, runId, endpoint, observation.Slot, phase, token, acceptedAction));
+            await accept(new RunSemanticObservation(owner, address, runId, endpoint, observation.Slot, phase, token, acceptedAction));
             return true;
         }
 
@@ -190,13 +186,12 @@ namespace ZKube.Integration.Execution
             var previous = NativeEngine.Summary(native.Reconcile(before, owner));
             var current = NativeEngine.Summary(native.Reconcile(after, owner));
             return (ulong)previousAccount["run_id"] == (ulong)currentAccount["run_id"] &&
-                Variant(previousAccount["mode"]) == Variant(currentAccount["mode"]) &&
                 current.ActionCounter >= previous.ActionCounter && current.LastVrfCounter >= previous.LastVrfCounter &&
                 (uint)currentAccount["vrf_request_counter"] >= (uint)previousAccount["vrf_request_counter"] &&
                 (!RunObservation.IsTerminal(previous) || RunObservation.IsTerminal(current));
         }
         private async Task<bool> ConsumedAfterProgress(ExecutionReconciliation evidence, string address,
-            string mode, ulong? runId, CancellationToken cancellation)
+            ulong? runId, CancellationToken cancellation)
         {
             if ((await rpc.Placement(address)).IsDelegated) return false;
             var batch = await rpc.ReadAccounts(rpc.Base, new[] { address, addresses.Player(evidence.Pending.Owner) },
@@ -209,10 +204,10 @@ namespace ZKube.Integration.Execution
                 if (current != 0 && addresses.ActiveRun(evidence.Pending.Owner, current) == address) return false;
             }
             if (runId.HasValue && (ulong)player["next_run_id"] <= runId.Value) return false;
-            // An action/commit carries no mode or run ID. If already consumed,
+            // An action/commit carries no run ID. If already consumed,
             // only the signed address survives. The sink clears a matching
             // stored address; it must not invent a run result or clear a new run.
-            await accept(new RunSemanticObservation(evidence.Pending.Owner, address, mode, runId,
+            await accept(new RunSemanticObservation(evidence.Pending.Owner, address, runId,
                 rpc.BaseEndpoint, batch.Slot, RunSemanticPhase.Consumed, null, false, batch.Accounts[1].Envelope));
             return true;
         }

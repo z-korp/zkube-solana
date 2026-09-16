@@ -667,6 +667,29 @@ namespace ZKube.Core.Generated
         }
     }
 
+    public sealed class DailyWindowRequest
+    {
+        public const int ByteLength = 6;
+        public const uint Operation = 27;
+        public uint Day { get; set; }
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 4, Day);
+            return bytes;
+        }
+        public static DailyWindowRequest Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyWindowRequest byte length");
+            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
+            return new DailyWindowRequest
+            {
+                Day = (uint)NativeWire.Read(bytes, 2, 4),
+            };
+        }
+    }
+
     public sealed class RunSummary
     {
         public const int ByteLength = 199;
@@ -749,6 +772,24 @@ namespace ZKube.Core.Generated
                 Realm = bytes[4],
                 Kind = bytes[5],
                 Value = bytes[6],
+            };
+        }
+    }
+
+    public sealed class DailyWindow
+    {
+        public const int ByteLength = 24;
+        public ulong OpensAt { get; set; }
+        public ulong FreezesAt { get; set; }
+        public ulong RecoveryDeadlineAt { get; set; }
+        public static DailyWindow Decode(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyWindow byte length");
+            return new DailyWindow
+            {
+                OpensAt = (ulong)NativeWire.Read(bytes, 0, 8),
+                FreezesAt = (ulong)NativeWire.Read(bytes, 8, 8),
+                RecoveryDeadlineAt = (ulong)NativeWire.Read(bytes, 16, 8),
             };
         }
     }

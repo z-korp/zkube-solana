@@ -65,17 +65,5 @@ pub fn handler_set_featured_emblem(
     );
     ctx.accounts.player_state.featured_emblem = emblem_id;
     ctx.accounts.player_state.featured_frame_tier = frame_tier;
-    emit!(FeaturedEmblemSet {
-        owner: ctx.accounts.player_state.owner,
-        emblem_id,
-        frame_tier,
-    });
     Ok(())
-}
-
-#[event]
-pub struct FeaturedEmblemSet {
-    pub owner: Pubkey,
-    pub emblem_id: u8,
-    pub frame_tier: u8,
 }

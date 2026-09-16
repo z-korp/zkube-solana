@@ -68,14 +68,12 @@ pub fn player(active: u64, next: u64) -> PlayerState {
 pub fn daily(day: u32) -> ArenaDaily {
     let selection = daily_content_for_day(day);
     let realm = zkube_core::REALM_RULES[usize::from(selection.realm_map_id - 1)];
-    let (opens_at, runs_close_at, recovery_deadline_at) = day_window(day).unwrap();
     ArenaDaily {
         version: ARCADE_ACCOUNT_VERSION,
         day_id: day,
         arcade_config: singleton(ARCADE_CONFIG_SEED),
         status: PeriodStatus::Open,
         predecessor_rollover_applied: true,
-        catalog_version: zkube_core::CATALOG_VERSION,
         rules_hash: zkube_core::daily_rules_hash(
             day,
             realm.guardian,
@@ -83,13 +81,6 @@ pub fn daily(day: u32) -> ArenaDaily {
             selection.objective.to_core().unwrap(),
         )
         .0,
-        map_id: selection.realm_map_id,
-        daily_theme: selection.objective,
-        rules: RealmRuleSnapshot::from_core(realm),
-        pressure: DailyPressureProfile::canonical(),
-        opens_at,
-        runs_close_at,
-        recovery_deadline_at,
         finalized_at: 0,
         ledger: PoolLedger::default(),
         entries_paid: 0,

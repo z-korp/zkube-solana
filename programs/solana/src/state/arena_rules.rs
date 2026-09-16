@@ -1,11 +1,9 @@
-//! Protocol-fixed Daily content and pressure snapshots.
+//! Protocol-fixed Daily content selection and active-run objective snapshots.
 
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 use crate::state::arcade::SolanaSha256;
-
-pub const DAILY_MAX_MOVES: u16 = zkube_core::DAILY_MAX_MOVES;
 
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
@@ -38,35 +36,10 @@ impl DailyThemeSnapshot {
     }
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, InitSpace, PartialEq, Eq)]
-pub struct DailyPressureProfile {
-    pub max_moves: u16,
-}
-
-impl Default for DailyPressureProfile {
-    fn default() -> Self {
-        Self::canonical()
-    }
-}
-
-impl DailyPressureProfile {
-    pub const fn canonical() -> Self {
-        Self {
-            max_moves: DAILY_MAX_MOVES,
-        }
-    }
-
-    pub fn validate(self) -> Result<()> {
-        require!(self.max_moves == DAILY_MAX_MOVES, ErrorCode::InvalidLevel);
-        Ok(())
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DailyContentSelection {
     pub realm_map_id: u8,
     pub objective: DailyThemeSnapshot,
-    pub pressure: DailyPressureProfile,
 }
 
 #[must_use]
@@ -75,7 +48,6 @@ pub fn daily_content_for_day(day_id: u32) -> DailyContentSelection {
     DailyContentSelection {
         realm_map_id,
         objective: DailyThemeSnapshot::from_core(objective),
-        pressure: DailyPressureProfile::canonical(),
     }
 }
 

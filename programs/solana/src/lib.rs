@@ -36,17 +36,6 @@ pub mod solana {
         instructions::content_instructions::handler_initialize_player(ctx)
     }
 
-    pub fn create_player_label(
-        ctx: Context<CreatePlayerLabel>,
-        args: PlayerLabelArgs,
-    ) -> Result<()> {
-        instructions::player_label_instructions::handler_create_player_label(ctx, args)
-    }
-
-    pub fn set_player_label(ctx: Context<SetPlayerLabel>, args: PlayerLabelArgs) -> Result<()> {
-        instructions::player_label_instructions::handler_set_player_label(ctx, args)
-    }
-
     pub fn set_featured_emblem(
         ctx: Context<SetFeaturedEmblem>,
         emblem_id: u8,

@@ -46,12 +46,6 @@ export function derivePlayerStatePda(
   return derive([Buffer.from("player"), owner.toBuffer()], programId);
 }
 
-export function derivePlayerLabelPda(
-  owner: PublicKey,
-  programId = ZKUBE_PROGRAM_ID,
-): PublicKey {
-  return derive([Buffer.from("label"), owner.toBuffer()], programId);
-}
 
 export function deriveArenaDailyPda(
   dayId: number,

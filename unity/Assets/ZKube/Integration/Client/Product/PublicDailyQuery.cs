@@ -15,6 +15,7 @@ namespace ZKube.Integration.Client
     public sealed class PublicDaily
     {
         private readonly JObject daily;
+        private readonly DailyWindow window;
         public uint DayId { get; }
         public ulong Slot { get; }
         public long ObservedAt { get; }
@@ -26,14 +27,14 @@ namespace ZKube.Integration.Client
         public byte ObjectiveValue { get; }
         public ulong? PotLamports { get; }
         public bool HasPublication => daily != null;
-        public long? OpensAt => daily == null ? (long?)null : (long)daily["opens_at"];
-        public long? FreezesAt => daily == null ? (long?)null : (long)daily["runs_close_at"];
-        public byte? StartingHeight => daily == null ? (byte?)null : (byte)daily["rules"]["starting_rows"];
+        public long? OpensAt => daily == null ? (long?)null : (long)window.OpensAt;
+        public long? FreezesAt => daily == null ? (long?)null : (long)window.FreezesAt;
+        public byte? StartingHeight => daily == null ? (byte?)null : NativeEngine.CampaignRules(Realm, 1).StartingHeight;
         public JObject Daily => (JObject)daily?.DeepClone();
         internal PublicDaily(uint day, ulong slot, long timestamp, string status, bool suspended,
             bool paused, byte realm, byte kind, byte value, ulong? pool, JObject fields)
         {
-            DayId = day; Slot = slot; ObservedAt = timestamp; Status = status;
+            DayId = day; window = NativeEngine.DailyWindow(day); Slot = slot; ObservedAt = timestamp; Status = status;
             Suspended = suspended; ProtocolPaused = paused; Realm = realm;
             ObjectiveKind = kind; ObjectiveValue = value; PotLamports = pool;
             daily = (JObject)fields?.DeepClone();
@@ -73,7 +74,6 @@ namespace ZKube.Integration.Client
             var protocol = protocolEnvelope == null ? null : accounts.ProtocolConfig(protocolEnvelope);
             var arcade = arcadeEnvelope == null ? null : accounts.ArcadeConfig(arcadeEnvelope);
             var daily = dailyEnvelope == null ? null : accounts.ArenaDaily(dailyEnvelope, day);
-            if (daily != null && protocol != null) ValidateDailyPublication(daily, protocol, day);
             var pair = NativeEngine.DailyPair(day);
             bool paused = protocol != null && (bool)protocol["paused"];
             bool suspended = arcade != null && day < (uint)arcade["suspended_until_day"];
@@ -87,26 +87,16 @@ namespace ZKube.Integration.Client
                 published ? daily : null);
         }
 
-        internal static void ValidateDailyPublication(JObject daily, JObject protocol, uint day)
-        {
-            var pair = NativeEngine.DailyPair(day);
-            if ((uint)daily["catalog_version"] != Protocol.CatalogVersion)
-                throw new FormatException("Daily catalog version is unsupported");
-            if ((uint)daily["pressure"]["max_moves"] != Protocol.DailyMaxMoves)
-                throw new FormatException("Daily move limit differs from protocol: expected " + Protocol.DailyMaxMoves + ", observed " + (uint)daily["pressure"]["max_moves"]);
-            if ((byte)daily["map_id"] != pair.Realm || (byte)daily["daily_theme"]["kind"] != pair.Kind ||
-                (byte)daily["daily_theme"]["value"] != pair.Value)
-                throw new FormatException("Daily content disagrees with the protocol draw");
-        }
 
         internal static long ValidateClock(long timestamp)
         { if (timestamp < 0 || timestamp / 86400 > uint.MaxValue) throw new ArgumentOutOfRangeException("now"); return timestamp; }
         internal static uint CurrentDay(long timestamp) => checked((uint)(timestamp / 86400));
         internal static string DailyStatus(JObject daily, long timestamp)
         {
+            var window = NativeEngine.DailyWindow((uint)daily["day_id"]);
             string status = ((JObject)daily["status"]).Properties().Single().Name.ToLowerInvariant();
-            return status == "open" && timestamp >= (long)daily["runs_close_at"] ? "frozen"
-                : status == "open" && timestamp < (long)daily["opens_at"] ? "not-open" : status;
+            return status == "open" && timestamp >= (long)window.FreezesAt ? "frozen"
+                : status == "open" && timestamp < (long)window.OpensAt ? "not-open" : status;
         }
         private static ulong AvailablePool(JToken ledger)
         {

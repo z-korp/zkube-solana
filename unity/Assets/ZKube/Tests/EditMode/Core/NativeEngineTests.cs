@@ -10,7 +10,7 @@ namespace ZKube.Core.Tests
 {
     public sealed class NativeEngineTests
     {
-        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; public Step[] campaignBoundary; }
+        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; public Step[] campaignBoundary; public Step[] dailyWindows; }
         [Serializable] public sealed class LocalRandomness { public string seedHex, outputHex; public uint counter; }
         [Serializable] public sealed class Trajectory { public string name; public string origin; public string configHex; public string initialStateHex; public string finalStateHex; public string finalReplayHex; public Step[] steps; }
         [Serializable] public sealed class Step { public uint operation; public string requestHex; public string responseHex; }
@@ -99,6 +99,19 @@ namespace ZKube.Core.Tests
             var playing = NativeEngine.Initialize(NativeEngine.CampaignRules(1, 1));
             Assert.That(Assert.Throws<NativeEngineException>(() => NativeEngine.RecordLocalCampaignResult(new byte[25], 1, 1, playing)).Status,
                 Is.EqualTo(NativeStatus.InvalidEncoding));
+        }
+
+        [Test] public void DailyWindowUsesTheCoreAcrossTheFullDayRange()
+        {
+            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").dailyWindows)
+            {
+                var request = DailyWindowRequest.Decode(Hex(vector.requestHex));
+                var expected = DailyWindow.Decode(Hex(vector.responseHex));
+                var actual = NativeEngine.DailyWindow(request.Day);
+                Assert.That(actual.OpensAt, Is.EqualTo(expected.OpensAt));
+                Assert.That(actual.FreezesAt, Is.EqualTo(expected.FreezesAt));
+                Assert.That(actual.RecoveryDeadlineAt, Is.EqualTo(expected.RecoveryDeadlineAt));
+            }
         }
 
         [Test] public void LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds()

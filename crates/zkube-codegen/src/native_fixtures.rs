@@ -64,6 +64,26 @@ fn local_randomness_vectors() -> Result<Vec<Value>, String> {
     Ok(vectors)
 }
 
+fn daily_window_vectors() -> Vec<Value> {
+    [0_u32, 1, 20_000, u32::MAX]
+        .into_iter()
+        .map(|day| {
+            let mut request = Request::new(27);
+            request.put("Day", &day.to_le_bytes());
+            let (opens, closes, recovery) = zkube_core::daily_window(day);
+            let expected = [
+                opens.to_le_bytes(),
+                closes.to_le_bytes(),
+                recovery.to_le_bytes(),
+            ]
+            .concat();
+            assert_eq!(native::dispatch(27, &request.bytes).unwrap(), expected);
+            json!({"name": format!("daily-window-{day}"), "operation": 27,
+            "requestHex": hex(&request.bytes), "responseHex": hex(&expected)})
+        })
+        .collect()
+}
+
 fn campaign_boundary_vectors(
     catalog: &CampaignCatalog,
     cases: &[Value],
@@ -787,7 +807,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         cases.push(t.finish());
     }
     serde_json::to_string_pretty(&json!({ "schemaVersion": 1, "coreVersion": CORE_VERSION,
-            "campaignBoundary": campaign_boundary_vectors(catalog, &cases)?, "dailyPublication": daily_publication()?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
+            "dailyWindows": daily_window_vectors(), "campaignBoundary": campaign_boundary_vectors(catalog, &cases)?, "dailyPublication": daily_publication()?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
     .map(|s| s + "\n")
     .map_err(|e| e.to_string())
 }

@@ -1020,115 +1020,6 @@ export type Solana = {
       "args": []
     },
     {
-      "name": "createPlayerLabel",
-      "discriminator": [
-        61,
-        83,
-        168,
-        37,
-        203,
-        195,
-        254,
-        100
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerState",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerLabel",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  97,
-                  98,
-                  101,
-                  108
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "playerLabelArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "delegateActiveRun",
       "discriminator": [
         219,
@@ -3652,106 +3543,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "setPlayerLabel",
-      "discriminator": [
-        9,
-        240,
-        56,
-        233,
-        167,
-        202,
-        97,
-        44
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerState",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerLabel",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  97,
-                  98,
-                  101,
-                  108
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "ownerAuthority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ownerAuthority"
-        },
-        {
-          "name": "sessionToken",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "playerLabelArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "setProtocolPause",
       "discriminator": [
         19,
@@ -4262,19 +4053,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "playerLabel",
-      "discriminator": [
-        190,
-        106,
-        117,
-        227,
-        51,
-        162,
-        202,
-        216
-      ]
-    },
-    {
       "name": "playerState",
       "discriminator": [
         56,
@@ -4298,177 +4076,6 @@ export type Solana = {
         179,
         215,
         209
-      ]
-    }
-  ],
-  "events": [
-    {
-      "name": "arenaSuspensionChanged",
-      "discriminator": [
-        13,
-        52,
-        138,
-        12,
-        223,
-        169,
-        57,
-        202
-      ]
-    },
-    {
-      "name": "cadenceArchived",
-      "discriminator": [
-        233,
-        44,
-        114,
-        4,
-        20,
-        38,
-        100,
-        186
-      ]
-    },
-    {
-      "name": "dailyClaimsExpired",
-      "discriminator": [
-        170,
-        108,
-        47,
-        73,
-        96,
-        233,
-        198,
-        92
-      ]
-    },
-    {
-      "name": "dailyPrizeClaimed",
-      "discriminator": [
-        216,
-        54,
-        95,
-        104,
-        170,
-        90,
-        193,
-        179
-      ]
-    },
-    {
-      "name": "featuredEmblemSet",
-      "discriminator": [
-        108,
-        243,
-        154,
-        135,
-        9,
-        73,
-        25,
-        108
-      ]
-    },
-    {
-      "name": "kreditsPurchased",
-      "discriminator": [
-        70,
-        98,
-        220,
-        228,
-        8,
-        206,
-        14,
-        217
-      ]
-    },
-    {
-      "name": "playerLabelSet",
-      "discriminator": [
-        74,
-        160,
-        127,
-        145,
-        172,
-        254,
-        51,
-        31
-      ]
-    },
-    {
-      "name": "prizePoolFunded",
-      "discriminator": [
-        38,
-        202,
-        147,
-        153,
-        180,
-        195,
-        54,
-        247
-      ]
-    },
-    {
-      "name": "protocolAuthorityAccepted",
-      "discriminator": [
-        14,
-        90,
-        138,
-        158,
-        76,
-        49,
-        104,
-        97
-      ]
-    },
-    {
-      "name": "protocolAuthorityProposed",
-      "discriminator": [
-        73,
-        229,
-        220,
-        91,
-        40,
-        178,
-        53,
-        17
-      ]
-    },
-    {
-      "name": "protocolPauseChanged",
-      "discriminator": [
-        67,
-        33,
-        235,
-        73,
-        71,
-        124,
-        172,
-        110
-      ]
-    },
-    {
-      "name": "suspendedArenaDailySkipped",
-      "discriminator": [
-        147,
-        132,
-        190,
-        234,
-        106,
-        165,
-        55,
-        137
-      ]
-    },
-    {
-      "name": "teamDestinationChanged",
-      "discriminator": [
-        25,
-        40,
-        202,
-        69,
-        125,
-        154,
-        54,
-        205
       ]
     }
   ],
@@ -4520,196 +4127,161 @@ export type Solana = {
     },
     {
       "code": 6009,
-      "name": "challengeNotStarted",
-      "msg": "The Daily challenge has not started"
-    },
-    {
-      "code": 6010,
       "name": "challengeEnded",
       "msg": "The Daily challenge entry or play window has ended"
     },
     {
-      "code": 6011,
+      "code": 6010,
       "name": "challengeNotEnded",
       "msg": "The Daily challenge has not ended"
     },
     {
-      "code": 6012,
+      "code": 6011,
       "name": "alreadySubmitted",
       "msg": "This Daily attempt has already been submitted"
     },
     {
-      "code": 6013,
+      "code": 6012,
       "name": "arithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6014,
-      "name": "invalidMap",
-      "msg": "Invalid map"
-    },
-    {
-      "code": 6015,
+      "code": 6013,
       "name": "invalidLevel",
       "msg": "Invalid level"
     },
     {
-      "code": 6016,
-      "name": "invalidStars",
-      "msg": "Invalid star rating"
-    },
-    {
-      "code": 6017,
+      "code": 6014,
       "name": "protocolPaused",
       "msg": "Protocol is paused"
     },
     {
-      "code": 6018,
+      "code": 6015,
       "name": "invalidVersion",
       "msg": "Unsupported account version"
     },
     {
-      "code": 6019,
+      "code": 6016,
       "name": "invalidRunId",
       "msg": "Invalid run id"
     },
     {
-      "code": 6020,
+      "code": 6017,
       "name": "activeRunExists",
       "msg": "Finish or abandon the active run before starting another"
     },
     {
-      "code": 6021,
-      "name": "mapLocked",
-      "msg": "Map is locked"
-    },
-    {
-      "code": 6022,
-      "name": "mapDisabled",
-      "msg": "Map is disabled"
-    },
-    {
-      "code": 6023,
-      "name": "contentVersionMismatch",
-      "msg": "Content version mismatch"
-    },
-    {
-      "code": 6024,
+      "code": 6018,
       "name": "invalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6025,
+      "code": 6019,
       "name": "vrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6026,
+      "code": 6020,
       "name": "noVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6027,
+      "code": 6021,
       "name": "vrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6028,
+      "code": 6022,
       "name": "noPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6029,
+      "code": 6023,
       "name": "prizeAlreadyClaimed",
       "msg": "This Daily prize position was already claimed"
     },
     {
-      "code": 6030,
+      "code": 6024,
       "name": "claimWindowClosed",
       "msg": "The Daily prize claim window has closed"
     },
     {
-      "code": 6031,
+      "code": 6025,
       "name": "claimWindowOpen",
       "msg": "The Daily prize claim window is still open"
     },
     {
-      "code": 6032,
+      "code": 6026,
       "name": "boardCapacityExceeded",
       "msg": "The payout board exceeds the protocol safety ceiling"
     },
     {
-      "code": 6033,
+      "code": 6027,
       "name": "boardIncomplete",
       "msg": "The payout board is incomplete or unsealed"
     },
     {
-      "code": 6034,
+      "code": 6028,
       "name": "boardEntryMismatch",
       "msg": "A submitted payout row does not match its ArenaPlayer source"
     },
     {
-      "code": 6035,
+      "code": 6029,
       "name": "boardEntryOutOfOrder",
       "msg": "Submitted payout rows are not in canonical order"
     },
     {
-      "code": 6036,
+      "code": 6030,
       "name": "duplicateBoardPlayer",
       "msg": "A player appears more than once on a payout board"
     },
     {
-      "code": 6037,
+      "code": 6031,
       "name": "accountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6038,
+      "code": 6032,
       "name": "priceChanged",
       "msg": "The Arena entry price changed; refresh the exact quote"
     },
     {
-      "code": 6039,
+      "code": 6033,
       "name": "insufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6040,
+      "code": 6034,
       "name": "invalidKreditPurchase",
       "msg": "A Kredit purchase must contain a positive whole-number count at the exact unit price"
     },
     {
-      "code": 6041,
+      "code": 6035,
       "name": "dailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6042,
+      "code": 6036,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6043,
+      "code": 6037,
       "name": "sessionExpired",
       "msg": "The scoped player session has expired"
     },
     {
-      "code": 6044,
-      "name": "invalidPlayerLabel",
-      "msg": "The player label is invalid"
-    },
-    {
-      "code": 6045,
+      "code": 6038,
       "name": "invalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6046,
+      "code": 6039,
       "name": "invalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     },
     {
-      "code": 6047,
+      "code": 6040,
       "name": "alreadySeeded",
       "msg": "The first Daily was already seeded"
     }
@@ -4742,14 +4314,6 @@ export type Solana = {
           {
             "name": "runId",
             "type": "u64"
-          },
-          {
-            "name": "mode",
-            "type": {
-              "defined": {
-                "name": "runMode"
-              }
-            }
           },
           {
             "name": "lifecycle",
@@ -5177,10 +4741,6 @@ export type Solana = {
             "type": "bool"
           },
           {
-            "name": "catalogVersion",
-            "type": "u32"
-          },
-          {
             "name": "rulesHash",
             "type": {
               "array": [
@@ -5188,46 +4748,6 @@ export type Solana = {
                 32
               ]
             }
-          },
-          {
-            "name": "mapId",
-            "type": "u8"
-          },
-          {
-            "name": "dailyTheme",
-            "type": {
-              "defined": {
-                "name": "dailyThemeSnapshot"
-              }
-            }
-          },
-          {
-            "name": "rules",
-            "type": {
-              "defined": {
-                "name": "realmRuleSnapshot"
-              }
-            }
-          },
-          {
-            "name": "pressure",
-            "type": {
-              "defined": {
-                "name": "dailyPressureProfile"
-              }
-            }
-          },
-          {
-            "name": "opensAt",
-            "type": "i64"
-          },
-          {
-            "name": "runsCloseAt",
-            "type": "i64"
-          },
-          {
-            "name": "recoveryDeadlineAt",
-            "type": "i64"
           },
           {
             "name": "finalizedAt",
@@ -5358,56 +4878,6 @@ export type Solana = {
       }
     },
     {
-      "name": "arenaSuspensionChanged",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "previous",
-            "type": "u32"
-          },
-          {
-            "name": "suspendedUntilDay",
-            "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "cadenceArchived",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "periodId",
-            "type": "u32"
-          },
-          {
-            "name": "resultHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "root",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
       "name": "competitionRecord",
       "type": {
         "kind": "struct",
@@ -5418,10 +4888,6 @@ export type Solana = {
               "Zero means no payout-bearing Daily rank."
             ],
             "type": "u16"
-          },
-          {
-            "name": "podiums",
-            "type": "u32"
           },
           {
             "name": "wins",
@@ -5483,90 +4949,6 @@ export type Solana = {
       }
     },
     {
-      "name": "dailyClaimsExpired",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "dayId",
-            "type": "u32"
-          },
-          {
-            "name": "claimedLamports",
-            "type": "u64"
-          },
-          {
-            "name": "expiredLamports",
-            "type": "u64"
-          },
-          {
-            "name": "rolloverLamports",
-            "type": "u64"
-          },
-          {
-            "name": "followingDayId",
-            "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "dailyPressureProfile",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "maxMoves",
-            "type": "u16"
-          }
-        ]
-      }
-    },
-    {
-      "name": "dailyPrizeClaimed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "dayId",
-            "type": "u32"
-          },
-          {
-            "name": "board",
-            "type": {
-              "defined": {
-                "name": "dailyBoardKind"
-              }
-            }
-          },
-          {
-            "name": "rank",
-            "type": "u16"
-          },
-          {
-            "name": "rewardLamports",
-            "type": "u64"
-          },
-          {
-            "name": "pointsEarned",
-            "type": "u32"
-          },
-          {
-            "name": "ladderPoints",
-            "type": "u64"
-          },
-          {
-            "name": "highestLadderTier",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "dailyThemeSnapshot",
       "type": {
         "kind": "struct",
@@ -5577,26 +4959,6 @@ export type Solana = {
           },
           {
             "name": "value",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "featuredEmblemSet",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "emblemId",
-            "type": "u8"
-          },
-          {
-            "name": "frameTier",
             "type": "u8"
           }
         ]
@@ -5639,30 +5001,6 @@ export type Solana = {
                 32
               ]
             }
-          }
-        ]
-      }
-    },
-    {
-      "name": "kreditsPurchased",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "kreditCount",
-            "type": "u32"
-          },
-          {
-            "name": "prizeLamports",
-            "type": "u64"
-          },
-          {
-            "name": "operatorLamports",
-            "type": "u64"
           }
         ]
       }
@@ -5713,75 +5051,6 @@ export type Solana = {
       }
     },
     {
-      "name": "playerLabel",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "displayName",
-            "type": {
-              "array": [
-                "u8",
-                16
-              ]
-            }
-          },
-          {
-            "name": "nameLen",
-            "type": "u8"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "playerLabelArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "display",
-            "type": "string"
-          }
-        ]
-      }
-    },
-    {
-      "name": "playerLabelSet",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "playerLabel",
-            "type": "pubkey"
-          },
-          {
-            "name": "display",
-            "type": "string"
-          },
-          {
-            "name": "created",
-            "type": "bool"
-          }
-        ]
-      }
-    },
-    {
       "name": "playerState",
       "type": {
         "kind": "struct",
@@ -5814,14 +5083,6 @@ export type Solana = {
             "type": "pubkey"
           },
           {
-            "name": "activeRunMode",
-            "type": {
-              "defined": {
-                "name": "runMode"
-              }
-            }
-          },
-          {
             "name": "activeRunDeadlineAt",
             "type": "i64"
           },
@@ -5852,13 +5113,6 @@ export type Solana = {
               "Zero selects the strongest currently unlocked emblem automatically."
             ],
             "type": "u8"
-          },
-          {
-            "name": "lifetimePaidEntries",
-            "docs": [
-              "Incremented exactly once when one prepaid Kredit starts a ranked run."
-            ],
-            "type": "u64"
           },
           {
             "name": "scoreRecord",
@@ -5984,58 +5238,6 @@ export type Solana = {
       }
     },
     {
-      "name": "prizePoolFunded",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "periodId",
-            "type": "u32"
-          },
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "lamports",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "protocolAuthorityAccepted",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "previousAuthority",
-            "type": "pubkey"
-          },
-          {
-            "name": "authority",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "protocolAuthorityProposed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "pendingAuthority",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
       "name": "protocolConfig",
       "type": {
         "kind": "struct",
@@ -6075,22 +5277,6 @@ export type Solana = {
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "protocolPauseChanged",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "paused",
-            "type": "bool"
           }
         ]
       }
@@ -6153,17 +5339,6 @@ export type Solana = {
       }
     },
     {
-      "name": "runMode",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "daily"
-          }
-        ]
-      }
-    },
-    {
       "name": "sessionTokenV2",
       "type": {
         "kind": "struct",
@@ -6216,42 +5391,6 @@ export type Solana = {
                 32
               ]
             }
-          }
-        ]
-      }
-    },
-    {
-      "name": "suspendedArenaDailySkipped",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "dayId",
-            "type": "u32"
-          },
-          {
-            "name": "successorDayId",
-            "type": "u32"
-          },
-          {
-            "name": "rolloverLamports",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "teamDestinationChanged",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "previousTeamDestination",
-            "type": "pubkey"
-          },
-          {
-            "name": "teamDestination",
-            "type": "pubkey"
           }
         ]
       }

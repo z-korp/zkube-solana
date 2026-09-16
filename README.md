@@ -173,7 +173,7 @@ that partial state, while an untouched run expires. Late VRF output is ignored,
 and expired state can never become scoreable later.
 
 Replay commitments bind the chain domain, challenge, rules hash, player, run ID,
-and mode, then fold ordered VRF, action, bonus, abandon, and deadline events
+and the encoding's fixed tag, then fold ordered VRF, action, bonus, abandon, and deadline events
 with SHA-256. Every payout-bearing leaderboard row retains its replay
 commitment, so results stay independently recomputable while move lists live
 off-chain.

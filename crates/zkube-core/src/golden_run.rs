@@ -60,7 +60,6 @@ struct GoldenDailyRun {
     challenge_id_hex: String,
     raw_account_hex: String,
     run_id: String,
-    mode: String,
     rules: GoldenRules,
     rules_snapshot_hash_hex: String,
     day_id: u32,
@@ -104,17 +103,12 @@ fn verify_daily_run_vector(json: &str) {
     let domain = ChainDomain(decode_32(&fixture.chain_domain_hex));
     let challenge = ChallengeId(decode_32(&fixture.challenge_id_hex));
     let player_id = derive_player_id(domain, decode_32(&fixture.raw_account_hex));
-    let mode = match fixture.mode.as_str() {
-        "ranked" => ReplayMode::Ranked,
-        _ => panic!("unknown mode"),
-    };
     let initial_replay = ReplayCommitment::initial(
         domain,
         challenge,
         rules_hash,
         player_id,
         fixture.run_id.parse().unwrap(),
-        mode,
     );
     let config = RunConfig {
         rules_hash,

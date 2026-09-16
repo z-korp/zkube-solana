@@ -25,10 +25,6 @@ pub fn handler_set_protocol_pause(ctx: Context<SetProtocolPause>, paused: bool) 
         ErrorCode::InvalidState
     );
     ctx.accounts.protocol.paused = paused;
-    emit!(ProtocolPauseChanged {
-        authority: ctx.accounts.authority.key(),
-        paused,
-    });
     Ok(())
 }
 
@@ -59,13 +55,7 @@ pub fn handler_set_arena_suspension(
         ctx.accounts.arcade_config.suspended_until_day != suspended_until_day,
         ErrorCode::InvalidState
     );
-    let previous = ctx.accounts.arcade_config.suspended_until_day;
     ctx.accounts.arcade_config.suspended_until_day = suspended_until_day;
-    emit!(ArenaSuspensionChanged {
-        authority: ctx.accounts.authority.key(),
-        previous,
-        suspended_until_day,
-    });
     Ok(())
 }
 
@@ -97,10 +87,6 @@ pub fn handler_propose_protocol_authority(
         ErrorCode::InvalidOwner
     );
     ctx.accounts.protocol.pending_authority = pending_authority;
-    emit!(ProtocolAuthorityProposed {
-        authority: ctx.accounts.authority.key(),
-        pending_authority,
-    });
     Ok(())
 }
 
@@ -118,13 +104,8 @@ pub struct AcceptProtocolAuthority<'info> {
 }
 
 pub fn handler_accept_protocol_authority(ctx: Context<AcceptProtocolAuthority>) -> Result<()> {
-    let previous_authority = ctx.accounts.protocol.authority;
     ctx.accounts.protocol.authority = ctx.accounts.pending_authority.key();
     ctx.accounts.protocol.pending_authority = Pubkey::default();
-    emit!(ProtocolAuthorityAccepted {
-        previous_authority,
-        authority: ctx.accounts.pending_authority.key(),
-    });
     Ok(())
 }
 
@@ -151,42 +132,6 @@ pub struct UpdateTeamDestination<'info> {
 pub fn handler_update_team_destination(ctx: Context<UpdateTeamDestination>) -> Result<()> {
     let team_destination = ctx.accounts.team_destination.key();
     validate_team_destination(team_destination)?;
-    let previous_team_destination = ctx.accounts.protocol.team_destination;
     ctx.accounts.protocol.team_destination = team_destination;
-    emit!(TeamDestinationChanged {
-        previous_team_destination,
-        team_destination,
-    });
     Ok(())
-}
-
-#[event]
-pub struct ProtocolPauseChanged {
-    pub authority: Pubkey,
-    pub paused: bool,
-}
-
-#[event]
-pub struct ArenaSuspensionChanged {
-    pub authority: Pubkey,
-    pub previous: u32,
-    pub suspended_until_day: u32,
-}
-
-#[event]
-pub struct ProtocolAuthorityProposed {
-    pub authority: Pubkey,
-    pub pending_authority: Pubkey,
-}
-
-#[event]
-pub struct ProtocolAuthorityAccepted {
-    pub previous_authority: Pubkey,
-    pub authority: Pubkey,
-}
-
-#[event]
-pub struct TeamDestinationChanged {
-    pub previous_team_destination: Pubkey,
-    pub team_destination: Pubkey,
 }

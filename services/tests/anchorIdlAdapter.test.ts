@@ -17,17 +17,17 @@ import {
 } from "../src/arcadeChain";
 
 const SOURCE_IDL_SHA256 =
-  "7a22ac80ee1857ea3645f5193536d89259626ffb33db94aba0f648897fd692ee";
+  "4ffc3f357ce4eb177c0295355e6bf99f829256e25292a398c8f3f169cfc8990c";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = KeeperOperation;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 41 instructions and 11 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 39 instructions and 10 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(41);
-    expect(idl.accounts).toHaveLength(11);
+    expect(idl.instructions).toHaveLength(39);
+    expect(idl.accounts).toHaveLength(10);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
       "finalize_season",
@@ -176,7 +176,6 @@ function ranked(
     owner,
     rentRecipient: Keypair.generate().publicKey,
     runId: RUN_ID,
-    runMode: "ranked",
     runLocation,
     includeArenaPlayer: true,
     challengeDayId: DAY,

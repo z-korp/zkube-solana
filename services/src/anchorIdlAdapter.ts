@@ -74,7 +74,7 @@ export const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "7a22ac80ee1857ea3645f5193536d89259626ffb33db94aba0f648897fd692ee";
+  "4ffc3f357ce4eb177c0295355e6bf99f829256e25292a398c8f3f169cfc8990c";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -131,7 +131,6 @@ interface PlayerStateRecord {
   nextRunId: bigint;
   activeRunId: bigint;
   activeRunDaily: PublicKey;
-  activeRunMode: "ranked";
   activeRunDeadlineAt: number;
   orphanRunId: bigint;
 }
@@ -807,10 +806,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     for (const item of loaded) {
       const dayId = u32(item.value.dayId, "ArenaDaily day id");
       const dayStart = dayId * SECONDS_PER_DAY;
-      const runsCloseAt = timestamp(item.value.runsCloseAt, "ArenaDaily run close");
-      if (!item.address.equals(arenaDailyPda(dayId)) ||
-          timestamp(item.value.opensAt, "ArenaDaily open") !== dayStart ||
-          !validDailyWindow(dayStart, runsCloseAt)) {
+      const runsCloseAt = dayStart + DAILY_RUN_CLOSE_OFFSET;
+      if (!item.address.equals(arenaDailyPda(dayId))) {
         throw new Error("ArenaDaily PDA or cadence relationship is invalid");
       }
       requirePublicKey(
@@ -892,10 +889,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         status,
         finalizedAt,
         runsCloseAt,
-        recoveryDeadlineAt: timestamp(
-          item.value.recoveryDeadlineAt,
-          "ArenaDaily recovery deadline",
-        ),
+        recoveryDeadlineAt: runsCloseAt + RUN_RECOVERY_SECONDS,
         entriesPaid: bigint(item.value.entriesPaid, "ArenaDaily paid entries"),
         entriesScored: bigint(item.value.entriesScored, "ArenaDaily scored entries"),
         entriesExpired: bigint(item.value.entriesExpired, "ArenaDaily expired entries"),
@@ -1110,7 +1104,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         loaded.value.activeRunDaily,
         "PlayerState active run Daily",
       );
-      const activeRunMode = runMode(loaded.value.activeRunMode, "PlayerState active run mode");
       const activeRunDeadlineAt = signedTimestamp(
         loaded.value.activeRunDeadlineAt,
         "PlayerState active run deadline",
@@ -1143,7 +1136,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         nextRunId,
         activeRunId,
         activeRunDaily,
-        activeRunMode,
         activeRunDeadlineAt,
         orphanRunId,
       };
@@ -1167,7 +1159,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             true,
             dailyByAddress,
             {
-              mode: player.activeRunMode,
               daily: player.activeRunDaily,
               deadlineAt: player.activeRunDeadlineAt,
             },
@@ -1191,7 +1182,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           output.push({
             owner: player.owner,
             runId: player.activeRunId,
-            mode: player.activeRunMode,
             challengeDayId: cadence.challengeDayId,
             deadlineDayId: cadence.deadlineDayId,
             arenaPlayerExists,
@@ -1226,7 +1216,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     reservationActive: boolean,
     dailyByAddress: ReadonlyMap<string, DailySnapshot>,
     expected?: {
-      mode: "ranked";
       daily: PublicKey;
       deadlineAt: number;
     },
@@ -1262,11 +1251,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     if (!owner.equals(player.owner) || decodedRunId !== runId) {
       throw new Error("ActiveRun identity is invalid");
     }
-    const mode = runMode(loaded.value.mode, "ActiveRun mode");
     const deadlineAt = signedTimestamp(loaded.value.deadlineAt, "ActiveRun deadline");
     const dailyAddress = publicKey(loaded.value.dailyChallenge, "ActiveRun Daily");
     if (reservationActive &&
-        (!expected || mode !== expected.mode || !dailyAddress.equals(expected.daily) ||
+        (!expected || !dailyAddress.equals(expected.daily) ||
           deadlineAt !== expected.deadlineAt)) {
       throw new Error("ActiveRun does not match its durable reservation");
     }
@@ -1282,7 +1270,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       owner,
       rentPayer,
       runId,
-      mode,
       challengeDayId: cadence.challengeDayId,
       deadlineDayId: cadence.deadlineDayId,
       arenaPlayerExists,
@@ -1549,12 +1536,6 @@ function rankedCadenceFromDeadline(
   return { challengeDayId, deadlineDayId: challengeDayId };
 }
 
-function validDailyWindow(
-  dayStart: number,
-  runsCloseAt: number,
-): boolean {
-  return runsCloseAt === dayStart + DAILY_RUN_CLOSE_OFFSET;
-}
 
 function instructionRecord(idl: Idl, name: string): {
   accounts: readonly unknown[];
@@ -1606,11 +1587,6 @@ function periodStatus(value: unknown, label: string): PeriodStatus {
   return variant;
 }
 
-function runMode(value: unknown, label: string): "ranked" {
-  const variant = enumVariant(value, label);
-  if (variant === "daily") return "ranked";
-  throw new Error(`${label} is invalid`);
-}
 
 function runLifecycle(value: unknown, label: string): RunLifecycle {
   const variant = enumVariant(value, label);
@@ -1704,11 +1680,6 @@ function signedTimestamp(value: unknown, label: string): number {
   return number;
 }
 
-function timestamp(value: unknown, label: string): number {
-  const parsed = signedTimestamp(value, label);
-  if (parsed === 0) throw new Error(`${label} must be positive`);
-  return parsed;
-}
 
 function u8(value: unknown, label: string): number {
   const parsed = safeInteger(value, label);

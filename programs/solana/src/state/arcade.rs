@@ -3,8 +3,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::arena_rules::{DailyPressureProfile, DailyThemeSnapshot};
-use crate::state::protocol::{PlayerState, RealmRuleSnapshot};
+use crate::state::protocol::PlayerState;
 
 pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
@@ -27,9 +26,8 @@ pub const ENTRY_OPERATOR_LAMPORTS: u64 = zkube_core::ENTRY_OPERATOR_LAMPORTS;
 pub const ARENA_BOARD_CAPACITY: usize = 1_536;
 pub const ARENA_BOARD_CHUNK_CAPACITY: usize = 10;
 pub const ARENA_BOARD_ENTRY_SIZE: usize = 84;
-pub const ARENA_RUNS_CLOSE_OFFSET: i64 = 23 * 60 * 60 + 59 * 60;
-pub const STUCK_RUN_RECOVERY_SECONDS: i64 = 6 * 60 * 60;
-pub const ARCADE_SECONDS_PER_DAY: i64 = 86_400;
+pub const ARENA_RUNS_CLOSE_OFFSET: i64 = zkube_core::DAILY_RUN_CLOSE_OFFSET;
+pub const STUCK_RUN_RECOVERY_SECONDS: i64 = zkube_core::RUN_RECOVERY_SECONDS;
 
 /// Routes canonical core hash schedules through Solana's SHA-256 syscall on
 /// SBF while retaining byte-identical host behavior.
@@ -391,15 +389,7 @@ pub struct ArenaDaily {
     pub arcade_config: Pubkey,
     pub status: PeriodStatus,
     pub predecessor_rollover_applied: bool,
-    pub catalog_version: u32,
     pub rules_hash: [u8; 32],
-    pub map_id: u8,
-    pub daily_theme: DailyThemeSnapshot,
-    pub rules: RealmRuleSnapshot,
-    pub pressure: DailyPressureProfile,
-    pub opens_at: i64,
-    pub runs_close_at: i64,
-    pub recovery_deadline_at: i64,
     pub finalized_at: i64,
     pub ledger: PoolLedger,
     pub entries_paid: u64,
@@ -826,18 +816,7 @@ pub fn valid_daily_successor(source_day_id: u32, successor_day_id: u32) -> bool 
 }
 
 pub fn day_window(day_id: u32) -> Result<(i64, i64, i64)> {
-    let opens_at = i64::from(day_id)
-        .checked_mul(ARCADE_SECONDS_PER_DAY)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    Ok((
-        opens_at,
-        opens_at
-            .checked_add(ARENA_RUNS_CLOSE_OFFSET)
-            .ok_or(ErrorCode::ArithmeticOverflow)?,
-        opens_at
-            .checked_add(ARENA_RUNS_CLOSE_OFFSET + STUCK_RUN_RECOVERY_SECONDS)
-            .ok_or(ErrorCode::ArithmeticOverflow)?,
-    ))
+    Ok(zkube_core::daily_window(day_id))
 }
 
 pub fn board_claim_deadline(sealed_at: i64) -> Result<i64> {
@@ -873,14 +852,7 @@ pub fn daily_result_hash(
     daily.version.serialize(&mut bytes)?;
     daily.day_id.serialize(&mut bytes)?;
     daily.arcade_config.serialize(&mut bytes)?;
-    daily.catalog_version.serialize(&mut bytes)?;
     daily.rules_hash.serialize(&mut bytes)?;
-    daily.map_id.serialize(&mut bytes)?;
-    daily.daily_theme.serialize(&mut bytes)?;
-    daily.rules.serialize(&mut bytes)?;
-    daily.pressure.serialize(&mut bytes)?;
-    daily.opens_at.serialize(&mut bytes)?;
-    daily.runs_close_at.serialize(&mut bytes)?;
     daily.finalized_at.serialize(&mut bytes)?;
     daily.ledger.serialize(&mut bytes)?;
     daily.entries_paid.serialize(&mut bytes)?;
@@ -1260,10 +1232,10 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 203);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 165);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 195);
+        assert_eq!(daily_bytes.len(), 157);
         assert_eq!(ArenaBoard::INIT_SPACE, 117);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_341);
         assert_eq!(8 + ArenaPlayer::INIT_SPACE, 308);

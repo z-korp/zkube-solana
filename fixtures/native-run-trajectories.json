@@ -8658,6 +8658,32 @@
     "pairIndex": 110,
     "realm": 7
   },
+  "dailyWindows": [
+    {
+      "name": "daily-window-0",
+      "operation": 27,
+      "requestHex": "010000000000",
+      "responseHex": "00000000000000004451010000000000a4a5010000000000"
+    },
+    {
+      "name": "daily-window-1",
+      "operation": 27,
+      "requestHex": "010001000000",
+      "responseHex": "8051010000000000c4a202000000000024f7020000000000"
+    },
+    {
+      "name": "daily-window-20000",
+      "operation": 27,
+      "requestHex": "0100204e0000",
+      "responseHex": "0030ff66000000004481006700000000a4d5006700000000"
+    },
+    {
+      "name": "daily-window-4294967295",
+      "operation": 27,
+      "requestHex": "0100ffffffff",
+      "responseHex": "80aefeff7f510100c4ffffff7f5101002454000080510100"
+    }
+  ],
   "localRandomness": [
     {
       "counter": 0,

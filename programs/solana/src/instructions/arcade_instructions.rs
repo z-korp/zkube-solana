@@ -152,10 +152,8 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         ),
         ErrorCode::InvalidPeriod
     );
-    let (opens_at, runs_close_at, recovery_deadline_at) = day_window(day_id)?;
     let content = daily_content_for_day(day_id);
     let realm = zkube_core::REALM_RULES[usize::from(content.realm_map_id - 1)];
-    let rules = RealmRuleSnapshot::from_core(realm);
     let rules_hash = zkube_core::daily_rules_hash_with::<SolanaSha256>(
         day_id,
         realm.guardian,
@@ -169,15 +167,7 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         arcade_config: ctx.accounts.arcade_config.key(),
         status: PeriodStatus::Funding,
         predecessor_rollover_applied: false,
-        catalog_version: zkube_core::CATALOG_VERSION,
         rules_hash,
-        map_id: content.realm_map_id,
-        daily_theme: content.objective,
-        rules,
-        pressure: content.pressure,
-        opens_at,
-        runs_close_at,
-        recovery_deadline_at,
         finalized_at: 0,
         ledger: PoolLedger::default(),
         entries_paid: 0,
@@ -220,7 +210,7 @@ pub fn handler_activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<
             || ctx.accounts.arena_daily.day_id == scheduled.1)
             || (ctx.accounts.arena_daily.day_id < current
                 && ctx.accounts.arena_daily.predecessor_rollover_applied
-                && now >= ctx.accounts.arena_daily.recovery_deadline_at),
+                && now >= day_window(ctx.accounts.arena_daily.day_id)?.2),
         ErrorCode::InvalidPeriod
     );
     ctx.accounts.arena_daily.status = PeriodStatus::Open;
@@ -288,11 +278,6 @@ pub fn handler_skip_suspended_arena_daily(ctx: Context<SkipSuspendedArenaDaily>)
         .checked_add(rollover)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     ctx.accounts.successor_daily.predecessor_rollover_applied = true;
-    emit!(SuspendedArenaDailySkipped {
-        day_id: ctx.accounts.suspended_daily.day_id,
-        successor_day_id: ctx.accounts.successor_daily.day_id,
-        rollover_lamports: rollover,
-    });
     Ok(())
 }
 
@@ -359,7 +344,7 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
             matches!(
                 ctx.accounts.arena_daily.status,
                 PeriodStatus::Funding | PeriodStatus::Open
-            ) && now < ctx.accounts.arena_daily.runs_close_at,
+            ) && now < day_window(ctx.accounts.arena_daily.day_id)?.1,
             ErrorCode::ChallengeEnded
         );
     }
@@ -375,11 +360,6 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
         ctx.accounts.arcade_config.launch_seeded = true;
         ctx.accounts.arcade_config.launch_day_id = current;
     }
-    emit!(PrizePoolFunded {
-        period_id: ctx.accounts.arena_daily.day_id,
-        authority: ctx.accounts.authority.key(),
-        lamports,
-    });
     Ok(())
 }
 
@@ -475,12 +455,6 @@ pub fn handler_purchase_kredits(
         operator_lamports,
     )?;
     ctx.accounts.player_state.record_kredit_purchase(count)?;
-    emit!(KreditsPurchased {
-        owner: ctx.accounts.owner.key(),
-        kredit_count,
-        prize_lamports,
-        operator_lamports,
-    });
     Ok(())
 }
 
@@ -563,8 +537,8 @@ pub fn handler_enter_arena<'info>(
                 ctx.accounts.following_daily.status,
                 PeriodStatus::Funding | PeriodStatus::Open
             )
-            && now >= ctx.accounts.current_daily.opens_at
-            && now < ctx.accounts.current_daily.runs_close_at,
+            && now >= day_window(ctx.accounts.current_daily.day_id)?.0
+            && now < day_window(ctx.accounts.current_daily.day_id)?.1,
         ErrorCode::ChallengeEnded
     );
     if ctx.accounts.arena_player.version == 0 {
@@ -633,8 +607,7 @@ pub fn handler_enter_arena<'info>(
         ctx.accounts.owner_authority.key(),
         ctx.accounts.payer.key(),
         run_id,
-        RunMode::Daily,
-        ctx.accounts.current_daily.runs_close_at,
+        day_window(ctx.accounts.current_daily.day_id)?.1,
         ctx.accounts.protocol.replay_domain,
     )?;
     best_effort_auto_claims(&ctx, &auto_claim_positions);
@@ -775,23 +748,23 @@ fn initialize_arena_run(
     owner: Pubkey,
     rent_payer: Pubkey,
     run_id: u64,
-    mode: RunMode,
     deadline_at: i64,
     replay_domain: [u8; 32],
 ) -> Result<()> {
-    player.reserve_arcade_run(run_id, daily_key, mode, deadline_at)?;
+    player.reserve_arcade_run(run_id, daily_key, deadline_at)?;
+    let content = daily_content_for_day(daily.day_id);
+    let realm = zkube_core::REALM_RULES[usize::from(content.realm_map_id - 1)];
     *active = ActiveRun {
         version: ACCOUNT_VERSION,
         owner,
         rent_payer,
         daily_challenge: daily_key,
         run_id,
-        mode,
         lifecycle: RunLifecycle::Prepared,
         rules_hash: daily.rules_hash,
-        map_id: daily.map_id,
-        rules: daily.rules,
-        daily_theme: daily.daily_theme,
+        map_id: content.realm_map_id,
+        rules: RealmRuleSnapshot::from_core(realm),
+        daily_theme: content.objective,
         current_tier: 0,
         reroll_charges: 1,
         replay_hash: canonical_initial_replay(
@@ -800,7 +773,6 @@ fn initialize_arena_run(
             daily.rules_hash,
             owner,
             run_id,
-            mode,
         )?,
         deadline_at,
         bump,
@@ -815,11 +787,7 @@ fn canonical_initial_replay(
     rules_hash: [u8; 32],
     owner: Pubkey,
     run_id: u64,
-    mode: RunMode,
 ) -> Result<[u8; 32]> {
-    let replay_mode = match mode {
-        RunMode::Daily => zkube_core::ReplayMode::Ranked,
-    };
     let domain = zkube_core::ChainDomain(replay_domain);
     let player = zkube_core::derive_player_id_with::<SolanaSha256>(domain, owner.to_bytes());
     Ok(zkube_core::ReplayCommitment::initial_with::<SolanaSha256>(
@@ -828,7 +796,6 @@ fn canonical_initial_replay(
         zkube_core::RulesHash(rules_hash),
         player,
         run_id,
-        replay_mode,
     )
     .to_bytes())
 }
@@ -855,10 +822,9 @@ pub struct ConsumeArenaRun<'info> {
 pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
     let active = &ctx.accounts.active_run;
     require!(
-        active.mode == RunMode::Daily
-            && active.lifecycle == RunLifecycle::Finished
+        active.lifecycle == RunLifecycle::Finished
             && active.finished_at > 0
-            && active.finished_at <= ctx.accounts.arena_daily.runs_close_at
+            && active.finished_at <= day_window(ctx.accounts.arena_daily.day_id)?.1
             && active.pending_vrf_counter == 0,
         ErrorCode::GameNotFinished
     );
@@ -866,7 +832,6 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
         ctx.accounts.player_state.arcade_reservation_matches(
             active.run_id,
             active.daily_challenge,
-            active.mode,
             active.deadline_at,
         ) && ctx.accounts.arena_player.active_paid_run_id == active.run_id,
         ErrorCode::InvalidRunId
@@ -933,10 +898,6 @@ pub fn handler_expire_unresolved_arena_run(
     require!(
         ctx.accounts.player_state.active_run_id == run_id,
         ErrorCode::InvalidRunId
-    );
-    require!(
-        ctx.accounts.player_state.active_run_mode == RunMode::Daily,
-        ErrorCode::InvalidState
     );
     let player = &mut ctx.accounts.arena_player;
     require!(player.active_paid_run_id == run_id, ErrorCode::InvalidRunId);
@@ -1020,7 +981,7 @@ pub fn handler_finalize_arena_daily(
     require!(
         ctx.accounts.arena_daily.status == PeriodStatus::Open
             && ctx.accounts.arena_daily.predecessor_rollover_applied
-            && now >= ctx.accounts.arena_daily.runs_close_at
+            && now >= day_window(ctx.accounts.arena_daily.day_id)?.1
             && ctx.accounts.arena_daily.resolved(),
         ErrorCode::ChallengeNotEnded
     );
@@ -1358,7 +1319,7 @@ pub fn handler_claim_daily_prize(
         .player_state
         .daily_record_mut(board)
         .record_prize(prize.rank, prize.amount)?;
-    let points_earned = ctx.accounts.player_state.record_ladder_points(points)?;
+    ctx.accounts.player_state.record_ladder_points(points)?;
     move_program_lamports(&source, &destination, prize.amount)?;
     set_board_bitmap(&board_info, &ctx.accounts.arena_board, prize.position)?;
     ctx.accounts.arena_board.claimed_lamports = claimed_lamports;
@@ -1368,16 +1329,6 @@ pub fn handler_claim_daily_prize(
         .claimed_count
         .checked_add(1)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    emit!(DailyPrizeClaimed {
-        owner: ctx.accounts.player_state.owner,
-        day_id: ctx.accounts.arena_daily.day_id,
-        board,
-        rank: prize.rank,
-        reward_lamports: prize.amount,
-        points_earned,
-        ladder_points: ctx.accounts.player_state.ladder_points,
-        highest_ladder_tier: ctx.accounts.player_state.highest_ladder_tier,
-    });
     Ok(())
 }
 
@@ -1496,13 +1447,6 @@ pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()
     move_program_lamports(&source, &successor, expired)?;
     ctx.accounts.following_daily.ledger.add_rollover(expired)?;
     ctx.accounts.arena_daily.claims_expired = true;
-    emit!(DailyClaimsExpired {
-        day_id: ctx.accounts.arena_daily.day_id,
-        claimed_lamports: claimed,
-        expired_lamports: expired,
-        rollover_lamports: ctx.accounts.arena_daily.ledger.rollover_out_lamports,
-        following_day_id: ctx.accounts.following_daily.day_id,
-    });
     Ok(())
 }
 
@@ -1568,11 +1512,6 @@ pub fn handler_archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()
     ctx.accounts
         .arcade_archive
         .append_daily(ctx.accounts.arena_daily.day_id, result_hash)?;
-    emit!(CadenceArchived {
-        period_id: ctx.accounts.arena_daily.day_id,
-        result_hash,
-        root: ctx.accounts.arcade_archive.daily_root,
-    });
     Ok(())
 }
 
@@ -1654,56 +1593,6 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
         ErrorCode::InvalidState
     );
     Ok(())
-}
-
-#[event]
-pub struct CadenceArchived {
-    pub period_id: u32,
-    pub result_hash: [u8; 32],
-    pub root: [u8; 32],
-}
-
-#[event]
-pub struct DailyPrizeClaimed {
-    pub owner: Pubkey,
-    pub day_id: u32,
-    pub board: DailyBoardKind,
-    pub rank: u16,
-    pub reward_lamports: u64,
-    pub points_earned: u32,
-    pub ladder_points: u64,
-    pub highest_ladder_tier: u8,
-}
-
-#[event]
-pub struct DailyClaimsExpired {
-    pub day_id: u32,
-    pub claimed_lamports: u64,
-    pub expired_lamports: u64,
-    pub rollover_lamports: u64,
-    pub following_day_id: u32,
-}
-
-#[event]
-pub struct SuspendedArenaDailySkipped {
-    pub day_id: u32,
-    pub successor_day_id: u32,
-    pub rollover_lamports: u64,
-}
-
-#[event]
-pub struct PrizePoolFunded {
-    pub period_id: u32,
-    pub authority: Pubkey,
-    pub lamports: u64,
-}
-
-#[event]
-pub struct KreditsPurchased {
-    pub owner: Pubkey,
-    pub kredit_count: u32,
-    pub prize_lamports: u64,
-    pub operator_lamports: u64,
 }
 
 #[derive(Accounts)]

@@ -15,12 +15,13 @@ use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuild
 use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
 
 use crate::error::ErrorCode;
-use crate::game::{sha256v, Bonus, ConstraintKind, Grid, RunEngine, RunPhase};
+use crate::game::sha256v;
 use crate::instructions::player_authorization::{
     require_player_authorization, require_player_rent_payer,
 };
 use crate::state::arcade::SolanaSha256;
 use crate::state::protocol::*;
+use zkube_core::{Bonus, ConstraintKind, Grid, RunEngine, RunPhase};
 
 #[delegate]
 #[derive(Accounts)]
@@ -439,19 +440,17 @@ fn apply_reroll_request(active: &mut ActiveRun, expected_action: u32) -> Result<
 }
 
 fn terminal_action_timestamp(phase: RunPhase) -> Result<i64> {
-    if matches!(phase, RunPhase::LevelComplete | RunPhase::Finished) {
+    if phase == RunPhase::Finished {
         return Ok(Clock::get()?.unix_timestamp);
     }
     Ok(0)
 }
 
 fn require_before_arcade_deadline(active: &ActiveRun, now: i64) -> Result<()> {
-    if active.mode == RunMode::Daily {
-        require!(
-            active.deadline_at > 0 && now < active.deadline_at,
-            ErrorCode::ChallengeEnded
-        );
-    }
+    require!(
+        active.deadline_at > 0 && now < active.deadline_at,
+        ErrorCode::ChallengeEnded
+    );
     Ok(())
 }
 
@@ -491,7 +490,6 @@ pub fn handler_finish_run(ctx: Context<FinishRun>, reason: RunFinishReason) -> R
             require_before_arcade_deadline(active, now)?;
         }
         RunFinishReason::Deadline => {
-            require!(active.mode == RunMode::Daily, ErrorCode::InvalidState);
             require!(
                 active.deadline_at > 0 && now >= active.deadline_at,
                 ErrorCode::ChallengeNotEnded
@@ -584,10 +582,6 @@ pub struct CommitRun<'info> {
 
 pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
     require!(
-        matches!(ctx.accounts.active_run.mode, RunMode::Daily),
-        ErrorCode::InvalidState
-    );
-    require!(
         run_has_terminal_projection(
             ctx.accounts.active_run.lifecycle,
             ctx.accounts.active_run.finished_at,
@@ -652,24 +646,21 @@ fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
         RunLifecycle::Playing => RunPhase::Playing,
         RunLifecycle::Finished => RunPhase::Finished,
     };
-    Ok(RunEngine {
-        grid: Grid::try_from_cells(active.grid).map_err(|_| error!(ErrorCode::InvalidState))?,
-        next_row: active.has_next_row.then_some(active.next_row),
+    Ok(RunEngine::daily(
+        Grid::try_from_cells(active.grid).map_err(|_| error!(ErrorCode::InvalidState))?,
+        active.has_next_row.then_some(active.next_row),
         phase,
-        score: active.score,
-        moves: active.moves,
-        combo_counter: active.combo_counter,
-        max_combo: active.max_combo,
-        primary_progress: 0,
-        secondary_progress: 0,
-        latched_star_sources: 0,
-        streak: active.streak,
-        charges_earned: active.charges_earned,
-        level_lines_cleared: active.level_lines_cleared,
+        active.score,
+        active.moves,
+        active.combo_counter,
+        active.max_combo,
+        active.streak,
+        active.charges_earned,
+        active.level_lines_cleared,
         bonus,
-        bonus_charges: active.bonus_charges,
-        reroll_charges: active.reroll_charges,
-    })
+        active.bonus_charges,
+        active.reroll_charges,
+    ))
 }
 
 fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
@@ -728,6 +719,13 @@ fn run_from_active(active: &ActiveRun, rules: zkube_core::RunRules) -> Result<zk
 
 /// Project core state into the account layout, including offline fixture output.
 pub fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64) -> Result<()> {
+    let lifecycle = lifecycle_from_phase(run.engine.phase)?;
+    let finish_reason = match run.end_reason {
+        Some(zkube_core::RunEndReason::Abandoned) => Some(RunFinishReason::Abandon),
+        Some(zkube_core::RunEndReason::Deadline) => Some(RunFinishReason::Deadline),
+        Some(zkube_core::RunEndReason::Exhausted) | None => None,
+        _ => return err!(ErrorCode::InvalidState),
+    };
     write_engine(active, &run.engine);
     active.action_counter = run.action_counter;
     active.daily_score = run.daily_score;
@@ -735,14 +733,8 @@ pub fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64
     active.pressure_score = run.pressure_score;
     active.current_tier = run.current_tier;
     active.replay_hash = run.replay.to_bytes();
-    active.lifecycle = lifecycle_from_phase(run.engine.phase);
-    active.finish_reason = match run.end_reason {
-        Some(zkube_core::RunEndReason::Abandoned) => Some(RunFinishReason::Abandon),
-        Some(zkube_core::RunEndReason::Deadline) => Some(RunFinishReason::Deadline),
-        Some(zkube_core::RunEndReason::Completed | zkube_core::RunEndReason::Exhausted) | None => {
-            None
-        }
-    };
+    active.lifecycle = lifecycle;
+    active.finish_reason = finish_reason;
     if matches!(active.lifecycle, RunLifecycle::Finished) && active.finished_at == 0 {
         require!(terminal_at > 0, ErrorCode::InvalidState);
         active.finished_at = terminal_at;
@@ -750,13 +742,13 @@ pub fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64
     Ok(())
 }
 
-fn lifecycle_from_phase(phase: RunPhase) -> RunLifecycle {
-    match phase {
+fn lifecycle_from_phase(phase: RunPhase) -> Result<RunLifecycle> {
+    Ok(match phase {
         RunPhase::AwaitingVrf => RunLifecycle::AwaitingVrf,
         RunPhase::Playing => RunLifecycle::Playing,
-        RunPhase::LevelComplete => RunLifecycle::Finished,
         RunPhase::Finished => RunLifecycle::Finished,
-    }
+        _ => return err!(ErrorCode::InvalidState),
+    })
 }
 
 fn map_run_error(error: zkube_core::RunError) -> anchor_lang::error::Error {
@@ -800,7 +792,6 @@ mod tests {
     fn daily_active(lifecycle: RunLifecycle) -> ActiveRun {
         ActiveRun {
             version: ACCOUNT_VERSION,
-            mode: RunMode::Daily,
             lifecycle,
             rules_hash: [7; 32],
             rules: RealmRuleSnapshot {
@@ -933,10 +924,7 @@ mod tests {
         projected
             .play_move_with::<SolanaSha256>(rules, 0, 0, action.0, action.1, action.2)
             .unwrap();
-        let terminal_at = u64::from(matches!(
-            projected.engine.phase,
-            RunPhase::LevelComplete | RunPhase::Finished
-        )) as i64;
+        let terminal_at = u64::from(matches!(projected.engine.phase, RunPhase::Finished)) as i64;
         write_run(&mut active, &projected, terminal_at).unwrap();
 
         assert_eq!(projected, expected);

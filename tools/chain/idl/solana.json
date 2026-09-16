@@ -1014,115 +1014,6 @@
       "args": []
     },
     {
-      "name": "create_player_label",
-      "discriminator": [
-        61,
-        83,
-        168,
-        37,
-        203,
-        195,
-        254,
-        100
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_label",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  97,
-                  98,
-                  101,
-                  108
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "PlayerLabelArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "delegate_active_run",
       "discriminator": [
         219,
@@ -3646,106 +3537,6 @@
       ]
     },
     {
-      "name": "set_player_label",
-      "discriminator": [
-        9,
-        240,
-        56,
-        233,
-        167,
-        202,
-        97,
-        44
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_label",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  108,
-                  97,
-                  98,
-                  101,
-                  108
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner_authority"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner_authority"
-        },
-        {
-          "name": "session_token",
-          "optional": true
-        },
-        {
-          "name": "actor",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "args",
-          "type": {
-            "defined": {
-              "name": "PlayerLabelArgs"
-            }
-          }
-        }
-      ]
-    },
-    {
       "name": "set_protocol_pause",
       "discriminator": [
         19,
@@ -4256,19 +4047,6 @@
       ]
     },
     {
-      "name": "PlayerLabel",
-      "discriminator": [
-        190,
-        106,
-        117,
-        227,
-        51,
-        162,
-        202,
-        216
-      ]
-    },
-    {
       "name": "PlayerState",
       "discriminator": [
         56,
@@ -4292,177 +4070,6 @@
         179,
         215,
         209
-      ]
-    }
-  ],
-  "events": [
-    {
-      "name": "ArenaSuspensionChanged",
-      "discriminator": [
-        13,
-        52,
-        138,
-        12,
-        223,
-        169,
-        57,
-        202
-      ]
-    },
-    {
-      "name": "CadenceArchived",
-      "discriminator": [
-        233,
-        44,
-        114,
-        4,
-        20,
-        38,
-        100,
-        186
-      ]
-    },
-    {
-      "name": "DailyClaimsExpired",
-      "discriminator": [
-        170,
-        108,
-        47,
-        73,
-        96,
-        233,
-        198,
-        92
-      ]
-    },
-    {
-      "name": "DailyPrizeClaimed",
-      "discriminator": [
-        216,
-        54,
-        95,
-        104,
-        170,
-        90,
-        193,
-        179
-      ]
-    },
-    {
-      "name": "FeaturedEmblemSet",
-      "discriminator": [
-        108,
-        243,
-        154,
-        135,
-        9,
-        73,
-        25,
-        108
-      ]
-    },
-    {
-      "name": "KreditsPurchased",
-      "discriminator": [
-        70,
-        98,
-        220,
-        228,
-        8,
-        206,
-        14,
-        217
-      ]
-    },
-    {
-      "name": "PlayerLabelSet",
-      "discriminator": [
-        74,
-        160,
-        127,
-        145,
-        172,
-        254,
-        51,
-        31
-      ]
-    },
-    {
-      "name": "PrizePoolFunded",
-      "discriminator": [
-        38,
-        202,
-        147,
-        153,
-        180,
-        195,
-        54,
-        247
-      ]
-    },
-    {
-      "name": "ProtocolAuthorityAccepted",
-      "discriminator": [
-        14,
-        90,
-        138,
-        158,
-        76,
-        49,
-        104,
-        97
-      ]
-    },
-    {
-      "name": "ProtocolAuthorityProposed",
-      "discriminator": [
-        73,
-        229,
-        220,
-        91,
-        40,
-        178,
-        53,
-        17
-      ]
-    },
-    {
-      "name": "ProtocolPauseChanged",
-      "discriminator": [
-        67,
-        33,
-        235,
-        73,
-        71,
-        124,
-        172,
-        110
-      ]
-    },
-    {
-      "name": "SuspendedArenaDailySkipped",
-      "discriminator": [
-        147,
-        132,
-        190,
-        234,
-        106,
-        165,
-        55,
-        137
-      ]
-    },
-    {
-      "name": "TeamDestinationChanged",
-      "discriminator": [
-        25,
-        40,
-        202,
-        69,
-        125,
-        154,
-        54,
-        205
       ]
     }
   ],
@@ -4514,196 +4121,161 @@
     },
     {
       "code": 6009,
-      "name": "ChallengeNotStarted",
-      "msg": "The Daily challenge has not started"
-    },
-    {
-      "code": 6010,
       "name": "ChallengeEnded",
       "msg": "The Daily challenge entry or play window has ended"
     },
     {
-      "code": 6011,
+      "code": 6010,
       "name": "ChallengeNotEnded",
       "msg": "The Daily challenge has not ended"
     },
     {
-      "code": 6012,
+      "code": 6011,
       "name": "AlreadySubmitted",
       "msg": "This Daily attempt has already been submitted"
     },
     {
-      "code": 6013,
+      "code": 6012,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6014,
-      "name": "InvalidMap",
-      "msg": "Invalid map"
-    },
-    {
-      "code": 6015,
+      "code": 6013,
       "name": "InvalidLevel",
       "msg": "Invalid level"
     },
     {
-      "code": 6016,
-      "name": "InvalidStars",
-      "msg": "Invalid star rating"
-    },
-    {
-      "code": 6017,
+      "code": 6014,
       "name": "ProtocolPaused",
       "msg": "Protocol is paused"
     },
     {
-      "code": 6018,
+      "code": 6015,
       "name": "InvalidVersion",
       "msg": "Unsupported account version"
     },
     {
-      "code": 6019,
+      "code": 6016,
       "name": "InvalidRunId",
       "msg": "Invalid run id"
     },
     {
-      "code": 6020,
+      "code": 6017,
       "name": "ActiveRunExists",
       "msg": "Finish or abandon the active run before starting another"
     },
     {
-      "code": 6021,
-      "name": "MapLocked",
-      "msg": "Map is locked"
-    },
-    {
-      "code": 6022,
-      "name": "MapDisabled",
-      "msg": "Map is disabled"
-    },
-    {
-      "code": 6023,
-      "name": "ContentVersionMismatch",
-      "msg": "Content version mismatch"
-    },
-    {
-      "code": 6024,
+      "code": 6018,
       "name": "InvalidBlockWeights",
       "msg": "Invalid block weights"
     },
     {
-      "code": 6025,
+      "code": 6019,
       "name": "VrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6026,
+      "code": 6020,
       "name": "NoVrfRequestPending",
       "msg": "No VRF request is pending"
     },
     {
-      "code": 6027,
+      "code": 6021,
       "name": "VrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6028,
+      "code": 6022,
       "name": "NoPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6029,
+      "code": 6023,
       "name": "PrizeAlreadyClaimed",
       "msg": "This Daily prize position was already claimed"
     },
     {
-      "code": 6030,
+      "code": 6024,
       "name": "ClaimWindowClosed",
       "msg": "The Daily prize claim window has closed"
     },
     {
-      "code": 6031,
+      "code": 6025,
       "name": "ClaimWindowOpen",
       "msg": "The Daily prize claim window is still open"
     },
     {
-      "code": 6032,
+      "code": 6026,
       "name": "BoardCapacityExceeded",
       "msg": "The payout board exceeds the protocol safety ceiling"
     },
     {
-      "code": 6033,
+      "code": 6027,
       "name": "BoardIncomplete",
       "msg": "The payout board is incomplete or unsealed"
     },
     {
-      "code": 6034,
+      "code": 6028,
       "name": "BoardEntryMismatch",
       "msg": "A submitted payout row does not match its ArenaPlayer source"
     },
     {
-      "code": 6035,
+      "code": 6029,
       "name": "BoardEntryOutOfOrder",
       "msg": "Submitted payout rows are not in canonical order"
     },
     {
-      "code": 6036,
+      "code": 6030,
       "name": "DuplicateBoardPlayer",
       "msg": "A player appears more than once on a payout board"
     },
     {
-      "code": 6037,
+      "code": 6031,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6038,
+      "code": 6032,
       "name": "PriceChanged",
       "msg": "The Arena entry price changed; refresh the exact quote"
     },
     {
-      "code": 6039,
+      "code": 6033,
       "name": "InsufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6040,
+      "code": 6034,
       "name": "InvalidKreditPurchase",
       "msg": "A Kredit purchase must contain a positive whole-number count at the exact unit price"
     },
     {
-      "code": 6041,
+      "code": 6035,
       "name": "DailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6042,
+      "code": 6036,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6043,
+      "code": 6037,
       "name": "SessionExpired",
       "msg": "The scoped player session has expired"
     },
     {
-      "code": 6044,
-      "name": "InvalidPlayerLabel",
-      "msg": "The player label is invalid"
-    },
-    {
-      "code": 6045,
+      "code": 6038,
       "name": "InvalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6046,
+      "code": 6039,
       "name": "InvalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     },
     {
-      "code": 6047,
+      "code": 6040,
       "name": "AlreadySeeded",
       "msg": "The first Daily was already seeded"
     }
@@ -4736,14 +4308,6 @@
           {
             "name": "run_id",
             "type": "u64"
-          },
-          {
-            "name": "mode",
-            "type": {
-              "defined": {
-                "name": "RunMode"
-              }
-            }
           },
           {
             "name": "lifecycle",
@@ -5171,10 +4735,6 @@
             "type": "bool"
           },
           {
-            "name": "catalog_version",
-            "type": "u32"
-          },
-          {
             "name": "rules_hash",
             "type": {
               "array": [
@@ -5182,46 +4742,6 @@
                 32
               ]
             }
-          },
-          {
-            "name": "map_id",
-            "type": "u8"
-          },
-          {
-            "name": "daily_theme",
-            "type": {
-              "defined": {
-                "name": "DailyThemeSnapshot"
-              }
-            }
-          },
-          {
-            "name": "rules",
-            "type": {
-              "defined": {
-                "name": "RealmRuleSnapshot"
-              }
-            }
-          },
-          {
-            "name": "pressure",
-            "type": {
-              "defined": {
-                "name": "DailyPressureProfile"
-              }
-            }
-          },
-          {
-            "name": "opens_at",
-            "type": "i64"
-          },
-          {
-            "name": "runs_close_at",
-            "type": "i64"
-          },
-          {
-            "name": "recovery_deadline_at",
-            "type": "i64"
           },
           {
             "name": "finalized_at",
@@ -5352,56 +4872,6 @@
       }
     },
     {
-      "name": "ArenaSuspensionChanged",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "previous",
-            "type": "u32"
-          },
-          {
-            "name": "suspended_until_day",
-            "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "CadenceArchived",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "period_id",
-            "type": "u32"
-          },
-          {
-            "name": "result_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "root",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
       "name": "CompetitionRecord",
       "type": {
         "kind": "struct",
@@ -5412,10 +4882,6 @@
               "Zero means no payout-bearing Daily rank."
             ],
             "type": "u16"
-          },
-          {
-            "name": "podiums",
-            "type": "u32"
           },
           {
             "name": "wins",
@@ -5477,90 +4943,6 @@
       }
     },
     {
-      "name": "DailyClaimsExpired",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "day_id",
-            "type": "u32"
-          },
-          {
-            "name": "claimed_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "expired_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "rollover_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "following_day_id",
-            "type": "u32"
-          }
-        ]
-      }
-    },
-    {
-      "name": "DailyPressureProfile",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "max_moves",
-            "type": "u16"
-          }
-        ]
-      }
-    },
-    {
-      "name": "DailyPrizeClaimed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "day_id",
-            "type": "u32"
-          },
-          {
-            "name": "board",
-            "type": {
-              "defined": {
-                "name": "DailyBoardKind"
-              }
-            }
-          },
-          {
-            "name": "rank",
-            "type": "u16"
-          },
-          {
-            "name": "reward_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "points_earned",
-            "type": "u32"
-          },
-          {
-            "name": "ladder_points",
-            "type": "u64"
-          },
-          {
-            "name": "highest_ladder_tier",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "DailyThemeSnapshot",
       "type": {
         "kind": "struct",
@@ -5571,26 +4953,6 @@
           },
           {
             "name": "value",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "FeaturedEmblemSet",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "emblem_id",
-            "type": "u8"
-          },
-          {
-            "name": "frame_tier",
             "type": "u8"
           }
         ]
@@ -5633,30 +4995,6 @@
                 32
               ]
             }
-          }
-        ]
-      }
-    },
-    {
-      "name": "KreditsPurchased",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "kredit_count",
-            "type": "u32"
-          },
-          {
-            "name": "prize_lamports",
-            "type": "u64"
-          },
-          {
-            "name": "operator_lamports",
-            "type": "u64"
           }
         ]
       }
@@ -5707,75 +5045,6 @@
       }
     },
     {
-      "name": "PlayerLabel",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "display_name",
-            "type": {
-              "array": [
-                "u8",
-                16
-              ]
-            }
-          },
-          {
-            "name": "name_len",
-            "type": "u8"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PlayerLabelArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "display",
-            "type": "string"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PlayerLabelSet",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "owner",
-            "type": "pubkey"
-          },
-          {
-            "name": "player_label",
-            "type": "pubkey"
-          },
-          {
-            "name": "display",
-            "type": "string"
-          },
-          {
-            "name": "created",
-            "type": "bool"
-          }
-        ]
-      }
-    },
-    {
       "name": "PlayerState",
       "type": {
         "kind": "struct",
@@ -5808,14 +5077,6 @@
             "type": "pubkey"
           },
           {
-            "name": "active_run_mode",
-            "type": {
-              "defined": {
-                "name": "RunMode"
-              }
-            }
-          },
-          {
             "name": "active_run_deadline_at",
             "type": "i64"
           },
@@ -5846,13 +5107,6 @@
               "Zero selects the strongest currently unlocked emblem automatically."
             ],
             "type": "u8"
-          },
-          {
-            "name": "lifetime_paid_entries",
-            "docs": [
-              "Incremented exactly once when one prepaid Kredit starts a ranked run."
-            ],
-            "type": "u64"
           },
           {
             "name": "score_record",
@@ -5978,58 +5232,6 @@
       }
     },
     {
-      "name": "PrizePoolFunded",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "period_id",
-            "type": "u32"
-          },
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "lamports",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ProtocolAuthorityAccepted",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "previous_authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "authority",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ProtocolAuthorityProposed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "pending_authority",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
       "name": "ProtocolConfig",
       "type": {
         "kind": "struct",
@@ -6069,22 +5271,6 @@
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ProtocolPauseChanged",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "paused",
-            "type": "bool"
           }
         ]
       }
@@ -6147,17 +5333,6 @@
       }
     },
     {
-      "name": "RunMode",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "Daily"
-          }
-        ]
-      }
-    },
-    {
       "name": "SessionTokenV2",
       "type": {
         "kind": "struct",
@@ -6210,42 +5385,6 @@
                 32
               ]
             }
-          }
-        ]
-      }
-    },
-    {
-      "name": "SuspendedArenaDailySkipped",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "day_id",
-            "type": "u32"
-          },
-          {
-            "name": "successor_day_id",
-            "type": "u32"
-          },
-          {
-            "name": "rollover_lamports",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "TeamDestinationChanged",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "previous_team_destination",
-            "type": "pubkey"
-          },
-          {
-            "name": "team_destination",
-            "type": "pubkey"
           }
         ]
       }

@@ -5,7 +5,8 @@ use zkube_core_wasm::{encode_run_config, encode_run_state};
 
 fn config() -> RunConfig {
     let daily = accounts::daily(DAY);
-    let realm = zkube_core::REALM_RULES[usize::from(daily.map_id - 1)];
+    let realm =
+        zkube_core::REALM_RULES[usize::from(daily_content_for_day(daily.day_id).realm_map_id - 1)];
     RunConfig {
         rules_hash: RulesHash(daily.rules_hash),
         initial_replay: ReplayCommitment([6; 32]),
@@ -15,7 +16,12 @@ fn config() -> RunConfig {
             max_moves: zkube_core::DAILY_MAX_MOVES,
             tier: TierPolicy::Pressure,
             stars: None,
-            objective: Some(daily.daily_theme.to_core().unwrap()),
+            objective: Some(
+                daily_content_for_day(daily.day_id)
+                    .objective
+                    .to_core()
+                    .unwrap(),
+            ),
         },
     }
 }
@@ -50,11 +56,13 @@ pub fn account(phase: &str, id: u64) -> ActiveRun {
         rent_payer: device(),
         daily_challenge: accounts::daily_address(DAY),
         run_id: id,
-        mode: RunMode::Daily,
         rules_hash: run.rules_hash.0,
         deadline_at: NOW + ARENA_RUNS_CLOSE_OFFSET,
-        map_id: daily.map_id,
-        rules: daily.rules,
+        map_id: daily_content_for_day(daily.day_id).realm_map_id,
+        rules: RealmRuleSnapshot::from_core(
+            zkube_core::REALM_RULES
+                [usize::from(daily_content_for_day(daily.day_id).realm_map_id - 1)],
+        ),
         daily_theme: DailyThemeSnapshot::from_core(config().rules.objective.unwrap()),
         vrf_request_counter: run.last_vrf_counter + u32::from(phase == "awaitingVrf"),
         pending_vrf_counter: if phase == "awaitingVrf" { 2 } else { 0 },

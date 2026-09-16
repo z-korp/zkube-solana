@@ -15,18 +15,12 @@ pub const ACTIVE_RUN_SEED: &[u8] = b"run";
 pub const ACCOUNT_VERSION: u8 = zkube_core::PROTOCOL_ACCOUNT_VERSION;
 /// Fresh-bootstrap player schema with one Arcade run slot and zeroed expansion space.
 pub const PLAYER_STATE_VERSION: u8 = zkube_core::PLAYER_STATE_ACCOUNT_VERSION;
-pub const MAX_MAPS: usize = zkube_core::CAMPAIGN_MAP_COUNT;
-pub const LEVELS_PER_MAP: usize = zkube_core::CAMPAIGN_LEVELS_PER_MAP;
-pub const CAMPAIGN_LEVEL_COUNT: usize = zkube_core::CAMPAIGN_TOTAL_LEVELS;
 pub const CAMPAIGN_STAR_BYTES: usize = zkube_core::CAMPAIGN_STAR_BYTES;
-pub const MAX_CAMPAIGN_STARS: u16 = zkube_core::CAMPAIGN_MAX_STARS;
 pub use zkube_core::{
-    EMBLEM_AUTO, EMBLEM_FIRST_GUARDIAN, EMBLEM_LAST_GUARDIAN, EMBLEM_REALM_CONQUEROR,
-    EMBLEM_WORLD_PERFECT,
+    EMBLEM_AUTO, EMBLEM_FIRST_GUARDIAN, EMBLEM_REALM_CONQUEROR, EMBLEM_WORLD_PERFECT,
 };
 /// Run identifiers are per-player and begin at one on every fresh deployment.
 pub const INITIAL_RUN_ID: u64 = 1;
-pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = zkube_core::LADDER_TIER_POINT_THRESHOLDS;
 
 #[account]
 #[derive(InitSpace)]
@@ -52,7 +46,6 @@ pub struct PlayerState {
     /// Base-layer reservation remains authoritative while the run PDA is
     /// delegated to an ephemeral rollup.
     pub active_run_daily: Pubkey,
-    pub active_run_mode: RunMode,
     pub active_run_deadline_at: i64,
     /// A deterministically expired run remains reserved until its delayed ER
     /// copy is committed and the orphan account is closed.
@@ -62,8 +55,6 @@ pub struct PlayerState {
     pub campaign_stars: [u8; CAMPAIGN_STAR_BYTES],
     /// Zero selects the strongest currently unlocked emblem automatically.
     pub featured_emblem: u8,
-    /// Incremented exactly once when one prepaid Kredit starts a ranked run.
-    pub lifetime_paid_entries: u64,
     /// The two Daily boards keep separate records. They rank the same runs by
     /// different metrics, so one aggregate cannot say whether a player wins by
     /// total performance or by playing the day's theme — which is the whole
@@ -102,12 +93,10 @@ impl PlayerState {
             next_run_id: INITIAL_RUN_ID,
             active_run_id: 0,
             active_run_daily: Pubkey::default(),
-            active_run_mode: RunMode::Daily,
             active_run_deadline_at: 0,
             orphan_run_id: 0,
             campaign_stars: [0; CAMPAIGN_STAR_BYTES],
             featured_emblem: EMBLEM_AUTO,
-            lifetime_paid_entries: 0,
             score_record: CompetitionRecord::default(),
             theme_record: CompetitionRecord::default(),
             kredit_balance: 0,
@@ -148,12 +137,11 @@ impl PlayerState {
         &mut self,
         run_id: u64,
         daily: Pubkey,
-        mode: RunMode,
         deadline_at: i64,
     ) -> Result<()> {
         self.require_schema()?;
         require!(
-            mode == RunMode::Daily && daily != Pubkey::default() && deadline_at > 0,
+            daily != Pubkey::default() && deadline_at > 0,
             ErrorCode::InvalidState
         );
         require!(
@@ -163,29 +151,20 @@ impl PlayerState {
         self.allocate_run_id(run_id)?;
         self.active_run_id = run_id;
         self.active_run_daily = daily;
-        self.active_run_mode = mode;
         self.active_run_deadline_at = deadline_at;
         Ok(())
     }
 
-    pub fn arcade_reservation_matches(
-        &self,
-        run_id: u64,
-        daily: Pubkey,
-        mode: RunMode,
-        deadline_at: i64,
-    ) -> bool {
+    pub fn arcade_reservation_matches(&self, run_id: u64, daily: Pubkey, deadline_at: i64) -> bool {
         self.version == PLAYER_STATE_VERSION
             && self.active_run_id == run_id
             && self.active_run_daily == daily
-            && self.active_run_mode == mode
             && self.active_run_deadline_at == deadline_at
     }
 
     fn clear_arcade_slot(&mut self) {
         self.active_run_id = 0;
         self.active_run_daily = Pubkey::default();
-        self.active_run_mode = RunMode::Daily;
         self.active_run_deadline_at = 0;
     }
 
@@ -213,33 +192,11 @@ impl PlayerState {
         Ok(())
     }
 
-    pub fn best_stars(&self, map_id: u8, level: u8) -> Result<u8> {
-        zkube_core::CampaignStars::from_packed(self.campaign_stars)
-            .best(map_id, level)
-            .map_err(campaign_stars_error)
-    }
-
     /// Self-attested cosmetic progress; only per-level maxima are stored.
     pub fn merge_campaign_stars(&mut self, submitted: [u8; CAMPAIGN_STAR_BYTES]) {
         let mut progress = zkube_core::CampaignStars::from_packed(self.campaign_stars);
         progress.merge(zkube_core::CampaignStars::from_packed(submitted));
         self.campaign_stars = progress.packed();
-    }
-
-    pub fn zone_cleared(&self, map_id: u8) -> Result<bool> {
-        let progress = zkube_core::CampaignStars::from_packed(self.campaign_stars);
-        progress.best(map_id, 1).map_err(campaign_stars_error)?;
-        Ok(progress.zone_cleared(map_id))
-    }
-
-    pub fn zone_perfected(&self, map_id: u8) -> Result<bool> {
-        let progress = zkube_core::CampaignStars::from_packed(self.campaign_stars);
-        progress.best(map_id, 1).map_err(campaign_stars_error)?;
-        Ok(progress.zone_perfected(map_id))
-    }
-
-    pub fn total_campaign_stars(&self) -> u16 {
-        zkube_core::CampaignStars::from_packed(self.campaign_stars).total()
     }
 
     pub fn emblem_unlocked(&self, emblem_id: u8) -> bool {
@@ -257,10 +214,6 @@ impl PlayerState {
             .kredit_balance
             .checked_sub(1)
             .ok_or(ErrorCode::InsufficientKredits)?;
-        self.lifetime_paid_entries = self
-            .lifetime_paid_entries
-            .checked_add(1)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
         if day_id != self.last_entry_day_id {
             let extends =
                 self.entry_streak_days > 0 && day_id == self.last_entry_day_id.saturating_add(1);
@@ -323,7 +276,6 @@ pub use zkube_core::ladder_tier_for_points;
 pub struct CompetitionRecord {
     /// Zero means no payout-bearing Daily rank.
     pub best_prize_rank: u16,
-    pub podiums: u32,
     pub wins: u32,
     pub rewards_lamports: u64,
 }
@@ -336,9 +288,6 @@ impl CompetitionRecord {
         } else {
             self.best_prize_rank.min(rank)
         };
-        if rank <= 3 {
-            self.podiums = self.podiums.saturating_add(1);
-        }
         if rank == 1 {
             self.wins = self.wins.saturating_add(1);
         }
@@ -407,7 +356,6 @@ pub struct ActiveRun {
     pub rent_payer: Pubkey,
     pub daily_challenge: Pubkey,
     pub run_id: u64,
-    pub mode: RunMode,
     pub lifecycle: RunLifecycle,
     /// Explicit caller-selected terminal resolution. Automatic completion or
     /// exhaustion keeps this empty.
@@ -459,7 +407,6 @@ impl Default for ActiveRun {
             rent_payer: Pubkey::default(),
             daily_challenge: Pubkey::default(),
             run_id: 0,
-            mode: RunMode::default(),
             lifecycle: RunLifecycle::default(),
             finish_reason: None,
             rules_hash: [0; 32],
@@ -497,14 +444,6 @@ impl Default for ActiveRun {
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
-pub enum RunMode {
-    #[default]
-    Daily,
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
 pub enum RunLifecycle {
     #[default]
     Prepared,
@@ -520,15 +459,6 @@ pub enum RunFinishReason {
     Deadline,
 }
 
-fn campaign_stars_error(error: zkube_core::CampaignStarsError) -> Error {
-    match error {
-        zkube_core::CampaignStarsError::InvalidMap => error!(ErrorCode::InvalidMap),
-        zkube_core::CampaignStarsError::InvalidLevel => error!(ErrorCode::InvalidLevel),
-        zkube_core::CampaignStarsError::InvalidStars => error!(ErrorCode::InvalidStars),
-        zkube_core::CampaignStarsError::Locked => error!(ErrorCode::MapLocked),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -537,23 +467,15 @@ mod tests {
     fn arcade_reservation_and_orphan_share_one_monotonic_run_sequence() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         let daily = Pubkey::new_unique();
-        player
-            .reserve_arcade_run(1, daily, RunMode::Daily, 1_000)
-            .unwrap();
+        player.reserve_arcade_run(1, daily, 1_000).unwrap();
         assert_eq!(player.next_run_id, 2);
-        assert!(player
-            .reserve_arcade_run(2, daily, RunMode::Daily, 1_000)
-            .is_err());
+        assert!(player.reserve_arcade_run(2, daily, 1_000).is_err());
         assert!(player.release_arcade_run(2).is_err());
         player.expire_arcade_run(1).unwrap();
         assert_eq!(player.orphan_run_id, 1);
-        assert!(player
-            .reserve_arcade_run(2, daily, RunMode::Daily, 1_000)
-            .is_err());
+        assert!(player.reserve_arcade_run(2, daily, 1_000).is_err());
         player.release_orphan(1).unwrap();
-        player
-            .reserve_arcade_run(2, daily, RunMode::Daily, 1_000)
-            .unwrap();
+        player.reserve_arcade_run(2, daily, 1_000).unwrap();
         player.release_arcade_run(2).unwrap();
         assert_eq!(player.next_run_id, 3);
     }
@@ -568,7 +490,6 @@ mod tests {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 9);
         player.campaign_stars = [0b11_10_01_00; CAMPAIGN_STAR_BYTES];
         player.kredit_balance = 25;
-        player.lifetime_paid_entries = 17;
         let original = bytes(&player);
         player.merge_campaign_stars([0b00_01_10_11; CAMPAIGN_STAR_BYTES]);
         assert_eq!(player.campaign_stars, [0b11_10_10_11; CAMPAIGN_STAR_BYTES]);
@@ -601,7 +522,7 @@ mod tests {
         player.reserved[17] = 1;
         assert!(!player.schema_valid());
         assert!(player
-            .reserve_arcade_run(INITIAL_RUN_ID, Pubkey::new_unique(), RunMode::Daily, 1_000)
+            .reserve_arcade_run(INITIAL_RUN_ID, Pubkey::new_unique(), 1_000)
             .is_err());
     }
 
@@ -641,11 +562,9 @@ mod tests {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         player.record_kredit_purchase(3).unwrap();
         assert_eq!(player.kredit_balance, 3);
-        assert_eq!(player.lifetime_paid_entries, 0);
 
         player.record_paid_entry(20_000).unwrap();
         assert_eq!(player.kredit_balance, 2);
-        assert_eq!(player.lifetime_paid_entries, 1);
         player.kredit_balance = 0;
         assert!(player.record_paid_entry(20_000).is_err());
     }
@@ -709,8 +628,8 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 223);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 339);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 206);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 338);
     }
 
     #[test]
@@ -721,8 +640,6 @@ mod tests {
         assert!(!player.emblem_unlocked(EMBLEM_REALM_CONQUEROR));
         assert!(!player.emblem_unlocked(EMBLEM_WORLD_PERFECT));
         player.merge_campaign_stars([u8::MAX; CAMPAIGN_STAR_BYTES]);
-        assert_eq!(player.total_campaign_stars(), MAX_CAMPAIGN_STARS);
-        assert!(player.zone_perfected(10).unwrap());
         assert!(player.emblem_unlocked(10));
         assert!(player.emblem_unlocked(EMBLEM_REALM_CONQUEROR));
         assert!(player.emblem_unlocked(EMBLEM_WORLD_PERFECT));
@@ -738,7 +655,6 @@ mod tests {
         record.record_prize(1, 20_000_000).unwrap();
         record.record_prize(5, 5_000_000).unwrap();
         assert_eq!(record.best_prize_rank, 1);
-        assert_eq!(record.podiums, 2);
         assert_eq!(record.wins, 1);
         assert_eq!(record.rewards_lamports, 37_000_000);
     }

@@ -46,9 +46,9 @@ Source implements v5 partially. Current state:
 | Area | Status |
 | --- | --- |
 | Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed realm × objective draw |
-| Program surface | Built — 41 instructions and 11 account types; Arcade-only run lifecycle and one Campaign save write |
+| Program surface | Built — 39 instructions and 10 account types; Arcade-only run lifecycle and one Campaign save write |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
-| `PlayerState` | Built — 223 bytes; the player's reported Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
+| `PlayerState` | Built — 206 bytes; the player's reported Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and Daily draw | Built — prepaid purchase/spend paths and protocol-derived realm × objective selection |
 | Points ladder | Built — integer Q64 `ln` in the core, streak-neutral points applied atomically with each Daily claim |
@@ -152,8 +152,22 @@ three Campaign lifecycle instructions, one run slot, the content accounts, and
 16 Campaign-only bytes from `ActiveRun` (355 to 339 bytes). Removing the content
 accounts also removes their two publication/activation instructions: five
 instructions removed in total. The interface contract
-`locks the fresh-bootstrap interface at 41 instructions and 11 accounts` and
-`target_accounts_fit_normal_solana_account_limits` pin the resulting surface.
+`locks the fresh-bootstrap interface at 39 instructions and 10 accounts` and
+`target_accounts_fit_normal_solana_account_limits` pin the current surface after
+the cleanup below.
+
+**Program cleanup approved 2026-09-15.** The wallet address remains the money
+identity; the unused label account and its two instructions are removed.
+The interface test above pins their absence. Daily accounts retain the rules
+hash and derive their content and window from the day identifier; only the
+active run holds a rules snapshot.
+`sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` guards that snapshot.
+`program_and_core_score_one_action_identically`
+guards reconstruction, while `daily_window_is_derived_at_epoch_and_u32_day_bounds`
+and `DailyWindowUsesTheCoreAcrossTheFullDayRange` guard the shared clock rule.
+`account_sizes_and_maximum_board_rent_are_explicit` pins the 165-byte Daily.
+The player, active-run and Arcade account versions are 3; generated protocol
+constants and the interface test guard these fresh-bootstrap layouts.
 
 **The systems below are locked. The balance is not.** Every structural rule in
 this section is settled and is not to be relitigated without an explicit new
@@ -668,8 +682,8 @@ incomplete when its move budget or board is exhausted; already-latched stars
 are retained and recorded in either terminal state.
 `exhausted_runs_keep_latched_stars` guards that core rule. The three-bit
 source mask remains one byte in the core Run state codec. Arcade's program
-projection omits Campaign progress and latch bytes and reconstructs those values
-as zero. Core Run golden vectors retain their values;
+projection omits Campaign progress and latch bytes; `RunEngine::daily` constructs
+the core state without Campaign progress. Core Run golden vectors retain their values;
 `shared_run_config_and_state_codecs_round_trip_both_rule_shapes` and
 `target_accounts_fit_normal_solana_account_limits` pin those boundaries.
 Move efficiency and authored star-threshold modifiers are not star sources;
@@ -686,15 +700,17 @@ that shared driver. The Arcade Solana lifecycle reconstructs that `Run` for ever
 move, bonus, and reroll transition rather than maintaining a second accounting
 path; `program_and_core_score_one_action_identically` guards the projection.
 `ActiveRun` stores only fields read by a handler, result row, hash, or client
-view, and its 339-byte account size is pinned by
+view, and its 338-byte account size is pinned by
 `target_accounts_fit_normal_solana_account_limits`. Native Rust, WASM, and the
 Solana program must pass the same committed golden vectors before an ABI is
 releasable; `wasm_run_matches_native_golden_vectors` and
 `wasm_protocol_matches_native_golden_vectors` guard the generated boundary.
 
 Replay v2 binds the chain domain, challenge, rules hash, player, run ID, and
-mode, then folds ordered VRF, action, bonus, abandon, and deadline events with
-SHA-256. Permanent board rows retain the qualifying replay commitment; move
+the fixed zero tag retained from its original encoding, then folds ordered VRF,
+action, bonus, abandon, and deadline events with SHA-256.
+`wasm_run_matches_native_golden_vectors` guards the unchanged commitments.
+Permanent board rows retain the qualifying replay commitment; move
 lists may stay off-chain and be independently recomputed.
 
 A Daily rules hash binds its day, the core `CATALOG_VERSION` emitted by codegen,
@@ -729,9 +745,10 @@ boundaries in SBF.
 
 ### Competitive profile
 
-Player state keeps lifetime paid entries and one compact Daily record per board
-— Score and Theme separately — each holding best payout-bearing rank, podiums,
-wins, and awarded rewards in lamports. They stay separate because the two boards
+Player state keeps one compact Daily record per board — Score and Theme
+separately — each holding best payout-bearing rank, wins, and awarded rewards
+in lamports. `competition_record_counts_only_prize_results` guards those fields.
+They stay separate because the two boards
 rank the same runs by different metrics, so one aggregate cannot say whether a
 player wins on total performance or on playing the day's theme, which is the
 whole reason the pot splits in two. A non-paying leaderboard place stays visible

@@ -12,10 +12,9 @@ namespace ZKube.Core.Generated
         public const uint PressureStep = 15U;
         public const uint DailyPairCount = 160U;
         public const uint LadderQualifyPoints = 100U;
-        public const uint ProtocolAccountVersion = 2U;
-        public const uint PlayerStateAccountVersion = 2U;
-        public const uint ArcadeAccountVersion = 2U;
-        public const uint PlayerLabelAccountVersion = 1U;
+        public const uint ProtocolAccountVersion = 3U;
+        public const uint PlayerStateAccountVersion = 3U;
+        public const uint ArcadeAccountVersion = 3U;
         public const uint CatalogVersion = 3U;
         public const string CoreVersion = "1.0.0";
         public static readonly ushort[] CampaignTargets = { 10, 14, 18, 22, 27, 32, 37, 42, 46, 50 };

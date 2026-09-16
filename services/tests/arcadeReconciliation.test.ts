@@ -336,7 +336,6 @@ function rankedRun(
     owner,
     rentPayer: Keypair.generate().publicKey,
     runId: 2n,
-    mode: "ranked" as const,
     challengeDayId: DAY,
     deadlineDayId: DAY,
     arenaPlayerExists: true,

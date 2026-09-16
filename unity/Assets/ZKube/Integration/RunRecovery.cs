@@ -117,7 +117,6 @@ namespace ZKube.Integration
         }
 
         private static bool Matches(JObject run, RunMarker marker) => run != null && (string)run["owner"] == marker.Owner &&
-            (ulong)run["run_id"] == marker.RunId &&
-            string.Equals(((JObject)run["mode"]).Properties().Single().Name, RunMarker.StorageKey, StringComparison.OrdinalIgnoreCase);
+            (ulong)run["run_id"] == marker.RunId;
     }
 }

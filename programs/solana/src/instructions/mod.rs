@@ -10,7 +10,6 @@ pub mod cadence_funding_instructions;
 pub mod content_instructions;
 pub mod governance_instructions;
 pub mod player_authorization;
-pub mod player_label_instructions;
 pub mod profile_instructions;
 pub mod run_lifecycle;
 
@@ -19,6 +18,5 @@ pub use cadence_funding_instructions::*;
 pub use content_instructions::*;
 pub use governance_instructions::*;
 pub use player_authorization::*;
-pub use player_label_instructions::*;
 pub use profile_instructions::*;
 pub use run_lifecycle::*;

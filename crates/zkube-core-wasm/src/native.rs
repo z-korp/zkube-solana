@@ -91,6 +91,8 @@ pub const SUMMARY_FIELDS: &[Field] = fields![
 ];
 
 pub const DAILY_PAIR_FIELDS: &[Field] = fields![Index: U32, Realm: U8, Kind: U8, Value: U8];
+pub const DAILY_WINDOW_FIELDS: &[Field] =
+    fields![OpensAt: U64, FreezesAt: U64, RecoveryDeadlineAt: U64];
 pub const CAMPAIGN_PROGRESS_FIELDS: &[Field] = fields![
     Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS), Total: U16,
     LevelUnlocked: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS),
@@ -237,6 +239,11 @@ pub const OPERATIONS: &[Operation] = &[
         id: 26,
         name: "RecordLocalCampaignResult",
         fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_STAR_BYTES), Realm: U8, Level: U8, State: Bytes(RUN_STATE_LEN)],
+    },
+    Operation {
+        id: 27,
+        name: "DailyWindow",
+        fields: fields![Day: U32],
     },
 ];
 
@@ -556,6 +563,15 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
                 .merge_level(n("Realm"), n("Level"), run.engine.latched_star_count())
                 .map_err(|_| BoundaryError::InvalidEncoding)?;
             Ok(stars.packed().to_vec())
+        }
+        27 => {
+            let (opens, closes, recovery) = zkube_core::daily_window(u("Day"));
+            Ok([
+                opens.to_le_bytes(),
+                closes.to_le_bytes(),
+                recovery.to_le_bytes(),
+            ]
+            .concat())
         }
         21 => crate::merge_campaign_stars(b("Stored"), b("Incoming")),
         22 => {

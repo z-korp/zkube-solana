@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
+using ZKube.Core;
 using ZKube.Integration.App;
 using ZKube.Presentation;
 
@@ -50,7 +51,8 @@ namespace ZKube.Integration.Presentation
             var fields = value.Daily;
             if (fields != null)
             {
-                long opens = (long)fields["opens_at"], freezes = (long)fields["runs_close_at"];
+                var window = NativeEngine.DailyWindow(value.DayId);
+                long opens = (long)window.OpensAt, freezes = (long)window.FreezesAt;
                 if (opens > timestamp) dailyRefreshAt = Math.Min(dailyRefreshAt, opens);
                 if (freezes > timestamp) dailyRefreshAt = Math.Min(dailyRefreshAt, freezes);
             }
@@ -111,7 +113,7 @@ namespace ZKube.Integration.Presentation
             Label(dailyPanel, PublicStatus(lobby.Status), 21, false);
             var fields = lobby.Daily;
             if (fields != null)
-                Label(dailyPanel, "Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)fields["runs_close_at"]).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC", 19, false);
+                Label(dailyPanel, "Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)NativeEngine.DailyWindow(lobby.DayId).FreezesAt).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC", 19, false);
             if (lobby.PotLamports.HasValue)
                 Label(dailyPanel, "Prize pot · " + (lobby.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL", 25, true);
             Label(dailyPanel, lobby.ObjectiveKind == 0 ? "Classic pays the prize pot to Score." : "One run competes on Score and Theme.", 19, false);
