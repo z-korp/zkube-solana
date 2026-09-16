@@ -104,7 +104,7 @@ namespace ZKube.Local
             if (state.CampaignRun != null) document["campaignRun"] = JObject.FromObject(state.CampaignRun);
             if (state.CampaignWritePending) document["campaignWritePending"] = true;
             // Escape UTF-16 code units so a split/lone surrogate survives the
-            // UTF-8 storage boundary exactly, as well-formed JSON.stringify does.
+            // UTF-8 storage boundary exactly.
             return JsonConvert.SerializeObject(document, Formatting.None,
                 new JsonSerializerSettings { StringEscapeHandling = StringEscapeHandling.EscapeNonAscii });
         }
@@ -137,7 +137,7 @@ namespace ZKube.Local
         {
             if (value == null) return null;
             string total = value["objectiveTotal"]?.Type == JTokenType.String ? (string)value["objectiveTotal"] : null;
-            // JavaScript \d is ASCII here; .NET's default \d also accepts Unicode digits.
+            // Persisted totals accept ASCII digits only.
             return new LocalDailyAttempt {
                 DayId = Day(value["dayId"]), Realm = (uint)Math.Min(10UL, Math.Max(1UL, Nonnegative(value["realm"]))),
                 ObjectiveKind = Nonnegative(value["objectiveKind"]), ObjectiveValue = Nonnegative(value["objectiveValue"]),

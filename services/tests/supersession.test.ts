@@ -44,6 +44,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "The zKube family names the local product Realms and the Solana product Arena (2026-09-15)",
   },
   {
+    pattern: /two run slots|Capgo|themes\.loadAudioSettings|JSON\.(?:parse|stringify)|JavaScript|legacy API|evidence projection|Proposed root-owned|Root must|Root-only|Root's scene|Root verifies/,
+    trees: [UNITY_CLIENT],
+    reversal: "Unity comments describe its own runtime and persistence rather than the retired client (2026-09-16)",
+  },
+  {
     pattern: /zkube-v4-launch|exactly 17 transactions/,
     trees: [TOOLS, SERVICES, README, AGENT_RULES],
     reversal: "Launch staging follows the current plan and release inputs replace the abandoned deployment defaults (2026-09-16)",
@@ -310,7 +315,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern: /\bEndless\b|dailyContentSelection/i,
-    trees: [UNITY_CLIENT],
+    trees: [UNITY_CLIENT, SERVICES],
     reversal:
       "Daily pressure names the one competitive profile and the core owns pair selection",
   },

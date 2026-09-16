@@ -14,7 +14,7 @@ import {
   assertSafeTimestamp,
   cadenceFundingPda,
   currentDayId,
-  dailyContentSelection,
+  dailyPairForDay,
   nextScheduledDaily,
   validationOnlyPlan,
   type DailyBoardKind,
@@ -227,7 +227,7 @@ export function discoverReconciliation(args: {
   // day spend is suspension's job — an unscheduled day is never missing.
   if (missingDay !== undefined && missingDay > args.snapshot.launchDayId &&
       missingDay >= oldestKeeperDay) {
-    const content = dailyContentSelection(missingDay);
+    const content = dailyPairForDay(missingDay);
     const predecessor = [...dailyById.keys()]
       .filter((dayId) => dayId < missingDay)
       .sort((left, right) => right - left)[0] ?? missingDay - 1;
@@ -340,7 +340,7 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
           context.followingDayId > nextScheduledDaily(today, context.suspendedUntilDay ?? 0)) {
         throw new Error("Daily preparation is not the exact missing successor");
       }
-      const selected = dailyContentSelection(context.followingDayId);
+      const selected = dailyPairForDay(context.followingDayId);
       if (context.pairIndex !== selected.pairIndex ||
           context.realmMapId !== selected.realmMapId) {
         throw new Error("Daily preparation content is not core-derived");

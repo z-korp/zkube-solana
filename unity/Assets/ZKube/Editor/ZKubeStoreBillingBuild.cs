@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace ZKube.Editor
 {
-    // Proposed root-owned build integration. Plugin callbacks avoid editing the
+    // Plugin callbacks avoid editing the
     // resolved package cache. Reapply after every Editor domain reload through
     // ZKubeBuild.Configure; actual money APK absence is still a required gate.
     internal static class ZKubeStoreBillingBuild

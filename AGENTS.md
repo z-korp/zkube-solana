@@ -159,7 +159,8 @@ on 2026-09-15 and rejected as a lifecycle rebuilt for a cosmetic.
 
 The amendment adds one instruction and one 25-byte argument. It removes the
 three Campaign lifecycle instructions, one run slot, the content accounts, and
-16 Campaign-only bytes from `ActiveRun` (355 to 339 bytes). Removing the content
+16 Campaign-only bytes from `ActiveRun`; removing its mode byte subsequently
+leaves 338 bytes. Removing the content
 accounts also removes their two publication/activation instructions: five
 instructions removed in total. The interface contract
 `locks the fresh-bootstrap interface at 32 instructions and 8 accounts` and
@@ -459,7 +460,7 @@ ladder tier boundaries, and the flat qualifying credit.
   all prohibited on the paid boards — a discount reduces the per-entry
   contribution and is the same dilution wearing a different label. Unpaid
   prestige boards are the only place an unbacked entry may exist. The shipped
-  shop offers packs of exactly 1, 10, and 25 Kredits; `kreditPacks.test.ts`
+  shop offers packs of exactly 1, 10, and 25 Kredits; `OneKreditButtonUsesTheOwnerPurchaseAndConfirmedBalance`
   guards both the sizes and their invariant unit pricing.
 
 Superseded on implementation, and only then: the Weekly pot and its 60/25/15
@@ -911,7 +912,7 @@ connections. Delegation placement resolves through `getDelegationStatus`;
 regional ER endpoints are never hardcoded. Player state retains one durable
 Arcade run slot and its monotonic run-ID sequence. Campaign has no chain run
 reservation. Arcade's orphan reservation prevents an unreachable delegated run
-from racing a replacement. `ArcadeUsesMonotonicIdsAndBlocksAnOccupiedRun` and
+from racing a replacement. `arcade_reservation_and_orphan_share_one_monotonic_run_sequence` and
 `local_campaign_run_survives_process_death` guard the two recovery boundaries.
 
 The program pins `ephemeral-rollups-sdk` 0.16.2 or newer. Its generated
@@ -1017,7 +1018,8 @@ The source program ID is not evidence that corresponding ProgramData or
 protocol accounts are current. A fresh v5 pass must derive and approve every
 live value from its own read-only observations.
 
-The manifest schema in `deploymentManifest.ts` binds the deployed ProgramData and allocation, compiled
+`DEPLOYMENT_MANIFEST_SCHEMA_VERSION` in `deploymentManifest.ts` owns the manifest
+version; `deploymentManifest.test.ts` checks it. The manifest binds the deployed ProgramData and allocation, compiled
 catalog version and hash, exact launch day and seed plan, and keeper release. The v5
 dependency is one-way: frozen SBF and observed ProgramData, unique Fly release
 tag, keeper fingerprint,
@@ -1104,6 +1106,18 @@ command deliberately rejects Mainnet. Mainnet enablement requires a separately
 reviewed release binding the approved Mainnet genesis, deployment manifest,
 program, authority, economics, distribution decision, and operational policy;
 Devnet approval or this command's existence grants none of those permissions.
+
+### Daily suspension
+
+From `tools/chain`, `chain:devnet:set-suspension plan` writes a public bundle
+under `build/`; the command's help lists its release inputs and day argument.
+`suspension_plan_pins_the_authority_day_and_exact_instruction_without_a_signer`
+checks the read-only proposal. After exact approval, `chain:devnet:set-suspension execute`
+uses `ZKUBE_APPROVAL` and the pinned protocol-authority signer, retaining a
+receipt before relay through the launch runner's shared execution path.
+`suspension_without_the_exact_fingerprint_loads_no_keypair` guards the approval
+boundary. Governance remains outside the keeper allowlist, pinned by
+`keeper_allowlist_is_exactly_its_plans`.
 
 ### Gate G1 — physical-device wallet matrix
 

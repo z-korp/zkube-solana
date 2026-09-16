@@ -11,6 +11,7 @@ import {
 } from "./constants.js";
 import {
   deploymentManifestFromEnv,
+  DEPLOYMENT_MANIFEST_SCHEMA_VERSION,
   deploymentManifestMismatches,
   formatDeploymentManifestValidation,
   validateDeploymentBinding,
@@ -19,7 +20,7 @@ import {
 } from "./deploymentManifest.js";
 import { VRF_QUEUE } from "./program.js";
 
-describe("zKube deployment manifest v6", () => {
+describe(`zKube deployment manifest v${DEPLOYMENT_MANIFEST_SCHEMA_VERSION}`, () => {
   it("validates a sanitized, fully bound Devnet candidate", () => {
     const manifest = candidate();
     const validation = validateDeploymentManifest(manifest);

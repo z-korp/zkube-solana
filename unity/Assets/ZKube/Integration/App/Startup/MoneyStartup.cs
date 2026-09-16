@@ -38,7 +38,7 @@ namespace ZKube.Integration.App
             testServices = services ?? throw new ArgumentNullException(nameof(services)); testClock = clock;
         }
 #endif
-        // Root's scene preparation serializes these canonical asset references.
+        // Scene preparation serializes these canonical asset references.
         public void Configure(TextAsset solana, TextAsset session, TMP_FontAsset heading, TMP_FontAsset body,
             string baseAddress = null, string routerAddress = null, string genesis = null, float? textScale = null, float? displayDensity = null)
         {
@@ -92,7 +92,7 @@ namespace ZKube.Integration.App
             {
                 if (flow != null) _ = StopAsync();
                 else { http?.Dispose(); http = null; }
-                // Root verifies serialized fonts before creating the scene;
+                // Scene preparation verifies serialized fonts before creating the scene;
                 // configuration failures remain legible without realm assets.
                 if (flow == null) controller.ShowUnavailable(displayFont, bodyFont,
                     error is MoneyConfigurationException ? "Network configuration is unavailable." :

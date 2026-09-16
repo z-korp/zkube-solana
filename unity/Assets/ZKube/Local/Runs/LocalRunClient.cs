@@ -93,9 +93,8 @@ namespace ZKube.Local
                 try { return Act(id, action); }
                 catch (Exception error) when (!recorded && record.Recorded)
                 {
-                    // The existing backend marks terminal acceptance immediately
-                    // before its only durable write. Preserve its legacy API and
-                    // give board callers an explicit unsaved-progress result.
+                    // Terminal acceptance precedes the durable write; report
+                    // an explicit unsaved-progress result if that write fails.
                     throw new LocalRunPersistenceException(error);
                 }
             }

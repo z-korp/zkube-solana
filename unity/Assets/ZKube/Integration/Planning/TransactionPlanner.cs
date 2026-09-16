@@ -232,7 +232,7 @@ namespace ZKube.Integration.Planning
             return Plan(PlannerActor.Wallet(owner), PlanRoute.Base, instructions);
         }
 
-        // Matches the current client: reclaim the allowance and delete the local
+        // Reclaim the allowance and delete the local
         // signer only after confirmation. The token remains until its expiry.
         public TransactionPlan RevokeSession(string owner, string device, ulong balance) => balance == 0 ? null :
             Plan(PlannerActor.Wallet(owner), PlanRoute.Base, new[] { Transfer(device, owner, balance) });

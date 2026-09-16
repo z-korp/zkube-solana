@@ -39,7 +39,7 @@ namespace ZKube.Core
             return events.ToArray();
         }
 
-        // Applies explicit engine facts for a display/evidence projection.
+        // Applies explicit engine facts to the displayed board.
         // No collision test, gravity solver, line discovery or scoring lives here.
         public static byte[] ProjectBoard(byte[] initial, IEnumerable<PresentationEvent> events)
         {

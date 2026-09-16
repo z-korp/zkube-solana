@@ -31,8 +31,8 @@ namespace ZKube.Integration
         }
     }
 
-    // One pending transaction per owner. This serializes the two run slots and
-    // funding/claims at submission, while their durable game states stay separate.
+    // One pending transaction per owner serializes submission of Arcade,
+    // funding, claims and Campaign saves.
     // A pending record is written before Send; its presence never proves Send ran.
     public sealed class TransactionJournal
     {

@@ -9,7 +9,6 @@ using ZKube.Persistence;
 
 namespace ZKube.Presentation
 {
-    // Persisted channel levels follow themes.loadAudioSettings + AudioManager.
     // The board's independent master mute never overwrites these preferences.
     public sealed class AudioPreferences
     {
@@ -82,7 +81,7 @@ namespace ZKube.Presentation
             if (value.Type == JTokenType.Boolean) return (bool)value ? "true" : "false";
             if (value.Type == JTokenType.Integer || value.Type == JTokenType.Float) return ((double)value).ToString("R", CultureInfo.InvariantCulture);
             if (value is JObject obj && obj.Property("toString") != null)
-                throw new FormatException("JSON object masks JavaScript's primitive conversion");
+                throw new FormatException("Audio preference cannot convert an object to a number");
             return "[object Object]";
         }
         private static string ArrayString(JArray root)

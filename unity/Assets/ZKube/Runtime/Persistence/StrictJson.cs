@@ -6,10 +6,8 @@ using Newtonsoft.Json.Linq;
 
 namespace ZKube.Persistence
 {
-    // JSON.parse compatibility for persisted product data: Json.NET otherwise
-    // accepts comments, single quotes, undefined and trailing commas, and can
-    // replace escaped lone UTF-16 surrogates. Iterative containers avoid a
-    // recursive call stack and preserve JS double parsing/last-key-wins behavior.
+    // Persisted data rejects comments, single quotes, undefined and trailing
+    // commas, and preserves escaped UTF-16 code units and duplicate-key ordering.
     public sealed class StrictJson
     {
         private readonly string text;
@@ -95,7 +93,7 @@ namespace ZKube.Persistence
         }
         private static double OutOfRangeNumber(string number)
         {
-            // Mono reports overflow as TryParse=false; modern .NET and JSON.parse
+            // Mono reports overflow as TryParse=false; modern .NET
             // accept it as infinity. The grammar is already validated. Classify
             // enormous exponents without parsing them into a bounded integer.
             bool negative = number[0] == '-';

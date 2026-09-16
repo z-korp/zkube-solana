@@ -155,16 +155,16 @@ namespace ZKube.Editor
             importer.loadInBackground = true;
         }
 
-        // Root invokes this explicitly after --sync, within the shared Editor lock.
+        // Build preparation invokes this after --sync, within the shared Editor lock.
         // See Unity 6.3 Manual: Load sprite atlases manually at runtime. Resources
         // includes atlas bytes but does not preload them; consumers load one realm.
         [MenuItem("ZKube/Prepare Generated Art")]
         public static void Prepare()
         {
             if (EditorSettings.spritePackerMode == SpritePackerMode.Disabled)
-                throw new InvalidOperationException("Root must enable Sprite Atlas packing in project settings before preparing art.");
+                throw new InvalidOperationException("Enable Sprite Atlas packing in project settings before preparing art.");
             if (Shader.Find("TextMeshPro/Mobile/Distance Field") == null)
-                throw new InvalidOperationException("Root must import TMP Essential Resources from the pinned ugui package before preparing fonts.");
+                throw new InvalidOperationException("Import TMP Essential Resources from the pinned ugui package before preparing fonts.");
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             var catalog = ReadCatalog();
             foreach (var entry in catalog.assets)
@@ -265,7 +265,7 @@ namespace ZKube.Editor
             return sprites[0];
         }
 
-        // Root-only diagnostic; reports imported object types before changing any
+        // Reports imported object types before changing any
         // packing assumptions. A texture setting alone does not prove a sprite exists.
         public static void DiagnoseSpriteImport()
         {

@@ -86,8 +86,7 @@ namespace ZKube.Local.Billing
 
         public Task<CampaignBillingAnswer> Query(CancellationToken cancellation = default)
             => Start(Refresh, cancellation);
-        // Google restore queries owned purchases and processes paid unconfirmed
-        // orders, matching Capgo's processUnfinishedPurchases then TS query.
+        // Google restore queries owned purchases and processes paid unconfirmed orders.
         public Task<CampaignBillingAnswer> Restore(CancellationToken cancellation = default)
             => Start(Refresh, cancellation);
         public Task<CampaignBillingAnswer> Purchase(CancellationToken cancellation = default)

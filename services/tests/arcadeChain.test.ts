@@ -11,7 +11,7 @@ import {
   RUN_RECOVERY_SECONDS,
   SECONDS_PER_DAY,
   currentDayId,
-  dailyContentSelection,
+  dailyPairForDay,
 } from "../src/arcadeChain";
 
 describe("v5 Daily cadence constants", () => {
@@ -38,14 +38,14 @@ describe("v5 Daily cadence constants", () => {
 
   it("derives a day's pair from its absolute day only", () => {
     const dayId = 31_415;
-    expect(dailyContentSelection(dayId)).toEqual(dailyContentSelection(dayId));
+    expect(dailyPairForDay(dayId)).toEqual(dailyPairForDay(dayId));
   });
 
   it("reshuffles each complete realm-objective product cycle", () => {
     const startsDay = DAILY_PAIR_COUNT * 200;
     const cycle = (cycleIndex: number) => Array.from(
       { length: DAILY_PAIR_COUNT },
-      (_, offset) => dailyContentSelection(
+      (_, offset) => dailyPairForDay(
         startsDay + cycleIndex * DAILY_PAIR_COUNT + offset,
       ).pairIndex,
     );

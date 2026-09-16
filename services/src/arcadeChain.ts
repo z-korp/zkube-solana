@@ -220,7 +220,7 @@ export function nextScheduledDaily(
   return coreNextScheduledDaily(dayId, suspendedUntilDay);
 }
 
-export function dailyContentSelection(
+export function dailyPairForDay(
   dayId: number,
 ): { pairIndex: number; realmMapId: number; objective: { kind: number; value: number } } {
   assertCadenceId(dayId, "day id");

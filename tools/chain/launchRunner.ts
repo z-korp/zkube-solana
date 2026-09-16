@@ -515,7 +515,7 @@ async function fetchExact(
   }
 }
 
-async function executeApprovedTransaction(args: {
+export async function executeApprovedTransaction(args: {
   plan: TransactionPlan;
   signer: Keypair;
   existing?: LaunchTransactionReceipt;
@@ -781,7 +781,7 @@ function encodeBase58(bytes: Uint8Array): string {
   return encoded || "1";
 }
 
-function loadPinnedKeypair(
+export function loadPinnedKeypair(
   path: string,
   expected: string,
   label: string,
