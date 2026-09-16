@@ -128,9 +128,6 @@ pub fn reconcile_run_state(
     reroll_charges: u8,
     combo_counter: u8,
     max_combo: u8,
-    primary_progress: u8,
-    secondary_progress: u8,
-    latched_star_sources: u8,
     streak: u8,
     charges_earned: u8,
     current_tier: u8,
@@ -173,15 +170,9 @@ pub fn reconcile_run_state(
             .checked_sub(1)
             .ok_or(BoundaryError::InvalidEncoding)?
     };
-    let current_tier = match config_value.rules.tier {
-        TierPolicy::Fixed(tier) => {
-            if current_tier != 0 && current_tier != tier {
-                return Err(BoundaryError::InvalidEncoding);
-            }
-            tier
-        }
-        TierPolicy::Pressure => current_tier,
-    };
+    if config_value.rules.tier != TierPolicy::Pressure || config_value.rules.stars.is_some() {
+        return Err(BoundaryError::InvalidEncoding);
+    }
     let run = Run {
         engine: RunEngine {
             grid,
@@ -191,9 +182,9 @@ pub fn reconcile_run_state(
             moves,
             combo_counter,
             max_combo,
-            primary_progress,
-            secondary_progress,
-            latched_star_sources,
+            primary_progress: 0,
+            secondary_progress: 0,
+            latched_star_sources: 0,
             streak,
             charges_earned,
             level_lines_cleared,
@@ -413,12 +404,13 @@ pub fn run_apply_vrf(
     vrf_output: &[u8],
 ) -> Result<Vec<u8>, BoundaryError> {
     let (config, mut run) = decode_for_transition(config, state)?;
-    run.apply_vrf(
+    run.apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
         config.rules,
         request_counter,
         vrf_output
             .try_into()
             .map_err(|_| BoundaryError::InvalidLength)?,
+        &mut zkube_core::NoPresentation,
     )?;
     Ok(encode_run_state(run).to_vec())
 }
@@ -439,7 +431,15 @@ pub fn run_play_move(
     destination: u8,
 ) -> Result<Vec<u8>, BoundaryError> {
     let (config, mut run) = decode_for_transition(config, state)?;
-    run.play_move(config.rules, action, expected_move, row, start, destination)?;
+    run.play_move_observed_with::<zkube_core::SoftwareSha256, _>(
+        config.rules,
+        action,
+        expected_move,
+        row,
+        start,
+        destination,
+        &mut zkube_core::NoPresentation,
+    )?;
     Ok(encode_run_state(run).to_vec())
 }
 
@@ -456,7 +456,13 @@ pub fn run_apply_bonus(
     column: u8,
 ) -> Result<Vec<u8>, BoundaryError> {
     let (config, mut run) = decode_for_transition(config, state)?;
-    run.apply_bonus(config.rules, action, row, column)?;
+    run.apply_bonus_observed_with::<zkube_core::SoftwareSha256, _>(
+        config.rules,
+        action,
+        row,
+        column,
+        &mut zkube_core::NoPresentation,
+    )?;
     Ok(encode_run_state(run).to_vec())
 }
 
@@ -487,7 +493,11 @@ pub fn run_finish(config: &[u8], state: &[u8], reason_tag: u8) -> Result<Vec<u8>
         _ => return Err(BoundaryError::InvalidEncoding),
     };
     let (config, mut run) = decode_for_transition(config, state)?;
-    run.finish(config.rules, reason)?;
+    run.finish_observed_with::<zkube_core::SoftwareSha256, _>(
+        config.rules,
+        reason,
+        &mut zkube_core::NoPresentation,
+    )?;
     Ok(encode_run_state(run).to_vec())
 }
 
@@ -496,13 +506,6 @@ pub fn run_finish(config: &[u8], state: &[u8], reason_tag: u8) -> Result<Vec<u8>
 /// Rejects a malformed state token.
 pub fn run_score_eligible(state: &[u8]) -> Result<bool, BoundaryError> {
     Ok(decode_run_state(state)?.is_score_eligible())
-}
-
-/// # Errors
-///
-/// Rejects a malformed state token.
-pub fn run_latched_star_sources(state: &[u8]) -> Result<u8, BoundaryError> {
-    Ok(decode_run_state(state)?.engine.latched_star_sources)
 }
 
 /// Zero means active; 1-4 encode completed, exhausted, abandoned, deadline.
@@ -772,6 +775,49 @@ mod tests {
             rules,
             initial_replay: ReplayCommitment([9; 32]),
         }
+    }
+
+    #[test]
+    fn arcade_reconstruction_rejects_campaign_rules() {
+        let reconstruct = |config: RunConfig| {
+            let run = Run::new(config).unwrap();
+            reconcile_run_state(
+                &encode_run_config(config),
+                phase_tag(run.engine.phase),
+                0,
+                bonus_tag(run.engine.bonus),
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                run.engine.grid.cells(),
+                &[],
+                run.replay.as_bytes(),
+            )
+        };
+        let mut daily = campaign_config();
+        daily.rules.tier = TierPolicy::Pressure;
+        daily.rules.stars = None;
+        assert_eq!(
+            decode_run_state(&reconstruct(daily).unwrap()).unwrap(),
+            Run::new(daily).unwrap()
+        );
+        assert_eq!(
+            reconstruct(campaign_config()),
+            Err(BoundaryError::InvalidEncoding)
+        );
     }
 
     #[test]

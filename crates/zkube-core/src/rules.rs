@@ -297,25 +297,23 @@ impl Constraint {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LevelRules {
+pub struct StarRules {
     pub points_required: u32,
-    pub max_moves: u16,
     pub primary: Constraint,
     pub secondary: Constraint,
 }
 
-impl Default for LevelRules {
+impl Default for StarRules {
     fn default() -> Self {
         Self {
             points_required: 1,
-            max_moves: 20,
             primary: Constraint::default(),
             secondary: Constraint::default(),
         }
     }
 }
 
-impl LevelRules {
+impl StarRules {
     /// Bit mask of authored star sources. Score is always authored; Shape and
     /// Blow are present when their corresponding constraint is present.
     #[must_use]
@@ -398,41 +396,6 @@ impl LevelRules {
             _ => false,
         };
         !contained
-    }
-}
-
-/// The three Campaign-only sources that may latch during a shared run.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StarRules {
-    pub points_required: u32,
-    pub primary: Constraint,
-    pub secondary: Constraint,
-}
-
-impl From<LevelRules> for StarRules {
-    fn from(level: LevelRules) -> Self {
-        Self {
-            points_required: level.points_required,
-            primary: level.primary,
-            secondary: level.secondary,
-        }
-    }
-}
-
-impl StarRules {
-    #[must_use]
-    pub const fn earnable_sources_mask(self) -> u8 {
-        STAR_SOURCE_SCORE
-            | if self.primary.is_present() {
-                STAR_SOURCE_PRIMARY
-            } else {
-                0
-            }
-            | if self.secondary.is_present() {
-                STAR_SOURCE_SECONDARY
-            } else {
-                0
-            }
     }
 }
 
@@ -637,37 +600,15 @@ impl RunEngine {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn play_move(
+    #[cfg(test)]
+    fn play_move(
         &mut self,
         expected_move: u16,
         row: u8,
         start: u8,
         destination: u8,
-        level: LevelRules,
-        guardian: Guardian,
-        action_score_multiplier_x100: u16,
-    ) -> Result<MoveReport, RunError> {
-        self.play_run_move(
-            expected_move,
-            row,
-            start,
-            destination,
-            level.max_moves,
-            Some(level.into()),
-            guardian,
-            action_score_multiplier_x100,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn play_run_move(
-        &mut self,
-        expected_move: u16,
-        row: u8,
-        start: u8,
-        destination: u8,
+        level: StarRules,
         max_moves: u16,
-        stars: Option<StarRules>,
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
@@ -677,7 +618,7 @@ impl RunEngine {
             start,
             destination,
             max_moves,
-            stars,
+            Some(level),
             guardian,
             action_score_multiplier_x100,
             &mut crate::NoPresentation,
@@ -771,30 +712,13 @@ impl RunEngine {
         Ok(report)
     }
 
-    pub fn apply_bonus(
+    #[cfg(test)]
+    fn apply_bonus(
         &mut self,
         row: u8,
         column: u8,
-        level: LevelRules,
-        guardian: Guardian,
-        action_score_multiplier_x100: u16,
-    ) -> Result<MoveReport, RunError> {
-        self.apply_run_bonus(
-            row,
-            column,
-            level.max_moves,
-            Some(level.into()),
-            guardian,
-            action_score_multiplier_x100,
-        )
-    }
-
-    pub(crate) fn apply_run_bonus(
-        &mut self,
-        row: u8,
-        column: u8,
+        level: StarRules,
         max_moves: u16,
-        stars: Option<StarRules>,
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> Result<MoveReport, RunError> {
@@ -802,7 +726,7 @@ impl RunEngine {
             row,
             column,
             max_moves,
-            stars,
+            Some(level),
             guardian,
             action_score_multiplier_x100,
             &mut crate::NoPresentation,
@@ -902,10 +826,6 @@ impl RunEngine {
         matches!(self.phase, RunPhase::AwaitingVrf) && self.next_row.is_some()
     }
 
-    pub fn level_satisfied(&self, rules: LevelRules) -> bool {
-        self.latched_star_sources == rules.earnable_sources_mask()
-    }
-
     fn star_sources_satisfied(&self, stars: StarRules) -> bool {
         self.latched_star_sources == stars.earnable_sources_mask()
     }
@@ -919,24 +839,26 @@ impl RunEngine {
     fn finish_move(
         &mut self,
         context: ActionContext,
-        level: LevelRules,
+        level: StarRules,
+        max_moves: u16,
         guardian: Guardian,
     ) -> MoveReport {
-        self.finish_move_with_multiplier(context, level, guardian, 100)
+        self.finish_move_with_multiplier(context, level, max_moves, guardian, 100)
     }
 
     #[cfg(test)]
     fn finish_move_with_multiplier(
         &mut self,
         context: ActionContext,
-        level: LevelRules,
+        level: StarRules,
+        max_moves: u16,
         guardian: Guardian,
         action_score_multiplier_x100: u16,
     ) -> MoveReport {
         self.finish_run_move_with_multiplier(
             context,
-            level.max_moves,
-            Some(level.into()),
+            max_moves,
+            Some(level),
             guardian,
             action_score_multiplier_x100,
         )
@@ -966,18 +888,28 @@ impl RunEngine {
     fn finish_action(
         &mut self,
         context: ActionContext,
-        level: LevelRules,
+        level: StarRules,
+        max_moves: u16,
         guardian: Guardian,
         needs_next_row: bool,
     ) -> MoveReport {
-        self.finish_action_with_multiplier(context, level, guardian, 100, needs_next_row, false)
+        self.finish_action_with_multiplier(
+            context,
+            level,
+            max_moves,
+            guardian,
+            100,
+            needs_next_row,
+            false,
+        )
     }
 
     #[cfg(test)]
     fn finish_action_with_kind(
         &mut self,
         context: ActionContext,
-        level: LevelRules,
+        level: StarRules,
+        max_moves: u16,
         guardian: Guardian,
         needs_next_row: bool,
         action_was_bonus: bool,
@@ -985,6 +917,7 @@ impl RunEngine {
         self.finish_action_with_multiplier(
             context,
             level,
+            max_moves,
             guardian,
             100,
             needs_next_row,
@@ -997,7 +930,8 @@ impl RunEngine {
     fn finish_action_with_multiplier(
         &mut self,
         context: ActionContext,
-        level: LevelRules,
+        level: StarRules,
+        max_moves: u16,
         guardian: Guardian,
         action_score_multiplier_x100: u16,
         needs_next_row: bool,
@@ -1005,8 +939,8 @@ impl RunEngine {
     ) -> MoveReport {
         self.finish_run_action_with_multiplier(
             context,
-            level.max_moves,
-            Some(level.into()),
+            max_moves,
+            Some(level),
             guardian,
             action_score_multiplier_x100,
             needs_next_row,
@@ -1205,7 +1139,7 @@ mod tests {
 
     fn campaign_v3_guardians() -> Vec<Guardian> {
         let fixture: Value =
-            serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
+            serde_json::from_str(include_str!("../../../fixtures/campaign-catalog.json")).unwrap();
         fixture["maps"]
             .as_array()
             .unwrap()
@@ -1330,16 +1264,16 @@ mod tests {
         }
 
         let fixture: Value =
-            serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
+            serde_json::from_str(include_str!("../../../fixtures/campaign-catalog.json")).unwrap();
         let guardians = campaign_v3_guardians();
         for (map_index, map) in fixture["maps"].as_array().unwrap().iter().enumerate() {
             for (level_index, value) in map["levels"].as_array().unwrap().iter().enumerate() {
                 let tuple = value.as_array().unwrap();
                 let level_number = level_index as u8 + 1;
                 let tier = tuple[0].as_u64().unwrap() as u8;
-                let level = LevelRules {
+                let level_max_moves = crate::campaign_move_budget(level_number, tier).unwrap();
+                let level = StarRules {
                     points_required: u32::from(crate::CAMPAIGN_TARGET_LADDER[level_index]),
-                    max_moves: crate::campaign_move_budget(level_number, tier).unwrap(),
                     primary: campaign_v3_constraint(&tuple[1]),
                     secondary: campaign_v3_constraint(&tuple[2]),
                 };
@@ -1347,8 +1281,8 @@ mod tests {
                     phase: RunPhase::Playing,
                     ..RunEngine::default()
                 };
-                for _ in 0..level.max_moves {
-                    if run.level_satisfied(level) {
+                for _ in 0..level_max_moves {
+                    if run.star_sources_satisfied(level) {
                         break;
                     }
                     run.phase = RunPhase::Playing;
@@ -1369,17 +1303,18 @@ mod tests {
                     run.finish_action_with_kind(
                         context,
                         level,
+                        level_max_moves,
                         guardians[map_index],
                         needs_next_row,
                         action_was_bonus,
                     );
                 }
                 assert!(
-                    run.level_satisfied(level),
+                    run.star_sources_satisfied(level),
                     "constructive accounting did not complete map {} level {} within {} moves",
                     map_index + 1,
                     level_index + 1,
-                    level.max_moves,
+                    level_max_moves,
                 );
             }
         }
@@ -1388,13 +1323,14 @@ mod tests {
     #[test]
     fn triangular_scoring_is_guardian_neutral_for_moves_and_bonus_actions() {
         let guardians = campaign_v3_guardians();
-        let incomplete = LevelRules {
+        let incomplete_max_moves = u16::MAX;
+        let incomplete = StarRules {
             points_required: u32::MAX,
-            max_moves: u16::MAX,
             primary: Constraint::default(),
             secondary: Constraint::default(),
         };
-        let bonus_level = LevelRules {
+        let bonus_level_max_moves = incomplete_max_moves;
+        let bonus_level = StarRules {
             primary: Constraint {
                 kind: ConstraintKind::CombosOfAtLeast,
                 value: 2,
@@ -1422,6 +1358,7 @@ mod tests {
                     ..ActionContext::default()
                 },
                 incomplete,
+                incomplete_max_moves,
                 guardian,
                 true,
             );
@@ -1435,6 +1372,7 @@ mod tests {
                     ..ActionContext::default()
                 },
                 incomplete,
+                incomplete_max_moves,
                 guardian,
                 true,
             );
@@ -1451,6 +1389,7 @@ mod tests {
                     ..ActionContext::default()
                 },
                 incomplete,
+                incomplete_max_moves,
                 guardian,
                 true,
             );
@@ -1466,6 +1405,7 @@ mod tests {
                     ..ActionContext::default()
                 },
                 bonus_level,
+                bonus_level_max_moves,
                 guardian,
                 false,
             );
@@ -1480,7 +1420,16 @@ mod tests {
         let source = grid(&[(0, [1, 1, 1, 1, 1, 1, 0, 1])]);
         let mut run = RunEngine::start(source, [0, 0, 0, 0, 0, 0, 0, 1]).unwrap();
         let report = run
-            .play_move(0, 0, 7, 6, LevelRules::default(), Guardian::default(), 100)
+            .play_move(
+                0,
+                0,
+                7,
+                6,
+                StarRules::default(),
+                20,
+                Guardian::default(),
+                100,
+            )
             .unwrap();
         assert_eq!(report.lines_cleared, 1);
         assert_eq!(report.points_earned, 1);
@@ -1494,15 +1443,15 @@ mod tests {
     fn tenth_row_is_playable_and_only_the_next_insertion_ends_the_run() {
         let sparse = [1, 0, 0, 0, 0, 0, 0, 0];
         let rows = (0..9).map(|row| (row, sparse)).collect::<Vec<_>>();
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let tenth_row = run
-            .play_move(0, 0, 0, 0, level, Guardian::default(), 100)
+            .play_move(0, 0, 0, 0, level, level_max_moves, Guardian::default(), 100)
             .unwrap();
         assert_eq!(tenth_row.height_after, 10);
         assert_eq!(run.grid.occupied_height(), 10);
@@ -1513,7 +1462,7 @@ mod tests {
         run.provide_vrf_row(sparse).unwrap();
         let before_overflow = run.grid;
         let overflow = run
-            .play_move(1, 0, 0, 0, level, Guardian::default(), 100)
+            .play_move(1, 0, 0, 0, level, level_max_moves, Guardian::default(), 100)
             .unwrap();
         assert_eq!(overflow.height_after, 10);
         assert_eq!(overflow.blocks_destroyed_by_size, [0; 4]);
@@ -1528,15 +1477,15 @@ mod tests {
         let sparse = [1, 0, 0, 0, 0, 0, 0, 0];
         let mut rows = vec![(0, [1; 8])];
         rows.extend((1..10).map(|row| (row, sparse)));
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let mut run = RunEngine::start(grid(&rows), sparse).unwrap();
 
         let report = run
-            .play_move(0, 1, 0, 0, level, Guardian::default(), 100)
+            .play_move(0, 1, 0, 0, level, level_max_moves, Guardian::default(), 100)
             .unwrap();
 
         assert_eq!(report.lines_cleared, 1);
@@ -1557,11 +1506,11 @@ mod tests {
         run.apply_bonus(
             0,
             2,
-            LevelRules {
+            StarRules {
                 points_required: u32::MAX,
-                max_moves: 20,
-                ..LevelRules::default()
+                ..StarRules::default()
             },
+            20,
             Guardian::default(),
             100,
         )
@@ -1594,10 +1543,10 @@ mod tests {
 
     #[test]
     fn perfect_clear_grants_or_discards_at_the_reroll_cap() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let mut run = RunEngine {
             phase: RunPhase::Playing,
@@ -1606,6 +1555,7 @@ mod tests {
         run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
+            level_max_moves,
             Guardian::default(),
             100,
             true,
@@ -1618,6 +1568,7 @@ mod tests {
         run.finish_action_with_multiplier(
             ActionContext::default(),
             level,
+            level_max_moves,
             Guardian::default(),
             100,
             true,
@@ -1637,11 +1588,11 @@ mod tests {
             0,
             0,
             0,
-            LevelRules {
+            StarRules {
                 points_required: 0,
-                max_moves: 20,
-                ..LevelRules::default()
+                ..StarRules::default()
             },
+            20,
             Guardian::default(),
             100,
         )
@@ -1662,7 +1613,7 @@ mod tests {
             threshold: 1,
             ..Guardian::default()
         };
-        run.play_move(0, 0, 7, 6, LevelRules::default(), guardian, 100)
+        run.play_move(0, 0, 7, 6, StarRules::default(), 20, guardian, 100)
             .unwrap();
         assert_eq!(run.level_lines_cleared, 1);
         assert_eq!(run.bonus_charges, 1);
@@ -1681,7 +1632,8 @@ mod tests {
                 lines: 1,
                 ..ActionContext::default()
             },
-            LevelRules::default(),
+            StarRules::default(),
+            20,
             Guardian {
                 trigger: 1,
                 threshold: 1,
@@ -1696,10 +1648,10 @@ mod tests {
 
     #[test]
     fn fixed_line_triggers_distinguish_at_least_from_exact() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let mut at_least = RunEngine {
             phase: RunPhase::Playing,
@@ -1711,6 +1663,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian {
                 trigger: 1,
                 threshold: 3,
@@ -1735,6 +1688,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             exact_rules,
             true,
         );
@@ -1746,6 +1700,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             exact_rules,
             true,
         );
@@ -1754,10 +1709,10 @@ mod tests {
 
     #[test]
     fn all_block_sizes_trigger_requires_every_size_in_one_move() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let rules = Guardian {
             trigger: 6,
@@ -1773,6 +1728,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             rules,
             true,
         );
@@ -1784,6 +1740,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             rules,
             true,
         );
@@ -1793,10 +1750,10 @@ mod tests {
 
     #[test]
     fn combo_count_trigger_awards_at_most_one_charge_per_action() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let mut run = RunEngine {
             phase: RunPhase::Playing,
@@ -1809,6 +1766,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian {
                 trigger: 7,
                 threshold: 3,
@@ -1825,6 +1783,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian {
                 trigger: 7,
                 threshold: 3,
@@ -1839,10 +1798,10 @@ mod tests {
 
     #[test]
     fn block_burst_trigger_sums_every_width_on_player_moves() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let rules = Guardian {
             trigger: 8,
@@ -1858,19 +1817,19 @@ mod tests {
             phase: RunPhase::Playing,
             ..RunEngine::default()
         };
-        run.finish_action(context, level, rules, true);
+        run.finish_action(context, level, level_max_moves, rules, true);
         assert_eq!(run.bonus_charges, 1);
 
-        run.finish_action_with_kind(context, level, rules, false, true);
+        run.finish_action_with_kind(context, level, level_max_moves, rules, false, true);
         assert_eq!(run.bonus_charges, 1, "bonus actions cannot fire type 8");
     }
 
     #[test]
     fn clearing_move_streak_trigger_fires_when_the_threshold_is_reached() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let rules = Guardian {
             trigger: 9,
@@ -1886,14 +1845,20 @@ mod tests {
             streak: 2,
             ..RunEngine::default()
         };
-        run.finish_action(clearing_move, level, rules, true);
+        run.finish_action(clearing_move, level, level_max_moves, rules, true);
         assert_eq!((run.streak, run.bonus_charges), (3, 1));
-        run.finish_action(clearing_move, level, rules, true);
+        run.finish_action(clearing_move, level, level_max_moves, rules, true);
         assert_eq!((run.streak, run.bonus_charges), (4, 1));
 
-        run.finish_action(ActionContext::default(), level, rules, true);
+        run.finish_action(
+            ActionContext::default(),
+            level,
+            level_max_moves,
+            rules,
+            true,
+        );
         assert_eq!(run.streak, 0);
-        run.finish_action_with_kind(clearing_move, level, rules, false, true);
+        run.finish_action_with_kind(clearing_move, level, level_max_moves, rules, false, true);
         assert_eq!(run.streak, 0, "bonus actions are streak-neutral");
     }
 
@@ -1908,11 +1873,11 @@ mod tests {
             .apply_bonus(
                 0,
                 0,
-                LevelRules {
+                StarRules {
                     points_required: u32::MAX,
-                    max_moves: 20,
-                    ..LevelRules::default()
+                    ..StarRules::default()
                 },
+                20,
                 Guardian::default(),
                 100,
             )
@@ -1933,11 +1898,11 @@ mod tests {
         };
         let move_report = move_run.finish_move(
             ActionContext::default(),
-            LevelRules {
+            StarRules {
                 points_required: u32::MAX,
-                max_moves: 20,
-                ..LevelRules::default()
+                ..StarRules::default()
             },
+            20,
             Guardian::default(),
         );
         assert!(move_report.perfect_clear);
@@ -2122,15 +2087,15 @@ mod tests {
 
     #[test]
     fn streak_constraint_uses_its_minimum_while_trigger_streak_counts_clearing_moves() {
-        let level = LevelRules {
+        let level_max_moves = 10;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 10,
             secondary: Constraint {
                 kind: ConstraintKind::Streak,
                 value: 2,
                 required_count: 3,
             },
-            ..LevelRules::default()
+            ..StarRules::default()
         };
         let mut run = RunEngine {
             phase: RunPhase::Playing,
@@ -2143,6 +2108,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian::default(),
             true,
         );
@@ -2155,6 +2121,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian::default(),
             false,
             true,
@@ -2168,6 +2135,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian::default(),
             true,
         );
@@ -2184,9 +2152,9 @@ mod tests {
         let mut run = RunEngine::start(source, [1, 0, 0, 0, 0, 0, 0, 0]).unwrap();
         run.bonus = Some(Bonus::Wave);
         run.bonus_charges = 1;
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: u32::MAX,
-            max_moves: 20,
             primary: Constraint {
                 kind: ConstraintKind::BreakBlocks,
                 value: 1,
@@ -2199,6 +2167,7 @@ mod tests {
                 1,
                 0,
                 level,
+                level_max_moves,
                 Guardian {
                     trigger: 1,
                     threshold: 1,
@@ -2218,9 +2187,9 @@ mod tests {
 
     #[test]
     fn constraint_stars_latch_zero_to_three_on_one_action() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: 1,
-            max_moves: 20,
             primary: Constraint {
                 kind: ConstraintKind::CombosOfAtLeast,
                 value: 2,
@@ -2244,6 +2213,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian::default(),
             false,
         );
@@ -2255,9 +2225,9 @@ mod tests {
 
     #[test]
     fn constraint_stars_latch_in_any_order() {
-        let level = LevelRules {
+        let level_max_moves = 20;
+        let level = StarRules {
             points_required: 10,
-            max_moves: 20,
             primary: Constraint {
                 kind: ConstraintKind::BreakBlocks,
                 value: 1,
@@ -2280,6 +2250,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian::default(),
             false,
         );
@@ -2292,6 +2263,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian::default(),
             false,
         );
@@ -2306,6 +2278,7 @@ mod tests {
                 ..ActionContext::default()
             },
             level,
+            level_max_moves,
             Guardian::default(),
             false,
         );
@@ -2334,12 +2307,12 @@ mod tests {
                 base_point_parts: [1, 0],
                 ..ActionContext::default()
             },
-            LevelRules {
+            StarRules {
                 points_required: 1,
-                max_moves: 1,
                 primary,
                 secondary,
             },
+            1,
             Guardian::default(),
         );
         assert_eq!(
@@ -2357,12 +2330,12 @@ mod tests {
                 base_point_parts: [1, 0],
                 ..ActionContext::default()
             },
-            LevelRules {
+            StarRules {
                 points_required: 1,
-                max_moves: 1,
                 primary,
                 secondary,
             },
+            1,
             Guardian::default(),
         );
         assert_eq!(
@@ -2379,9 +2352,8 @@ mod tests {
                 lines: 2,
                 ..ActionContext::default()
             },
-            LevelRules {
+            StarRules {
                 points_required: u32::MAX,
-                max_moves: 1,
                 primary: Constraint {
                     kind: ConstraintKind::BreakBlocks,
                     value: 1,
@@ -2393,6 +2365,7 @@ mod tests {
                     required_count: 1,
                 },
             },
+            1,
             Guardian::default(),
         );
         assert_eq!(
@@ -2412,7 +2385,8 @@ mod tests {
                 base_point_parts: [1, 0],
                 ..ActionContext::default()
             },
-            LevelRules::default(),
+            StarRules::default(),
+            20,
             Guardian::default(),
             false,
         );
@@ -2431,14 +2405,15 @@ mod tests {
                 base_point_parts: [1, 0],
                 ..ActionContext::default()
             },
-            LevelRules {
+            StarRules {
                 primary: Constraint {
                     kind: ConstraintKind::CombosOfAtLeast,
                     value: 2,
                     required_count: 1,
                 },
-                ..LevelRules::default()
+                ..StarRules::default()
             },
+            20,
             Guardian::default(),
             false,
         );
@@ -2463,9 +2438,9 @@ mod tests {
                     fixture_row(&row["cells"]),
                 ));
             }
-            let level = LevelRules {
+            let level_max_moves = fixture["level"]["maxMoves"].as_u64().unwrap() as u16;
+            let level = StarRules {
                 points_required: fixture["level"]["pointsRequired"].as_u64().unwrap() as u32,
-                max_moves: fixture["level"]["maxMoves"].as_u64().unwrap() as u16,
                 primary: fixture_constraint(&fixture["level"]["primary"]),
                 secondary: fixture_constraint(&fixture["level"]["secondary"]),
             };
@@ -2488,6 +2463,7 @@ mod tests {
                     movement[1].as_u64().unwrap() as u8,
                     movement[2].as_u64().unwrap() as u8,
                     level,
+                    level_max_moves,
                     guardian,
                     100,
                 )
@@ -2559,8 +2535,17 @@ mod tests {
         let next = [1, 0, 0, 0, 0, 0, 0, 0];
         let mut run = RunEngine::start(source, next).unwrap();
         assert!(
-            run.play_move(0, 0, 0, 1, LevelRules::default(), Guardian::default(), 100,)
-                .is_err()
+            run.play_move(
+                0,
+                0,
+                0,
+                1,
+                StarRules::default(),
+                20,
+                Guardian::default(),
+                100
+            )
+            .is_err()
         );
         assert_eq!(run.grid, source);
         assert_eq!(run.next_row, Some(next));

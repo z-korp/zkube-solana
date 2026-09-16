@@ -1,3 +1,4 @@
+import { KEEPER_SCHEMA_VERSION } from "./keeperRelease.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -33,7 +34,7 @@ const MAX_WRITES = 6;
 const MAX_BOARD_WRITES = 32;
 
 export interface KeeperLogEvent {
-  schemaVersion: 1;
+  schemaVersion: typeof KEEPER_SCHEMA_VERSION;
   event:
     | "keeper_pass"
     | "keeper_operation"
@@ -109,7 +110,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     "confirmed",
   );
   log({
-    schemaVersion: 1,
+    schemaVersion: KEEPER_SCHEMA_VERSION,
     event: "keeper_readiness",
     traceId,
     ok: balanceLamports >= minimumBalanceLamports,
@@ -163,7 +164,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     if (!writeEnabled) {
       plannedWrites += 1;
       log({
-        schemaVersion: 1,
+        schemaVersion: KEEPER_SCHEMA_VERSION,
         event: "keeper_plan",
         traceId,
         operation: plan.operation,
@@ -268,7 +269,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       }
       writes += 1;
       log({
-        schemaVersion: 1,
+        schemaVersion: KEEPER_SCHEMA_VERSION,
         event: "keeper_operation",
         traceId,
         operation: plan.operation,
@@ -279,7 +280,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     } catch (error) {
       failures += 1;
       log({
-        schemaVersion: 1,
+        schemaVersion: KEEPER_SCHEMA_VERSION,
         event: "keeper_operation",
         traceId,
         operation: plan.operation,
@@ -304,7 +305,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     maximumSpendLamports,
   };
   log({
-    schemaVersion: 1,
+    schemaVersion: KEEPER_SCHEMA_VERSION,
     event: "keeper_pass",
     traceId,
     ok: result.ok,

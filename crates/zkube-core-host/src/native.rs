@@ -72,7 +72,6 @@ pub const CONFIG_FIELDS: &[Field] = fields![
 pub const SNAPSHOT_FIELDS: &[Field] = fields![
     Config: Bytes(RUN_CONFIG_LEN), Phase: U8, EndReason: U8, BonusType: U8,
     BonusCharges: U8, RerollCharges: U8, ComboCounter: U8, MaxCombo: U8,
-    PrimaryProgress: U8, SecondaryProgress: U8, LatchedStarSources: U8,
     Streak: U8, ChargesEarned: U8, CurrentTier: U8, LevelLinesCleared: U16,
     Moves: U16, ActionCounter: U32, VrfRequestCounter: U32, PendingVrfCounter: U32,
     Score: U32, DailyScore: U32, ObjectiveTotal: U64, PressureScore: U32,
@@ -309,7 +308,6 @@ pub const STATUSES: &[(i32, &str)] = &[
     (204, "InvalidGeneratedRow"),
     (300, "InvalidLadderRank"),
     (310, "InvalidWholeUnit"),
-    (311, "InvalidWinnerCount"),
     (312, "ZeroWeight"),
     (313, "InvalidEntryPrice"),
     (314, "InvalidRank"),
@@ -337,7 +335,6 @@ pub fn error_status(error: BoundaryError) -> i32 {
         BoundaryError::Ladder(_) => 300,
         BoundaryError::Payout(e) => match e {
             P::InvalidWholeUnit => 310,
-            P::InvalidWinnerCount => 311,
             P::ZeroWeight => 312,
             P::InvalidEntryPrice => 313,
             P::InvalidRank => 314,
@@ -477,9 +474,6 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
                 n("RerollCharges"),
                 n("ComboCounter"),
                 n("MaxCombo"),
-                n("PrimaryProgress"),
-                n("SecondaryProgress"),
-                n("LatchedStarSources"),
                 n("Streak"),
                 n("ChargesEarned"),
                 n("CurrentTier"),
@@ -733,7 +727,7 @@ fn transition(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryErro
         events: Vec::new(),
     };
     match operation {
-        4 => run.apply_vrf_observed(
+        4 => run.apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
             config.rules,
             input.u32("Counter"),
             array_32(input.bytes("Output"))?,
@@ -766,7 +760,11 @@ fn transition(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryErro
                 4 => RunEndReason::Deadline,
                 _ => return Err(BoundaryError::InvalidEncoding),
             };
-            run.finish_observed(config.rules, reason, &mut trace)?;
+            run.finish_observed_with::<zkube_core::SoftwareSha256, _>(
+                config.rules,
+                reason,
+                &mut trace,
+            )?;
         }
         _ => unreachable!(),
     }

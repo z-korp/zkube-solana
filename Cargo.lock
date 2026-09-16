@@ -2833,7 +2833,7 @@ dependencies = [
  "solana-message 3.1.0",
  "solana-sha256-hasher 3.1.0",
  "zkube-core",
- "zkube-core-wasm",
+ "zkube-core-host",
 ]
 
 [[package]]
@@ -5223,7 +5223,7 @@ dependencies = [
  "serde_json",
  "solana",
  "zkube-core",
- "zkube-core-wasm",
+ "zkube-core-host",
 ]
 
 [[package]]
@@ -5239,11 +5239,11 @@ dependencies = [
 name = "zkube-core-ffi"
 version = "0.1.0"
 dependencies = [
- "zkube-core-wasm",
+ "zkube-core-host",
 ]
 
 [[package]]
-name = "zkube-core-wasm"
+name = "zkube-core-host"
 version = "0.1.0"
 dependencies = [
  "serde",

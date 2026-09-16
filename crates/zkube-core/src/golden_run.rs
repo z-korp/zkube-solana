@@ -129,7 +129,12 @@ fn verify_daily_run_vector(json: &str) {
                 request_counter,
                 output_hex,
             } => simulation
-                .apply_vrf(rules, request_counter, decode_32(&output_hex))
+                .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                    rules,
+                    request_counter,
+                    decode_32(&output_hex),
+                    &mut crate::NoPresentation,
+                )
                 .unwrap(),
             GoldenEvent::Move {
                 action,
@@ -139,7 +144,15 @@ fn verify_daily_run_vector(json: &str) {
                 destination,
             } => {
                 simulation
-                    .play_move(rules, action, expected_move, row, start, destination)
+                    .play_move_observed_with::<crate::SoftwareSha256, _>(
+                        rules,
+                        action,
+                        expected_move,
+                        row,
+                        start,
+                        destination,
+                        &mut crate::NoPresentation,
+                    )
                     .unwrap();
             }
             GoldenEvent::Bonus {
@@ -147,11 +160,25 @@ fn verify_daily_run_vector(json: &str) {
                 row,
                 column,
             } => {
-                simulation.apply_bonus(rules, action, row, column).unwrap();
+                simulation
+                    .apply_bonus_observed_with::<crate::SoftwareSha256, _>(
+                        rules,
+                        action,
+                        row,
+                        column,
+                        &mut crate::NoPresentation,
+                    )
+                    .unwrap();
             }
             GoldenEvent::DailyDeadline { action } => {
                 assert_eq!(action, simulation.action_counter);
-                simulation.finish(rules, RunEndReason::Deadline).unwrap();
+                simulation
+                    .finish_observed_with::<crate::SoftwareSha256, _>(
+                        rules,
+                        RunEndReason::Deadline,
+                        &mut crate::NoPresentation,
+                    )
+                    .unwrap();
             }
         }
     }

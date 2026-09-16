@@ -3,13 +3,13 @@
 /// Identifies the native calling convention independently of core versioning.
 #[unsafe(no_mangle)]
 pub extern "C" fn zkube_core_abi_version() -> u32 {
-    u32::from(zkube_core_wasm::native::ABI_VERSION)
+    u32::from(zkube_core_host::native::ABI_VERSION)
 }
 
 /// Probes the real shared boundary loaded by the managed caller.
 #[unsafe(no_mangle)]
 pub extern "C" fn zkube_core_run_state_len() -> u32 {
-    u32::try_from(zkube_core_wasm::RUN_STATE_LEN).unwrap_or(0)
+    u32::try_from(zkube_core_host::RUN_STATE_LEN).unwrap_or(0)
 }
 
 fn address_range(pointer: usize, length: usize) -> Option<std::ops::Range<usize>> {
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn zkube_core_call(
     response_written: *mut u32,
 ) -> i32 {
     std::panic::catch_unwind(|| {
-        use zkube_core_wasm::native::{MAX_REQUEST_BYTES, dispatch};
+        use zkube_core_host::native::{MAX_REQUEST_BYTES, dispatch};
         if request_len as usize > MAX_REQUEST_BYTES {
             return 2;
         }
@@ -105,7 +105,7 @@ pub unsafe extern "C" fn zkube_core_call(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zkube_core_wasm::native;
+    use zkube_core_host::native;
 
     #[test]
     fn rejected_calls_publish_nothing_and_query_is_explicit() {

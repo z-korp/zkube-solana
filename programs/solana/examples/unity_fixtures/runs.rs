@@ -1,7 +1,7 @@
 use super::*;
 use solana::state::*;
 use zkube_core::{ReplayCommitment, RulesHash, Run, RunConfig, RunEndReason, RunRules, TierPolicy};
-use zkube_core_wasm::{encode_run_config, encode_run_state};
+use zkube_core_host::{encode_run_config, encode_run_state};
 
 fn config() -> RunConfig {
     let daily = accounts::daily(DAY);
@@ -32,7 +32,13 @@ pub fn state(phase: &str) -> Run {
     if phase == "prepared" {
         return run;
     }
-    run.apply_vrf(config.rules, 1, [8; 32]).unwrap();
+    run.apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
+        config.rules,
+        1,
+        [8; 32],
+        &mut zkube_core::NoPresentation,
+    )
+    .unwrap();
     if phase == "playing" {
         return run;
     }
@@ -40,9 +46,20 @@ pub fn state(phase: &str) -> Run {
     if phase == "awaitingVrf" {
         return run;
     }
-    run.apply_vrf(config.rules, 2, [9; 32]).unwrap();
+    run.apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
+        config.rules,
+        2,
+        [9; 32],
+        &mut zkube_core::NoPresentation,
+    )
+    .unwrap();
     if phase == "finished" {
-        run.finish(config.rules, RunEndReason::Abandoned).unwrap();
+        run.finish_observed_with::<zkube_core::SoftwareSha256, _>(
+            config.rules,
+            RunEndReason::Abandoned,
+            &mut zkube_core::NoPresentation,
+        )
+        .unwrap();
     }
     run
 }

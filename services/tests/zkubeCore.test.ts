@@ -6,10 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   dailyWindow, dayIdAt, scheduledDailyWindow, nextScheduledDaily, dailyIsScheduled,
   compareBoardEntries, dailyPair,
-  boardWidth,
   dailyBoardPools,
-  dailyPairIndex,
-  payoutForRank,
   payoutPlan,
 } from "../src/zkubeCore";
 
@@ -42,7 +39,7 @@ const fixture = JSON.parse(
 describe("generated Node zkube-core boundary", () => {
   it("wasm_protocol_matches_native_golden_vectors", () => {
     const { dailyPairDraw, dailyBoardSplit, rankPayout } = fixture.phase1Core;
-    expect(dailyPairIndex(dailyPairDraw.startsDay)).toBe(
+    expect(dailyPair(dailyPairDraw.startsDay).pairIndex).toBe(
       dailyPairDraw.pairIndicesByDay[0],
     );
 
@@ -53,30 +50,14 @@ describe("generated Node zkube-core boundary", () => {
     expect(pools.score).toBe(BigInt(dailyBoardSplit.scoreLamports));
     expect(pools.theme).toBe(BigInt(dailyBoardSplit.themeLamports));
 
-    const width = boardWidth(
-      BigInt(rankPayout.poolLamports),
-      rankPayout.qualifiedWinners,
-      BigInt(rankPayout.entryPriceLamports),
-      1_000_000n,
-    );
-    expect(width.winnerCount).toBe(rankPayout.winnerCount);
-    expect(
-      payoutForRank(
-        BigInt(rankPayout.poolLamports),
-        width.denominator,
-        rankPayout.winnerCount,
-        1_000_000n,
-      ),
-    ).toBe(BigInt(rankPayout.payoutsLamports[rankPayout.winnerCount - 1]!));
-
     const plan = payoutPlan(
       BigInt(rankPayout.poolLamports),
-      rankPayout.qualifiedWinners,
       rankPayout.qualifiedWinners,
       BigInt(rankPayout.entryPriceLamports),
       1_000_000n,
     );
     expect(plan.winnerCount).toBe(rankPayout.winnerCount);
+    expect(plan.payouts).toEqual(rankPayout.payoutsLamports.slice(0, plan.winnerCount).map(BigInt));
     expect(plan.paidLamports).toBe(BigInt(rankPayout.paidLamports));
     expect(plan.rolloverLamports).toBe(BigInt(rankPayout.rolloverLamports));
   });
@@ -87,7 +68,7 @@ describe("generated Node zkube-core boundary", () => {
       expect(dayIdAt(BigInt(window.opensAt))).toBe(day);
       expect(window.runsCloseAt - window.opensAt).toBe(86_340);
       expect(window.recoveryDeadlineAt - window.runsCloseAt).toBe(21_600);
-      expect(dailyPair(day).pairIndex).toBe(dailyPairIndex(day));
+      expect(dailyPair(day).pairIndex).toBeLessThan(160);
     }
     expect(() => dayIdAt(-1n)).toThrow();
     expect(() => dayIdAt(0x1_0000_0000n * 86_400n)).toThrow();

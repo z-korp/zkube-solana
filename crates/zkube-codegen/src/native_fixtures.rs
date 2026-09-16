@@ -1,13 +1,13 @@
 //! Checked native/managed vectors. Synthetic starting snapshots are explicitly
 //! labelled; they are not represented as proofs of an entire on-chain run.
-use super::{CampaignCatalog, campaign_rules};
+use super::{CampaignCatalog, CampaignMap, EncodedLevel, constraint};
 use serde_json::{Value, json};
 use zkube_core::{
     Bonus, CORE_VERSION, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_THEMES, Grid, Guardian,
     ReplayCommitment, RulesHash, Run, RunConfig, RunEndReason, RunPhase, RunRules, StarRules,
     TierPolicy, daily_pair, daily_pair_index,
 };
-use zkube_core_wasm::{self as boundary, native};
+use zkube_core_host::{self as boundary, native};
 
 pub fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write as _;
@@ -138,7 +138,7 @@ fn campaign_boundary_vectors(
             request.put("Primary", &level.1);
             request.put("Secondary", &level.2);
             let config = RunConfig {
-                rules: campaign_rules(map, number, *level, &catalog.difficulty_weights)?,
+                rules: campaign_rules(map, number, *level)?,
                 rules_hash: RulesHash([0; 32]),
                 initial_replay: ReplayCommitment([0; 32]),
             };
@@ -346,6 +346,9 @@ impl Trajectory {
         self.reconcile()
     }
     fn reconcile(&mut self) -> Result<(), String> {
+        if self.config.rules.stars.is_some() {
+            return Ok(());
+        }
         let run = self.run();
         let summary = native::encode_summary(run);
         let mut request = Request::new(2);
@@ -400,14 +403,17 @@ fn best_move(run: Run, rules: RunRules) -> Option<Action> {
                     continue;
                 }
                 let mut candidate = run;
-                if let Ok(report) = candidate.play_move(
-                    rules,
-                    run.action_counter,
-                    run.engine.moves,
-                    row,
-                    start,
-                    destination,
-                ) {
+                if let Ok(report) = candidate
+                    .play_move_observed_with::<zkube_core::SoftwareSha256, _>(
+                        rules,
+                        run.action_counter,
+                        run.engine.moves,
+                        row,
+                        start,
+                        destination,
+                        &mut zkube_core::NoPresentation,
+                    )
+                {
                     let score = u32::from(report.lines_cleared) * 100
                         + u32::from(candidate.engine.bonus_charges);
                     if best.is_none() || score > best_score {
@@ -427,7 +433,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     // Every published realm uses its real guardian/height rules in both modes.
     for map in &catalog.maps {
         for daily in [false, true] {
-            let mut rules = campaign_rules(map, 1, map.levels[0], &catalog.difficulty_weights)?;
+            let mut rules = campaign_rules(map, 1, map.levels[0])?;
             if daily {
                 rules.tier = TierPolicy::Pressure;
                 rules.stars = None;
@@ -474,7 +480,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         .iter()
         .find(|map| map.map_id == 8)
         .ok_or("missing published Balam realm")?;
-    let balam_rules = campaign_rules(balam, 1, balam.levels[0], &catalog.difficulty_weights)?;
+    let balam_rules = campaign_rules(balam, 1, balam.levels[0])?;
     if balam_rules.guardian
         != (Guardian {
             bonus: Bonus::Totem,
@@ -759,12 +765,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     // can reach these metrics. Both configs still use published protocol rules.
     // Streak is Campaign-only; the Daily uses its actual TriggerFired theme.
     let campaign_map = &catalog.maps[3];
-    let campaign = campaign_rules(
-        campaign_map,
-        1,
-        campaign_map.levels[0],
-        &catalog.difficulty_weights,
-    )?;
+    let campaign = campaign_rules(campaign_map, 1, campaign_map.levels[0])?;
     if campaign.stars.unwrap().secondary.kind != ConstraintKind::Streak {
         return Err("display fixture requires the published long Campaign constraint".into());
     }
@@ -786,8 +787,13 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     ] {
         let cfg = config(rules, 97);
         let mut run = Run::new(cfg).map_err(|e| format!("display rules: {e:?}"))?;
-        run.apply_vrf(rules, 1, [0x61; 32])
-            .map_err(|e| format!("display opening: {e:?}"))?;
+        run.apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
+            rules,
+            1,
+            [0x61; 32],
+            &mut zkube_core::NoPresentation,
+        )
+        .map_err(|e| format!("display opening: {e:?}"))?;
         if rules.is_pressure() {
             run.daily_score = u32::MAX;
             run.objective_total = u64::MAX;
@@ -812,12 +818,30 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     .map_err(|e| e.to_string())
 }
 
+fn campaign_rules(
+    map: &CampaignMap,
+    level_number: u8,
+    level: EncodedLevel,
+) -> Result<RunRules, String> {
+    let realm = zkube_core::REALM_RULES
+        .get(usize::from(map.map_id - 1))
+        .ok_or("invalid realm")?;
+    RunRules::campaign(
+        *realm,
+        level_number,
+        level.0,
+        constraint(level.1)?,
+        constraint(level.2)?,
+    )
+    .ok_or_else(|| "invalid Campaign level".into())
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn managed_fixture_inputs_retain_native_parity() {
         let catalog =
-            serde_json::from_str(include_str!("../../../fixtures/campaign-v2.json")).unwrap();
+            serde_json::from_str(include_str!("../../../fixtures/campaign-catalog.json")).unwrap();
         super::render(&catalog).unwrap();
     }
 }

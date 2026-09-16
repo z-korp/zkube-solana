@@ -1,6 +1,6 @@
 {
-  "name": "zkube-core-wasm",
-  "description": "WASM boundary for deterministic zKube protocol primitives",
+  "name": "zkube-core-host",
+  "description": "Safe native and keeper WASM boundary for the zKube core",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "files": [

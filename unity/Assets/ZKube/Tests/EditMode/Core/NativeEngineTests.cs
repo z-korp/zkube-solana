@@ -62,7 +62,8 @@ namespace ZKube.Core.Tests
                     CollectionAssert.AreEqual(request, BuildConfigRequest.Decode(request).Encode(), "Generated config request round-trip");
                 var actual = NativeEngine.Call(step.operation, request);
                 CollectionAssert.AreEqual(Hex(step.responseHex), actual, trajectory.name + " operation " + step.operation);
-                if (step.operation == InitializeRequest.Operation || step.operation == ReconcileRequest.Operation) state = actual;
+                // Initialization is checked separately; a trajectory can begin at an explicit snapshot.
+                if (step.operation == ReconcileRequest.Operation) CollectionAssert.AreEqual(state, actual);
                 if (step.operation >= ApplyVrfRequest.Operation && step.operation <= FinishRequest.Operation)
                 {
                     var result = RunTransition.Decode(config, actual);

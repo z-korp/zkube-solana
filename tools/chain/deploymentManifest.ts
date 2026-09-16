@@ -14,6 +14,8 @@ type DeploymentCluster = "localnet" | "devnet";
 type DeploymentApprovalStatus = "candidate" | "approved";
 type ManifestCheckStatus = "pass" | "fail";
 
+export const DEPLOYMENT_MANIFEST_SCHEMA_VERSION = 8 as const;
+
 export const LAUNCH_DAILY_SEED_LAMPORTS = "1000000000";
 const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;
 const UPGRADEABLE_LOADER_ID = new PublicKey(
@@ -22,7 +24,7 @@ const UPGRADEABLE_LOADER_ID = new PublicKey(
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
-  schemaVersion: 8;
+  schemaVersion: typeof DEPLOYMENT_MANIFEST_SCHEMA_VERSION;
   cluster: DeploymentCluster;
   createdAt: string;
   approval: {
@@ -116,7 +118,7 @@ export function deploymentManifestFromEnv(
   }
   const manifest: ZkubeDeploymentManifest = {
     schema: "zkube-solana-deployment",
-    schemaVersion: 8,
+    schemaVersion: DEPLOYMENT_MANIFEST_SCHEMA_VERSION,
     cluster,
     createdAt: createdAt.toISOString(),
     approval: {
@@ -243,14 +245,14 @@ export function validateDeploymentManifest(
       "schema",
       "Schema",
       manifest.schema === "zkube-solana-deployment" &&
-        manifest.schemaVersion === 8,
-      "Expected zkube-solana-deployment@6",
+        manifest.schemaVersion === DEPLOYMENT_MANIFEST_SCHEMA_VERSION,
+      `Expected zkube-solana-deployment@${DEPLOYMENT_MANIFEST_SCHEMA_VERSION}`,
     ),
     check(
       "cluster",
       "Cluster",
       cluster === "localnet" || cluster === "devnet",
-      "Only localnet and devnet are allowed by schema v6",
+      `Only localnet and devnet are allowed by schema v${DEPLOYMENT_MANIFEST_SCHEMA_VERSION}`,
     ),
     check(
       "created-at",

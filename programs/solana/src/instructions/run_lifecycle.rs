@@ -269,8 +269,13 @@ pub fn handler_fulfill_row_vrf(
     require_matching_vrf_callback(request_counter, expected_request_counter)?;
     let rules = run_rules(active)?;
     let mut run = run_from_active(active, rules)?;
-    run.apply_vrf_with::<SolanaSha256>(rules, request_counter, randomness)
-        .map_err(map_transition_error)?;
+    run.apply_vrf_observed_with::<SolanaSha256, _>(
+        rules,
+        request_counter,
+        randomness,
+        &mut zkube_core::NoPresentation,
+    )
+    .map_err(map_transition_error)?;
     write_run(active, &run, 0)?;
     active.pending_vrf_counter = 0;
     Ok(())
@@ -306,13 +311,14 @@ pub fn handler_play_move(
     );
     let rules = run_rules(active)?;
     let mut run = run_from_active(active, rules)?;
-    run.play_move_with::<SolanaSha256>(
+    run.play_move_observed_with::<SolanaSha256, _>(
         rules,
         expected_action,
         expected_move,
         row,
         start,
         destination,
+        &mut zkube_core::NoPresentation,
     )
     .map_err(map_transition_error)?;
     let terminal_at = terminal_action_timestamp(run.engine.phase)?;
@@ -363,8 +369,14 @@ pub fn handler_apply_bonus(
     );
     let rules = run_rules(active)?;
     let mut run = run_from_active(active, rules)?;
-    run.apply_bonus_with::<SolanaSha256>(rules, expected_action, row, column)
-        .map_err(map_transition_error)?;
+    run.apply_bonus_observed_with::<SolanaSha256, _>(
+        rules,
+        expected_action,
+        row,
+        column,
+        &mut zkube_core::NoPresentation,
+    )
+    .map_err(map_transition_error)?;
     let terminal_at = terminal_action_timestamp(run.engine.phase)?;
     write_run(active, &run, terminal_at)?;
     if action_needs_row_vrf(active.lifecycle) {
@@ -511,8 +523,12 @@ pub fn handler_finish_run(ctx: Context<FinishRun>, reason: RunFinishReason) -> R
         RunFinishReason::Abandon => zkube_core::RunEndReason::Abandoned,
         RunFinishReason::Deadline => zkube_core::RunEndReason::Deadline,
     };
-    run.finish_with::<SolanaSha256>(rules, core_reason)
-        .map_err(map_transition_error)?;
+    run.finish_observed_with::<SolanaSha256, _>(
+        rules,
+        core_reason,
+        &mut zkube_core::NoPresentation,
+    )
+    .map_err(map_transition_error)?;
     let terminal_at = match reason {
         RunFinishReason::Abandon => now,
         RunFinishReason::Deadline => active.deadline_at,
@@ -895,7 +911,12 @@ mod tests {
         let rules = run_rules(&active).unwrap();
         let mut opened = run_from_active(&active, rules).unwrap();
         opened
-            .apply_vrf_with::<SolanaSha256>(rules, 1, [19; 32])
+            .apply_vrf_observed_with::<SolanaSha256, _>(
+                rules,
+                1,
+                [19; 32],
+                &mut zkube_core::NoPresentation,
+            )
             .unwrap();
         write_run(&mut active, &opened, 0).unwrap();
         active.pending_vrf_counter = 0;
@@ -911,18 +932,42 @@ mod tests {
             .find(|(row, start, destination)| {
                 let mut candidate = opened;
                 candidate
-                    .play_move(rules, 0, 0, *row, *start, *destination)
+                    .play_move_observed_with::<zkube_core::SoftwareSha256, _>(
+                        rules,
+                        0,
+                        0,
+                        *row,
+                        *start,
+                        *destination,
+                        &mut zkube_core::NoPresentation,
+                    )
                     .is_ok()
             })
             .expect("opening has a legal move");
 
         let mut expected = opened;
         expected
-            .play_move(rules, 0, 0, action.0, action.1, action.2)
+            .play_move_observed_with::<zkube_core::SoftwareSha256, _>(
+                rules,
+                0,
+                0,
+                action.0,
+                action.1,
+                action.2,
+                &mut zkube_core::NoPresentation,
+            )
             .unwrap();
         let mut projected = run_from_active(&active, rules).unwrap();
         projected
-            .play_move_with::<SolanaSha256>(rules, 0, 0, action.0, action.1, action.2)
+            .play_move_observed_with::<SolanaSha256, _>(
+                rules,
+                0,
+                0,
+                action.0,
+                action.1,
+                action.2,
+                &mut zkube_core::NoPresentation,
+            )
             .unwrap();
         let terminal_at = u64::from(matches!(projected.engine.phase, RunPhase::Finished)) as i64;
         write_run(&mut active, &projected, terminal_at).unwrap();

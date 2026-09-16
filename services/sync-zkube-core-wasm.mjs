@@ -20,7 +20,7 @@ const generatedFiles = [
 ];
 const check = process.argv.includes("--check");
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const crate = resolve(workspaceRoot, "crates/zkube-core-wasm");
+const crate = resolve(workspaceRoot, "crates/zkube-core-host");
 const builds = [
   {
     label: "Node",

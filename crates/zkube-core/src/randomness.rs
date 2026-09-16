@@ -459,7 +459,7 @@ mod tests {
     fn assert_stable(layout: OpeningLayout, height: u8) {
         assert_eq!(layout.grid.occupied_height(), height);
         let mut settled = layout.grid;
-        settled.apply_gravity();
+        settled.apply_gravity_observed(&mut crate::NoPresentation);
         assert_eq!(settled, layout.grid);
         for row_index in 0..usize::from(height) {
             let row = layout.grid.row(row_index).unwrap();

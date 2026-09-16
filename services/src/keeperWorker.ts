@@ -1,3 +1,4 @@
+import { KEEPER_SCHEMA_VERSION } from "./keeperRelease.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,7 +71,7 @@ export function keeperReleaseFromEnv(
 }
 
 export interface KeeperWorkerEvent {
-  schemaVersion: 1;
+  schemaVersion: typeof KEEPER_SCHEMA_VERSION;
   event: "keeper_worker";
   outcome:
     | "disabled"
@@ -120,7 +121,7 @@ export async function runKeeperWorker(
     const startedAt = now();
     let rapidRerun = false;
     if (env.KEEPER_ENABLED !== "true") {
-      log({ schemaVersion: 1, event: "keeper_worker", outcome: "disabled" });
+      log({ schemaVersion: KEEPER_SCHEMA_VERSION, event: "keeper_worker", outcome: "disabled" });
     } else {
       try {
         if (dependencies.runPass) {
@@ -133,7 +134,7 @@ export async function runKeeperWorker(
             (result.backlog > 0 || result.writes > 0 || result.plannedWrites > 0);
         }
         log({
-          schemaVersion: 1,
+          schemaVersion: KEEPER_SCHEMA_VERSION,
           event: "keeper_worker",
           outcome: "pass_complete",
           durationMs: Math.max(0, now() - startedAt),
@@ -141,7 +142,7 @@ export async function runKeeperWorker(
       } catch (error) {
         rapidRerun = false;
         log({
-          schemaVersion: 1,
+          schemaVersion: KEEPER_SCHEMA_VERSION,
           event: "keeper_worker",
           outcome: "pass_failed",
           durationMs: Math.max(0, now() - startedAt),
@@ -162,7 +163,7 @@ export async function runKeeperWorker(
       if (!dependencies.signal.aborted) throw error;
     }
   }
-  log({ schemaVersion: 1, event: "keeper_worker", outcome: "stopping" });
+  log({ schemaVersion: KEEPER_SCHEMA_VERSION, event: "keeper_worker", outcome: "stopping" });
 }
 
 async function runConfiguredKeeperPass(
@@ -182,7 +183,7 @@ async function runConfiguredKeeperPass(
   const protocolInfo = await connection.getAccountInfo(protocolPda(), "confirmed");
   if (!protocolInfo) {
     log({
-      schemaVersion: 1,
+      schemaVersion: KEEPER_SCHEMA_VERSION,
       event: "keeper_worker",
       outcome: "bootstrap_pending",
     });
@@ -203,7 +204,7 @@ async function runConfiguredKeeperPass(
   const launchState = await adapter.inspectLaunchState();
   if (launchState === "staged_launch_ready") {
     log({
-      schemaVersion: 1,
+      schemaVersion: KEEPER_SCHEMA_VERSION,
       event: "keeper_worker",
       outcome: "staged_launch_ready",
     });

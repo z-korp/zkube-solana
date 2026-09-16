@@ -147,7 +147,7 @@ before.
 | Component | Role |
 | --- | --- |
 | `crates/zkube-core` | Deterministic Rust engine: grid, blocks, guardians, scoring, metrics, period and payout math, canonical encoding, replay schedule |
-| `crates/zkube-core-wasm` | Node WASM build of the same engine for keeper calculations |
+| `crates/zkube-core-host` | Safe native bindings and Node WASM exports of the same engine |
 | `crates/zkube-core-ffi` | Native byte boundary over the same engine for Unity |
 | `programs/solana` | Anchor program: Campaign stars, competitive records, accounting, boards, settlement |
 | MagicBlock ER | Active gameplay and per-row VRF, on a Router-resolved validator |
@@ -189,7 +189,7 @@ version, and PDA derivation before decoding anything.
 ## Repository layout
 
 ```
-crates/      deterministic engine (core, WASM bindings, codegen)
+crates/      deterministic engine (core, host bindings, codegen)
 programs/    Anchor program — state, instructions, game rules
 services/    keeper worker and chain services
 tools/chain/ standalone operator commands and the checked-in program IDL

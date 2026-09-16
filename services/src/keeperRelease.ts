@@ -15,11 +15,13 @@ import {
 import { KEEPER_EXPECTED_IDL_SHA256 } from "./anchorIdlAdapter.js";
 import { SOLANA_DEVNET_GENESIS_HASH } from "./serviceReadiness.js";
 
+export const KEEPER_SCHEMA_VERSION = 1 as const;
+
 export const DEVNET_GENESIS_HASH = SOLANA_DEVNET_GENESIS_HASH;
 
 export const KEEPER_RELEASE_POLICY = {
   schema: "zkube-v5-sol-keeper-release",
-  schemaVersion: 1,
+  schemaVersion: KEEPER_SCHEMA_VERSION,
   cluster: "devnet",
   genesisHash: DEVNET_GENESIS_HASH,
   entryLamports: ARENA_ENTRY_LAMPORTS.toString(),

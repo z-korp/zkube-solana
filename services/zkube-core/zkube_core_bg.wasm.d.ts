@@ -1,26 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const qualifiedPlayerId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-export const initialReplayCommitment: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number) => [number, number, number, number];
-export const emptyContinuationRows: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-export const ladderPoints: (a: number, b: number) => [number, number, number];
-export const ladderTier: (a: bigint) => number;
-export const ladderTierFloor: (a: number) => bigint;
-export const ladderTierCount: () => number;
-export const campaignMoveBudget: (a: number, b: number) => [number, number, number];
-export const mergeCampaignStars: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-export const initializeRun: (a: number, b: number) => [number, number, number, number];
-export const buildRunConfig: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number) => [number, number, number, number];
-export const reconcileRunState: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: bigint, x: number, y: number, z: number, a1: number, b1: number, c1: number, d1: number) => [number, number, number, number];
-export const applyRunVrf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-export const playRunMove: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
-export const applyRunBonus: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-export const requestRunReroll: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-export const finishRun: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-export const runScoreEligible: (a: number, b: number) => [number, number, number];
-export const runLatchedStarSources: (a: number, b: number) => [number, number, number];
-export const runEndReason: (a: number, b: number) => [number, number, number];
 export const dayIdAt: (a: bigint) => [number, number, number];
 export const dailyWindow: (a: number) => [number, number];
 export const dailyIsScheduled: (a: number, b: number) => number;
@@ -29,10 +9,7 @@ export const nextScheduledDaily: (a: number, b: number) => [number, number, numb
 export const dailyPair: (a: number) => [number, number];
 export const compareBoardEntries: (a: bigint, b: bigint, c: number, d: number, e: bigint, f: bigint, g: number, h: number) => [number, number, number];
 export const dailyBoardPools: (a: bigint, b: number) => [number, number];
-export const boardWidth: (a: bigint, b: number, c: bigint, d: bigint) => [number, number, number, number];
-export const payoutPlan: (a: bigint, b: number, c: number, d: bigint, e: bigint) => [number, number, number, number];
-export const payoutForRank: (a: bigint, b: number, c: number, d: number, e: bigint) => [bigint, number, number];
-export const dailyPairIndex: (a: number) => number;
+export const payoutPlan: (a: bigint, b: number, c: bigint, d: bigint) => [number, number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __externref_table_dealloc: (a: number) => void;

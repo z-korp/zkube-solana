@@ -9,7 +9,6 @@ const RANK_WEIGHT_SCALE: u64 = u64::MAX;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PayoutError {
     InvalidWholeUnit,
-    InvalidWinnerCount,
     ZeroWeight,
     InvalidEntryPrice,
     InvalidRank,
@@ -19,6 +18,7 @@ pub enum PayoutError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PayoutPlan<const N: usize> {
     pub payouts: [u64; N],
+    pub width: BoardWidth,
     pub winner_count: u32,
     pub paid: u64,
     pub rollover: u64,
@@ -152,12 +152,10 @@ pub fn rank_weighted_payouts<const N: usize>(
     entry_price: u64,
     whole_unit: u64,
 ) -> Result<PayoutPlan<N>, PayoutError> {
-    let qualified = usize::try_from(qualified_winners).map_err(|_| PayoutError::Overflow)?;
-    if qualified > N {
-        return Err(PayoutError::InvalidWinnerCount);
-    }
     let width = board_width(pool, qualified_winners, entry_price, whole_unit)?;
-    let winner_count = usize::try_from(width.winner_count).map_err(|_| PayoutError::Overflow)?;
+    let winner_count = usize::try_from(width.winner_count)
+        .map_err(|_| PayoutError::Overflow)?
+        .min(N);
     let mut payouts = [0u64; N];
     let mut paid = 0u64;
     if winner_count > 0 {
@@ -170,7 +168,8 @@ pub fn rank_weighted_payouts<const N: usize>(
     }
     Ok(PayoutPlan {
         payouts,
-        winner_count: width.winner_count,
+        width,
+        winner_count: u32::try_from(winner_count).map_err(|_| PayoutError::Overflow)?,
         paid,
         rollover: pool.checked_sub(paid).ok_or(PayoutError::Overflow)?,
     })
@@ -322,6 +321,40 @@ pub fn compare_board_entries(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bounded_payout_plan_keeps_the_full_width_and_denominator() {
+        let pool = 1_000_000_000_000;
+        let full = rank_weighted_payouts::<{ crate::ARENA_BOARD_CAPACITY }>(
+            pool,
+            u32::try_from(crate::ARENA_BOARD_CAPACITY).unwrap(),
+            10_000_000,
+            1_000_000,
+        )
+        .unwrap();
+        let retained = rank_weighted_payouts::<4>(
+            pool,
+            u32::try_from(crate::ARENA_BOARD_CAPACITY).unwrap(),
+            10_000_000,
+            1_000_000,
+        )
+        .unwrap();
+        assert_eq!(retained.width, full.width);
+        assert_eq!(retained.winner_count, 4);
+        assert_eq!(retained.payouts, full.payouts[..4]);
+        assert_eq!(retained.paid, retained.payouts.iter().sum::<u64>());
+        assert_eq!(retained.rollover, pool - retained.paid);
+        let empty = rank_weighted_payouts::<0>(
+            pool,
+            u32::try_from(crate::ARENA_BOARD_CAPACITY).unwrap(),
+            10_000_000,
+            1_000_000,
+        )
+        .unwrap();
+        assert_eq!(empty.width, full.width);
+        assert_eq!(empty.winner_count, 0);
+        assert_eq!(empty.rollover, pool);
+    }
 
     #[test]
     fn board_order_uses_metric_then_time_then_owner_bytes() {

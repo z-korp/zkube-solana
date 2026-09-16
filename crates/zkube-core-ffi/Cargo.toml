@@ -10,7 +10,7 @@ license = "Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-zkube-core-wasm = { path = "../zkube-core-wasm" }
+zkube-core-host = { path = "../zkube-core-host" }
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

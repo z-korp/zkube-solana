@@ -55,7 +55,6 @@ namespace ZKube.Core.Generated
         InvalidGeneratedRow = 204,
         InvalidLadderRank = 300,
         InvalidWholeUnit = 310,
-        InvalidWinnerCount = 311,
         ZeroWeight = 312,
         InvalidEntryPrice = 313,
         InvalidRank = 314,
@@ -166,7 +165,7 @@ namespace ZKube.Core.Generated
 
     public sealed class ReconcileRequest
     {
-        public const int ByteLength = 260;
+        public const int ByteLength = 257;
         public const uint Operation = 2;
         public byte[] Config { get; set; } = new byte[88];
         public byte Phase { get; set; }
@@ -176,9 +175,6 @@ namespace ZKube.Core.Generated
         public byte RerollCharges { get; set; }
         public byte ComboCounter { get; set; }
         public byte MaxCombo { get; set; }
-        public byte PrimaryProgress { get; set; }
-        public byte SecondaryProgress { get; set; }
-        public byte LatchedStarSources { get; set; }
         public byte Streak { get; set; }
         public byte ChargesEarned { get; set; }
         public byte CurrentTier { get; set; }
@@ -207,25 +203,22 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 94, 1, RerollCharges);
             NativeWire.Write(bytes, 95, 1, ComboCounter);
             NativeWire.Write(bytes, 96, 1, MaxCombo);
-            NativeWire.Write(bytes, 97, 1, PrimaryProgress);
-            NativeWire.Write(bytes, 98, 1, SecondaryProgress);
-            NativeWire.Write(bytes, 99, 1, LatchedStarSources);
-            NativeWire.Write(bytes, 100, 1, Streak);
-            NativeWire.Write(bytes, 101, 1, ChargesEarned);
-            NativeWire.Write(bytes, 102, 1, CurrentTier);
-            NativeWire.Write(bytes, 103, 2, LevelLinesCleared);
-            NativeWire.Write(bytes, 105, 2, Moves);
-            NativeWire.Write(bytes, 107, 4, ActionCounter);
-            NativeWire.Write(bytes, 111, 4, VrfRequestCounter);
-            NativeWire.Write(bytes, 115, 4, PendingVrfCounter);
-            NativeWire.Write(bytes, 119, 4, Score);
-            NativeWire.Write(bytes, 123, 4, DailyScore);
-            NativeWire.Write(bytes, 127, 8, ObjectiveTotal);
-            NativeWire.Write(bytes, 135, 4, PressureScore);
-            NativeWire.Copy(Grid, bytes, 139, 80);
-            NativeWire.Write(bytes, 219, 1, HasNextRow);
-            NativeWire.Copy(NextRow, bytes, 220, 8);
-            NativeWire.Copy(ReplayHash, bytes, 228, 32);
+            NativeWire.Write(bytes, 97, 1, Streak);
+            NativeWire.Write(bytes, 98, 1, ChargesEarned);
+            NativeWire.Write(bytes, 99, 1, CurrentTier);
+            NativeWire.Write(bytes, 100, 2, LevelLinesCleared);
+            NativeWire.Write(bytes, 102, 2, Moves);
+            NativeWire.Write(bytes, 104, 4, ActionCounter);
+            NativeWire.Write(bytes, 108, 4, VrfRequestCounter);
+            NativeWire.Write(bytes, 112, 4, PendingVrfCounter);
+            NativeWire.Write(bytes, 116, 4, Score);
+            NativeWire.Write(bytes, 120, 4, DailyScore);
+            NativeWire.Write(bytes, 124, 8, ObjectiveTotal);
+            NativeWire.Write(bytes, 132, 4, PressureScore);
+            NativeWire.Copy(Grid, bytes, 136, 80);
+            NativeWire.Write(bytes, 216, 1, HasNextRow);
+            NativeWire.Copy(NextRow, bytes, 217, 8);
+            NativeWire.Copy(ReplayHash, bytes, 225, 32);
             return bytes;
         }
     }

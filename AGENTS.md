@@ -888,8 +888,9 @@ Rust codegen emits its theme catalog for Unity imports.
 Each `ActiveRun` and `ArenaPlayer` stores the signer that paid its rent, and every
 close returns rent to that exact address even when another device resumes the
 run. `a_closed_run_returns_rent_to_its_payer` guards this boundary. The cadence
-funding PDA is usable only by the exact Daily preparation and board-allocation
-wrappers.
+funding PDA funds the System creation calls in Daily preparation and finalization;
+`sbf_cadence_funding_can_prepare_a_missing_post_launch_daily` and
+`cadence_funding_creates_exact_boards_through_the_full_capacity` guard those paths.
 
 Client-assembled owner transactions pin a deterministic 400,000-compute-unit
 limit and 1,000-micro-lamport unit price before wallet approval, so the maximum
@@ -978,6 +979,24 @@ Day windows, suspension windows, pair decoding and board ordering call the core.
 `keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits` and
 `BoardOrderingUsesTheCoreAtMetricAndTimestampBounds` check the host boundaries.
 
+### Core host cleanup amendment — 2026-09-16
+
+`zkube-core-host` contains the shared native codecs and the keeper's WASM
+exports; `zkube-core-ffi` remains the unsafe shell. Campaign resumes through
+local replay, and `arcade_reconstruction_rejects_campaign_rules` checks that
+account reconstruction accepts only Arcade rules. `StarRules` owns Campaign
+star requirements; the move budget remains a separate run rule. The core has
+one observed form of each transition, with `NoPresentation` used by the program.
+`perfect_clear_observation_preserves_move_bonus_and_capped_state` and
+`wasm_run_matches_native_golden_vectors` guard the transition and codec results.
+The keeper payout export calls the bounded core plan;
+`bounded_payout_plan_keeps_the_full_width_and_denominator` guards retained rows
+without renormalization, alongside the unchanged payout golden vectors.
+The catalog is `campaign-catalog.json`; `committed_catalog_validates_and_emits_protocol_constants`
+checks its version against the core constant. The keeper's schema value is
+owned by `keeperRelease.ts`, and `binds every runtime-verified release field`
+checks the fingerprint. `deploymentManifest.test.ts` checks the manifest schema.
+
 ## Operator procedures
 
 Every procedure here is approval-gated by the transaction policy above. The
@@ -987,7 +1006,7 @@ The source program ID is not evidence that corresponding ProgramData or
 protocol accounts are current. A fresh v5 pass must derive and approve every
 live value from its own read-only observations.
 
-Manifest schema v7 binds the deployed ProgramData and allocation, compiled
+The manifest schema in `deploymentManifest.ts` binds the deployed ProgramData and allocation, compiled
 catalog version and hash, exact launch day and seed plan, and keeper release. The v5
 dependency is one-way: frozen SBF and observed ProgramData, unique Fly release
 tag, keeper fingerprint,

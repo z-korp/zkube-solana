@@ -6,8 +6,8 @@ mod run;
 pub use run::{
     RUN_CONFIG_LEN, RUN_STATE_LEN, build_run_config, decode_run_config, decode_run_state,
     encode_run_config, encode_run_state, initialize_run, reconcile_run_state, run_apply_bonus,
-    run_apply_vrf, run_end_reason, run_finish, run_latched_star_sources, run_play_move,
-    run_request_reroll, run_score_eligible,
+    run_apply_vrf, run_end_reason, run_finish, run_play_move, run_request_reroll,
+    run_score_eligible,
 };
 
 use zkube_core::{
@@ -156,11 +156,6 @@ pub fn ladder_tier_floor(tier: u8) -> u64 {
     zkube_core::ladder_tier_floor(tier)
 }
 
-#[must_use]
-pub fn ladder_tier_count() -> u8 {
-    zkube_core::LADDER_TIER_COUNT
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ProtocolBoardWidth {
     pub winner_count: u32,
@@ -211,33 +206,25 @@ pub fn board_width(
 pub fn payout_plan(
     pool: u64,
     qualified_winners: u32,
-    capacity: u32,
     entry_price: u64,
     whole_unit: u64,
 ) -> Result<ProtocolPayoutPlan, BoundaryError> {
-    let width = board_width(pool, qualified_winners, entry_price, whole_unit)?;
-    let winner_count = width.winner_count.min(capacity);
-    let mut payouts = Vec::with_capacity(
-        usize::try_from(winner_count).map_err(|_| BoundaryError::Payout(PayoutError::Overflow))?,
-    );
-    let mut paid_lamports = 0u64;
-    for rank in 1..=winner_count {
-        let payout = payout_for_rank(pool, width.denominator, rank, whole_unit)?;
-        paid_lamports = paid_lamports
-            .checked_add(payout)
-            .ok_or(BoundaryError::Payout(PayoutError::Overflow))?;
-        payouts.push(payout);
-    }
+    let plan = zkube_core::rank_weighted_payouts::<{ zkube_core::ARENA_BOARD_CAPACITY }>(
+        pool,
+        qualified_winners,
+        entry_price,
+        whole_unit,
+    )?;
     Ok(ProtocolPayoutPlan {
-        payouts,
-        winner_count,
-        width_winner_count: width.winner_count,
-        denominator: width.denominator,
-        capacity_limited: winner_count < width.winner_count,
-        paid_lamports,
-        rollover_lamports: pool
-            .checked_sub(paid_lamports)
-            .ok_or(BoundaryError::Payout(PayoutError::Overflow))?,
+        payouts: plan.payouts
+            [..usize::try_from(plan.winner_count).map_err(|_| BoundaryError::InvalidEncoding)?]
+            .to_vec(),
+        winner_count: plan.winner_count,
+        width_winner_count: plan.width.winner_count,
+        denominator: plan.width.denominator,
+        capacity_limited: plan.winner_count < plan.width.winner_count,
+        paid_lamports: plan.paid,
+        rollover_lamports: plan.rollover,
     })
 }
 
@@ -285,13 +272,6 @@ pub fn encode_payout_plan(plan: &ProtocolPayoutPlan) -> Vec<u8> {
 }
 
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
-fn decode_u128(bytes: &[u8]) -> Result<u128, BoundaryError> {
-    Ok(u128::from_le_bytes(
-        bytes.try_into().map_err(|_| BoundaryError::InvalidLength)?,
-    ))
-}
-
-#[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm {
     use super::*;
     use wasm_bindgen::prelude::*;
@@ -307,265 +287,6 @@ mod wasm {
             BoundaryError::Payout(_) => "payout input is invalid",
         };
         JsError::new(message)
-    }
-
-    #[wasm_bindgen(js_name = qualifiedPlayerId)]
-    pub fn js_qualified_player_id(
-        chain_domain: &[u8],
-        raw_account: &[u8],
-    ) -> Result<Vec<u8>, JsError> {
-        qualified_player_id(chain_domain, raw_account)
-            .map(|bytes| bytes.to_vec())
-            .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = initialReplayCommitment)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn js_initial_replay_commitment(
-        chain_domain: &[u8],
-        challenge_id: &[u8],
-        rules_hash: &[u8],
-        raw_account: &[u8],
-        run_id: u64,
-        mode_tag: u8,
-    ) -> Result<Vec<u8>, JsError> {
-        initial_replay_commitment(
-            chain_domain,
-            challenge_id,
-            rules_hash,
-            raw_account,
-            run_id,
-            mode_tag,
-        )
-        .map(|bytes| bytes.to_vec())
-        .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = emptyContinuationRows)]
-    pub fn js_empty_continuation_rows(
-        request_counter: u32,
-        vrf_output: &[u8],
-        rules_hash: &[u8],
-        weights: &[u16],
-    ) -> Result<Vec<u8>, JsError> {
-        empty_continuation_rows(request_counter, vrf_output, rules_hash, weights)
-            .map(|rows| rows.to_vec())
-            .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = ladderPoints)]
-    pub fn js_ladder_points(qualified_entrants: u32, rank: u32) -> Result<u32, JsError> {
-        ladder_points(qualified_entrants, rank).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = ladderTier)]
-    pub fn js_ladder_tier(points: u64) -> u8 {
-        ladder_tier(points)
-    }
-
-    #[wasm_bindgen(js_name = ladderTierFloor)]
-    pub fn js_ladder_tier_floor(tier: u8) -> u64 {
-        ladder_tier_floor(tier)
-    }
-
-    #[wasm_bindgen(js_name = ladderTierCount)]
-    pub fn js_ladder_tier_count() -> u8 {
-        ladder_tier_count()
-    }
-
-    #[wasm_bindgen(js_name = campaignMoveBudget)]
-    pub fn js_campaign_move_budget(level: u8, tier: u8) -> Result<u16, JsError> {
-        zkube_core::campaign_move_budget(level, tier)
-            .ok_or_else(|| JsError::new("Campaign level or tier is invalid"))
-    }
-
-    #[wasm_bindgen(js_name = mergeCampaignStars)]
-    pub fn js_merge_campaign_stars(stored: &[u8], incoming: &[u8]) -> Result<Vec<u8>, JsError> {
-        merge_campaign_stars(stored, incoming).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = initializeRun)]
-    pub fn js_initialize_run(config: &[u8]) -> Result<Vec<u8>, JsError> {
-        initialize_run(config).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = buildRunConfig)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn js_build_run_config(
-        rules_hash: &[u8],
-        initial_replay: &[u8],
-        max_moves: u16,
-        bonus: u8,
-        trigger: u8,
-        trigger_threshold: u16,
-        starting_height: u8,
-        tier_policy: u8,
-        fixed_tier: u8,
-        points_required: u32,
-        primary_kind: u8,
-        primary_value: u8,
-        primary_count: u8,
-        secondary_kind: u8,
-        secondary_value: u8,
-        secondary_count: u8,
-        objective_kind: u8,
-        objective_value: u8,
-    ) -> Result<Vec<u8>, JsError> {
-        build_run_config(
-            rules_hash,
-            initial_replay,
-            max_moves,
-            bonus,
-            trigger,
-            trigger_threshold,
-            starting_height,
-            tier_policy,
-            fixed_tier,
-            points_required,
-            primary_kind,
-            primary_value,
-            primary_count,
-            secondary_kind,
-            secondary_value,
-            secondary_count,
-            objective_kind,
-            objective_value,
-        )
-        .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = reconcileRunState)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn js_reconcile_run_state(
-        config: &[u8],
-        phase: u8,
-        end_reason: u8,
-        bonus: u8,
-        bonus_charges: u8,
-        reroll_charges: u8,
-        combo_counter: u8,
-        max_combo: u8,
-        primary_progress: u8,
-        secondary_progress: u8,
-        latched_star_sources: u8,
-        streak: u8,
-        charges_earned: u8,
-        current_tier: u8,
-        level_lines_cleared: u16,
-        moves: u16,
-        action_counter: u32,
-        vrf_request_counter: u32,
-        pending_vrf_counter: u32,
-        score: u32,
-        daily_score: u32,
-        objective_total: u64,
-        pressure_score: u32,
-        grid: &[u8],
-        next_row: &[u8],
-        replay: &[u8],
-    ) -> Result<Vec<u8>, JsError> {
-        reconcile_run_state(
-            config,
-            phase,
-            end_reason,
-            bonus,
-            bonus_charges,
-            reroll_charges,
-            combo_counter,
-            max_combo,
-            primary_progress,
-            secondary_progress,
-            latched_star_sources,
-            streak,
-            charges_earned,
-            current_tier,
-            level_lines_cleared,
-            moves,
-            action_counter,
-            vrf_request_counter,
-            pending_vrf_counter,
-            score,
-            daily_score,
-            objective_total,
-            pressure_score,
-            grid,
-            next_row,
-            replay,
-        )
-        .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = applyRunVrf)]
-    pub fn js_run_apply_vrf(
-        config: &[u8],
-        state: &[u8],
-        request_counter: u32,
-        vrf_output: &[u8],
-    ) -> Result<Vec<u8>, JsError> {
-        run_apply_vrf(config, state, request_counter, vrf_output).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = playRunMove)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn js_run_play_move(
-        config: &[u8],
-        state: &[u8],
-        action: u32,
-        expected_move: u16,
-        row: u8,
-        start: u8,
-        destination: u8,
-    ) -> Result<Vec<u8>, JsError> {
-        run_play_move(
-            config,
-            state,
-            action,
-            expected_move,
-            row,
-            start,
-            destination,
-        )
-        .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = applyRunBonus)]
-    pub fn js_run_apply_bonus(
-        config: &[u8],
-        state: &[u8],
-        action: u32,
-        row: u8,
-        column: u8,
-    ) -> Result<Vec<u8>, JsError> {
-        run_apply_bonus(config, state, action, row, column).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = requestRunReroll)]
-    pub fn js_run_request_reroll(
-        config: &[u8],
-        state: &[u8],
-        action: u32,
-    ) -> Result<Vec<u8>, JsError> {
-        run_request_reroll(config, state, action).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = finishRun)]
-    pub fn js_run_finish(config: &[u8], state: &[u8], reason_tag: u8) -> Result<Vec<u8>, JsError> {
-        run_finish(config, state, reason_tag).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = runScoreEligible)]
-    pub fn js_run_score_eligible(state: &[u8]) -> Result<bool, JsError> {
-        run_score_eligible(state).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = runLatchedStarSources)]
-    pub fn js_run_latched_star_sources(state: &[u8]) -> Result<u8, JsError> {
-        run_latched_star_sources(state).map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = runEndReason)]
-    pub fn js_run_end_reason(state: &[u8]) -> Result<u8, JsError> {
-        run_end_reason(state).map_err(js_error)
     }
 
     #[wasm_bindgen(js_name = dayIdAt)]
@@ -628,55 +349,22 @@ mod wasm {
             },
         )
     }
-    #[wasm_bindgen(js_name = dailyPairIndex)]
-    pub fn js_daily_pair_index(day_id: u32) -> u32 {
-        daily_pair_index(day_id)
-    }
 
     #[wasm_bindgen(js_name = dailyBoardPools)]
     pub fn js_daily_board_pools(pool: u64, theme_qualified: u32) -> Vec<u8> {
         encode_board_pools(daily_board_pools(pool, theme_qualified))
     }
 
-    #[wasm_bindgen(js_name = boardWidth)]
-    pub fn js_board_width(
-        pool: u64,
-        qualified_winners: u32,
-        entry_price: u64,
-        whole_unit: u64,
-    ) -> Result<Vec<u8>, JsError> {
-        board_width(pool, qualified_winners, entry_price, whole_unit)
-            .map(encode_board_width)
-            .map_err(js_error)
-    }
-
     #[wasm_bindgen(js_name = payoutPlan)]
     pub fn js_payout_plan(
         pool: u64,
         qualified_winners: u32,
-        capacity: u32,
         entry_price: u64,
         whole_unit: u64,
     ) -> Result<Vec<u8>, JsError> {
-        payout_plan(pool, qualified_winners, capacity, entry_price, whole_unit)
+        payout_plan(pool, qualified_winners, entry_price, whole_unit)
             .map(|plan| encode_payout_plan(&plan))
             .map_err(js_error)
-    }
-
-    #[wasm_bindgen(js_name = payoutForRank)]
-    pub fn js_payout_for_rank(
-        pool: u64,
-        denominator: &[u8],
-        rank: u32,
-        whole_unit: u64,
-    ) -> Result<u64, JsError> {
-        payout_for_rank(
-            pool,
-            decode_u128(denominator).map_err(js_error)?,
-            rank,
-            whole_unit,
-        )
-        .map_err(js_error)
     }
 }
 
@@ -765,14 +453,8 @@ mod tests {
         let pool = payout["poolLamports"].as_u64().unwrap();
         let qualified = u32::try_from(payout["qualifiedWinners"].as_u64().unwrap()).unwrap();
         let entry = payout["entryPriceLamports"].as_u64().unwrap();
-        let plan = payout_plan(
-            pool,
-            qualified,
-            qualified,
-            entry,
-            zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
-        )
-        .unwrap();
+        let plan =
+            payout_plan(pool, qualified, entry, zkube_core::SOL_PAYOUT_UNIT_LAMPORTS).unwrap();
         let width =
             board_width(pool, qualified, entry, zkube_core::SOL_PAYOUT_UNIT_LAMPORTS).unwrap();
         assert_eq!(width.winner_count, plan.width_winner_count);
@@ -828,7 +510,14 @@ mod tests {
         let mut state = initialize_run(&config_bytes).unwrap();
         assert_eq!(decode_run_state(&state).unwrap(), native);
 
-        native.apply_vrf(rules, 1, [0x11; 32]).unwrap();
+        native
+            .apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
+                rules,
+                1,
+                [0x11; 32],
+                &mut zkube_core::NoPresentation,
+            )
+            .unwrap();
         state = run_apply_vrf(&config_bytes, &state, 1, &[0x11; 32]).unwrap();
         assert_eq!(decode_run_state(&state).unwrap(), native);
         let movement = &fixture["events"][1];
@@ -836,13 +525,34 @@ mod tests {
         let start = u8::try_from(movement["start"].as_u64().unwrap()).unwrap();
         let destination = u8::try_from(movement["destination"].as_u64().unwrap()).unwrap();
         native
-            .play_move(rules, 0, 0, row, start, destination)
+            .play_move_observed_with::<zkube_core::SoftwareSha256, _>(
+                rules,
+                0,
+                0,
+                row,
+                start,
+                destination,
+                &mut zkube_core::NoPresentation,
+            )
             .unwrap();
         state = run_play_move(&config_bytes, &state, 0, 0, row, start, destination).unwrap();
         assert_eq!(decode_run_state(&state).unwrap(), native);
-        native.apply_vrf(rules, 2, [0x22; 32]).unwrap();
+        native
+            .apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
+                rules,
+                2,
+                [0x22; 32],
+                &mut zkube_core::NoPresentation,
+            )
+            .unwrap();
         state = run_apply_vrf(&config_bytes, &state, 2, &[0x22; 32]).unwrap();
-        native.finish(rules, RunEndReason::Deadline).unwrap();
+        native
+            .finish_observed_with::<zkube_core::SoftwareSha256, _>(
+                rules,
+                RunEndReason::Deadline,
+                &mut zkube_core::NoPresentation,
+            )
+            .unwrap();
         state = run_finish(&config_bytes, &state, 4).unwrap();
 
         let boundary = decode_run_state(&state).unwrap();

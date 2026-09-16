@@ -22,7 +22,6 @@ import {
   MIN_SUPPORTED_DAY_ID,
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
-  ARENA_BOARD_CAPACITY,
   ARENA_BOARD_ENTRY_SIZE,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PLAYER_STATE_ACCOUNT_VERSION,
@@ -854,7 +853,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const plan = payoutPlan(
       poolLamports,
       qualifiedCount,
-      ARENA_BOARD_CAPACITY,
       ARENA_ENTRY_LAMPORTS,
       SOL_PAYOUT_UNIT_LAMPORTS,
     );
@@ -1220,14 +1218,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const scorePlan = payoutPlan(
       pools.score,
       scoreQualifiedPlayers,
-      ARENA_BOARD_CAPACITY,
       ARENA_ENTRY_LAMPORTS,
       SOL_PAYOUT_UNIT_LAMPORTS,
     );
     const themePlan = payoutPlan(
       pools.theme,
       themeQualifiedPlayers,
-      ARENA_BOARD_CAPACITY,
       ARENA_ENTRY_LAMPORTS,
       SOL_PAYOUT_UNIT_LAMPORTS,
     );

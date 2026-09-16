@@ -823,7 +823,6 @@ function validateSettlement(
     const plan = payoutPlan(
       pools[board],
       qualified,
-      ARENA_BOARD_CAPACITY,
       ARENA_ENTRY_LAMPORTS,
       SOL_PAYOUT_UNIT_LAMPORTS,
     );

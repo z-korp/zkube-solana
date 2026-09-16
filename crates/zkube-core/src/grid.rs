@@ -191,14 +191,7 @@ impl Grid {
         Ok(())
     }
 
-    pub fn apply_gravity(&mut self) {
-        self.apply_gravity_observed(&mut crate::NoPresentation);
-    }
-
-    pub(crate) fn apply_gravity_observed<O: crate::PresentationObserver>(
-        &mut self,
-        observer: &mut O,
-    ) {
+    pub fn apply_gravity_observed<O: crate::PresentationObserver>(&mut self, observer: &mut O) {
         loop {
             let mut changed = false;
             for row in 1..GRID_HEIGHT {
@@ -243,20 +236,10 @@ impl Grid {
     /// The returned points reproduce Cairo's triangular per-action line score:
     /// line 1 = 1, line 2 = 2, ...
     pub fn settle(&mut self) -> (u8, u16) {
-        self.settle_after(0)
+        self.settle_after_observed(0, &mut crate::NoPresentation)
     }
 
-    /// Resolve another settle phase in the same action.
-    ///
-    /// Cairo passes the same line counter through the settle before next-row
-    /// insertion and the settle after insertion. Resuming from `lines_before`
-    /// keeps a four-line action worth 1 + 2 + 3 + 4 even when the fourth line
-    /// is completed by the inserted row.
-    pub fn settle_after(&mut self, lines_before: u8) -> (u8, u16) {
-        self.settle_after_observed(lines_before, &mut crate::NoPresentation)
-    }
-
-    pub(crate) fn settle_after_observed<O: crate::PresentationObserver>(
+    pub fn settle_after_observed<O: crate::PresentationObserver>(
         &mut self,
         lines_before: u8,
         observer: &mut O,
@@ -422,7 +405,7 @@ mod tests {
     fn gravity_keeps_wide_blocks_atomic() {
         let mut grid =
             grid_with_rows(&[(0, [1, 0, 0, 0, 0, 0, 0, 0]), (2, [2, 2, 0, 0, 0, 0, 0, 0])]);
-        grid.apply_gravity();
+        grid.apply_gravity_observed(&mut crate::NoPresentation);
         assert_eq!(grid.row(1).unwrap(), &[2, 2, 0, 0, 0, 0, 0, 0]);
         assert_eq!(grid.row(0).unwrap(), &[1, 0, 0, 0, 0, 0, 0, 0]);
     }
@@ -447,7 +430,8 @@ mod tests {
             let points_before = u16::from(lines_before)
                 .saturating_mul(u16::from(lines_before.saturating_add(1)))
                 / 2;
-            let (lines, points) = grid.settle_after(lines_before);
+            let (lines, points) =
+                grid.settle_after_observed(lines_before, &mut crate::NoPresentation);
 
             assert_eq!(lines, 4 - lines_before);
             assert_eq!(points_before + points, FOUR_LINE_POINTS);
@@ -537,7 +521,7 @@ mod tests {
                     None
                 }
                 "gravity" => {
-                    grid.apply_gravity();
+                    grid.apply_gravity_observed(&mut crate::NoPresentation);
                     None
                 }
                 "settle" => Some(grid.settle()),

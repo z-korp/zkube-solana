@@ -642,7 +642,7 @@ fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
     assert_eq!(opening_grid, core_opening.grid);
     assert_eq!(opened.next_row, core_opening.preview);
     let mut settled = opening_grid;
-    settled.apply_gravity();
+    settled.apply_gravity_observed(&mut zkube_core::NoPresentation);
     assert_eq!(settled, opening_grid);
     assert_eq!(opening_grid.occupied_height(), 8);
     assert!(opened.has_next_row);

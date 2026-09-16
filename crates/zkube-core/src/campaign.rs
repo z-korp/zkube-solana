@@ -17,7 +17,6 @@ pub enum CampaignStarsError {
     InvalidMap,
     InvalidLevel,
     InvalidStars,
-    Locked,
 }
 
 /// The complete Campaign progression state: two bits for each of 100 levels.
@@ -179,27 +178,6 @@ impl CampaignStars {
     #[must_use]
     pub fn world_perfected(&self) -> bool {
         self.total() == CAMPAIGN_MAX_STARS
-    }
-
-    /// Record a completed finite level, preserving the lifetime best.
-    ///
-    /// # Errors
-    ///
-    /// Returns a bounds, lock, or stars validation error.
-    pub fn record_level(
-        &mut self,
-        map_id: u8,
-        level_id: u8,
-        stars: u8,
-    ) -> Result<u8, CampaignStarsError> {
-        if !(1..=3).contains(&stars) {
-            return Err(CampaignStarsError::InvalidStars);
-        }
-        level_index(map_id, level_id)?;
-        if !self.level_unlocked(map_id, level_id) {
-            return Err(CampaignStarsError::Locked);
-        }
-        self.merge_level(map_id, level_id, stars)
     }
 }
 
@@ -524,11 +502,11 @@ mod tests {
         let mut progress = CampaignStars::new();
         assert!(progress.level_unlocked(1, 1));
         assert!(!progress.level_unlocked(1, 2));
-        assert_eq!(progress.record_level(1, 1, 2), Ok(2));
+        assert_eq!(progress.merge_level(1, 1, 2), Ok(2));
         assert!(progress.level_unlocked(1, 2));
-        assert_eq!(progress.record_level(1, 1, 1), Ok(0));
+        assert_eq!(progress.merge_level(1, 1, 1), Ok(0));
         for level in 2..=10 {
-            progress.record_level(1, level, 3).unwrap();
+            progress.merge_level(1, level, 3).unwrap();
         }
         assert!(progress.level_unlocked(2, 1));
         assert!(progress.zone_cleared(1));
@@ -542,7 +520,7 @@ mod tests {
         let mut progress = CampaignStars::new();
         for map_id in 1..=10 {
             for level_id in 1..=10 {
-                progress.record_level(map_id, level_id, 3).unwrap();
+                progress.merge_level(map_id, level_id, 3).unwrap();
             }
         }
         assert!(progress.all_guardians_cleared());

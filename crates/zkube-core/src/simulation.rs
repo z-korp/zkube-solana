@@ -8,7 +8,6 @@ use crate::{
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v3";
 pub const RULES_VERSION: u32 = 5;
-const CAMPAIGN_REPLAY_FOLD_DOMAIN: &[u8] = b"zkube-campaign-replay-fold-v1";
 pub const CANONICAL_RUN_RULES_LEN: usize = 23;
 pub const DAILY_MAX_MOVES: u16 = 100;
 pub const PRESSURE_STEP: u32 = 15;
@@ -70,19 +69,13 @@ impl RunRules {
         }
         match (self.tier, self.stars) {
             (TierPolicy::Fixed(tier), Some(stars)) => {
-                let level = crate::LevelRules {
-                    points_required: stars.points_required,
-                    max_moves: self.max_moves,
-                    primary: stars.primary,
-                    secondary: stars.secondary,
-                };
                 tier <= 7
                     && self.objective.is_none()
                     && stars.points_required > 0
                     && stars.primary.is_valid_primary()
                     && stars.secondary.is_valid_secondary()
-                    && level.has_valid_constraint_classes()
-                    && level.has_distinct_constraint_facts(
+                    && stars.has_valid_constraint_classes()
+                    && stars.has_distinct_constraint_facts(
                         self.guardian.trigger,
                         self.guardian.threshold,
                     )
@@ -293,31 +286,17 @@ impl Run {
         self.action_counter > 0
     }
 
-    /// Apply the next verified VRF result to the run.
+    /// Apply verified randomness and observe its accepted board and preview changes.
     ///
     /// # Errors
     ///
-    /// Rejects stale rules, an unexpected phase or counter, and invalid
-    /// deterministic row generation.
-    pub fn apply_vrf(
+    /// Rejects stale rules, an unexpected phase or counter, and invalid row generation.
+    pub fn apply_vrf_observed_with<H: Sha256Provider, O: crate::PresentationObserver>(
         &mut self,
         rules: RunRules,
         request_counter: u32,
         output: [u8; 32],
-    ) -> Result<(), RunTransitionError> {
-        self.apply_vrf_with::<SoftwareSha256>(rules, request_counter, output)
-    }
-
-    /// Hash-provider-adaptable form of [`Run::apply_vrf`].
-    ///
-    /// # Errors
-    ///
-    /// Returns the same transition errors as [`Run::apply_vrf`].
-    pub fn apply_vrf_with<H: Sha256Provider>(
-        &mut self,
-        rules: RunRules,
-        request_counter: u32,
-        output: [u8; 32],
+        observer: &mut O,
     ) -> Result<(), RunTransitionError> {
         self.require_rules_with::<H>(rules)?;
         if self.engine.phase != RunPhase::AwaitingVrf {
@@ -361,67 +340,27 @@ impl Run {
             let row = row_from_vrf_with::<H>(output, request_counter, weights)?;
             next.engine.provide_vrf_row(row)?;
         }
-        next.fold_event_with::<H>(
-            rules,
-            ReplayEvent::Vrf {
-                request_counter,
-                output,
-            },
-        );
+        next.fold_event_with::<H>(ReplayEvent::Vrf {
+            request_counter,
+            output,
+        });
         next.last_vrf_counter = request_counter;
+        let before = *self;
         *self = next;
+        if before.engine.grid != self.engine.grid {
+            observer.observe(crate::PresentationEvent::BoardReplaced {
+                cells: *self.engine.grid.cells(),
+            });
+        }
+        self.observe_outcome(&before, observer);
         Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    /// Apply one ordered player move.
-    ///
-    /// # Errors
-    ///
-    /// Rejects stale rules, action-order drift, or an invalid engine move.
-    pub fn play_move(
-        &mut self,
-        rules: RunRules,
-        action: u32,
-        expected_move: u16,
-        row: u8,
-        start: u8,
-        destination: u8,
-    ) -> Result<crate::MoveReport, RunTransitionError> {
-        self.play_move_with::<SoftwareSha256>(rules, action, expected_move, row, start, destination)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    /// Hash-provider-adaptable form of [`Run::play_move`].
-    ///
-    /// # Errors
-    ///
-    /// Returns the same transition errors as [`Run::play_move`].
-    pub fn play_move_with<H: Sha256Provider>(
-        &mut self,
-        rules: RunRules,
-        action: u32,
-        expected_move: u16,
-        row: u8,
-        start: u8,
-        destination: u8,
-    ) -> Result<crate::MoveReport, RunTransitionError> {
-        self.play_move_observed_with::<H, _>(
-            rules,
-            action,
-            expected_move,
-            row,
-            start,
-            destination,
-            &mut crate::NoPresentation,
-        )
     }
 
     /// Observe the same atomic move used by untraced callers. Discard collected
     /// events if this returns an error; events are not independently accepted.
     ///
     /// # Errors
-    /// Returns the same errors as [`Run::play_move`].
+    /// Rejects stale rules, action-order drift, or an invalid engine move.
     #[allow(clippy::too_many_arguments)]
     pub fn play_move_observed_with<H: Sha256Provider, O: crate::PresentationObserver>(
         &mut self,
@@ -452,62 +391,23 @@ impl Run {
             .charges_earned
             .saturating_sub(trigger_events_before);
         next.record_action(rules, report, trigger_events)?;
-        next.fold_event_with::<H>(
-            rules,
-            ReplayEvent::Move {
-                action,
-                expected_move,
-                row,
-                start,
-                destination,
-            },
-        );
+        next.fold_event_with::<H>(ReplayEvent::Move {
+            action,
+            expected_move,
+            row,
+            start,
+            destination,
+        });
         next.observe_perfect_clear(self, report, observer);
         next.observe_outcome(self, observer);
         *self = next;
         Ok(report)
     }
 
-    /// Apply one ordered guardian-bonus action.
-    ///
-    /// # Errors
-    ///
-    /// Rejects stale rules, action-order drift, or an invalid bonus action.
-    pub fn apply_bonus(
-        &mut self,
-        rules: RunRules,
-        action: u32,
-        row: u8,
-        column: u8,
-    ) -> Result<crate::MoveReport, RunTransitionError> {
-        self.apply_bonus_with::<SoftwareSha256>(rules, action, row, column)
-    }
-
-    /// Hash-provider-adaptable form of [`Run::apply_bonus`].
-    ///
-    /// # Errors
-    ///
-    /// Returns the same transition errors as [`Run::apply_bonus`].
-    pub fn apply_bonus_with<H: Sha256Provider>(
-        &mut self,
-        rules: RunRules,
-        action: u32,
-        row: u8,
-        column: u8,
-    ) -> Result<crate::MoveReport, RunTransitionError> {
-        self.apply_bonus_observed_with::<H, _>(
-            rules,
-            action,
-            row,
-            column,
-            &mut crate::NoPresentation,
-        )
-    }
-
     /// Observe the shared bonus transition; discard events on rejection.
     ///
     /// # Errors
-    /// Returns the same errors as [`Run::apply_bonus`].
+    /// Rejects stale rules, action-order drift, or an invalid guardian action.
     pub fn apply_bonus_observed_with<H: Sha256Provider, O: crate::PresentationObserver>(
         &mut self,
         rules: RunRules,
@@ -533,57 +433,15 @@ impl Run {
             .charges_earned
             .saturating_sub(trigger_events_before);
         next.record_action(rules, report, trigger_events)?;
-        next.fold_event_with::<H>(
-            rules,
-            ReplayEvent::Bonus {
-                action,
-                row,
-                column,
-            },
-        );
+        next.fold_event_with::<H>(ReplayEvent::Bonus {
+            action,
+            row,
+            column,
+        });
         next.observe_perfect_clear(self, report, observer);
         next.observe_outcome(self, observer);
         *self = next;
         Ok(report)
-    }
-
-    /// Observe row/preview replacement after verified randomness. The mutation
-    /// and commitment still use the one existing VRF path.
-    ///
-    /// # Errors
-    /// Returns the same errors as [`Run::apply_vrf`].
-    pub fn apply_vrf_observed<O: crate::PresentationObserver>(
-        &mut self,
-        rules: RunRules,
-        counter: u32,
-        output: [u8; 32],
-        observer: &mut O,
-    ) -> Result<(), RunTransitionError> {
-        let before = *self;
-        self.apply_vrf(rules, counter, output)?;
-        if before.engine.grid != self.engine.grid {
-            observer.observe(crate::PresentationEvent::BoardReplaced {
-                cells: *self.engine.grid.cells(),
-            });
-        }
-        self.observe_outcome(&before, observer);
-        Ok(())
-    }
-
-    /// Observe an explicit finish without changing the accepted finish path.
-    ///
-    /// # Errors
-    /// Returns the same errors as [`Run::finish`].
-    pub fn finish_observed<O: crate::PresentationObserver>(
-        &mut self,
-        rules: RunRules,
-        reason: RunEndReason,
-        observer: &mut O,
-    ) -> Result<(), RunTransitionError> {
-        let before = *self;
-        self.finish(rules, reason)?;
-        self.observe_outcome(&before, observer);
-        Ok(())
     }
 
     fn observe_perfect_clear<O: crate::PresentationObserver>(
@@ -642,33 +500,21 @@ impl Run {
             .action_counter
             .checked_add(1)
             .ok_or(RunTransitionError::Overflow)?;
-        next.fold_event_with::<H>(rules, ReplayEvent::Reroll { action });
+        next.fold_event_with::<H>(ReplayEvent::Reroll { action });
         *self = next;
         Ok(())
     }
 
-    /// Finish an active run for an explicitly authorized terminal reason.
+    /// Finish an active run for an authorized terminal reason and observe the outcome.
     ///
     /// # Errors
     ///
     /// Rejects stale rules, an automatic-only reason, or a terminal run.
-    pub fn finish(
+    pub fn finish_observed_with<H: Sha256Provider, O: crate::PresentationObserver>(
         &mut self,
         rules: RunRules,
         reason: RunEndReason,
-    ) -> Result<(), RunTransitionError> {
-        self.finish_with::<SoftwareSha256>(rules, reason)
-    }
-
-    /// Hash-provider-adaptable form of [`Run::finish`].
-    ///
-    /// # Errors
-    ///
-    /// Returns the same transition errors as [`Run::finish`].
-    pub fn finish_with<H: Sha256Provider>(
-        &mut self,
-        rules: RunRules,
-        reason: RunEndReason,
+        observer: &mut O,
     ) -> Result<(), RunTransitionError> {
         self.require_rules_with::<H>(rules)?;
         if !matches!(reason, RunEndReason::Abandoned | RunEndReason::Deadline)
@@ -693,9 +539,11 @@ impl Run {
                 return Err(RunTransitionError::InvalidPhase);
             }
         };
-        next.fold_event_with::<H>(rules, event);
+        next.fold_event_with::<H>(event);
         next.end_reason = Some(reason);
+        let before = *self;
         *self = next;
+        self.observe_outcome(&before, observer);
         Ok(())
     }
 
@@ -757,17 +605,8 @@ impl Run {
         Ok(())
     }
 
-    fn fold_event_with<H: Sha256Provider>(&mut self, rules: RunRules, event: ReplayEvent) {
-        if rules.stars.is_some() {
-            let encoded = event.canonical_bytes();
-            self.replay = ReplayCommitment(H::hashv(&[
-                CAMPAIGN_REPLAY_FOLD_DOMAIN,
-                self.replay.as_bytes(),
-                encoded.as_slice(),
-            ]));
-        } else {
-            self.replay = self.replay.fold_with::<H>(event);
-        }
+    fn fold_event_with<H: Sha256Provider>(&mut self, event: ReplayEvent) {
+        self.replay = self.replay.fold_with::<H>(event);
     }
 }
 
@@ -854,6 +693,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // Keep each observer case beside its matching untraced state.
     fn perfect_clear_observation_preserves_move_bonus_and_capped_state() {
         use std::{vec, vec::Vec};
         #[derive(Default)]
@@ -884,7 +724,15 @@ mod tests {
                 let mut plain = initial;
                 let mut events = Events::default();
                 let report = if bonus {
-                    plain.apply_bonus(cfg.rules, 0, 0, 0).unwrap();
+                    plain
+                        .apply_bonus_observed_with::<crate::SoftwareSha256, _>(
+                            cfg.rules,
+                            0,
+                            0,
+                            0,
+                            &mut crate::NoPresentation,
+                        )
+                        .unwrap();
                     traced
                         .apply_bonus_observed_with::<SoftwareSha256, _>(
                             cfg.rules,
@@ -895,7 +743,17 @@ mod tests {
                         )
                         .unwrap()
                 } else {
-                    plain.play_move(cfg.rules, 0, 0, 1, 0, 1).unwrap();
+                    plain
+                        .play_move_observed_with::<crate::SoftwareSha256, _>(
+                            cfg.rules,
+                            0,
+                            0,
+                            1,
+                            0,
+                            1,
+                            &mut crate::NoPresentation,
+                        )
+                        .unwrap();
                     traced
                         .play_move_observed_with::<SoftwareSha256, _>(
                             cfg.rules,
@@ -947,13 +805,13 @@ mod tests {
     #[test]
     fn one_run_drives_campaign_and_daily() {
         let daily_rules = rules();
-        let campaign_level = crate::LevelRules::default();
+        let campaign_level = crate::StarRules::default();
         let campaign_rules = RunRules {
             guardian: daily_rules.guardian,
             starting_height: daily_rules.starting_height,
-            max_moves: campaign_level.max_moves,
+            max_moves: 20,
             tier: TierPolicy::Fixed(0),
-            stars: Some(campaign_level.into()),
+            stars: Some(campaign_level),
             objective: None,
         };
         let build = |rules| {
@@ -967,8 +825,22 @@ mod tests {
         let mut daily = build(daily_rules);
         let mut campaign = build(campaign_rules);
 
-        daily.apply_vrf(daily_rules, 1, [9; 32]).unwrap();
-        campaign.apply_vrf(campaign_rules, 1, [9; 32]).unwrap();
+        daily
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                daily_rules,
+                1,
+                [9; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
+        campaign
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                campaign_rules,
+                1,
+                [9; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
 
         assert_eq!(daily.engine.phase, RunPhase::Playing);
         assert_eq!(campaign.engine.phase, RunPhase::Playing);
@@ -981,14 +853,34 @@ mod tests {
         let mut simulation = Run::new(config()).unwrap();
         let untouched = simulation;
         assert_eq!(
-            simulation.apply_vrf(rules(), 2, [9; 32]),
+            simulation.apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                rules(),
+                2,
+                [9; 32],
+                &mut crate::NoPresentation
+            ),
             Err(RunTransitionError::InvalidVrfOrder)
         );
         assert_eq!(simulation, untouched);
-        simulation.apply_vrf(rules(), 1, [9; 32]).unwrap();
+        simulation
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                rules(),
+                1,
+                [9; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
         let opened = simulation;
         assert_eq!(
-            simulation.play_move(rules(), 1, 0, 0, 0, 0),
+            simulation.play_move_observed_with::<crate::SoftwareSha256, _>(
+                rules(),
+                1,
+                0,
+                0,
+                0,
+                0,
+                &mut crate::NoPresentation
+            ),
             Err(RunTransitionError::InvalidActionOrder)
         );
         assert_eq!(simulation, opened);
@@ -997,12 +889,26 @@ mod tests {
     #[test]
     fn one_vrf_recovers_an_empty_post_clear_board_and_preview() {
         let mut simulation = Run::new(config()).unwrap();
-        simulation.apply_vrf(rules(), 1, [9; 32]).unwrap();
+        simulation
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                rules(),
+                1,
+                [9; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
         simulation.engine.grid = crate::Grid::EMPTY;
         simulation.engine.next_row = None;
         simulation.engine.phase = RunPhase::AwaitingVrf;
 
-        simulation.apply_vrf(rules(), 2, [10; 32]).unwrap();
+        simulation
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                rules(),
+                2,
+                [10; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
 
         assert_eq!(simulation.engine.phase, RunPhase::Playing);
         assert_eq!(simulation.engine.grid.occupied_height(), 1);
@@ -1146,9 +1052,25 @@ mod tests {
                         let (theme_rules, mut theme) = make_run(objective, prior_total);
                         let act = |run: &mut Run, rules| {
                             if bonus {
-                                run.apply_bonus(rules, 0, 0, 0).unwrap()
+                                run.apply_bonus_observed_with::<crate::SoftwareSha256, _>(
+                                    rules,
+                                    0,
+                                    0,
+                                    0,
+                                    &mut crate::NoPresentation,
+                                )
+                                .unwrap()
                             } else {
-                                run.play_move(rules, 0, 0, 1, 0, 1).unwrap()
+                                run.play_move_observed_with::<crate::SoftwareSha256, _>(
+                                    rules,
+                                    0,
+                                    0,
+                                    1,
+                                    0,
+                                    1,
+                                    &mut crate::NoPresentation,
+                                )
+                                .unwrap()
                             }
                         };
                         let report = act(&mut theme, theme_rules);
@@ -1185,7 +1107,13 @@ mod tests {
     fn deadline_freezes_zero_action_run_without_making_it_score_eligible() {
         let mut simulation = Run::new(config()).unwrap();
         let replay_before = simulation.replay;
-        simulation.finish(rules(), RunEndReason::Deadline).unwrap();
+        simulation
+            .finish_observed_with::<crate::SoftwareSha256, _>(
+                rules(),
+                RunEndReason::Deadline,
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
         assert_eq!(simulation.engine.phase, RunPhase::Finished);
         assert_eq!(simulation.end_reason, Some(RunEndReason::Deadline));
         assert!(!simulation.is_score_eligible());
@@ -1198,7 +1126,14 @@ mod tests {
         let mut reroll_config = config();
         reroll_config.rules = reroll_rules;
         let mut simulation = Run::new(reroll_config).unwrap();
-        simulation.apply_vrf(reroll_rules, 1, [9; 32]).unwrap();
+        simulation
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                reroll_rules,
+                1,
+                [9; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
         let grid = simulation.engine.grid;
         let preview = simulation.engine.next_row.unwrap();
         let replay_before = simulation.replay;
@@ -1213,7 +1148,14 @@ mod tests {
         assert_ne!(simulation.replay, replay_before);
 
         let replay_after_request = simulation.replay;
-        simulation.apply_vrf(reroll_rules, 2, [10; 32]).unwrap();
+        simulation
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                reroll_rules,
+                2,
+                [10; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
         assert_eq!(simulation.engine.phase, RunPhase::Playing);
         assert_eq!(simulation.engine.grid, grid);
         assert_ne!(simulation.engine.next_row, Some(preview));
@@ -1230,11 +1172,22 @@ mod tests {
         let mut reroll_config = config();
         reroll_config.rules = reroll_rules;
         let mut simulation = Run::new(reroll_config).unwrap();
-        simulation.apply_vrf(reroll_rules, 1, [9; 32]).unwrap();
+        simulation
+            .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                reroll_rules,
+                1,
+                [9; 32],
+                &mut crate::NoPresentation,
+            )
+            .unwrap();
         simulation.request_reroll(reroll_rules, 0).unwrap();
 
         simulation
-            .finish(reroll_rules, RunEndReason::Deadline)
+            .finish_observed_with::<crate::SoftwareSha256, _>(
+                reroll_rules,
+                RunEndReason::Deadline,
+                &mut crate::NoPresentation,
+            )
             .unwrap();
 
         assert!(simulation.is_score_eligible());

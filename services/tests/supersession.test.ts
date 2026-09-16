@@ -17,7 +17,7 @@ const TOOLS = join(ROOT, "tools/chain");
 const TOOLS_PACKAGE = join(TOOLS, "package.json");
 const CONSTRAINT_COPY = [UNITY_CLIENT];
 const CORE = join(ROOT, "crates/zkube-core/src");
-const CORE_WASM = join(ROOT, "crates/zkube-core-wasm/src");
+const CORE_WASM = join(ROOT, "crates/zkube-core-host/src");
 const CODEGEN = join(ROOT, "crates/zkube-codegen/src");
 const SERVICES = join(ROOT, "services/src");
 const PROGRAM = join(ROOT, "programs/solana/src");
@@ -32,6 +32,11 @@ const SKIPPED = [
 ];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  {
+    pattern: /run_latched_star_sources|runLatchedStarSources|CAMPAIGN_REPLAY_FOLD_DOMAIN|\bLevelRules\b|campaign-v2\.json/,
+    trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS, CORE, CORE_WASM, CODEGEN],
+    reversal: "The native host owns local runs; Arcade reconstruction has no Campaign fields, and star rules and replay folding each have one form (2026-09-16)",
+  },
   {
     pattern: /CompetitionKind|ranked|operationPriority|usesEphemeralRollup/,
     trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS, CORE, CORE_WASM, README],
@@ -423,11 +428,17 @@ async function sourceFiles(dir: string): Promise<string[]> {
 describe("supersession", () => {
   it("keeps reversed models out of authored source", async () => {
     const cache = new Map<string, string[]>();
+    const treeFiles = new Map<string, string[]>();
     const violations: string[] = [];
     for (const rule of RULES) {
       const trees = [...new Set(rule.trees)];
       for (const tree of trees) {
-        for (const file of await sourceFiles(tree)) {
+        let files = treeFiles.get(tree);
+        if (!files) {
+          files = await sourceFiles(tree);
+          treeFiles.set(tree, files);
+        }
+        for (const file of files) {
           let lines = cache.get(file);
           if (!lines) {
             lines = (await readFile(file, "utf8")).split("\n");

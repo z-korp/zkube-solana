@@ -38,7 +38,7 @@ solana-account = "=3.0.0"
 solana-bpf-loader-program = "=3.0.14"
 solana-hash = "=4.3.0"
 solana-message = { version = "=3.1.0", features = ["bincode"] }
-zkube-core-wasm = { path = "../../crates/zkube-core-wasm" }
+zkube-core-host = { path = "../../crates/zkube-core-host" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
