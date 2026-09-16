@@ -71,7 +71,6 @@ pub fn daily(day: u32) -> ArenaDaily {
     ArenaDaily {
         version: ACCOUNT_VERSION,
         day_id: day,
-        arcade_config: singleton(ARCADE_CONFIG_SEED),
         status: PeriodStatus::Open,
         predecessor_rollover_applied: true,
         rules_hash: zkube_core::daily_rules_hash(
@@ -107,21 +106,21 @@ pub fn session(valid_until: i64) -> Value {
     result
 }
 
-pub fn scenarios() -> Value {
-    let protocol = ProtocolConfig {
+pub fn protocol() -> ProtocolConfig {
+    ProtocolConfig {
         version: ACCOUNT_VERSION,
         authority: owner(),
         team_destination: validator(),
         replay_domain: [9; 32],
         paused: false,
         bump: pda(&[PROTOCOL_CONFIG_SEED]).1,
-    };
-    let mut arcade = ArcadeConfig::canonical(
-        singleton(PROTOCOL_CONFIG_SEED),
-        pda(&[ARCADE_CONFIG_SEED]).1,
-    );
+        launch_day_id: DAY - 100,
+        ..ProtocolConfig::default()
+    }
+}
 
-    arcade.launch_day_id = DAY - 100;
+pub fn scenarios() -> Value {
+    let protocol = protocol();
     let credit = CreditVault {
         version: ACCOUNT_VERSION,
         protocol: singleton(PROTOCOL_CONFIG_SEED),
@@ -131,7 +130,6 @@ pub fn scenarios() -> Value {
     };
     json!({
         "protocol": envelope(singleton(PROTOCOL_CONFIG_SEED), &protocol, 8 + ProtocolConfig::INIT_SPACE),
-        "arcade": envelope(singleton(ARCADE_CONFIG_SEED), &arcade, 8 + ArcadeConfig::INIT_SPACE),
         "credit": envelope(singleton(CREDIT_VAULT_SEED), &credit, 8 + CreditVault::INIT_SPACE),
         "daily": envelope(daily_address(DAY), &daily(DAY), 8 + ArenaDaily::INIT_SPACE),
         "following": envelope(daily_address(DAY + 1), &daily(DAY + 1), 8 + ArenaDaily::INIT_SPACE),

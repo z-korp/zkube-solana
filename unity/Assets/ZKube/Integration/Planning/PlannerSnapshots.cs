@@ -58,25 +58,23 @@ namespace ZKube.Integration.Planning
         public uint DayId { get; }
         public uint FollowingDayId { get; }
         private DailyEntrySnapshot(uint day, uint following) { DayId = day; FollowingDayId = following; }
-        public static DailyEntrySnapshot Decode(AccountBindings bindings, AccountEnvelope protocol, AccountEnvelope arcade,
+        public static DailyEntrySnapshot Decode(AccountBindings bindings, AccountEnvelope protocol,
             AccountEnvelope current, AccountEnvelope following, AccountEnvelope vault, uint dayId, long now)
         {
-            var result = Inspect(bindings, protocol, arcade, current, following, vault, dayId, now);
+            var result = Inspect(bindings, protocol, current, following, vault, dayId, now);
             if (result.Snapshot == null) throw new InvalidOperationException("Daily entry unavailable: " + result.Status);
             return result.Snapshot;
         }
 
         // The read-only UI assessment and submission use the same bounded account
         // preconditions. Malformed accounts throw; absence and closed windows are states.
-        public static DailyEntryAssessment Inspect(AccountBindings bindings, AccountEnvelope protocol, AccountEnvelope arcade,
+        public static DailyEntryAssessment Inspect(AccountBindings bindings, AccountEnvelope protocol,
             AccountEnvelope current, AccountEnvelope following, AccountEnvelope vault, uint dayId, long now)
         {
             if (now < 0 || now / 86400 != dayId) throw new ArgumentOutOfRangeException(nameof(now));
             if (protocol == null) return new DailyEntryAssessment("missing-protocol");
-            var publication = bindings.ProtocolConfig(protocol);
-            if ((bool)publication["paused"]) return new DailyEntryAssessment("paused");
-            if (arcade == null) return new DailyEntryAssessment("missing-config");
-            var config = bindings.ArcadeConfig(arcade);
+            var config = bindings.ProtocolConfig(protocol);
+            if ((bool)config["paused"]) return new DailyEntryAssessment("paused");
             uint suspension = (uint)config["suspended_until_day"];
             if (dayId < suspension) return new DailyEntryAssessment("suspended");
             if (current == null) return new DailyEntryAssessment("missing-daily");

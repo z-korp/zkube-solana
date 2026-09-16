@@ -41,6 +41,15 @@ namespace ZKube.Integration.Execution
                 i.ProgramId != PlanningConstants.ComputeBudgetProgram)) return false;
             var instructions = evidence.Transaction.Instructions.Where(i => i.ProgramId == protocol.ProgramId)
                 .Select(protocol.DecodeInstruction).ToArray();
+            int claims = instructions.TakeWhile(i => i.Name == "claim_daily_prize").Count();
+            if (claims > 0)
+            {
+                if (claims > PlanningConstants.MaxAutoClaims || claims == instructions.Length ||
+                    instructions[claims].Name != "enter_arena" || !evidence.Pending.IsBase ||
+                    instructions.Take(claims).Any(i => i.Accounts["owner_authority"] != evidence.Pending.Owner ||
+                        i.Accounts["player_state"] != addresses.Player(evidence.Pending.Owner))) return false;
+                instructions = instructions.Skip(claims).ToArray();
+            }
             if (instructions.Length == 0 || instructions.Any(i => !Supports(i.Name))) return false;
             if (!evidence.Expired && evidence.Status.Confirmation != RpcConfirmation.Confirmed &&
                 evidence.Status.Confirmation != RpcConfirmation.Finalized) return false;

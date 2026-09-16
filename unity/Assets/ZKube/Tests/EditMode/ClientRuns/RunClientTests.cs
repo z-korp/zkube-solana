@@ -129,6 +129,23 @@ namespace ZKube.Integration.Client.Runs.Tests
         }
 
         [Test]
+        public async Task EntryComposesAtMostTwoProvenClaimsAndNoOpClaimsNeverRetry()
+        {
+            var env = await Environment.Create(); env.Http.Prepare("daily"); env.Http.IncludeClaims = true;
+            var result = await env.Client.StartDaily();
+            Assert.That(result.Phase, Is.EqualTo("delegated"));
+            Assert.That(env.Http.Sent, Is.EqualTo(new[] { "claim_daily_prize", "claim_daily_prize", "enter_arena", "delegate_active_run" }));
+            Assert.That(env.Http.SentTransactions, Has.Count.EqualTo(1));
+            string idl = File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/solana.json");
+            var protocol = new ProtocolBindings(idl);
+            var claims = TransactionSignatures.Describe(Convert.FromBase64String(env.Http.SentTransactions.Single())).Instructions
+                .Where(i => i.ProgramId == protocol.ProgramId).Select(protocol.DecodeInstruction).Take(2).ToArray();
+            var boards = Fixture("plans")["boards"];
+            Assert.That(claims.Select(c => c.Accounts["arena_board"]), Is.EqualTo(boards.Take(2).Select(b => (string)b["envelope"]["address"])));
+            Assert.That(await env.Journal.Load(env.Owner), Is.Null);
+        }
+
+        [Test]
         public async Task ArcadeRecoversWithoutADeviceKeyAndUsesProgramSnapshots()
         {
             var env = await Environment.Create(); env.Native.HasKey = false;
@@ -519,6 +536,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             public string Genesis = (string)Fixture("transport")["inputs"]["expectedGenesis"];
             private JToken player;
             public Http(ProtocolBindings protocol, JObject plans, JObject runs) { this.protocol = protocol; this.plans = plans; Runs = runs; player = runs["player"]; }
+            public bool IncludeClaims;
             public void Prepare(string mode) { player = Runs["initialPlayers"][mode]; States["daily"] = null; Delegated.Clear(); }
             public void ReplaceWithSuccessor(bool opening, bool delegated, string mode = "daily")
             {
@@ -538,6 +556,8 @@ namespace ZKube.Integration.Client.Runs.Tests
                     if (RevokedSession) return JValue.CreateNull();
                 }
                 JToken source = address == (string)player["address"] ? player : ((JObject)plans["accounts"]).Properties().Where(property => property.Name != "expiredSession").Select(property => property.Value).SingleOrDefault(row => (string)row["address"] == address);
+                if (IncludeClaims && source == null) source = plans["boards"].Select(b => b["envelope"])
+                    .FirstOrDefault(b => b.Type == JTokenType.Object && (string)b["address"] == address);
                 foreach (string mode in new[] { "daily" })
                     if (address == (string)Row(mode, "playing")["address"])
                     {
@@ -587,6 +607,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                         foreach (var instruction in TransactionSignatures.Describe(bytes).Instructions.Where(ix => ix.ProgramId == protocol.ProgramId))
                         {
                             var decoded = protocol.DecodeInstruction(instruction); Sent.Add(decoded.Name);
+                            if (decoded.Name == "claim_daily_prize") continue;
                             if (SuppressSendEffects) continue;
                             string mode = Mode(decoded.Accounts[decoded.Name == "delegate_active_run" ? "pda" : "active_run"]);
                             if (decoded.Name == "enter_arena") { States[mode] = "prepared"; player = Runs["preparedPlayers"][mode]; }

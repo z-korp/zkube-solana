@@ -119,10 +119,9 @@ namespace ZKube.Integration.Client.Runs
                 var occupied = await rpc.ReadAccount(rpc.Base, planner.ActiveRun(lease.Owner, player.NextRunId), cancellation: token).ConfigureAwait(false);
                 TransactionPlan prepared;
                     long observedNow = now(); uint day = checked((uint)(observedNow / 86400));
-                    var arcade = await rpc.ReadAccount(rpc.Base, planner.ArcadeAddress, cancellation: token).ConfigureAwait(false);
-                    uint following = Math.Max(checked(day + 1), (uint)accounts.ArcadeConfig(arcade.Envelope)["suspended_until_day"]);
+                    uint following = Math.Max(checked(day + 1), (uint)accounts.ProtocolConfig(batch.Accounts[1].Envelope)["suspended_until_day"]);
                     var daily = await rpc.ReadAccounts(rpc.Base, new[] { planner.Daily(day), planner.Daily(following), planner.CreditVaultAddress }, cancellation: token).ConfigureAwait(false);
-                    var entry = DailyEntrySnapshot.Decode(accounts, batch.Accounts[1].Envelope, arcade.Envelope,
+                    var entry = DailyEntrySnapshot.Decode(accounts, batch.Accounts[1].Envelope,
                         daily.Accounts[0].Envelope, daily.Accounts[1].Envelope, daily.Accounts[2].Envelope, day, observedNow);
                     var claims = await EntryClaims(lease.Owner, day, observedNow, token).ConfigureAwait(false);
                     prepared = planner.PrepareDaily(session.Actor, player, entry, claims, observedNow, occupied.Envelope);

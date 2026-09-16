@@ -123,7 +123,8 @@ board. Claims stay disabled until sealing; afterwards the program looks up the
 owner's position and recomputes that rank's payout directly. Each board's reward
 stays claimable for thirty days from its sealing. Spending a Kredit can collect
 unclaimed rewards from up to two attached boards in the same transaction;
-unavailable attachments are skipped and explicit claiming remains available.
+unavailable attachments are skipped. Already-claimed and expired positions are
+no-ops, and explicit claiming remains available.
 After both windows, anything unclaimed
 returns to the next Daily pot, never to operator revenue.
 

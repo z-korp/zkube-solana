@@ -6,7 +6,6 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
-  deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
@@ -55,6 +54,7 @@ export async function buildInitializeProtocolPlan(args: {
     })
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
+      creditVault: deriveCreditVaultPda(),
       teamDestination: args.config.teamDestination,
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
@@ -98,34 +98,11 @@ export async function buildSetArenaSuspensionPlan(args: {
     .methods.setArenaSuspension(args.untilDay)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      arcadeConfig: deriveArcadeConfigPda(),
       authority: args.authority.publicKey,
     })
     .instruction();
   return basePlan(
     `Set Arena suspension until day ${args.untilDay}`,
-    args.connection,
-    args.authority.publicKey,
-    [instruction],
-  );
-}
-
-export async function buildInitializeArcadePlan(args: {
-  connection: Connection;
-  authority: WalletLike;
-}): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.connection, args.authority)
-    .methods.initializeArcade()
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      arcadeConfig: deriveArcadeConfigPda(),
-      creditVault: deriveCreditVaultPda(),
-      authority: args.authority.publicKey,
-      systemProgram: SystemProgram.programId,
-    })
-    .instruction();
-  return basePlan(
-    "Initialize paused Arcade",
     args.connection,
     args.authority.publicKey,
     [instruction],
@@ -164,7 +141,6 @@ export async function buildPrepareLaunchPeriodPlans(args: {
       .prepareArenaDaily(dayId)
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
-        arcadeConfig: deriveArcadeConfigPda(),
         arenaDaily: deriveArenaDailyPda(dayId),
         cadenceFunding: deriveCadenceFundingPda(),
         caller: args.authority.publicKey,
@@ -198,7 +174,6 @@ export async function buildAtomicArcadeLaunchPlan(args: {
     .depositArenaDaily(new BN(LAUNCH_DAILY_SEED_LAMPORTS))
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      arcadeConfig: deriveArcadeConfigPda(),
       arenaDaily: deriveArenaDailyPda(args.dayId),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
@@ -248,7 +223,6 @@ export async function buildDepositArenaDailyPlan(args: {
     .depositArenaDaily(amount)
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
-      arcadeConfig: deriveArcadeConfigPda(),
       arenaDaily: deriveArenaDailyPda(args.cadenceId),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,

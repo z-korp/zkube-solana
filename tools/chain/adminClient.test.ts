@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildAtomicArcadeLaunchPlan,
   buildSeedCadenceFundingPlan,
-  buildInitializeArcadePlan,
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
@@ -14,7 +13,6 @@ import {
   buildDepositArenaDailyPlan,
 } from "./adminClient.js";
 import {
-  deriveArcadeConfigPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
   deriveArenaDailyPda,
@@ -39,8 +37,9 @@ describe("authority initialization client", () => {
     const accounts = plan.transaction.instructions[0].keys;
 
     expect(accounts[0].pubkey.equals(deriveProtocolConfigPda())).toBe(true);
-    expect(accounts[1].pubkey.equals(keys[2])).toBe(true);
-    expect(accounts[2].pubkey.equals(authority.publicKey)).toBe(true);
+    expect(accounts[1].pubkey.equals(deriveCreditVaultPda())).toBe(true);
+    expect(accounts[2].pubkey.equals(keys[2])).toBe(true);
+    expect(accounts[3].pubkey.equals(authority.publicKey)).toBe(true);
   });
 
   it("rejects a zero team destination before protocol initialization", async () => {
@@ -80,26 +79,15 @@ describe("authority initialization client", () => {
     ).toBe(true);
   });
 
-  it("initializes Arcade while paused and sets the explicit suspension boundary", async () => {
+  it("sets the explicit suspension boundary and seeds cadence funding", async () => {
     const authority = new SessionWallet(Keypair.generate());
     const suspension = await buildSetArenaSuspensionPlan({
       connection: {} as Connection,
       authority,
       untilDay: 10_000,
     });
-    const arcade = await buildInitializeArcadePlan({
-      connection: {} as Connection,
-      authority,
-    });
     expect(suspension.transaction.instructions).toHaveLength(1);
-    expect(arcade.transaction.instructions).toHaveLength(1);
     expect(suspension.label).toBe("Set Arena suspension until day 10000");
-    expect(arcade.label).toBe("Initialize paused Arcade");
-    expect(
-      arcade.transaction.instructions[0]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveCreditVaultPda()),
-      ),
-    ).toBe(true);
 
     const funding = await buildSeedCadenceFundingPlan({
       connection: {} as Connection,
@@ -167,9 +155,8 @@ describe("authority initialization client", () => {
       });
       const accounts = plan.transaction.instructions[0]?.keys ?? [];
       expect(accounts[0]?.pubkey.equals(deriveProtocolConfigPda())).toBe(true);
-      expect(accounts[1]?.pubkey.equals(deriveArcadeConfigPda())).toBe(true);
-      expect(accounts[2]?.pubkey.equals(testCase.expected)).toBe(true);
-      expect(accounts[3]?.pubkey.equals(authority.publicKey)).toBe(true);
+      expect(accounts[1]?.pubkey.equals(testCase.expected)).toBe(true);
+      expect(accounts[2]?.pubkey.equals(authority.publicKey)).toBe(true);
       expect(plan.transaction.instructions[0]?.data.readBigUInt64LE(8)).toBe(
         1_234_567_890n,
       );

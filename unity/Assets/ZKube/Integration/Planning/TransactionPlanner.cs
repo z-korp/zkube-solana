@@ -26,7 +26,6 @@ namespace ZKube.Integration.Planning
         public string Board(uint day, string kind) => kind == "score" || kind == "theme" ?
             Pda(Text("arena_board"), Key(Daily(day)), Text(kind)) : throw new ArgumentException("Invalid board kind");
         public string ProtocolAddress => Pda(Text("protocol"));
-        public string ArcadeAddress => Pda(Text("arcade"));
         public string CreditVaultAddress => Pda(Text("credit_vault"));
         private Dictionary<string, string> ActorAccounts(PlannerActor actor) => new Dictionary<string, string> {
             ["owner_authority"] = actor.Owner, ["actor"] = actor.Signer, ["payer"] = actor.Signer,
@@ -45,7 +44,7 @@ namespace ZKube.Integration.Planning
             if (count == 0) throw new ArgumentOutOfRangeException(nameof(count));
             return Plan(PlannerActor.Wallet(owner), PlanRoute.Base, new[] { Instruction("purchase_kredits",
                 new JObject { ["kredit_count"] = count },
-                new Dictionary<string, string> { ["protocol"] = ProtocolAddress, ["arcade_config"] = ArcadeAddress,
+                new Dictionary<string, string> { ["protocol"] = ProtocolAddress,
                     ["player_state"] = Player(owner), ["credit_vault"] = CreditVaultAddress,
                     ["team_destination"] = teamDestination, ["owner"] = owner }) });
         }
@@ -119,13 +118,13 @@ namespace ZKube.Integration.Planning
             if (player.Kredits < 1) throw new InvalidOperationException("Buy a Kredit before entering Daily");
             var claims = SelectEntryClaims(rewards, actor.Owner, daily.DayId, now);
             var keys = ActorAccounts(actor);
-            keys["protocol"] = ProtocolAddress; keys["arcade_config"] = ArcadeAddress;
+            keys["protocol"] = ProtocolAddress;
             keys["player_state"] = Player(actor.Owner); keys["current_daily"] = Daily(daily.DayId);
             keys["following_daily"] = Daily(daily.FollowingDayId); keys["arena_player"] = ArenaPlayer(Daily(daily.DayId), actor.Owner);
             keys["credit_vault"] = CreditVaultAddress; keys["active_run"] = ActiveRun(actor.Owner, player.NextRunId);
-            var remaining = claims.SelectMany(c => new[] { new AccountMeta(Daily(c.DayId), false, true), new AccountMeta(Board(c.DayId, c.Kind), false, true) });
-            return Plan(actor, PlanRoute.Base, new[] { Instruction("enter_arena", new JObject { ["run_id"] = player.NextRunId,
-                ["auto_claim_positions"] = new JArray(claims.Select(c => c.Position)) }, keys, remaining) }, runId: player.NextRunId);
+            var instructions = claims.SelectMany(c => Claim(actor, c.DayId, c.Kind, c.Position).Instructions)
+                .Concat(new[] { Instruction("enter_arena", new JObject { ["run_id"] = player.NextRunId }, keys) });
+            return Plan(actor, PlanRoute.Base, instructions, runId: player.NextRunId);
         }
 
         public TransactionPlan Delegate(PlannerActor actor, ulong runId, string validator)

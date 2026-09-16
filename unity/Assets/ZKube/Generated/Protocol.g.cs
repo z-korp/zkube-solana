@@ -7,7 +7,7 @@ namespace ZKube.Core.Generated
         public const ulong ClaimWindowSeconds = 2592000UL;
         public const uint ArenaBoardCapacity = 1536U;
         public const uint DailyMaxMoves = 100U;
-        public const uint ProtocolAccountVersion = 5U;
+        public const uint ProtocolAccountVersion = 6U;
         public const uint PlayerStateAccountVersion = 3U;
         public const uint CatalogVersion = 3U;
         public static readonly ushort[] CampaignTargets = { 10, 14, 18, 22, 27, 32, 37, 42, 46, 50 };

@@ -15,7 +15,7 @@ import {
 
 describe("v5 Daily cadence constants", () => {
   it("pins fresh-bootstrap account versions", () => {
-    expect(PROTOCOL_ACCOUNT_VERSION).toBe(5);
+    expect(PROTOCOL_ACCOUNT_VERSION).toBe(6);
     expect(PLAYER_STATE_ACCOUNT_VERSION).toBe(3);
   });
 

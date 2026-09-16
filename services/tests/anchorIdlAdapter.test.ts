@@ -32,7 +32,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     const fixtures = JSON.parse(readFileSync(new URL("../../fixtures/program-unity-v1.json", import.meta.url), "utf8"));
     const fixture = fixtures.closedPlayer;
     const coder = new BorshAccountsCoder(convertIdlToCamelCase(readIdl() as Idl));
-    const protocolRow = fixtures.plans.accounts.protocol;
+    const protocolRow = fixture.protocol;
     const protocol = coder.decode("protocolConfig", Buffer.from(protocolRow.data, "base64"));
     protocol.replayDomain = [...Buffer.from(canonicalDevnetReplayDomainHex(), "hex")];
     const info = (row: { owner: string; executable: boolean; data: string }) => ({
@@ -41,7 +41,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     });
     const values = new Map([
       [protocolRow.address, { ...info(protocolRow), data: await coder.encode("protocolConfig", protocol) }],
-      [fixture.arcade.address, info(fixture.arcade)],
       [cadenceFundingPda().toBase58(), { owner: SystemProgram.programId, executable: false,
         lamports: 1_000_000_000, data: Buffer.alloc(0), rentEpoch: 0 }],
     ]);
@@ -72,10 +71,10 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     await expect(adapter.loadProtocolSnapshot()).rejects.toThrow("invalid ArenaPlayer");
   });
 
-  it("locks the fresh-bootstrap interface at 31 instructions and 8 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 30 instructions and 7 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(31);
-    expect(idl.accounts).toHaveLength(8);
+    expect(idl.instructions).toHaveLength(30);
+    expect(idl.accounts).toHaveLength(7);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
       "finalize_season",

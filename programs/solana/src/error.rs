@@ -40,10 +40,6 @@ pub enum ErrorCode {
     VrfRequestMismatch,
     #[msg("The player has no Daily prize")]
     NoPrize,
-    #[msg("This Daily prize position was already claimed")]
-    PrizeAlreadyClaimed,
-    #[msg("The Daily prize claim window has closed")]
-    ClaimWindowClosed,
     #[msg("The payout board is incomplete or unsealed")]
     BoardIncomplete,
     #[msg("A submitted payout row does not match its ArenaPlayer source")]

@@ -7,7 +7,7 @@ import {
   ARENA_BOARD_CHUNK_CAPACITY,
   ARENA_ENTRY_LAMPORTS,
   SOL_PAYOUT_UNIT_LAMPORTS,
-  arcadeConfigPda,
+  protocolPda,
   assertCadenceId,
   assertLamports,
   assertPayoutLamports,
@@ -458,7 +458,7 @@ function requireCadenceFunding(context: KeeperPlanContext): void {
 
 function requireArchiveContext(context: KeeperPlanContext, today: number): void {
   requireRecentDay(context.dayId, today);
-  if (!context.arcadeConfig?.equals(arcadeConfigPda()) ||
+  if (!context.protocol?.equals(protocolPda()) ||
       !context.cadenceFunding?.equals(cadenceFundingPda())) {
     throw new Error("keeper Daily root identity is invalid");
   }
@@ -489,7 +489,7 @@ function appendCadenceArchivePlan(
 
     dayId: candidate.cadenceId,
     cadenceFunding: state.cadenceFunding,
-    arcadeConfig: state.address,
+    protocol: state.address,
     archiveCommitted: candidate.committed,
     claimsExpired: candidate.claimsExpired,
     claimCloseAt: candidate.closeEligibleAt,
@@ -675,7 +675,7 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
   const candidates = snapshot.archiveCandidates ?? [];
   const state = snapshot.archiveState;
   if (candidates.length === 0 && !state) return;
-  if (!state || !state.address.equals(arcadeConfigPda()) ||
+  if (!state || !state.address.equals(protocolPda()) ||
       !state.cadenceFunding.equals(cadenceFundingPda()) ||
       !/^[0-9a-f]{64}$/.test(state.dailyRoot)) {
     throw new Error("Arcade root or cadence funding identity is invalid");

@@ -41,24 +41,6 @@
           }
         },
         {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "arena_daily",
           "writable": true,
           "pda": {
@@ -202,19 +184,21 @@
       ],
       "accounts": [
         {
-          "name": "arcade_config",
+          "name": "protocol",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -468,18 +452,20 @@
       ],
       "accounts": [
         {
-          "name": "arcade_config",
+          "name": "protocol",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -1065,6 +1051,7 @@
       "accounts": [
         {
           "name": "protocol",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -1078,25 +1065,6 @@
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -1179,24 +1147,6 @@
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -1396,22 +1346,12 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkube_program",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
         }
       ],
       "args": [
         {
           "name": "run_id",
           "type": "u64"
-        },
-        {
-          "name": "auto_claim_positions",
-          "type": {
-            "vec": "u32"
-          }
         }
       ]
     },
@@ -1429,18 +1369,20 @@
       ],
       "accounts": [
         {
-          "name": "arcade_config",
+          "name": "protocol",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -1970,98 +1912,6 @@
       ]
     },
     {
-      "name": "initialize_arcade",
-      "discriminator": [
-        59,
-        29,
-        147,
-        89,
-        249,
-        229,
-        124,
-        107
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "credit_vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  114,
-                  101,
-                  100,
-                  105,
-                  116,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "initialize_player",
       "discriminator": [
         79,
@@ -2149,6 +1999,31 @@
                   99,
                   111,
                   108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "credit_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
                 ]
               }
             ]
@@ -2308,24 +2183,6 @@
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -2536,24 +2393,6 @@
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -2871,6 +2710,7 @@
       "accounts": [
         {
           "name": "protocol",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -2884,25 +2724,6 @@
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcade_config",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -3045,18 +2866,20 @@
       ],
       "accounts": [
         {
-          "name": "arcade_config",
+          "name": "protocol",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -3270,19 +3093,6 @@
       ]
     },
     {
-      "name": "ArcadeConfig",
-      "discriminator": [
-        72,
-        72,
-        85,
-        65,
-        185,
-        246,
-        125,
-        96
-      ]
-    },
-    {
       "name": "ArenaBoard",
       "discriminator": [
         28,
@@ -3439,61 +3249,51 @@
     },
     {
       "code": 6015,
-      "name": "PrizeAlreadyClaimed",
-      "msg": "This Daily prize position was already claimed"
-    },
-    {
-      "code": 6016,
-      "name": "ClaimWindowClosed",
-      "msg": "The Daily prize claim window has closed"
-    },
-    {
-      "code": 6017,
       "name": "BoardIncomplete",
       "msg": "The payout board is incomplete or unsealed"
     },
     {
-      "code": 6018,
+      "code": 6016,
       "name": "BoardEntryMismatch",
       "msg": "A submitted payout row does not match its ArenaPlayer source"
     },
     {
-      "code": 6019,
+      "code": 6017,
       "name": "BoardEntryOutOfOrder",
       "msg": "Submitted payout rows are not in canonical order"
     },
     {
-      "code": 6020,
+      "code": 6018,
       "name": "DuplicateBoardPlayer",
       "msg": "A player appears more than once on a payout board"
     },
     {
-      "code": 6021,
+      "code": 6019,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6022,
+      "code": 6020,
       "name": "InsufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6023,
+      "code": 6021,
       "name": "DailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6024,
+      "code": 6022,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6025,
+      "code": 6023,
       "name": "InvalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6026,
+      "code": 6024,
       "name": "InvalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     }
@@ -3716,53 +3516,6 @@
       }
     },
     {
-      "name": "ArcadeConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "protocol",
-            "type": "pubkey"
-          },
-          {
-            "name": "suspended_until_day",
-            "docs": [
-              "Days below this absolute identifier are suspended; zero disables it."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "launch_day_id",
-            "type": "u32"
-          },
-          {
-            "name": "last_daily_id",
-            "docs": [
-              "Last finalized Daily committed by the permanent result root."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "daily_root",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "ArenaBoard",
       "type": {
         "kind": "struct",
@@ -3893,10 +3646,6 @@
           {
             "name": "day_id",
             "type": "u32"
-          },
-          {
-            "name": "arcade_config",
-            "type": "pubkey"
           },
           {
             "name": "status",
@@ -4388,6 +4137,33 @@
           {
             "name": "paused",
             "type": "bool"
+          },
+          {
+            "name": "suspended_until_day",
+            "docs": [
+              "Days below this absolute identifier are suspended; zero disables it."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "launch_day_id",
+            "type": "u32"
+          },
+          {
+            "name": "last_daily_id",
+            "docs": [
+              "Last finalized Daily committed by the permanent result root."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "daily_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "bump",

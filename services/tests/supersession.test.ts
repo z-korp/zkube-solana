@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /ArcadeConfig|arcadeConfigPda|deriveArcadeConfigPda|ARCADE_CONFIG_SEED|initialize_arcade|initializeArcade|auto_claim_positions|autoClaimPositions|MAX_AUTO_CLAIMS_PER_ENTRY|best_effort_auto_claims|attached_claim_position|Initialize paused Arcade|invokes the existing claim instruction|This Daily prize position was already claimed|The Daily prize claim window has closed/,
+    trees: [PROGRAM, SERVICES, TOOLS, UNITY_CLIENT, AGENT_RULES, README],
+    reversal: "Protocol state owns cadence and the client composes idempotent claims before entry (2026-09-16)",
+  },
+  {
     pattern: /standalone operator commands|services\/pnpm-lock\.yaml|tools\/chain\/pnpm-lock\.yaml/,
     trees: [README, AGENT_RULES],
     reversal: "Services and operator tools share one root workspace and dependency lock (2026-09-16)",
@@ -101,7 +106,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
     pattern: /OperatorRevenueVault|operator_revenue_vault|operatorRevenueVault|OPERATOR_REVENUE_VAULT|withdraw_operator_revenue|withdrawOperatorRevenue|propose_protocol_authority|proposeProtocolAuthority|accept_protocol_authority|acceptProtocolAuthority|update_team_destination|updateTeamDestination|pending_authority|pendingAuthority|ArcadeArchive|arcade_archive|arcadeArchive|ARCADE_ARCHIVE_SEED|initialize_arcade_archive|initializeArcadeArchive|funded_prepare_arena_daily|fundedPrepareArenaDaily|funded_finalize_arena_daily|fundedFinalizeArenaDaily/,
     trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS],
-    reversal: "Purchase pays the pinned destination directly; ArcadeConfig owns the result root and cadence rent creation has no forwarding wrappers (2026-09-15)",
+    reversal: "Purchase pays the pinned destination directly; ProtocolConfig owns the result root and cadence rent creation has no forwarding wrappers (2026-09-15)",
   },
   {
     pattern: /PlayerLabel|player_label|PLAYER_LABEL_ACCOUNT_VERSION|\bRunMode\b|active_run_mode|activeRunMode|lifetime_paid_entries|lifetimePaidEntries|\bpodiums\b|DailyPressureProfile/,

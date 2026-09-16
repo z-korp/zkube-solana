@@ -3,9 +3,8 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::protocol::{PlayerState, ACCOUNT_VERSION};
+use crate::state::protocol::{PlayerState, ProtocolConfig, ACCOUNT_VERSION};
 
-pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
 pub const CADENCE_FUNDING_SEED: &[u8] = b"cadence_funding";
 pub const CREDIT_VAULT_SEED: &[u8] = b"credit_vault";
 pub const ARENA_DAILY_SEED: &[u8] = b"arena_daily";
@@ -29,52 +28,6 @@ pub struct SolanaSha256;
 impl zkube_core::Sha256Provider for SolanaSha256 {
     fn hashv(parts: &[&[u8]]) -> [u8; 32] {
         solana_sha256_hasher::hashv(parts).to_bytes()
-    }
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct ArcadeConfig {
-    pub version: u8,
-    pub protocol: Pubkey,
-    /// Days below this absolute identifier are suspended; zero disables it.
-    pub suspended_until_day: u32,
-    pub launch_day_id: u32,
-    /// Last finalized Daily committed by the permanent result root.
-    pub last_daily_id: u32,
-    pub daily_root: [u8; 32],
-    pub bump: u8,
-}
-
-impl ArcadeConfig {
-    pub fn canonical(protocol: Pubkey, bump: u8) -> Self {
-        Self {
-            version: ACCOUNT_VERSION,
-            protocol,
-            suspended_until_day: 0,
-            launch_day_id: 0,
-            last_daily_id: 0,
-            daily_root: [0; 32],
-            bump,
-        }
-    }
-
-    pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
-        require!(
-            self.launch_day_id > 0
-                && day_id >= self.launch_day_id
-                && ((self.last_daily_id < self.launch_day_id && day_id == self.launch_day_id)
-                    || (self.last_daily_id >= self.launch_day_id && day_id > self.last_daily_id)),
-            ErrorCode::InvalidPeriod
-        );
-        self.daily_root = zkube_core::sha256v_with::<SolanaSha256>(&[
-            b"zkube-arcade-daily-root-v1",
-            &self.daily_root,
-            &day_id.to_le_bytes(),
-            &result_hash,
-        ]);
-        self.last_daily_id = day_id;
-        Ok(())
     }
 }
 
@@ -328,7 +281,6 @@ impl SubmittedBoardEntry {
 pub struct ArenaDaily {
     pub version: u8,
     pub day_id: u32,
-    pub arcade_config: Pubkey,
     pub status: PeriodStatus,
     pub predecessor_rollover_applied: bool,
     pub rules_hash: [u8; 32],
@@ -685,13 +637,13 @@ pub fn day_id_at(timestamp: i64) -> Result<u32> {
 }
 
 /// The first two eligible Dailies around a wall-clock day.
-pub fn scheduled_daily_window(config: &ArcadeConfig, day_id: u32) -> Result<(u32, u32)> {
+pub fn scheduled_daily_window(config: &ProtocolConfig, day_id: u32) -> Result<(u32, u32)> {
     zkube_core::scheduled_daily_window(day_id, config.suspended_until_day)
         .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
 }
 
 /// The first scheduled Daily that has not opened yet at `day_id`.
-pub fn next_scheduled_daily(config: &ArcadeConfig, day_id: u32) -> Result<u32> {
+pub fn next_scheduled_daily(config: &ProtocolConfig, day_id: u32) -> Result<u32> {
     zkube_core::next_scheduled_daily(day_id, config.suspended_until_day)
         .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
 }
@@ -732,7 +684,6 @@ pub fn daily_result_hash(
     let mut bytes = Vec::new();
     daily.version.serialize(&mut bytes)?;
     daily.day_id.serialize(&mut bytes)?;
-    daily.arcade_config.serialize(&mut bytes)?;
     daily.rules_hash.serialize(&mut bytes)?;
     daily.finalized_at.serialize(&mut bytes)?;
     daily.ledger.serialize(&mut bytes)?;
@@ -922,11 +873,12 @@ mod tests {
 
     #[test]
     fn archive_is_strictly_sequential() {
-        let arcade = Pubkey::new_unique();
         let launch_day = 20_000;
-        let mut archive = ArcadeConfig::canonical(arcade, 7);
-        archive.launch_day_id = launch_day;
-        archive.last_daily_id = launch_day - 1;
+        let mut archive = ProtocolConfig {
+            launch_day_id: launch_day,
+            last_daily_id: launch_day - 1,
+            ..ProtocolConfig::default()
+        };
         assert!(archive.append_daily(launch_day + 1, [2; 32]).is_err());
         archive.append_daily(launch_day, [1; 32]).unwrap();
         assert!(archive.append_daily(launch_day, [1; 32]).is_err());
@@ -1111,12 +1063,11 @@ mod tests {
 
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
-        assert_eq!(8 + ArcadeConfig::INIT_SPACE, 86);
         assert_eq!(ArenaBoardEntry::INIT_SPACE, 84);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 165);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 133);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 157);
+        assert_eq!(daily_bytes.len(), 125);
         assert_eq!(ArenaBoard::INIT_SPACE, 116);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_340);
         assert_eq!(8 + ArenaPlayer::INIT_SPACE, 290);
@@ -1125,7 +1076,6 @@ mod tests {
             901_097_280
         );
         for size in [
-            ArcadeConfig::INIT_SPACE,
             CreditVault::INIT_SPACE,
             ArenaDaily::INIT_SPACE,
             ArenaPlayer::INIT_SPACE,

@@ -109,7 +109,7 @@ export interface KeeperPlanContext {
   boardKind?: DailyBoardKind;
   rentRecipient?: PublicKey;
   cadenceFunding?: PublicKey;
-  arcadeConfig?: PublicKey;
+  protocol?: PublicKey;
   parentDailyClosed?: boolean;
   archiveCommitted?: boolean;
   claimsExpired?: boolean;
@@ -175,7 +175,6 @@ export function derivePda(seed: string, ...parts: Uint8Array[]): PublicKey {
 }
 
 export const protocolPda = () => derivePda("protocol");
-export const arcadeConfigPda = () => derivePda("arcade");
 export const creditVaultPda = () => derivePda("credit_vault");
 export const cadenceFundingPda = () => derivePda("cadence_funding");
 export const arenaDailyPda = (dayId: number) =>

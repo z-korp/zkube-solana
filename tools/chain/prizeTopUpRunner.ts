@@ -22,7 +22,6 @@ import { inspectUpgradeableProgram } from "./deploymentRunner.js";
 import { LAUNCH_ACCOUNT_SPACES } from "./launchPlanner.js";
 import { DAILY_RUN_CLOSE_OFFSET } from "../../services/src/arcadeChain.js";
 import {
-  deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
@@ -107,7 +106,6 @@ interface PrizeTopUpApprovalPayload {
   programAllocationBytes: number;
   programUpgradeAuthority: string;
   protocol: string;
-  arcadeConfig: string;
   authority: string;
   observedUnixTimestamp: number;
   currentCadences: Record<PrizePoolKind, number>;
@@ -333,7 +331,7 @@ export async function buildPrizeTopUpApproval(args: {
   const operations = resolveOperations(args.requestedTopUps, currentCadences);
   const authority = new PublicKey(manifest.protocol.authority);
   const program = zkubeProgram(connection, createReadOnlyWallet(authority));
-  const [protocol, arcadeConfig, authorityBalanceLamports] = await Promise.all([
+  const [protocol, authorityBalanceLamports] = await Promise.all([
     fetchExact(
       connection,
       program,
@@ -341,16 +339,9 @@ export async function buildPrizeTopUpApproval(args: {
       deriveProtocolConfigPda(),
       LAUNCH_ACCOUNT_SPACES.protocolConfig,
     ),
-    fetchExact(
-      connection,
-      program,
-      "arcadeConfig",
-      deriveArcadeConfigPda(),
-      LAUNCH_ACCOUNT_SPACES.arcadeConfig,
-    ),
     connection.getBalance(authority, "confirmed"),
   ]);
-  assertProtocolAndArcade(protocol.value, arcadeConfig.value, authority);
+  assertProtocol(protocol.value, authority);
 
   const pools: PoolObservation[] = [];
   for (const operation of operations) {
@@ -416,7 +407,6 @@ export async function buildPrizeTopUpApproval(args: {
     programAllocationBytes: deployed.programCapacityBytes,
     programUpgradeAuthority: deployed.upgradeAuthority!,
     protocol: deriveProtocolConfigPda().toBase58(),
-    arcadeConfig: deriveArcadeConfigPda().toBase58(),
     authority: authority.toBase58(),
     observedUnixTimestamp,
     currentCadences,
@@ -615,16 +605,8 @@ async function assertPreState(
     deriveProtocolConfigPda(),
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
   );
-  const arcadeConfig = await fetchExact(
-    connection,
-    program,
-    "arcadeConfig",
-    deriveArcadeConfigPda(),
-    LAUNCH_ACCOUNT_SPACES.arcadeConfig,
-  );
-  assertProtocolAndArcade(
+  assertProtocol(
     protocol.value,
-    arcadeConfig.value,
     new PublicKey(payload.authority),
   );
   const slot = await connection.getSlot("confirmed");
@@ -804,15 +786,6 @@ async function inspectPool(args: {
   if (integer(value.version, "pool version") !== PROTOCOL_ACCOUNT_VERSION) {
     throw new Error(`${args.operation.kind} account version is invalid`);
   }
-  if (
-    !key(value.arcadeConfig, "pool arcade config").equals(
-      deriveArcadeConfigPda(),
-    )
-  ) {
-    throw new Error(
-      `${args.operation.kind} account has the wrong Arcade config`,
-    );
-  }
   const decodedCadence = integer(value.dayId, "pool cadence id");
   if (decodedCadence !== args.operation.cadenceId) {
     throw new Error(
@@ -905,9 +878,8 @@ async function fetchExact(
   }
 }
 
-function assertProtocolAndArcade(
+function assertProtocol(
   protocol: Record<string, unknown>,
-  arcade: Record<string, unknown>,
   authority: PublicKey,
 ): void {
   if (
@@ -920,13 +892,9 @@ function assertProtocolAndArcade(
     );
   }
   if (
-    integer(arcade.version, "Arcade version") !== PROTOCOL_ACCOUNT_VERSION ||
-    !key(arcade.protocol, "Arcade protocol").equals(
-      deriveProtocolConfigPda(),
-    ) ||
-    integer(arcade.launchDayId, "launch day") === 0
+    integer(protocol.launchDayId, "launch day") === 0
   ) {
-    throw new Error("Arcade config is not the active canonical economy");
+    throw new Error("Protocol is not the active canonical economy");
   }
 }
 
@@ -1114,7 +1082,6 @@ function validateApprovalPayload(payload: PrizeTopUpApprovalPayload): void {
   devnetEndpoint(payload.rpc);
   new PublicKey(payload.authority);
   new PublicKey(payload.protocol);
-  new PublicKey(payload.arcadeConfig);
   new PublicKey(payload.programDataAddress);
   new PublicKey(payload.programUpgradeAuthority);
   resolveOperations(

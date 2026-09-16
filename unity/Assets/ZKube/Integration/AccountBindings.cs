@@ -46,14 +46,6 @@ namespace ZKube.Integration
             return fields;
         }
 
-        public JObject ArcadeConfig(AccountEnvelope envelope)
-        {
-            var fields = DecodeFixed("ArcadeConfig", envelope);
-            RequireIdentity(envelope, fields, Address("arcade"), Protocol.ProtocolAccountVersion);
-            if ((string)fields["protocol"] != Address("protocol")) throw new FormatException("ArcadeConfig protocol relationship is invalid");
-            return fields;
-        }
-
         public JObject CreditVault(AccountEnvelope envelope)
         {
             var fields = DecodeFixed("CreditVault", envelope);
@@ -73,7 +65,7 @@ namespace ZKube.Integration
         {
             var fields = DecodeFixed("ArenaDaily", envelope);
             RequireIdentity(envelope, fields, Address("arena_daily", LittleDay(expectedDayId)), Protocol.ProtocolAccountVersion);
-            if ((uint)fields["day_id"] != expectedDayId || (string)fields["arcade_config"] != Address("arcade"))
+            if ((uint)fields["day_id"] != expectedDayId)
                 throw new FormatException("ArenaDaily relationship is invalid");
             return fields;
         }

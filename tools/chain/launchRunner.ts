@@ -28,7 +28,6 @@ import {
   type LaunchPlannerInput,
 } from "./launchPlanner.js";
 import {
-  deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
@@ -361,19 +360,12 @@ async function verifyStagedLaunch(
     throw new Error("paused protocol carrier does not match launch approval");
   }
 
-  const arcade = await fetchExact(
-    connection,
-    program,
-    "arcadeConfig",
-    deriveArcadeConfigPda(),
-    LAUNCH_ACCOUNT_SPACES.arcadeConfig,
-  );
   if (
-    integer(arcade.launchDayId) !== 0 ||
-    integer(arcade.lastDailyId) !== 0 ||
-    bytesHex(arcade.dailyRoot) !== "00".repeat(32)
+    integer(protocol.launchDayId) !== 0 ||
+    integer(protocol.lastDailyId) !== 0 ||
+    bytesHex(protocol.dailyRoot) !== "00".repeat(32)
   ) {
-    throw new Error("paused ArcadeConfig does not match the approved economy");
+    throw new Error("paused protocol does not match the approved economy");
   }
   const creditVault = await fetchExact(
     connection,
@@ -404,18 +396,11 @@ async function verifyActiveLaunch(
     deriveProtocolConfigPda(),
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
   );
-  const arcade = await fetchExact(
-    connection,
-    program,
-    "arcadeConfig",
-    deriveArcadeConfigPda(),
-    LAUNCH_ACCOUNT_SPACES.arcadeConfig,
-  );
   if (
     protocol.paused !== false ||
-    integer(arcade.launchDayId) !== bundle.input.launchDayId ||
-    integer(arcade.lastDailyId) !== bundle.input.launchDayId - 1 ||
-    bytesHex(arcade.dailyRoot) !== "00".repeat(32)
+    integer(protocol.launchDayId) !== bundle.input.launchDayId ||
+    integer(protocol.lastDailyId) !== bundle.input.launchDayId - 1 ||
+    bytesHex(protocol.dailyRoot) !== "00".repeat(32)
   ) {
     throw new Error("atomic launch did not activate the approved cadence");
   }

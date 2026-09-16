@@ -50,10 +50,6 @@ pub mod solana {
         instructions::profile_instructions::handler_record_campaign_stars(ctx, stars)
     }
 
-    pub fn initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
-        instructions::arcade_instructions::handler_initialize_arcade(ctx)
-    }
-
     pub fn prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32) -> Result<()> {
         instructions::arcade_instructions::handler_prepare_arena_daily(ctx, day_id)
     }
@@ -74,12 +70,8 @@ pub mod solana {
         instructions::arcade_instructions::handler_purchase_kredits(ctx, kredit_count)
     }
 
-    pub fn enter_arena<'info>(
-        ctx: Context<'info, EnterArena<'info>>,
-        run_id: u64,
-        auto_claim_positions: Vec<u32>,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_enter_arena(ctx, run_id, auto_claim_positions)
+    pub fn enter_arena<'info>(ctx: Context<'info, EnterArena<'info>>, run_id: u64) -> Result<()> {
+        instructions::arcade_instructions::handler_enter_arena(ctx, run_id)
     }
 
     pub fn consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {

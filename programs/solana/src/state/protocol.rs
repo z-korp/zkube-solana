@@ -22,7 +22,7 @@ pub use zkube_core::{
 /// Run identifiers are per-player and begin at one on every fresh deployment.
 
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Default)]
 pub struct ProtocolConfig {
     pub version: u8,
     pub authority: Pubkey,
@@ -30,7 +30,33 @@ pub struct ProtocolConfig {
     /// Chain/deployment-specific replay domain used by canonical replay v2.
     pub replay_domain: [u8; 32],
     pub paused: bool,
+    /// Days below this absolute identifier are suspended; zero disables it.
+    pub suspended_until_day: u32,
+    pub launch_day_id: u32,
+    /// Last finalized Daily committed by the permanent result root.
+    pub last_daily_id: u32,
+    pub daily_root: [u8; 32],
     pub bump: u8,
+}
+
+impl ProtocolConfig {
+    pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
+        require!(
+            self.launch_day_id > 0
+                && day_id >= self.launch_day_id
+                && ((self.last_daily_id < self.launch_day_id && day_id == self.launch_day_id)
+                    || (self.last_daily_id >= self.launch_day_id && day_id > self.last_daily_id)),
+            ErrorCode::InvalidPeriod
+        );
+        self.daily_root = zkube_core::sha256v_with::<crate::state::arcade::SolanaSha256>(&[
+            b"zkube-arcade-daily-root-v1",
+            &self.daily_root,
+            &day_id.to_le_bytes(),
+            &result_hash,
+        ]);
+        self.last_daily_id = day_id;
+        Ok(())
+    }
 }
 
 #[account]
@@ -601,7 +627,7 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + ProtocolConfig::INIT_SPACE, 107);
+        assert_eq!(8 + ProtocolConfig::INIT_SPACE, 151);
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 206);
         assert_eq!(8 + ActiveRun::INIT_SPACE, 337);
     }

@@ -56,11 +56,11 @@ namespace ZKube.Integration.Client
 
         public Task<ProductRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             long timestamp = Clock(); uint day = CurrentDay(timestamp);
-            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress, addresses.ArcadeAddress,
+            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress,
                 addresses.Daily(day), addresses.Player(lease.Owner) }, cancellation: token).ConfigureAwait(false);
             var projection = PublicDailyQuery.Decode(accounts, day, Clock(),
-                read.Accounts[0].Envelope, read.Accounts[1].Envelope, read.Accounts[2].Envelope);
-            var profile = Profile(lease.Owner, read.Accounts[3]);
+                read.Accounts[0].Envelope, read.Accounts[1].Envelope);
+            var profile = Profile(lease.Owner, read.Accounts[2]);
             return new DailyLobby(day, projection.Status, projection.Suspended, projection.ProtocolPaused,
                 projection.Realm, projection.ObjectiveKind, projection.ObjectiveValue, projection.PotLamports,
                 profile);

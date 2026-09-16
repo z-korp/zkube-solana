@@ -77,7 +77,7 @@ pub const ARENA_BOARD_CAPACITY: usize = 1_536;
 
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
-pub const PROTOCOL_ACCOUNT_VERSION: u8 = 5;
+pub const PROTOCOL_ACCOUNT_VERSION: u8 = 6;
 pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 3;
 pub const PLAYER_STATE_RESERVED_BYTES: usize = 18;
 pub const ARCADE_DAILY_RESULT_HASH_DOMAIN: &str = "zkube-arcade-daily-result-v5";

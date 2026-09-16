@@ -173,7 +173,6 @@ mod tests {
         let actor = Pubkey::new_unique();
         let entry = crate::accounts::EnterArena {
             protocol: Pubkey::new_unique(),
-            arcade_config: Pubkey::new_unique(),
             player_state: Pubkey::new_unique(),
             current_daily: Pubkey::new_unique(),
             arena_player: Pubkey::new_unique(),
@@ -185,16 +184,14 @@ mod tests {
             session_token: Some(token_address(owner, actor)),
             actor,
             system_program: anchor_lang::system_program::ID,
-            zkube_program: crate::ID,
         }
         .to_account_metas(None);
-        assert_eq!(entry.len(), 14);
-        assert_eq!(entry[9].pubkey, owner);
-        assert!(entry[9].is_writable);
-        assert!(!entry[9].is_signer);
-        assert_eq!(entry[11].pubkey, actor);
-        assert!(entry[11].is_signer);
-        assert_eq!(entry[13].pubkey, crate::ID);
+        assert_eq!(entry.len(), 12);
+        assert_eq!(entry[8].pubkey, owner);
+        assert!(entry[8].is_writable);
+        assert!(!entry[8].is_signer);
+        assert_eq!(entry[10].pubkey, actor);
+        assert!(entry[10].is_signer);
     }
 
     #[test]
@@ -202,7 +199,6 @@ mod tests {
         let owner = Pubkey::new_unique();
         let purchase = crate::accounts::PurchaseKredits {
             protocol: Pubkey::new_unique(),
-            arcade_config: Pubkey::new_unique(),
             player_state: Pubkey::new_unique(),
             credit_vault: Pubkey::new_unique(),
             team_destination: Pubkey::new_unique(),
@@ -210,8 +206,8 @@ mod tests {
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None);
-        assert_eq!(purchase[5].pubkey, owner);
-        assert!(purchase[5].is_signer);
+        assert_eq!(purchase[4].pubkey, owner);
+        assert!(purchase[4].is_signer);
     }
     #[test]
     fn sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges() {

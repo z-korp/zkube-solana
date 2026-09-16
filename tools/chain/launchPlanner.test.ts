@@ -51,19 +51,19 @@ describe("read-only paused bootstrap and launch planner", () => {
 
     );
 
-    expect(plan.plans).toHaveLength(6);
-    for (let receipts = 0; receipts <= 5; receipts++) {
-      expect(launchStagingPlans(plan.plans, receipts)).toEqual(plan.plans.slice(0, 5));
-      expect(launchStagingPlans(plan.plans, receipts)).not.toContain(plan.plans[5]);
+    expect(plan.plans).toHaveLength(5);
+    for (let receipts = 0; receipts <= 4; receipts++) {
+      expect(launchStagingPlans(plan.plans, receipts)).toEqual(plan.plans.slice(0, 4));
+      expect(launchStagingPlans(plan.plans, receipts)).not.toContain(plan.plans[4]);
     }
-    expect(() => launchStagingPlans(plan.plans, 6)).toThrow("bounded receipts");
-    expect(plan.plans[5]?.transaction.instructions).toHaveLength(3);
+    expect(() => launchStagingPlans(plan.plans, 5)).toThrow("bounded receipts");
+    expect(plan.plans[4]?.transaction.instructions).toHaveLength(3);
     expect(plan.phases.at(-1)).toEqual({
       label: "Atomic 1 SOL seed, unpause, and activation",
-      transactionIndexes: [5],
+      transactionIndexes: [4],
     });
     expect(plan.costs.seedLamports).toBe(1_500_000_000);
-    expect(plan.costs.transactionCount).toBe(6);
+    expect(plan.costs.transactionCount).toBe(5);
     expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(formatZkubeLaunchPlan(plan)).toContain(
       "No transaction was signed or sent. This planner has no send path.",

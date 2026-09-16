@@ -122,7 +122,7 @@ namespace ZKube.Integration.Tests
             var store = new SessionHandoffTests.Store(); var journal = new TransactionJournal(store);
             var http = new Http { Genesis = (string)rpcFixture["inputs"]["expectedGenesis"] };
             var profile = solana["accounts"].Single(row => (string)row["id"] == "player-valid"); http.Add(profile);
-            foreach (string name in new[] { "protocol", "arcade", "credit" }) http.Add(plans["accounts"][name]); http.Add(economy["team"]);
+            foreach (string name in new[] { "protocol", "credit" }) http.Add(plans["accounts"][name]); http.Add(economy["team"]);
             var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], http.Genesis, protocol.ProgramId);
             var transaction = solana["transactions"].Single(row => (string)row["id"] == "purchase-1");
             await journal.Begin(new PendingTransaction(owner, "purchase-kredits", (string)rpcFixture["inputs"]["base"], true,
@@ -148,25 +148,28 @@ namespace ZKube.Integration.Tests
             var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
             var tokens = new SessionTokenBindings(File.ReadAllText(Path.Combine(generated, "session.json"))); var planner = new TransactionPlanner(protocol, tokens);
             string owner = (string)solana["inputs"]["owner"];
-            foreach (bool archived in new[] { false, true })
+            foreach (string outcome in new[] { "claimed", "removed", "expired" })
             {
                 var store = new SessionHandoffTests.Store(); var journal = new TransactionJournal(store);
+                var board = economy[outcome == "expired" ? "oldScore" : "claimedBoard"];
+                var daily = economy[outcome == "expired" ? "oldDaily" : "claimDaily"];
+                string signedClaim = outcome == "expired" ? (string)economy["oldScoreTransaction"] : (string)economy["claim"]["signedTransaction"];
                 var http = new Http { Genesis = (string)rpcFixture["inputs"]["expectedGenesis"] };
                 http.Add(solana["accounts"].Single(row => (string)row["id"] == "player-valid"));
-                http.Add(economy["claimDaily"]); http.Add(economy["claimedBoard"]);
+                http.Add(daily); http.Add(board);
                 var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], http.Genesis, protocol.ProgramId);
                 await journal.Begin(new PendingTransaction(owner, "claim-daily", (string)rpcFixture["inputs"]["base"], true,
-                    Convert.FromBase64String((string)economy["claim"]["signedTransaction"]), (string)solana["inputs"]["blockhash"], 500));
+                    Convert.FromBase64String(signedClaim), (string)solana["inputs"]["blockhash"], 500));
                 EconomyObservation accepted = null;
                 var reconciler = new EconomyInstructionReconciler(protocol, accounts, rpc, value => { accepted = value; return Task.CompletedTask; });
                 var executor = new TransactionExecutor(planner, rpc, new WalletClient(new SessionHandoffTests.Native()), journal);
-                http.Accounts[(string)economy["claimedBoard"]["address"]]["owner"] = owner;
+                http.Accounts[(string)board["address"]]["owner"] = owner;
                 Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(accepted, Is.Null);
-                if (archived)
-                { http.Accounts.Remove((string)economy["claimedBoard"]["address"]); http.Accounts.Remove((string)economy["claimDaily"]["address"]); }
-                else http.Add(economy["claimedBoard"]);
+                if (outcome == "removed")
+                { http.Accounts.Remove((string)board["address"]); http.Accounts.Remove((string)daily["address"]); }
+                else http.Add(board);
                 Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-                Assert.That(accepted.ClaimState, Is.EqualTo(archived ? "removed" : "claimed")); Assert.That(accepted.Kredits, Is.EqualTo(25));
+                Assert.That(accepted.ClaimState, Is.EqualTo(outcome)); Assert.That(accepted.Kredits, Is.EqualTo(25));
                 Assert.That(await journal.Load(owner), Is.Null);
             }
         }

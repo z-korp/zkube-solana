@@ -52,7 +52,7 @@ Source implements v5 partially. Current state:
 | Area | Status |
 | --- | --- |
 | Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed realm × objective draw |
-| Program surface | Built — 31 instructions and 8 account types; Arcade-only run lifecycle and one Campaign save write |
+| Program surface | Built — 30 instructions and 7 account types; Arcade-only run lifecycle and one Campaign save write |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 directly to the team destination at purchase |
 | `PlayerState` | Built — 206 bytes; the player's reported Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
@@ -108,7 +108,7 @@ Source implements v5 partially. Current state:
 - The owner funds the device session's recyclable fee-and-rent allowance
   directly. A separately seeded System-owned zero-data
   cadence funding PDA recycles Daily account rent after the on-chain archive
-  root in ArcadeConfig commits each finalized result. The cadence funding PDA
+  root in ProtocolConfig commits each finalized result. The cadence funding PDA
   signs only the System account-creation calls in prepare_arena_daily and
   finalize_arena_daily; `sbf_cadence_funding_can_prepare_a_missing_post_launch_daily`
   and `keeper_allowlist_is_exactly_its_plans` guard the boundary.
@@ -162,7 +162,7 @@ three Campaign lifecycle instructions, one run slot, the content accounts, and
 leaves 338 bytes. Removing the content
 accounts also removes their two publication/activation instructions: five
 instructions removed in total. The interface contract
-`locks the fresh-bootstrap interface at 31 instructions and 8 accounts` and
+`locks the fresh-bootstrap interface at 30 instructions and 7 accounts` and
 `target_accounts_fit_normal_solana_account_limits` pin the current surface after
 the cleanup below.
 
@@ -175,12 +175,12 @@ active run holds a rules snapshot.
 `program_and_core_score_one_action_identically`
 guards reconstruction, while `daily_window_is_derived_at_epoch_and_u32_day_bounds`
 and `DailyWindowUsesTheCoreAcrossTheFullDayRange` guard the shared clock rule.
-`account_sizes_and_maximum_board_rent_are_explicit` pins the 165-byte Daily.
-The player account version is 3; the shared protocol account version is 5.
+`account_sizes_and_maximum_board_rent_are_explicit` pins the 133-byte Daily.
+The player account version is 3; the shared protocol account version is 6.
 Generated protocol constants and the interface test guard these fresh-bootstrap
-layouts. `target_accounts_fit_normal_solana_account_limits` pins the 107-byte
-protocol account; `account_sizes_and_maximum_board_rent_are_explicit` pins the
-86-byte ArcadeConfig.
+layouts. `target_accounts_fit_normal_solana_account_limits` pins the 151-byte
+protocol account. Protocol state owns suspension, launch day and the rolling
+Daily root; `archive_is_strictly_sequential` guards the root sequence.
 
 **Board construction amendment approved 2026-09-16.** The CPI growth limit was
 found on 2026-09-16; no earlier test covered board creation above 120 rows.
@@ -221,7 +221,7 @@ ladder tier boundaries, and the flat qualifying credit.
   `daily_draw_is_reproducible_from_seed_and_day` guards the core and client
   boundary.
 - **Instant suspension is an explicit governance boundary.**
-  `ArcadeConfig.suspended_until_day` is set by `set_arena_suspension`; a prepared
+  `ProtocolConfig.suspended_until_day` is set by `set_arena_suspension`; a prepared
   funding day below it can only move its full funded ledger once into the first
   eligible prepared successor through `skip_suspended_arena_daily`, then closes
   to cadence funding. Suspension cannot consume a Kredit or strand prize money,
@@ -363,25 +363,27 @@ ladder tier boundaries, and the flat qualifying credit.
   its payout directly. A dynamic claimed bitmap lives beside the
   rows in each board account. An explicit claim supplies its board position to
   the single `claim_daily_prize` instruction; there is no account-scanning
-  public claim variant. `ladder_points_are_credited_once_per_claim` guards that
-  position-addressed settlement boundary. A reward stays claimable for **thirty days from
+  public claim variant. A claim of an already-claimed or expired position is a no-op.
+  Unsealed boards still reject. `ladder_points_are_credited_once_per_claim` guards
+  that position-addressed settlement boundary, including unchanged accounts for
+  both no-op outcomes. A reward stays claimable for **thirty days from
   its board's sealing**; after archival and both independent windows, unclaimed
   rewards expire into the next daily pot, never into operator revenue.
-- **Spending a Kredit settles what that player is already owed.** Any unclaimed
-  reward on a sealed, unexpired board is claimed in the same transaction as the
-  entry, so a returning player never makes a second trip and never forfeits
-  through inattention. It invokes the existing claim instruction, and settles at most two attached boards per entry, so the
-  work stays bounded rather than looping over an unbounded history.
-  `sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin`
-  exercises `MAX_AUTO_CLAIMS_PER_ENTRY` with maximum-sized accounts and a
-  360,000-CU ceiling. An entry
-  must never fail because an attached claim could not be made: if the board is
-  unsealed, the account absent, the window past, or the reward already taken,
-  the attachment is skipped and the entry proceeds. Explicit claiming remains
-  available and unchanged, and expiry into the next daily pot is unchanged.
+- **Spending a Kredit settles what that player is already owed.** The client
+  prepends up to two eligible claim instructions in the same transaction as
+  entry, skipping boards it cannot prove claimable from its reads.
+  `EntryComposesAtMostTwoProvenClaimsAndNoOpClaimsNeverRetry` checks selection,
+  instruction order and a single submission when attached claims are no-ops;
+  `ArcadePreparesDelegatesAndRequestsOpeningVrfWithUnavailableOptionalClaims`
+  checks entry when optional claims are unavailable. Another device claiming
+  first or the window passing does not interrupt entry;
+  `ladder_points_are_credited_once_per_claim` guards both no-op outcomes.
+  Explicit claiming and expiry into the next Daily pot remain available.
+  `ClaimRejectsWrongBoardOwnerThenUsesClaimedBitmapOrFreshArchivalAbsence`
+  checks explicit-claim recovery for claimed, expired and removed boards.
 - **Protocol economics are code, not mutable account terms.** The entry price
   and its Daily/operator split are core constants emitted to clients by
-  codegen; neither `ProtocolConfig` nor `ArcadeConfig` stores a second copy.
+  codegen; `ProtocolConfig` stores no second copy.
   Authority funding uses the single `deposit_arena_daily` instruction for both
   launch seeding and later deposits. `entry_split_is_exact_and_static` and
   `sbf_first_deposit_funds_and_activates_the_first_daily` guard those boundaries.
@@ -915,7 +917,7 @@ guards replacing the reviewed files only after both module resolutions succeed.
 | Owner wallet | Durable identity, Kredit purchases and device funding | Signs purchases at the protocol unit price and funds the device allowance |
 | Device session | Approximately seven days of authorized Arcade gameplay and Campaign save writes | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
 | Cadence funding PDA | Recyclable Daily rent float | Separately seeded; signs the System creation calls in Daily preparation and finalization only |
-| ArcadeConfig | Scheduling and rolling finalized-result commitment | Launch day supplies the first day; program-derived append-only root |
+| ProtocolConfig | Scheduling and rolling finalized-result commitment | Launch day supplies the first day; program-derived append-only root |
 | MagicBlock ER | Arcade gameplay and per-row VRF | Router-resolved validator |
 | Solana program | The player's reported Campaign save, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
@@ -950,7 +952,7 @@ the System program; the committed IDL regression test rejects the unsafe older
 
 ### Archival
 
-`ArcadeConfig.last_daily_id` and `daily_root` advance one sequential rolling
+`ProtocolConfig.last_daily_id` and `daily_root` advance one sequential rolling
 commitment per finalized Daily, beginning at `launch_day_id`.
 `archive_is_strictly_sequential` guards the sequence. `close_arena_daily` requires
 that root to cover the day before returning rent to the cadence funding PDA;
@@ -1073,12 +1075,12 @@ manifest, supplies the deployed inputs for the rest of the bootstrap.
 After the program and independently fingerprinted keeper release exist,
 `NO_DNA=1 pnpm chain:devnet:launch` produces the unsigned fresh-bootstrap
 bundle. It requires every protocol target to be absent, calculates the exact
-deployer funding transaction, initializes paused protocol and Arcade accounts,
+deployer funding transaction, initializes the paused protocol and Kredit vault,
 seeds the explicitly approved recyclable cadence-rent float, prepares the current
 and following Daily accounts from that float, and ends
 with one atomic transaction that seeds the first Daily, unpauses, and activates
-it. Its approval expires at the specified pre-entry cutoff. Its six transactions are
-protocol initialization, Arcade initialization, cadence funding, two Daily
+it. Its approval expires at the specified pre-entry cutoff. Its five transactions are
+protocol and Kredit vault initialization, cadence funding, two Daily
 preparations, and the atomic launch;
 `launchPlanner.test.ts` pins its complete instruction order. The planner has no
 signing or sending path. Transaction indices and the cadence-rent funding amount

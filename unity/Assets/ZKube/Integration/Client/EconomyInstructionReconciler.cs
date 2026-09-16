@@ -65,7 +65,7 @@ namespace ZKube.Integration.Client
             if (call.Name == "purchase_kredits")
             {
                 if ((uint)call.Arguments["kredit_count"] == 0 ||
-                    call.Accounts["protocol"] != Pda("protocol") || call.Accounts["arcade_config"] != Pda("arcade") ||
+                    call.Accounts["protocol"] != Pda("protocol") ||
                     call.Accounts["credit_vault"] != Pda("credit_vault")) return false;
                 var credit = Observed(evidence, call.Accounts["credit_vault"]);
                 var team = Observed(evidence, call.Accounts["team_destination"]);
@@ -74,11 +74,10 @@ namespace ZKube.Integration.Client
                 if (team != null && (team.Owner != PlanningConstants.SystemProgram || team.Executable || team.Data.Length != 0)) return false;
 
                 var configs = await rpc.HistoricalAccounts(evidence.Pending.Endpoint, true,
-                    new[] { call.Accounts["protocol"], call.Accounts["arcade_config"] }, minContextSlot: evidence.MinimumSlot, cancellation: cancellation).ConfigureAwait(false);
+                    new[] { call.Accounts["protocol"] }, minContextSlot: evidence.MinimumSlot, cancellation: cancellation).ConfigureAwait(false);
                 if (succeeded && configs.Accounts.Any(a => a.Envelope == null)) return false;
                 if (configs.Accounts[0].Envelope != null &&
                     (string)accounts.ProtocolConfig(configs.Accounts[0].Envelope)["team_destination"] != call.Accounts["team_destination"]) return false;
-                if (configs.Accounts[1].Envelope != null) accounts.ArcadeConfig(configs.Accounts[1].Envelope);
                 // Confirmation establishes the instruction outcome. The current
                 // decoded balance is authoritative; never invent oldBalance+pack.
                 await accepted(new EconomyObservation(owner, call.Name, player)).ConfigureAwait(false);
@@ -99,8 +98,8 @@ namespace ZKube.Integration.Client
             }
             uint day = (uint)accounts.ArenaDaily(dailyEnvelope)["day_id"];
             var reward = accounts.BoardRewards(boardEnvelope, day, kind, owner).SingleOrDefault(row => row.Position == position);
-            if (succeeded && boardEnvelope != null && (reward == null || !reward.Claimed)) return false;
-            await accepted(new EconomyObservation(owner, call.Name, player, boardEnvelope == null ? "removed" : reward == null ? "absent" : reward.Claimed ? "claimed" : "unclaimed", day, kind, position)).ConfigureAwait(false);
+            if (succeeded && boardEnvelope != null && reward == null) return false;
+            await accepted(new EconomyObservation(owner, call.Name, player, boardEnvelope == null ? "removed" : reward == null ? "absent" : reward.Claimed ? "claimed" : succeeded ? "expired" : "unclaimed", day, kind, position)).ConfigureAwait(false);
             return true;
         }
         private static AccountEnvelope Observed(ExecutionReconciliation evidence, string address)

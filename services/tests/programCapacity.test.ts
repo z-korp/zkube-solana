@@ -28,10 +28,6 @@ it("every_program_capacity_has_an_sbf_test_at_its_maximum", () => {
       allocation: "cadence_funding_creates_exact_boards_through_the_full_capacity",
       compute: "cadence_funding_creates_exact_boards_through_the_full_capacity",
     },
-    MAX_AUTO_CLAIMS_PER_ENTRY: {
-      allocation: "sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin",
-      compute: "sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin",
-    },
   };
   expect(capacities).toEqual(Object.keys(guards).sort());
   const contracts = readFileSync(join(program, "tests/sbf_contract.rs"), "utf8");

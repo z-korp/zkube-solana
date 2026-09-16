@@ -46,16 +46,16 @@ namespace ZKube.Integration.Client
                 token.ThrowIfCancellationRequested();
                 if (await journal.Load(lease.Owner).ConfigureAwait(false) != null) return new DailyEntryReadiness("pending-transaction", day);
                 var first = await rpc.ReadAccounts(rpc.Base, new[] { planner.Player(lease.Owner), planner.ProtocolAddress,
-                    planner.ArcadeAddress, planner.Daily(day), planner.CreditVaultAddress }, cancellation: token).ConfigureAwait(false);
+                    planner.Daily(day), planner.CreditVaultAddress }, cancellation: token).ConfigureAwait(false);
                 if (first.Accounts[0].Envelope == null) return new DailyEntryReadiness("missing-player", day);
                 var player = PlayerPlanSnapshot.Decode(accounts, first.Accounts[0].Envelope, lease.Owner);
                 if (player.DailyRunId != 0) return new DailyEntryReadiness("resume", day, player.Kredits);
-                uint following = first.Accounts[2].Envelope == null ? checked(day + 1) :
-                    Math.Max(checked(day + 1), (uint)accounts.ArcadeConfig(first.Accounts[2].Envelope)["suspended_until_day"]);
+                uint following = first.Accounts[1].Envelope == null ? checked(day + 1) :
+                    Math.Max(checked(day + 1), (uint)accounts.ProtocolConfig(first.Accounts[1].Envelope)["suspended_until_day"]);
                 var second = await rpc.ReadAccounts(rpc.Base, new[] { planner.Daily(following),
                     planner.ActiveRun(lease.Owner, player.NextRunId) }, minContextSlot: first.Slot, cancellation: token).ConfigureAwait(false);
-                var entry = DailyEntrySnapshot.Inspect(accounts, first.Accounts[1].Envelope, first.Accounts[2].Envelope,
-                    first.Accounts[3].Envelope, second.Accounts[0].Envelope, first.Accounts[4].Envelope, day, timestamp);
+                var entry = DailyEntrySnapshot.Inspect(accounts, first.Accounts[1].Envelope,
+                    first.Accounts[2].Envelope, second.Accounts[0].Envelope, first.Accounts[3].Envelope, day, timestamp);
                 if (entry.Snapshot == null) return new DailyEntryReadiness(entry.Status, day, kredits: player.Kredits);
                 if (second.Accounts[1].Envelope != null) return new DailyEntryReadiness("run-address-occupied", day, kredits: player.Kredits);
                 if (player.Kredits == 0) return new DailyEntryReadiness("needs-kredits", day);
@@ -70,8 +70,8 @@ namespace ZKube.Integration.Client
                 if (after.NextRunId != player.NextRunId || after.Kredits != player.Kredits || completedAt / 86400 != day ||
                     await journal.Load(lease.Owner).ConfigureAwait(false) != null)
                     return new DailyEntryReadiness("changed", day, kredits: after.Kredits);
-                var finalWindow = DailyEntrySnapshot.Inspect(accounts, first.Accounts[1].Envelope, first.Accounts[2].Envelope,
-                    first.Accounts[3].Envelope, second.Accounts[0].Envelope, first.Accounts[4].Envelope, day, completedAt);
+                var finalWindow = DailyEntrySnapshot.Inspect(accounts, first.Accounts[1].Envelope,
+                    first.Accounts[2].Envelope, second.Accounts[0].Envelope, first.Accounts[3].Envelope, day, completedAt);
                 if (finalWindow.Snapshot == null) return new DailyEntryReadiness(finalWindow.Status, day, kredits: after.Kredits);
                 return new DailyEntryReadiness(!session.Current ? "needs-session" : session.Funding != "ready" ? "needs-refill" : "ready",
                     day, kredits: after.Kredits, session: session);

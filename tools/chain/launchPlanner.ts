@@ -13,14 +13,12 @@ import {
   CADENCE_FUNDING_SEED_LAMPORTS,
   buildAtomicArcadeLaunchPlan,
   buildSeedCadenceFundingPlan,
-  buildInitializeArcadePlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
 } from "./adminClient.js";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest.js";
 import { inspectUpgradeableProgram } from "./deploymentRunner.js";
 import {
-  deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
@@ -41,7 +39,6 @@ const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 const accountCoder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
 export const LAUNCH_ACCOUNT_SPACES = {
   protocolConfig: accountCoder.size("protocolConfig"),
-  arcadeConfig: accountCoder.size("arcadeConfig"),
   creditVault: accountCoder.size("creditVault"),
   arenaDaily: accountCoder.size("arenaDaily"),
 } as const;
@@ -257,12 +254,6 @@ export async function buildZkubeLaunchPlan(
     }),
   );
   plans.push(
-    await buildInitializeArcadePlan({
-      connection,
-      authority: wallet,
-    }),
-  );
-  plans.push(
     await buildSeedCadenceFundingPlan({
       connection,
       authority: wallet,
@@ -285,7 +276,6 @@ export async function buildZkubeLaunchPlan(
 
   const accountSpaces = [
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
-    LAUNCH_ACCOUNT_SPACES.arcadeConfig,
     LAUNCH_ACCOUNT_SPACES.creditVault,
   ];
   const rentFloors = await Promise.all(
@@ -364,13 +354,12 @@ export async function buildZkubeLaunchPlan(
     requiredDeployerBalanceLamports,
   };
   const phases = [
-    { label: "Initialize paused protocol", transactionIndexes: [0] },
-    { label: "Initialize paused Arcade", transactionIndexes: [1] },
+    { label: "Initialize paused protocol and Kredit vault", transactionIndexes: [0] },
     {
       label: "Seed cadence rent and prepare current/following Daily",
-      transactionIndexes: [2, 3, 4],
+      transactionIndexes: [1, 2, 3],
     },
-    { label: "Atomic 1 SOL seed, unpause, and activation", transactionIndexes: [5] },
+    { label: "Atomic 1 SOL seed, unpause, and activation", transactionIndexes: [4] },
   ];
   const approvalPayload = {
     operation: "fresh-paused-bootstrap-and-launch",
@@ -468,7 +457,6 @@ function assertLaunchWindow(
 function bootstrapTargetAccounts(dayId: number): PublicKey[] {
   return [
     deriveProtocolConfigPda(),
-    deriveArcadeConfigPda(),
     deriveCreditVaultPda(),
     deriveCadenceFundingPda(),
     deriveArenaDailyPda(dayId),

@@ -19,7 +19,7 @@ namespace ZKube.Integration.App.Tests
     public sealed class MoneyCompositionTests
     {
         [Test]
-        public async Task PublicReadUsesOnlyTheThreePublicPdasWithoutAnIdentityOrPlatformStorage()
+        public async Task PublicReadUsesOnlyTheTwoPublicPdasWithoutAnIdentityOrPlatformStorage()
         {
             var e = new MoneyTestEnvironment();
             Assert.That(e.Http.Requests, Is.Empty); Assert.That(e.Native.Calls, Is.Zero); Assert.That(e.Store.Calls, Is.Zero);
@@ -27,7 +27,7 @@ namespace ZKube.Integration.App.Tests
             Assert.That(value.DayId, Is.EqualTo((uint)e.Plans["inputs"]["day"]));
             Assert.That(value.PotLamports.HasValue, Is.True);
             var request = e.Http.Requests.Single(x => (string)x["method"] == "getMultipleAccounts");
-            CollectionAssert.AreEqual(new[] { e.Services.Planner.ProtocolAddress, e.Services.Planner.ArcadeAddress,
+            CollectionAssert.AreEqual(new[] { e.Services.Planner.ProtocolAddress,
                 e.Services.Planner.Daily(value.DayId) }, request["params"][0].Values<string>());
             Assert.That(e.Native.Calls + e.Native.KeyLoads + e.Store.Calls, Is.Zero);
             await e.Flow.StopAsync();

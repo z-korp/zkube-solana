@@ -11,10 +11,6 @@ export function deriveProtocolConfigPda(
   return derive([Buffer.from("protocol")], programId);
 }
 
-export function deriveArcadeConfigPda(programId = ZKUBE_PROGRAM_ID): PublicKey {
-  return derive([Buffer.from("arcade")], programId);
-}
-
 export function deriveCadenceFundingPda(
   programId = ZKUBE_PROGRAM_ID,
 ): PublicKey {

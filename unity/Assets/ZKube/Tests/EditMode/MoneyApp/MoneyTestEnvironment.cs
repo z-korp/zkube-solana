@@ -35,7 +35,7 @@ namespace ZKube.Integration.App.Tests
             Http.Genesis = Config.ExpectedGenesis; Http.Er = (string)rpc["inputs"]["er"]; Http.Program = (string)rpc["inputs"]["program"]; Http.Validator = (string)Plans["inputs"]["validator"];
             Now = (long)Plans["inputs"]["now"]; Native.Owner = Owner; Http.Environment = this; Native.Environment = this; Services = Create(Config);
             var publications = Fixture("plans");
-            foreach (var name in new[] { "protocol", "arcade", "daily" }) Http.Add(publications["accounts"][name]);
+            foreach (var name in new[] { "protocol", "daily" }) Http.Add(publications["accounts"][name]);
         }
         public MoneyClientServices Create(MoneyConnectionConfig config) => new MoneyClientServices(
             File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")),
@@ -47,7 +47,7 @@ namespace ZKube.Integration.App.Tests
             { var row = Runs["cases"].Single(x => (string)x["id"] == "active-" + mode + "-playing"); Http.Add(row); Http.Delegated.Add((string)row["address"]); }
         }
         public void AddEconomy()
-        { foreach (var name in new[] { "protocol", "arcade", "credit" }) Http.Add(Plans["accounts"][name]);
+        { foreach (var name in new[] { "protocol", "credit" }) Http.Add(Plans["accounts"][name]);
             Http.Add(Fixture("economy")["team"]); if (!Http.Accounts.ContainsKey(Services.Planner.Player(Owner))) Http.Add(Solana["accounts"].Single(x => (string)x["id"] == "player-valid")); }
         public PendingTransaction Purchase() => new PendingTransaction(Owner, "purchase-one", Config.BaseUri, true,
             Convert.FromBase64String((string)Solana["transactions"].Single(x => (string)x["id"] == "purchase-1")["signedTransaction"]), (string)Solana["inputs"]["blockhash"], 500);

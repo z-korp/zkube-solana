@@ -47,24 +47,6 @@ export type Solana = {
           }
         },
         {
-          "name": "arcadeConfig",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "arenaDaily",
           "writable": true,
           "pda": {
@@ -208,19 +190,21 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arcadeConfig",
+          "name": "protocol",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -474,18 +458,20 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arcadeConfig",
+          "name": "protocol",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -1071,6 +1057,7 @@ export type Solana = {
       "accounts": [
         {
           "name": "protocol",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -1084,25 +1071,6 @@ export type Solana = {
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -1185,24 +1153,6 @@ export type Solana = {
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -1402,22 +1352,12 @@ export type Solana = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
         }
       ],
       "args": [
         {
           "name": "runId",
           "type": "u64"
-        },
-        {
-          "name": "autoClaimPositions",
-          "type": {
-            "vec": "u32"
-          }
         }
       ]
     },
@@ -1435,18 +1375,20 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arcadeConfig",
+          "name": "protocol",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -1976,98 +1918,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "initializeArcade",
-      "discriminator": [
-        59,
-        29,
-        147,
-        89,
-        249,
-        229,
-        124,
-        107
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "creditVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  114,
-                  101,
-                  100,
-                  105,
-                  116,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "initializePlayer",
       "discriminator": [
         79,
@@ -2155,6 +2005,31 @@ export type Solana = {
                   99,
                   111,
                   108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "creditVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  100,
+                  105,
+                  116,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
                 ]
               }
             ]
@@ -2314,24 +2189,6 @@ export type Solana = {
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -2542,24 +2399,6 @@ export type Solana = {
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -2877,6 +2716,7 @@ export type Solana = {
       "accounts": [
         {
           "name": "protocol",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -2890,25 +2730,6 @@ export type Solana = {
                   99,
                   111,
                   108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
                 ]
               }
             ]
@@ -3051,18 +2872,20 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arcadeConfig",
+          "name": "protocol",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  97,
+                  112,
                   114,
+                  111,
+                  116,
+                  111,
                   99,
-                  97,
-                  100,
-                  101
+                  111,
+                  108
                 ]
               }
             ]
@@ -3276,19 +3099,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "arcadeConfig",
-      "discriminator": [
-        72,
-        72,
-        85,
-        65,
-        185,
-        246,
-        125,
-        96
-      ]
-    },
-    {
       "name": "arenaBoard",
       "discriminator": [
         28,
@@ -3445,61 +3255,51 @@ export type Solana = {
     },
     {
       "code": 6015,
-      "name": "prizeAlreadyClaimed",
-      "msg": "This Daily prize position was already claimed"
-    },
-    {
-      "code": 6016,
-      "name": "claimWindowClosed",
-      "msg": "The Daily prize claim window has closed"
-    },
-    {
-      "code": 6017,
       "name": "boardIncomplete",
       "msg": "The payout board is incomplete or unsealed"
     },
     {
-      "code": 6018,
+      "code": 6016,
       "name": "boardEntryMismatch",
       "msg": "A submitted payout row does not match its ArenaPlayer source"
     },
     {
-      "code": 6019,
+      "code": 6017,
       "name": "boardEntryOutOfOrder",
       "msg": "Submitted payout rows are not in canonical order"
     },
     {
-      "code": 6020,
+      "code": 6018,
       "name": "duplicateBoardPlayer",
       "msg": "A player appears more than once on a payout board"
     },
     {
-      "code": 6021,
+      "code": 6019,
       "name": "accountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6022,
+      "code": 6020,
       "name": "insufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6023,
+      "code": 6021,
       "name": "dailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6024,
+      "code": 6022,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6025,
+      "code": 6023,
       "name": "invalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6026,
+      "code": 6024,
       "name": "invalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     }
@@ -3722,53 +3522,6 @@ export type Solana = {
       }
     },
     {
-      "name": "arcadeConfig",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "protocol",
-            "type": "pubkey"
-          },
-          {
-            "name": "suspendedUntilDay",
-            "docs": [
-              "Days below this absolute identifier are suspended; zero disables it."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "launchDayId",
-            "type": "u32"
-          },
-          {
-            "name": "lastDailyId",
-            "docs": [
-              "Last finalized Daily committed by the permanent result root."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "dailyRoot",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "arenaBoard",
       "type": {
         "kind": "struct",
@@ -3899,10 +3652,6 @@ export type Solana = {
           {
             "name": "dayId",
             "type": "u32"
-          },
-          {
-            "name": "arcadeConfig",
-            "type": "pubkey"
           },
           {
             "name": "status",
@@ -4394,6 +4143,33 @@ export type Solana = {
           {
             "name": "paused",
             "type": "bool"
+          },
+          {
+            "name": "suspendedUntilDay",
+            "docs": [
+              "Days below this absolute identifier are suspended; zero disables it."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "launchDayId",
+            "type": "u32"
+          },
+          {
+            "name": "lastDailyId",
+            "docs": [
+              "Last finalized Daily committed by the permanent result root."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "dailyRoot",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "bump",

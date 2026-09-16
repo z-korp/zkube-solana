@@ -37,7 +37,7 @@ namespace ZKube.Integration.Client
     }
 
     // Construct without ClientIdentity or wallet. One Base batch reads only today's
-    // protocol/config/Daily PDAs; SolanaRpcTransport verifies the configured genesis.
+    // protocol/Daily PDAs; SolanaRpcTransport verifies the configured genesis.
     public sealed class PublicDailyQuery
     {
         private readonly AccountBindings accounts;
@@ -53,30 +53,29 @@ namespace ZKube.Integration.Client
             cancellation.ThrowIfCancellationRequested();
             uint day = CurrentDay(ValidateClock(now()));
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress,
-                addresses.ArcadeAddress, addresses.Daily(day) }, cancellation: cancellation).ConfigureAwait(false);
+                addresses.Daily(day) }, cancellation: cancellation).ConfigureAwait(false);
             cancellation.ThrowIfCancellationRequested();
             return Decode(accounts, day, ValidateClock(now()),
-                read.Accounts[0].Envelope, read.Accounts[1].Envelope, read.Accounts[2].Envelope);
+                read.Accounts[0].Envelope, read.Accounts[1].Envelope);
         }
 
         // Both connected and disconnected facades use this validated projection.
         // Validate every supplied public account before an absent peer can hide it.
         internal static PublicDaily Decode(AccountBindings accounts, uint day, long timestamp,
-            AccountEnvelope protocolEnvelope, AccountEnvelope arcadeEnvelope, AccountEnvelope dailyEnvelope)
+            AccountEnvelope protocolEnvelope, AccountEnvelope dailyEnvelope)
         {
             if (CurrentDay(ValidateClock(timestamp)) != day)
                 throw new InvalidOperationException("UTC Daily changed during read; read it again");
             var protocol = protocolEnvelope == null ? null : accounts.ProtocolConfig(protocolEnvelope);
-            var arcade = arcadeEnvelope == null ? null : accounts.ArcadeConfig(arcadeEnvelope);
             var daily = dailyEnvelope == null ? null : accounts.ArenaDaily(dailyEnvelope, day);
             var pair = NativeEngine.DailyPair(day);
             bool paused = protocol != null && (bool)protocol["paused"];
-            bool suspended = arcade != null && day < (uint)arcade["suspended_until_day"];
-            string status = protocol == null || arcade == null ? "missing-config"
+            bool suspended = protocol != null && day < (uint)protocol["suspended_until_day"];
+            string status = protocol == null ? "missing-config"
                 : suspended ? "suspended" : daily == null ? "missing-daily"
                 : paused ? "paused" : DailyStatus(daily, timestamp);
             // Missing Daily/config has no invented funded pot or playable snapshot.
-            bool published = protocol != null && arcade != null && daily != null;
+            bool published = protocol != null && daily != null;
             return new PublicDaily(day, timestamp, status, suspended, paused,
                 pair.Realm, pair.Kind, pair.Value, published ? AvailablePool(daily["ledger"]) : (ulong?)null,
                 published);

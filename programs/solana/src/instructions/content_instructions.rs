@@ -6,6 +6,7 @@ use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
 use crate::instructions::player_authorization::require_player_authorization;
+use crate::state::arcade::{CreditVault, CREDIT_VAULT_SEED};
 use crate::state::protocol::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -25,6 +26,8 @@ pub struct InitializeProtocol<'info> {
         bump
     )]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(init, payer = authority, space = 8 + CreditVault::INIT_SPACE, seeds = [CREDIT_VAULT_SEED], bump)]
+    pub credit_vault: Box<Account<'info, CreditVault>>,
     /// CHECK: Native-SOL team recipient pinned in protocol state.
     #[account(
         address = args.team_destination,
@@ -52,6 +55,16 @@ pub fn handler_initialize_protocol(
     // keeper policy, and clients have all been verified as one release.
     protocol.paused = true;
     protocol.bump = ctx.bumps.protocol;
+    protocol.suspended_until_day = 0;
+    protocol.launch_day_id = 0;
+    protocol.last_daily_id = 0;
+    protocol.daily_root = [0; 32];
+    ctx.accounts.credit_vault.set_inner(CreditVault {
+        version: ACCOUNT_VERSION,
+        protocol: protocol.key(),
+        available_prize_lamports: 0,
+        bump: ctx.bumps.credit_vault,
+    });
     Ok(())
 }
 

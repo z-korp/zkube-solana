@@ -29,7 +29,6 @@ import {
   SOL_PAYOUT_UNIT_LAMPORTS,
   ZKUBE_PROGRAM_ID,
   activeRunPda,
-  arcadeConfigPda,
   arenaDailyPda,
   arenaBoardPda,
   arenaPlayerPda,
@@ -70,10 +69,9 @@ const MAX_DISCOVERED_PLAYER_STATES = 10_000;
 export const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "72c82d6751d30d29d21bc7a608fbc8736ef7601e5acd4773a1d3203b85b2c360";
+  "b80d2263826923b08ba27eb95de5ba9ca379305141383417bdaf9926c74da82e";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
-  "arcadeConfig",
   "arenaDaily",
   "arenaBoard",
   "arenaPlayer",
@@ -188,28 +186,22 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       protocolPda(),
       PROTOCOL_ACCOUNT_VERSION,
     );
-    const config = await this.loadRequired(
-      "arcadeConfig",
-      arcadeConfigPda(),
-      PROTOCOL_ACCOUNT_VERSION,
-    );
     this.requireReleaseProtocol(protocol.value);
-    requirePublicKey(config.value, "protocol", protocol.address, "ArcadeConfig protocol");
-    if (u32(config.value.launchDayId, "launch day id") === 0) {
+    if (u32(protocol.value.launchDayId, "launch day id") === 0) {
       throw new Error("keeper rejects an unseeded Arcade launch");
     }
-    const launchDayId = u32(config.value.launchDayId, "launch day id");
+    const launchDayId = u32(protocol.value.launchDayId, "launch day id");
     if (launchDayId < MIN_SUPPORTED_DAY_ID ||
         launchDayId > currentDayId(this.input.nowUnix)) {
       throw new Error("keeper rejects invalid launch cadence");
     }
     this.requireReleaseLaunchDay(launchDayId);
     const suspendedUntilDay = u32(
-      config.value.suspendedUntilDay,
+      protocol.value.suspendedUntilDay,
       "suspended-until day",
     );
     const paused = boolean(protocol.value.paused, "protocol pause state");
-    const archiveRoot = await this.loadArchiveRoot(config);
+    const archiveRoot = await this.loadArchiveRoot(protocol);
 
     const today = currentDayId(this.input.nowUnix);
     const firstDay = launchDayId;
@@ -260,14 +252,14 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     };
   }
 
-  private async loadArchiveRoot(config: LoadedAccount): Promise<ArcadeRootSnapshot> {
+  private async loadArchiveRoot(protocol: LoadedAccount): Promise<ArcadeRootSnapshot> {
     const launchDayId = this.requiredRelease().launchDayId;
-    const lastDailyId = u32(config.value.lastDailyId, "ArcadeConfig last Daily id");
-    const dailyRoot = bytes32Hex(config.value.dailyRoot, "ArcadeConfig Daily root");
+    const lastDailyId = u32(protocol.value.lastDailyId, "ProtocolConfig last Daily id");
+    const dailyRoot = bytes32Hex(protocol.value.dailyRoot, "ProtocolConfig Daily root");
     const today = currentDayId(this.input.nowUnix);
     if (lastDailyId < launchDayId - 1 || lastDailyId > today ||
         (lastDailyId === launchDayId - 1) !== /^0{64}$/.test(dailyRoot)) {
-      throw new Error("ArcadeConfig result root is invalid");
+      throw new Error("ProtocolConfig result root is invalid");
     }
     const fundingAddress = cadenceFundingPda();
     const funding = await this.input.connection.getAccountInfo(
@@ -280,7 +272,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error("cadence funding PDA is missing or invalid");
     }
     return {
-      address: config.address,
+      address: protocol.address,
       cadenceFunding: fundingAddress,
       lastDailyId,
       dailyRoot,
@@ -331,21 +323,15 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       protocolPda(),
       PROTOCOL_ACCOUNT_VERSION,
     );
-    const config = await this.loadRequired(
-      "arcadeConfig",
-      arcadeConfigPda(),
-      PROTOCOL_ACCOUNT_VERSION,
-    );
     this.requireReleaseProtocol(protocol.value);
-    requirePublicKey(config.value, "protocol", protocol.address, "ArcadeConfig protocol");
     const release = this.requiredRelease();
 
-    if (u32(config.value.launchDayId, "launch day id") > 0) {
-      this.requireReleaseLaunchDay(u32(config.value.launchDayId, "launch day id"));
+    if (u32(protocol.value.launchDayId, "launch day id") > 0) {
+      this.requireReleaseLaunchDay(u32(protocol.value.launchDayId, "launch day id"));
       return "active";
     }
     if (!boolean(protocol.value.paused, "protocol pause state") ||
-        u32(config.value.launchDayId, "launch day id") !== 0) {
+        u32(protocol.value.launchDayId, "launch day id") !== 0) {
       throw new Error("paused launch carrier is incomplete or active");
     }
 
@@ -438,7 +424,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           accounts: {
             ...base,
             protocol: protocolPda(),
-            arcadeConfig: arcadeConfigPda(),
             arenaDaily: arenaDailyPda(following),
             cadenceFunding: cadenceFundingPda(),
           },
@@ -451,7 +436,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           accounts: {
             ...base,
             protocol: protocolPda(),
-            arcadeConfig: arcadeConfigPda(),
             arenaDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
           },
         };
@@ -461,7 +445,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             caller: keeper,
-            arcadeConfig: arcadeConfigPda(),
+            protocol: protocolPda(),
             suspendedDaily: arenaDailyPda(requiredNumber(dayId, "day id")),
             successorDaily: arenaDailyPda(
               requiredNumber(context.followingDayId, "following day id"),
@@ -576,7 +560,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             caller: keeper,
-            arcadeConfig: arcadeConfigPda(),
+            protocol: protocolPda(),
             arenaDaily: daily,
             scoreBoard: arenaBoardPda(daily, "score"),
             themeBoard: arenaBoardPda(daily, "theme"),
@@ -594,7 +578,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             caller: keeper,
-            arcadeConfig: arcadeConfigPda(),
+            protocol: protocolPda(),
             arenaDaily: daily,
             scoreBoard: arenaBoardPda(daily, "score"),
             themeBoard: arenaBoardPda(daily, "theme"),
@@ -609,7 +593,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             caller: keeper,
-            arcadeConfig: arcadeConfigPda(),
+            protocol: protocolPda(),
             arenaDaily: daily,
             scoreBoard: arenaBoardPda(daily, "score"),
             themeBoard: arenaBoardPda(daily, "theme"),
@@ -692,12 +676,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       if (!item.address.equals(arenaDailyPda(dayId))) {
         throw new Error("ArenaDaily PDA or cadence relationship is invalid");
       }
-      requirePublicKey(
-        item.value,
-        "arcadeConfig",
-        arcadeConfigPda(),
-        "ArenaDaily ArcadeConfig",
-      );
       const status = periodStatus(item.value.status, "ArenaDaily status");
       const finalizedAt = signedTimestamp(
         item.value.finalizedAt,

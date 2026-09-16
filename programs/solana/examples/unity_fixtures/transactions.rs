@@ -76,7 +76,6 @@ pub fn scenarios() -> Vec<Value> {
                 },
                 solana::accounts::PurchaseKredits {
                     protocol: accounts::singleton(PROTOCOL_CONFIG_SEED),
-                    arcade_config: accounts::singleton(ARCADE_CONFIG_SEED),
                     player_state: accounts::player_address(),
                     credit_vault: accounts::singleton(CREDIT_VAULT_SEED),
                     team_destination: validator(),
@@ -118,12 +117,7 @@ pub fn closed_player() -> Value {
         device(),
         pda(&[ARENA_PLAYER_SEED, daily.as_ref(), owner().as_ref()]).1,
     );
-    let mut config = ArcadeConfig::canonical(
-        accounts::singleton(PROTOCOL_CONFIG_SEED),
-        pda(&[ARCADE_CONFIG_SEED]).1,
-    );
-
-    config.launch_day_id = DAY - 100;
+    let mut config = accounts::protocol();
     config.last_daily_id = day;
     config.daily_root = [9; 32];
     let call = instruction(
@@ -136,7 +130,7 @@ pub fn closed_player() -> Value {
         },
     );
     json!({"inputs": inputs(), "day": day,
-        "arcade": envelope(accounts::singleton(ARCADE_CONFIG_SEED), &config, 8 + ArcadeConfig::INIT_SPACE),
+        "protocol": envelope(accounts::singleton(PROTOCOL_CONFIG_SEED), &config, 8 + ProtocolConfig::INIT_SPACE),
         "player": envelope(address, &player, 8 + ArenaPlayer::INIT_SPACE),
         "transaction": message("close-arena-player", validator(), vec![call], false)})
 }
