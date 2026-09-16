@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /full run is what finishes\s+a change|every change ends with `NO_DNA=1 \.\/validate\.sh` green/i,
+    trees: [AGENT_RULES, README],
+    reversal: "The change gate finishes a commit and release finishes a phase or outgoing artifact (2026-09-16)",
+  },
+  {
     pattern: /RunFlowNative|ChangingReadStore|\bNativeWallet\b|FakeNative/,
     trees: [UNITY_CLIENT],
     reversal: "Managed tests share their transport and persistence boundaries and use the Rust fixture loaders (2026-09-16)",

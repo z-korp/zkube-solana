@@ -64,7 +64,20 @@ validate_program() {
   NO_DNA=1 cargo fmt --all -- --check
   NO_DNA=1 cargo test --workspace
   NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
-  validate_sbf
+  if [[ "${1:-release}" == release ]] || program_changed; then
+    validate_sbf
+  fi
+}
+
+program_changed() {
+  local base=HEAD
+  # Before a commit, inspect its complete working tree. A clean checkout
+  # validates the last commit instead of treating it as an empty change.
+  if git diff --quiet HEAD && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
+    base="$(git rev-parse --verify HEAD^ 2>/dev/null || git rev-parse HEAD)"
+  fi
+  ! git diff --quiet "$base" -- programs/ ||
+    [[ -n "$(git ls-files --others --exclude-standard programs/)" ]]
 }
 
 validate_tools() {
@@ -80,6 +93,10 @@ validate_tools() {
 validate_unity() {
   cd "$root"
   NO_DNA=1 python3 -m unittest discover -s unity/tools/tests -p 'test_*.py'
+  if [[ "${1:-release}" == change ]]; then
+    NO_DNA=1 python3 unity/tools/build.py test --test-platform EditMode
+    return
+  fi
   NO_DNA=1 python3 unity/tools/build.py test
   for unity_identity in money store; do
     NO_DNA=1 python3 unity/tools/build.py android --identity "$unity_identity"
@@ -98,13 +115,18 @@ case "$scope" in
   tools)
     validate_tools
     ;;
-  all)
+  change)
+    validate_program change
+    validate_tools
+    validate_unity change
+    ;;
+  release|all)
     validate_program
     validate_tools
     validate_unity
     ;;
   *)
-    echo "usage: $0 [program|program-sbf|tools|all]" >&2
+    echo "usage: $0 [change|release|all|program|program-sbf|tools]" >&2
     exit 2
     ;;
 esac

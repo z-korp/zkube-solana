@@ -541,16 +541,20 @@ those numbers must stay truthful.
 
 ## Validation gates
 
-Validation is one local command, and every change ends with it green:
+The change gate finishes a commit:
 
 ```bash
-NO_DNA=1 ./validate.sh
+NO_DNA=1 ./validate.sh change
 ```
 
-`validate.sh` is the single authority on what the gates are — do not restate
-its contents here or anywhere else. It defaults to the full suite; `program`
-and `tools` scopes exist for iteration, but the full run is what finishes
-a change. A red gate is a defect that outranks whatever work surfaced it.
+The release gate, `NO_DNA=1 ./validate.sh release`, finishes each phase and any
+artifact that leaves this machine. The default and `all` select release.
+`test_release_and_all_run_sbf_both_test_platforms_and_both_packages` guards that
+boundary. `test_change_gate_keeps_common_checks_and_editmode_without_packages`,
+`test_change_gate_runs_sbf_for_staged_unstaged_and_untracked_program_changes` and
+`test_clean_change_gate_checks_the_last_commit` guard change selection.
+`validate.sh` is the single authority on the gates. A red gate is a defect
+that outranks whatever work surfaced it.
 
 The root package owns the Node dependencies, lockfile, lint, TypeScript and test
 configuration for services and operator tools;
@@ -571,7 +575,9 @@ Bugs are fixed with their class, never alone: before patching, name the
 recurring source it is an instance of, and close that source in the same
 change. The known sources and the guard for each:
 
-- **Unrun gates.** Every change ends with `NO_DNA=1 ./validate.sh` green.
+- **Unrun gates.** A commit ends with the change gate green; a phase or outgoing
+  artifact ends with release green, guarded by
+  `test_release_and_all_run_sbf_both_test_platforms_and_both_packages`.
 - **Untested bounds.** Every program capacity has SBF allocation and compute
   tests at its maximum; `every_program_capacity_has_an_sbf_test_at_its_maximum`
   inventories the capacity constants and both executable boundary guards.
