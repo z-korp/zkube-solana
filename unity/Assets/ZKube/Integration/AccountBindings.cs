@@ -49,7 +49,7 @@ namespace ZKube.Integration
         public JObject ArcadeConfig(AccountEnvelope envelope)
         {
             var fields = DecodeFixed("ArcadeConfig", envelope);
-            RequireIdentity(envelope, fields, Address("arcade"), Protocol.ArcadeAccountVersion);
+            RequireIdentity(envelope, fields, Address("arcade"), Protocol.ProtocolAccountVersion);
             if ((string)fields["protocol"] != Address("protocol")) throw new FormatException("ArcadeConfig protocol relationship is invalid");
             return fields;
         }
@@ -57,7 +57,7 @@ namespace ZKube.Integration
         public JObject CreditVault(AccountEnvelope envelope)
         {
             var fields = DecodeFixed("CreditVault", envelope);
-            RequireIdentity(envelope, fields, Address("credit_vault"), Protocol.ArcadeAccountVersion);
+            RequireIdentity(envelope, fields, Address("credit_vault"), Protocol.ProtocolAccountVersion);
             if ((string)fields["protocol"] != Address("protocol")) throw new FormatException("CreditVault protocol relationship is invalid");
             return fields;
         }
@@ -72,7 +72,7 @@ namespace ZKube.Integration
         public JObject ArenaDaily(AccountEnvelope envelope, uint expectedDayId)
         {
             var fields = DecodeFixed("ArenaDaily", envelope);
-            RequireIdentity(envelope, fields, Address("arena_daily", LittleDay(expectedDayId)), Protocol.ArcadeAccountVersion);
+            RequireIdentity(envelope, fields, Address("arena_daily", LittleDay(expectedDayId)), Protocol.ProtocolAccountVersion);
             if ((uint)fields["day_id"] != expectedDayId || (string)fields["arcade_config"] != Address("arcade"))
                 throw new FormatException("ArenaDaily relationship is invalid");
             return fields;
@@ -93,17 +93,17 @@ namespace ZKube.Integration
                 false, data.Take(headerBytes).ToArray()));
             string daily = Address("arena_daily", LittleDay(dayId));
             string expected = Address("arena_board", SolanaAddress.Bytes(daily), Encoding.UTF8.GetBytes(kind));
-            RequireIdentity(envelope, header, expected, Protocol.ArcadeAccountVersion);
+            RequireIdentity(envelope, header, expected, Protocol.ProtocolAccountVersion);
             if ((string)header["arena_daily"] != daily || (uint)header["day_id"] != dayId ||
                 !string.Equals(((JObject)header["kind"]).Properties().Single().Name, kind, StringComparison.OrdinalIgnoreCase))
                 throw new FormatException("Board relationship is invalid");
             uint count = (uint)header["payout_count"], cursor = (uint)header["cursor"];
             long sealedAt = (long)header["sealed_at"];
-            bool sealedBoard = (bool)header["sealed"];
+            bool sealedBoard = cursor == count;
             if (count > Protocol.ArenaBoardCapacity || cursor > count || count > (uint)header["width_count"] ||
                 count > (uint)header["qualified_count"] || (bool)header["capacity_limited"] != (count < (uint)header["width_count"]) ||
                 (count > 0 && BigInteger.Parse((string)header["denominator"], CultureInfo.InvariantCulture) == 0) ||
-                sealedBoard != (cursor == count) || (!sealedBoard && sealedAt != 0) || (sealedBoard && sealedAt <= 0) || sealedAt > 9007199254740991L ||
+                (!sealedBoard && sealedAt != 0) || (sealedBoard && sealedAt <= 0) || sealedAt > 9007199254740991L ||
                 (uint)header["claimed_count"] > count ||
                 data.Length != headerBytes + (long)cursor * rowBytes + (count + 7) / 8)
                 throw new FormatException("Board allocation is invalid");
@@ -158,11 +158,11 @@ namespace ZKube.Integration
         {
             var fields = DecodeFixed("ArenaPlayer", envelope);
             string daily = Address("arena_daily", LittleDay(dayId));
-            RequireIdentity(envelope, fields, Address("arena_player", SolanaAddress.Bytes(daily), SolanaAddress.Bytes(owner)), Protocol.ArcadeAccountVersion);
+            RequireIdentity(envelope, fields, Address("arena_player", SolanaAddress.Bytes(daily), SolanaAddress.Bytes(owner)), Protocol.ProtocolAccountVersion);
             if ((string)fields["challenge"] != daily || (string)fields["player"] != owner ||
                 (uint)fields["resolved_entries"] > (uint)fields["paid_entries"] ||
-                ((bool)fields["has_score_best"] && (string)fields["score_best_entry"]["player"] != owner) ||
-                ((bool)fields["has_theme_best"] && (string)fields["theme_best_entry"]["player"] != owner))
+                ((uint)fields["score_best_entry"]["score"] > 0 && (string)fields["score_best_entry"]["player"] != owner) ||
+                ((ulong)fields["theme_best_entry"]["objective_total"] > 0 && (string)fields["theme_best_entry"]["player"] != owner))
                 throw new FormatException("ArenaPlayer relationship is invalid");
             return fields;
         }

@@ -21,8 +21,7 @@ import {
 import { discoverReconciliationPlans } from "../src/arcadeReconciliation";
 import { canonicalDevnetReplayDomainHex } from "../src/serviceReadiness";
 
-const SOURCE_IDL_SHA256 =
-  "4a578067e71dc9a63c6fe7e69545f413d811f4f99d0ec0e81c82c4962c3e3e08";
+const SOURCE_IDL_SHA256 = KEEPER_EXPECTED_IDL_SHA256;
 const DAY = 20_651;
 const RUN_ID = 42n;
 
@@ -73,9 +72,9 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     await expect(adapter.loadProtocolSnapshot()).rejects.toThrow("invalid ArenaPlayer");
   });
 
-  it("locks the fresh-bootstrap interface at 32 instructions and 8 accounts", async () => {
+  it("locks the fresh-bootstrap interface at 31 instructions and 8 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(32);
+    expect(idl.instructions).toHaveLength(31);
     expect(idl.accounts).toHaveLength(8);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
@@ -138,13 +137,9 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       ["consume_arena_run", arcade(owner, "base"), "consume_arena_run"],
       ["expire_unresolved_arena_run", arcade(owner, "unavailable"),
         "expire_unresolved_arena_run"],
-      ["cleanup_orphan_active_run", arcade(owner, "base"),
-        "cleanup_orphan_active_run"],
       ["finalize_arena_daily", {
         dayId: DAY,
         followingDayId: DAY + 1,
-        scorePayoutCount: 1,
-        themePayoutCount: 0,
       }, "finalize_arena_daily"],
       ["submit_arena_board_chunk", {
         dayId: DAY,
@@ -158,7 +153,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
           finalizedAt: DAY * 86_400,
           replayHash: new Uint8Array(32),
         }],
-        sealBoard: true,
       }, "submit_arena_board_chunk"],
       ["expire_daily_claims", {
         dayId: DAY,
@@ -209,6 +203,25 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     expect(instruction?.keys).toHaveLength(5);
     expect(instruction?.keys.some(({ pubkey }) => pubkey.equals(arenaDailyPda(DAY))))
       .toBe(true);
+  });
+
+  it("materializes orphan consumption without period accounts", async () => {
+    const adapter = await createAdapter();
+    const keeper = Keypair.generate().publicKey;
+    const owner = Keypair.generate().publicKey;
+    const [instruction] = await adapter.materialize({
+      operation: "consume_arena_run",
+      context: { ...arcade(owner, "base"), includeArenaPlayer: false },
+      programId: ZKUBE_PROGRAM_ID,
+      keeper,
+    });
+    const definition = readIdl().instructions.find(({ name }) => name === "consume_arena_run")!;
+    expect([...instruction!.data]).toEqual(definition.discriminator);
+    for (const name of ["arena_daily", "arena_player"]) {
+      const index = definition.accounts.findIndex((account) => account.name === name);
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(instruction!.keys[index]!.pubkey.equals(ZKUBE_PROGRAM_ID)).toBe(true);
+    }
   });
 });
 

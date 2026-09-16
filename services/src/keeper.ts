@@ -365,8 +365,7 @@ export async function verifyConfirmedWrite(
 
 function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string> {
   const closed = new Set<string>();
-  if (plan.operation === "consume_arena_run" ||
-      plan.operation === "cleanup_orphan_active_run") {
+  if (plan.operation === "consume_arena_run") {
     const owner = plan.context?.owner;
     const runId = plan.context?.runId;
     if (!owner || runId === undefined) {

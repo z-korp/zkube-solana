@@ -50,7 +50,7 @@ Source implements v5 partially. Current state:
 | Area | Status |
 | --- | --- |
 | Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed realm × objective draw |
-| Program surface | Built — 32 instructions and 8 account types; Arcade-only run lifecycle and one Campaign save write |
+| Program surface | Built — 31 instructions and 8 account types; Arcade-only run lifecycle and one Campaign save write |
 | Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 directly to the team destination at purchase |
 | `PlayerState` | Built — 206 bytes; the player's reported Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
@@ -147,7 +147,7 @@ funded device session. Campaign gameplay now runs locally, while the existing
 own device and synchronized across their devices. The program does not verify
 this progress, and it has no effect on money. Emblems 1–12 reflect that reported
 progress; `emblem_unlocked` keeps its existing star gate.
-`campaign_badges_and_emblems_are_derived_from_stars` guards
+`sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges` guards
 that unchanged gate. Daily, Kredits, boards, claims, the ladder, and keeper
 cadence retain their rules.
 
@@ -160,7 +160,7 @@ three Campaign lifecycle instructions, one run slot, the content accounts, and
 leaves 338 bytes. Removing the content
 accounts also removes their two publication/activation instructions: five
 instructions removed in total. The interface contract
-`locks the fresh-bootstrap interface at 32 instructions and 8 accounts` and
+`locks the fresh-bootstrap interface at 31 instructions and 8 accounts` and
 `target_accounts_fit_normal_solana_account_limits` pin the current surface after
 the cleanup below.
 
@@ -174,11 +174,11 @@ active run holds a rules snapshot.
 guards reconstruction, while `daily_window_is_derived_at_epoch_and_u32_day_bounds`
 and `DailyWindowUsesTheCoreAcrossTheFullDayRange` guard the shared clock rule.
 `account_sizes_and_maximum_board_rent_are_explicit` pins the 165-byte Daily.
-The player account version is 3; protocol/active-run and Arcade versions are 4.
+The player account version is 3; the shared protocol account version is 5.
 Generated protocol constants and the interface test guard these fresh-bootstrap
 layouts. `target_accounts_fit_normal_solana_account_limits` pins the 107-byte
 protocol account; `account_sizes_and_maximum_board_rent_are_explicit` pins the
-87-byte ArcadeConfig.
+86-byte ArcadeConfig.
 
 **Board construction amendment approved 2026-09-16.** The CPI growth limit was
 found on 2026-09-16; no earlier test covered board creation above 120 rows.
@@ -350,9 +350,10 @@ ladder tier boundaries, and the flat qualifying credit.
   the account by exactly its submitted rows; construction cannot exceed the
   finalized width and sealing requires the exact final data length.
   `cadence_funding_creates_exact_boards_through_the_full_capacity` exercises
-  120, 121 and 1,536 rows on both boards;
+  120, 121 and 1,536 rows on both boards and rejects short, oversized and
+  over-width construction accounts;
   `sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards`
-  rejects short, oversized and over-width construction accounts.
+  guards row validation, ordering and the construction cursor.
   The keeper submits at most ten sorted rows per write, and the program
   verifies every row against its `ArenaPlayer`, enforces ordering and uniqueness
   across the persisted cursor, and seals only the program-computed count. Claims
@@ -448,8 +449,9 @@ ladder tier boundaries, and the flat qualifying credit.
   map. The replacement consumes an additional VRF output and folds into the
   replay commitment as its own event under a distinct domain separator. The
   core `perfect_clear_grants_or_discards_at_the_reroll_cap`, program
-  `reroll_request_is_an_accepted_action_that_awaits_its_own_vrf`, SBF reroll
-  contracts, and source supersession guard enforce the inventory and split.
+  `reroll_request_is_an_accepted_action_that_awaits_its_own_vrf`,
+  `sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector`,
+  and source supersession guard enforce the inventory and split.
 - **A Kredit is never granted, discounted, or bundled as a bonus.** Every Kredit
   in existence was bought at the same price, so every entry contributes the same
   lamports and no entry dilutes another. Larger packs carry cosmetics only. Free
@@ -492,7 +494,7 @@ themes, and starting guardian charges are superseded as well.
   canonical instruction allowlist, the release's two declared write ceilings,
   0.1 SOL simulated spend per pass, and a 0.1 SOL reserve floor. The schema-1
   source release currently declares six general writes, thirty-two
-  board-construction writes, and at most 1,802,208,480 lamports of recyclable board rent per
+  board-construction writes, and at most 1,802,194,560 lamports of recyclable board rent per
   pass; those numbers are a proposal until approved, not inherited permission.
 - Governance, initial competition seeding, manual reimbursement, terms/rules
   changes, funding, withdrawals, deployment, initial keeper enablement, and all
@@ -751,16 +753,18 @@ that shared driver. The Arcade Solana lifecycle reconstructs that `Run` for ever
 move, bonus, and reroll transition rather than maintaining a second accounting
 path; `program_and_core_score_one_action_identically` guards the projection.
 `ActiveRun` stores only fields read by a handler, result row, hash, or client
-view, and its 338-byte account size is pinned by
-`target_accounts_fit_normal_solana_account_limits`. Native Rust, WASM, and the
-Solana program must pass the same committed golden vectors before an ABI is
-releasable; `wasm_run_matches_native_golden_vectors` and
-`wasm_protocol_matches_native_golden_vectors` guard the generated boundary.
+view, and its 337-byte account size is pinned by
+`target_accounts_fit_normal_solana_account_limits`.
+`ActualManagedNativeCallsMatchEveryTransitionAndTrace` guards the native run
+boundary against the core trajectories, `program_and_core_score_one_action_identically`
+guards the program projection, and `wasm_protocol_matches_native_golden_vectors`
+guards the keeper's protocol exports.
 
 Replay v2 binds the chain domain, challenge, rules hash, player, run ID, and
 the fixed zero tag retained from its original encoding, then folds ordered VRF,
 action, bonus, abandon, and deadline events with SHA-256.
-`wasm_run_matches_native_golden_vectors` guards the unchanged commitments.
+`committed_daily_run_vector_recomputes_end_to_end` and
+`committed_zero_action_deadline_vector_recomputes_end_to_end` guard the unchanged commitments.
 Permanent board rows retain the qualifying replay commitment; move
 lists may stay off-chain and be independently recomputed.
 
@@ -941,7 +945,12 @@ for rent. `a_closed_arena_player_returns_rent_to_its_payer` guards the keeper's
 program-derived instruction and the SBF closure: a live parent retains its
 player records, and a closed parent returns their rent to the stored payer.
 Governance remains owner work. `keeper_allowlist_is_exactly_its_plans` pins the
-fourteen instructions to the plan producers.
+thirteen instructions to the plan producers.
+`consume_arena_run` also closes an expired orphan without its period accounts;
+`an_expired_orphan_closes_without_period_accounts` guards its rent refund and
+unchanged player fields. A missed Funding day finalizes directly after its
+window and predecessor rollover;
+`a_missed_funding_day_finalizes_after_its_window_and_rollover` guards that path.
 
 A keeper outage is a degradation, not a loss of player authority: winners can
 still claim, interested callers can drive permissionless work, and no off-chain
@@ -966,9 +975,9 @@ The ProgramData hash, keeper key and launch day are release environment inputs:
 `requires fresh release inputs and binds their changes` guards the runtime boundary.
 The release fingerprint pins every field checked at runtime: Devnet genesis,
 deployed ProgramData hash, program ID, keeper signer, schema and IDL identity,
-entry economics, the fourteen-instruction allowlist, a six-write general limit,
+entry economics, the thirteen-instruction allowlist, a six-write general limit,
 a separate 32-write board-construction limit, the 1,536-row board bound, the
-1,802,208,480-lamport recyclable board-rent ceiling, a 0.1 SOL simulated spend
+1,802,194,560-lamport recyclable board-rent ceiling, a 0.1 SOL simulated spend
 ceiling, a 0.1 SOL reserve floor, and Fly's unique deployment image reference.
 The replay domain is derived from genesis and program identity rather than
 stored in the fingerprint. The enforced cadence ordering is finalize, construct
@@ -997,7 +1006,7 @@ account reconstruction accepts only Arcade rules. `StarRules` owns Campaign
 star requirements; the move budget remains a separate run rule. The core has
 one observed form of each transition, with `NoPresentation` used by the program.
 `perfect_clear_observation_preserves_move_bonus_and_capped_state` and
-`wasm_run_matches_native_golden_vectors` guard the transition and codec results.
+`ActualManagedNativeCallsMatchEveryTransitionAndTrace` guard the transition and codec results.
 The keeper payout export calls the bounded core plan;
 `bounded_payout_plan_keeps_the_full_width_and_denominator` guards retained rows
 without renormalization, alongside the unchanged payout golden vectors.

@@ -70,14 +70,7 @@ struct GoldenDailyRun {
     expected: GoldenExpected,
 }
 
-fn decode_32(value: &str) -> [u8; 32] {
-    assert_eq!(value.len(), 64);
-    let mut result = [0u8; 32];
-    for (index, byte) in result.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap();
-    }
-    result
-}
+use crate::hash::decode_32;
 
 #[allow(clippy::too_many_lines)]
 fn verify_daily_run_vector(json: &str) {
@@ -102,7 +95,8 @@ fn verify_daily_run_vector(json: &str) {
     assert_eq!(rules_hash.to_bytes(), decode_32(&fixture.rules_hash_hex));
     let domain = ChainDomain(decode_32(&fixture.chain_domain_hex));
     let challenge = ChallengeId(decode_32(&fixture.challenge_id_hex));
-    let player_id = derive_player_id(domain, decode_32(&fixture.raw_account_hex));
+    let player_id =
+        derive_player_id_with::<SoftwareSha256>(domain, decode_32(&fixture.raw_account_hex));
     let initial_replay = ReplayCommitment::initial(
         domain,
         challenge,

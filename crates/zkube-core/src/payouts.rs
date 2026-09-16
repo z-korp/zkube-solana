@@ -1,6 +1,6 @@
 /// Protocol payout granularity: 0.001 SOL expressed in lamports.
 pub const SOL_PAYOUT_UNIT_LAMPORTS: u64 = 1_000_000;
-pub const MIN_BOARD_PAYOUT_PLACES: u32 = 4;
+pub(crate) const MIN_BOARD_PAYOUT_PLACES: u32 = 4;
 
 // The largest fixed-point numerator keeps every valid u32 rank non-zero.
 // Its common scale cancels during normalization.
@@ -173,19 +173,6 @@ pub fn rank_weighted_payouts<const N: usize>(
         paid,
         rollover: pool.checked_sub(paid).ok_or(PayoutError::Overflow)?,
     })
-}
-
-pub fn sol_rank_weighted_payouts<const N: usize>(
-    pool: u64,
-    qualified_winners: u32,
-    entry_price: u64,
-) -> Result<PayoutPlan<N>, PayoutError> {
-    rank_weighted_payouts(
-        pool,
-        qualified_winners,
-        entry_price,
-        SOL_PAYOUT_UNIT_LAMPORTS,
-    )
 }
 
 /// Deterministic fixed-point harmonic weight.
@@ -601,7 +588,9 @@ mod tests {
 
     #[test]
     fn rank_curve_expands_until_the_last_place_no_longer_covers_entry() {
-        let plan = sol_rank_weighted_payouts::<50>(1_000_000_000, 50, 10_000_000).unwrap();
+        let plan =
+            rank_weighted_payouts::<50>(1_000_000_000, 50, 10_000_000, SOL_PAYOUT_UNIT_LAMPORTS)
+                .unwrap();
         assert_eq!(plan.winner_count, 25);
         assert!(plan.payouts[..25].windows(2).all(|pair| pair[0] >= pair[1]));
         assert!(plan.payouts[24] >= 10_000_000);
@@ -664,10 +653,13 @@ mod tests {
 
     #[test]
     fn rank_curve_keeps_four_places_and_renormalizes_fewer_qualifiers() {
-        let floor = sol_rank_weighted_payouts::<8>(20_000_000, 8, 10_000_000).unwrap();
+        let floor = rank_weighted_payouts::<8>(20_000_000, 8, 10_000_000, SOL_PAYOUT_UNIT_LAMPORTS)
+            .unwrap();
         assert_eq!(floor.winner_count, 4);
 
-        let fewer = sol_rank_weighted_payouts::<8>(100_000_000, 2, 10_000_000).unwrap();
+        let fewer =
+            rank_weighted_payouts::<8>(100_000_000, 2, 10_000_000, SOL_PAYOUT_UNIT_LAMPORTS)
+                .unwrap();
         assert_eq!(fewer.winner_count, 2);
         assert_eq!(fewer.payouts, [66_000_000, 33_000_000, 0, 0, 0, 0, 0, 0]);
         assert_eq!(fewer.paid + fewer.rollover, 100_000_000);
@@ -681,7 +673,8 @@ mod tests {
             (9_000_000, 4, [4_000_000, 2_000_000, 1_000_000, 1_000_000]),
         ] {
             let width = board_width(pool, 8, 10_000_000, SOL_PAYOUT_UNIT_LAMPORTS).unwrap();
-            let plan = sol_rank_weighted_payouts::<8>(pool, 8, 10_000_000).unwrap();
+            let plan =
+                rank_weighted_payouts::<8>(pool, 8, 10_000_000, SOL_PAYOUT_UNIT_LAMPORTS).unwrap();
             let paid_before_trim = (1..=MIN_BOARD_PAYOUT_PLACES)
                 .map(|rank| {
                     payout_for_rank(pool, width.denominator, rank, SOL_PAYOUT_UNIT_LAMPORTS)
@@ -701,7 +694,8 @@ mod tests {
     fn all_zero_places_trim_to_no_winners_and_full_rollover() {
         let pool = SOL_PAYOUT_UNIT_LAMPORTS - 1;
         let width = board_width(pool, 8, 10_000_000, SOL_PAYOUT_UNIT_LAMPORTS).unwrap();
-        let plan = sol_rank_weighted_payouts::<8>(pool, 8, 10_000_000).unwrap();
+        let plan =
+            rank_weighted_payouts::<8>(pool, 8, 10_000_000, SOL_PAYOUT_UNIT_LAMPORTS).unwrap();
 
         assert_eq!(width.winner_count, 0);
         assert_ne!(width.denominator, 0);
@@ -716,10 +710,11 @@ mod tests {
         let fixture: Value =
             serde_json::from_str(include_str!("../../../fixtures/game-parity.json")).unwrap();
         let payout = &fixture["phase1Core"]["rankPayout"];
-        let plan = sol_rank_weighted_payouts::<50>(
+        let plan = rank_weighted_payouts::<50>(
             payout["poolLamports"].as_u64().unwrap(),
             u32::try_from(payout["qualifiedWinners"].as_u64().unwrap()).unwrap(),
             payout["entryPriceLamports"].as_u64().unwrap(),
+            SOL_PAYOUT_UNIT_LAMPORTS,
         )
         .unwrap();
         let expected = payout["payoutsLamports"]

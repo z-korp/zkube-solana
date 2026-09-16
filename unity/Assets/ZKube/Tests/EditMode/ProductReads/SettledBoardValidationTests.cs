@@ -18,18 +18,18 @@ namespace ZKube.Tests.ProductReads
             Assert.That(e.Accounts.ArenaBoard(Envelope(source),day,"score").Sealed,Is.True);
             foreach(var bad in new[]{
                 PatchAccount(source,"ArenaBoard",("cursor",Number(0,4))),
-                PatchAccount(source,"ArenaBoard",("sealed",new byte[]{0}),("sealed_at",Number(0,8))),
-                PatchAccount(source,"ArenaBoard",("sealed",new byte[]{0}),("cursor",Number(0,4)),("sealed_at",Number(ulong.MaxValue,8))),
+                PatchAccount(source,"ArenaBoard",("sealed_at",Number(0,8))),
+                PatchAccount(source,"ArenaBoard",("cursor",Number(0,4)),("sealed_at",Number(ulong.MaxValue,8))),
                 PatchAccount(source,"ArenaBoard",("width_count",Number(0,4))),
                 PatchAccount(source,"ArenaBoard",("qualified_count",Number(0,4))),
                 PatchAccount(source,"ArenaBoard",("capacity_limited",new byte[]{1})) })
                 Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(bad),day,"score"));
-            var constructing=PatchAccount(source,"ArenaBoard",("sealed",new byte[]{0}),("cursor",Number(0,4)),("sealed_at",Number(0,8)));
+            var constructing=PatchAccount(source,"ArenaBoard",("cursor",Number(0,4)),("sealed_at",Number(0,8)));
             Assert.Throws<FormatException>(() => e.Accounts.ArenaBoard(Envelope(constructing), day, "score"));
             constructing = ConstructionPrefix(e, constructing, 0);
             Assert.That(e.Accounts.ArenaBoard(Envelope(constructing),day,"score").Sealed,Is.False);
             var two=TwoRows(e,source);
-            var partial=PatchAccount(two,"ArenaBoard",("sealed",new byte[]{0}),("cursor",Number(1,4)),("sealed_at",Number(0,8)));
+            var partial=PatchAccount(two,"ArenaBoard",("cursor",Number(1,4)),("sealed_at",Number(0,8)));
             partial = ConstructionPrefix(e, partial, 1);
             Assert.That(e.Accounts.ArenaBoard(Envelope(partial),day,"score").Rows,Is.Empty,"validated prefix is not claimable before automatic sealing");
             var empty=PatchAccount(source,"ArenaBoard",("payout_count",Number(0,4)),("width_count",Number(0,4)),("qualified_count",Number(0,4)),
@@ -50,7 +50,7 @@ namespace ZKube.Tests.ProductReads
             foreach(var bad in new[]{PatchBoardRow(e,valid,0,"score",Number(0,4)),PatchBoardRow(e,valid,1,"score",Number(11,4)),
                 PatchBoardRow(e,valid,0,"finalized_at",Number(ulong.MaxValue,8)),badTime,badWallet})
                 Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(bad),day,"score"));
-            var badPrefix=PatchAccount(PatchBoardRow(e,valid,0,"score",Number(0,4)),"ArenaBoard",("sealed",new byte[]{0}),("cursor",Number(1,4)),("sealed_at",Number(0,8)));
+            var badPrefix=PatchAccount(PatchBoardRow(e,valid,0,"score",Number(0,4)),"ArenaBoard",("cursor",Number(1,4)),("sealed_at",Number(0,8)));
             badPrefix = ConstructionPrefix(e, badPrefix, 1);
             Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(badPrefix),day,"score"));
             var theme=(JObject)e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="theme"&&(string)row["variant"]=="sealed")["envelope"];

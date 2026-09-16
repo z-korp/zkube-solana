@@ -204,7 +204,6 @@ pub fn encode_payout_plan(plan: &ProtocolPayoutPlan) -> Vec<u8> {
 mod wasm {
     use super::*;
     use wasm_bindgen::prelude::*;
-    use zkube_core::{ReplayCommitment, RulesHash};
 
     fn js_error(error: BoundaryError) -> JsError {
         let message = match error {
@@ -299,22 +298,8 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    mod golden_rules {
-        use zkube_core::*;
-        include!("../../zkube-core/src/golden_rules.rs");
-    }
     use super::*;
     use serde_json::Value;
-    use zkube_core::{ReplayCommitment, RulesHash};
-    use zkube_core::{Run, RunConfig, RunEndReason};
-
-    fn decode_32(value: &str) -> [u8; 32] {
-        let mut output = [0u8; 32];
-        for (index, byte) in output.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap();
-        }
-        output
-    }
 
     #[test]
     fn validates_lengths_and_modes_at_the_boundary() {
@@ -401,84 +386,5 @@ mod tests {
             assert_eq!(plan.payouts[index], amount);
         }
         assert_eq!(encode_payout_plan(&plan).len(), 41 + plan.payouts.len() * 8);
-    }
-
-    #[test]
-    fn wasm_run_matches_native_golden_vectors() {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../fixtures/replays/golden-daily-run-v1.json"
-        ))
-        .unwrap();
-        let rules =
-            golden_rules::fixture_rules(&serde_json::from_value(fixture["rules"].clone()).unwrap());
-        let config = RunConfig {
-            rules_hash: RulesHash(decode_32(fixture["rules_hash_hex"].as_str().unwrap())),
-            rules,
-            initial_replay: ReplayCommitment(decode_32(
-                fixture["initial_replay_hash_hex"].as_str().unwrap(),
-            )),
-        };
-        let config_bytes = encode_run_config(config);
-        let mut native = Run::new(config).unwrap();
-        let mut state = initialize_run(&config_bytes).unwrap();
-        assert_eq!(decode_run_state(&state).unwrap(), native);
-
-        native
-            .apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
-                rules,
-                1,
-                [0x11; 32],
-                &mut zkube_core::NoPresentation,
-            )
-            .unwrap();
-        state = run_apply_vrf(&config_bytes, &state, 1, &[0x11; 32]).unwrap();
-        assert_eq!(decode_run_state(&state).unwrap(), native);
-        let movement = &fixture["events"][1];
-        let row = u8::try_from(movement["row"].as_u64().unwrap()).unwrap();
-        let start = u8::try_from(movement["start"].as_u64().unwrap()).unwrap();
-        let destination = u8::try_from(movement["destination"].as_u64().unwrap()).unwrap();
-        native
-            .play_move_observed_with::<zkube_core::SoftwareSha256, _>(
-                rules,
-                0,
-                0,
-                row,
-                start,
-                destination,
-                &mut zkube_core::NoPresentation,
-            )
-            .unwrap();
-        state = run_play_move(&config_bytes, &state, 0, 0, row, start, destination).unwrap();
-        assert_eq!(decode_run_state(&state).unwrap(), native);
-        native
-            .apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
-                rules,
-                2,
-                [0x22; 32],
-                &mut zkube_core::NoPresentation,
-            )
-            .unwrap();
-        state = run_apply_vrf(&config_bytes, &state, 2, &[0x22; 32]).unwrap();
-        native
-            .finish_observed_with::<zkube_core::SoftwareSha256, _>(
-                rules,
-                RunEndReason::Deadline,
-                &mut zkube_core::NoPresentation,
-            )
-            .unwrap();
-        state = run_finish(&config_bytes, &state, 4).unwrap();
-
-        let boundary = decode_run_state(&state).unwrap();
-        assert_eq!(boundary, native);
-        assert_eq!(run_end_reason(&state).unwrap(), 4);
-        assert!(run_score_eligible(&state).unwrap());
-        assert_eq!(
-            boundary.replay.to_bytes(),
-            decode_32(
-                fixture["expected"]["final_replay_hash_hex"]
-                    .as_str()
-                    .unwrap()
-            )
-        );
     }
 }

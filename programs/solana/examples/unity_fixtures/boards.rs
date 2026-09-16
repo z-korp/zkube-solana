@@ -16,7 +16,7 @@ pub fn empty(day: u32) -> Value {
     let (address, bump) = pda(&[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()]);
     let plan = board_payout_plan(0, 0).unwrap();
     let board = ArenaBoard {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         arena_daily: daily,
         day_id: day,
         kind,
@@ -29,7 +29,7 @@ pub fn empty(day: u32) -> Value {
         rollover_lamports: plan.rollover_lamports,
         capacity_limited: plan.capacity_limited,
         cursor: 0,
-        sealed: true,
+
         sealed_at: NOW - 100,
         claimed_lamports: 0,
         claimed_count: 0,
@@ -78,7 +78,7 @@ pub fn with_terms(day: u32, kind: DailyBoardKind, player: Pubkey, terms: Terms) 
     let pool = 1_000_000_000;
     let plan = board_payout_plan(pool, terms.qualified).unwrap();
     let mut board = ArenaBoard {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         arena_daily: daily,
         day_id: day,
         kind,
@@ -91,7 +91,7 @@ pub fn with_terms(day: u32, kind: DailyBoardKind, player: Pubkey, terms: Terms) 
         rollover_lamports: plan.rollover_lamports,
         capacity_limited: plan.capacity_limited,
         cursor: if terms.sealed { plan.count } else { 0 },
-        sealed: terms.sealed,
+
         sealed_at: terms.sealed_at,
         claimed_lamports: 0,
         claimed_count: u32::from(terms.claimed),
@@ -114,12 +114,12 @@ pub fn with_terms(day: u32, kind: DailyBoardKind, player: Pubkey, terms: Terms) 
             finalized_at: NOW - 100,
             replay_hash: [7; 32],
         };
-        let offset = ArenaBoard::HEADER_SIZE + index as usize * ARENA_BOARD_ENTRY_SIZE;
-        row.serialize(&mut &mut bytes[offset..offset + ARENA_BOARD_ENTRY_SIZE])
+        let offset = ArenaBoard::HEADER_SIZE + index as usize * ArenaBoardEntry::INIT_SPACE;
+        row.serialize(&mut &mut bytes[offset..offset + ArenaBoardEntry::INIT_SPACE])
             .unwrap();
     }
     if terms.claimed {
-        bytes[ArenaBoard::HEADER_SIZE + board.cursor as usize * ARENA_BOARD_ENTRY_SIZE] = 1;
+        bytes[ArenaBoard::HEADER_SIZE + board.cursor as usize * ArenaBoardEntry::INIT_SPACE] = 1;
     }
     json!({"address": address.to_string(), "owner": solana::ID.to_string(), "executable": false, "data": encoded(bytes)})
 }

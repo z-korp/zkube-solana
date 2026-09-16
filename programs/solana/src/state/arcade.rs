@@ -3,9 +3,8 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::protocol::PlayerState;
+use crate::state::protocol::{PlayerState, ACCOUNT_VERSION};
 
-pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
 pub const CADENCE_FUNDING_SEED: &[u8] = b"cadence_funding";
 pub const CREDIT_VAULT_SEED: &[u8] = b"credit_vault";
@@ -16,15 +15,11 @@ pub const ARENA_PLAYER_SEED: &[u8] = b"arena_player";
 pub const LADDER_QUALIFY_POINTS: u32 = zkube_core::LADDER_QUALIFY_POINTS;
 
 pub const ARENA_ENTRY_LAMPORTS: u64 = zkube_core::ARENA_ENTRY_LAMPORTS;
-pub const ENTRY_DAILY_LAMPORTS: u64 = zkube_core::ENTRY_DAILY_LAMPORTS;
-pub const ENTRY_OPERATOR_LAMPORTS: u64 = zkube_core::ENTRY_OPERATOR_LAMPORTS;
 /// Hard safety ceiling for one independently allocated payout board. The width
 /// rule remains authoritative below this ceiling and any narrowing is recorded
 /// in the immutable board header.
 pub const ARENA_BOARD_CAPACITY: usize = zkube_core::ARENA_BOARD_CAPACITY;
 pub const ARENA_BOARD_CHUNK_CAPACITY: usize = 10;
-pub const ARENA_BOARD_ENTRY_SIZE: usize = 84;
-pub const ARENA_RUNS_CLOSE_OFFSET: i64 = zkube_core::DAILY_RUN_CLOSE_OFFSET;
 pub const STUCK_RUN_RECOVERY_SECONDS: i64 = zkube_core::RUN_RECOVERY_SECONDS;
 
 /// Routes canonical core hash schedules through Solana's SHA-256 syscall on
@@ -44,7 +39,6 @@ pub struct ArcadeConfig {
     pub protocol: Pubkey,
     /// Days below this absolute identifier are suspended; zero disables it.
     pub suspended_until_day: u32,
-    pub launch_seeded: bool,
     pub launch_day_id: u32,
     /// Last finalized Daily committed by the permanent result root.
     pub last_daily_id: u32,
@@ -55,10 +49,9 @@ pub struct ArcadeConfig {
 impl ArcadeConfig {
     pub fn canonical(protocol: Pubkey, bump: u8) -> Self {
         Self {
-            version: ARCADE_ACCOUNT_VERSION,
+            version: ACCOUNT_VERSION,
             protocol,
             suspended_until_day: 0,
-            launch_seeded: false,
             launch_day_id: 0,
             last_daily_id: 0,
             daily_root: [0; 32],
@@ -68,13 +61,13 @@ impl ArcadeConfig {
 
     pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
         require!(
-            self.launch_seeded
+            self.launch_day_id > 0
                 && day_id >= self.launch_day_id
                 && ((self.last_daily_id < self.launch_day_id && day_id == self.launch_day_id)
                     || (self.last_daily_id >= self.launch_day_id && day_id > self.last_daily_id)),
             ErrorCode::InvalidPeriod
         );
-        self.daily_root = crate::game::sha256v(&[
+        self.daily_root = zkube_core::sha256v_with::<SolanaSha256>(&[
             b"zkube-arcade-daily-root-v1",
             &self.daily_root,
             &day_id.to_le_bytes(),
@@ -90,39 +83,26 @@ impl ArcadeConfig {
 pub struct CreditVault {
     pub version: u8,
     pub protocol: Pubkey,
-    /// Exact 9,000,000-lamport prize deposits made by Kredit purchases.
-    pub purchased_prize_lamports: u64,
-    /// Exact prize deposits already routed by spent Kredits.
-    pub spent_prize_lamports: u64,
+    /// Prize deposits not yet routed to a Daily by spent Kredits.
+    pub available_prize_lamports: u64,
     pub bump: u8,
 }
 
 impl CreditVault {
-    pub fn available_prize_lamports(&self) -> Result<u64> {
-        self.purchased_prize_lamports
-            .checked_sub(self.spent_prize_lamports)
-            .ok_or_else(|| error!(ErrorCode::AccountingInvariant))
-    }
-
     pub fn record_purchase(&mut self, prize_lamports: u64) -> Result<()> {
-        require!(prize_lamports > 0, ErrorCode::InvalidKreditPurchase);
-        self.purchased_prize_lamports = self
-            .purchased_prize_lamports
+        require!(prize_lamports > 0, ErrorCode::InvalidState);
+        self.available_prize_lamports = self
+            .available_prize_lamports
             .checked_add(prize_lamports)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         Ok(())
     }
 
     pub fn record_spend(&mut self, prize_lamports: u64) -> Result<()> {
-        require!(
-            prize_lamports == ENTRY_DAILY_LAMPORTS
-                && self.available_prize_lamports()? >= prize_lamports,
-            ErrorCode::AccountingInvariant
-        );
-        self.spent_prize_lamports = self
-            .spent_prize_lamports
-            .checked_add(prize_lamports)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        self.available_prize_lamports = self
+            .available_prize_lamports
+            .checked_sub(prize_lamports)
+            .ok_or(ErrorCode::AccountingInvariant)?;
         Ok(())
     }
 }
@@ -244,7 +224,6 @@ pub struct ArenaBoard {
     pub capacity_limited: bool,
     /// Number of verified rows already appended.
     pub cursor: u32,
-    pub sealed: bool,
     /// Starts this board's independent reward-claim window.
     pub sealed_at: i64,
     pub claimed_lamports: u64,
@@ -254,6 +233,10 @@ pub struct ArenaBoard {
 
 impl ArenaBoard {
     pub const HEADER_SIZE: usize = 8 + Self::INIT_SPACE;
+
+    pub fn sealed(&self) -> bool {
+        self.cursor == self.payout_count
+    }
 
     pub fn bitmap_size(payout_count: u32) -> Result<usize> {
         let count = usize::try_from(payout_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
@@ -271,11 +254,11 @@ impl ArenaBoard {
         require!(cursor <= payout_count, ErrorCode::BoardIncomplete);
         require!(
             usize::try_from(payout_count).is_ok_and(|count| count <= ARENA_BOARD_CAPACITY),
-            ErrorCode::BoardCapacityExceeded
+            ErrorCode::BoardIncomplete
         );
         let rows = usize::try_from(cursor)
             .map_err(|_| ErrorCode::ArithmeticOverflow)?
-            .checked_mul(ARENA_BOARD_ENTRY_SIZE)
+            .checked_mul(ArenaBoardEntry::INIT_SPACE)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         let masks = Self::bitmap_size(payout_count)?;
         Self::HEADER_SIZE
@@ -286,7 +269,7 @@ impl ArenaBoard {
 
     pub fn validate(&self, daily: Pubkey, kind: DailyBoardKind, data_len: usize) -> Result<()> {
         require!(
-            self.version == ARCADE_ACCOUNT_VERSION
+            self.version == ACCOUNT_VERSION
                 && self.arena_daily == daily
                 && self.kind == kind
                 && self.payout_count <= self.width_count
@@ -295,8 +278,8 @@ impl ArenaBoard {
                     .is_ok_and(|count| count <= ARENA_BOARD_CAPACITY)
                 && self.capacity_limited == (self.payout_count < self.width_count)
                 && self.cursor <= self.payout_count
-                && self.sealed == (self.cursor == self.payout_count)
-                && ((!self.sealed && self.sealed_at == 0) || (self.sealed && self.sealed_at > 0))
+                && ((!self.sealed() && self.sealed_at == 0)
+                    || (self.sealed() && self.sealed_at > 0))
                 && self.claimed_count <= self.payout_count
                 && data_len == Self::construction_space(self.payout_count, self.cursor)?,
             ErrorCode::AccountingInvariant
@@ -373,19 +356,16 @@ impl ArenaDaily {
         player: &mut ArenaPlayer,
         player_state: &mut PlayerState,
         candidate: ArenaBoardEntry,
-        run_id: u64,
     ) -> Result<()> {
         player_state.record_best_daily_score(candidate.score)?;
-        if candidate.score > 0 && player.record_score(DailyBoardKind::Score, candidate, run_id) {
+        if candidate.score > 0 && player.record_score(DailyBoardKind::Score, candidate) {
             self.score_qualified_players = self
                 .score_qualified_players
                 .checked_add(1)
                 .ok_or(ErrorCode::ArithmeticOverflow)?;
             let _ = player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
         }
-        if candidate.objective_total > 0
-            && player.record_score(DailyBoardKind::Theme, candidate, run_id)
-        {
+        if candidate.objective_total > 0 && player.record_score(DailyBoardKind::Theme, candidate) {
             self.theme_qualified_players = self
                 .theme_qualified_players
                 .checked_add(1)
@@ -432,61 +412,40 @@ pub struct ArenaPlayer {
     pub paid_entries: u32,
     pub resolved_entries: u32,
     pub active_paid_run_id: u64,
-    pub has_score_best: bool,
     pub score_best_entry: ArenaBoardEntry,
-    /// Retained outside the payout row for client replay/result identity.
-    pub score_best_run_id: u64,
-    pub has_theme_best: bool,
     pub theme_best_entry: ArenaBoardEntry,
-    pub theme_best_run_id: u64,
     pub bump: u8,
 }
 
 impl ArenaPlayer {
     pub fn initialize(challenge: Pubkey, player: Pubkey, rent_payer: Pubkey, bump: u8) -> Self {
         Self {
-            version: ARCADE_ACCOUNT_VERSION,
+            version: ACCOUNT_VERSION,
             challenge,
             player,
             rent_payer,
             paid_entries: 0,
             resolved_entries: 0,
             active_paid_run_id: 0,
-            has_score_best: false,
             score_best_entry: ArenaBoardEntry::default(),
-            score_best_run_id: 0,
-            has_theme_best: false,
             theme_best_entry: ArenaBoardEntry::default(),
-            theme_best_run_id: 0,
             bump,
         }
     }
 
     /// Returns true when this wallet first qualifies for the selected board.
-    pub fn record_score(
-        &mut self,
-        board: DailyBoardKind,
-        entry: ArenaBoardEntry,
-        run_id: u64,
-    ) -> bool {
-        let (has_best, best, best_run_id) = match board {
-            DailyBoardKind::Score => (
-                &mut self.has_score_best,
-                &mut self.score_best_entry,
-                &mut self.score_best_run_id,
-            ),
-            DailyBoardKind::Theme => (
-                &mut self.has_theme_best,
-                &mut self.theme_best_entry,
-                &mut self.theme_best_run_id,
-            ),
+    pub fn record_score(&mut self, board: DailyBoardKind, entry: ArenaBoardEntry) -> bool {
+        let best = match board {
+            DailyBoardKind::Score => &mut self.score_best_entry,
+            DailyBoardKind::Theme => &mut self.theme_best_entry,
         };
-        let first = !*has_best;
+        let first = match board {
+            DailyBoardKind::Score => best.score == 0,
+            DailyBoardKind::Theme => best.objective_total == 0,
+        };
         if first || compare_arena_entries(board, &entry, best).is_lt() {
             *best = entry;
-            *best_run_id = run_id;
         }
-        *has_best = true;
         first
     }
 
@@ -560,7 +519,7 @@ pub(crate) fn initialize_arena_board(
         bump,
     } = initialization;
     *board = ArenaBoard {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         arena_daily: daily,
         day_id,
         kind,
@@ -573,7 +532,6 @@ pub(crate) fn initialize_arena_board(
         rollover_lamports: plan.rollover_lamports,
         capacity_limited: plan.capacity_limited,
         cursor: 0,
-        sealed: plan.count == 0,
         sealed_at: if plan.count == 0 { finalized_at } else { 0 },
         claimed_lamports: 0,
         claimed_count: 0,
@@ -625,33 +583,12 @@ pub fn validate_finalized_board_binding(
     Ok(())
 }
 
-pub fn validate_finalized_board(
-    daily: &ArenaDaily,
-    daily_key: Pubkey,
-    board: &ArenaBoard,
-    board_data_len: usize,
-    kind: DailyBoardKind,
-) -> Result<()> {
-    validate_finalized_board_binding(daily, daily_key, board, board_data_len, kind)?;
-    let plan = board_payout_plan(board.pool_lamports, board.qualified_count)?;
-    require!(
-        board.payout_count == plan.count
-            && board.width_count == plan.width_count
-            && board.denominator == plan.denominator
-            && board.capacity_limited == plan.capacity_limited
-            && board.paid_lamports == plan.paid_lamports
-            && board.rollover_lamports == plan.rollover_lamports,
-        ErrorCode::AccountingInvariant
-    );
-    Ok(())
-}
-
 fn board_row_offset(position: u32) -> Result<usize> {
     let position = usize::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
     ArenaBoard::HEADER_SIZE
         .checked_add(
             position
-                .checked_mul(ARENA_BOARD_ENTRY_SIZE)
+                .checked_mul(ArenaBoardEntry::INIT_SPACE)
                 .ok_or(ErrorCode::ArithmeticOverflow)?,
         )
         .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
@@ -660,7 +597,7 @@ fn board_row_offset(position: u32) -> Result<usize> {
 pub fn read_board_entry(info: &AccountInfo<'_>, position: u32) -> Result<ArenaBoardEntry> {
     let start = board_row_offset(position)?;
     let end = start
-        .checked_add(ARENA_BOARD_ENTRY_SIZE)
+        .checked_add(ArenaBoardEntry::INIT_SPACE)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     let data = info.try_borrow_data()?;
     let bytes = data.get(start..end).ok_or(ErrorCode::AccountingInvariant)?;
@@ -674,7 +611,7 @@ pub fn write_board_entry(
 ) -> Result<()> {
     let start = board_row_offset(position)?;
     let end = start
-        .checked_add(ARENA_BOARD_ENTRY_SIZE)
+        .checked_add(ArenaBoardEntry::INIT_SPACE)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     let mut data = info.try_borrow_mut_data()?;
     let bytes = data
@@ -690,7 +627,7 @@ fn board_bitmap_offset(board: &ArenaBoard, position: u32) -> Result<(usize, u8)>
     require!(position < board.payout_count, ErrorCode::NoPrize);
     let rows = usize::try_from(board.payout_count)
         .map_err(|_| ErrorCode::ArithmeticOverflow)?
-        .checked_mul(ARENA_BOARD_ENTRY_SIZE)
+        .checked_mul(ArenaBoardEntry::INIT_SPACE)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     let position = usize::try_from(position).map_err(|_| ErrorCode::ArithmeticOverflow)?;
     let offset = ArenaBoard::HEADER_SIZE
@@ -714,7 +651,7 @@ pub fn set_board_bitmap(info: &AccountInfo<'_>, board: &ArenaBoard, position: u3
     let (offset, bit) = board_bitmap_offset(board, position)?;
     let mut data = info.try_borrow_mut_data()?;
     let value = data.get_mut(offset).ok_or(ErrorCode::AccountingInvariant)?;
-    require!(*value & bit == 0, ErrorCode::AlreadySubmitted);
+    require!(*value & bit == 0, ErrorCode::InvalidState);
     *value |= bit;
     Ok(())
 }
@@ -726,7 +663,7 @@ pub fn arcade_prize_at_position(
     position: u32,
 ) -> Result<RankedPrize> {
     require!(
-        board.sealed && board.cursor == board.payout_count,
+        board.sealed() && board.cursor == board.payout_count,
         ErrorCode::BoardIncomplete
     );
     require_keys_eq!(
@@ -759,16 +696,6 @@ pub fn next_scheduled_daily(config: &ArcadeConfig, day_id: u32) -> Result<u32> {
         .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
 }
 
-/// Entries accept any later daily rather than re-deriving the schedule: the
-/// expiry path pins `next_scheduled_daily` because it moves money
-/// permissionlessly, but an entry's target is already fenced by account
-/// existence (only the catalog-validated preparation path creates dailies)
-/// and the Funding-status gate, and a misdirected entry could only fund a
-/// real pot whose unclaimed balance rolls forward regardless.
-pub fn valid_daily_successor(source_day_id: u32, successor_day_id: u32) -> bool {
-    successor_day_id > source_day_id
-}
-
 pub fn day_window(day_id: u32) -> Result<(i64, i64, i64)> {
     Ok(zkube_core::daily_window(day_id))
 }
@@ -796,9 +723,9 @@ pub fn daily_result_hash(
     theme_info: &AccountInfo<'_>,
 ) -> Result<[u8; 32]> {
     require!(
-        score_board.sealed
+        score_board.sealed()
             && score_board.cursor == score_board.payout_count
-            && theme_board.sealed
+            && theme_board.sealed()
             && theme_board.cursor == theme_board.payout_count,
         ErrorCode::BoardIncomplete
     );
@@ -827,7 +754,7 @@ pub fn daily_result_hash(
     let theme_rows = theme_data
         .get(ArenaBoard::HEADER_SIZE..theme_rows_end)
         .ok_or(ErrorCode::AccountingInvariant)?;
-    Ok(crate::game::sha256v(&[
+    Ok(zkube_core::sha256v_with::<SolanaSha256>(&[
         zkube_core::ARCADE_DAILY_RESULT_HASH_DOMAIN.as_bytes(),
         &bytes,
         &score_header,
@@ -882,8 +809,11 @@ pub fn verify_submitted_board_entry(
     source: &ArenaPlayer,
 ) -> Result<ArenaBoardEntry> {
     let (has_best, expected) = match kind {
-        DailyBoardKind::Score => (source.has_score_best, source.score_best_entry),
-        DailyBoardKind::Theme => (source.has_theme_best, source.theme_best_entry),
+        DailyBoardKind::Score => (source.score_best_entry.score > 0, source.score_best_entry),
+        DailyBoardKind::Theme => (
+            source.theme_best_entry.objective_total > 0,
+            source.theme_best_entry,
+        ),
     };
     let entry = submitted.with_player(source.player);
     require!(
@@ -910,17 +840,6 @@ pub fn verify_next_board_entry(
     require!(
         compare_arena_entries(kind, previous, entry).is_lt(),
         ErrorCode::BoardEntryOutOfOrder
-    );
-    Ok(())
-}
-
-pub fn verify_board_completion(next_cursor: u32, payout_count: u32, seal: bool) -> Result<()> {
-    require!(next_cursor <= payout_count, ErrorCode::AccountingInvariant);
-    // Sealing is a program-computed fact. Submission is permissionless, and a
-    // completing chunk without the flag would strand the board unsealable.
-    require!(
-        seal == (next_cursor == payout_count),
-        ErrorCode::BoardIncomplete
     );
     Ok(())
 }
@@ -952,16 +871,15 @@ mod tests {
         assert_eq!(prize + operator, ARENA_ENTRY_LAMPORTS * count);
 
         let mut vault = CreditVault {
-            version: ARCADE_ACCOUNT_VERSION,
+            version: ACCOUNT_VERSION,
             protocol: Pubkey::new_unique(),
-            purchased_prize_lamports: 0,
-            spent_prize_lamports: 0,
+            available_prize_lamports: 0,
             bump: 1,
         };
         vault.record_purchase(prize).unwrap();
         vault.record_spend(split.next_daily_lamports).unwrap();
         assert_eq!(
-            vault.available_prize_lamports().unwrap(),
+            vault.available_prize_lamports,
             split.next_daily_lamports * (count - 1)
         );
     }
@@ -981,12 +899,10 @@ mod tests {
         let score_sealed_at = 1_800_000_000;
         let theme_sealed_at = score_sealed_at + zkube_core::SECONDS_PER_DAY;
         let score = ArenaBoard {
-            sealed: true,
             sealed_at: score_sealed_at,
             ..ArenaBoard::default()
         };
         let theme = ArenaBoard {
-            sealed: true,
             sealed_at: theme_sealed_at,
             ..ArenaBoard::default()
         };
@@ -1009,7 +925,6 @@ mod tests {
         let arcade = Pubkey::new_unique();
         let launch_day = 20_000;
         let mut archive = ArcadeConfig::canonical(arcade, 7);
-        archive.launch_seeded = true;
         archive.launch_day_id = launch_day;
         archive.last_daily_id = launch_day - 1;
         assert!(archive.append_daily(launch_day + 1, [2; 32]).is_err());
@@ -1086,13 +1001,12 @@ mod tests {
                     objective_total: 0,
                     ..ArenaBoardEntry::default()
                 },
-                1,
             )
             .unwrap();
         assert_eq!(daily.score_qualified_players, 0);
         assert_eq!(daily.theme_qualified_players, 0);
-        assert!(!player.has_score_best);
-        assert!(!player.has_theme_best);
+        assert_eq!(player.score_best_entry.score, 0);
+        assert_eq!(player.theme_best_entry.objective_total, 0);
         assert_eq!(state.ladder_points, 0);
     }
 
@@ -1115,7 +1029,6 @@ mod tests {
                         finalized_at: i64::try_from(index).unwrap(),
                         ..ArenaBoardEntry::default()
                     },
-                    u64::try_from(index).unwrap() + 1,
                 )
                 .unwrap();
         }
@@ -1182,7 +1095,7 @@ mod tests {
             ..ArenaBoardEntry::default()
         };
         let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, wallet, 1);
-        assert!(player.record_score(DailyBoardKind::Score, best, 1));
+        assert!(player.record_score(DailyBoardKind::Score, best));
         assert!(!player.record_score(
             DailyBoardKind::Score,
             ArenaBoardEntry {
@@ -1192,26 +1105,24 @@ mod tests {
                 replay_hash: [2; 32],
                 ..ArenaBoardEntry::default()
             },
-            2,
         ));
         assert_eq!(player.score_best_entry.replay_hash, [1; 32]);
-        assert_eq!(player.score_best_run_id, 1);
     }
 
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
-        assert_eq!(8 + ArcadeConfig::INIT_SPACE, 87);
-        assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
+        assert_eq!(8 + ArcadeConfig::INIT_SPACE, 86);
+        assert_eq!(ArenaBoardEntry::INIT_SPACE, 84);
         assert_eq!(8 + ArenaDaily::INIT_SPACE, 165);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
         assert_eq!(daily_bytes.len(), 157);
-        assert_eq!(ArenaBoard::INIT_SPACE, 117);
-        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_341);
-        assert_eq!(8 + ArenaPlayer::INIT_SPACE, 308);
+        assert_eq!(ArenaBoard::INIT_SPACE, 116);
+        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_340);
+        assert_eq!(8 + ArenaPlayer::INIT_SPACE, 290);
         assert_eq!(
             Rent::default().minimum_balance(ArenaBoard::account_space(1_536).unwrap()),
-            901_104_240
+            901_097_280
         );
         for size in [
             ArcadeConfig::INIT_SPACE,
@@ -1242,7 +1153,7 @@ mod tests {
             },
         );
         board.cursor = count;
-        board.sealed = true;
+
         board.sealed_at = 1;
         let key = Pubkey::new_unique();
         let owner = crate::ID;
@@ -1266,7 +1177,6 @@ mod tests {
     fn score_source(entry: ArenaBoardEntry) -> ArenaPlayer {
         let mut source =
             ArenaPlayer::initialize(Pubkey::new_unique(), entry.player, entry.player, 1);
-        source.has_score_best = true;
         source.score_best_entry = entry;
         source
     }
@@ -1329,16 +1239,13 @@ mod tests {
 
     #[test]
     fn seal_requires_the_program_computed_count_and_partial_board_is_unclaimable() {
-        assert!(verify_board_completion(9, 10, true).is_err());
-        assert!(verify_board_completion(11, 10, false).is_err());
-        assert!(verify_board_completion(10, 10, false).is_err());
-        verify_board_completion(9, 10, false).unwrap();
-        verify_board_completion(10, 10, true).unwrap();
-
+        assert!(ArenaBoard::construction_space(10, 11).is_err());
+        assert!(
+            ArenaBoard::construction_space(10, 9).unwrap() < ArenaBoard::account_space(10).unwrap()
+        );
         let board = ArenaBoard {
             payout_count: 1,
-            cursor: 1,
-            sealed: false,
+            cursor: 0,
             ..ArenaBoard::default()
         };
         let key = Pubkey::new_unique();
@@ -1391,5 +1298,38 @@ mod tests {
             .unwrap();
         let expired = plan.paid_lamports - claimed;
         assert_eq!(claimed + expired + plan.rollover_lamports, pool);
+    }
+    #[test]
+    fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards() {
+        for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
+            let row = ArenaBoardEntry {
+                player: Pubkey::new_unique(),
+                score: 100,
+                objective_total: 7,
+                finalized_at: 9,
+                replay_hash: [3; 32],
+            };
+            let mut source =
+                ArenaPlayer::initialize(Pubkey::new_unique(), row.player, row.player, 1);
+            source.score_best_entry = row;
+            source.theme_best_entry = row;
+            assert_eq!(
+                verify_submitted_board_entry(kind, submitted(row), &source).unwrap(),
+                row
+            );
+            let mut changed = submitted(row);
+            changed.replay_hash[0] ^= 1;
+            assert!(verify_submitted_board_entry(kind, changed, &source).is_err());
+            assert!(verify_next_board_entry(kind, &row, &row).is_err());
+            let later = ArenaBoardEntry {
+                player: Pubkey::new_unique(),
+                finalized_at: 10,
+                ..row
+            };
+            verify_next_board_entry(kind, &row, &later).unwrap();
+            assert!(verify_next_board_entry(kind, &later, &row).is_err());
+        }
+        seal_requires_the_program_computed_count_and_partial_board_is_unclaimable();
+        ordering_carries_across_many_chunks();
     }
 }

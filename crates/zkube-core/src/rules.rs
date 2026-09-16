@@ -332,11 +332,6 @@ impl StarRules {
     }
 
     #[must_use]
-    pub const fn earnable_stars(self) -> u8 {
-        self.earnable_sources_mask().count_ones() as u8
-    }
-
-    #[must_use]
     pub const fn has_valid_constraint_classes(self) -> bool {
         matches!(
             self.primary.kind.class(),
@@ -424,7 +419,7 @@ impl Default for Guardian {
 /// has no authored numeric parameter; every numeric trigger carries a positive
 /// threshold.
 #[must_use]
-pub const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) -> bool {
+pub(crate) const fn bonus_trigger_threshold_is_valid(trigger_type: u8, threshold: u16) -> bool {
     match trigger_type {
         0 | 6 => threshold == 0,
         1 | 2 | 4 | 7 | 8 | 9 => threshold > 0,
@@ -443,9 +438,9 @@ pub enum RunPhase {
 
 /// Shared upper bound for held guardian-bonus and reroll inventories.
 pub const BONUS_CHARGE_CAP: u8 = 3;
-pub const STAR_SOURCE_SCORE: u8 = 1 << 0;
-pub const STAR_SOURCE_PRIMARY: u8 = 1 << 1;
-pub const STAR_SOURCE_SECONDARY: u8 = 1 << 2;
+pub(crate) const STAR_SOURCE_SCORE: u8 = 1 << 0;
+pub(crate) const STAR_SOURCE_PRIMARY: u8 = 1 << 1;
+pub(crate) const STAR_SOURCE_SECONDARY: u8 = 1 << 2;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MoveReport {
@@ -1147,12 +1142,8 @@ mod tests {
             .map(|map| {
                 let rules = map["rules"].as_array().unwrap();
                 Guardian {
-                    bonus: match rules[0].as_u64().unwrap() {
-                        1 => Bonus::Hammer,
-                        2 => Bonus::Totem,
-                        3 => Bonus::Wave,
-                        _ => panic!("unknown guardian bonus"),
-                    },
+                    bonus: Bonus::from_tag(u8::try_from(rules[0].as_u64().unwrap()).unwrap())
+                        .unwrap(),
                     trigger: rules[1].as_u64().unwrap() as u8,
                     threshold: rules[2].as_u64().unwrap() as u16,
                 }

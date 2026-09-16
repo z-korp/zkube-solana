@@ -4,21 +4,18 @@
 //! Terminal state is timestamped by the action that reaches it, then committed
 //! and copied back before a Solana-base
 //! consumer may update durable progression. That same instruction closes the
-//! single transient account and returns rent only to the owner's canonical
-//! System-owned funding PDA.
+//! single transient account and returns rent to its
+//! stored rent payer.
 
 use anchor_lang::{prelude::*, Discriminator};
 use ephemeral_rollups_sdk::anchor::{commit, delegate};
 use ephemeral_rollups_sdk::anchor::{vrf, vrf_callback};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
-use session_keys::{session_auth_or, Session, SessionError, SessionTokenV2};
+use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
-use crate::game::sha256v;
-use crate::instructions::player_authorization::{
-    require_player_authorization, require_player_rent_payer,
-};
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::arcade::SolanaSha256;
 use crate::state::protocol::*;
 use zkube_core::{Bonus, ConstraintKind, Grid, RunEngine, RunPhase};
@@ -44,7 +41,6 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
-    require_player_rent_payer(owner, ctx.accounts.actor.key(), ctx.accounts.payer.key())?;
     let run_id = {
         let mut data = ctx.accounts.pda.try_borrow_mut_data()?;
         require!(
@@ -93,7 +89,7 @@ pub fn handler_delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()
 }
 
 #[vrf]
-#[derive(Accounts, Session)]
+#[derive(Accounts)]
 pub struct RunVrf<'info> {
     #[account(
         mut,
@@ -104,7 +100,6 @@ pub struct RunVrf<'info> {
     /// CHECK: Logical wallet authority, bound to the active run.
     #[account(address = active_run.owner @ ErrorCode::Unauthorized)]
     pub owner_authority: UncheckedAccount<'info>,
-    #[session(signer = actor, authority = owner_authority.key())]
     pub session_token: Option<Account<'info, SessionTokenV2>>,
     #[account(mut)]
     pub actor: Signer<'info>,
@@ -114,19 +109,9 @@ pub struct RunVrf<'info> {
     /// CHECK: Address/owner constrained; the handler validates the SDK record before use.
     #[account(
         address = ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(&active_run.key().to_bytes().into()).to_bytes().into(),
-        owner = Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()) @ ErrorCode::InvalidMagicProgram
+        owner = Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()) @ ErrorCode::InvalidOwner
     )]
     pub delegation_record_active: UncheckedAccount<'info>,
-}
-
-impl<'info> RunVrf<'info> {
-    pub(crate) fn invoke_vrf_request<'a>(
-        &self,
-        payer: &'a AccountInfo<'info>,
-        ix: &ephemeral_rollups_sdk::vrf::compat::Instruction,
-    ) -> std::result::Result<(), anchor_lang::solana_program::program_error::ProgramError> {
-        self.invoke_signed_vrf(payer, ix)
-    }
 }
 
 fn prepare_row_vrf_request(
@@ -166,7 +151,7 @@ fn prepare_row_vrf_request(
     );
     let run_id = active.run_id.to_le_bytes();
     let request = request_counter.to_le_bytes();
-    let caller_seed = sha256v(&[
+    let caller_seed = zkube_core::sha256v_with::<SolanaSha256>(&[
         b"zkube-row-vrf-v2",
         &client_seed,
         &run_id,
@@ -211,10 +196,6 @@ fn prepare_row_vrf_request(
     ))
 }
 
-#[session_auth_or(
-    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
-    SessionError::InvalidToken
-)]
 pub fn handler_request_vrf(ctx: Context<RunVrf>, client_seed: [u8; 32]) -> Result<()> {
     require_player_authorization(
         ctx.accounts.active_run.owner,
@@ -234,7 +215,7 @@ pub fn handler_request_vrf(ctx: Context<RunVrf>, client_seed: [u8; 32]) -> Resul
         client_seed,
     )?;
     ctx.accounts
-        .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
+        .invoke_signed_vrf(&ctx.accounts.actor.to_account_info(), &ix)?;
     Ok(())
 }
 
@@ -281,10 +262,6 @@ pub fn handler_fulfill_row_vrf(
     Ok(())
 }
 
-#[session_auth_or(
-    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
-    SessionError::InvalidToken
-)]
 pub fn handler_play_move(
     ctx: Context<RunVrf>,
     expected_action: u32,
@@ -336,15 +313,11 @@ pub fn handler_play_move(
             client_seed,
         )?;
         ctx.accounts
-            .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
+            .invoke_signed_vrf(&ctx.accounts.actor.to_account_info(), &ix)?;
     }
     Ok(())
 }
 
-#[session_auth_or(
-    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
-    SessionError::InvalidToken
-)]
 pub fn handler_apply_bonus(
     ctx: Context<RunVrf>,
     expected_action: u32,
@@ -392,15 +365,11 @@ pub fn handler_apply_bonus(
             client_seed,
         )?;
         ctx.accounts
-            .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
+            .invoke_signed_vrf(&ctx.accounts.actor.to_account_info(), &ix)?;
     }
     Ok(())
 }
 
-#[session_auth_or(
-    ctx.accounts.active_run.owner == ctx.accounts.actor.key(),
-    SessionError::InvalidToken
-)]
 pub fn handler_request_reroll(
     ctx: Context<RunVrf>,
     expected_action: u32,
@@ -434,7 +403,7 @@ pub fn handler_request_reroll(
         client_seed,
     )?;
     ctx.accounts
-        .invoke_vrf_request(&ctx.accounts.actor.to_account_info(), &ix)?;
+        .invoke_signed_vrf(&ctx.accounts.actor.to_account_info(), &ix)?;
     Ok(())
 }
 
@@ -461,7 +430,7 @@ fn terminal_action_timestamp(phase: RunPhase) -> Result<i64> {
 fn require_before_arcade_deadline(active: &ActiveRun, now: i64) -> Result<()> {
     require!(
         active.deadline_at > 0 && now < active.deadline_at,
-        ErrorCode::ChallengeEnded
+        ErrorCode::InvalidPeriod
     );
     Ok(())
 }
@@ -504,7 +473,7 @@ pub fn handler_finish_run(ctx: Context<FinishRun>, reason: RunFinishReason) -> R
         RunFinishReason::Deadline => {
             require!(
                 active.deadline_at > 0 && now >= active.deadline_at,
-                ErrorCode::ChallengeNotEnded
+                ErrorCode::InvalidPeriod
             );
             if active.lifecycle == RunLifecycle::Finished
                 && active.finish_reason == Some(RunFinishReason::Deadline)
@@ -566,7 +535,7 @@ fn vrf_fulfillment_lifecycle_is_allowed(lifecycle: RunLifecycle) -> bool {
 }
 
 fn require_matching_vrf_callback(pending: u32, expected: u32) -> Result<()> {
-    require!(pending > 0, ErrorCode::NoVrfRequestPending);
+    require!(pending > 0, ErrorCode::InvalidState);
     require!(pending == expected, ErrorCode::VrfRequestMismatch);
     Ok(())
 }
@@ -591,7 +560,7 @@ pub struct CommitRun<'info> {
     )]
     pub active_run: Account<'info, ActiveRun>,
     /// CHECK: MagicBlock context required by MagicIntentBundleBuilder.
-    #[account(mut, address = ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID @ ErrorCode::InvalidMagicProgram)]
+    #[account(mut, address = ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID @ ErrorCode::InvalidOwner)]
     pub magic_context: UncheckedAccount<'info>,
     pub magic_program: Program<'info, ephemeral_rollups_sdk::anchor::MagicProgram>,
 }
@@ -602,7 +571,7 @@ pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
             ctx.accounts.active_run.lifecycle,
             ctx.accounts.active_run.finished_at,
         ),
-        ErrorCode::GameNotFinished
+        ErrorCode::InvalidState
     );
     require!(
         ctx.accounts.active_run.pending_vrf_counter == 0,
@@ -624,7 +593,7 @@ fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
     use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
 
     let record = DelegationRecord::try_from_bytes_with_discriminator(data)
-        .map_err(|_| error!(ErrorCode::InvalidMagicProgram))?;
+        .map_err(|_| error!(ErrorCode::InvalidOwner))?;
     Ok(Pubkey::new_from_array(record.authority.to_bytes()))
 }
 
@@ -643,17 +612,14 @@ fn run_rules(active: &ActiveRun) -> Result<zkube_core::RunRules> {
         stars,
         objective,
     };
-    require!(rules.is_valid(), ErrorCode::InvalidLevel);
+    require!(rules.is_valid(), ErrorCode::InvalidState);
     Ok(rules)
 }
 
 fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
     let bonus = match active.bonus_type {
         0 => None,
-        1 => Some(Bonus::Hammer),
-        2 => Some(Bonus::Totem),
-        3 => Some(Bonus::Wave),
-        _ => return err!(ErrorCode::InvalidState),
+        tag => Some(Bonus::from_tag(tag).ok_or(ErrorCode::InvalidState)?),
     };
     let phase = match active.lifecycle {
         RunLifecycle::Prepared | RunLifecycle::Delegated | RunLifecycle::AwaitingVrf => {
@@ -692,9 +658,7 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     active.level_lines_cleared = engine.level_lines_cleared;
     active.bonus_type = match engine.bonus {
         None => 0,
-        Some(Bonus::Hammer) => 1,
-        Some(Bonus::Totem) => 2,
-        Some(Bonus::Wave) => 3,
+        Some(bonus) => bonus.tag(),
     };
     active.bonus_charges = engine.bonus_charges;
     active.reroll_charges = engine.reroll_charges;
@@ -724,7 +688,7 @@ fn run_from_active(active: &ActiveRun, rules: zkube_core::RunRules) -> Result<zk
         daily_score: active.daily_score,
         objective_total: active.objective_total,
         pressure_score: active.pressure_score,
-        current_tier: active.current_tier,
+        current_tier: rules.current_tier(active.pressure_score),
         last_vrf_counter,
         replay: zkube_core::ReplayCommitment(active.replay_hash),
         rules_hash: zkube_core::RulesHash(active.rules_hash),
@@ -747,7 +711,6 @@ pub fn write_run(active: &mut ActiveRun, run: &zkube_core::Run, terminal_at: i64
     active.daily_score = run.daily_score;
     active.objective_total = run.objective_total;
     active.pressure_score = run.pressure_score;
-    active.current_tier = run.current_tier;
     active.replay_hash = run.replay.to_bytes();
     active.lifecycle = lifecycle;
     active.finish_reason = finish_reason;
@@ -791,7 +754,7 @@ fn map_transition_error(error: zkube_core::RunTransitionError) -> anchor_lang::e
             error!(ErrorCode::VrfRequestMismatch)
         }
         zkube_core::RunTransitionError::Randomness(_) => {
-            error!(ErrorCode::InvalidBlockWeights)
+            error!(ErrorCode::InvalidState)
         }
         zkube_core::RunTransitionError::Overflow => error!(ErrorCode::ArithmeticOverflow),
         zkube_core::RunTransitionError::InvalidRules
@@ -1074,5 +1037,351 @@ mod tests {
         assert!(!run_has_terminal_projection(RunLifecycle::Playing, 10));
         assert!(!run_has_terminal_projection(RunLifecycle::Finished, 0));
         assert!(run_has_terminal_projection(RunLifecycle::Finished, 10));
+    }
+    fn projected_move(
+        mut active: ActiveRun,
+        row: u8,
+        start: u8,
+        destination: u8,
+        now: i64,
+    ) -> ActiveRun {
+        let rules = run_rules(&active).unwrap();
+        let mut run = run_from_active(&active, rules).unwrap();
+        run.play_move_observed_with::<SolanaSha256, _>(
+            rules,
+            active.action_counter,
+            active.moves,
+            row,
+            start,
+            destination,
+            &mut zkube_core::NoPresentation,
+        )
+        .unwrap();
+        write_run(&mut active, &run, now).unwrap();
+        if action_needs_row_vrf(active.lifecycle) {
+            prepare_row_vrf_request(
+                &mut active,
+                Pubkey::new_unique(),
+                Pubkey::new_unique(),
+                Pubkey::new_unique(),
+                Pubkey::new_unique(),
+                [0; 32],
+            )
+            .unwrap();
+        }
+        active
+    }
+
+    #[test]
+    fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
+        let owner = Pubkey::new_unique();
+        let run_id = 9u64;
+        let (_, bump) = Pubkey::find_program_address(
+            &[
+                ACTIVE_RUN_SEED,
+                b"active",
+                owner.as_ref(),
+                &run_id.to_le_bytes(),
+            ],
+            &crate::ID,
+        );
+        let mut grid = [0u8; 80];
+        for row in 0..4 {
+            grid[row * 8..(row + 1) * 8].copy_from_slice(&[1; 8]);
+        }
+        grid[32..40].copy_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
+        let active_state = ActiveRun {
+            version: ACCOUNT_VERSION,
+            owner,
+            run_id,
+            deadline_at: i64::MAX,
+            lifecycle: RunLifecycle::Playing,
+            map_id: 1,
+
+            rules: RealmRuleSnapshot {
+                ..daily_active(RunLifecycle::Playing).rules
+            },
+            moves: zkube_core::DAILY_MAX_MOVES - 1,
+            grid,
+            next_row: [0, 0, 0, 0, 0, 0, 0, 1],
+            has_next_row: true,
+            bump,
+            ..ActiveRun::default()
+        };
+        let active = projected_move(active_state, 4, 0, 1, 123);
+        assert_eq!(active.lifecycle, RunLifecycle::Finished);
+        assert_eq!(active.finished_at, 123);
+        assert_eq!(active.action_counter, 1);
+        assert_eq!(active.moves, zkube_core::DAILY_MAX_MOVES);
+        assert_eq!(active.score, 10);
+        assert_eq!(active.level_lines_cleared, 4);
+        assert_eq!(active.combo_counter, 1);
+        assert_eq!(active.max_combo, 4);
+    }
+    #[test]
+    fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
+        let run = |owner: Pubkey, run_id: u64, reroll_charges: u8| {
+            let (_, bump) = Pubkey::find_program_address(
+                &[
+                    ACTIVE_RUN_SEED,
+                    b"active",
+                    owner.as_ref(),
+                    &run_id.to_le_bytes(),
+                ],
+                &crate::ID,
+            );
+            let mut grid = [0u8; 80];
+            grid[..8].copy_from_slice(&[1; 8]);
+            ActiveRun {
+                version: ACCOUNT_VERSION,
+                owner,
+                run_id,
+                lifecycle: RunLifecycle::Playing,
+                deadline_at: 1_000,
+                rules: RealmRuleSnapshot {
+                    ..daily_active(RunLifecycle::Playing).rules
+                },
+                daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
+                grid,
+                next_row: [0; 8],
+                has_next_row: true,
+                reroll_charges,
+                bump,
+                ..ActiveRun::default()
+            }
+        };
+
+        let owner = Pubkey::new_unique();
+        let after_grant = projected_move(run(owner, 91, 1), 0, 0, 0, 123);
+        assert_eq!(after_grant.reroll_charges, 2);
+
+        let capped_owner = Pubkey::new_unique();
+        let after_discard = projected_move(run(capped_owner, 92, 3), 0, 0, 0, 123);
+        assert_eq!(after_discard.reroll_charges, 3);
+    }
+    #[test]
+    fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
+        let owner = Pubkey::new_unique();
+        let run_id = 10u64;
+        let (_, bump) = Pubkey::find_program_address(
+            &[
+                ACTIVE_RUN_SEED,
+                b"active",
+                owner.as_ref(),
+                &run_id.to_le_bytes(),
+            ],
+            &crate::ID,
+        );
+        let mut grid = [0u8; 80];
+        for row in 0..9 {
+            grid[row * 8] = 1;
+        }
+        let active_state = ActiveRun {
+            version: ACCOUNT_VERSION,
+            owner,
+            run_id,
+            deadline_at: i64::MAX,
+            lifecycle: RunLifecycle::Playing,
+            map_id: 1,
+
+            rules: RealmRuleSnapshot {
+                ..daily_active(RunLifecycle::Playing).rules
+            },
+            grid,
+            next_row: [1, 0, 0, 0, 0, 0, 0, 0],
+            has_next_row: true,
+            bump,
+            ..ActiveRun::default()
+        };
+
+        let active = projected_move(active_state, 0, 0, 0, 234);
+        assert_eq!(active.lifecycle, RunLifecycle::AwaitingVrf);
+        assert_eq!(active.finished_at, 0);
+        assert_eq!(active.action_counter, 1);
+        assert_eq!(active.moves, 1);
+        assert_eq!(active.grid[72], 1, "row ten must remain occupied");
+        assert!(!active.has_next_row);
+        assert_eq!(active.vrf_request_counter, 1);
+        assert_eq!(active.pending_vrf_counter, 1);
+    }
+    #[test]
+    fn sbf_blocked_eleventh_row_finishes_the_last_accepted_daily_state() {
+        let owner = Pubkey::new_unique();
+        let rent_payer = Pubkey::new_unique();
+        let run_id = 11u64;
+        let (_, bump) = Pubkey::find_program_address(
+            &[
+                ACTIVE_RUN_SEED,
+                b"active",
+                owner.as_ref(),
+                &run_id.to_le_bytes(),
+            ],
+            &crate::ID,
+        );
+        let mut grid = [0u8; 80];
+        for row in 0..10 {
+            grid[row * 8] = 1;
+        }
+        let active_state = ActiveRun {
+            version: ACCOUNT_VERSION,
+            owner,
+            rent_payer,
+            run_id,
+            deadline_at: i64::MAX,
+            lifecycle: RunLifecycle::Playing,
+            map_id: 1,
+
+            rules: RealmRuleSnapshot {
+                ..daily_active(RunLifecycle::Playing).rules
+            },
+            score: 1,
+            grid,
+            next_row: [1, 0, 0, 0, 0, 0, 0, 0],
+            has_next_row: true,
+            vrf_request_counter: 7,
+            bump,
+            ..ActiveRun::default()
+        };
+
+        let active = projected_move(active_state, 0, 0, 0, 345);
+        assert_eq!(active.lifecycle, RunLifecycle::Finished);
+        assert_eq!(active.finished_at, 345);
+        assert_eq!(active.action_counter, 1);
+        assert_eq!(active.moves, 1);
+        assert_eq!(active.grid, grid, "blocked insertion must not drop row ten");
+        assert!(!active.has_next_row);
+        assert_eq!(active.vrf_request_counter, 7);
+        assert_eq!(active.pending_vrf_counter, 0);
+    }
+    #[test]
+    fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
+        let mut active = daily_active(RunLifecycle::AwaitingVrf);
+        active.rules.starting_rows = 8;
+        active.vrf_request_counter = 1;
+        active.pending_vrf_counter = 1;
+        let rules = run_rules(&active).unwrap();
+        let mut run = run_from_active(&active, rules).unwrap();
+        run.apply_vrf_observed_with::<SolanaSha256, _>(
+            rules,
+            1,
+            [37; 32],
+            &mut zkube_core::NoPresentation,
+        )
+        .unwrap();
+        write_run(&mut active, &run, 0).unwrap();
+        active.pending_vrf_counter = 0;
+        let expected = zkube_core::opening_from_vrf(
+            [37; 32],
+            1,
+            active.rules_hash,
+            8,
+            zkube_core::BlockWeights {
+                values: zkube_core::TIER_BLOCK_WEIGHTS[0],
+            },
+        )
+        .unwrap();
+        assert_eq!(active.grid, *expected.grid.cells());
+        assert_eq!(active.next_row, expected.preview);
+        assert_eq!(active.lifecycle, RunLifecycle::Playing);
+        assert_eq!(run_from_active(&active, rules).unwrap(), run);
+        active.lifecycle = RunLifecycle::AwaitingVrf;
+        active.has_next_row = false;
+        active.pressure_score = zkube_core::PRESSURE_STEP * 7;
+        active.vrf_request_counter = 2;
+        active.pending_vrf_counter = 2;
+        let mut run = run_from_active(&active, rules).unwrap();
+        run.apply_vrf_observed_with::<SolanaSha256, _>(
+            rules,
+            2,
+            [91; 32],
+            &mut zkube_core::NoPresentation,
+        )
+        .unwrap();
+        assert_eq!(
+            run.engine.next_row.unwrap(),
+            zkube_core::row_from_vrf(
+                [91; 32],
+                2,
+                zkube_core::BlockWeights {
+                    values: zkube_core::TIER_BLOCK_WEIGHTS[7]
+                }
+            )
+            .unwrap()
+        );
+        assert!(require_matching_vrf_callback(2, 1).is_err());
+    }
+
+    #[test]
+    fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../fixtures/replays/golden-reroll-v1.json"
+        ))
+        .unwrap();
+        let bytes = |field: &str| -> [u8; 32] {
+            let value = fixture[field].as_str().unwrap();
+            core::array::from_fn(|index| {
+                u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
+            })
+        };
+        let counter = fixture["request_counter"].as_u64().unwrap() as u32;
+        let action = fixture["reroll_event"]["action"].as_u64().unwrap() as u32;
+        let mut active = daily_active(RunLifecycle::Playing);
+        active.rules_hash = bytes("rules_hash_hex");
+        active.grid[0] = 1;
+        active.has_next_row = true;
+        active.next_row[0] = 1;
+        active.bonus_charges = 2;
+        active.reroll_charges = 2;
+        active.action_counter = action;
+        active.vrf_request_counter = counter - 1;
+        active.replay_hash = [7; 32];
+        apply_reroll_request(&mut active, action).unwrap();
+        assert_eq!(active.action_counter, action + 1);
+        assert_eq!(active.bonus_charges, 2);
+        assert_eq!(active.reroll_charges, 1);
+        assert_eq!(
+            active.replay_hash,
+            zkube_core::ReplayCommitment([7; 32])
+                .fold_with::<SolanaSha256>(zkube_core::ReplayEvent::Reroll { action })
+                .to_bytes()
+        );
+        active.vrf_request_counter = counter;
+        active.pending_vrf_counter = counter;
+        let rules = run_rules(&active).unwrap();
+        let pending = run_from_active(&active, rules).unwrap();
+        let mut fulfilled = pending;
+        fulfilled
+            .apply_vrf_observed_with::<SolanaSha256, _>(
+                rules,
+                counter,
+                bytes("vrf_output_hex"),
+                &mut zkube_core::NoPresentation,
+            )
+            .unwrap();
+        let expected: [u8; 8] =
+            core::array::from_fn(|i| fixture["rerolled_row"][i].as_u64().unwrap() as u8);
+        assert_eq!(fulfilled.engine.next_row, Some(expected));
+        let mut deadline = pending;
+        deadline
+            .finish_observed_with::<SolanaSha256, _>(
+                rules,
+                zkube_core::RunEndReason::Deadline,
+                &mut zkube_core::NoPresentation,
+            )
+            .unwrap();
+        write_run(&mut active, &deadline, 100).unwrap();
+        active.pending_vrf_counter = 0;
+        assert_eq!(active.lifecycle, RunLifecycle::Finished);
+        assert_eq!(active.finished_at, 100);
+        assert_eq!(active.action_counter, action + 1);
+        assert!(deadline.is_score_eligible());
+        assert!(deadline
+            .apply_vrf_observed_with::<SolanaSha256, _>(
+                rules,
+                counter,
+                bytes("vrf_output_hex"),
+                &mut zkube_core::NoPresentation
+            )
+            .is_err());
     }
 }

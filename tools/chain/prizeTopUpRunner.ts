@@ -27,7 +27,6 @@ import {
   deriveProtocolConfigPda,
 } from "./pdas.js";
 import {
-  ARCADE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
 } from "../../services/src/protocolVersions.generated.js";
@@ -802,7 +801,7 @@ async function inspectPool(args: {
     args.operation.cadenceId,
   );
   const value = account.value;
-  if (integer(value.version, "pool version") !== ARCADE_ACCOUNT_VERSION) {
+  if (integer(value.version, "pool version") !== PROTOCOL_ACCOUNT_VERSION) {
     throw new Error(`${args.operation.kind} account version is invalid`);
   }
   if (
@@ -921,11 +920,11 @@ function assertProtocolAndArcade(
     );
   }
   if (
-    integer(arcade.version, "Arcade version") !== ARCADE_ACCOUNT_VERSION ||
+    integer(arcade.version, "Arcade version") !== PROTOCOL_ACCOUNT_VERSION ||
     !key(arcade.protocol, "Arcade protocol").equals(
       deriveProtocolConfigPda(),
     ) ||
-    arcade.launchSeeded !== true
+    integer(arcade.launchDayId, "launch day") === 0
   ) {
     throw new Error("Arcade config is not the active canonical economy");
   }

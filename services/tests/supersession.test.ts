@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /cleanup_orphan_active_run|cleanupOrphanActiveRun|expected_unit_lamports|expectedUnitLamports|expected_entry_lamports|expectedEntryLamports|DailyContentSelection|require_player_rent_payer|session_auth_or|refresh the exact quote|recovery activation/i,
+    trees: [UNITY_CLIENT, TOOLS, SERVICES, PROGRAM, AGENT_RULES, README],
+    reversal: "Consumption closes expired runs, finalization handles missed funding days, and protocol terms are derived in the program (2026-09-16)",
+  },
+  {
     pattern: /LiberationSans|Outfit-(?:Bold|ExtraBold|Medium|SemiBold)|(?:boss-intro|boss-defeat|bonus-activate)\.mp3/,
     trees: [UNITY_CLIENT, CODEGEN, join(ROOT, "unity/tools/font_sources/provenance.json")],
     reversal: "The packages bundle only the catalog assets and font fallbacks used by the game (2026-09-16)",

@@ -29,17 +29,7 @@ const _: () = assert!(LADDER_QUALIFY_POINTS > 0);
 /// These are balance values rather than a separate progression system. They
 /// live here because the program stores a tier and the client displays one,
 /// and the two may never disagree.
-pub const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_500, 7_000, 25_000, 60_000];
-
-/// Number of named tiers.
-pub const LADDER_TIER_COUNT: u8 = {
-    let count = LADDER_TIER_POINT_THRESHOLDS.len();
-    assert!(count <= u8::MAX as usize, "tier count must fit a byte");
-    #[allow(clippy::cast_possible_truncation)]
-    {
-        count as u8
-    }
-};
+pub(crate) const LADDER_TIER_POINT_THRESHOLDS: [u64; 5] = [0, 1_500, 7_000, 25_000, 60_000];
 
 /// The tier index a cumulative total has reached.
 #[must_use]

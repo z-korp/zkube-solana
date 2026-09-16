@@ -204,15 +204,6 @@ export function discoverReconciliation(args: {
           preactivation: true,
           suspendedUntilDay: args.snapshot.suspendedUntilDay,
         }));
-      } else if (daily.dayId >= oldestKeeperDay && daily.dayId < today &&
-          daily.predecessorRolloverApplied &&
-          args.nowUnix >= daily.recoveryDeadlineAt) {
-        plans.push(validationOnlyPlan("activate_arena_daily", {
-          dayId: daily.dayId,
-          predecessorRolloverApplied: true,
-          recoveryActivation: true,
-          recoveryDeadlineAt: daily.recoveryDeadlineAt,
-        }));
       }
     }
   }
@@ -312,7 +303,6 @@ function appendBoardConstructionPlans(
       boardCursor: board.cursor,
       boardPayoutCount: board.payoutCount,
       boardEntries: entries,
-      sealBoard: board.cursor + entries.length === board.payoutCount,
     }));
   }
 }
@@ -378,7 +368,7 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
     case "consume_arena_run":
       requireRunContext(context);
       requireRentRecipient(context);
-      if (context.runLocation !== "base" || context.includeArenaPlayer !== true) {
+      if (context.runLocation !== "base" || typeof context.includeArenaPlayer !== "boolean") {
         throw new Error("Arena consumption routing is invalid");
       }
       return;
@@ -388,15 +378,6 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
           context.recoveryDeadlineAt === undefined ||
           context.recoveryDeadlineAt > nowUnix) {
         throw new Error("unresolved run expiry is invalid");
-      }
-      return;
-    case "cleanup_orphan_active_run":
-      requireRunContext(context);
-      requireRentRecipient(context);
-      if (context.runLocation !== "base" ||
-          (context.recoveryDeadlineAt === undefined ||
-              context.recoveryDeadlineAt > nowUnix)) {
-        throw new Error("orphan cleanup timing or routing is invalid");
       }
       return;
     case "finalize_arena_daily":
@@ -416,9 +397,7 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
           context.boardCursor === undefined || context.boardPayoutCount === undefined ||
           !context.boardEntries || context.boardEntries.length < 1 ||
           context.boardEntries.length > ARENA_BOARD_CHUNK_CAPACITY ||
-          context.boardCursor + context.boardEntries.length > context.boardPayoutCount ||
-          context.sealBoard !==
-            (context.boardCursor + context.boardEntries.length === context.boardPayoutCount)) {
+          context.boardCursor + context.boardEntries.length > context.boardPayoutCount) {
         throw new Error("Daily board chunk is invalid");
       }
       return;
@@ -598,7 +577,7 @@ function appendRunPlan(
   }
   if (!run.reservationActive && run.location === "base" &&
       run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt) {
-    plans.push(validationOnlyPlan("cleanup_orphan_active_run", context));
+    plans.push(validationOnlyPlan("consume_arena_run", { ...context, includeArenaPlayer: false }));
   }
 }
 
@@ -754,7 +733,7 @@ function appendFinalizationPlan(
   ready: boolean,
   successorDayId: number | undefined,
 ): void {
-  if (!ready || daily.status !== "open" || !daily.settlement ||
+  if (!ready || daily.status === "finalized" || !daily.settlement ||
       successorDayId === undefined) return;
   const payoutTotal = daily.settlement.winners
     .reduce((sum, winner) => sum + winner.payoutLamports, 0n);
@@ -762,10 +741,6 @@ function appendFinalizationPlan(
 
     dayId: daily.dayId,
     followingDayId: successorDayId,
-    scorePayoutCount: daily.settlement.winners
-      .filter(({ board }) => board === "score").length,
-    themePayoutCount: daily.settlement.winners
-      .filter(({ board }) => board === "theme").length,
     scoreCapacityLimited: daily.settlement.scoreCapacityLimited,
     themeCapacityLimited: daily.settlement.themeCapacityLimited,
     payoutTotalLamports: payoutTotal,

@@ -67,19 +67,29 @@ pub fn message(id: &str, payer: Pubkey, instructions: Vec<Instruction>, versione
 }
 
 pub fn scenarios() -> Vec<Value> {
-    let mut rows: Vec<_> = [1, 10, 25].into_iter().map(|count| {
-        let ix = instruction(solana::instruction::PurchaseKredits { kredit_count: count,
-            expected_unit_lamports: zkube_core::ARENA_ENTRY_LAMPORTS }, solana::accounts::PurchaseKredits {
-            protocol: accounts::singleton(PROTOCOL_CONFIG_SEED), arcade_config: accounts::singleton(ARCADE_CONFIG_SEED),
-            player_state: accounts::player_address(), credit_vault: accounts::singleton(CREDIT_VAULT_SEED),
-            team_destination: validator(), owner: owner(),
-            system_program: Pubkey::default(),
-        });
-        let mut row = message(&format!("purchase-{count}"), owner(), vec![ix], true);
-        row["instructionName"] = json!("purchase_kredits");
-        row["args"] = json!({"kredit_count": count, "expected_unit_lamports": zkube_core::ARENA_ENTRY_LAMPORTS});
-        row
-    }).collect();
+    let mut rows: Vec<_> = [1, 10, 25]
+        .into_iter()
+        .map(|count| {
+            let ix = instruction(
+                solana::instruction::PurchaseKredits {
+                    kredit_count: count,
+                },
+                solana::accounts::PurchaseKredits {
+                    protocol: accounts::singleton(PROTOCOL_CONFIG_SEED),
+                    arcade_config: accounts::singleton(ARCADE_CONFIG_SEED),
+                    player_state: accounts::player_address(),
+                    credit_vault: accounts::singleton(CREDIT_VAULT_SEED),
+                    team_destination: validator(),
+                    owner: owner(),
+                    system_program: Pubkey::default(),
+                },
+            );
+            let mut row = message(&format!("purchase-{count}"), owner(), vec![ix], true);
+            row["instructionName"] = json!("purchase_kredits");
+            row["args"] = json!({"kredit_count": count});
+            row
+        })
+        .collect();
     rows.push(message(
         "session-refill-0",
         owner(),
@@ -112,7 +122,7 @@ pub fn closed_player() -> Value {
         accounts::singleton(PROTOCOL_CONFIG_SEED),
         pda(&[ARCADE_CONFIG_SEED]).1,
     );
-    config.launch_seeded = true;
+
     config.launch_day_id = DAY - 100;
     config.last_daily_id = day;
     config.daily_root = [9; 32];
@@ -150,8 +160,8 @@ pub fn consume(payer: Pubkey) -> Value {
             solana::instruction::ConsumeArenaRun {},
             solana::accounts::ConsumeArenaRun {
                 player_state: accounts::player_address(),
-                arena_daily: accounts::daily_address(DAY),
-                arena_player: accounts::participant_address(DAY),
+                arena_daily: Some(accounts::daily_address(DAY)),
+                arena_player: Some(accounts::participant_address(DAY)),
                 active_run: accounts::run_address(RUN_ID),
                 rent_recipient: device(),
             },

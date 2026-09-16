@@ -129,7 +129,6 @@ pub fn reconcile_run_state(
     max_combo: u8,
     streak: u8,
     charges_earned: u8,
-    current_tier: u8,
     level_lines_cleared: u16,
     moves: u16,
     action_counter: u32,
@@ -195,7 +194,7 @@ pub fn reconcile_run_state(
         daily_score,
         objective_total,
         pressure_score,
-        current_tier,
+        current_tier: config_value.rules.current_tier(pressure_score),
         last_vrf_counter,
         replay: ReplayCommitment(array_32(replay)?),
         rules_hash: config_value.rules_hash,
@@ -622,19 +621,16 @@ fn decode_phase(tag: u8) -> Result<RunPhase, BoundaryError> {
 pub(crate) const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
     match bonus {
         None => 0,
-        Some(Bonus::Hammer) => 1,
-        Some(Bonus::Totem) => 2,
-        Some(Bonus::Wave) => 3,
+        Some(bonus) => bonus.tag(),
     }
 }
 
 fn decode_bonus(tag: u8) -> Result<Option<Bonus>, BoundaryError> {
     match tag {
         0 => Ok(None),
-        1 => Ok(Some(Bonus::Hammer)),
-        2 => Ok(Some(Bonus::Totem)),
-        3 => Ok(Some(Bonus::Wave)),
-        _ => Err(BoundaryError::InvalidEncoding),
+        tag => Bonus::from_tag(tag)
+            .map(Some)
+            .ok_or(BoundaryError::InvalidEncoding),
     }
 }
 
@@ -787,7 +783,6 @@ mod tests {
                 bonus_tag(run.engine.bonus),
                 0,
                 1,
-                0,
                 0,
                 0,
                 0,

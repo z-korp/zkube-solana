@@ -9,7 +9,6 @@
 //! account relationships and one-way lifecycle predicates are satisfied.
 
 pub mod error;
-pub mod game;
 pub mod instructions;
 pub mod state;
 
@@ -71,68 +70,36 @@ pub mod solana {
         instructions::arcade_instructions::handler_deposit_arena_daily(ctx, lamports)
     }
 
-    pub fn purchase_kredits(
-        ctx: Context<PurchaseKredits>,
-        kredit_count: u32,
-        expected_unit_lamports: u64,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_purchase_kredits(
-            ctx,
-            kredit_count,
-            expected_unit_lamports,
-        )
+    pub fn purchase_kredits(ctx: Context<PurchaseKredits>, kredit_count: u32) -> Result<()> {
+        instructions::arcade_instructions::handler_purchase_kredits(ctx, kredit_count)
     }
 
     pub fn enter_arena<'info>(
         ctx: Context<'info, EnterArena<'info>>,
         run_id: u64,
-        expected_entry_lamports: u64,
         auto_claim_positions: Vec<u32>,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_enter_arena(
-            ctx,
-            run_id,
-            expected_entry_lamports,
-            auto_claim_positions,
-        )
+        instructions::arcade_instructions::handler_enter_arena(ctx, run_id, auto_claim_positions)
     }
 
     pub fn consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
         instructions::arcade_instructions::handler_consume_arena_run(ctx)
     }
 
-    pub fn expire_unresolved_arena_run(
-        ctx: Context<ExpireUnresolvedArenaRun>,
-        run_id: u64,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_expire_unresolved_arena_run(ctx, run_id)
+    pub fn expire_unresolved_arena_run(ctx: Context<ExpireUnresolvedArenaRun>) -> Result<()> {
+        instructions::arcade_instructions::handler_expire_unresolved_arena_run(ctx)
     }
 
-    pub fn cleanup_orphan_active_run(ctx: Context<CleanupOrphanActiveRun>) -> Result<()> {
-        instructions::arcade_instructions::handler_cleanup_orphan_active_run(ctx)
-    }
-
-    pub fn finalize_arena_daily(
-        ctx: Context<FinalizeArenaDaily>,
-        score_payout_count: u32,
-        theme_payout_count: u32,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_finalize_arena_daily(
-            ctx,
-            score_payout_count,
-            theme_payout_count,
-        )
+    pub fn finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
+        instructions::arcade_instructions::handler_finalize_arena_daily(ctx)
     }
 
     pub fn submit_arena_board_chunk<'info>(
         ctx: Context<'info, SubmitArenaBoardChunk<'info>>,
         kind: DailyBoardKind,
         entries: Vec<SubmittedBoardEntry>,
-        seal: bool,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_submit_arena_board_chunk(
-            ctx, kind, entries, seal,
-        )
+        instructions::arcade_instructions::handler_submit_arena_board_chunk(ctx, kind, entries)
     }
 
     pub fn claim_daily_prize(

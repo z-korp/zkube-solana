@@ -23,6 +23,12 @@ impl Sha256Provider for SoftwareSha256 {
 }
 
 #[cfg(test)]
+pub(crate) fn decode_32(value: &str) -> [u8; 32] {
+    assert_eq!(value.len(), 64);
+    core::array::from_fn(|index| u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap())
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

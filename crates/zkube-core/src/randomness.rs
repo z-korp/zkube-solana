@@ -9,8 +9,8 @@ pub fn local_row_randomness(seed: &[u8], counter: u32) -> [u8; 32] {
     SoftwareSha256::hashv(&[seed, &counter.to_le_bytes()])
 }
 
-pub const MIN_OPENING_HEIGHT: u8 = 3;
-pub const MAX_OPENING_HEIGHT: u8 = 8;
+pub(crate) const MIN_OPENING_HEIGHT: u8 = 3;
+pub(crate) const MAX_OPENING_HEIGHT: u8 = 8;
 const MAX_OPENING_SOURCE_ROWS: u8 = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,10 +119,6 @@ impl<H: Sha256Provider> DrawStream<H> {
     }
 }
 
-pub fn sha256v(values: &[&[u8]]) -> [u8; 32] {
-    sha256v_with::<SoftwareSha256>(values)
-}
-
 #[must_use]
 pub fn sha256v_with<H: Sha256Provider>(values: &[&[u8]]) -> [u8; 32] {
     H::hashv(values)
@@ -145,7 +141,7 @@ pub fn opening_from_vrf(
     )
 }
 
-pub fn opening_from_vrf_with<H: Sha256Provider>(
+pub(crate) fn opening_from_vrf_with<H: Sha256Provider>(
     randomness: [u8; 32],
     request_counter: u32,
     rules_hash: [u8; 32],
@@ -195,18 +191,8 @@ pub fn opening_from_vrf_with<H: Sha256Provider>(
     Ok(OpeningLayout { grid, preview })
 }
 
-/// Rebuild a playable one-row board and preview after a perfect clear.
-pub fn continuation_from_vrf(
-    randomness: [u8; 32],
-    request_counter: u32,
-    rules_hash: [u8; 32],
-    weights: BlockWeights,
-) -> Result<ContinuationLayout, RandomnessError> {
-    continuation_from_vrf_with::<SoftwareSha256>(randomness, request_counter, rules_hash, weights)
-}
-
-/// Chain-adaptable form of [`continuation_from_vrf`].
-pub fn continuation_from_vrf_with<H: Sha256Provider>(
+/// Draw a continuation using the selected hash provider.
+pub(crate) fn continuation_from_vrf_with<H: Sha256Provider>(
     randomness: [u8; 32],
     request_counter: u32,
     rules_hash: [u8; 32],
@@ -239,7 +225,7 @@ pub fn row_from_vrf(
     row_from_vrf_with::<SoftwareSha256>(randomness, request_counter, weights)
 }
 
-pub fn row_from_vrf_with<H: Sha256Provider>(
+pub(crate) fn row_from_vrf_with<H: Sha256Provider>(
     randomness: [u8; 32],
     request_counter: u32,
     weights: BlockWeights,
@@ -250,21 +236,7 @@ pub fn row_from_vrf_with<H: Sha256Provider>(
     Ok(packed_row(&mut stream, weights))
 }
 
-/// Replace one visible preview from a dedicated reroll randomness domain.
-///
-/// Binding the rules hash as well as the verified output and request counter
-/// prevents a reroll result from being replayed as an ordinary next row or
-/// across challenge revisions.
-pub fn reroll_row_from_vrf(
-    randomness: [u8; 32],
-    request_counter: u32,
-    rules_hash: [u8; 32],
-    weights: BlockWeights,
-) -> Result<Row, RandomnessError> {
-    reroll_row_from_vrf_with::<SoftwareSha256>(randomness, request_counter, rules_hash, weights)
-}
-
-pub fn reroll_row_from_vrf_with<H: Sha256Provider>(
+pub(crate) fn reroll_row_from_vrf_with<H: Sha256Provider>(
     randomness: [u8; 32],
     request_counter: u32,
     rules_hash: [u8; 32],
@@ -433,17 +405,10 @@ mod tests {
     ];
 
     fn randomness_for(seed: u32) -> [u8; 32] {
-        sha256v(&[b"zkube-generator-regression-v1", &seed.to_le_bytes()])
+        sha256v_with::<SoftwareSha256>(&[b"zkube-generator-regression-v1", &seed.to_le_bytes()])
     }
 
-    fn decode_32(value: &str) -> [u8; 32] {
-        let mut result = [0u8; 32];
-        assert_eq!(value.len(), 64);
-        for (index, byte) in result.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap();
-        }
-        result
-    }
+    use crate::hash::decode_32;
 
     fn decode_row(value: &Value) -> Row {
         value
@@ -493,7 +458,13 @@ mod tests {
                 .try_into()
                 .unwrap(),
         };
-        let layout = continuation_from_vrf(output, request_counter, rules_hash, weights).unwrap();
+        let layout = continuation_from_vrf_with::<SoftwareSha256>(
+            output,
+            request_counter,
+            rules_hash,
+            weights,
+        )
+        .unwrap();
         assert_stable(layout, 1);
         assert_eq!(
             layout.grid.row(0).unwrap(),
@@ -502,7 +473,13 @@ mod tests {
         assert_eq!(layout.preview, decode_row(&fixture["preview_row"]));
         assert_eq!(
             layout,
-            continuation_from_vrf(output, request_counter, rules_hash, weights).unwrap()
+            continuation_from_vrf_with::<SoftwareSha256>(
+                output,
+                request_counter,
+                rules_hash,
+                weights
+            )
+            .unwrap()
         );
     }
 
@@ -528,7 +505,13 @@ mod tests {
                 .unwrap(),
         };
 
-        let rerolled = reroll_row_from_vrf(output, request_counter, rules_hash, weights).unwrap();
+        let rerolled = reroll_row_from_vrf_with::<SoftwareSha256>(
+            output,
+            request_counter,
+            rules_hash,
+            weights,
+        )
+        .unwrap();
         let ordinary = row_from_vrf(output, request_counter, weights).unwrap();
 
         assert_eq!(rerolled, decode_row(&fixture["rerolled_row"]));

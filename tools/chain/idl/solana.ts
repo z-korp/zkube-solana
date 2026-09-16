@@ -461,91 +461,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "cleanupOrphanActiveRun",
-      "discriminator": [
-        181,
-        40,
-        52,
-        240,
-        230,
-        27,
-        96,
-        63
-      ],
-      "accounts": [
-        {
-          "name": "activeRun",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  99,
-                  116,
-                  105,
-                  118,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "activeRun"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "activeRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "playerState",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "activeRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "rentRecipient",
-          "writable": true
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "closeArenaDaily",
       "discriminator": [
         160,
@@ -855,6 +770,7 @@ export type Solana = {
         {
           "name": "arenaDaily",
           "writable": true,
+          "optional": true,
           "pda": {
             "seeds": [
               {
@@ -884,6 +800,7 @@ export type Solana = {
         {
           "name": "arenaPlayer",
           "writable": true,
+          "optional": true,
           "pda": {
             "seeds": [
               {
@@ -905,7 +822,8 @@ export type Solana = {
               },
               {
                 "kind": "account",
-                "path": "arenaDaily"
+                "path": "active_run.daily_challenge",
+                "account": "activeRun"
               },
               {
                 "kind": "account",
@@ -1496,10 +1414,6 @@ export type Solana = {
           "type": "u64"
         },
         {
-          "name": "expectedEntryLamports",
-          "type": "u64"
-        },
-        {
           "name": "autoClaimPositions",
           "type": {
             "vec": "u32"
@@ -1783,12 +1697,7 @@ export type Solana = {
           "signer": true
         }
       ],
-      "args": [
-        {
-          "name": "runId",
-          "type": "u64"
-        }
-      ]
+      "args": []
     },
     {
       "name": "finalizeArenaDaily",
@@ -1974,16 +1883,7 @@ export type Solana = {
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": [
-        {
-          "name": "scorePayoutCount",
-          "type": "u32"
-        },
-        {
-          "name": "themePayoutCount",
-          "type": "u32"
-        }
-      ]
+      "args": []
     },
     {
       "name": "finishRun",
@@ -2731,10 +2631,6 @@ export type Solana = {
         {
           "name": "kreditCount",
           "type": "u32"
-        },
-        {
-          "name": "expectedUnitLamports",
-          "type": "u64"
         }
       ]
     },
@@ -3361,10 +3257,6 @@ export type Solana = {
               }
             }
           }
-        },
-        {
-          "name": "seal",
-          "type": "bool"
         }
       ]
     }
@@ -3513,173 +3405,103 @@ export type Solana = {
     },
     {
       "code": 6007,
-      "name": "invalidMagicProgram",
-      "msg": "The MagicBlock program is invalid"
-    },
-    {
-      "code": 6008,
-      "name": "gameNotFinished",
-      "msg": "The run is not ready to finish"
-    },
-    {
-      "code": 6009,
-      "name": "challengeEnded",
-      "msg": "The Daily challenge entry or play window has ended"
-    },
-    {
-      "code": 6010,
-      "name": "challengeNotEnded",
-      "msg": "The Daily challenge has not ended"
-    },
-    {
-      "code": 6011,
-      "name": "alreadySubmitted",
-      "msg": "This Daily attempt has already been submitted"
-    },
-    {
-      "code": 6012,
       "name": "arithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6013,
-      "name": "invalidLevel",
-      "msg": "Invalid level"
-    },
-    {
-      "code": 6014,
+      "code": 6008,
       "name": "protocolPaused",
       "msg": "Protocol is paused"
     },
     {
-      "code": 6015,
+      "code": 6009,
       "name": "invalidVersion",
       "msg": "Unsupported account version"
     },
     {
-      "code": 6016,
+      "code": 6010,
       "name": "invalidRunId",
       "msg": "Invalid run id"
     },
     {
-      "code": 6017,
+      "code": 6011,
       "name": "activeRunExists",
       "msg": "Finish or abandon the active run before starting another"
     },
     {
-      "code": 6018,
-      "name": "invalidBlockWeights",
-      "msg": "Invalid block weights"
-    },
-    {
-      "code": 6019,
+      "code": 6012,
       "name": "vrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6020,
-      "name": "noVrfRequestPending",
-      "msg": "No VRF request is pending"
-    },
-    {
-      "code": 6021,
+      "code": 6013,
       "name": "vrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6022,
+      "code": 6014,
       "name": "noPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6023,
+      "code": 6015,
       "name": "prizeAlreadyClaimed",
       "msg": "This Daily prize position was already claimed"
     },
     {
-      "code": 6024,
+      "code": 6016,
       "name": "claimWindowClosed",
       "msg": "The Daily prize claim window has closed"
     },
     {
-      "code": 6025,
-      "name": "claimWindowOpen",
-      "msg": "The Daily prize claim window is still open"
-    },
-    {
-      "code": 6026,
-      "name": "boardCapacityExceeded",
-      "msg": "The payout board exceeds the protocol safety ceiling"
-    },
-    {
-      "code": 6027,
+      "code": 6017,
       "name": "boardIncomplete",
       "msg": "The payout board is incomplete or unsealed"
     },
     {
-      "code": 6028,
+      "code": 6018,
       "name": "boardEntryMismatch",
       "msg": "A submitted payout row does not match its ArenaPlayer source"
     },
     {
-      "code": 6029,
+      "code": 6019,
       "name": "boardEntryOutOfOrder",
       "msg": "Submitted payout rows are not in canonical order"
     },
     {
-      "code": 6030,
+      "code": 6020,
       "name": "duplicateBoardPlayer",
       "msg": "A player appears more than once on a payout board"
     },
     {
-      "code": 6031,
+      "code": 6021,
       "name": "accountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6032,
-      "name": "priceChanged",
-      "msg": "The Arena entry price changed; refresh the exact quote"
-    },
-    {
-      "code": 6033,
+      "code": 6022,
       "name": "insufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6034,
-      "name": "invalidKreditPurchase",
-      "msg": "A Kredit purchase must contain a positive whole-number count at the exact unit price"
-    },
-    {
-      "code": 6035,
+      "code": 6023,
       "name": "dailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6036,
+      "code": 6024,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6037,
-      "name": "sessionExpired",
-      "msg": "The scoped player session has expired"
-    },
-    {
-      "code": 6038,
+      "code": 6025,
       "name": "invalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6039,
+      "code": 6026,
       "name": "invalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
-    },
-    {
-      "code": 6040,
-      "name": "alreadySeeded",
-      "msg": "The first Daily was already seeded"
     }
   ],
   "types": [
@@ -3866,14 +3688,10 @@ export type Solana = {
             "type": "u8"
           },
           {
-            "name": "currentTier",
+            "name": "vrfRequestCounter",
             "docs": [
               "Ramped draw tier for Daily."
             ],
-            "type": "u8"
-          },
-          {
-            "name": "vrfRequestCounter",
             "type": "u32"
           },
           {
@@ -3922,10 +3740,6 @@ export type Solana = {
               "Days below this absolute identifier are suspended; zero disables it."
             ],
             "type": "u32"
-          },
-          {
-            "name": "launchSeeded",
-            "type": "bool"
           },
           {
             "name": "launchDayId",
@@ -4017,10 +3831,6 @@ export type Solana = {
               "Number of verified rows already appended."
             ],
             "type": "u32"
-          },
-          {
-            "name": "sealed",
-            "type": "bool"
           },
           {
             "name": "sealedAt",
@@ -4202,10 +4012,6 @@ export type Solana = {
             "type": "u64"
           },
           {
-            "name": "hasScoreBest",
-            "type": "bool"
-          },
-          {
             "name": "scoreBestEntry",
             "type": {
               "defined": {
@@ -4214,27 +4020,12 @@ export type Solana = {
             }
           },
           {
-            "name": "scoreBestRunId",
-            "docs": [
-              "Retained outside the payout row for client replay/result identity."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "hasThemeBest",
-            "type": "bool"
-          },
-          {
             "name": "themeBestEntry",
             "type": {
               "defined": {
                 "name": "arenaBoardEntry"
               }
             }
-          },
-          {
-            "name": "themeBestRunId",
-            "type": "u64"
           },
           {
             "name": "bump",
@@ -4280,16 +4071,9 @@ export type Solana = {
             "type": "pubkey"
           },
           {
-            "name": "purchasedPrizeLamports",
+            "name": "availablePrizeLamports",
             "docs": [
-              "Exact 9,000,000-lamport prize deposits made by Kredit purchases."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "spentPrizeLamports",
-            "docs": [
-              "Exact prize deposits already routed by spent Kredits."
+              "Prize deposits not yet routed to a Daily by spent Kredits."
             ],
             "type": "u64"
           },
@@ -4577,6 +4361,9 @@ export type Solana = {
     },
     {
       "name": "protocolConfig",
+      "docs": [
+        "Run identifiers are per-player and begin at one on every fresh deployment."
+      ],
       "type": {
         "kind": "struct",
         "fields": [

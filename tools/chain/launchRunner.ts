@@ -369,7 +369,6 @@ async function verifyStagedLaunch(
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
   );
   if (
-    arcade.launchSeeded !== false ||
     integer(arcade.launchDayId) !== 0 ||
     integer(arcade.lastDailyId) !== 0 ||
     bytesHex(arcade.dailyRoot) !== "00".repeat(32)
@@ -384,8 +383,7 @@ async function verifyStagedLaunch(
     LAUNCH_ACCOUNT_SPACES.creditVault,
   );
   if (
-    amount(creditVault.purchasedPrizeLamports) !== 0n ||
-    amount(creditVault.spentPrizeLamports) !== 0n
+    amount(creditVault.availablePrizeLamports) !== 0n
   ) {
     throw new Error("credit vault is not fresh");
   }
@@ -415,7 +413,6 @@ async function verifyActiveLaunch(
   );
   if (
     protocol.paused !== false ||
-    arcade.launchSeeded !== true ||
     integer(arcade.launchDayId) !== bundle.input.launchDayId ||
     integer(arcade.lastDailyId) !== bundle.input.launchDayId - 1 ||
     bytesHex(arcade.dailyRoot) !== "00".repeat(32)

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ARCADE_ACCOUNT_VERSION,
   DAILY_PAIR_COUNT,
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_RUN_CLOSE_OFFSET,
@@ -16,9 +15,8 @@ import {
 
 describe("v5 Daily cadence constants", () => {
   it("pins fresh-bootstrap account versions", () => {
-    expect(PROTOCOL_ACCOUNT_VERSION).toBe(4);
+    expect(PROTOCOL_ACCOUNT_VERSION).toBe(5);
     expect(PLAYER_STATE_ACCOUNT_VERSION).toBe(3);
-    expect(ARCADE_ACCOUNT_VERSION).toBe(4);
   });
 
   it("pins the single 23:59 run and entry deadline", () => {

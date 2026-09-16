@@ -7,6 +7,7 @@ rust-version = "1.89"
 license = "Apache-2.0"
 
 [dependencies]
+anchor-lang = "=1.0.2"
 zkube-program = { package = "solana", path = "../../programs/solana", features = ["no-entrypoint"] }
 clap = { version = "=4.5.48", features = ["derive"] }
 serde = { version = "=1.0.228", features = ["derive"] }

@@ -1,9 +1,7 @@
 //! Native-SOL Arena entry, period funding, resolution, and claim settlement.
 
 use crate::error::ErrorCode;
-use crate::instructions::player_authorization::{
-    require_player_authorization, require_player_rent_payer,
-};
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
@@ -44,10 +42,9 @@ pub fn handler_initialize_arcade(ctx: Context<InitializeArcade>) -> Result<()> {
             ctx.bumps.arcade_config,
         ));
     ctx.accounts.credit_vault.set_inner(CreditVault {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         protocol: ctx.accounts.protocol.key(),
-        purchased_prize_lamports: 0,
-        spent_prize_lamports: 0,
+        available_prize_lamports: 0,
         bump: ctx.bumps.credit_vault,
     });
     Ok(())
@@ -60,7 +57,7 @@ pub struct PrepareArenaDaily<'info> {
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = day_id > arcade_config.last_daily_id @ ErrorCode::InvalidPeriod)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     /// CHECK: Canonical Daily PDA allocated and serialized by this instruction.
@@ -81,23 +78,22 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         prepare_period_is_allowed(
             day_id,
             today,
-            ctx.accounts.arcade_config.launch_seeded,
             ctx.accounts.arcade_config.launch_day_id,
             ctx.accounts.arcade_config.suspended_until_day,
         ),
         ErrorCode::InvalidPeriod
     );
-    let content = daily_content_for_day(day_id);
-    let realm = zkube_core::REALM_RULES[usize::from(content.realm_map_id - 1)];
+    let content = zkube_core::daily_pair_with::<SolanaSha256>(day_id);
+    let realm = zkube_core::REALM_RULES[usize::from(content.0 - 1)];
     let rules_hash = zkube_core::daily_rules_hash_with::<SolanaSha256>(
         day_id,
         realm.guardian,
         realm.starting_height,
-        content.objective.to_core()?,
+        content.1,
     )
     .0;
     let daily = ArenaDaily {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         day_id,
         arcade_config: ctx.accounts.arcade_config.key(),
         status: PeriodStatus::Funding,
@@ -141,7 +137,7 @@ pub struct ActivateArenaDaily<'info> {
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
-        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     pub caller: Signer<'info>,
@@ -156,11 +152,8 @@ pub fn handler_activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<
     );
     let scheduled = scheduled_daily_window(&ctx.accounts.arcade_config, current)?;
     require!(
-        (ctx.accounts.arena_daily.day_id == scheduled.0
-            || ctx.accounts.arena_daily.day_id == scheduled.1)
-            || (ctx.accounts.arena_daily.day_id < current
-                && ctx.accounts.arena_daily.predecessor_rollover_applied
-                && now >= day_window(ctx.accounts.arena_daily.day_id)?.2),
+        ctx.accounts.arena_daily.day_id == scheduled.0
+            || ctx.accounts.arena_daily.day_id == scheduled.1,
         ErrorCode::InvalidPeriod
     );
     ctx.accounts.arena_daily.status = PeriodStatus::Open;
@@ -172,7 +165,7 @@ pub struct SkipSuspendedArenaDaily<'info> {
     #[account(
         seeds = [ARCADE_CONFIG_SEED],
         bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(
@@ -190,7 +183,7 @@ pub struct SkipSuspendedArenaDaily<'info> {
         bump = successor_daily.bump,
         constraint = successor_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
         constraint = successor_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState,
-        constraint = !successor_daily.predecessor_rollover_applied @ ErrorCode::AlreadySubmitted
+        constraint = !successor_daily.predecessor_rollover_applied @ ErrorCode::InvalidState
     )]
     pub successor_daily: Box<Account<'info, ArenaDaily>>,
     /// CHECK: Canonical recyclable cadence-rent destination.
@@ -244,7 +237,7 @@ pub struct DepositArenaDaily<'info> {
         mut,
         seeds = [ARCADE_CONFIG_SEED],
         bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner,
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
@@ -252,7 +245,7 @@ pub struct DepositArenaDaily<'info> {
         mut,
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
-        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner
     )]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
@@ -265,7 +258,7 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
     let now = Clock::get()?.unix_timestamp;
     let current = day_id_at(now)?;
     require!(lamports > 0, ErrorCode::InvalidState);
-    let launches = !ctx.accounts.arcade_config.launch_seeded;
+    let launches = ctx.accounts.arcade_config.launch_day_id == 0;
     if launches {
         require!(ctx.accounts.protocol.paused, ErrorCode::InvalidState);
         require!(
@@ -274,7 +267,7 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
         );
         require!(
             ctx.accounts.arena_daily.ledger.funded_lamports()? == 0,
-            ErrorCode::AlreadySeeded
+            ErrorCode::InvalidState
         );
         require!(
             ctx.accounts.arena_daily.status == PeriodStatus::Funding
@@ -283,10 +276,9 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
         );
     } else {
         require!(
-            top_up_period_is_allowed(
-                ctx.accounts.arena_daily.day_id,
-                current,
-                &ctx.accounts.arcade_config,
+            scheduled_daily_window(&ctx.accounts.arcade_config, current).is_ok_and(
+                |(first, following)| ctx.accounts.arena_daily.day_id == first
+                    || ctx.accounts.arena_daily.day_id == following
             ),
             ErrorCode::InvalidPeriod
         );
@@ -295,7 +287,7 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
                 ctx.accounts.arena_daily.status,
                 PeriodStatus::Funding | PeriodStatus::Open
             ) && now < day_window(ctx.accounts.arena_daily.day_id)?.1,
-            ErrorCode::ChallengeEnded
+            ErrorCode::InvalidPeriod
         );
     }
     transfer_from_signer(
@@ -307,7 +299,6 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
     ctx.accounts.arena_daily.ledger.add_seed(lamports)?;
     if launches {
         ctx.accounts.arena_daily.predecessor_rollover_applied = true;
-        ctx.accounts.arcade_config.launch_seeded = true;
         ctx.accounts.arcade_config.launch_day_id = current;
         ctx.accounts.arcade_config.last_daily_id =
             current.checked_sub(1).ok_or(ErrorCode::InvalidPeriod)?;
@@ -316,7 +307,6 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
 }
 
 #[derive(Accounts)]
-#[instruction(kredit_count: u32, expected_unit_lamports: u64)]
 pub struct PurchaseKredits<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
@@ -328,7 +318,7 @@ pub struct PurchaseKredits<'info> {
     #[account(
         seeds = [ARCADE_CONFIG_SEED],
         bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
@@ -344,7 +334,7 @@ pub struct PurchaseKredits<'info> {
         mut,
         seeds = [CREDIT_VAULT_SEED],
         bump = credit_vault.bump,
-        constraint = credit_vault.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = credit_vault.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = credit_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner
     )]
     pub credit_vault: Box<Account<'info, CreditVault>>,
@@ -358,20 +348,13 @@ pub struct PurchaseKredits<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_purchase_kredits(
-    ctx: Context<PurchaseKredits>,
-    kredit_count: u32,
-    expected_unit_lamports: u64,
-) -> Result<()> {
+pub fn handler_purchase_kredits(ctx: Context<PurchaseKredits>, kredit_count: u32) -> Result<()> {
     require!(
-        ctx.accounts.arcade_config.launch_seeded,
+        ctx.accounts.arcade_config.launch_day_id > 0,
         ErrorCode::InvalidState
     );
-    require!(
-        kredit_count > 0 && expected_unit_lamports == ARENA_ENTRY_LAMPORTS,
-        ErrorCode::InvalidKreditPurchase
-    );
-    let split = zkube_core::split_arena_entry(expected_unit_lamports)
+    require!(kredit_count > 0, ErrorCode::InvalidState);
+    let split = zkube_core::split_arena_entry(ARENA_ENTRY_LAMPORTS)
         .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
     let count = u64::from(kredit_count);
     let prize_lamports = split
@@ -382,10 +365,6 @@ pub fn handler_purchase_kredits(
         .operator_lamports
         .checked_mul(count)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    require!(
-        prize_lamports.checked_add(operator_lamports) == expected_unit_lamports.checked_mul(count),
-        ErrorCode::AccountingInvariant
-    );
     transfer_from_signer(
         &ctx.accounts.owner,
         &ctx.accounts.credit_vault.to_account_info(),
@@ -404,14 +383,14 @@ pub fn handler_purchase_kredits(
 }
 
 #[derive(Accounts)]
-#[instruction(run_id: u64, expected_entry_lamports: u64)]
+#[instruction(run_id: u64)]
 pub struct EnterArena<'info> {
     #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = !protocol.paused @ ErrorCode::ProtocolPaused)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
     #[account(seeds = [ARCADE_CONFIG_SEED], bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arcade_config.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(mut, seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()], bump = player_state.bump,
@@ -428,7 +407,7 @@ pub struct EnterArena<'info> {
         constraint = following_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner)]
     pub following_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [CREDIT_VAULT_SEED], bump = credit_vault.bump,
-        constraint = credit_vault.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = credit_vault.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = credit_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
     pub credit_vault: Box<Account<'info, CreditVault>>,
     #[account(init, payer = payer, space = 8 + ActiveRun::INIT_SPACE,
@@ -448,7 +427,6 @@ pub struct EnterArena<'info> {
 pub fn handler_enter_arena<'info>(
     ctx: Context<'info, EnterArena<'info>>,
     run_id: u64,
-    expected_entry_lamports: u64,
     auto_claim_positions: Vec<u32>,
 ) -> Result<()> {
     require_player_authorization(
@@ -456,24 +434,14 @@ pub fn handler_enter_arena<'info>(
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
-    require_player_rent_payer(
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.actor.key(),
-        ctx.accounts.payer.key(),
-    )?;
     require!(
-        ctx.accounts.arcade_config.launch_seeded,
+        ctx.accounts.arcade_config.launch_day_id > 0,
         ErrorCode::InvalidState
-    );
-    require!(
-        expected_entry_lamports == ARENA_ENTRY_LAMPORTS,
-        ErrorCode::PriceChanged
     );
     let now = Clock::get()?.unix_timestamp;
     let day_id = day_id_at(now)?;
     require!(
-        ctx.accounts.current_daily.day_id == day_id
-            && valid_daily_successor(day_id, ctx.accounts.following_daily.day_id),
+        ctx.accounts.current_daily.day_id == day_id && ctx.accounts.following_daily.day_id > day_id,
         ErrorCode::InvalidPeriod
     );
     require!(
@@ -484,7 +452,7 @@ pub fn handler_enter_arena<'info>(
             )
             && now >= day_window(ctx.accounts.current_daily.day_id)?.0
             && now < day_window(ctx.accounts.current_daily.day_id)?.1,
-        ErrorCode::ChallengeEnded
+        ErrorCode::InvalidPeriod
     );
     if ctx.accounts.arena_player.version == 0 {
         ctx.accounts.arena_player.set_inner(ArenaPlayer::initialize(
@@ -493,11 +461,15 @@ pub fn handler_enter_arena<'info>(
             ctx.accounts.payer.key(),
             ctx.bumps.arena_player,
         ));
-        ctx.accounts.current_daily.unique_players =
-            checked_add_u32(ctx.accounts.current_daily.unique_players, 1)?;
+        ctx.accounts.current_daily.unique_players = ctx
+            .accounts
+            .current_daily
+            .unique_players
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
     require!(
-        ctx.accounts.arena_player.version == ARCADE_ACCOUNT_VERSION
+        ctx.accounts.arena_player.version == ACCOUNT_VERSION
             && ctx.accounts.arena_player.challenge == ctx.accounts.current_daily.key()
             && ctx.accounts.arena_player.player == ctx.accounts.owner_authority.key()
             && ctx.accounts.arena_player.active_paid_run_id == 0,
@@ -507,15 +479,10 @@ pub fn handler_enter_arena<'info>(
         ctx.accounts.player_state.kredit_balance > 0,
         ErrorCode::InsufficientKredits
     );
-    let split = zkube_core::split_arena_entry(expected_entry_lamports)
+    let split = zkube_core::split_arena_entry(ARENA_ENTRY_LAMPORTS)
         .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
     require!(
-        split.next_daily_lamports == ENTRY_DAILY_LAMPORTS
-            && split.operator_lamports == ENTRY_OPERATOR_LAMPORTS,
-        ErrorCode::AccountingInvariant
-    );
-    require!(
-        ctx.accounts.credit_vault.available_prize_lamports()? >= split.next_daily_lamports,
+        ctx.accounts.credit_vault.available_prize_lamports >= split.next_daily_lamports,
         ErrorCode::AccountingInvariant
     );
     require_spendable(
@@ -534,27 +501,56 @@ pub fn handler_enter_arena<'info>(
         .following_daily
         .ledger
         .add_entry(split.next_daily_lamports)?;
-    ctx.accounts.current_daily.entries_paid =
-        checked_add_u64(ctx.accounts.current_daily.entries_paid, 1)?;
-    ctx.accounts.arena_player.paid_entries =
-        checked_add_u32(ctx.accounts.arena_player.paid_entries, 1)?;
+    ctx.accounts.current_daily.entries_paid = ctx
+        .accounts
+        .current_daily
+        .entries_paid
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    ctx.accounts.arena_player.paid_entries = ctx
+        .accounts
+        .arena_player
+        .paid_entries
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
     ctx.accounts
         .player_state
         .record_paid_entry(ctx.accounts.current_daily.day_id)?;
     ctx.accounts.arena_player.active_paid_run_id = run_id;
     let daily_key = ctx.accounts.current_daily.key();
-    initialize_arena_run(
-        &mut ctx.accounts.player_state,
-        &ctx.accounts.current_daily,
-        daily_key,
-        &mut ctx.accounts.active_run,
-        ctx.bumps.active_run,
-        ctx.accounts.owner_authority.key(),
-        ctx.accounts.payer.key(),
+    let deadline_at = day_window(ctx.accounts.current_daily.day_id)?.1;
+    ctx.accounts
+        .player_state
+        .reserve_arcade_run(run_id, daily_key, deadline_at)?;
+    let owner = ctx.accounts.owner_authority.key();
+    let domain = zkube_core::ChainDomain(ctx.accounts.protocol.replay_domain);
+    let player_id = zkube_core::derive_player_id_with::<SolanaSha256>(domain, owner.to_bytes());
+    let content = zkube_core::daily_pair_with::<SolanaSha256>(ctx.accounts.current_daily.day_id);
+    let realm = zkube_core::REALM_RULES[usize::from(content.0 - 1)];
+    ctx.accounts.active_run.set_inner(ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        rent_payer: ctx.accounts.payer.key(),
+        daily_challenge: daily_key,
         run_id,
-        day_window(ctx.accounts.current_daily.day_id)?.1,
-        ctx.accounts.protocol.replay_domain,
-    )?;
+        lifecycle: RunLifecycle::Prepared,
+        rules_hash: ctx.accounts.current_daily.rules_hash,
+        map_id: content.0,
+        rules: RealmRuleSnapshot::from_core(realm),
+        daily_theme: DailyThemeSnapshot::from_core(content.1),
+        reroll_charges: 1,
+        replay_hash: zkube_core::ReplayCommitment::initial_with::<SolanaSha256>(
+            domain,
+            zkube_core::ChallengeId(daily_key.to_bytes()),
+            zkube_core::RulesHash(ctx.accounts.current_daily.rules_hash),
+            player_id,
+            run_id,
+        )
+        .to_bytes(),
+        deadline_at,
+        bump: ctx.bumps.active_run,
+        ..ActiveRun::default()
+    });
     best_effort_auto_claims(&ctx, &auto_claim_positions);
     Ok(())
 }
@@ -568,8 +564,14 @@ fn best_effort_auto_claims<'info>(ctx: &Context<'info, EnterArena<'info>>, posit
     {
         let daily = &pair[0];
         let board = &pair[1];
-        let Some(kind) = attached_board_kind(board) else {
-            continue;
+        let kind = {
+            let Ok(data) = board.try_borrow_data() else {
+                continue;
+            };
+            let Ok(decoded) = ArenaBoard::try_deserialize(&mut data.as_ref()) else {
+                continue;
+            };
+            decoded.kind
         };
         if attached_claim_position(ctx, daily, board, kind, position).is_err() {
             continue;
@@ -610,12 +612,6 @@ fn best_effort_auto_claims<'info>(ctx: &Context<'info, EnterArena<'info>>, posit
         // owner before moving lamports.
         let _ = invoke(&instruction, &infos);
     }
-}
-
-fn attached_board_kind(info: &AccountInfo<'_>) -> Option<DailyBoardKind> {
-    let data = info.try_borrow_data().ok()?;
-    let board = ArenaBoard::try_deserialize(&mut data.as_ref()).ok()?;
-    Some(board.kind)
 }
 
 fn attached_claim_position<'info>(
@@ -683,68 +679,6 @@ fn attached_claim_position<'info>(
     Ok(prize.position)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn initialize_arena_run(
-    player: &mut PlayerState,
-    daily: &ArenaDaily,
-    daily_key: Pubkey,
-    active: &mut ActiveRun,
-    bump: u8,
-    owner: Pubkey,
-    rent_payer: Pubkey,
-    run_id: u64,
-    deadline_at: i64,
-    replay_domain: [u8; 32],
-) -> Result<()> {
-    player.reserve_arcade_run(run_id, daily_key, deadline_at)?;
-    let content = daily_content_for_day(daily.day_id);
-    let realm = zkube_core::REALM_RULES[usize::from(content.realm_map_id - 1)];
-    *active = ActiveRun {
-        version: ACCOUNT_VERSION,
-        owner,
-        rent_payer,
-        daily_challenge: daily_key,
-        run_id,
-        lifecycle: RunLifecycle::Prepared,
-        rules_hash: daily.rules_hash,
-        map_id: content.realm_map_id,
-        rules: RealmRuleSnapshot::from_core(realm),
-        daily_theme: content.objective,
-        current_tier: 0,
-        reroll_charges: 1,
-        replay_hash: canonical_initial_replay(
-            replay_domain,
-            daily_key,
-            daily.rules_hash,
-            owner,
-            run_id,
-        )?,
-        deadline_at,
-        bump,
-        ..ActiveRun::default()
-    };
-    Ok(())
-}
-
-fn canonical_initial_replay(
-    replay_domain: [u8; 32],
-    daily: Pubkey,
-    rules_hash: [u8; 32],
-    owner: Pubkey,
-    run_id: u64,
-) -> Result<[u8; 32]> {
-    let domain = zkube_core::ChainDomain(replay_domain);
-    let player = zkube_core::derive_player_id_with::<SolanaSha256>(domain, owner.to_bytes());
-    Ok(zkube_core::ReplayCommitment::initial_with::<SolanaSha256>(
-        domain,
-        zkube_core::ChallengeId(daily.to_bytes()),
-        zkube_core::RulesHash(rules_hash),
-        player,
-        run_id,
-    )
-    .to_bytes())
-}
-
 #[derive(Accounts)]
 pub struct ConsumeArenaRun<'info> {
     #[account(mut, seeds = [PLAYER_STATE_SEED, active_run.owner.as_ref()], bump = player_state.bump,
@@ -753,11 +687,12 @@ pub struct ConsumeArenaRun<'info> {
     pub player_state: Box<Account<'info, PlayerState>>,
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
         constraint = arena_daily.key() == active_run.daily_challenge @ ErrorCode::InvalidOwner)]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), active_run.owner.as_ref()], bump = arena_player.bump,
+    pub arena_daily: Option<Box<Account<'info, ArenaDaily>>>,
+    #[account(mut, seeds = [ARENA_PLAYER_SEED, active_run.daily_challenge.as_ref(), active_run.owner.as_ref()], bump = arena_player.bump,
         constraint = arena_player.player == active_run.owner @ ErrorCode::Unauthorized)]
-    pub arena_player: Box<Account<'info, ArenaPlayer>>,
-    #[account(mut, close = rent_recipient, seeds = [ACTIVE_RUN_SEED, b"active", active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump = active_run.bump)]
+    pub arena_player: Option<Box<Account<'info, ArenaPlayer>>>,
+    #[account(mut, close = rent_recipient, seeds = [ACTIVE_RUN_SEED, b"active", active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()], bump = active_run.bump,
+        constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub active_run: Box<Account<'info, ActiveRun>>,
     /// CHECK: Exact original payer persisted on the closing account.
     #[account(mut, address = active_run.rent_payer @ ErrorCode::InvalidOwner)]
@@ -766,26 +701,37 @@ pub struct ConsumeArenaRun<'info> {
 
 pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
     let active = &ctx.accounts.active_run;
+    if ctx.accounts.player_state.orphan_run_id == active.run_id {
+        return ctx.accounts.player_state.release_orphan(active.run_id);
+    }
+    let daily = ctx
+        .accounts
+        .arena_daily
+        .as_mut()
+        .ok_or(ErrorCode::InvalidState)?;
+    let player = ctx
+        .accounts
+        .arena_player
+        .as_mut()
+        .ok_or(ErrorCode::InvalidState)?;
     require!(
         active.lifecycle == RunLifecycle::Finished
             && active.finished_at > 0
-            && active.finished_at <= day_window(ctx.accounts.arena_daily.day_id)?.1
+            && active.finished_at <= day_window(daily.day_id)?.1
             && active.pending_vrf_counter == 0,
-        ErrorCode::GameNotFinished
+        ErrorCode::InvalidState
     );
     require!(
         ctx.accounts.player_state.arcade_reservation_matches(
             active.run_id,
             active.daily_challenge,
             active.deadline_at,
-        ) && ctx.accounts.arena_player.active_paid_run_id == active.run_id,
+        ) && player.active_paid_run_id == active.run_id,
         ErrorCode::InvalidRunId
     );
-    ctx.accounts.arena_player.active_paid_run_id = 0;
+    player.active_paid_run_id = 0;
     if active.action_counter == 0 {
-        ctx.accounts
-            .arena_daily
-            .record_expired_entry(&mut ctx.accounts.arena_player)?;
+        daily.record_expired_entry(player)?;
     } else {
         let candidate = ArenaBoardEntry {
             player: active.owner,
@@ -794,22 +740,20 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
             finalized_at: active.finished_at,
             replay_hash: active.replay_hash,
         };
-        ctx.accounts.arena_daily.record_scored_entry(
-            &mut ctx.accounts.arena_player,
-            &mut ctx.accounts.player_state,
-            candidate,
-            active.run_id,
-        )?;
-        ctx.accounts.arena_daily.entries_scored =
-            checked_add_u64(ctx.accounts.arena_daily.entries_scored, 1)?;
-        ctx.accounts.arena_player.resolved_entries =
-            checked_add_u32(ctx.accounts.arena_player.resolved_entries, 1)?;
+        daily.record_scored_entry(player, &mut ctx.accounts.player_state, candidate)?;
+        daily.entries_scored = daily
+            .entries_scored
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        player.resolved_entries = player
+            .resolved_entries
+            .checked_add(1)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
     }
     ctx.accounts.player_state.release_arcade_run(active.run_id)
 }
 
 #[derive(Accounts)]
-#[instruction(run_id: u64)]
 pub struct ExpireUnresolvedArenaRun<'info> {
     #[account(mut, seeds = [PLAYER_STATE_SEED, owner.key().as_ref()], bump = player_state.bump,
         constraint = player_state.owner == owner.key() @ ErrorCode::Unauthorized,
@@ -826,10 +770,7 @@ pub struct ExpireUnresolvedArenaRun<'info> {
     pub caller: Signer<'info>,
 }
 
-pub fn handler_expire_unresolved_arena_run(
-    ctx: Context<ExpireUnresolvedArenaRun>,
-    run_id: u64,
-) -> Result<()> {
+pub fn handler_expire_unresolved_arena_run(ctx: Context<ExpireUnresolvedArenaRun>) -> Result<()> {
     require!(
         Clock::get()?.unix_timestamp
             >= ctx
@@ -838,12 +779,10 @@ pub fn handler_expire_unresolved_arena_run(
                 .active_run_deadline_at
                 .checked_add(STUCK_RUN_RECOVERY_SECONDS)
                 .ok_or(ErrorCode::ArithmeticOverflow)?,
-        ErrorCode::ChallengeNotEnded
+        ErrorCode::InvalidPeriod
     );
-    require!(
-        ctx.accounts.player_state.active_run_id == run_id,
-        ErrorCode::InvalidRunId
-    );
+    let run_id = ctx.accounts.player_state.active_run_id;
+    require!(run_id != 0, ErrorCode::InvalidRunId);
     let player = &mut ctx.accounts.arena_player;
     require!(player.active_paid_run_id == run_id, ErrorCode::InvalidRunId);
     ctx.accounts.arena_daily.record_expired_entry(player)?;
@@ -852,46 +791,11 @@ pub fn handler_expire_unresolved_arena_run(
 }
 
 #[derive(Accounts)]
-pub struct CleanupOrphanActiveRun<'info> {
-    #[account(mut, close = rent_recipient,
-        seeds = [ACTIVE_RUN_SEED, b"active", active_run.owner.as_ref(), active_run.run_id.to_le_bytes().as_ref()],
-        bump = active_run.bump, constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
-    pub active_run: Box<Account<'info, ActiveRun>>,
-    #[account(mut, seeds = [PLAYER_STATE_SEED, active_run.owner.as_ref()], bump = player_state.bump,
-        constraint = player_state.owner == active_run.owner @ ErrorCode::Unauthorized,
-        constraint = player_state.schema_valid() @ ErrorCode::InvalidVersion)]
-    pub player_state: Box<Account<'info, PlayerState>>,
-    /// CHECK: Exact original payer persisted on the closing account.
-    #[account(mut, address = active_run.rent_payer @ ErrorCode::InvalidOwner)]
-    pub rent_recipient: UncheckedAccount<'info>,
-    pub caller: Signer<'info>,
-}
-
-pub fn handler_cleanup_orphan_active_run(ctx: Context<CleanupOrphanActiveRun>) -> Result<()> {
-    require!(
-        ctx.accounts.player_state.active_run_id == 0
-            && ctx.accounts.player_state.orphan_run_id == ctx.accounts.active_run.run_id
-            && Clock::get()?.unix_timestamp
-                >= ctx
-                    .accounts
-                    .active_run
-                    .deadline_at
-                    .checked_add(STUCK_RUN_RECOVERY_SECONDS)
-                    .ok_or(ErrorCode::ArithmeticOverflow)?,
-        ErrorCode::InvalidState
-    );
-    ctx.accounts
-        .player_state
-        .release_orphan(ctx.accounts.active_run.run_id)
-}
-
-#[derive(Accounts)]
-#[instruction(score_payout_count: u32, theme_payout_count: u32)]
 pub struct FinalizeArenaDaily<'info> {
     #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()], bump = following_daily.bump,
-        constraint = !following_daily.predecessor_rollover_applied @ ErrorCode::AlreadySubmitted)]
+        constraint = !following_daily.predecessor_rollover_applied @ ErrorCode::InvalidState)]
     pub following_daily: Box<Account<'info, ArenaDaily>>,
     /// CHECK: Exact-sized Score board allocated and serialized below.
     #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump)]
@@ -908,26 +812,31 @@ pub struct FinalizeArenaDaily<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler_finalize_arena_daily(
-    ctx: Context<FinalizeArenaDaily>,
-    score_payout_count: u32,
-    theme_payout_count: u32,
-) -> Result<()> {
+pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     require!(
-        ctx.accounts.arena_daily.status == PeriodStatus::Open
-            && ctx.accounts.arena_daily.predecessor_rollover_applied
+        matches!(
+            ctx.accounts.arena_daily.status,
+            PeriodStatus::Open | PeriodStatus::Funding
+        ) && ctx.accounts.arena_daily.predecessor_rollover_applied
             && now >= day_window(ctx.accounts.arena_daily.day_id)?.1
             && ctx.accounts.arena_daily.resolved(),
-        ErrorCode::ChallengeNotEnded
-    );
-    require!(
-        valid_daily_successor(
-            ctx.accounts.arena_daily.day_id,
-            ctx.accounts.following_daily.day_id,
-        ),
         ErrorCode::InvalidPeriod
     );
+    require!(
+        ctx.accounts.following_daily.day_id > ctx.accounts.arena_daily.day_id,
+        ErrorCode::InvalidPeriod
+    );
+    let pool = ctx.accounts.arena_daily.ledger.available_lamports()?;
+    let pools = daily_board_pools(pool, ctx.accounts.arena_daily.theme_qualified_players);
+    let score_plan = board_payout_plan(
+        pools.score,
+        ctx.accounts.arena_daily.score_qualified_players,
+    )?;
+    let theme_plan = board_payout_plan(
+        pools.theme,
+        ctx.accounts.arena_daily.theme_qualified_players,
+    )?;
     let source_info = ctx.accounts.arena_daily.to_account_info();
     let successor_info = ctx.accounts.following_daily.to_account_info();
     let score_info = ctx.accounts.score_board.to_account_info();
@@ -936,13 +845,13 @@ pub fn handler_finalize_arena_daily(
         (
             &score_info,
             DailyBoardKind::Score,
-            score_payout_count,
+            score_plan.count,
             ctx.bumps.score_board,
         ),
         (
             &theme_info,
             DailyBoardKind::Theme,
-            theme_payout_count,
+            theme_plan.count,
             ctx.bumps.theme_board,
         ),
     ] {
@@ -963,82 +872,10 @@ pub fn handler_finalize_arena_daily(
     }
     let mut score_board = ArenaBoard::default();
     let mut theme_board = ArenaBoard::default();
-    settle_daily_period(
-        DailySettlementAccounts {
-            source: &mut ctx.accounts.arena_daily,
-            successor: &mut ctx.accounts.following_daily,
-            score_board: &mut score_board,
-            theme_board: &mut theme_board,
-            source_info: &source_info,
-            successor_info: &successor_info,
-            score_info: &score_info,
-            theme_info: &theme_info,
-        },
-        DailySettlementArgs {
-            score_payout_count,
-            theme_payout_count,
-            score_bump: ctx.bumps.score_board,
-            theme_bump: ctx.bumps.theme_board,
-            finalized_at: now,
-        },
-    )?;
-    score_board.try_serialize(&mut &mut score_info.try_borrow_mut_data()?[..])?;
-    theme_board.try_serialize(&mut &mut theme_info.try_borrow_mut_data()?[..])?;
-    Ok(())
-}
-
-struct DailySettlementAccounts<'a, 'info> {
-    source: &'a mut ArenaDaily,
-    successor: &'a mut ArenaDaily,
-    score_board: &'a mut ArenaBoard,
-    theme_board: &'a mut ArenaBoard,
-    source_info: &'a AccountInfo<'info>,
-    successor_info: &'a AccountInfo<'info>,
-    score_info: &'a AccountInfo<'info>,
-    theme_info: &'a AccountInfo<'info>,
-}
-
-struct DailySettlementArgs {
-    score_payout_count: u32,
-    theme_payout_count: u32,
-    score_bump: u8,
-    theme_bump: u8,
-    finalized_at: i64,
-}
-
-fn settle_daily_period(
-    accounts: DailySettlementAccounts<'_, '_>,
-    args: DailySettlementArgs,
-) -> Result<()> {
-    let DailySettlementAccounts {
-        source,
-        successor,
-        score_board,
-        theme_board,
-        source_info,
-        successor_info,
-        score_info,
-        theme_info,
-    } = accounts;
-    let DailySettlementArgs {
-        score_payout_count,
-        theme_payout_count,
-        score_bump,
-        theme_bump,
-        finalized_at,
-    } = args;
-    require!(source.predecessor_rollover_applied, ErrorCode::InvalidState);
-    let pool = source.ledger.available_lamports()?;
-    require_spendable(source_info, pool)?;
-    let pools = daily_board_pools(pool, source.theme_qualified_players);
-    let score_plan = board_payout_plan(pools.score, source.score_qualified_players)?;
-    let theme_plan = board_payout_plan(pools.theme, source.theme_qualified_players)?;
-    require!(
-        score_payout_count == score_plan.count
-            && theme_payout_count == theme_plan.count
-            && !source.claims_expired,
-        ErrorCode::AccountingInvariant
-    );
+    let source = &mut ctx.accounts.arena_daily;
+    let successor = &mut ctx.accounts.following_daily;
+    require_spendable(&source_info, pool)?;
+    require!(!source.claims_expired, ErrorCode::InvalidState);
     let paid_lamports = score_plan
         .paid_lamports
         .checked_add(theme_plan.paid_lamports)
@@ -1051,12 +888,12 @@ fn settle_daily_period(
         paid_lamports.checked_add(rollover_lamports) == Some(pool),
         ErrorCode::AccountingInvariant
     );
-    move_program_lamports(source_info, successor_info, rollover_lamports)?;
+    move_program_lamports(&source_info, &successor_info, rollover_lamports)?;
     source.ledger.settle(paid_lamports, rollover_lamports)?;
     successor.ledger.add_rollover(rollover_lamports)?;
     successor.predecessor_rollover_applied = true;
     initialize_arena_board(
-        score_board,
+        &mut score_board,
         ArenaBoardInitialization {
             daily: source_info.key(),
             day_id: source.day_id,
@@ -1064,12 +901,12 @@ fn settle_daily_period(
             qualified_count: source.score_qualified_players,
             pool_lamports: pools.score,
             plan: score_plan,
-            finalized_at,
-            bump: score_bump,
+            finalized_at: now,
+            bump: ctx.bumps.score_board,
         },
     );
     initialize_arena_board(
-        theme_board,
+        &mut theme_board,
         ArenaBoardInitialization {
             daily: source_info.key(),
             day_id: source.day_id,
@@ -1077,8 +914,8 @@ fn settle_daily_period(
             qualified_count: source.theme_qualified_players,
             pool_lamports: pools.theme,
             plan: theme_plan,
-            finalized_at,
-            bump: theme_bump,
+            finalized_at: now,
+            bump: ctx.bumps.theme_board,
         },
     );
     require!(
@@ -1087,7 +924,9 @@ fn settle_daily_period(
         ErrorCode::AccountingInvariant
     );
     source.status = PeriodStatus::Finalized;
-    source.finalized_at = finalized_at;
+    source.finalized_at = now;
+    score_board.try_serialize(&mut &mut score_info.try_borrow_mut_data()?[..])?;
+    theme_board.try_serialize(&mut &mut theme_info.try_borrow_mut_data()?[..])?;
     Ok(())
 }
 
@@ -1097,7 +936,7 @@ pub struct SubmitArenaBoardChunk<'info> {
     #[account(
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
-        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
     )]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
@@ -1116,10 +955,9 @@ pub fn handler_submit_arena_board_chunk<'info>(
     ctx: Context<'info, SubmitArenaBoardChunk<'info>>,
     kind: DailyBoardKind,
     entries: Vec<SubmittedBoardEntry>,
-    seal: bool,
 ) -> Result<()> {
     require!(
-        !ctx.accounts.arena_board.sealed
+        !ctx.accounts.arena_board.sealed()
             && !entries.is_empty()
             && entries.len() <= ARENA_BOARD_CHUNK_CAPACITY
             && entries.len() == ctx.remaining_accounts.len(),
@@ -1138,7 +976,10 @@ pub fn handler_submit_arena_board_chunk<'info>(
         .cursor
         .checked_add(appended)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    verify_board_completion(next_cursor, ctx.accounts.arena_board.payout_count, seal)?;
+    require!(
+        next_cursor <= ctx.accounts.arena_board.payout_count,
+        ErrorCode::BoardIncomplete
+    );
 
     board_info.resize(ArenaBoard::construction_space(
         ctx.accounts.arena_board.payout_count,
@@ -1173,7 +1014,7 @@ pub fn handler_submit_arena_board_chunk<'info>(
         );
         require_keys_eq!(source_info.key(), expected_key, ErrorCode::InvalidOwner);
         require!(
-            source.version == ARCADE_ACCOUNT_VERSION
+            source.version == ACCOUNT_VERSION
                 && source.challenge == ctx.accounts.arena_daily.key()
                 && source.resolved(),
             ErrorCode::InvalidState
@@ -1192,12 +1033,12 @@ pub fn handler_submit_arena_board_chunk<'info>(
         previous = Some(entry);
     }
     ctx.accounts.arena_board.cursor = next_cursor;
-    if seal {
+    if next_cursor == ctx.accounts.arena_board.payout_count {
         require!(
             board_info.data_len() == ArenaBoard::account_space(next_cursor)?,
             ErrorCode::BoardIncomplete
         );
-        ctx.accounts.arena_board.sealed = true;
+
         ctx.accounts.arena_board.sealed_at = Clock::get()?.unix_timestamp;
     }
     Ok(())
@@ -1210,7 +1051,7 @@ pub struct ClaimDailyPrize<'info> {
         mut,
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
-        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
     )]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
@@ -1315,14 +1156,14 @@ pub struct ExpireDailyClaims<'info> {
     #[account(
         seeds = [ARCADE_CONFIG_SEED],
         bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(
         mut,
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
-        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
         constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState,
         constraint = arcade_config.last_daily_id >= arena_daily.day_id @ ErrorCode::InvalidState
@@ -1346,7 +1187,7 @@ pub struct ExpireDailyClaims<'info> {
         mut,
         seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()],
         bump = following_daily.bump,
-        constraint = following_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = following_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = following_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
         constraint = matches!(following_daily.status, PeriodStatus::Funding | PeriodStatus::Open) @ ErrorCode::InvalidState
     )]
@@ -1357,18 +1198,18 @@ pub struct ExpireDailyClaims<'info> {
 pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()> {
     require!(
         !ctx.accounts.arena_daily.claims_expired,
-        ErrorCode::AlreadySubmitted
+        ErrorCode::InvalidState
     );
     let score_info = ctx.accounts.score_board.to_account_info();
     let theme_info = ctx.accounts.theme_board.to_account_info();
-    validate_finalized_board(
+    validate_finalized_board_binding(
         &ctx.accounts.arena_daily,
         ctx.accounts.arena_daily.key(),
         &ctx.accounts.score_board,
         score_info.data_len(),
         DailyBoardKind::Score,
     )?;
-    validate_finalized_board(
+    validate_finalized_board_binding(
         &ctx.accounts.arena_daily,
         ctx.accounts.arena_daily.key(),
         &ctx.accounts.theme_board,
@@ -1376,8 +1217,8 @@ pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()
         DailyBoardKind::Theme,
     )?;
     require!(
-        ctx.accounts.score_board.sealed
-            && ctx.accounts.theme_board.sealed
+        ctx.accounts.score_board.sealed()
+            && ctx.accounts.theme_board.sealed()
             && ctx.accounts.score_board.claimed_lamports <= ctx.accounts.score_board.paid_lamports
             && ctx.accounts.theme_board.claimed_lamports <= ctx.accounts.theme_board.paid_lamports,
         ErrorCode::BoardIncomplete
@@ -1385,7 +1226,7 @@ pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()
     let now = Clock::get()?.unix_timestamp;
     require!(
         now > daily_claim_deadline(&ctx.accounts.score_board, &ctx.accounts.theme_board,)?,
-        ErrorCode::ClaimWindowOpen
+        ErrorCode::InvalidState
     );
     let current_day = day_id_at(now)?;
     require!(
@@ -1427,13 +1268,13 @@ pub struct ArchiveArenaDaily<'info> {
         mut,
         seeds = [ARCADE_CONFIG_SEED],
         bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
-        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
         constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
     )]
@@ -1459,14 +1300,14 @@ pub fn handler_archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()
     require!(ctx.accounts.arena_daily.resolved(), ErrorCode::InvalidState);
     let score_info = ctx.accounts.score_board.to_account_info();
     let theme_info = ctx.accounts.theme_board.to_account_info();
-    validate_finalized_board(
+    validate_finalized_board_binding(
         &ctx.accounts.arena_daily,
         ctx.accounts.arena_daily.key(),
         &ctx.accounts.score_board,
         score_info.data_len(),
         DailyBoardKind::Score,
     )?;
-    validate_finalized_board(
+    validate_finalized_board_binding(
         &ctx.accounts.arena_daily,
         ctx.accounts.arena_daily.key(),
         &ctx.accounts.theme_board,
@@ -1491,7 +1332,7 @@ pub struct CloseArenaDaily<'info> {
     #[account(
         seeds = [ARCADE_CONFIG_SEED],
         bump = arcade_config.bump,
-        constraint = arcade_config.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion
+        constraint = arcade_config.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub arcade_config: Box<Account<'info, ArcadeConfig>>,
     #[account(
@@ -1499,7 +1340,7 @@ pub struct CloseArenaDaily<'info> {
         close = cadence_funding,
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
-        constraint = arena_daily.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_daily.arcade_config == arcade_config.key() @ ErrorCode::InvalidOwner,
         constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState,
         constraint = arcade_config.last_daily_id >= arena_daily.day_id @ ErrorCode::InvalidState
@@ -1540,14 +1381,14 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
     let daily = &ctx.accounts.arena_daily;
     let score_info = ctx.accounts.score_board.to_account_info();
     let theme_info = ctx.accounts.theme_board.to_account_info();
-    validate_finalized_board(
+    validate_finalized_board_binding(
         daily,
         ctx.accounts.arena_daily.key(),
         &ctx.accounts.score_board,
         score_info.data_len(),
         DailyBoardKind::Score,
     )?;
-    validate_finalized_board(
+    validate_finalized_board_binding(
         daily,
         ctx.accounts.arena_daily.key(),
         &ctx.accounts.theme_board,
@@ -1559,8 +1400,8 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
             && daily.claims_expired
             && Clock::get()?.unix_timestamp
                 > daily_claim_deadline(&ctx.accounts.score_board, &ctx.accounts.theme_board,)?
-            && ctx.accounts.score_board.sealed
-            && ctx.accounts.theme_board.sealed,
+            && ctx.accounts.score_board.sealed()
+            && ctx.accounts.theme_board.sealed(),
         ErrorCode::InvalidState
     );
     Ok(())
@@ -1572,7 +1413,7 @@ pub struct CloseArenaPlayer<'info> {
     pub arena_daily: UncheckedAccount<'info>,
     #[account(mut, close = rent_recipient,
         seeds = [ARENA_PLAYER_SEED, arena_player.challenge.as_ref(), arena_player.player.as_ref()], bump = arena_player.bump,
-        constraint = arena_player.version == ARCADE_ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = arena_player.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = arena_player.active_paid_run_id == 0 @ ErrorCode::ActiveRunExists,
         constraint = arena_player.resolved() @ ErrorCode::InvalidState)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
@@ -1588,7 +1429,12 @@ pub fn handler_close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> 
         ctx.accounts.arena_player.challenge,
         ErrorCode::InvalidOwner
     );
-    validate_closed_daily(&ctx.accounts.arena_daily.to_account_info())
+    let account = ctx.accounts.arena_daily.to_account_info();
+    require!(
+        *account.owner == system_program::ID && account.data_is_empty() && !account.executable,
+        ErrorCode::InvalidState
+    );
+    Ok(())
 }
 
 /// Allocates only the Daily and payout-board PDAs selected by the two callers.
@@ -1695,23 +1541,9 @@ fn validate_wallet(account: &AccountInfo<'_>, expected: Pubkey) -> Result<()> {
     Ok(())
 }
 
-fn validate_closed_daily(account: &AccountInfo<'_>) -> Result<()> {
-    require!(
-        *account.owner == system_program::ID && account.data_is_empty() && !account.executable,
-        ErrorCode::InvalidState
-    );
-    Ok(())
-}
-
-fn checked_add_u64(left: u64, right: u64) -> Result<u64> {
-    left.checked_add(right)
-        .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
-}
-
 fn prepare_period_is_allowed(
     requested: u32,
     current: u32,
-    launch_seeded: bool,
     launch: u32,
     suspended_until_day: u32,
 ) -> bool {
@@ -1723,21 +1555,11 @@ fn prepare_period_is_allowed(
         return false;
     };
     let in_live_window = requested <= current || requested == first || requested == following;
-    if launch_seeded {
+    if launch > 0 {
         requested >= launch && in_live_window
     } else {
         requested == first || requested == following
     }
-}
-
-fn top_up_period_is_allowed(requested: u32, current: u32, config: &ArcadeConfig) -> bool {
-    scheduled_daily_window(config, current)
-        .is_ok_and(|(first, following)| requested == first || requested == following)
-}
-
-fn checked_add_u32(left: u32, right: u32) -> Result<u32> {
-    left.checked_add(right)
-        .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
 }
 
 #[cfg(test)]
@@ -1746,20 +1568,20 @@ mod tests {
 
     #[test]
     fn launched_period_preparation_can_rebuild_only_bounded_history() {
-        assert!(prepare_period_is_allowed(100, 104, true, 100, 0));
-        assert!(prepare_period_is_allowed(104, 104, true, 100, 0));
-        assert!(prepare_period_is_allowed(105, 104, true, 100, 0));
-        assert!(!prepare_period_is_allowed(99, 104, true, 100, 0));
-        assert!(!prepare_period_is_allowed(106, 104, true, 100, 0));
-        assert!(!prepare_period_is_allowed(105, 104, true, 100, 106));
+        assert!(prepare_period_is_allowed(100, 104, 100, 0));
+        assert!(prepare_period_is_allowed(104, 104, 100, 0));
+        assert!(prepare_period_is_allowed(105, 104, 100, 0));
+        assert!(!prepare_period_is_allowed(99, 104, 100, 0));
+        assert!(!prepare_period_is_allowed(106, 104, 100, 0));
+        assert!(!prepare_period_is_allowed(105, 104, 100, 106));
     }
 
     #[test]
     fn prelaunch_preparation_remains_current_or_successor_only() {
-        assert!(prepare_period_is_allowed(104, 104, false, 0, 0));
-        assert!(prepare_period_is_allowed(105, 104, false, 0, 0));
-        assert!(!prepare_period_is_allowed(103, 104, false, 0, 0));
-        assert!(!prepare_period_is_allowed(106, 104, false, 0, 0));
+        assert!(prepare_period_is_allowed(104, 104, 0, 0));
+        assert!(prepare_period_is_allowed(105, 104, 0, 0));
+        assert!(!prepare_period_is_allowed(103, 104, 0, 0));
+        assert!(!prepare_period_is_allowed(106, 104, 0, 0));
     }
 
     #[test]

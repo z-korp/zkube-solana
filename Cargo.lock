@@ -5218,6 +5218,7 @@ dependencies = [
 name = "zkube-codegen"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang",
  "clap",
  "serde",
  "serde_json",

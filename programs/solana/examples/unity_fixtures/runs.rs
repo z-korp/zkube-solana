@@ -5,8 +5,8 @@ use zkube_core_host::{encode_run_config, encode_run_state};
 
 fn config() -> RunConfig {
     let daily = accounts::daily(DAY);
-    let realm =
-        zkube_core::REALM_RULES[usize::from(daily_content_for_day(daily.day_id).realm_map_id - 1)];
+    let realm = zkube_core::REALM_RULES
+        [usize::from(zkube_core::daily_pair_with::<SolanaSha256>(daily.day_id).0 - 1)];
     RunConfig {
         rules_hash: RulesHash(daily.rules_hash),
         initial_replay: ReplayCommitment([6; 32]),
@@ -16,12 +16,7 @@ fn config() -> RunConfig {
             max_moves: zkube_core::DAILY_MAX_MOVES,
             tier: TierPolicy::Pressure,
             stars: None,
-            objective: Some(
-                daily_content_for_day(daily.day_id)
-                    .objective
-                    .to_core()
-                    .unwrap(),
-            ),
+            objective: Some(zkube_core::daily_pair_with::<SolanaSha256>(daily.day_id).1),
         },
     }
 }
@@ -74,11 +69,11 @@ pub fn account(phase: &str, id: u64) -> ActiveRun {
         daily_challenge: accounts::daily_address(DAY),
         run_id: id,
         rules_hash: run.rules_hash.0,
-        deadline_at: NOW + ARENA_RUNS_CLOSE_OFFSET,
-        map_id: daily_content_for_day(daily.day_id).realm_map_id,
+        deadline_at: NOW + zkube_core::DAILY_RUN_CLOSE_OFFSET,
+        map_id: zkube_core::daily_pair_with::<SolanaSha256>(daily.day_id).0,
         rules: RealmRuleSnapshot::from_core(
             zkube_core::REALM_RULES
-                [usize::from(daily_content_for_day(daily.day_id).realm_map_id - 1)],
+                [usize::from(zkube_core::daily_pair_with::<SolanaSha256>(daily.day_id).0 - 1)],
         ),
         daily_theme: DailyThemeSnapshot::from_core(config().rules.objective.unwrap()),
         vrf_request_counter: run.last_vrf_counter + u32::from(phase == "awaitingVrf"),

@@ -5,9 +5,7 @@ use anchor_lang::system_program as anchor_system_program;
 use session_keys::SessionTokenV2;
 
 use crate::error::ErrorCode;
-use crate::instructions::player_authorization::{
-    require_player_authorization, require_player_rent_payer,
-};
+use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::protocol::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -88,7 +86,6 @@ pub fn handler_initialize_player(ctx: Context<InitializePlayer>) -> Result<()> {
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
-    require_player_rent_payer(owner, ctx.accounts.actor.key(), ctx.accounts.payer.key())?;
     let player = &mut ctx.accounts.player_state;
     if player.version == 0 {
         player.set_inner(PlayerState::initialize(owner, ctx.bumps.player_state));

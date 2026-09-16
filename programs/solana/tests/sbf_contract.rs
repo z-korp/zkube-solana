@@ -1,6 +1,6 @@
 #![cfg(feature = "sbf-tests")]
 
-use std::{fs, io::Cursor, path::PathBuf};
+use std::io::Cursor;
 
 use anchor_lang::prelude::{AccountDeserialize, AccountSerialize, Pubkey};
 use anchor_lang::{AnchorSerialize, InstructionData, Space, ToAccountMetas};
@@ -10,9 +10,7 @@ use solana_account::Account;
 
 use solana as zkube;
 use zkube::state::arcade::*;
-use zkube::state::arena_rules::*;
 use zkube::state::protocol::*;
-use zkube_core::{row_from_vrf, BlockWeights, Grid};
 
 const PROGRAM_NAME: &str = "solana";
 const ACCOUNT_LAMPORTS: u64 = 10_000_000;
@@ -93,232 +91,6 @@ fn resulting_account<'a>(
         .find(|(address, _)| address == key)
         .expect("resulting account")
         .1
-}
-
-fn noop_sbf_elf() -> Vec<u8> {
-    // Mollusk's exact, directly-pinned loader dependency ships this minimal
-    // return-Ok SBF fixture. Registering it under the VRF program id lets the
-    // real zKube ELF exercise its nonterminal CPI boundary without pretending
-    // to implement the VRF service itself.
-    let cargo_home = std::env::var_os("CARGO_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cargo")))
-        .expect("Cargo home for the pinned SBF fixture");
-    let registry_sources = cargo_home.join("registry/src");
-    for registry in fs::read_dir(&registry_sources).expect("read Cargo registry sources") {
-        let candidate = registry
-            .expect("read Cargo registry source entry")
-            .path()
-            .join("solana-bpf-loader-program-3.0.14/test_elfs/out/noop_aligned.so");
-        if candidate.is_file() {
-            return fs::read(candidate).expect("read pinned no-op SBF fixture");
-        }
-    }
-    panic!("pinned solana-bpf-loader-program no-op SBF fixture is unavailable");
-}
-
-fn process_play_move(
-    active_state: ActiveRun,
-    row: u8,
-    start: u8,
-    destination: u8,
-    unix_timestamp: i64,
-    stub_vrf: bool,
-) -> (Pubkey, mollusk_svm::result::InstructionResult) {
-    let owner = active_state.owner;
-    let (active_run, expected_bump) = Pubkey::find_program_address(
-        &[
-            ACTIVE_RUN_SEED,
-            b"active",
-            owner.as_ref(),
-            &active_state.run_id.to_le_bytes(),
-        ],
-        &zkube::ID,
-    );
-    assert_eq!(active_state.bump, expected_bump);
-    let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
-        .to_bytes()
-        .into();
-    let delegation_record: Pubkey =
-        ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(
-            &active_run.to_bytes().into(),
-        )
-        .to_bytes()
-        .into();
-    let delegation_owner: Pubkey = ephemeral_rollups_sdk::id().to_bytes().into();
-    let validator = Pubkey::new_unique();
-    let mut delegation_data =
-        vec![0; ephemeral_rollups_sdk::dlp_api::state::DelegationRecord::size_with_discriminator()];
-    delegation_data[..8].copy_from_slice(&100u64.to_le_bytes());
-    delegation_data[8..40].copy_from_slice(validator.as_ref());
-    let program_identity = Pubkey::find_program_address(&[b"identity"], &zkube::ID).0;
-    let vrf_program: Pubkey = ephemeral_rollups_sdk::vrf::consts::VRF_PROGRAM_ID
-        .to_bytes()
-        .into();
-    let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::RunVrf {
-            active_run,
-            owner_authority: owner,
-            session_token: None,
-            actor: owner,
-            oracle_queue,
-            delegation_record_active: delegation_record,
-            program_identity,
-            vrf_program,
-            slot_hashes,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::PlayMove {
-            expected_action: active_state.action_counter,
-            expected_move: active_state.moves,
-            row,
-            start,
-            destination,
-            client_seed: [0; 32],
-        }
-        .data(),
-    };
-    let mut runtime = mollusk();
-    if stub_vrf {
-        runtime.program_cache.add_program(
-            &vrf_program,
-            &mollusk_svm::program::loader_keys::LOADER_V3,
-            &noop_sbf_elf(),
-        );
-    }
-    runtime.sysvars.clock.unix_timestamp = unix_timestamp;
-    let (_, slot_hashes_account) = runtime.sysvars.keyed_account_for_slot_hashes_sysvar();
-    let accounts = vec![
-        (
-            active_run,
-            program_account(&active_state, 8 + ActiveRun::INIT_SPACE),
-        ),
-        (owner, system_account(ACCOUNT_LAMPORTS)),
-        (oracle_queue, system_account(0)),
-        (
-            delegation_record,
-            Account {
-                lamports: 1,
-                data: delegation_data,
-                owner: delegation_owner,
-                executable: false,
-                rent_epoch: 0,
-            },
-        ),
-        (program_identity, system_account(0)),
-        (
-            vrf_program,
-            executable_program_account(Pubkey::from_str_const(
-                "BPFLoaderUpgradeab1e11111111111111111111111",
-            )),
-        ),
-        (slot_hashes, slot_hashes_account),
-        (anchor_lang::system_program::ID, system_program_account()),
-    ];
-    (
-        active_run,
-        runtime.process_instruction(&instruction, &accounts),
-    )
-}
-
-fn process_request_reroll(
-    active_state: ActiveRun,
-    unix_timestamp: i64,
-) -> (Pubkey, mollusk_svm::result::InstructionResult) {
-    let owner = active_state.owner;
-    let (active_run, expected_bump) = Pubkey::find_program_address(
-        &[
-            ACTIVE_RUN_SEED,
-            b"active",
-            owner.as_ref(),
-            &active_state.run_id.to_le_bytes(),
-        ],
-        &zkube::ID,
-    );
-    assert_eq!(active_state.bump, expected_bump);
-    let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
-        .to_bytes()
-        .into();
-    let delegation_record: Pubkey =
-        ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(
-            &active_run.to_bytes().into(),
-        )
-        .to_bytes()
-        .into();
-    let delegation_owner: Pubkey = ephemeral_rollups_sdk::id().to_bytes().into();
-    let validator = Pubkey::new_unique();
-    let mut delegation_data =
-        vec![0; ephemeral_rollups_sdk::dlp_api::state::DelegationRecord::size_with_discriminator()];
-    delegation_data[..8].copy_from_slice(&100u64.to_le_bytes());
-    delegation_data[8..40].copy_from_slice(validator.as_ref());
-    let program_identity = Pubkey::find_program_address(&[b"identity"], &zkube::ID).0;
-    let vrf_program: Pubkey = ephemeral_rollups_sdk::vrf::consts::VRF_PROGRAM_ID
-        .to_bytes()
-        .into();
-    let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::RunVrf {
-            active_run,
-            owner_authority: owner,
-            session_token: None,
-            actor: owner,
-            oracle_queue,
-            delegation_record_active: delegation_record,
-            program_identity,
-            vrf_program,
-            slot_hashes,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::RequestReroll {
-            expected_action: active_state.action_counter,
-            client_seed: [0; 32],
-        }
-        .data(),
-    };
-    let mut runtime = mollusk();
-    runtime.program_cache.add_program(
-        &vrf_program,
-        &mollusk_svm::program::loader_keys::LOADER_V3,
-        &noop_sbf_elf(),
-    );
-    runtime.sysvars.clock.unix_timestamp = unix_timestamp;
-    let (_, slot_hashes_account) = runtime.sysvars.keyed_account_for_slot_hashes_sysvar();
-    let accounts = vec![
-        (
-            active_run,
-            program_account(&active_state, 8 + ActiveRun::INIT_SPACE),
-        ),
-        (owner, system_account(ACCOUNT_LAMPORTS)),
-        (oracle_queue, system_account(0)),
-        (
-            delegation_record,
-            Account {
-                lamports: 1,
-                data: delegation_data,
-                owner: delegation_owner,
-                executable: false,
-                rent_epoch: 0,
-            },
-        ),
-        (program_identity, system_account(0)),
-        (
-            vrf_program,
-            executable_program_account(Pubkey::from_str_const(
-                "BPFLoaderUpgradeab1e11111111111111111111111",
-            )),
-        ),
-        (slot_hashes, slot_hashes_account),
-        (anchor_lang::system_program::ID, system_program_account()),
-    ];
-    (
-        active_run,
-        runtime.process_instruction(&instruction, &accounts),
-    )
 }
 
 fn protocol_fixture(
@@ -511,8 +283,8 @@ fn a_closed_run_returns_rent_to_its_payer() {
         program_id: zkube::ID,
         accounts: zkube::accounts::ConsumeArenaRun {
             player_state: player,
-            arena_daily: daily,
-            arena_player: participant,
+            arena_daily: Some(daily),
+            arena_player: Some(participant),
             active_run: active,
             rent_recipient,
         }
@@ -552,510 +324,6 @@ fn session_token_address(owner: Pubkey, actor: Pubkey) -> Pubkey {
         &session_keys::ID,
     )
     .0
-}
-
-fn fulfill_row_instruction(
-    vrf_program_identity: Pubkey,
-    active_run: Pubkey,
-    magic_fee_vault: Pubkey,
-    randomness: [u8; 32],
-    expected_request_counter: u32,
-) -> anchor_lang::solana_program::instruction::Instruction {
-    anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::FulfillRowVrf {
-            vrf_program_identity,
-            active_run,
-            magic_fee_vault,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::FulfillRowVrf {
-            randomness,
-            expected_request_counter,
-        }
-        .data(),
-    }
-}
-
-#[test]
-fn sbf_vrf_callback_builds_complete_opening_and_uses_shared_tier_weights() {
-    let vrf_program_identity: Pubkey =
-        ephemeral_rollups_sdk::vrf::consts::scoped_vrf_identity(&zkube::ID)
-            .to_bytes()
-            .into();
-    let magic_fee_vault = Pubkey::new_unique();
-    let opening_run = Pubkey::new_unique();
-    let opening_randomness = [37; 32];
-    let opening_rules = RealmRuleSnapshot {
-        starting_rows: 8,
-        ..daily_map_rule_fixture()
-    };
-    let opening_state = ActiveRun {
-        version: ACCOUNT_VERSION,
-        lifecycle: RunLifecycle::AwaitingVrf,
-
-        rules_hash: [19; 32],
-        rules: opening_rules,
-        deadline_at: i64::MAX,
-        vrf_request_counter: 1,
-        pending_vrf_counter: 1,
-        ..ActiveRun::default()
-    };
-    let callback_accounts = vec![
-        (vrf_program_identity, system_account(0)),
-        (
-            opening_run,
-            program_account(&opening_state, 8 + ActiveRun::INIT_SPACE),
-        ),
-        (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let opening_instruction = fulfill_row_instruction(
-        vrf_program_identity,
-        opening_run,
-        magic_fee_vault,
-        opening_randomness,
-        1,
-    );
-    let opening_result = mollusk().process_instruction(&opening_instruction, &callback_accounts);
-    assert!(
-        opening_result.program_result.is_ok(),
-        "{:?}",
-        opening_result.program_result
-    );
-    eprintln!(
-        "SBF_COMPUTE fulfill_opening={}",
-        opening_result.compute_units_consumed
-    );
-    assert!(opening_result.compute_units_consumed < 200_000);
-    let opened: ActiveRun = decode(resulting_account(&opening_result, &opening_run));
-    let opening_grid = Grid::try_from_cells(opened.grid).unwrap();
-    let core_opening = zkube_core::opening_from_vrf(
-        opening_randomness,
-        1,
-        opening_state.rules_hash,
-        opening_rules.starting_rows,
-        zkube_core::BlockWeights {
-            values: zkube_core::TIER_BLOCK_WEIGHTS[0],
-        },
-    )
-    .unwrap();
-    assert_eq!(opening_grid, core_opening.grid);
-    assert_eq!(opened.next_row, core_opening.preview);
-    let mut settled = opening_grid;
-    settled.apply_gravity_observed(&mut zkube_core::NoPresentation);
-    assert_eq!(settled, opening_grid);
-    assert_eq!(opening_grid.occupied_height(), 8);
-    assert!(opened.has_next_row);
-    assert_eq!(opened.lifecycle, RunLifecycle::Playing);
-    assert_eq!(opened.pending_vrf_counter, 0);
-
-    let daily_run = Pubkey::new_unique();
-    let daily_randomness = [91; 32];
-    let mut daily_grid = [0; 80];
-    daily_grid[0] = 1;
-    let daily_state = ActiveRun {
-        version: ACCOUNT_VERSION,
-        lifecycle: RunLifecycle::AwaitingVrf,
-        grid: daily_grid,
-        rules: RealmRuleSnapshot {
-            ..daily_map_rule_fixture()
-        },
-        daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
-        bonus_type: 1,
-        current_tier: 7,
-        vrf_request_counter: 2,
-        pending_vrf_counter: 2,
-        deadline_at: i64::MAX,
-        ..ActiveRun::default()
-    };
-    let daily_accounts = vec![
-        (vrf_program_identity, system_account(0)),
-        (
-            daily_run,
-            program_account(&daily_state, 8 + ActiveRun::INIT_SPACE),
-        ),
-        (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let daily_instruction = fulfill_row_instruction(
-        vrf_program_identity,
-        daily_run,
-        magic_fee_vault,
-        daily_randomness,
-        2,
-    );
-    let daily_result = mollusk().process_instruction(&daily_instruction, &daily_accounts);
-    assert!(
-        daily_result.program_result.is_ok(),
-        "{:?}",
-        daily_result.program_result
-    );
-    eprintln!(
-        "SBF_COMPUTE fulfill_next_row={}",
-        daily_result.compute_units_consumed
-    );
-    assert!(daily_result.compute_units_consumed < 50_000);
-    let daily: ActiveRun = decode(resulting_account(&daily_result, &daily_run));
-    assert_eq!(daily.lifecycle, RunLifecycle::Playing);
-    assert_eq!(daily.pending_vrf_counter, 0);
-    assert_eq!(
-        daily.next_row,
-        row_from_vrf(
-            daily_randomness,
-            2,
-            BlockWeights {
-                values: zkube_core::TIER_BLOCK_WEIGHTS[7],
-            },
-        )
-        .unwrap()
-    );
-
-    let stale_instruction = fulfill_row_instruction(
-        vrf_program_identity,
-        daily_run,
-        magic_fee_vault,
-        daily_randomness,
-        1,
-    );
-    assert!(mollusk()
-        .process_instruction(&stale_instruction, &daily_accounts)
-        .program_result
-        .is_err());
-}
-
-#[test]
-fn sbf_reroll_request_callback_and_deadline_resolution_match_the_golden_vector() {
-    let fixture: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../fixtures/replays/golden-reroll-v1.json"
-    ))
-    .unwrap();
-    let bytes32 = |field: &str| -> [u8; 32] {
-        let value = fixture[field].as_str().unwrap();
-        std::array::from_fn(|index| {
-            u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap()
-        })
-    };
-    let randomness = bytes32("vrf_output_hex");
-    let rules_hash = bytes32("rules_hash_hex");
-    let request_counter = fixture["request_counter"].as_u64().unwrap() as u32;
-    let reroll_action = fixture["reroll_event"]["action"].as_u64().unwrap() as u32;
-    let weights: [u16; 5] =
-        std::array::from_fn(|index| fixture["weights"][index].as_u64().unwrap() as u16);
-    let rerolled_row: [u8; 8] =
-        std::array::from_fn(|index| fixture["rerolled_row"][index].as_u64().unwrap() as u8);
-    let ordinary_row: [u8; 8] =
-        std::array::from_fn(|index| fixture["ordinary_next_row"][index].as_u64().unwrap() as u8);
-    let canonical_event = zkube_core::ReplayEvent::Reroll {
-        action: reroll_action,
-    }
-    .canonical_bytes();
-    assert_eq!(
-        canonical_event.as_slice(),
-        &[6, reroll_action as u8, 0, 0, 0]
-    );
-
-    let owner = Pubkey::new_unique();
-    let caller = Pubkey::new_unique();
-    let run_id = 1u64;
-    let day_id = 20_653;
-    let (daily, mut daily_state) =
-        daily_fixture(day_id, Pubkey::new_unique(), PeriodStatus::Open, true);
-    daily_state.entries_paid = 1;
-    let deadline_at = day_window(daily_state.day_id).unwrap().1;
-    let (active_run, bump) = Pubkey::find_program_address(
-        &[
-            ACTIVE_RUN_SEED,
-            b"active",
-            owner.as_ref(),
-            &run_id.to_le_bytes(),
-        ],
-        &zkube::ID,
-    );
-    let mut grid = [0u8; 80];
-    grid[0] = 1;
-    let old_preview = [1, 0, 0, 0, 0, 0, 0, 0];
-    let initial_replay = [7u8; 32];
-    assert_eq!(weights, zkube_core::TIER_BLOCK_WEIGHTS[0]);
-    let active_state = ActiveRun {
-        version: ACCOUNT_VERSION,
-        owner,
-        rent_payer: caller,
-        daily_challenge: daily,
-        run_id,
-        lifecycle: RunLifecycle::Playing,
-        rules_hash,
-        rules: RealmRuleSnapshot {
-            ..daily_map_rule_fixture()
-        },
-        grid,
-        next_row: old_preview,
-        has_next_row: true,
-        bonus_type: 1,
-        bonus_charges: 2,
-        reroll_charges: 2,
-        action_counter: reroll_action,
-        vrf_request_counter: request_counter - 1,
-        replay_hash: initial_replay,
-        deadline_at,
-        bump,
-        ..ActiveRun::default()
-    };
-
-    let mut empty_inventory: ActiveRun =
-        decode(&program_account(&active_state, 8 + ActiveRun::INIT_SPACE));
-    empty_inventory.reroll_charges = 0;
-    let (_, rejected) = process_request_reroll(
-        empty_inventory,
-        day_window(daily_state.day_id).unwrap().0 + 1,
-    );
-    assert!(
-        rejected.program_result.is_err(),
-        "zero reroll charges must be rejected"
-    );
-
-    let oracle_queue: Pubkey = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE
-        .to_bytes()
-        .into();
-    let delegation_record: Pubkey =
-        ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(
-            &active_run.to_bytes().into(),
-        )
-        .to_bytes()
-        .into();
-    let delegation_owner: Pubkey = ephemeral_rollups_sdk::id().to_bytes().into();
-    let validator = Pubkey::new_unique();
-    let mut delegation_data =
-        vec![0; ephemeral_rollups_sdk::dlp_api::state::DelegationRecord::size_with_discriminator()];
-    delegation_data[..8].copy_from_slice(&100u64.to_le_bytes());
-    delegation_data[8..40].copy_from_slice(validator.as_ref());
-    let program_identity = Pubkey::find_program_address(&[b"identity"], &zkube::ID).0;
-    let vrf_program: Pubkey = ephemeral_rollups_sdk::vrf::consts::VRF_PROGRAM_ID
-        .to_bytes()
-        .into();
-    let slot_hashes = Pubkey::from_str_const("SysvarS1otHashes111111111111111111111111111");
-    let apply = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::RunVrf {
-            active_run,
-            owner_authority: owner,
-            session_token: None,
-            actor: owner,
-            oracle_queue,
-            delegation_record_active: delegation_record,
-            program_identity,
-            vrf_program,
-            slot_hashes,
-            system_program: anchor_lang::system_program::ID,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::RequestReroll {
-            expected_action: reroll_action,
-            client_seed: [0; 32],
-        }
-        .data(),
-    };
-    let mut request_runtime = mollusk();
-    request_runtime.program_cache.add_program(
-        &vrf_program,
-        &mollusk_svm::program::loader_keys::LOADER_V3,
-        &noop_sbf_elf(),
-    );
-    request_runtime.sysvars.clock.unix_timestamp = day_window(daily_state.day_id).unwrap().0 + 1;
-    let (_, slot_hashes_account) = request_runtime
-        .sysvars
-        .keyed_account_for_slot_hashes_sysvar();
-    let requested = request_runtime.process_instruction(
-        &apply,
-        &[
-            (
-                active_run,
-                program_account(&active_state, 8 + ActiveRun::INIT_SPACE),
-            ),
-            (owner, system_account(ACCOUNT_LAMPORTS)),
-            (oracle_queue, system_account(0)),
-            (
-                delegation_record,
-                Account {
-                    lamports: 1,
-                    data: delegation_data,
-                    owner: delegation_owner,
-                    executable: false,
-                    rent_epoch: 0,
-                },
-            ),
-            (program_identity, system_account(0)),
-            (
-                vrf_program,
-                executable_program_account(Pubkey::from_str_const(
-                    "BPFLoaderUpgradeab1e11111111111111111111111",
-                )),
-            ),
-            (slot_hashes, slot_hashes_account),
-            (anchor_lang::system_program::ID, system_program_account()),
-        ],
-    );
-    assert!(
-        requested.program_result.is_ok(),
-        "{:?}",
-        requested.program_result
-    );
-    let pending: ActiveRun = decode(resulting_account(&requested, &active_run));
-    let replay_after_request = zkube_core::ReplayCommitment(initial_replay)
-        .fold(zkube_core::ReplayEvent::Reroll {
-            action: reroll_action,
-        })
-        .to_bytes();
-    assert_eq!(pending.grid, grid);
-    assert_eq!(pending.next_row, old_preview);
-    assert!(pending.has_next_row);
-    assert_eq!(pending.lifecycle, RunLifecycle::AwaitingVrf);
-    assert_eq!(pending.action_counter, reroll_action + 1);
-    assert_eq!(pending.moves, 0);
-    assert_eq!(pending.bonus_charges, 2);
-    assert_eq!(pending.reroll_charges, 1);
-    assert_eq!(pending.pending_vrf_counter, request_counter);
-    assert_eq!(pending.replay_hash, replay_after_request);
-
-    let vrf_program_identity: Pubkey =
-        ephemeral_rollups_sdk::vrf::consts::scoped_vrf_identity(&zkube::ID)
-            .to_bytes()
-            .into();
-    let magic_fee_vault = Pubkey::new_unique();
-    let callback = fulfill_row_instruction(
-        vrf_program_identity,
-        active_run,
-        magic_fee_vault,
-        randomness,
-        request_counter,
-    );
-    let callback_result = mollusk().process_instruction(
-        &callback,
-        &[
-            (vrf_program_identity, system_account(0)),
-            (
-                active_run,
-                resulting_account(&requested, &active_run).clone(),
-            ),
-            (magic_fee_vault, system_account(ACCOUNT_LAMPORTS)),
-        ],
-    );
-    assert!(
-        callback_result.program_result.is_ok(),
-        "{:?}",
-        callback_result.program_result
-    );
-    let rerolled: ActiveRun = decode(resulting_account(&callback_result, &active_run));
-    let replay_after_callback = zkube_core::ReplayCommitment(replay_after_request)
-        .fold(zkube_core::ReplayEvent::Vrf {
-            request_counter,
-            output: randomness,
-        })
-        .to_bytes();
-    assert_eq!(rerolled.grid, grid);
-    assert_eq!(rerolled.next_row, rerolled_row);
-    assert_ne!(rerolled.next_row, ordinary_row);
-    assert_eq!(rerolled.lifecycle, RunLifecycle::Playing);
-    assert_eq!(rerolled.pending_vrf_counter, 0);
-    assert_eq!(rerolled.bonus_charges, 2);
-    assert_eq!(rerolled.reroll_charges, 1);
-    assert_eq!(rerolled.replay_hash, replay_after_callback);
-
-    let finish = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::FinishRun {
-            active_run,
-            owner_authority: owner,
-            session_token: None,
-            actor: caller,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::FinishRun {
-            reason: RunFinishReason::Deadline,
-        }
-        .data(),
-    };
-    let mut deadline_runtime = mollusk();
-    deadline_runtime.sysvars.clock.unix_timestamp = deadline_at;
-    let finished_result = deadline_runtime.process_instruction(
-        &finish,
-        &[
-            (
-                active_run,
-                resulting_account(&requested, &active_run).clone(),
-            ),
-            (owner, system_account(0)),
-            (caller, system_account(ACCOUNT_LAMPORTS)),
-        ],
-    );
-    assert!(
-        finished_result.program_result.is_ok(),
-        "{:?}",
-        finished_result.program_result
-    );
-    let finished: ActiveRun = decode(resulting_account(&finished_result, &active_run));
-    assert_eq!(finished.lifecycle, RunLifecycle::Finished);
-    assert_eq!(finished.finished_at, deadline_at);
-    assert_eq!(finished.pending_vrf_counter, 0);
-    assert_eq!(finished.action_counter, reroll_action + 1);
-    assert_eq!(finished.moves, 0);
-
-    let (player, mut player_state) = player_fixture(owner);
-    player_state.kredit_balance = 1;
-    player_state.record_paid_entry(day_id).unwrap();
-    player_state
-        .reserve_arcade_run(run_id, daily, deadline_at)
-        .unwrap();
-    let (arena_player, arena_player_bump) = Pubkey::find_program_address(
-        &[ARENA_PLAYER_SEED, daily.as_ref(), owner.as_ref()],
-        &zkube::ID,
-    );
-    let mut arena_player_state = ArenaPlayer::initialize(daily, owner, caller, arena_player_bump);
-    arena_player_state.paid_entries = 1;
-    arena_player_state.active_paid_run_id = run_id;
-    let rent_recipient = caller;
-    let consume = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ConsumeArenaRun {
-            player_state: player,
-            arena_daily: daily,
-            arena_player,
-            active_run,
-            rent_recipient,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::ConsumeArenaRun {}.data(),
-    };
-    let consumed = mollusk().process_instruction(
-        &consume,
-        &[
-            (
-                player,
-                program_account(&player_state, 8 + PlayerState::INIT_SPACE),
-            ),
-            (
-                daily,
-                program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE),
-            ),
-            (
-                arena_player,
-                program_account(&arena_player_state, 8 + ArenaPlayer::INIT_SPACE),
-            ),
-            (
-                active_run,
-                resulting_account(&finished_result, &active_run).clone(),
-            ),
-            (rent_recipient, system_account(ACCOUNT_LAMPORTS)),
-        ],
-    );
-    assert!(
-        consumed.program_result.is_ok(),
-        "{:?}",
-        consumed.program_result
-    );
-    let scored_daily: ArenaDaily = decode(resulting_account(&consumed, &daily));
-    let scored_player: ArenaPlayer = decode(resulting_account(&consumed, &arena_player));
-    assert_eq!(scored_daily.entries_scored, 1);
-    assert_eq!(scored_daily.entries_expired, 0);
-    assert_eq!(scored_player.resolved_entries, 1);
 }
 
 #[test]
@@ -1137,221 +405,6 @@ fn sbf_finish_run_predicates_are_exact() {
 }
 
 #[test]
-fn sbf_terminal_x4_move_scores_ten_and_writes_timestamp_without_sealing() {
-    let owner = Pubkey::new_unique();
-    let run_id = 9u64;
-    let (_, bump) = Pubkey::find_program_address(
-        &[
-            ACTIVE_RUN_SEED,
-            b"active",
-            owner.as_ref(),
-            &run_id.to_le_bytes(),
-        ],
-        &zkube::ID,
-    );
-    let mut grid = [0u8; 80];
-    for row in 0..4 {
-        grid[row * 8..(row + 1) * 8].copy_from_slice(&[1; 8]);
-    }
-    grid[32..40].copy_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
-    let active_state = ActiveRun {
-        version: ACCOUNT_VERSION,
-        owner,
-        run_id,
-        deadline_at: i64::MAX,
-        lifecycle: RunLifecycle::Playing,
-        map_id: 1,
-
-        rules: RealmRuleSnapshot {
-            ..daily_map_rule_fixture()
-        },
-        moves: zkube_core::DAILY_MAX_MOVES - 1,
-        grid,
-        next_row: [0, 0, 0, 0, 0, 0, 0, 1],
-        has_next_row: true,
-        bump,
-        ..ActiveRun::default()
-    };
-    let (active_run, result) = process_play_move(active_state, 4, 0, 1, 123, false);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    eprintln!(
-        "SBF_COMPUTE terminal_play_move={}",
-        result.compute_units_consumed
-    );
-    let active: ActiveRun = decode(resulting_account(&result, &active_run));
-    assert_eq!(active.lifecycle, RunLifecycle::Finished);
-    assert_eq!(active.finished_at, 123);
-    assert_eq!(active.action_counter, 1);
-    assert_eq!(active.moves, zkube_core::DAILY_MAX_MOVES);
-    assert_eq!(active.score, 10);
-    assert_eq!(active.level_lines_cleared, 4);
-    assert_eq!(active.combo_counter, 1);
-    assert_eq!(active.max_combo, 4);
-}
-
-#[test]
-fn sbf_daily_perfect_clear_grants_or_discards_at_the_inventory_cap() {
-    let run = |owner: Pubkey, run_id: u64, reroll_charges: u8| {
-        let (_, bump) = Pubkey::find_program_address(
-            &[
-                ACTIVE_RUN_SEED,
-                b"active",
-                owner.as_ref(),
-                &run_id.to_le_bytes(),
-            ],
-            &zkube::ID,
-        );
-        let mut grid = [0u8; 80];
-        grid[..8].copy_from_slice(&[1; 8]);
-        ActiveRun {
-            version: ACCOUNT_VERSION,
-            owner,
-            run_id,
-            lifecycle: RunLifecycle::Playing,
-            deadline_at: 1_000,
-            rules: RealmRuleSnapshot {
-                ..daily_map_rule_fixture()
-            },
-            daily_theme: DailyThemeSnapshot::from_core(zkube_core::DAILY_THEMES[0]),
-            grid,
-            next_row: [0; 8],
-            has_next_row: true,
-            reroll_charges,
-            bump,
-            ..ActiveRun::default()
-        }
-    };
-
-    let owner = Pubkey::new_unique();
-    let (active_run, granted) = process_play_move(run(owner, 91, 1), 0, 0, 0, 123, true);
-    assert!(
-        granted.program_result.is_ok(),
-        "{:?}",
-        granted.program_result
-    );
-    let after_grant: ActiveRun = decode(resulting_account(&granted, &active_run));
-    assert_eq!(after_grant.reroll_charges, 2);
-
-    let capped_owner = Pubkey::new_unique();
-    let (capped_run, discarded) = process_play_move(run(capped_owner, 92, 3), 0, 0, 0, 123, true);
-    assert!(
-        discarded.program_result.is_ok(),
-        "{:?}",
-        discarded.program_result
-    );
-    let after_discard: ActiveRun = decode(resulting_account(&discarded, &capped_run));
-    assert_eq!(after_discard.reroll_charges, 3);
-}
-
-#[test]
-fn sbf_tenth_row_is_playable_and_requests_the_next_vrf_row() {
-    let owner = Pubkey::new_unique();
-    let run_id = 10u64;
-    let (_, bump) = Pubkey::find_program_address(
-        &[
-            ACTIVE_RUN_SEED,
-            b"active",
-            owner.as_ref(),
-            &run_id.to_le_bytes(),
-        ],
-        &zkube::ID,
-    );
-    let mut grid = [0u8; 80];
-    for row in 0..9 {
-        grid[row * 8] = 1;
-    }
-    let active_state = ActiveRun {
-        version: ACCOUNT_VERSION,
-        owner,
-        run_id,
-        deadline_at: i64::MAX,
-        lifecycle: RunLifecycle::Playing,
-        map_id: 1,
-
-        rules: RealmRuleSnapshot {
-            ..daily_map_rule_fixture()
-        },
-        grid,
-        next_row: [1, 0, 0, 0, 0, 0, 0, 0],
-        has_next_row: true,
-        bump,
-        ..ActiveRun::default()
-    };
-
-    let (active_run, result) = process_play_move(active_state, 0, 0, 0, 234, true);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    eprintln!(
-        "SBF_COMPUTE tenth_row_play_move={}",
-        result.compute_units_consumed
-    );
-    let active: ActiveRun = decode(resulting_account(&result, &active_run));
-    assert_eq!(active.lifecycle, RunLifecycle::AwaitingVrf);
-    assert_eq!(active.finished_at, 0);
-    assert_eq!(active.action_counter, 1);
-    assert_eq!(active.moves, 1);
-    assert_eq!(active.grid[72], 1, "row ten must remain occupied");
-    assert!(!active.has_next_row);
-    assert_eq!(active.vrf_request_counter, 1);
-    assert_eq!(active.pending_vrf_counter, 1);
-}
-
-#[test]
-fn sbf_blocked_eleventh_row_finishes_the_last_accepted_daily_state() {
-    let owner = Pubkey::new_unique();
-    let rent_payer = Pubkey::new_unique();
-    let run_id = 11u64;
-    let (_, bump) = Pubkey::find_program_address(
-        &[
-            ACTIVE_RUN_SEED,
-            b"active",
-            owner.as_ref(),
-            &run_id.to_le_bytes(),
-        ],
-        &zkube::ID,
-    );
-    let mut grid = [0u8; 80];
-    for row in 0..10 {
-        grid[row * 8] = 1;
-    }
-    let active_state = ActiveRun {
-        version: ACCOUNT_VERSION,
-        owner,
-        rent_payer,
-        run_id,
-        deadline_at: i64::MAX,
-        lifecycle: RunLifecycle::Playing,
-        map_id: 1,
-
-        rules: RealmRuleSnapshot {
-            ..daily_map_rule_fixture()
-        },
-        score: 1,
-        grid,
-        next_row: [1, 0, 0, 0, 0, 0, 0, 0],
-        has_next_row: true,
-        vrf_request_counter: 7,
-        bump,
-        ..ActiveRun::default()
-    };
-
-    let (active_run, result) = process_play_move(active_state, 0, 0, 0, 345, false);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    eprintln!(
-        "SBF_COMPUTE blocked_eleventh_row_play_move={}",
-        result.compute_units_consumed
-    );
-    let active: ActiveRun = decode(resulting_account(&result, &active_run));
-    assert_eq!(active.lifecycle, RunLifecycle::Finished);
-    assert_eq!(active.finished_at, 345);
-    assert_eq!(active.action_counter, 1);
-    assert_eq!(active.moves, 1);
-    assert_eq!(active.grid, grid, "blocked insertion must not drop row ten");
-    assert!(!active.has_next_row);
-    assert_eq!(active.vrf_request_counter, 7);
-    assert_eq!(active.pending_vrf_counter, 0);
-}
-
-#[test]
 fn sbf_authority_deposit_rejects_zero_finalized_and_noncanonical_periods() {
     let authority = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
@@ -1408,7 +461,7 @@ fn sbf_authority_deposit_rejects_zero_finalized_and_noncanonical_periods() {
 fn arcade_fixture(protocol: Pubkey) -> (Pubkey, ArcadeConfig) {
     let (address, bump) = Pubkey::find_program_address(&[ARCADE_CONFIG_SEED], &zkube::ID);
     let mut config = ArcadeConfig::canonical(protocol, bump);
-    config.launch_seeded = true;
+
     config.launch_day_id = 32;
     config.last_daily_id = 31;
     (address, config)
@@ -1425,7 +478,7 @@ fn daily_fixture(
     (
         address,
         ArenaDaily {
-            version: ARCADE_ACCOUNT_VERSION,
+            version: ACCOUNT_VERSION,
             day_id,
             arcade_config,
             status,
@@ -1460,7 +513,7 @@ fn board_fixture(
     let payout_count = usize::try_from(plan.count).unwrap();
     assert!(entries.len() >= payout_count);
     let mut board = ArenaBoard {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         arena_daily: daily,
         day_id,
         kind,
@@ -1473,8 +526,9 @@ fn board_fixture(
         rollover_lamports: plan.rollover_lamports,
         capacity_limited: plan.capacity_limited,
         cursor: plan.count,
-        sealed: true,
-        sealed_at: i64::from(day_id) * zkube_core::SECONDS_PER_DAY + ARENA_RUNS_CLOSE_OFFSET,
+
+        sealed_at: i64::from(day_id) * zkube_core::SECONDS_PER_DAY
+            + zkube_core::DAILY_RUN_CLOSE_OFFSET,
         claimed_lamports: 0,
         claimed_count: u32::try_from(claimed_positions.len()).unwrap(),
         bump,
@@ -1485,15 +539,15 @@ fn board_fixture(
         .sum();
     let mut account = program_account(&board, ArenaBoard::account_space(plan.count).unwrap());
     for (position, entry) in entries.iter().take(payout_count).enumerate() {
-        let start = ArenaBoard::HEADER_SIZE + position * ARENA_BOARD_ENTRY_SIZE;
+        let start = ArenaBoard::HEADER_SIZE + position * ArenaBoardEntry::INIT_SPACE;
         entry
             .serialize(&mut Cursor::new(
-                &mut account.data[start..start + ARENA_BOARD_ENTRY_SIZE],
+                &mut account.data[start..start + ArenaBoardEntry::INIT_SPACE],
             ))
             .unwrap();
     }
-    let mask_start =
-        ArenaBoard::HEADER_SIZE + usize::try_from(plan.count).unwrap() * ARENA_BOARD_ENTRY_SIZE;
+    let mask_start = ArenaBoard::HEADER_SIZE
+        + usize::try_from(plan.count).unwrap() * ArenaBoardEntry::INIT_SPACE;
     for position in claimed_positions {
         let position = usize::try_from(*position).unwrap();
         account.data[mask_start + position / 8] |= 1 << (position % 8);
@@ -1506,10 +560,10 @@ fn credit_vault_fixture(protocol: Pubkey) -> (Pubkey, CreditVault) {
     (
         address,
         CreditVault {
-            version: ARCADE_ACCOUNT_VERSION,
+            version: ACCOUNT_VERSION,
             protocol,
-            purchased_prize_lamports: ENTRY_DAILY_LAMPORTS,
-            spent_prize_lamports: 0,
+            available_prize_lamports: zkube_core::ENTRY_DAILY_LAMPORTS,
+
             bump,
         },
     )
@@ -1593,7 +647,7 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
         &[ARENA_PLAYER_SEED, current_daily.as_ref(), owner.as_ref()],
         &zkube::ID,
     );
-    let run_id = INITIAL_RUN_ID;
+    let run_id = player_state.next_run_id;
     let (active_run, _) = Pubkey::find_program_address(
         &[
             ACTIVE_RUN_SEED,
@@ -1624,7 +678,7 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
         .to_account_metas(None),
         data: zkube::instruction::EnterArena {
             run_id,
-            expected_entry_lamports: ARENA_ENTRY_LAMPORTS,
+
             auto_claim_positions: vec![0, 0],
         }
         .data(),
@@ -1664,7 +718,7 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
                 &credit_vault_state,
                 8 + CreditVault::INIT_SPACE,
                 zkube::ID,
-                ACCOUNT_LAMPORTS + ENTRY_DAILY_LAMPORTS,
+                ACCOUNT_LAMPORTS + zkube_core::ENTRY_DAILY_LAMPORTS,
             ),
         ),
         (active_run, system_account(0)),
@@ -1736,11 +790,11 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
     let current_after: ArenaDaily = decode(resulting_account(&result, &current_daily));
     let player_after: ArenaPlayer = decode(resulting_account(&result, &arena_player));
     let profile_after_entry: PlayerState = decode(resulting_account(&result, &player));
-    assert_eq!(daily_after.ledger.entry_lamports, ENTRY_DAILY_LAMPORTS);
     assert_eq!(
-        credit_vault_after.spent_prize_lamports,
-        ENTRY_DAILY_LAMPORTS
+        daily_after.ledger.entry_lamports,
+        zkube_core::ENTRY_DAILY_LAMPORTS
     );
+    assert_eq!(credit_vault_after.available_prize_lamports, 0);
     assert_eq!(current_after.entries_paid, 1);
     assert_eq!(player_after.paid_entries, 1);
     assert_eq!(player_after.active_paid_run_id, run_id);
@@ -1764,7 +818,7 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
     );
     assert_eq!(
         resulting_account(&result, &following_daily).lamports,
-        ACCOUNT_LAMPORTS + ENTRY_DAILY_LAMPORTS
+        ACCOUNT_LAMPORTS + zkube_core::ENTRY_DAILY_LAMPORTS
     );
     assert_eq!(
         resulting_account(&result, &credit_vault).lamports,
@@ -1818,8 +872,8 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
         program_id: zkube::ID,
         accounts: zkube::accounts::ConsumeArenaRun {
             player_state: player,
-            arena_daily: current_daily,
-            arena_player,
+            arena_daily: Some(current_daily),
+            arena_player: Some(arena_player),
             active_run,
             rent_recipient: actor,
         }
@@ -1914,11 +968,7 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FinalizeArenaDaily {
-            score_payout_count: 0,
-            theme_payout_count: 0,
-        }
-        .data(),
+        data: zkube::instruction::FinalizeArenaDaily {}.data(),
     };
     let mut late = mollusk();
     late.sysvars.clock.unix_timestamp = day_window(current_daily_state.day_id).unwrap().1;
@@ -2036,7 +1086,7 @@ fn sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin(
         &[ARENA_PLAYER_SEED, current_daily.as_ref(), owner.as_ref()],
         &zkube::ID,
     );
-    let run_id = INITIAL_RUN_ID;
+    let run_id = player_state.next_run_id;
     let (active_run, _) = Pubkey::find_program_address(
         &[
             ACTIVE_RUN_SEED,
@@ -2067,7 +1117,7 @@ fn sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin(
         .to_account_metas(None),
         data: zkube::instruction::EnterArena {
             run_id,
-            expected_entry_lamports: ARENA_ENTRY_LAMPORTS,
+
             auto_claim_positions: vec![
                 last_position;
                 zkube::instructions::MAX_AUTO_CLAIMS_PER_ENTRY
@@ -2109,7 +1159,7 @@ fn sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin(
                 &credit_vault_state,
                 8 + CreditVault::INIT_SPACE,
                 zkube::ID,
-                ACCOUNT_LAMPORTS + ENTRY_DAILY_LAMPORTS,
+                ACCOUNT_LAMPORTS + zkube_core::ENTRY_DAILY_LAMPORTS,
             ),
         ),
         (active_run, system_account(0)),
@@ -2244,85 +1294,14 @@ fn a_suspended_day_is_skipped_once_and_its_funding_reaches_the_next_scheduled_da
 }
 
 #[test]
-fn sbf_missed_daily_recovery_activation_requires_rollover_and_deadline() {
-    let authority = Pubkey::new_unique();
-    let caller = Pubkey::new_unique();
-    let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
-    let (arcade, arcade_state) = arcade_fixture(protocol);
-    let (_, mut missing_state) = daily_fixture(32, arcade, PeriodStatus::Funding, true);
-    let missing = Pubkey::find_program_address(
-        &[ARENA_DAILY_SEED, &missing_state.day_id.to_le_bytes()],
-        &zkube::ID,
-    )
-    .0;
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::ActivateArenaDaily {
-            protocol,
-            arcade_config: arcade,
-            arena_daily: missing,
-            caller,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::ActivateArenaDaily {}.data(),
-    };
-    let accounts = |state: &ArenaDaily| {
-        vec![
-            (
-                protocol,
-                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
-            ),
-            (
-                arcade,
-                program_account(&arcade_state, 8 + ArcadeConfig::INIT_SPACE),
-            ),
-            (missing, program_account(state, 8 + ArenaDaily::INIT_SPACE)),
-            (caller, system_account(ACCOUNT_LAMPORTS)),
-        ]
-    };
-
-    // A normally scheduled period opens on time even though its predecessor
-    // cannot be finalized until the run-recovery window ends. Requiring the
-    // rollover here would create a daily 5.5-hour outage.
-    missing_state.predecessor_rollover_applied = false;
-    let mut on_time = mollusk();
-    on_time.sysvars.clock.unix_timestamp = day_window(missing_state.day_id).unwrap().0 + 1;
-    let result = on_time.process_instruction(&instruction, &accounts(&missing_state));
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-
-    let mut early = mollusk();
-    early.sysvars.clock.unix_timestamp = day_window(missing_state.day_id).unwrap().2 - 1;
-    assert!(early
-        .process_instruction(&instruction, &accounts(&missing_state))
-        .program_result
-        .is_err());
-
-    missing_state.predecessor_rollover_applied = false;
-    let mut no_rollover = mollusk();
-    no_rollover.sysvars.clock.unix_timestamp = day_window(missing_state.day_id).unwrap().2;
-    assert!(no_rollover
-        .process_instruction(&instruction, &accounts(&missing_state))
-        .program_result
-        .is_err());
-
-    missing_state.predecessor_rollover_applied = true;
-    let mut recovered = mollusk();
-    recovered.sysvars.clock.unix_timestamp = day_window(missing_state.day_id).unwrap().2;
-    let result = recovered.process_instruction(&instruction, &accounts(&missing_state));
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let after: ArenaDaily = decode(resulting_account(&result, &missing));
-    assert_eq!(after.status, PeriodStatus::Open);
-}
-
-#[test]
 fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     let authority = Pubkey::new_unique();
     let caller = Pubkey::new_unique();
     let (protocol, protocol_state) = protocol_fixture(authority, Pubkey::new_unique(), false);
     let (arcade, arcade_state) = arcade_fixture(protocol);
     let missing_day = arcade_state.launch_day_id + 2;
-    let content = daily_content_for_day(missing_day);
-    let realm_map_id = content.realm_map_id;
+    let content = zkube_core::daily_pair_with::<SolanaSha256>(missing_day);
+    let realm_map_id = content.0;
     let (missing, _) =
         Pubkey::find_program_address(&[ARENA_DAILY_SEED, &missing_day.to_le_bytes()], &zkube::ID);
     let (cadence_funding, _) = Pubkey::find_program_address(&[CADENCE_FUNDING_SEED], &zkube::ID);
@@ -2372,10 +1351,7 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
             missing_day,
             realm.guardian,
             realm.starting_height,
-            daily_content_for_day(missing_day)
-                .objective
-                .to_core()
-                .unwrap()
+            zkube_core::daily_pair_with::<SolanaSha256>(missing_day).1
         )
         .0
     );
@@ -2412,60 +1388,6 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     }
 }
 
-#[test]
-fn sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges() {
-    let owner = Pubkey::new_unique();
-    let (player, mut player_state) = player_fixture(owner);
-    let mut progress = [0; CAMPAIGN_STAR_BYTES];
-    progress[2] = 1 << 2;
-    player_state.merge_campaign_stars(progress);
-    let instruction = anchor_lang::solana_program::instruction::Instruction {
-        program_id: zkube::ID,
-        accounts: zkube::accounts::SetFeaturedEmblem {
-            player_state: player,
-            owner_authority: owner,
-            session_token: None,
-            actor: owner,
-        }
-        .to_account_metas(None),
-        data: zkube::instruction::SetFeaturedEmblem {
-            emblem_id: 1,
-            frame_tier: 0,
-        }
-        .data(),
-    };
-    let accounts = vec![
-        (
-            player,
-            program_account(&player_state, 8 + PlayerState::INIT_SPACE),
-        ),
-        (owner, system_account(ACCOUNT_LAMPORTS)),
-    ];
-    let result = mollusk().process_instruction(&instruction, &accounts);
-    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-    let updated: PlayerState = decode(resulting_account(&result, &player));
-    assert_eq!(updated.featured_emblem, 1);
-
-    let locked = anchor_lang::solana_program::instruction::Instruction {
-        data: zkube::instruction::SetFeaturedEmblem {
-            emblem_id: 2,
-            frame_tier: 0,
-        }
-        .data(),
-        ..instruction
-    };
-    assert!(mollusk()
-        .process_instruction(
-            &locked,
-            &[
-                (player, resulting_account(&result, &player).clone()),
-                (owner, system_account(ACCOUNT_LAMPORTS)),
-            ],
-        )
-        .program_result
-        .is_err());
-}
-
 fn submitted(entry: ArenaBoardEntry) -> SubmittedBoardEntry {
     SubmittedBoardEntry {
         score: entry.score,
@@ -2482,7 +1404,6 @@ fn submit_instruction(
     kind: DailyBoardKind,
     entries: &[ArenaBoardEntry],
     source_accounts: &[Pubkey],
-    seal: bool,
 ) -> anchor_lang::solana_program::instruction::Instruction {
     assert_eq!(entries.len(), source_accounts.len());
     let mut accounts = zkube::accounts::SubmitArenaBoardChunk {
@@ -2500,293 +1421,8 @@ fn submit_instruction(
         data: zkube::instruction::SubmitArenaBoardChunk {
             kind,
             entries: entries.iter().copied().map(submitted).collect(),
-            seal,
         }
         .data(),
-    }
-}
-
-#[test]
-fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards() {
-    let caller = Pubkey::new_unique();
-    let day_id = 20_652;
-    let (daily, mut daily_state) =
-        daily_fixture(day_id, Pubkey::new_unique(), PeriodStatus::Finalized, true);
-    let entries = (0..12u32)
-        .map(|position| ArenaBoardEntry {
-            player: Pubkey::new_unique(),
-            score: 1_000 - position,
-            objective_total: u64::from(500 - position),
-            finalized_at: i64::from(position + 1),
-            replay_hash: [u8::try_from(position + 1).unwrap(); 32],
-        })
-        .collect::<Vec<_>>();
-    daily_state.score_qualified_players = 12;
-    daily_state.theme_qualified_players = 12;
-    daily_state.finalized_at = day_window(daily_state.day_id).unwrap().1;
-    let arena_players = entries
-        .iter()
-        .map(|entry| {
-            let (address, bump) = Pubkey::find_program_address(
-                &[ARENA_PLAYER_SEED, daily.as_ref(), entry.player.as_ref()],
-                &zkube::ID,
-            );
-            let mut player = ArenaPlayer::initialize(daily, entry.player, entry.player, bump);
-            player.paid_entries = 1;
-            player.resolved_entries = 1;
-            player.has_score_best = true;
-            player.score_best_entry = *entry;
-            player.has_theme_best = true;
-            player.theme_best_entry = *entry;
-            (
-                address,
-                program_account(&player, 8 + ArenaPlayer::INIT_SPACE),
-            )
-        })
-        .collect::<Vec<_>>();
-    let source_keys = arena_players
-        .iter()
-        .map(|(address, _)| *address)
-        .collect::<Vec<_>>();
-    let daily_account = program_account(&daily_state, 8 + ArenaDaily::INIT_SPACE);
-    let pool_lamports = 1_000_000_000;
-    let plan = board_payout_plan(pool_lamports, 12).unwrap();
-    assert_eq!(plan.count, 12);
-
-    for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
-        let (board, bump) = Pubkey::find_program_address(
-            &[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()],
-            &zkube::ID,
-        );
-        let board_state = ArenaBoard {
-            version: ARCADE_ACCOUNT_VERSION,
-            arena_daily: daily,
-            day_id,
-            kind,
-            qualified_count: 12,
-            width_count: plan.width_count,
-            payout_count: plan.count,
-            denominator: plan.denominator,
-            pool_lamports,
-            paid_lamports: plan.paid_lamports,
-            rollover_lamports: plan.rollover_lamports,
-            capacity_limited: plan.capacity_limited,
-            cursor: 0,
-            sealed: false,
-            sealed_at: 0,
-            claimed_lamports: 0,
-            claimed_count: 0,
-            bump,
-        };
-        let empty_board = serialized_account(
-            &board_state,
-            ArenaBoard::construction_space(plan.count, 0).unwrap(),
-            zkube::ID,
-            anchor_lang::prelude::Rent::default()
-                .minimum_balance(ArenaBoard::account_space(plan.count).unwrap()),
-        );
-        let accounts = |board_account: Account| {
-            let mut accounts = vec![
-                (daily, daily_account.clone()),
-                (board, board_account),
-                (caller, system_account(ACCOUNT_LAMPORTS)),
-            ];
-            accounts.extend(arena_players.iter().cloned());
-            accounts
-        };
-        let mut runtime = mollusk();
-        runtime.sysvars.clock.unix_timestamp = daily_state.finalized_at + 1;
-
-        let out_of_order = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &[entries[1], entries[0]],
-                &[source_keys[1], source_keys[0]],
-                false,
-            ),
-            &accounts(empty_board.clone()),
-        );
-        assert!(out_of_order.program_result.is_err());
-        assert_eq!(
-            decode::<ArenaBoard>(resulting_account(&out_of_order, &board)).cursor,
-            0
-        );
-
-        let duplicate = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &[entries[0], entries[0]],
-                &[source_keys[0], source_keys[0]],
-                false,
-            ),
-            &accounts(empty_board.clone()),
-        );
-        assert!(duplicate.program_result.is_err());
-        assert_eq!(
-            decode::<ArenaBoard>(resulting_account(&duplicate, &board)).cursor,
-            0
-        );
-
-        let mut mismatched = entries[0];
-        match kind {
-            DailyBoardKind::Score => mismatched.score -= 1,
-            DailyBoardKind::Theme => mismatched.objective_total -= 1,
-        }
-        let metric_mismatch = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &[mismatched],
-                &[source_keys[0]],
-                false,
-            ),
-            &accounts(empty_board.clone()),
-        );
-        assert!(metric_mismatch.program_result.is_err());
-        assert_eq!(
-            decode::<ArenaBoard>(resulting_account(&metric_mismatch, &board)).cursor,
-            0
-        );
-
-        let oversized_chunk = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &entries[..ARENA_BOARD_CHUNK_CAPACITY + 1],
-                &source_keys[..ARENA_BOARD_CHUNK_CAPACITY + 1],
-                false,
-            ),
-            &accounts(empty_board.clone()),
-        );
-        assert!(oversized_chunk.program_result.is_err());
-        assert_eq!(resulting_account(&oversized_chunk, &board), &empty_board);
-
-        let early_seal = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &entries[..10],
-                &source_keys[..10],
-                true,
-            ),
-            &accounts(empty_board.clone()),
-        );
-        assert!(early_seal.program_result.is_err());
-        assert_eq!(
-            decode::<ArenaBoard>(resulting_account(&early_seal, &board)).cursor,
-            0
-        );
-
-        let first_chunk = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &entries[..10],
-                &source_keys[..10],
-                false,
-            ),
-            &accounts(empty_board),
-        );
-        assert!(
-            first_chunk.program_result.is_ok(),
-            "{:?}",
-            first_chunk.program_result
-        );
-        let partial_board = resulting_account(&first_chunk, &board).clone();
-        let partial: ArenaBoard = decode(&partial_board);
-        assert_eq!(partial.cursor, 10);
-        assert!(!partial.sealed);
-
-        let missing_seal = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &entries[10..],
-                &source_keys[10..],
-                false,
-            ),
-            &accounts(partial_board.clone()),
-        );
-        assert!(missing_seal.program_result.is_err());
-        assert_eq!(
-            decode::<ArenaBoard>(resulting_account(&missing_seal, &board)).cursor,
-            10
-        );
-
-        // A final write cannot conceal an undersized or oversized construction account.
-        for length_delta in [-1isize, 1, ARENA_BOARD_ENTRY_SIZE as isize] {
-            let mut malformed = partial_board.clone();
-            malformed
-                .data
-                .resize((malformed.data.len() as isize + length_delta) as usize, 0);
-            let rejected = runtime.process_instruction(
-                &submit_instruction(
-                    daily,
-                    board,
-                    caller,
-                    kind,
-                    &entries[10..],
-                    &source_keys[10..],
-                    true,
-                ),
-                &accounts(malformed.clone()),
-            );
-            assert!(rejected.program_result.is_err());
-            assert_eq!(resulting_account(&rejected, &board), &malformed);
-        }
-        let beyond_width = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &entries[9..],
-                &source_keys[9..],
-                true,
-            ),
-            &accounts(partial_board.clone()),
-        );
-        assert!(beyond_width.program_result.is_err());
-        assert_eq!(resulting_account(&beyond_width, &board), &partial_board);
-
-        let completed = runtime.process_instruction(
-            &submit_instruction(
-                daily,
-                board,
-                caller,
-                kind,
-                &entries[10..],
-                &source_keys[10..],
-                true,
-            ),
-            &accounts(partial_board),
-        );
-        assert!(
-            completed.program_result.is_ok(),
-            "{:?}",
-            completed.program_result
-        );
-        let sealed: ArenaBoard = decode(resulting_account(&completed, &board));
-        assert_eq!(sealed.cursor, plan.count);
-        assert_eq!(sealed.payout_count, plan.count);
-        assert!(sealed.sealed);
-        assert_eq!(sealed.sealed_at, daily_state.finalized_at + 1);
     }
 }
 
@@ -3010,7 +1646,7 @@ fn sbf_first_deposit_funds_and_activates_the_first_daily() {
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     let arcade_after: ArcadeConfig = decode(resulting_account(&result, &arcade));
     let daily_after: ArenaDaily = decode(resulting_account(&result, &daily));
-    assert!(arcade_after.launch_seeded);
+    assert!(arcade_after.launch_day_id > 0);
     assert_eq!(arcade_after.launch_day_id, today);
     assert_eq!(daily_after.ledger.seeded_lamports, 10_000_000);
     assert!(daily_after.predecessor_rollover_applied);
@@ -3327,10 +1963,10 @@ fn purchase_kredits_pays_the_protocol_destination_directly() {
         let (player, profile) = player_fixture(owner);
         let (credit, bump) = Pubkey::find_program_address(&[CREDIT_VAULT_SEED], &zkube::ID);
         let vault = CreditVault {
-            version: ARCADE_ACCOUNT_VERSION,
+            version: ACCOUNT_VERSION,
             protocol,
-            purchased_prize_lamports: 0,
-            spent_prize_lamports: 0,
+            available_prize_lamports: 0,
+
             bump,
         };
         let instruction = anchor_lang::solana_program::instruction::Instruction {
@@ -3347,7 +1983,6 @@ fn purchase_kredits_pays_the_protocol_destination_directly() {
             .to_account_metas(None),
             data: zkube::instruction::PurchaseKredits {
                 kredit_count: count,
-                expected_unit_lamports: ARENA_ENTRY_LAMPORTS,
             }
             .data(),
         };
@@ -3378,18 +2013,18 @@ fn purchase_kredits_pays_the_protocol_destination_directly() {
         );
         assert_eq!(
             resulting_account(&result, &team).lamports,
-            1_000_000 + count * ENTRY_OPERATOR_LAMPORTS
+            1_000_000 + count * zkube_core::ENTRY_OPERATOR_LAMPORTS
         );
         assert_eq!(
             resulting_account(&result, &credit).lamports,
-            ACCOUNT_LAMPORTS + count * ENTRY_DAILY_LAMPORTS
+            ACCOUNT_LAMPORTS + count * zkube_core::ENTRY_DAILY_LAMPORTS
         );
         let saved: PlayerState = decode(resulting_account(&result, &player));
         let vault: CreditVault = decode(resulting_account(&result, &credit));
         assert_eq!(saved.kredit_balance, count);
         assert_eq!(
-            vault.available_prize_lamports().unwrap(),
-            count * ENTRY_DAILY_LAMPORTS
+            vault.available_prize_lamports,
+            count * zkube_core::ENTRY_DAILY_LAMPORTS
         );
 
         let mut wrong_destination = instruction.clone();
@@ -3427,10 +2062,16 @@ struct FinalizedBoardFixture {
     caller: Pubkey,
 }
 
-fn finalize_board_capacity(count: u32, pool: u64) -> FinalizedBoardFixture {
+fn finalize_board_capacity(
+    count: u32,
+    pool: u64,
+    status: PeriodStatus,
+    rollover: bool,
+    deadline_offset: i64,
+) -> FinalizedBoardFixture {
     let day_id = 20_651;
     let (arcade, _) = arcade_fixture(Pubkey::new_unique());
-    let (daily, mut state) = daily_fixture(day_id, arcade, PeriodStatus::Open, true);
+    let (daily, mut state) = daily_fixture(day_id, arcade, status, rollover);
     let (following, successor) = daily_fixture(day_id + 1, arcade, PeriodStatus::Funding, false);
     state.ledger.seeded_lamports = pool;
     state.score_qualified_players = count;
@@ -3471,11 +2112,7 @@ fn finalize_board_capacity(count: u32, pool: u64) -> FinalizedBoardFixture {
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FinalizeArenaDaily {
-            score_payout_count: count,
-            theme_payout_count: count,
-        }
-        .data(),
+        data: zkube::instruction::FinalizeArenaDaily {}.data(),
     };
     let accounts = vec![
         (
@@ -3504,7 +2141,7 @@ fn finalize_board_capacity(count: u32, pool: u64) -> FinalizedBoardFixture {
         ),
     ];
     let mut runtime = mollusk();
-    runtime.sysvars.clock.unix_timestamp = day_window(day_id).unwrap().1;
+    runtime.sysvars.clock.unix_timestamp = day_window(day_id).unwrap().1 + deadline_offset;
     let result = runtime.process_instruction(&instruction, &accounts);
     println!(
         "count={count}, bytes={}, CU={}, result={:?}",
@@ -3526,7 +2163,13 @@ fn finalize_board_capacity(count: u32, pool: u64) -> FinalizedBoardFixture {
 #[test]
 fn full_board_finalization_stays_below_one_million_compute_units() {
     for pool in [1_000_000_000_000_000, u64::MAX - 100_000_000] {
-        let fixture = finalize_board_capacity(ARENA_BOARD_CAPACITY as u32, pool);
+        let fixture = finalize_board_capacity(
+            ARENA_BOARD_CAPACITY as u32,
+            pool,
+            PeriodStatus::Open,
+            true,
+            0,
+        );
         assert!(
             fixture.result.program_result.is_ok(),
             "{:?}",
@@ -3551,7 +2194,13 @@ fn cadence_funding_creates_exact_boards_through_the_full_capacity() {
             theme_board,
             cadence_funding,
             caller,
-        } = finalize_board_capacity(count, if count == 0 { 0 } else { 1_000_000_000_000_000 });
+        } = finalize_board_capacity(
+            count,
+            if count == 0 { 0 } else { 1_000_000_000_000_000 },
+            PeriodStatus::Open,
+            true,
+            0,
+        );
         assert!(result.program_result.is_ok(), "{:?}", result.program_result);
         let rent = anchor_lang::prelude::Rent::default()
             .minimum_balance(ArenaBoard::account_space(count).unwrap());
@@ -3597,9 +2246,7 @@ fn cadence_funding_creates_exact_boards_through_the_full_capacity() {
                             ArenaPlayer::initialize(daily, entry.player, entry.player, bump);
                         source.paid_entries = 1;
                         source.resolved_entries = 1;
-                        source.has_score_best = true;
                         source.score_best_entry = *entry;
-                        source.has_theme_best = true;
                         source.theme_best_entry = *entry;
                         (key, program_account(&source, 8 + ArenaPlayer::INIT_SPACE))
                     })
@@ -3612,15 +2259,19 @@ fn cadence_funding_creates_exact_boards_through_the_full_capacity() {
                     (caller, system_account(ACCOUNT_LAMPORTS)),
                 ];
                 chunk_accounts.extend(sources);
-                let instruction = submit_instruction(
-                    daily,
-                    address,
-                    caller,
-                    kind,
-                    chunk,
-                    &keys,
-                    next_cursor == count,
-                );
+                let instruction = submit_instruction(daily, address, caller, kind, chunk, &keys);
+                if next_cursor == count {
+                    for delta in [-1isize, 1, ArenaBoardEntry::INIT_SPACE as isize] {
+                        let mut malformed = chunk_accounts.clone();
+                        malformed[1]
+                            .1
+                            .data
+                            .resize(account.data.len().checked_add_signed(delta).unwrap(), 0);
+                        let rejected = runtime.process_instruction(&instruction, &malformed);
+                        assert!(rejected.program_result.is_err());
+                        assert_eq!(resulting_account(&rejected, &address), &malformed[1].1);
+                    }
+                }
                 let written = runtime.process_instruction(&instruction, &chunk_accounts);
                 assert!(
                     written.program_result.is_ok(),
@@ -3636,12 +2287,12 @@ fn cadence_funding_creates_exact_boards_through_the_full_capacity() {
                 let updated = resulting_account(&written, &address).clone();
                 assert_eq!(
                     updated.data.len() - account.data.len(),
-                    chunk.len() * ARENA_BOARD_ENTRY_SIZE
+                    chunk.len() * ArenaBoardEntry::INIT_SPACE
                 );
                 assert_eq!(updated.lamports, rent);
                 let state: ArenaBoard = decode(&updated);
                 assert_eq!(state.cursor, next_cursor);
-                assert_eq!(state.sealed, next_cursor == count);
+                assert_eq!(state.sealed(), next_cursor == count);
                 account = updated;
                 cursor = next_cursor;
             }
@@ -3649,11 +2300,97 @@ fn cadence_funding_creates_exact_boards_through_the_full_capacity() {
                 account.data.len(),
                 ArenaBoard::account_space(count).unwrap()
             );
-            assert!(decode::<ArenaBoard>(&account).sealed);
+            assert!(decode::<ArenaBoard>(&account).sealed());
             println!(
                 "count={count}, kind={kind:?}, sealed_bytes={}, max_chunk_CU={maximum_chunk_cu}",
                 account.data.len()
             );
         }
     }
+}
+
+#[test]
+fn a_missed_funding_day_finalizes_after_its_window_and_rollover() {
+    for (rollover, deadline_offset, allowed) in
+        [(false, 0, false), (true, -1, false), (true, 0, true)]
+    {
+        let fixture =
+            finalize_board_capacity(0, 0, PeriodStatus::Funding, rollover, deadline_offset);
+        assert_eq!(fixture.result.program_result.is_ok(), allowed);
+        if allowed {
+            let daily: ArenaDaily = decode(resulting_account(&fixture.result, &fixture.daily));
+            assert_eq!(daily.status, PeriodStatus::Finalized);
+        }
+    }
+}
+
+#[test]
+fn an_expired_orphan_closes_without_period_accounts() {
+    let owner = Pubkey::new_unique();
+    let payer = Pubkey::new_unique();
+    let (player, mut profile) = player_fixture(owner);
+    let run_id = profile.next_run_id;
+    profile
+        .reserve_arcade_run(run_id, Pubkey::new_unique(), 100)
+        .unwrap();
+    profile.expire_arcade_run(run_id).unwrap();
+    let (active, bump) = Pubkey::find_program_address(
+        &[
+            ACTIVE_RUN_SEED,
+            b"active",
+            owner.as_ref(),
+            &run_id.to_le_bytes(),
+        ],
+        &zkube::ID,
+    );
+    let run = ActiveRun {
+        version: ACCOUNT_VERSION,
+        owner,
+        rent_payer: payer,
+        run_id,
+        bump,
+        ..ActiveRun::default()
+    };
+    let instruction = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::ConsumeArenaRun {
+            player_state: player,
+            arena_daily: None,
+            arena_player: None,
+            active_run: active,
+            rent_recipient: payer,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::ConsumeArenaRun {}.data(),
+    };
+    let accounts = vec![
+        (
+            player,
+            program_account(&profile, 8 + PlayerState::INIT_SPACE),
+        ),
+        (active, program_account(&run, 8 + ActiveRun::INIT_SPACE)),
+        (payer, system_account(100)),
+        (
+            zkube::ID,
+            executable_program_account(Pubkey::from_str_const(
+                "BPFLoaderUpgradeab1e11111111111111111111111",
+            )),
+        ),
+    ];
+    let result = mollusk().process_instruction(&instruction, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    assert_eq!(
+        resulting_account(&result, &payer).lamports,
+        ACCOUNT_LAMPORTS + 100
+    );
+    assert!(resulting_account(&result, &active).data.is_empty());
+    let updated: PlayerState = decode(resulting_account(&result, &player));
+    assert_eq!(updated.orphan_run_id, 0);
+    let mut expected = Vec::new();
+    profile.release_orphan(run_id).unwrap();
+    profile.try_serialize(&mut expected).unwrap();
+    assert_eq!(
+        &resulting_account(&result, &player).data[..expected.len()],
+        expected
+    );
 }

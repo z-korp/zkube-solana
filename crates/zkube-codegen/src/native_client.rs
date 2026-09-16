@@ -198,7 +198,7 @@ fn schema() -> String {
 #[allow(clippy::too_many_lines)] // One emitted declaration mirrors the protocol/catalog source.
 fn protocol(catalog: &CampaignCatalog) -> String {
     use zkube_core::{
-        ARCADE_ACCOUNT_VERSION, ARENA_ENTRY_LAMPORTS, CAMPAIGN_TARGET_LADDER, DAILY_MAX_MOVES,
+        ARENA_ENTRY_LAMPORTS, CAMPAIGN_TARGET_LADDER, DAILY_MAX_MOVES,
         DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, PLAYER_STATE_ACCOUNT_VERSION,
         PROTOCOL_ACCOUNT_VERSION,
     };
@@ -228,7 +228,6 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             "PlayerStateAccountVersion",
             u32::from(PLAYER_STATE_ACCOUNT_VERSION),
         ),
-        ("ArcadeAccountVersion", u32::from(ARCADE_ACCOUNT_VERSION)),
         ("CatalogVersion", zkube_core::CATALOG_VERSION),
     ] {
         writeln!(output, "        public const uint {name} = {value}U;").unwrap();

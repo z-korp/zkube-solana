@@ -1,11 +1,11 @@
 use crate::{Constraint, ConstraintKind, MoveReport, Sha256Provider, SoftwareSha256};
 
-pub const REALM_COUNT: usize = 10;
-pub const OBJECTIVE_COUNT: usize = 16;
+pub(crate) const REALM_COUNT: usize = 10;
+pub(crate) const OBJECTIVE_COUNT: usize = 16;
 pub const DAILY_PAIR_COUNT: usize = REALM_COUNT * OBJECTIVE_COUNT;
 /// Protocol-fixed permutation seed. Daily content is code, so no publisher can
 /// grind either the seed or the size of the product space.
-pub const DAILY_PAIR_SELECTION_SEED: [u8; 32] = *b"zkube-daily-pool-v01-public-seed";
+pub(crate) const DAILY_PAIR_SELECTION_SEED: [u8; 32] = *b"zkube-daily-pool-v01-public-seed";
 const DAILY_PAIR_DRAW_DOMAIN: &[u8] = b"zkube-daily-pair-draw-v1";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -15,11 +15,6 @@ pub struct DailyTheme {
 }
 
 impl DailyTheme {
-    #[must_use]
-    pub const fn is_classic(self) -> bool {
-        matches!(self.kind, ConstraintKind::None)
-    }
-
     #[must_use]
     pub fn action_increment(self, report: &MoveReport) -> u8 {
         self.action_increment_with_trigger(report, 0)
@@ -115,7 +110,7 @@ pub fn daily_pair_index(day_id: u32) -> usize {
 }
 
 #[must_use]
-pub fn daily_pair_index_with<H: Sha256Provider>(day_id: u32) -> usize {
+pub(crate) fn daily_pair_index_with<H: Sha256Provider>(day_id: u32) -> usize {
     let cycle_index = day_id / u32::try_from(DAILY_PAIR_COUNT).unwrap_or(1);
     let mut permutation: [u8; DAILY_PAIR_COUNT] =
         core::array::from_fn(|index| u8::try_from(index).unwrap_or(0));

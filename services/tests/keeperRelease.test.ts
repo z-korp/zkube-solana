@@ -26,7 +26,6 @@ const EXACT_ALLOWLIST = [
   "commit_run",
   "consume_arena_run",
   "expire_unresolved_arena_run",
-  "cleanup_orphan_active_run",
 ] as const;
 
 describe("keeper release binding", () => {
@@ -49,7 +48,7 @@ describe("keeper release binding", () => {
       replayVersion: 2,
       maximumWritesPerPass: 6,
       maximumBoardWritesPerPass: 32,
-      maximumBoardRentLamportsPerPass: 1_802_208_480,
+      maximumBoardRentLamportsPerPass: 1_802_194_560,
       recentCadenceWindow: { dailies: 84 },
       maximumSpendLamportsPerPass: 100_000_000,
       reserveFloorLamports: 100_000_000,
@@ -65,7 +64,7 @@ describe("keeper release binding", () => {
   it("keeper_allowlist_is_exactly_its_plans", () => {
     expect(KEEPER_RELEASE_POLICY.allowlist).toEqual(EXACT_ALLOWLIST);
     expect(KEEPER_INSTRUCTION_ALLOWLIST).toEqual(EXACT_ALLOWLIST);
-    expect(Object.keys(KEEPER_PLAN_INSTRUCTION)).toHaveLength(14);
+    expect(Object.keys(KEEPER_PLAN_INSTRUCTION)).toHaveLength(13);
     expect(new Set(Object.values(KEEPER_PLAN_INSTRUCTION).map(({ instruction }) => instruction)))
       .toEqual(new Set(EXACT_ALLOWLIST));
   });

@@ -52,7 +52,7 @@ pub fn player(active: u64, next: u64) -> PlayerState {
     state.active_run_deadline_at = if active == 0 {
         0
     } else {
-        NOW + ARENA_RUNS_CLOSE_OFFSET
+        NOW + zkube_core::DAILY_RUN_CLOSE_OFFSET
     };
     state.kredit_balance = 25;
     state.ladder_points = RUN_ID;
@@ -66,10 +66,10 @@ pub fn player(active: u64, next: u64) -> PlayerState {
 }
 
 pub fn daily(day: u32) -> ArenaDaily {
-    let selection = daily_content_for_day(day);
-    let realm = zkube_core::REALM_RULES[usize::from(selection.realm_map_id - 1)];
+    let selection = zkube_core::daily_pair_with::<SolanaSha256>(day);
+    let realm = zkube_core::REALM_RULES[usize::from(selection.0 - 1)];
     ArenaDaily {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         day_id: day,
         arcade_config: singleton(ARCADE_CONFIG_SEED),
         status: PeriodStatus::Open,
@@ -78,7 +78,7 @@ pub fn daily(day: u32) -> ArenaDaily {
             day,
             realm.guardian,
             realm.starting_height,
-            selection.objective.to_core().unwrap(),
+            selection.1,
         )
         .0,
         finalized_at: 0,
@@ -120,13 +120,13 @@ pub fn scenarios() -> Value {
         singleton(PROTOCOL_CONFIG_SEED),
         pda(&[ARCADE_CONFIG_SEED]).1,
     );
-    arcade.launch_seeded = true;
+
     arcade.launch_day_id = DAY - 100;
     let credit = CreditVault {
-        version: ARCADE_ACCOUNT_VERSION,
+        version: ACCOUNT_VERSION,
         protocol: singleton(PROTOCOL_CONFIG_SEED),
-        purchased_prize_lamports: 225_000_000,
-        spent_prize_lamports: 0,
+        available_prize_lamports: 225_000_000,
+
         bump: pda(&[CREDIT_VAULT_SEED]).1,
     };
     json!({

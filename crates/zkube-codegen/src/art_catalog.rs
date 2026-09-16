@@ -84,12 +84,10 @@ fn theme(source: &Value) -> Value {
 }
 
 fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
-    let name = match bonus {
-        1 => "Hammer",
-        2 => "Totem",
-        3 => "Wave",
-        _ => unreachable!(),
-    };
+    let name = format!(
+        "{:?}",
+        zkube_core::Bonus::from_tag(u8::try_from(bonus).unwrap()).unwrap()
+    );
     let (description, condition) = match trigger {
         1 => (
             format!("Clear {threshold}+ lines in a move"),

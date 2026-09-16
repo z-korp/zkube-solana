@@ -20,7 +20,6 @@ import {
 import {
   KEEPER_PLAN_INSTRUCTION,
   MIN_SUPPORTED_DAY_ID,
-  ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   ARENA_BOARD_ENTRY_SIZE,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
@@ -71,7 +70,7 @@ const MAX_DISCOVERED_PLAYER_STATES = 10_000;
 export const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "4a578067e71dc9a63c6fe7e69545f413d811f4f99d0ec0e81c82c4962c3e3e08";
+  "72c82d6751d30d29d21bc7a608fbc8736ef7601e5acd4773a1d3203b85b2c360";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -192,11 +191,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const config = await this.loadRequired(
       "arcadeConfig",
       arcadeConfigPda(),
-      ARCADE_ACCOUNT_VERSION,
+      PROTOCOL_ACCOUNT_VERSION,
     );
     this.requireReleaseProtocol(protocol.value);
     requirePublicKey(config.value, "protocol", protocol.address, "ArcadeConfig protocol");
-    if (!boolean(config.value.launchSeeded, "ArcadeConfig launch flag")) {
+    if (u32(config.value.launchDayId, "launch day id") === 0) {
       throw new Error("keeper rejects an unseeded Arcade launch");
     }
     const launchDayId = u32(config.value.launchDayId, "launch day id");
@@ -335,13 +334,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const config = await this.loadRequired(
       "arcadeConfig",
       arcadeConfigPda(),
-      ARCADE_ACCOUNT_VERSION,
+      PROTOCOL_ACCOUNT_VERSION,
     );
     this.requireReleaseProtocol(protocol.value);
     requirePublicKey(config.value, "protocol", protocol.address, "ArcadeConfig protocol");
     const release = this.requiredRelease();
 
-    if (boolean(config.value.launchSeeded, "ArcadeConfig launch flag")) {
+    if (u32(config.value.launchDayId, "launch day id") > 0) {
       this.requireReleaseLaunchDay(u32(config.value.launchDayId, "launch day id"));
       return "active";
     }
@@ -381,7 +380,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       const daily = await this.loadRequired(
         "arenaDaily",
         arenaDailyPda(dayId),
-        ARCADE_ACCOUNT_VERSION,
+        PROTOCOL_ACCOUNT_VERSION,
       );
       if (u32(daily.value.dayId, "ArenaDaily day id") !== dayId) {
         throw new Error("staged Daily cadence is invalid");
@@ -501,8 +500,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             playerState: playerStatePda(player),
-            arenaDaily: daily,
-            arenaPlayer: arenaPlayerPda(daily, player),
+            arenaDaily: context.includeArenaPlayer ? daily : ZKUBE_PROGRAM_ID,
+            arenaPlayer: context.includeArenaPlayer ? arenaPlayerPda(daily, player) : ZKUBE_PROGRAM_ID,
             activeRun: activeRunPda(player, requiredRunId(runId)),
             rentRecipient: requireRentRecipient(context.rentRecipient),
           },
@@ -513,7 +512,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         const daily = arenaDailyPda(requiredNumber(dayId, "challenge day id"));
         return {
           name: "expireUnresolvedArenaRun",
-          args: { runId: new BN(requiredRunId(runId).toString()) },
+          args: {},
           accounts: {
             ...base,
             playerState: playerStatePda(player),
@@ -523,28 +522,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           },
         };
       }
-      case "cleanup_orphan_active_run": {
-        const player = requiredOwner(owner);
-        return {
-          name: "cleanupOrphanActiveRun",
-          args: {},
-          accounts: {
-            ...base,
-            activeRun: activeRunPda(player, requiredRunId(runId)),
-            playerState: playerStatePda(player),
-            rentRecipient: requireRentRecipient(context.rentRecipient),
-          },
-        };
-      }
       case "finalize_arena_daily":
         {
           const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
         return {
           name: "finalizeArenaDaily",
-          args: {
-            scorePayoutCount: requiredNumber(context.scorePayoutCount, "Score payout count"),
-            themePayoutCount: requiredNumber(context.themePayoutCount, "Theme payout count"),
-          },
+          args: {},
           accounts: {
             caller: keeper,
             arenaDaily: daily,
@@ -573,7 +556,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
               finalizedAt: new BN(entry.finalizedAt),
               replayHash: [...entry.replayHash],
             })),
-            seal: context.sealBoard === true,
           },
           accounts: {
             caller: keeper,
@@ -701,7 +683,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const loaded = await this.loadKnown(
       "arenaDaily",
       ids.map((id) => ({ id, address: arenaDailyPda(id) })),
-      ARCADE_ACCOUNT_VERSION,
+      PROTOCOL_ACCOUNT_VERSION,
     );
     const output: LoadedDaily[] = [];
     for (const item of loaded) {
@@ -836,7 +818,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const loaded = await this.loadRequired(
       "arenaBoard",
       address,
-      ARCADE_ACCOUNT_VERSION,
+      PROTOCOL_ACCOUNT_VERSION,
     );
     requirePublicKey(loaded.value, "arenaDaily", daily, `ArenaBoard ${kind} Daily`);
     const decodedKind = enumVariant(loaded.value.kind, `ArenaBoard ${kind} kind`);
@@ -898,12 +880,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     if (popcount(claimedMask) !== claimedCount) {
       throw new Error(`${kind} ArenaBoard bitmap counters do not match`);
     }
-    const sealed = boolean(loaded.value.sealed, `ArenaBoard ${kind} sealed`);
+    const sealed = cursor === payoutCount;
     const sealedAt = signedTimestamp(
       loaded.value.sealedAt,
       `ArenaBoard ${kind} seal time`,
     );
-    if (sealed !== (cursor === payoutCount) || sealed !== (sealedAt > 0)) {
+    if (sealed !== (sealedAt > 0)) {
       throw new Error(`${kind} ArenaBoard seal does not match its cursor`);
     }
     const claimedLamports = bigint(
@@ -957,7 +939,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     );
     const discovered = await this.scanAccounts(
       "arenaPlayer",
-      ARCADE_ACCOUNT_VERSION,
+      PROTOCOL_ACCOUNT_VERSION,
       MAX_ARENA_PLAYERS_PER_DAILY,
     );
     for (const player of discovered) {
@@ -980,10 +962,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         continue;
       }
       const sources = boardSources.get(dayId) ?? { score: [], theme: [] };
-      if (boolean(player.value.hasScoreBest, "ArenaPlayer Score best flag")) {
+      if (u32(record(player.value.scoreBestEntry, "Score best row").score, "best score") > 0) {
         sources.score.push(boardSourceSnapshot(player, owner, "score"));
       }
-      if (boolean(player.value.hasThemeBest, "ArenaPlayer Theme best flag")) {
+      if (bigint(record(player.value.themeBestEntry, "Theme best row").objectiveTotal, "best Theme metric") > 0n) {
         sources.theme.push(boardSourceSnapshot(player, owner, "theme"));
       }
       boardSources.set(dayId, sources);
@@ -1199,7 +1181,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       "arenaPlayer",
       address,
       info,
-      ARCADE_ACCOUNT_VERSION,
+      PROTOCOL_ACCOUNT_VERSION,
       address,
     );
     requirePublicKey(loaded.value, "challenge", daily, "ArenaPlayer challenge");

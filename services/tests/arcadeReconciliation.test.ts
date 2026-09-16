@@ -114,7 +114,6 @@ describe("v5 Daily keeper reconciliation", () => {
       "expire_unresolved_arena_run",
       "commit_run",
       "consume_arena_run",
-      "cleanup_orphan_active_run",
     ]);
     const runPlans = plans.filter(({ operation }) => runOperations.has(operation));
     expect(new Set(runPlans.map(({ operation }) => operation))).toEqual(runOperations);
@@ -158,8 +157,8 @@ describe("v5 Daily keeper reconciliation", () => {
 
       dayId: DAY,
       followingDayId: DAY + 1,
-      scorePayoutCount: 2,
-      themePayoutCount: 0,
+
+
       scoreCapacityLimited: false,
       themeCapacityLimited: false,
       payoutTotalLamports: 100_000_000n,

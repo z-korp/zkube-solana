@@ -19,10 +19,6 @@ pub struct SetProtocolPause<'info> {
 }
 
 pub fn handler_set_protocol_pause(ctx: Context<SetProtocolPause>, paused: bool) -> Result<()> {
-    require!(
-        ctx.accounts.protocol.paused != paused,
-        ErrorCode::InvalidState
-    );
     ctx.accounts.protocol.paused = paused;
     Ok(())
 }
@@ -50,10 +46,6 @@ pub fn handler_set_arena_suspension(
     ctx: Context<SetArenaSuspension>,
     suspended_until_day: u32,
 ) -> Result<()> {
-    require!(
-        ctx.accounts.arcade_config.suspended_until_day != suspended_until_day,
-        ErrorCode::InvalidState
-    );
     ctx.accounts.arcade_config.suspended_until_day = suspended_until_day;
     Ok(())
 }

@@ -71,7 +71,7 @@ pub const CONFIG_FIELDS: &[Field] = fields![
 pub const SNAPSHOT_FIELDS: &[Field] = fields![
     Config: Bytes(RUN_CONFIG_LEN), Phase: U8, EndReason: U8, BonusType: U8,
     BonusCharges: U8, RerollCharges: U8, ComboCounter: U8, MaxCombo: U8,
-    Streak: U8, ChargesEarned: U8, CurrentTier: U8, LevelLinesCleared: U16,
+    Streak: U8, ChargesEarned: U8, LevelLinesCleared: U16,
     Moves: U16, ActionCounter: U32, VrfRequestCounter: U32, PendingVrfCounter: U32,
     Score: U32, DailyScore: U32, ObjectiveTotal: U64, PressureScore: U32,
     Grid: Bytes(80), HasNextRow: U8, NextRow: Bytes(8), ReplayHash: Bytes(32),
@@ -459,7 +459,6 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
                 n("MaxCombo"),
                 n("Streak"),
                 n("ChargesEarned"),
-                n("CurrentTier"),
                 input.u16("LevelLinesCleared"),
                 input.u16("Moves"),
                 u("ActionCounter"),

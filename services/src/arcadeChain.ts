@@ -1,13 +1,13 @@
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
+  DAILY_PAIR_COUNT,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_CHUNK_CAPACITY,
   ARENA_BOARD_ENTRY_SIZE,
   MAX_BOARD_RENT_LAMPORTS,
   DAILY_RUN_CLOSE_OFFSET,
   RUN_RECOVERY_SECONDS,
-  ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   CATALOG_VERSION,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
@@ -19,24 +19,18 @@ import {
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
 } from "./protocolVersions.generated.js";
-import {
-  DAILY_PAIR_COUNT,
-  DAILY_PAIR_SELECTION_SEED,
-} from "./dailyRules.generated.js";
 import { dayIdAt, dailyPair, dailyIsScheduled as coreDailyIsScheduled, nextScheduledDaily as coreNextScheduledDaily } from "./zkubeCore.js";
 
 export {
+  DAILY_PAIR_COUNT,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_CHUNK_CAPACITY,
   ARENA_BOARD_ENTRY_SIZE,
   MAX_BOARD_RENT_LAMPORTS,
   DAILY_RUN_CLOSE_OFFSET,
   RUN_RECOVERY_SECONDS,
-  ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   CATALOG_VERSION,
-  DAILY_PAIR_COUNT,
-  DAILY_PAIR_SELECTION_SEED,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PLAYER_STATE_ACCOUNT_VERSION,
   PLAYER_STATE_RESERVED_BYTES,
@@ -72,7 +66,6 @@ export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
   commit_run: { instruction: "commit_run", connection: "ephemeral-rollup", priority: 4 },
   consume_arena_run: { instruction: "consume_arena_run", connection: "base", priority: 6 },
   expire_unresolved_arena_run: { instruction: "expire_unresolved_arena_run", connection: "base", priority: 7 },
-  cleanup_orphan_active_run: { instruction: "cleanup_orphan_active_run", connection: "base", priority: 13 },
 } as const);
 
 export type KeeperOperation = keyof typeof KEEPER_PLAN_INSTRUCTION;
@@ -98,13 +91,10 @@ export interface KeeperPlanContext {
   runLocation?: RunLocation;
   includeArenaPlayer?: boolean;
   predecessorRolloverApplied?: boolean;
-  recoveryActivation?: boolean;
   preactivation?: boolean;
   deadlineAt?: number;
   recoveryDeadlineAt?: number;
   potLamports?: bigint;
-  scorePayoutCount?: number;
-  themePayoutCount?: number;
   scoreCapacityLimited?: boolean;
   themeCapacityLimited?: boolean;
   boardCursor?: number;
@@ -116,7 +106,6 @@ export interface KeeperPlanContext {
     finalizedAt: number;
     replayHash: Uint8Array;
   }[];
-  sealBoard?: boolean;
   payoutTotalLamports?: bigint;
   rolloverLamports?: bigint;
   boardKind?: DailyBoardKind;

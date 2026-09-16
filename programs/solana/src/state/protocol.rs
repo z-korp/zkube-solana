@@ -20,7 +20,6 @@ pub use zkube_core::{
     EMBLEM_AUTO, EMBLEM_FIRST_GUARDIAN, EMBLEM_REALM_CONQUEROR, EMBLEM_WORLD_PERFECT,
 };
 /// Run identifiers are per-player and begin at one on every fresh deployment.
-pub const INITIAL_RUN_ID: u64 = 1;
 
 #[account]
 #[derive(InitSpace)]
@@ -89,7 +88,7 @@ impl PlayerState {
         Self {
             version: PLAYER_STATE_VERSION,
             owner,
-            next_run_id: INITIAL_RUN_ID,
+            next_run_id: 1,
             active_run_id: 0,
             active_run_daily: Pubkey::default(),
             active_run_deadline_at: 0,
@@ -228,7 +227,7 @@ impl PlayerState {
 
     pub fn record_kredit_purchase(&mut self, count: u64) -> Result<()> {
         self.require_schema()?;
-        require!(count > 0, ErrorCode::InvalidKreditPurchase);
+        require!(count > 0, ErrorCode::InvalidState);
         self.kredit_balance = self
             .kredit_balance
             .checked_add(count)
@@ -309,12 +308,7 @@ pub struct GuardianSnapshot {
 
 impl GuardianSnapshot {
     pub fn to_core(self) -> Result<zkube_core::Guardian> {
-        let bonus = match self.bonus {
-            1 => zkube_core::Bonus::Hammer,
-            2 => zkube_core::Bonus::Totem,
-            3 => zkube_core::Bonus::Wave,
-            _ => return err!(ErrorCode::InvalidLevel),
-        };
+        let bonus = zkube_core::Bonus::from_tag(self.bonus).ok_or(ErrorCode::InvalidState)?;
         Ok(zkube_core::Guardian {
             bonus,
             trigger: self.trigger,
@@ -333,11 +327,7 @@ impl RealmRuleSnapshot {
     pub fn from_core(realm: zkube_core::RealmRules) -> Self {
         Self {
             guardian: GuardianSnapshot {
-                bonus: match realm.guardian.bonus {
-                    zkube_core::Bonus::Hammer => 1,
-                    zkube_core::Bonus::Totem => 2,
-                    zkube_core::Bonus::Wave => 3,
-                },
+                bonus: realm.guardian.bonus.tag(),
                 trigger: realm.guardian.trigger,
                 threshold: realm.guardian.threshold,
             },
@@ -389,7 +379,6 @@ pub struct ActiveRun {
     /// Held preview replacements; every run starts with one.
     pub reroll_charges: u8,
     /// Ramped draw tier for Daily.
-    pub current_tier: u8,
     pub vrf_request_counter: u32,
     pub pending_vrf_counter: u32,
     /// Domain-separated rolling commitment over rules, VRF rows, and actions.
@@ -430,7 +419,6 @@ impl Default for ActiveRun {
             bonus_type: 0,
             bonus_charges: 0,
             reroll_charges: 0,
-            current_tier: 0,
             vrf_request_counter: 0,
             pending_vrf_counter: 0,
             replay_hash: [0; 32],
@@ -501,27 +489,13 @@ mod tests {
     }
 
     #[test]
-    fn fresh_profile_run_id_matches_the_shared_protocol_invariant() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../fixtures/protocol-invariants.json"
-        ))
-        .unwrap();
-        let expected = fixture["initialRunId"].as_u64().unwrap();
-        let player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        assert_eq!(INITIAL_RUN_ID, expected);
-        assert_eq!(player.next_run_id, expected);
-        assert_eq!(player.active_run_id, 0);
-        assert_eq!(player.version, PLAYER_STATE_VERSION);
-    }
-
-    #[test]
     fn player_state_rejects_nonzero_reserved_bytes() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         assert!(player.schema_valid());
         player.reserved[17] = 1;
         assert!(!player.schema_valid());
         assert!(player
-            .reserve_arcade_run(INITIAL_RUN_ID, Pubkey::new_unique(), 1_000)
+            .reserve_arcade_run(1, Pubkey::new_unique(), 1_000)
             .is_err());
     }
 
@@ -629,21 +603,7 @@ mod tests {
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + ProtocolConfig::INIT_SPACE, 107);
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 206);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 338);
-    }
-
-    #[test]
-    fn campaign_badges_and_emblems_are_derived_from_stars() {
-        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        assert!(player.emblem_unlocked(EMBLEM_AUTO));
-        assert!(!player.emblem_unlocked(EMBLEM_FIRST_GUARDIAN));
-        assert!(!player.emblem_unlocked(EMBLEM_REALM_CONQUEROR));
-        assert!(!player.emblem_unlocked(EMBLEM_WORLD_PERFECT));
-        player.merge_campaign_stars([u8::MAX; CAMPAIGN_STAR_BYTES]);
-        assert!(player.emblem_unlocked(10));
-        assert!(player.emblem_unlocked(EMBLEM_REALM_CONQUEROR));
-        assert!(player.emblem_unlocked(EMBLEM_WORLD_PERFECT));
-        assert!(!player.emblem_unlocked(13));
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 337);
     }
 
     #[test]

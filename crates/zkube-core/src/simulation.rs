@@ -7,7 +7,7 @@ use crate::{
 
 const DAILY_RULES_HASH_DOMAIN: &[u8] = b"zkube-daily-rules-v1";
 const DAILY_CHALLENGE_RULES_HASH_DOMAIN: &[u8] = b"zkube-arena-rules-v3";
-pub const RULES_VERSION: u32 = 5;
+pub(crate) const RULES_VERSION: u32 = 5;
 pub const CANONICAL_RUN_RULES_LEN: usize = 23;
 pub const DAILY_MAX_MOVES: u16 = 100;
 pub const PRESSURE_STEP: u32 = 15;
@@ -660,9 +660,7 @@ pub(crate) fn daily_rules_hash_components_with<H: Sha256Provider>(
 const fn bonus_tag(bonus: Option<Bonus>) -> u8 {
     match bonus {
         None => 0,
-        Some(Bonus::Hammer) => 1,
-        Some(Bonus::Totem) => 2,
-        Some(Bonus::Wave) => 3,
+        Some(bonus) => bonus.tag(),
     }
 }
 

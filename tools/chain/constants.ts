@@ -17,7 +17,6 @@ export const ZKUBE_PROGRAM_ID = new PublicKey(
 );
 
 /** The first per-player run identifier on every fresh deployment. */
-export const INITIAL_RUN_ID = 1n;
 
 // Solana base layer.
 export const SOLANA_ENDPOINT =

@@ -455,91 +455,6 @@
       ]
     },
     {
-      "name": "cleanup_orphan_active_run",
-      "discriminator": [
-        181,
-        40,
-        52,
-        240,
-        230,
-        27,
-        96,
-        63
-      ],
-      "accounts": [
-        {
-          "name": "active_run",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  117,
-                  110
-                ]
-              },
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  99,
-                  116,
-                  105,
-                  118,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              },
-              {
-                "kind": "account",
-                "path": "active_run.run_id",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "active_run.owner",
-                "account": "ActiveRun"
-              }
-            ]
-          }
-        },
-        {
-          "name": "rent_recipient",
-          "writable": true
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "close_arena_daily",
       "discriminator": [
         160,
@@ -849,6 +764,7 @@
         {
           "name": "arena_daily",
           "writable": true,
+          "optional": true,
           "pda": {
             "seeds": [
               {
@@ -878,6 +794,7 @@
         {
           "name": "arena_player",
           "writable": true,
+          "optional": true,
           "pda": {
             "seeds": [
               {
@@ -899,7 +816,8 @@
               },
               {
                 "kind": "account",
-                "path": "arena_daily"
+                "path": "active_run.daily_challenge",
+                "account": "ActiveRun"
               },
               {
                 "kind": "account",
@@ -1490,10 +1408,6 @@
           "type": "u64"
         },
         {
-          "name": "expected_entry_lamports",
-          "type": "u64"
-        },
-        {
           "name": "auto_claim_positions",
           "type": {
             "vec": "u32"
@@ -1777,12 +1691,7 @@
           "signer": true
         }
       ],
-      "args": [
-        {
-          "name": "run_id",
-          "type": "u64"
-        }
-      ]
+      "args": []
     },
     {
       "name": "finalize_arena_daily",
@@ -1968,16 +1877,7 @@
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": [
-        {
-          "name": "score_payout_count",
-          "type": "u32"
-        },
-        {
-          "name": "theme_payout_count",
-          "type": "u32"
-        }
-      ]
+      "args": []
     },
     {
       "name": "finish_run",
@@ -2725,10 +2625,6 @@
         {
           "name": "kredit_count",
           "type": "u32"
-        },
-        {
-          "name": "expected_unit_lamports",
-          "type": "u64"
         }
       ]
     },
@@ -3355,10 +3251,6 @@
               }
             }
           }
-        },
-        {
-          "name": "seal",
-          "type": "bool"
         }
       ]
     }
@@ -3507,173 +3399,103 @@
     },
     {
       "code": 6007,
-      "name": "InvalidMagicProgram",
-      "msg": "The MagicBlock program is invalid"
-    },
-    {
-      "code": 6008,
-      "name": "GameNotFinished",
-      "msg": "The run is not ready to finish"
-    },
-    {
-      "code": 6009,
-      "name": "ChallengeEnded",
-      "msg": "The Daily challenge entry or play window has ended"
-    },
-    {
-      "code": 6010,
-      "name": "ChallengeNotEnded",
-      "msg": "The Daily challenge has not ended"
-    },
-    {
-      "code": 6011,
-      "name": "AlreadySubmitted",
-      "msg": "This Daily attempt has already been submitted"
-    },
-    {
-      "code": 6012,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6013,
-      "name": "InvalidLevel",
-      "msg": "Invalid level"
-    },
-    {
-      "code": 6014,
+      "code": 6008,
       "name": "ProtocolPaused",
       "msg": "Protocol is paused"
     },
     {
-      "code": 6015,
+      "code": 6009,
       "name": "InvalidVersion",
       "msg": "Unsupported account version"
     },
     {
-      "code": 6016,
+      "code": 6010,
       "name": "InvalidRunId",
       "msg": "Invalid run id"
     },
     {
-      "code": 6017,
+      "code": 6011,
       "name": "ActiveRunExists",
       "msg": "Finish or abandon the active run before starting another"
     },
     {
-      "code": 6018,
-      "name": "InvalidBlockWeights",
-      "msg": "Invalid block weights"
-    },
-    {
-      "code": 6019,
+      "code": 6012,
       "name": "VrfRequestPending",
       "msg": "A VRF request is already pending"
     },
     {
-      "code": 6020,
-      "name": "NoVrfRequestPending",
-      "msg": "No VRF request is pending"
-    },
-    {
-      "code": 6021,
+      "code": 6013,
       "name": "VrfRequestMismatch",
       "msg": "The VRF callback does not match the pending request"
     },
     {
-      "code": 6022,
+      "code": 6014,
       "name": "NoPrize",
       "msg": "The player has no Daily prize"
     },
     {
-      "code": 6023,
+      "code": 6015,
       "name": "PrizeAlreadyClaimed",
       "msg": "This Daily prize position was already claimed"
     },
     {
-      "code": 6024,
+      "code": 6016,
       "name": "ClaimWindowClosed",
       "msg": "The Daily prize claim window has closed"
     },
     {
-      "code": 6025,
-      "name": "ClaimWindowOpen",
-      "msg": "The Daily prize claim window is still open"
-    },
-    {
-      "code": 6026,
-      "name": "BoardCapacityExceeded",
-      "msg": "The payout board exceeds the protocol safety ceiling"
-    },
-    {
-      "code": 6027,
+      "code": 6017,
       "name": "BoardIncomplete",
       "msg": "The payout board is incomplete or unsealed"
     },
     {
-      "code": 6028,
+      "code": 6018,
       "name": "BoardEntryMismatch",
       "msg": "A submitted payout row does not match its ArenaPlayer source"
     },
     {
-      "code": 6029,
+      "code": 6019,
       "name": "BoardEntryOutOfOrder",
       "msg": "Submitted payout rows are not in canonical order"
     },
     {
-      "code": 6030,
+      "code": 6020,
       "name": "DuplicateBoardPlayer",
       "msg": "A player appears more than once on a payout board"
     },
     {
-      "code": 6031,
+      "code": 6021,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6032,
-      "name": "PriceChanged",
-      "msg": "The Arena entry price changed; refresh the exact quote"
-    },
-    {
-      "code": 6033,
+      "code": 6022,
       "name": "InsufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6034,
-      "name": "InvalidKreditPurchase",
-      "msg": "A Kredit purchase must contain a positive whole-number count at the exact unit price"
-    },
-    {
-      "code": 6035,
+      "code": 6023,
       "name": "DailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6036,
+      "code": 6024,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6037,
-      "name": "SessionExpired",
-      "msg": "The scoped player session has expired"
-    },
-    {
-      "code": 6038,
+      "code": 6025,
       "name": "InvalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6039,
+      "code": 6026,
       "name": "InvalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
-    },
-    {
-      "code": 6040,
-      "name": "AlreadySeeded",
-      "msg": "The first Daily was already seeded"
     }
   ],
   "types": [
@@ -3860,14 +3682,10 @@
             "type": "u8"
           },
           {
-            "name": "current_tier",
+            "name": "vrf_request_counter",
             "docs": [
               "Ramped draw tier for Daily."
             ],
-            "type": "u8"
-          },
-          {
-            "name": "vrf_request_counter",
             "type": "u32"
           },
           {
@@ -3916,10 +3734,6 @@
               "Days below this absolute identifier are suspended; zero disables it."
             ],
             "type": "u32"
-          },
-          {
-            "name": "launch_seeded",
-            "type": "bool"
           },
           {
             "name": "launch_day_id",
@@ -4011,10 +3825,6 @@
               "Number of verified rows already appended."
             ],
             "type": "u32"
-          },
-          {
-            "name": "sealed",
-            "type": "bool"
           },
           {
             "name": "sealed_at",
@@ -4196,10 +4006,6 @@
             "type": "u64"
           },
           {
-            "name": "has_score_best",
-            "type": "bool"
-          },
-          {
             "name": "score_best_entry",
             "type": {
               "defined": {
@@ -4208,27 +4014,12 @@
             }
           },
           {
-            "name": "score_best_run_id",
-            "docs": [
-              "Retained outside the payout row for client replay/result identity."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "has_theme_best",
-            "type": "bool"
-          },
-          {
             "name": "theme_best_entry",
             "type": {
               "defined": {
                 "name": "ArenaBoardEntry"
               }
             }
-          },
-          {
-            "name": "theme_best_run_id",
-            "type": "u64"
           },
           {
             "name": "bump",
@@ -4274,16 +4065,9 @@
             "type": "pubkey"
           },
           {
-            "name": "purchased_prize_lamports",
+            "name": "available_prize_lamports",
             "docs": [
-              "Exact 9,000,000-lamport prize deposits made by Kredit purchases."
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "spent_prize_lamports",
-            "docs": [
-              "Exact prize deposits already routed by spent Kredits."
+              "Prize deposits not yet routed to a Daily by spent Kredits."
             ],
             "type": "u64"
           },
@@ -4571,6 +4355,9 @@
     },
     {
       "name": "ProtocolConfig",
+      "docs": [
+        "Run identifiers are per-player and begin at one on every fresh deployment."
+      ],
       "type": {
         "kind": "struct",
         "fields": [

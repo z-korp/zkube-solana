@@ -4,13 +4,13 @@ const PLAYER_ID_DOMAIN: &[u8] = b"zkube-player-id-v1";
 const REPLAY_INIT_DOMAIN: &[u8] = b"zkube-replay-v2:init";
 const REPLAY_FOLD_DOMAIN: &[u8] = b"zkube-replay-v2:fold";
 
-pub const VRF_EVENT_TAG: u8 = 1;
-pub const MOVE_EVENT_TAG: u8 = 2;
-pub const BONUS_EVENT_TAG: u8 = 3;
-pub const PLAYER_ABANDON_EVENT_TAG: u8 = 4;
-pub const DAILY_DEADLINE_EVENT_TAG: u8 = 5;
-pub const REROLL_EVENT_TAG: u8 = 6;
-pub const MAX_CANONICAL_EVENT_LEN: usize = 37;
+pub(crate) const VRF_EVENT_TAG: u8 = 1;
+pub(crate) const MOVE_EVENT_TAG: u8 = 2;
+pub(crate) const BONUS_EVENT_TAG: u8 = 3;
+pub(crate) const PLAYER_ABANDON_EVENT_TAG: u8 = 4;
+pub(crate) const DAILY_DEADLINE_EVENT_TAG: u8 = 5;
+pub(crate) const REROLL_EVENT_TAG: u8 = 6;
+pub(crate) const MAX_CANONICAL_EVENT_LEN: usize = 37;
 
 macro_rules! bytes32_newtype {
     ($name:ident) => {
@@ -161,11 +161,6 @@ impl ReplayEvent {
 }
 
 #[must_use]
-pub fn derive_player_id(domain: ChainDomain, raw_account_bytes: [u8; 32]) -> PlayerId {
-    derive_player_id_with::<SoftwareSha256>(domain, raw_account_bytes)
-}
-
-#[must_use]
 pub fn derive_player_id_with<H: Sha256Provider>(
     domain: ChainDomain,
     raw_account_bytes: [u8; 32],
@@ -250,14 +245,7 @@ mod tests {
         final_commitment_hex: String,
     }
 
-    fn decode_32(value: &str) -> [u8; 32] {
-        assert_eq!(value.len(), 64);
-        let mut result = [0u8; 32];
-        for (index, byte) in result.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap();
-        }
-        result
-    }
+    use crate::hash::decode_32;
 
     fn decode(value: &str) -> std::vec::Vec<u8> {
         assert_eq!(value.len() % 2, 0);
@@ -350,7 +338,7 @@ mod tests {
         let rules_hash = RulesHash(decode_32(&fixture.rules_hash_hex));
         let raw_account = decode_32(&fixture.raw_account_hex);
         let run_id = fixture.run_id.parse::<u64>().unwrap();
-        let player_id = derive_player_id(domain, raw_account);
+        let player_id = derive_player_id_with::<SoftwareSha256>(domain, raw_account);
         assert_eq!(player_id.to_bytes(), decode_32(&fixture.player_id_hex));
         let mut commitment =
             ReplayCommitment::initial(domain, challenge, rules_hash, player_id, run_id);
@@ -378,7 +366,7 @@ mod tests {
         let domain = ChainDomain([1; 32]);
         let challenge = ChallengeId([2; 32]);
         let rules = RulesHash([3; 32]);
-        let player = derive_player_id(domain, [4; 32]);
+        let player = derive_player_id_with::<SoftwareSha256>(domain, [4; 32]);
         let baseline = ReplayCommitment::initial(domain, challenge, rules, player, 7);
         assert_ne!(
             baseline,
@@ -390,7 +378,7 @@ mod tests {
                 domain,
                 challenge,
                 rules,
-                derive_player_id(domain, [5; 32]),
+                derive_player_id_with::<SoftwareSha256>(domain, [5; 32]),
                 7,
             )
         );

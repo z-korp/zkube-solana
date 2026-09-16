@@ -27,12 +27,6 @@ pub fn require_player_authorization(
     )
 }
 
-/// Rent may be paid directly by the owner or the authorized device actor.
-pub fn require_player_rent_payer(owner: Pubkey, actor: Pubkey, payer: Pubkey) -> Result<()> {
-    require!(payer == owner || payer == actor, ErrorCode::InvalidOwner);
-    Ok(())
-}
-
 #[derive(Clone, Copy)]
 struct SessionFields {
     address: Pubkey,
@@ -62,7 +56,7 @@ fn require_authorization_fields(
             && session.fee_payer == owner_authority,
         ErrorCode::InvalidSession
     );
-    require!(session.valid_until > now, ErrorCode::SessionExpired);
+    require!(session.valid_until > now, ErrorCode::InvalidSession);
 
     let expected = Pubkey::find_program_address(
         &[
@@ -174,15 +168,6 @@ mod tests {
     }
 
     #[test]
-    fn rent_payer_is_owner_or_authorized_actor_only() {
-        let owner = Pubkey::new_unique();
-        let actor = Pubkey::new_unique();
-        assert!(require_player_rent_payer(owner, actor, owner).is_ok());
-        assert!(require_player_rent_payer(owner, actor, actor).is_ok());
-        assert!(require_player_rent_payer(owner, actor, Pubkey::new_unique()).is_err());
-    }
-
-    #[test]
     fn generated_arena_entry_metas_allow_a_scoped_device_without_owner_signature() {
         let owner = Pubkey::new_unique();
         let actor = Pubkey::new_unique();
@@ -227,5 +212,22 @@ mod tests {
         .to_account_metas(None);
         assert_eq!(purchase[5].pubkey, owner);
         assert!(purchase[5].is_signer);
+    }
+    #[test]
+    fn sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges() {
+        use crate::state::*;
+        let owner = Pubkey::new_unique();
+        require_authorization_fields(owner, owner, None, 0).unwrap();
+        assert!(require_authorization_fields(owner, Pubkey::new_unique(), None, 0).is_err());
+        let mut player = PlayerState::initialize(owner, 1);
+        assert!(player.emblem_unlocked(EMBLEM_AUTO));
+        assert!(!player.emblem_unlocked(EMBLEM_FIRST_GUARDIAN));
+        assert!(!player.emblem_unlocked(EMBLEM_REALM_CONQUEROR));
+        assert!(!player.emblem_unlocked(EMBLEM_WORLD_PERFECT));
+        player.merge_campaign_stars([u8::MAX; CAMPAIGN_STAR_BYTES]);
+        assert!(player.emblem_unlocked(10));
+        assert!(player.emblem_unlocked(EMBLEM_REALM_CONQUEROR));
+        assert!(player.emblem_unlocked(EMBLEM_WORLD_PERFECT));
+        assert!(!player.emblem_unlocked(13));
     }
 }

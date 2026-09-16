@@ -44,7 +44,7 @@ namespace ZKube.Integration.Planning
         {
             if (count == 0) throw new ArgumentOutOfRangeException(nameof(count));
             return Plan(PlannerActor.Wallet(owner), PlanRoute.Base, new[] { Instruction("purchase_kredits",
-                new JObject { ["kredit_count"] = count, ["expected_unit_lamports"] = Protocol.EntryLamports },
+                new JObject { ["kredit_count"] = count },
                 new Dictionary<string, string> { ["protocol"] = ProtocolAddress, ["arcade_config"] = ArcadeAddress,
                     ["player_state"] = Player(owner), ["credit_vault"] = CreditVaultAddress,
                     ["team_destination"] = teamDestination, ["owner"] = owner }) });
@@ -125,7 +125,7 @@ namespace ZKube.Integration.Planning
             keys["credit_vault"] = CreditVaultAddress; keys["active_run"] = ActiveRun(actor.Owner, player.NextRunId);
             var remaining = claims.SelectMany(c => new[] { new AccountMeta(Daily(c.DayId), false, true), new AccountMeta(Board(c.DayId, c.Kind), false, true) });
             return Plan(actor, PlanRoute.Base, new[] { Instruction("enter_arena", new JObject { ["run_id"] = player.NextRunId,
-                ["expected_entry_lamports"] = Protocol.EntryLamports, ["auto_claim_positions"] = new JArray(claims.Select(c => c.Position)) }, keys, remaining) }, runId: player.NextRunId);
+                ["auto_claim_positions"] = new JArray(claims.Select(c => c.Position)) }, keys, remaining) }, runId: player.NextRunId);
         }
 
         public TransactionPlan Delegate(PlannerActor actor, ulong runId, string validator)

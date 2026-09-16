@@ -64,7 +64,7 @@ namespace ZKube.Integration.Client
             }
             if (call.Name == "purchase_kredits")
             {
-                if ((uint)call.Arguments["kredit_count"] == 0 || (ulong)call.Arguments["expected_unit_lamports"] != Protocol.EntryLamports ||
+                if ((uint)call.Arguments["kredit_count"] == 0 ||
                     call.Accounts["protocol"] != Pda("protocol") || call.Accounts["arcade_config"] != Pda("arcade") ||
                     call.Accounts["credit_vault"] != Pda("credit_vault")) return false;
                 var credit = Observed(evidence, call.Accounts["credit_vault"]);

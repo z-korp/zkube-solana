@@ -1,6 +1,6 @@
 pub const GRID_WIDTH: usize = 8;
 pub const GRID_HEIGHT: usize = 10;
-pub const GRID_CELLS: usize = GRID_WIDTH * GRID_HEIGHT;
+pub(crate) const GRID_CELLS: usize = GRID_WIDTH * GRID_HEIGHT;
 
 pub type Row = [u8; GRID_WIDTH];
 
@@ -9,6 +9,25 @@ pub enum Bonus {
     Hammer,
     Totem,
     Wave,
+}
+
+impl Bonus {
+    pub const fn tag(self) -> u8 {
+        match self {
+            Self::Hammer => 1,
+            Self::Totem => 2,
+            Self::Wave => 3,
+        }
+    }
+
+    pub const fn from_tag(tag: u8) -> Option<Self> {
+        match tag {
+            1 => Some(Self::Hammer),
+            2 => Some(Self::Totem),
+            3 => Some(Self::Wave),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -344,6 +363,17 @@ mod tests {
     use super::*;
     use serde_json::Value;
     use std::vec::Vec;
+
+    #[test]
+    fn bonus_tags_are_exhaustive_and_round_trip() {
+        for tag in 0..=u8::MAX {
+            let bonus = Bonus::from_tag(tag);
+            assert_eq!(bonus.is_some(), (1..=3).contains(&tag));
+            if let Some(bonus) = bonus {
+                assert_eq!(bonus.tag(), tag);
+            }
+        }
+    }
 
     fn grid_with_rows(rows: &[(usize, Row)]) -> Grid {
         let mut cells = [0u8; GRID_CELLS];

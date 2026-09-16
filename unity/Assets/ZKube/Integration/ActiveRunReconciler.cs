@@ -25,7 +25,7 @@ namespace ZKube.Integration
                 RerollCharges = (byte)account["reroll_charges"], ComboCounter = (byte)account["combo_counter"],
                 MaxCombo = (byte)account["max_combo"],
                 Streak = (byte)account["streak"], ChargesEarned = (byte)account["charges_earned"],
-                CurrentTier = (byte)account["current_tier"], LevelLinesCleared = (ushort)account["level_lines_cleared"],
+                LevelLinesCleared = (ushort)account["level_lines_cleared"],
                 Moves = (ushort)account["moves"], ActionCounter = (uint)account["action_counter"],
                 VrfRequestCounter = (uint)account["vrf_request_counter"], PendingVrfCounter = (uint)account["pending_vrf_counter"],
                 Score = (uint)account["score"], DailyScore = (uint)account["daily_score"],

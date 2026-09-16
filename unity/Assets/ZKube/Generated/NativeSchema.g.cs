@@ -164,7 +164,7 @@ namespace ZKube.Core.Generated
 
     public sealed class ReconcileRequest
     {
-        public const int ByteLength = 257;
+        public const int ByteLength = 256;
         public const uint Operation = 2;
         public byte[] Config { get; set; } = new byte[88];
         public byte Phase { get; set; }
@@ -176,7 +176,6 @@ namespace ZKube.Core.Generated
         public byte MaxCombo { get; set; }
         public byte Streak { get; set; }
         public byte ChargesEarned { get; set; }
-        public byte CurrentTier { get; set; }
         public ushort LevelLinesCleared { get; set; }
         public ushort Moves { get; set; }
         public uint ActionCounter { get; set; }
@@ -204,20 +203,19 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 96, 1, MaxCombo);
             NativeWire.Write(bytes, 97, 1, Streak);
             NativeWire.Write(bytes, 98, 1, ChargesEarned);
-            NativeWire.Write(bytes, 99, 1, CurrentTier);
-            NativeWire.Write(bytes, 100, 2, LevelLinesCleared);
-            NativeWire.Write(bytes, 102, 2, Moves);
-            NativeWire.Write(bytes, 104, 4, ActionCounter);
-            NativeWire.Write(bytes, 108, 4, VrfRequestCounter);
-            NativeWire.Write(bytes, 112, 4, PendingVrfCounter);
-            NativeWire.Write(bytes, 116, 4, Score);
-            NativeWire.Write(bytes, 120, 4, DailyScore);
-            NativeWire.Write(bytes, 124, 8, ObjectiveTotal);
-            NativeWire.Write(bytes, 132, 4, PressureScore);
-            NativeWire.Copy(Grid, bytes, 136, 80);
-            NativeWire.Write(bytes, 216, 1, HasNextRow);
-            NativeWire.Copy(NextRow, bytes, 217, 8);
-            NativeWire.Copy(ReplayHash, bytes, 225, 32);
+            NativeWire.Write(bytes, 99, 2, LevelLinesCleared);
+            NativeWire.Write(bytes, 101, 2, Moves);
+            NativeWire.Write(bytes, 103, 4, ActionCounter);
+            NativeWire.Write(bytes, 107, 4, VrfRequestCounter);
+            NativeWire.Write(bytes, 111, 4, PendingVrfCounter);
+            NativeWire.Write(bytes, 115, 4, Score);
+            NativeWire.Write(bytes, 119, 4, DailyScore);
+            NativeWire.Write(bytes, 123, 8, ObjectiveTotal);
+            NativeWire.Write(bytes, 131, 4, PressureScore);
+            NativeWire.Copy(Grid, bytes, 135, 80);
+            NativeWire.Write(bytes, 215, 1, HasNextRow);
+            NativeWire.Copy(NextRow, bytes, 216, 8);
+            NativeWire.Copy(ReplayHash, bytes, 224, 32);
             return bytes;
         }
     }
