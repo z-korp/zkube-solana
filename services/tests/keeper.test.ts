@@ -14,7 +14,7 @@ import {
   arenaDailyPda,
   cadenceFundingPda,
   type KeeperInstructionPlan,
-} from "../src/arcadeChain";
+} from "../src/arcadeChain.js";
 import {
   DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
   DEFAULT_MIN_KEEPER_LAMPORTS,
@@ -24,7 +24,7 @@ import {
   predictedKeeperSpendLamports,
   predictedAccountSpendLamports,
   verifyConfirmedWrite,
-} from "../src/keeper";
+} from "../src/keeper.js";
 
 describe("keeper bounds", () => {
   it("pins reserve and spend limits", () => {
@@ -87,14 +87,14 @@ describe("keeper bounds", () => {
         null,
         systemAccount(),
       ]),
-    } as never;
-    await expect(verifyConfirmedWrite(plan, connection, "signature")).resolves.toBeUndefined();
+    };
+    await expect(verifyConfirmedWrite(plan, connection as never, "signature")).resolves.toBeUndefined();
 
     connection.getMultipleAccountsInfo.mockResolvedValueOnce([
       systemAccount(),
       systemAccount(),
     ]);
-    await expect(verifyConfirmedWrite(plan, connection, "signature"))
+    await expect(verifyConfirmedWrite(plan, connection as never, "signature"))
       .rejects.toThrow("does not match");
   });
 
@@ -130,8 +130,8 @@ describe("keeper bounds", () => {
         null,
         systemAccount(),
       ]),
-    } as never;
-    await expect(verifyConfirmedWrite(plan, connection, "signature"))
+    };
+    await expect(verifyConfirmedWrite(plan, connection as never, "signature"))
       .resolves.toBeUndefined();
 
     connection.getMultipleAccountsInfo.mockResolvedValueOnce([
@@ -140,7 +140,7 @@ describe("keeper bounds", () => {
       null,
       systemAccount(),
     ]);
-    await expect(verifyConfirmedWrite(plan, connection, "signature"))
+    await expect(verifyConfirmedWrite(plan, connection as never, "signature"))
       .rejects.toThrow("does not match");
   });
 

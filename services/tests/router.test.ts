@@ -8,11 +8,11 @@ import {
   PROTOCOL_ACCOUNT_VERSION,
   ZKUBE_PROGRAM_ID,
   validationOnlyPlan,
-} from "../src/arcadeChain";
+} from "../src/arcadeChain.js";
 import {
   getDelegationStatus,
   resolveEphemeralConnectionForPlan,
-} from "../src/router";
+} from "../src/router.js";
 
 describe("MagicBlock Router boundary", () => {
   it("validates delegation status and normalizes the ER endpoint", async () => {

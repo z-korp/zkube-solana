@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /standalone operator commands|services\/pnpm-lock\.yaml|tools\/chain\/pnpm-lock\.yaml/,
+    trees: [README, AGENT_RULES],
+    reversal: "Services and operator tools share one root workspace and dependency lock (2026-09-16)",
+  },
+  {
     pattern: /StoreAppController|MoneyAppController|StoreShareText|StoreResultSharing|MoneyCampaignBrowse|MoneyDailyPage\b|MoneyProfilePage\b/,
     trees: [UNITY_CLIENT, README, AGENT_RULES],
     reversal: "Both products use the shared presentation pages with identity data and actions (2026-09-16)",

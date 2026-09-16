@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": [
+      "node",
+      "bn.js"
+    ],
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "sourceMap": true
+  },
+  "include": [
+    "services/**/*.ts",
+    "tools/chain/**/*.ts",
+    "shared/**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "dist",
+    "services/zkube-core"
+  ]
+}

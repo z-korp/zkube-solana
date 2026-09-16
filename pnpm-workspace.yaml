@@ -1,3 +1,6 @@
+packages:
+  - services
+  - tools/chain
 allowBuilds:
   bufferutil: true
   esbuild: true

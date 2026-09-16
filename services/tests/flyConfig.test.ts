@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { KEEPER_RELEASE_POLICY } from "../src/keeperRelease";
+import { KEEPER_RELEASE_POLICY } from "../src/keeperRelease.js";
 
 // The deployed config may restate a fingerprinted value only if it restates
 // it exactly. Runtime clamping keeps behaviour correct either way, but a toml

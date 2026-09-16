@@ -8,7 +8,7 @@ import {
   compareBoardEntries, dailyPair,
   dailyBoardPools,
   payoutPlan,
-} from "../src/zkubeCore";
+} from "../src/zkubeCore.js";
 
 const fixture = JSON.parse(
   readFileSync(

@@ -1,0 +1,39 @@
+{
+  "name": "@zkube/workspace",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "pnpm@11.23.0",
+  "scripts": {
+    "build": "tsc && node tools/build-node.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0",
+    "start:keeper": "node dist/services/src/keeperWorker.js",
+    "release:fingerprint": "node dist/services/src/keeperReleaseCli.js",
+    "core:wasm:sync": "node services/sync-zkube-core-wasm.mjs",
+    "core:wasm:check": "node services/sync-zkube-core-wasm.mjs --check",
+    "idl:sync": "node tools/chain/sync-anchor-idl.mjs",
+    "idl:check": "node tools/chain/sync-anchor-idl.mjs --check"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "1.0.2",
+    "@magicblock-labs/ephemeral-rollups-sdk": "0.16.1",
+    "@solana/web3.js": "^1.98.0",
+    "bn.js": "5.2.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@types/bn.js": "5.2.0",
+    "@types/node": "^22.15.0",
+    "eslint": "9.39.1",
+    "globals": "16.5.0",
+    "tsx": "4.20.6",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "8.46.4",
+    "vitest": "^3.2.4"
+  }
+}

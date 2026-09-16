@@ -11,19 +11,7 @@ export const MAGIC_CONTEXT_ID = new PublicKey(
   "MagicContext1111111111111111111111111111111",
 );
 
-// zKube program.
-export const ZKUBE_PROGRAM_ID = new PublicKey(
-  "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-);
-
-/** The first per-player run identifier on every fresh deployment. */
-
-// Solana base layer.
-export const SOLANA_ENDPOINT =
-  "https://rpc.magicblock.app/devnet";
-
-export const SOLANA_DEVNET_GENESIS_HASH =
-  "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+export { ZKUBE_PROGRAM_ID, SOLANA_ENDPOINT, SOLANA_DEVNET_GENESIS_HASH } from "../../shared/chain.js";
 
 // MagicBlock delegation record for an active run PDA.
 export function getDelegationRecord(pdaPubkey: PublicKey): PublicKey {

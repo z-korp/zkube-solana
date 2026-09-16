@@ -1,25 +1,32 @@
-FROM node:22-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 
 ENV NO_DNA=1
-RUN corepack enable && corepack prepare pnpm@10.22.0 --activate
-WORKDIR /app/services
-COPY services/package.json services/pnpm-lock.yaml ./
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY services/package.json ./services/package.json
+COPY tools/chain/package.json ./tools/chain/package.json
 RUN pnpm install --frozen-lockfile
-COPY services/src ./src
-COPY services/zkube-core ./zkube-core
-COPY services/tsconfig.json ./tsconfig.json
+COPY tsconfig.json ./
+COPY services/src ./services/src
+COPY services/tests ./services/tests
+COPY services/zkube-core ./services/zkube-core
+COPY tools/chain ./tools/chain
+COPY shared ./shared
+COPY tools/build-node.mjs ./tools/build-node.mjs
 RUN pnpm run build && pnpm prune --prod
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV NO_DNA=1
 WORKDIR /app
-COPY --from=build --chown=node:node /app/services/package.json ./services/package.json
-COPY --from=build --chown=node:node /app/services/node_modules ./services/node_modules
-COPY --from=build --chown=node:node /app/services/dist ./services/dist
-COPY --from=build --chown=node:node /app/services/zkube-core ./services/zkube-core
-COPY --chown=node:node tools/chain/idl/solana.json ./tools/chain/idl/solana.json
+COPY --from=build --chown=node:node /app/package.json ./package.json
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist/services/src ./dist/services/src
+COPY --from=build --chown=node:node /app/dist/services/zkube-core ./dist/services/zkube-core
+COPY --from=build --chown=node:node /app/dist/shared ./dist/shared
+COPY --from=build --chown=node:node /app/dist/tools/chain/idl ./dist/tools/chain/idl
 USER node
 
-CMD ["node", "services/dist/keeperWorker.js"]
+CMD ["node", "dist/services/src/keeperWorker.js"]

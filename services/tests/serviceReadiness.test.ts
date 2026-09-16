@@ -4,11 +4,11 @@ import { createHash } from "node:crypto";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { ZKUBE_PROGRAM_ID } from "../src/arcadeChain";
+import { ZKUBE_PROGRAM_ID } from "../src/arcadeChain.js";
 import {
   checkChainReadiness,
   expectedGenesisHashFromEnv,
-} from "../src/serviceReadiness";
+} from "../src/serviceReadiness.js";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 

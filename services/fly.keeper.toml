@@ -4,15 +4,13 @@ kill_signal = "SIGTERM"
 kill_timeout = "240s"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "services/Dockerfile"
 
 [processes]
-  worker = "node services/dist/keeperWorker.js"
+  worker = "node dist/services/src/keeperWorker.js"
 
 [env]
   NODE_ENV = "production"
-  SOLANA_DEVNET_RPC_URL = "https://rpc.magicblock.app/devnet"
-  SOLANA_EXPECTED_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
   KEEPER_ENABLED = "true"
   # Production writes require exact write=true and release-fingerprint secret
   # overrides after the new image completes a read-only planning pass.

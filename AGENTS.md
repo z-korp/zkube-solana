@@ -543,6 +543,15 @@ its contents here or anywhere else. It defaults to the full suite; `program`
 and `tools` scopes exist for iteration, but the full run is what finishes
 a change. A red gate is a defect that outranks whatever work surfaced it.
 
+The root package owns the Node dependencies, lockfile, lint, TypeScript and test
+configuration for services and operator tools;
+`workspace_has_one_dependency_and_configuration_owner` guards that boundary.
+`shared/chain.ts` supplies their program identity, genesis, default RPC and launch
+day parsing; `keeper_and_operator_share_chain_identity_and_launch_day_bounds`
+checks the shared values and input limits. The compiled keeper carries the
+checked-in IDL and native rules;
+`workspace_build_loads_keeper_idl_and_native_rules_offline` checks those imports.
+
 Start with `README.md`, then inspect `state`/`instructions` for contract work,
 `services` for keeper work, and client chain/platform boundaries only when the
 client is explicitly in scope. Never infer deployed state from source.

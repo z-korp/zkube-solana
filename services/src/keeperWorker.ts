@@ -1,3 +1,4 @@
+import { launchDayFromEnv } from "../../shared/chain.js";
 import { KEEPER_SCHEMA_VERSION } from "./keeperRelease.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolve } from "node:path";
@@ -52,7 +53,7 @@ export function keeperReleaseFromEnv(
   env: Record<string, string | undefined>,
 ) {
   const flyImageRef = requiredReleaseValue(env.FLY_IMAGE_REF, "FLY_IMAGE_REF");
-  const launchDayId = releaseU32(env.ZKUBE_LAUNCH_DAY_ID, "launch day", 4);
+  const launchDayId = launchDayFromEnv(env);
   return keeperReleaseRecord({
     programId: ZKUBE_PROGRAM_ID.toBase58(),
     keeperPublicKey: requiredReleaseValue(
@@ -249,20 +250,6 @@ function requiredReleaseValue(
   const normalized = value?.trim();
   if (!normalized) throw new Error(`${label} is required for keeper release`);
   return normalized;
-}
-
-function releaseU32(
-  value: string | undefined,
-  label: string,
-  minimum: number,
-): number {
-  const normalized = requiredReleaseValue(value, label);
-  if (!/^\d+$/.test(normalized)) throw new Error(`${label} must be a u32`);
-  const parsed = Number(normalized);
-  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > 0xffff_ffff) {
-    throw new Error(`${label} must be a supported u32`);
-  }
-  return parsed;
 }
 
 async function abortableDelay(

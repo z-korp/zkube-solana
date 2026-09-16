@@ -1,3 +1,4 @@
+import { SOLANA_ENDPOINT } from "../../shared/chain.js";
 import {
   devnetDeploymentInputFromEnv,
   formatDevnetDeployment,
@@ -17,7 +18,7 @@ async function main(): Promise<void> {
         "  ZKUBE_PROGRAM_BUFFER_KEYPAIR=<fresh resumable buffer keypair path>",
         "",
         "Optional:",
-        "  ZKUBE_BASE_RPC=https://rpc.magicblock.app/devnet",
+        `  ZKUBE_BASE_RPC=${SOLANA_ENDPOINT}`,
         "  ZKUBE_ANCHOR_WORKSPACE=..",
         "  ZKUBE_PROGRAM_ARTIFACT=../../target/deploy/solana.so",
         "  ZKUBE_EXPECTED_CURRENT_SBF_SHA256=<required upgrade preimage hash>",

@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { ZKUBE_PROGRAM_ID } from "./arcadeChain.js";
+import { ZKUBE_PROGRAM_ID, SOLANA_DEVNET_GENESIS_HASH, SOLANA_ENDPOINT } from "../../shared/chain.js";
+export { SOLANA_DEVNET_GENESIS_HASH };
 
-export const SOLANA_DEVNET_GENESIS_HASH =
-  "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 const UPGRADEABLE_LOADER_ID = new PublicKey(
@@ -39,7 +38,7 @@ export function expectedGenesisHashFromEnv(
 export function createDevnetConnection(
   env: Record<string, string | undefined> = process.env,
 ): Connection {
-  const endpoint = env.SOLANA_DEVNET_RPC_URL ?? "https://rpc.magicblock.app/devnet";
+  const endpoint = env.SOLANA_DEVNET_RPC_URL ?? SOLANA_ENDPOINT;
   const parsed = new URL(endpoint);
   const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
   if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) {

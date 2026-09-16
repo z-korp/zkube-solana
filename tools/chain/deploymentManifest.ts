@@ -1,3 +1,4 @@
+import { launchDayFromEnv } from "../../shared/chain.js";
 import { PublicKey } from "@solana/web3.js";
 import {
   DELEGATION_PROGRAM_ID,
@@ -178,7 +179,7 @@ export function deploymentManifestFromEnv(
       ).toLowerCase(),
     },
     launch: {
-      dayId: requiredInteger(env, "ZKUBE_LAUNCH_DAY_ID"),
+      dayId: launchDayFromEnv(env),
       cutoffUnixTimestamp: requiredInteger(env, "ZKUBE_LAUNCH_CUTOFF_UNIX"),
       planFingerprint: required(
         env,

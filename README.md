@@ -193,7 +193,7 @@ version, and PDA derivation before decoding anything.
 crates/      deterministic engine (core, host bindings, codegen)
 programs/    Anchor program — state, instructions, game rules
 services/    keeper worker and chain services
-tools/chain/ standalone operator commands and the checked-in program IDL
+tools/chain/ operator commands and the checked-in program IDL
 tools/art/   optional artwork authoring scripts
 assets/      authoritative artwork and authored presentation inputs
 unity/       native Android client and reproducible Unity build tooling

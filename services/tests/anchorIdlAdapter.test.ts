@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   AnchorKeeperAdapter,
   KEEPER_EXPECTED_IDL_SHA256,
-} from "../src/anchorIdlAdapter";
+} from "../src/anchorIdlAdapter.js";
 import {
   ZKUBE_PROGRAM_ID,
   KEEPER_PLAN_INSTRUCTION,
@@ -17,9 +17,9 @@ import {
   cadenceFundingPda,
   type KeeperOperation,
   type KeeperPlanContext,
-} from "../src/arcadeChain";
-import { discoverReconciliationPlans } from "../src/arcadeReconciliation";
-import { canonicalDevnetReplayDomainHex } from "../src/serviceReadiness";
+} from "../src/arcadeChain.js";
+import { discoverReconciliationPlans } from "../src/arcadeReconciliation.js";
+import { canonicalDevnetReplayDomainHex } from "../src/serviceReadiness.js";
 
 const SOURCE_IDL_SHA256 = KEEPER_EXPECTED_IDL_SHA256;
 const DAY = 20_651;
@@ -45,7 +45,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       [cadenceFundingPda().toBase58(), { owner: SystemProgram.programId, executable: false,
         lamports: 1_000_000_000, data: Buffer.alloc(0), rentEpoch: 0 }],
     ]);
-    let playerData = Buffer.from(fixture.player.data, "base64");
+    let playerData: Buffer = Buffer.from(fixture.player.data, "base64");
     const connection = {
       getAccountInfo: async (address: PublicKey) => values.get(address.toBase58()) ?? null,
       getMultipleAccountsInfo: async (addresses: PublicKey[]) => addresses.map(() => null),

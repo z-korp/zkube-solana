@@ -1,3 +1,4 @@
+import { launchDayFromEnv } from "../../shared/chain.js";
 import { BorshAccountsCoder, convertIdlToCamelCase } from "@anchor-lang/core";
 import { IDL } from "./idl/index.js";
 import { createHash } from "node:crypto";
@@ -128,7 +129,7 @@ export function launchPlannerInputFromEnv(
       required(env, "ZKUBE_REPLAY_DOMAIN_HEX"),
       "replay domain",
     ),
-    launchDayId: u32(required(env, "ZKUBE_LAUNCH_DAY_ID"), "launch day"),
+    launchDayId: launchDayFromEnv(env),
     launchCutoffUnixTimestamp: positiveInteger(
       required(env, "ZKUBE_LAUNCH_CUTOFF_UNIX"),
       "launch cutoff",
@@ -596,12 +597,6 @@ function hash(value: string, label: string): string {
     throw new Error(`${label} must be 64 lowercase hex characters`);
   }
   return normalized;
-}
-
-function u32(value: string, label: string): number {
-  const parsed = positiveInteger(value, label, true);
-  if (parsed > 0xffff_ffff) throw new Error(`${label} must fit in u32`);
-  return parsed;
 }
 
 function positiveInteger(

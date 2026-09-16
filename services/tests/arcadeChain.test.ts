@@ -11,7 +11,7 @@ import {
   SECONDS_PER_DAY,
   currentDayId,
   dailyPairForDay,
-} from "../src/arcadeChain";
+} from "../src/arcadeChain.js";
 
 describe("v5 Daily cadence constants", () => {
   it("pins fresh-bootstrap account versions", () => {

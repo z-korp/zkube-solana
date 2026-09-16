@@ -8,7 +8,7 @@ import {
   keeperIntervalFromEnv,
   keeperWriteEnabledFromEnv,
   runKeeperWorker,
-} from "../src/keeperWorker";
+} from "../src/keeperWorker.js";
 
 describe("keeper worker scheduling", () => {
   it("requires fresh release inputs and binds their changes", () => {

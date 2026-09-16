@@ -68,16 +68,11 @@ validate_program() {
 }
 
 validate_tools() {
-  cd "$root/services"
+  cd "$root"
   NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run core:wasm:check
-  NO_DNA=1 pnpm run build
-  NO_DNA=1 pnpm test
-  NO_DNA=1 pnpm run lint
-  cd "$root/tools/chain"
-  NO_DNA=1 pnpm install --frozen-lockfile
   NO_DNA=1 pnpm run idl:check
-  NO_DNA=1 pnpm run typecheck
+  NO_DNA=1 pnpm run build
   NO_DNA=1 pnpm test
   NO_DNA=1 pnpm run lint
 }

@@ -8,13 +8,13 @@ import {
   SECONDS_PER_DAY,
   arcadeConfigPda,
   cadenceFundingPda,
-} from "../src/arcadeChain";
+} from "../src/arcadeChain.js";
 import {
   discoverReconciliationPlans,
   type DailySnapshot,
   type ProtocolSnapshot,
-} from "../src/arcadeReconciliation";
-import { KEEPER_PLAN_INSTRUCTION } from "../src/arcadeChain";
+} from "../src/arcadeReconciliation.js";
+import { KEEPER_PLAN_INSTRUCTION } from "../src/arcadeChain.js";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
@@ -63,7 +63,7 @@ describe("v5 Daily keeper reconciliation", () => {
       followingDayId: 95,
     });
     expect(plans.some(({ context }) => {
-      const dayId = typeof context.dayId === "number" ? context.dayId : undefined;
+      const dayId = typeof context?.dayId === "number" ? context.dayId : undefined;
       return dayId !== undefined && dayId >= 88 && dayId <= 94;
     })).toBe(false);
   });

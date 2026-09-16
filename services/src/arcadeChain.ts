@@ -1,3 +1,5 @@
+import { ZKUBE_PROGRAM_ID, MIN_SUPPORTED_DAY_ID } from "../../shared/chain.js";
+export { ZKUBE_PROGRAM_ID, MIN_SUPPORTED_DAY_ID };
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
@@ -39,14 +41,10 @@ export {
   SOL_PAYOUT_UNIT_LAMPORTS,
 };
 
-export const ZKUBE_PROGRAM_ID = new PublicKey(
-  "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
-);
 export const DAILY_RECOVERY_DEADLINE_OFFSET =
   DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS;
 /** Recurring authority covers at most the trailing 84 Dailies. */
 export const KEEPER_RECENT_DAILY_CADENCES = 84;
-export const MIN_SUPPORTED_DAY_ID = 4;
 export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
   followingDaily: ENTRY_DAILY_LAMPORTS,
   operator: ENTRY_OPERATOR_LAMPORTS,

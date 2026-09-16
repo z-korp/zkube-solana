@@ -2,15 +2,15 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import { KEEPER_EXPECTED_IDL_SHA256 } from "../src/anchorIdlAdapter";
+import { KEEPER_EXPECTED_IDL_SHA256 } from "../src/anchorIdlAdapter.js";
 import {
   KEEPER_INSTRUCTION_ALLOWLIST,
   KEEPER_PLAN_INSTRUCTION,
-} from "../src/arcadeChain";
+} from "../src/arcadeChain.js";
 import {
   KEEPER_RELEASE_POLICY,
   keeperReleaseRecord,
-} from "../src/keeperRelease";
+} from "../src/keeperRelease.js";
 
 const EXACT_ALLOWLIST = [
   "prepare_arena_daily",

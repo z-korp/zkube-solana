@@ -9,7 +9,7 @@ import {
   SystemProgram,
   TransactionMessage,
 } from "@solana/web3.js";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants.js";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID, SOLANA_ENDPOINT } from "./constants.js";
 
 interface DeploymentCommand {
   label: string;
@@ -79,7 +79,6 @@ export interface ZkubeDevnetDeploymentResult {
   deploymentSignature?: string;
 }
 
-const DEFAULT_BASE_RPC = "https://rpc.magicblock.app/devnet";
 const PROGRAM_ACCOUNT_BYTES = 36;
 const PROGRAM_DATA_HEADER_BYTES = 45;
 const PROGRAM_BUFFER_HEADER_BYTES = 37;
@@ -113,7 +112,7 @@ export function devnetDeploymentInputFromEnv(
   const baseRpc = devnetEndpoint(
     env.ZKUBE_BASE_RPC ??
       env.VITE_PUBLIC_SOLANA_RPC_ENDPOINT ??
-      DEFAULT_BASE_RPC,
+      SOLANA_ENDPOINT,
   );
   const expectedGenesisHash =
     env.ZKUBE_EXPECTED_GENESIS_HASH?.trim() ||
