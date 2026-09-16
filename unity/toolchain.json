@@ -34,7 +34,10 @@
         "arm64-v8a"
       ],
       "locks": "NativeAndroid/unity-locks",
-      "productName": "zKube: Arena"
+      "productName": "zKube: Arena",
+      "excludedAssemblies": [
+        "ZKube.Store"
+      ]
     },
     {
       "name": "store",
@@ -44,8 +47,12 @@
         "arm64-v8a",
         "x86_64"
       ],
-      "locks": "NativeAndroid/store-unity-locks",
-      "productName": "zKube: Realms"
+      "productName": "zKube: Realms",
+      "excludedAssemblies": [
+        "ZKube.Chain",
+        "ZKube.Money",
+        "Chaos.NaCl"
+      ]
     }
   ]
 }

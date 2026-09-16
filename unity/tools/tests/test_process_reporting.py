@@ -15,10 +15,52 @@ TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 import build
 import cli
-import editor_lease
 
 
 class ProcessReportingTests(unittest.TestCase):
+    def test_money_lock_update_requires_both_resolved_modules(self):
+        export = self.output / 'export'
+        (export / 'launcher').mkdir(parents=True)
+        (export / 'launcher/gradle.lockfile').write_text('new launcher')
+        locks = self.output / 'locks'
+        (locks / 'launcher').mkdir(parents=True)
+        (locks / 'launcher/gradle.lockfile').write_text('reviewed launcher')
+        with patch.object(build, 'PROJECT', self.output), patch.object(build, 'LOCK', {'gradle': '9.1.0'}), \
+             patch.object(build.subprocess, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'unityLibrary'):
+                build.regenerate_locks(export, Path('android'), {'locks': 'locks'}, {})
+            self.assertEqual('reviewed launcher', (locks / 'launcher/gradle.lockfile').read_text())
+            (export / 'unityLibrary').mkdir()
+            (export / 'unityLibrary/gradle.lockfile').write_text('new library')
+            build.regenerate_locks(export, Path('android'), {'locks': 'locks'}, {})
+            self.assertEqual('new launcher', (locks / 'launcher/gradle.lockfile').read_text())
+            self.assertEqual('new library', (locks / 'unityLibrary/gradle.lockfile').read_text())
+            self.assertIn('--write-locks', run.call_args.args[0])
+            self.assertIn('--offline', run.call_args.args[0])
+
+    def test_both_test_platforms_share_one_preparation_and_lease(self):
+        seen = []
+        def result(command, log, env, completed):
+            platform = command[command.index('-testPlatform') + 1]
+            seen.append(platform)
+            path = Path(command[command.index('-testResults') + 1])
+            path.write_text('<test-run result="Passed" total="1" passed="1">'
+                            '<test-case fullname="ZKube.Example.Test" /></test-run>')
+            self.assertTrue(completed())
+        with patch.object(build, 'OUTPUT', self.output), \
+             patch.object(build, 'LOCK_PATH', self.output / 'editor.lock'), \
+             patch.object(build, 'toolchain', return_value=(Path('editor'), Path('android'))), \
+             patch.object(build, 'native') as native, patch.object(build, 'sync_assets') as assets, \
+             patch.object(build, 'prepare') as prepare, patch.object(build, 'editor_run', side_effect=result), \
+             patch.object(build, 'editor_lease', wraps=build.editor_lease) as lease, \
+             patch.object(sys, 'argv', ['build.py', 'test']), contextlib.redirect_stdout(io.StringIO()):
+            build.main()
+            self.assertEqual(['EditMode', 'PlayMode'], seen)
+            native.assert_called_once()
+            assets.assert_called_once()
+            prepare.assert_called_once()
+            lease.assert_called_once()
+
     def test_production_without_version_fails_before_toolchain_work(self):
         with patch.object(sys, 'argv', ['build.py', 'android', '--production']), \
                 patch.dict(os.environ, {}, clear=True), patch.object(build, 'toolchain') as toolchain:
@@ -88,12 +130,12 @@ class ProcessReportingTests(unittest.TestCase):
 
     def test_lease_covers_work_before_editor_and_can_be_inherited(self):
         path = self.output / "editor.lock"
-        with patch.object(editor_lease, "LOCK_PATH", path), editor_lease.editor_lease() as fd:
+        with patch.object(build, "LOCK_PATH", path), build.editor_lease() as fd:
             code = ("import sys; sys.path.insert(0, sys.argv[1]); "
-                    "import editor_lease; from pathlib import Path; from cli import run_main; "
-                    "editor_lease.LOCK_PATH=Path(sys.argv[2])\n"
+                    "import build; from pathlib import Path; from cli import run_main; "
+                    "build.LOCK_PATH=Path(sys.argv[2])\n"
                     "def main():\n"
-                    "    with editor_lease.editor_lease(): pass\n"
+                    "    with build.editor_lease(): pass\n"
                     "run_main(main)")
             command = [sys.executable, "-c", code, str(TOOLS), str(path)]
             rejected = subprocess.run(command, text=True, capture_output=True)
@@ -108,7 +150,7 @@ class ProcessReportingTests(unittest.TestCase):
 
     def test_build_rejects_held_lease_before_toolchain_or_dependency_work(self):
         path = self.output / "editor.lock"
-        with patch.object(editor_lease, "LOCK_PATH", path), editor_lease.editor_lease(), \
+        with patch.object(build, "LOCK_PATH", path), build.editor_lease(), \
              patch.object(build, "toolchain") as toolchain, patch.object(build, "run") as run, \
              patch.object(sys, "argv", ["build.py", "android"]):
             with self.assertRaisesRegex(RuntimeError, "Another Unity"):
@@ -123,9 +165,9 @@ class ProcessReportingTests(unittest.TestCase):
                 '<test-case fullname="ZKube.Present.Case" /></test-run>')
         output = io.StringIO()
         with patch.object(build, 'OUTPUT', self.output), \
-             patch.object(editor_lease, 'LOCK_PATH', self.output / 'editor.lock'), \
+             patch.object(build, 'LOCK_PATH', self.output / 'editor.lock'), \
              patch.object(build, 'toolchain', return_value=(Path('editor'), Path('android'))), \
-             patch.object(build, 'run'), patch.object(build, 'native'), patch.object(build, 'prepare'), \
+             patch.object(build, 'run'), patch.object(build, 'native'), patch.object(build, 'sync_assets'), patch.object(build, 'prepare'), \
              patch.object(build, 'editor_run', side_effect=editor_result), \
              patch.object(sys, 'argv', ['build.py', 'test', '--test-filter', 'ZKube.Present;ZKube.Missing']), \
              contextlib.redirect_stdout(output):

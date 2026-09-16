@@ -27,9 +27,7 @@ namespace ZKube.Editor
         public string[] OnFilterAssemblies(BuildOptions options, string[] assemblies)
         {
             if ((options & BuildOptions.IncludeTestAssemblies) != 0) return assemblies;
-            var excluded = ZKubeBuild.Identity.name == "store"
-                ? new[] { "ZKube.Chain", "ZKube.Money", "Chaos.NaCl" }
-                : new[] { "ZKube.Store" };
+            var excluded = ZKubeBuild.Identity.excludedAssemblies;
             var included = assemblies.Where(path => excluded.Contains(Path.GetFileNameWithoutExtension(path))).ToArray();
             if (included.Length != 0)
                 throw new BuildFailedException("Player includes another identity's assemblies: " + string.Join(", ", included));

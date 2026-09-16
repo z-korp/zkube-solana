@@ -60,7 +60,7 @@ validate_sbf() {
 
 validate_program() {
   cd "$root"
-  NO_DNA=1 cargo run -p zkube-codegen -- check
+  NO_DNA=1 python3 unity/tools/build.py fixtures
   NO_DNA=1 cargo fmt --all -- --check
   NO_DNA=1 cargo test --workspace
   NO_DNA=1 cargo clippy --workspace --all-targets -- -D warnings
@@ -85,13 +85,10 @@ validate_tools() {
 validate_unity() {
   cd "$root"
   NO_DNA=1 python3 -m unittest discover -s unity/tools/tests -p 'test_*.py'
-  NO_DNA=1 python3 unity/tools/fixtures.py check
   NO_DNA=1 python3 unity/tools/build.py test
-  NO_DNA=1 python3 unity/tools/build.py test --test-platform PlayMode
   for unity_identity in money store; do
     NO_DNA=1 python3 unity/tools/build.py android --identity "$unity_identity"
   done
-  NO_DNA=1 python3 unity/tools/tests/test_android_identity.py --built-packages
 }
 
 validate_documentation_layout

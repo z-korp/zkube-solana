@@ -25,8 +25,8 @@ namespace ZKube.Editor
 
         [Serializable] internal sealed class AndroidIdentity
         {
-            public string name, package, format, locks;
-            public string[] abis;
+            public string name, package, format, locks, productName;
+            public string[] abis, excludedAssemblies;
         }
         [Serializable] internal sealed class AndroidAbi
         {
@@ -42,13 +42,6 @@ namespace ZKube.Editor
                 var profile = config.androidIdentities.SingleOrDefault(item => item.name == name);
                 if (profile == null || (name != "money" && name != "store"))
                     throw new InvalidOperationException("Unknown Android identity");
-                var store = name == "store";
-                if (profile.package != (store ? "com.zkorp.zkube.store" : "com.zkorp.zkube") ||
-                    profile.format != (store ? "aab" : "apk") ||
-                    !profile.abis.SequenceEqual(store ? new[] { "arm64-v8a", "x86_64" } : new[] { "arm64-v8a" }) ||
-                    Path.IsPathRooted(profile.locks) || profile.locks.Split('/').Contains("..") ||
-                    config.androidIdentities.Select(item => item.locks).Distinct().Count() != config.androidIdentities.Length)
-                    throw new InvalidOperationException("Android identity differs from its distribution contract");
                 return profile;
             }
         }
@@ -66,8 +59,7 @@ namespace ZKube.Editor
             AndroidExternalToolsSettings.jdkRootPath = Path.Combine(android, "OpenJDK");
 
             PlayerSettings.companyName = "zKorp";
-            PlayerSettings.productName = Environment.GetEnvironmentVariable("ZKUBE_UNITY_PRODUCT_NAME")
-                ?? throw new InvalidOperationException("Build identity has no product name");
+            PlayerSettings.productName = Identity.productName;
             var identity = Identity;
             var store = identity.name == "store";
             // Per-build extra defines control Player compilation. A persistent
@@ -82,9 +74,11 @@ namespace ZKube.Editor
             PlayerSettings.Android.bundleVersionCode = code;
             PlayerSettings.bundleVersion = Environment.GetEnvironmentVariable("ZKUBE_ANDROID_VERSION_NAME") ?? "1.0";
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
-            PlayerSettings.Android.targetArchitectures = store
-                ? AndroidArchitecture.ARM64 | AndroidArchitecture.X86_64 : AndroidArchitecture.ARM64;
-            EditorUserBuildSettings.buildAppBundle = store;
+            PlayerSettings.Android.targetArchitectures = identity.abis
+                .Select(name => config.androidAbis.Single(abi => abi.name == name).unityCpu)
+                .Select(cpu => (AndroidArchitecture)Enum.Parse(typeof(AndroidArchitecture), cpu, true))
+                .Aggregate((left, right) => left | right);
+            EditorUserBuildSettings.buildAppBundle = identity.format == "aab";
             PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)config.androidMinimumApi;
             PlayerSettings.Android.targetSdkVersion = (AndroidSdkVersions)config.androidApi;
             // System.Net.Http transport does not pass through UnityWebRequest,
@@ -257,7 +251,8 @@ namespace ZKube.Editor
             string scenePath = Identity.name == "store" ? ZKubeStoreScene.Path : ZKubeMoneyScene.Path;
             if (!File.Exists(scenePath)) throw new InvalidOperationException("Prepare the selected application scene before building");
             var previousExport = EditorUserBuildSettings.exportAsGoogleAndroidProject;
-            EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
+            EditorUserBuildSettings.exportAsGoogleAndroidProject =
+                Environment.GetEnvironmentVariable("ZKUBE_EXPORT_LOCKS") == "1";
             BuildReport report;
             try { report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {

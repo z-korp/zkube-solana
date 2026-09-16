@@ -8,8 +8,6 @@
   },
   "scripts": {
     "chain:devnet:deploy": "tsx deploy-devnet.ts",
-    "chain:devnet:extend": "tsx extend-devnet-program.ts",
-    "chain:devnet:launch-plan": "tsx plan-devnet-launch.ts",
     "chain:devnet:launch": "tsx launch-devnet.ts",
     "chain:devnet:set-suspension": "tsx set-suspension.ts",
     "chain:devnet:top-up": "tsx top-up-prize-pools.ts",

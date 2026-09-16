@@ -6,24 +6,14 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
-STAGE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'unity/tools'))
 from cli import run_main
-
-source = STAGE / 'import_assets.py'
-if not source.is_file():
-    source = ROOT / 'unity/tools/import_assets.py'
-spec = importlib.util.spec_from_file_location('portrait_import_assets', source)
-imports = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(imports)
-imports.ROOT = ROOT
-imports.PROJECT = ROOT / 'unity'
-imports.GENERATED = imports.PROJECT / 'Assets/ZKube/Art/Generated'
+import build as imports
 
 
 class PortraitImports(unittest.TestCase):
     def test_imports_only_the_assets_loaded_by_the_game(self):
-        _, catalog = imports.plan()
+        _, catalog = imports.asset_plan()
         expected = {'assets/common/bonus/tiki.png'}
         expected.update(f'assets/common/sounds/effects/{name}.mp3'
                         for name in ('star', 'constraint-complete', 'victory', 'over'))

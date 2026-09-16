@@ -25,7 +25,7 @@ async function main(): Promise<void> {
         "  ZKUBE_KEEPER_STAGED_RELEASE_FINGERPRINT=<approved keeper fingerprint>",
         "  ZKUBE_PROTOCOL_AUTHORITY_KEYPAIR=<pinned authority path>",
         "",
-        "All modes require the same public inputs as chain:devnet:launch-plan.",
+        "Public inputs are validated by launchPlannerInputFromEnv.",
         "The default public bundle path is /tmp/zkube-v5-launch.json.",
         "A signed receipt is persisted before submission. Resume verifies exact",
         "approved bytes and chain status before relaying or re-signing anything.",

@@ -18,8 +18,8 @@ elaborate tiers, so instead each frame keeps its own overhang and this script
 prints the per-tier ratio table for `TierFrame` to render against. A higher
 tier legitimately reaches further past the block than a lower one.
 
-    node assets/tools/matte-alpha.mjs raw/*.png --out matted
-    python3 assets/tools/install-tier-frames.py matted
+    node tools/art/matte-alpha.mjs raw/*.png --out matted
+    python3 tools/art/install-tier-frames.py matted
 """
 
 import sys
@@ -30,7 +30,7 @@ from PIL import Image
 
 OUT_SIZE = 512
 OPEN_ALPHA = 24
-DEST = Path(__file__).resolve().parents[1] / "common"
+DEST = Path(__file__).resolve().parents[2] / "assets/common"
 
 
 def require_matted(alpha: np.ndarray, name: str) -> None:

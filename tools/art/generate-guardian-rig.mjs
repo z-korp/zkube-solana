@@ -17,9 +17,9 @@
  * frames; never trust the API's mask_url for stability.
  *
  * Usage:
- *   node assets/tools/generate-guardian-rig.mjs --zone 1 --out build/mako --stage base
- *   node assets/tools/generate-guardian-rig.mjs --zone 1 --out build/mako --stage map
- *   node assets/tools/generate-guardian-rig.mjs --zone 1 --out build/mako --stage rig [--state idle ...]
+ *   node tools/art/generate-guardian-rig.mjs --zone 1 --out build/mako --stage base
+ *   node tools/art/generate-guardian-rig.mjs --zone 1 --out build/mako --stage map
+ *   node tools/art/generate-guardian-rig.mjs --zone 1 --out build/mako --stage rig [--state idle ...]
  *
  * FAL_KEY is read from ~/zkube/.env (the asset-pipeline home) or the
  * environment. It is never printed.
@@ -29,7 +29,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ASSETS_ROOT = join(HERE, "..");
+const ASSETS_ROOT = join(HERE, "../../assets");
 
 const GPT_EDIT = "openai/gpt-image-2/edit";
 

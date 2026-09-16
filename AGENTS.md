@@ -12,13 +12,15 @@ documents, and do not move approval policy or operator runbooks into `README.md`
 
 - Python tools use `unity/tools/cli.py` to report
   expected failures with the result/log path instead of a traceback.
-  Regenerate Unity fixtures with `unity/tools/fixtures.py generate`, which
+  Regenerate Unity fixtures with `unity/tools/build.py fixtures --fixture-action generate`, which
   orders native and program producers; do not run writers concurrently.
 - Every Unity Editor invocation goes through `unity/tools/build.py`, including
   one-off methods via `exec --method`. One invocation holds the Editor lease
   through its entire operation. A held lease means wait.
   Read the fresh log and completion result before interpreting a nonzero exit;
   verified completion followed by a teardown crash is success with a noisy exit.
+  `test_both_test_platforms_share_one_preparation_and_lease` guards the shared
+  preparation and lease for EditMode and PlayMode.
 - Reuse the session's MCP servers. Stop a wedged server before replacing it and
   report its PID and reason. Report duplicate configuration entries to the owner.
   Request a region or screenshot instead of parsing a multi-megabyte page DOM.
@@ -530,8 +532,7 @@ those numbers must stay truthful.
 
 ## Validation gates
 
-Static GitHub validation is manual-dispatch-only; validation is one local
-command, and every change ends with it green:
+Validation is one local command, and every change ends with it green:
 
 ```bash
 NO_DNA=1 ./validate.sh
@@ -836,7 +837,7 @@ checked-in program IDL live in `tools/chain`; run operator procedures from
 `tools/chain`. `chain_entrypoints_load_offline_under_tsx` exercises each command
 entry point, and `idl:check` verifies the IDL against the program build.
 
-`unity/tools/fixtures.py` runs the Rust producers. Program account bytes,
+`unity/tools/build.py fixtures` runs the Rust producers. Program account bytes,
 PDAs, instructions and transaction messages come from
 `programs/solana/examples/unity-fixtures.rs`.
 `RustProgramInstructionsDecodeAndReencodeWithTheSharedBorshReader` and
@@ -880,6 +881,13 @@ and `RunReceiptRejectsReuseWrongOwnerAndRunBeforeSending` retain the recovery an
 receipt boundaries.
 The root `assets/` directory owns the artwork and authored presentation inputs;
 Rust codegen emits its theme catalog for Unity imports.
+`unity/toolchain.json` owns each Android identity's package, display name, ABIs
+and excluded assemblies. `test_profiles_preserve_money_and_add_two_abi_store`,
+`test_both_package_manifests_use_the_identity_contract` and
+`test_metadata_rejects_every_money_assembly_and_tests` guard that contract.
+`unity/tools/build.py locks` regenerates the money application's dependency
+locks from a Unity export; `test_money_lock_update_requires_both_resolved_modules`
+guards replacing the reviewed files only after both module resolutions succeed.
 
 ### Runtime boundaries
 
@@ -1044,7 +1052,7 @@ the artifact or copies a program keypair. The observed result, not an abandoned
 manifest, supplies the deployed inputs for the rest of the bootstrap.
 
 After the program and independently fingerprinted keeper release exist,
-`NO_DNA=1 pnpm chain:devnet:launch-plan` produces the unsigned fresh-bootstrap
+`NO_DNA=1 pnpm chain:devnet:launch` produces the unsigned fresh-bootstrap
 bundle. It requires every protocol target to be absent, calculates the exact
 deployer funding transaction, initializes paused protocol and Arcade accounts,
 seeds the explicitly approved recyclable cadence-rent float, prepares the current

@@ -14,7 +14,7 @@ using Object = UnityEngine.Object;
 namespace ZKube.Editor
 {
     // Generated copies are disposable; their source bytes and GUIDs are checked
-    // by import_assets.py. Never edit a copied PNG/MP3 to change the artwork.
+    // by build.py. Never edit a copied PNG/MP3 to change the artwork.
     public sealed class ZKubeAssetImports : AssetPostprocessor
     {
         public const string Generated = "Assets/ZKube/Art/Generated/";
@@ -91,7 +91,7 @@ namespace ZKube.Editor
         {
             var time = File.GetLastWriteTimeUtc(CatalogPath);
             if (cached != null && time == catalogTime) return cached;
-            if (!File.Exists(CatalogPath)) throw new InvalidOperationException("Run unity/tools/import_assets.py --sync before importing art.");
+            if (!File.Exists(CatalogPath)) throw new InvalidOperationException("Run the build preparation before importing art.");
             cached = JsonUtility.FromJson<Catalog>(File.ReadAllText(CatalogPath));
             if (cached.schema != 1 || cached.importPolicy.schema != 1)
                 throw new InvalidOperationException("Unsupported generated art catalog schema.");

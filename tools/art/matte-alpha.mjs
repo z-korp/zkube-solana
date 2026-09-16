@@ -13,7 +13,7 @@
  * still opaque is a failed cut, not a usable asset.
  *
  * Usage:
- *   node assets/tools/matte-alpha.mjs <in.png> [more.png ...] --out <dir>
+ *   node tools/art/matte-alpha.mjs <in.png> [more.png ...] --out <dir>
  *
  * FAL_KEY is read from ~/zkube/.env or the environment. It is never printed.
  */

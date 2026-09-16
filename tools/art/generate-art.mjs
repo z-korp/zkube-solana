@@ -16,9 +16,9 @@
  * eats the white highlights inside the ornament.
  *
  * Usage:
- *   node assets/tools/generate-art.mjs --out build/art
- *   node assets/tools/generate-art.mjs --out build/art --subject tier-3
- *   node assets/tools/generate-art.mjs --out build/art --list
+ *   node tools/art/generate-art.mjs --out build/art
+ *   node tools/art/generate-art.mjs --out build/art --subject tier-3
+ *   node tools/art/generate-art.mjs --out build/art --list
  *
  * FAL_KEY is read from ~/zkube/.env or the environment. It is never printed.
  */
@@ -27,7 +27,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ASSETS_ROOT = join(HERE, "..");
+const ASSETS_ROOT = join(HERE, "../../assets");
 const GPT_EDIT = "openai/gpt-image-2/edit";
 
 /**

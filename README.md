@@ -194,10 +194,10 @@ crates/      deterministic engine (core, host bindings, codegen)
 programs/    Anchor program — state, instructions, game rules
 services/    keeper worker and chain services
 tools/chain/ standalone operator commands and the checked-in program IDL
+tools/art/   optional artwork authoring scripts
 assets/      authoritative artwork and authored presentation inputs
 unity/       native Android client and reproducible Unity build tooling
 fixtures/    committed golden vectors and chain fixtures
-artifacts/   frozen build artifacts
 validate.sh  repository validation entry point
 ```
 
@@ -214,12 +214,12 @@ tooling; it is inert elsewhere and safe to keep on every command.
 NO_DNA=1 ./validate.sh
 ```
 
-`validate.sh` defines the gates and available iteration scopes. GitHub static
-validation is `workflow_dispatch` only and is not a push or pull-request gate.
+`validate.sh` defines the gates and available iteration scopes.
 
 For Unity iteration, `NO_DNA=1 python3 unity/tools/build.py test` runs the
-managed tests against Rust fixtures; add `--test-platform PlayMode` for board interaction tests with
-a graphics display. Desktop tests use Linux texture imports; Android artifacts
+managed tests and board interaction tests against Rust fixtures under one lease,
+with a graphics display. Select `--test-platform EditMode` or `PlayMode` for one
+platform. Desktop tests use Linux texture imports; Android artifacts
 use Android imports. `NO_DNA=1 python3 unity/tools/build.py android` reproduces the
 asset imports, Rust libraries and verified Kotlin wallet AAR, then builds the
 money APK under `build/unity/`. Add `--identity store` to build the local store

@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /chain:devnet:launch-plan|chain:devnet:extend|--built-packages|store-unity-locks|unity\/tools\/(?:fixtures|import_assets|android_identity|editor_lease|inspect_apk)\.py/,
+    trees: [TOOLS, UNITY_CLIENT, join(ROOT, "unity/tools"), AGENT_RULES, README],
+    reversal: "The build driver owns preparation and tests, one inspector checks both products, and launch planning uses the launch runner (2026-09-16)",
+  },
+  {
     pattern: /cleanup_orphan_active_run|cleanupOrphanActiveRun|expected_unit_lamports|expectedUnitLamports|expected_entry_lamports|expectedEntryLamports|DailyContentSelection|require_player_rent_payer|session_auth_or|refresh the exact quote|recovery activation/i,
     trees: [UNITY_CLIENT, TOOLS, SERVICES, PROGRAM, AGENT_RULES, README],
     reversal: "Consumption closes expired runs, finalization handles missed funding days, and protocol terms are derived in the program (2026-09-16)",

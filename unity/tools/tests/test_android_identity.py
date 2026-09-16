@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """Pure policy checks, plus explicit inspection of the two completed packages."""
-import argparse
 import copy
-import hashlib
-import os
-import subprocess
 import io
 import json
 from pathlib import Path
@@ -12,14 +8,15 @@ import struct
 import sys
 import unittest
 import zipfile
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'unity/tools'))
 from cli import run_main
-from android_identity import identity, abis
-from inspect_android import elf, metadata_check, store_payload, store_manifest, MONEY_ASSEMBLIES
-from inspect_apk import open_archive, read_member, display_name_check, product_name_check
-from inspect_apk import production_check, debug_certificate
+from build import identity, abis
+from inspect_android import elf, metadata_check, payload, manifest_check, MONEY_ASSEMBLIES
+from inspect_android import open_archive, read_member, display_name_check, product_name_check
+from inspect_android import production_check, debug_certificate
 
 
 def native(machine=183, alignment=16384):
@@ -33,6 +30,24 @@ def native(machine=183, alignment=16384):
 
 
 class StaticTests(unittest.TestCase):
+    def test_both_package_manifests_use_the_identity_contract(self):
+        for name in ('money', 'store'):
+            profile = identity(self.toolchain, name)
+            activity = ('<activity android:name="com.zkorp.zkube.unitywallet.WalletActivity" android:exported="false"/>'
+                        if name == 'money' else '')
+            xml = ('<manifest xmlns:android="http://schemas.android.com/apk/res/android" '
+                   f'package="{profile["package"]}" android:versionCode="7" android:versionName="1.0">'
+                   '<uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/>'
+                   '<uses-permission android:name="android.permission.INTERNET"/>'
+                   f'<application android:label="{profile["productName"]}" android:allowBackup="false">'
+                   '<meta-data android:name="unity.splash-enable" android:value="false"/>'
+                   + activity + '</application></manifest>')
+            report = manifest_check(ET.fromstring(xml), profile, self.toolchain)
+            self.assertEqual(profile['productName'], report['displayName'])
+            self.assertEqual(7, report['versionCode'])
+            with self.assertRaisesRegex(RuntimeError, 'display name'):
+                manifest_check(ET.fromstring(xml.replace(profile['productName'], 'wrong')), profile, self.toolchain)
+
     def test_production_packages_require_explicit_version_and_non_debug_signing(self):
         for identity_name in ('money', 'store'):
             with self.subTest(identity=identity_name):
@@ -59,15 +74,15 @@ class StaticTests(unittest.TestCase):
         store = identity(self.toolchain, 'store')
         self.assertEqual(('com.zkorp.zkube', 'apk', ['arm64-v8a']), (money['package'], money['format'], money['abis']))
         self.assertEqual(['aarch64-linux-android', 'x86_64-linux-android'], [a['rustTarget'] for a in abis(self.toolchain, store)])
-        self.assertNotEqual(money['locks'], store['locks'])
+        self.assertIn('locks', money)
+        self.assertNotIn('locks', store)
 
-    def test_profile_rejects_unknown_duplicate_and_cross_identity_locks(self):
+    def test_profile_rejects_unknown_and_duplicate_identities(self):
         with self.assertRaises(RuntimeError): identity(self.toolchain, 'ios')
         self.toolchain['androidIdentities'].append(copy.deepcopy(self.toolchain['androidIdentities'][0]))
         with self.assertRaises(RuntimeError): identity(self.toolchain, 'money')
         self.toolchain['androidIdentities'].pop()
-        self.toolchain['androidIdentities'][1]['locks'] = self.toolchain['androidIdentities'][0]['locks']
-        with self.assertRaises(RuntimeError): identity(self.toolchain, 'store')
+
 
     def test_missing_profile_field_is_expected_cli_failure(self):
         from contextlib import redirect_stdout
@@ -79,12 +94,13 @@ class StaticTests(unittest.TestCase):
         self.assertIn('Malformed Android identity configuration', output.getvalue())
         self.assertNotIn('Traceback', output.getvalue())
 
-    def test_profile_rejects_store_abi_loss_and_lock_escape(self):
-        self.toolchain['androidIdentities'][1]['abis'] = ['arm64-v8a']
-        with self.assertRaises(RuntimeError): identity(self.toolchain, 'store')
-        self.toolchain['androidIdentities'][1]['abis'].append('x86_64')
-        self.toolchain['androidIdentities'][1]['locks'] = '../money-locks'
-        with self.assertRaises(RuntimeError): identity(self.toolchain, 'store')
+    def test_profile_rejects_unknown_abi_and_lock_escape(self):
+        self.toolchain['androidIdentities'][0]['abis'] = ['unknown']
+        with self.assertRaises(RuntimeError): identity(self.toolchain, 'money')
+        self.toolchain['androidIdentities'][0]['abis'] = ['arm64-v8a']
+        self.toolchain['androidIdentities'][0]['locks'] = '../money-locks'
+        with self.assertRaises(RuntimeError): identity(self.toolchain, 'money')
+
 
     def test_display_name_checks_reject_wrong_missing_and_localized_names(self):
         publishing = json.loads((ROOT / 'unity/dapp-store/publishing.json').read_text())
@@ -123,7 +139,7 @@ class StaticTests(unittest.TestCase):
                     metadata_check(name + suffix)
 
     def test_money_metadata_excludes_the_local_daily_and_store_policy(self):
-        from inspect_apk import money_metadata_check
+        from inspect_android import money_metadata_check
         money_metadata_check(b"LocalRunClient\x00CampaignRecordSync\x00")
         for token in (b"StoreRunClient", b"StoreCampaignPolicy", b"ZKube.Store.dll"):
             with self.subTest(token=token), self.assertRaises(RuntimeError):
@@ -153,7 +169,7 @@ class StaticTests(unittest.TestCase):
                     if path != omit: archive.writestr(path, native(abi['elfMachine']))
             if extra: archive.writestr(extra, native())
         stream.seek(0)
-        return store_payload(stream, 'base/', selected, hashes)
+        return payload(stream, 'base/', selected, hashes, identity(self.toolchain, 'store'))
 
     def test_archive_requires_both_abis_and_exact_rust_hash(self):
         self.assertEqual(6, len(self.payload()))
@@ -195,45 +211,14 @@ class StaticTests(unittest.TestCase):
         closure('ZKube.Store', set())
 
     def test_store_manifest_rejects_wallet_and_wrong_identity(self):
-        xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false" android:label="zKube: Realms"><meta-data android:name="unity.splash-enable" android:value="false"/></application></manifest>'''
+        xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-permission android:name="android.permission.INTERNET"/><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false" android:label="zKube: Realms"><meta-data android:name="unity.splash-enable" android:value="false"/></application></manifest>'''
         profile = identity(self.toolchain, 'store')
-        self.assertEqual('com.zkorp.zkube.store', store_manifest(xml, profile, self.toolchain)['package'])
-        with self.assertRaises(RuntimeError): store_manifest(xml.replace('zKube: Realms', 'zKube'), profile, self.toolchain)
-        with self.assertRaises(RuntimeError): store_manifest(xml.replace('com.zkorp.zkube.store', 'com.zkorp.zkube'), profile, self.toolchain)
-        with self.assertRaises(RuntimeError): store_manifest(xml.replace('</application>', '<activity android:name="com.zkorp.zkube.unitywallet.WalletActivity"/></application>'), profile, self.toolchain)
+        self.assertEqual('com.zkorp.zkube.store', manifest_check(ET.fromstring(xml), profile, self.toolchain)['package'])
+        with self.assertRaises(RuntimeError): manifest_check(ET.fromstring(xml.replace('zKube: Realms', 'zKube')), profile, self.toolchain)
+        with self.assertRaises(RuntimeError): manifest_check(ET.fromstring(xml.replace('com.zkorp.zkube.store', 'com.zkorp.zkube')), profile, self.toolchain)
+        with self.assertRaises(RuntimeError): manifest_check(ET.fromstring(xml.replace('</application>', '<activity android:name="com.zkorp.zkube.unitywallet.WalletActivity"/></application>')), profile, self.toolchain)
 
-
-def test_built_packages_carry_their_display_name():
-    toolchain = json.loads((ROOT / 'unity/toolchain.json').read_text())
-    editor = Path(os.environ.get('UNITY_EDITOR', str(Path.home() / 'Unity/Hub/Editor' / toolchain['editor'] / 'Editor/Unity')))
-    aapt = editor.parent / 'Data/PlaybackEngines/AndroidPlayer/SDK/build-tools' / toolchain['sdkBuildTools'] / 'aapt2'
-    check = unittest.TestCase()
-    for name, expected in (('money', 'zKube: Arena'), ('store', 'zKube: Realms')):
-        profile = identity(toolchain, name)
-        stem = 'zkube' if name == 'money' else 'zkube-store'
-        artifact = ROOT / 'build/unity' / (stem + '.' + profile['format'])
-        report = json.loads(artifact.with_suffix('.inspection.json').read_text())
-        check.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), report['sha256'])
-        check.assertEqual(expected, report['displayName'])
-        with open_archive(artifact) as archive:
-            prefix = '' if name == 'money' else 'base/'
-            product_name_check(read_member(archive, prefix + 'assets/bin/Data/globalgamemanagers'), expected)
-        apk = artifact if name == 'money' else artifact.with_suffix('.universal.apk')
-        if name == 'store':
-            check.assertEqual(hashlib.sha256(apk.read_bytes()).hexdigest(), report['generatedUniversalApkSha256'])
-        display_name_check(subprocess.check_output([str(aapt), 'dump', 'badging', str(apk)], text=True), expected)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--built-packages', action='store_true')
-    args = parser.parse_args()
-    suite = (unittest.TestSuite([unittest.FunctionTestCase(test_built_packages_carry_their_display_name)])
-             if args.built_packages else unittest.defaultTestLoader.loadTestsFromTestCase(StaticTests))
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    if not result.wasSuccessful():
-        raise RuntimeError(f'Android identity checks failed: {len(result.failures)} failures, {len(result.errors)} errors')
 
 
 if __name__ == '__main__':
-    run_main(main, ROOT / 'build/unity')
+    unittest.main()

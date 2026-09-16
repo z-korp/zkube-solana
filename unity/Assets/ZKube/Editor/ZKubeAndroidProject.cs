@@ -46,6 +46,15 @@ namespace ZKube.Editor
             foreach (var module in new[] { "launcher", "unityLibrary" })
             {
                 var modulePath = Path.GetFullPath(Path.Combine(path, "..", module));
+                var moduleGradle = Path.Combine(modulePath, "build.gradle");
+                const string lockInclude = "apply from: 'zkube-dependencies.gradle'";
+                if (identity.name == "store")
+                {
+                    File.WriteAllText(moduleGradle, File.ReadAllText(moduleGradle).Replace(lockInclude, ""));
+                    foreach (var retired in new[] { "gradle.lockfile", "zkube-dependencies.gradle" })
+                        if (File.Exists(Path.Combine(modulePath, retired))) File.Delete(Path.Combine(modulePath, retired));
+                    continue;
+                }
                 var lockPath = Path.Combine(identity.locks, module, "gradle.lockfile");
                 var exportedLock = Path.Combine(modulePath, "gradle.lockfile");
                 if (!File.Exists(lockPath))
@@ -53,8 +62,6 @@ namespace ZKube.Editor
                 File.Copy(lockPath, exportedLock, true);
                 File.Copy("NativeAndroid/unity-dependencies.gradle",
                     Path.Combine(modulePath, "zkube-dependencies.gradle"), true);
-                var moduleGradle = Path.Combine(modulePath, "build.gradle");
-                const string lockInclude = "apply from: 'zkube-dependencies.gradle'";
                 if (!File.ReadAllText(moduleGradle).Contains(lockInclude))
                     File.AppendAllText(moduleGradle, "\n" + lockInclude + "\n");
             }

@@ -1,0 +1,8 @@
+{
+  "name": "@zkube/art-authoring",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  }
+}
