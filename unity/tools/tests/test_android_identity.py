@@ -19,6 +19,7 @@ from cli import run_main
 from android_identity import identity, abis
 from inspect_android import elf, metadata_check, store_payload, store_manifest, MONEY_ASSEMBLIES
 from inspect_apk import open_archive, read_member, display_name_check, product_name_check
+from inspect_apk import production_check, debug_certificate
 
 
 def native(machine=183, alignment=16384):
@@ -32,6 +33,24 @@ def native(machine=183, alignment=16384):
 
 
 class StaticTests(unittest.TestCase):
+    def test_production_packages_require_explicit_version_and_non_debug_signing(self):
+        for identity_name in ('money', 'store'):
+            with self.subTest(identity=identity_name):
+                report = dict(identity=identity_name, versionCode=17, debugSigned=True)
+                production_check(report, None)
+                self.assertEqual(report['distribution'], 'local-validation')
+                with self.assertRaisesRegex(RuntimeError, 'debug-signed'):
+                    production_check(report, 17)
+                report['debugSigned'] = False
+                for version in (0, 16):
+                    with self.assertRaisesRegex(RuntimeError, 'version code'):
+                        production_check(report, version)
+                production_check(report, 17)
+                self.assertEqual(report['distribution'], 'production-candidate')
+        self.assertTrue(debug_certificate('Signer #1 certificate DN: CN=Android Debug, O=Android, C=US'))
+        self.assertTrue(debug_certificate('Owner: CN=Unity Debug, O=Unity'))
+        self.assertFalse(debug_certificate('Owner: CN=zKorp Release'))
+
     def setUp(self):
         self.toolchain = json.loads((ROOT / 'unity/toolchain.json').read_text())
 

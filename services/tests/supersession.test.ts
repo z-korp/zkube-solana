@@ -44,6 +44,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "The zKube family names the local product Realms and the Solana product Arena (2026-09-15)",
   },
   {
+    pattern: /zkube-v4-launch|exactly 17 transactions/,
+    trees: [TOOLS, SERVICES, README, AGENT_RULES],
+    reversal: "Launch staging follows the current plan and release inputs replace the abandoned deployment defaults (2026-09-16)",
+  },
+  {
     pattern: /ZKube\.(?:Generated|Persistence|Integration|Transport|Planning|Execution|RunReconciliation|Client|ClientRuns|ProductReads|SolanaPrimitives|AndroidWallet|MoneyApp|MoneyPresentation|MoneyStartup|MoneyOverview|StoreStartup|Local\.(?:Runs|Presentation|App|Billing(?:\.Unity)?))(?:\.Tests|\.PlayTests)?(?:\.asmdef|\.dll|")/,
     trees: [UNITY_CLIENT, join(ROOT, "unity/Assets/ThirdParty/Solana")],
     reversal: "Unity compiles shared code and each identity in the consolidated Core, Presentation, Local, Chain, Money and Store assemblies (2026-09-16)",

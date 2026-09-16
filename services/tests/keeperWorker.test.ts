@@ -11,6 +11,16 @@ import {
 } from "../src/keeperWorker";
 
 describe("keeper worker scheduling", () => {
+  it("requires fresh release inputs and binds their changes", () => {
+    const env = releaseEnvironment();
+    const original = keeperReleaseFromEnv(env).fingerprint;
+    for (const key of ["ZKUBE_KEEPER_PUBLIC_KEY", "ZKUBE_LAUNCH_DAY_ID", "ZKUBE_DEPLOYED_SBF_SHA256"]) {
+      expect(() => keeperReleaseFromEnv({ ...env, [key]: undefined })).toThrow();
+    }
+    expect(keeperReleaseFromEnv({ ...env, ZKUBE_DEPLOYED_SBF_SHA256: "b".repeat(64) }).fingerprint)
+      .not.toBe(original);
+    expect(() => keeperReleaseFromEnv({ ...env, ZKUBE_DEPLOYED_SBF_SHA256: "invalid" })).toThrow();
+  });
   it("defaults to a one-minute normal cadence", () => {
     expect(keeperIntervalFromEnv({})).toBe(60_000);
   });
@@ -142,6 +152,7 @@ function releaseEnvironment(): Record<string, string> {
     FLY_IMAGE_REF:
       "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
     ZKUBE_KEEPER_PUBLIC_KEY: Keypair.generate().publicKey.toBase58(),
-    ZKUBE_LAUNCH_DAY_ID: "20656",
+    ZKUBE_LAUNCH_DAY_ID: "21000",
+    ZKUBE_DEPLOYED_SBF_SHA256: "a".repeat(64),
   };
 }

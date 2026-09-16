@@ -75,7 +75,8 @@ namespace ZKube.Editor
             if (PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.Android).Split(';').Contains("ZKUBE_STORE"))
                 throw new InvalidOperationException("Remove persistent ZKUBE_STORE; the selected build identity supplies it");
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, identity.package);
-            var versionCode = Environment.GetEnvironmentVariable("ZKUBE_ANDROID_VERSION_CODE") ?? "1";
+            var production = Environment.GetEnvironmentVariable("ZKUBE_ANDROID_PRODUCTION") == "1";
+            var versionCode = Environment.GetEnvironmentVariable("ZKUBE_ANDROID_VERSION_CODE") ?? (production ? "" : "1");
             if (!int.TryParse(versionCode, out var code) || code < 1)
                 throw new InvalidOperationException("ZKUBE_ANDROID_VERSION_CODE must be a positive integer");
             PlayerSettings.Android.bundleVersionCode = code;
@@ -90,7 +91,9 @@ namespace ZKube.Editor
             // so permission must not depend on Unity's networking usage scan.
             PlayerSettings.Android.forceInternetPermission = true;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
-            PlayerSettings.Android.useCustomKeystore = false;
+            if (production && !PlayerSettings.Android.useCustomKeystore)
+                throw new InvalidOperationException("Production requires configured non-debug Android signing");
+            if (!production) PlayerSettings.Android.useCustomKeystore = false;
             PlayerSettings.runInBackground = false;
             PlayerSettings.SplashScreen.show = false;
             PlayerSettings.SplashScreen.showUnityLogo = false;

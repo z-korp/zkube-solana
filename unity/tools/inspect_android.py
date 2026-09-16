@@ -102,7 +102,7 @@ def store_manifest(xml, profile, toolchain):
             'minimumApi': toolchain['androidMinimumApi'], 'targetApi': toolchain['androidApi']}
 
 
-def inspect(artifact, android_tools, name):
+def inspect(artifact, android_tools, name, production_version_code=None):
     toolchain = json.loads((PROJECT / 'toolchain.json').read_text())
     profile = identity(toolchain, name)
     if artifact.suffix != '.' + profile['format']:
@@ -113,6 +113,7 @@ def inspect(artifact, android_tools, name):
         destination = artifact.with_suffix('.inspection.json')
         report = json.loads(destination.read_text())
         report.update(identity=name, format='apk')
+        inspect_apk.production_check(report, production_version_code)
         destination.write_text(json.dumps(report, indent=2) + '\n')
         return
     android = android_tools.parents[2]
@@ -137,6 +138,10 @@ def inspect(artifact, android_tools, name):
         certificates = re.findall(r'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----', cert, re.S)
         if not certificates:
             raise RuntimeError('AAB has no signing certificate')
+        subjects = subprocess.check_output([str(android / 'OpenJDK/bin/keytool'), '-J-Duser.language=en',
+                                           '-printcert', '-jarfile', str(artifact)], text=True)
+        debug_signed = inspect_apk.debug_certificate(subjects)
+        inspect_apk.production_check(dict(manifest, debugSigned=debug_signed), production_version_code)
         hashes = {}
         for abi in selected:
             source = PROJECT / 'Assets/Plugins/Android' / abi / 'libzkube_core_ffi.so'
@@ -181,6 +186,7 @@ def inspect(artifact, android_tools, name):
         report = dict(manifest, artifact=artifact.name, sha256=sha(artifact.read_bytes()), identity=name,
                       format='aab', rustLibraryHashes=hashes, nativeLibraries=libraries,
                       signingCertificateSha256=[sha(ssl.PEM_cert_to_DER_cert(value)) for value in certificates],
+                      debugSigned=debug_signed,
                       bundletoolVersion=toolchain['bundletool'], bundletoolSha256=sha(bundletool.read_bytes()),
                       generatedUniversalApk=retained_apk.name,
                       generatedUniversalApkSha256=sha(apk.read_bytes()), generatedApkZipAlignment=16384,
@@ -190,6 +196,7 @@ def inspect(artifact, android_tools, name):
                       releaseSigningAcceptance='pending; local AAB signing only',
                       deliveryEvidence='local universal APK; Play-generated ABI splits not assessed',
                       physicalDeviceExecution='not assessed')
+    inspect_apk.production_check(report, production_version_code)
     artifact.with_suffix('.inspection.json').write_text(json.dumps(report, indent=2) + '\n')
     print('Verified store AAB and local universal APK: both ABIs, native hashes, 16 KB alignment, wallet absence')
 
@@ -199,8 +206,9 @@ def main():
     parser.add_argument('artifact', type=Path)
     parser.add_argument('android_build_tools', type=Path)
     parser.add_argument('--identity', choices=['money', 'store'], required=True)
+    parser.add_argument('--production-version-code', type=int)
     args = parser.parse_args()
-    inspect(args.artifact.resolve(), args.android_build_tools.resolve(), args.identity)
+    inspect(args.artifact.resolve(), args.android_build_tools.resolve(), args.identity, args.production_version_code)
 
 
 if __name__ == '__main__':

@@ -102,6 +102,13 @@ def toolchain():
     editor = Path(os.environ.get("UNITY_EDITOR", str(Path.home() / "Unity/Hub/Editor" /
                                                    LOCK["editor"] / "Editor/Unity")))
     android = editor.parent / "Data/PlaybackEngines/AndroidPlayer"
+    installed = set(subprocess.check_output(["rustup", "target", "list", "--installed"], text=True).split())
+    missing = {abi["rustTarget"] for abi in LOCK["androidAbis"]} - installed
+    if missing:
+        raise RuntimeError("Missing Rust Android targets: " + ", ".join(sorted(missing)))
+    bundletool = android / "Tools" / f'bundletool-all-{LOCK["bundletool"]}.jar'
+    if not bundletool.is_file():
+        raise RuntimeError(f"Missing pinned bundletool: {bundletool}")
     if not editor.is_file():
         raise SystemExit(f"Missing pinned Unity Editor: {editor}")
     ndk = android / "NDK"
@@ -214,9 +221,16 @@ def main():
     parser.add_argument("--test-platform", choices=["EditMode", "PlayMode"], default="EditMode")
     parser.add_argument("--test-filter", default="ZKube")
     parser.add_argument("--identity", choices=["money", "store"], default="money")
+    parser.add_argument("--production", action="store_true", help="Android: require an explicit version code and non-debug signing")
     parser.add_argument("--method", help="exec: fully qualified static method, e.g. ZKube.Editor.ZKubeBuild.Probe")
     parser.add_argument("--build-target", choices=["StandaloneLinux64", "Android"], help="exec: Editor build target (default StandaloneLinux64)")
     args = parser.parse_args()
+    if args.production and args.action != "android":
+        parser.error("--production requires android")
+    if args.production:
+        version = os.environ.get("ZKUBE_ANDROID_VERSION_CODE", "")
+        if not version.isdecimal() or int(version) < 1:
+            raise RuntimeError("Production requires an explicit positive ZKUBE_ANDROID_VERSION_CODE")
     if args.action == "exec" and not args.method:
         parser.error("exec requires --method ZKube.Editor.<Class>.<Method>")
     if args.method and not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+", args.method):
@@ -246,7 +260,8 @@ def main():
     stem = "zkube" if args.identity == "money" else "zkube-store"
     apk = OUTPUT / f'{stem}.{profile["format"]}'
     env.update(NO_DNA="1", ZKUBE_UNITY_APK=str(apk),
-               ZKUBE_UNITY_IDENTITY=args.identity, ZKUBE_UNITY_PRODUCT_NAME=profile["productName"])
+               ZKUBE_UNITY_IDENTITY=args.identity, ZKUBE_UNITY_PRODUCT_NAME=profile["productName"],
+               ZKUBE_ANDROID_PRODUCTION="1" if args.production else "0")
     with editor_lease() as lease_fd:
         generated_idl = PROJECT / "Assets/ZKube/Integration/Generated/solana.json"
         generated_idl.parent.mkdir(parents=True, exist_ok=True)
@@ -316,7 +331,8 @@ def main():
         if args.action == "android":
             run(["python3", PROJECT / "tools/inspect_android.py", apk,
                  android / "SDK/build-tools" / LOCK["sdkBuildTools"],
-                 "--identity", args.identity])
+                 "--identity", args.identity,
+                 *(["--production-version-code", env["ZKUBE_ANDROID_VERSION_CODE"]] if args.production else [])])
             record_artifact(apk, before, started)
 
 

@@ -13,8 +13,6 @@ kill_timeout = "240s"
   NODE_ENV = "production"
   SOLANA_DEVNET_RPC_URL = "https://rpc.magicblock.app/devnet"
   SOLANA_EXPECTED_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
-  ZKUBE_KEEPER_PUBLIC_KEY = "6JuZiVic8yUipamYyzWvVUcTdD8kbpdpv79CBGjm4XTg"
-  ZKUBE_LAUNCH_DAY_ID = "20656"
   KEEPER_ENABLED = "true"
   # Production writes require exact write=true and release-fingerprint secret
   # overrides after the new image completes a read-only planning pass.

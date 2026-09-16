@@ -15,6 +15,7 @@ import {
   type LaunchPlannerInput,
 } from "./launchPlanner.js";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants.js";
+import { launchStagingPlans } from "./launchRunner.js";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 describe("read-only paused bootstrap and launch planner", () => {
@@ -51,6 +52,11 @@ describe("read-only paused bootstrap and launch planner", () => {
     );
 
     expect(plan.plans).toHaveLength(6);
+    for (let receipts = 0; receipts <= 5; receipts++) {
+      expect(launchStagingPlans(plan.plans, receipts)).toEqual(plan.plans.slice(0, 5));
+      expect(launchStagingPlans(plan.plans, receipts)).not.toContain(plan.plans[5]);
+    }
+    expect(() => launchStagingPlans(plan.plans, 6)).toThrow("bounded receipts");
     expect(plan.plans[5]?.transaction.instructions).toHaveLength(3);
     expect(plan.phases.at(-1)).toEqual({
       label: "Atomic 1 SOL seed, unpause, and activation",

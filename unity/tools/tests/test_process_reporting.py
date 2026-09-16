@@ -19,6 +19,24 @@ import editor_lease
 
 
 class ProcessReportingTests(unittest.TestCase):
+    def test_production_without_version_fails_before_toolchain_work(self):
+        with patch.object(sys, 'argv', ['build.py', 'android', '--production']), \
+                patch.dict(os.environ, {}, clear=True), patch.object(build, 'toolchain') as toolchain:
+            with self.assertRaisesRegex(RuntimeError, 'explicit positive ZKUBE_ANDROID_VERSION_CODE'):
+                build.main()
+            toolchain.assert_not_called()
+
+    def test_toolchain_checks_android_targets_and_bundletool_first(self):
+        lock = json.loads((TOOLS.parent / 'toolchain.json').read_text())
+        with patch.object(build.subprocess, 'check_output', return_value=''):
+            with self.assertRaisesRegex(RuntimeError, 'Missing Rust Android targets'):
+                build.toolchain()
+        installed = '\n'.join(abi['rustTarget'] for abi in lock['androidAbis'])
+        with patch.object(build.subprocess, 'check_output', return_value=installed), \
+                patch.object(Path, 'is_file', return_value=False):
+            with self.assertRaisesRegex(RuntimeError, 'Missing pinned bundletool'):
+                build.toolchain()
+
     def test_partial_filter_match_does_not_claim_all_requested_suites_ran(self):
         report = ET.fromstring('<test-run result="Passed" total="2" passed="2">'
             '<test-case fullname="ZKube.Tests.MoneyOverview.MoneyOverviewTests.Connect" />'

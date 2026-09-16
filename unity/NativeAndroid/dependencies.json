@@ -1,5 +1,15 @@
 {
   "schemaVersion": 1,
+  "provenance": {
+    "upstream": "https://github.com/solana-mobile/mobile-wallet-adapter",
+    "license": "Apache-2.0; no upstream sources are vendored",
+    "resolution": "gradle.lockfile records the resolved closure; Unity consumes these runtime coordinates and toolchain.json owns build tool versions",
+    "transport": "Official byte transport requiring version-zero transactions and solana:signTransactions; returned capabilities and accounts are checked before signing, with no sign-and-send fallback",
+    "secrets": "AndroidKeyStore AES-GCM and encrypted preferences; offline JCE tests cover tamper rejection, key loss and concurrent startup, not hardware keys",
+    "persistence": "Public run locators and signed transaction journals use separate preferences; synchronous commit and atomic compare-exchange precede submission",
+    "verification": "verify.py checks the locked AAR and offline JVM tests and records source and artifact hashes in build/verification.json; it invokes neither the Editor nor chain RPC",
+    "devices": "Activity tests launch no external wallet; a lost request fails closed and the durable journal is reconciled. Physical wallet compatibility remains separately verified"
+  },
   "compatibility": {
     "reason": "The pinned Unity AGP 9 toolchain rejects the shared clientlib/KTX namespace in MWA 2.0.7 and 2.1.1. The AGP 9 beta fixes that namespace and supports compileSdk 36; stable 2.2.0 requires compileSdk 37 and a newer AGP through its AndroidX dependencies.",
     "upstreamFix": "https://github.com/solana-mobile/mobile-wallet-adapter/pull/1531",

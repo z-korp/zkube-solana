@@ -31,6 +31,13 @@ documents, and do not move approval policy or operator runbooks into `README.md`
 
 ## Deployment status — read this first
 
+Android builds are local validation artifacts by default. A production candidate
+requires an explicit version code and non-debug signing;
+`test_production_packages_require_explicit_version_and_non_debug_signing` and
+`test_production_without_version_fails_before_toolchain_work` guard that label.
+`test_toolchain_checks_android_targets_and_bundletool_first` checks prerequisites
+before native compilation or Editor work.
+
 **There is no live deployment.** The v4 Devnet protocol was deliberately
 abandoned on 2026-08-08 and its accounts, pools, keeper release, and launch
 bundles are dead. Nothing on chain is authoritative, nothing needs preserving,
@@ -955,6 +962,10 @@ fail closed on an unknown operation.
 The recurring signer cannot deploy, initialize, seed pots, change rules,
 withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. The
 runtime identity check pins Fly's unique deployment tag from `FLY_IMAGE_REF`.
+The ProgramData hash, keeper key and launch day are release environment inputs:
+`ZKUBE_DEPLOYED_SBF_SHA256`, `ZKUBE_KEEPER_PUBLIC_KEY` and `ZKUBE_LAUNCH_DAY_ID`.
+`release_inputs_do_not_reuse_the_abandoned_deployment` guards source defaults;
+`requires fresh release inputs and binds their changes` guards the runtime boundary.
 The release fingerprint pins every field checked at runtime: Devnet genesis,
 deployed ProgramData hash, program ID, keeper signer, schema and IDL identity,
 entry economics, the fourteen-instruction allowlist, a six-write general limit,

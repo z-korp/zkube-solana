@@ -114,7 +114,7 @@ export async function runLaunchFromEnv(
     input.authority,
     "protocol authority",
   );
-  const activation = plan.plans[5];
+  const activation = plan.plans.at(-1);
   if (!activation) throw new Error("launch plan omitted its atomic activation");
   const bundle: LaunchBundle = {
     schema: "zkube-v5-devnet-launch-bundle",
@@ -145,7 +145,7 @@ export async function runLaunchFromEnv(
   if (bundle.progress.staged.length === 0) {
     await verifyFunding(connection, bundle);
   }
-  for (const [index, transaction] of plan.plans.slice(0, 5).entries()) {
+  for (const [index, transaction] of launchStagingPlans(plan.plans, 0).entries()) {
     const receipt = await executeApprovedTransaction({
       plan: transaction,
       signer: authority,
@@ -191,9 +191,6 @@ async function resumeStaging(
     payload.transactions,
     "approved transactions",
   );
-  if (publicTransactions.length !== 6) {
-    throw new Error("approved launch must contain exactly 17 transactions");
-  }
   const plans = publicTransactions.map((value) =>
     transactionPlanFromPublic(value, connection),
   );
@@ -217,13 +214,10 @@ async function resumeStaging(
     await verifyFunding(connection, bundle);
   }
 
-  if (bundle.progress.staged.length > 5) {
-    throw new Error("bundle contains excess staging receipts");
-  }
-  for (let index = 0; index < 16; index += 1) {
+  for (const [index, plan] of launchStagingPlans(plans, bundle.progress.staged.length).entries()) {
     const existing = bundle.progress.staged[index];
     const receipt = await executeApprovedTransaction({
-      plan: plans[index]!,
+      plan,
       signer: authority,
       existing,
       onReceipt: (next) => {
@@ -807,6 +801,13 @@ function loadPinnedKeypair(
   return keypair;
 }
 
+export function launchStagingPlans<T>(plans: readonly T[], receiptCount: number): readonly T[] {
+  if (plans.length < 2 || !Number.isSafeInteger(receiptCount) || receiptCount < 0 || receiptCount >= plans.length) {
+    throw new Error("launch staging requires plans before activation and bounded receipts");
+  }
+  return plans.slice(0, -1);
+}
+
 function parseBundle(source: string): LaunchBundle {
   const value: unknown = JSON.parse(source);
   if (
@@ -837,9 +838,9 @@ function parseBundle(source: string): LaunchBundle {
     !isDeepStrictEqual(payload.input, bundle.input) ||
     !isDeepStrictEqual(payload.costs, bundle.costs) ||
     observed.programDataAddress !== bundle.programDataAddress ||
-    transactions.length !== 6 ||
+    transactions.length !== bundle.costs.transactionCount || transactions.length < 2 ||
     createHash("sha256")
-      .update(JSON.stringify(transactions[5]))
+      .update(JSON.stringify(transactions.at(-1)))
       .digest("hex") !== bundle.activationTransactionSha256
   ) {
     throw new Error("launch bundle fields drifted from approved evidence");
@@ -847,7 +848,7 @@ function parseBundle(source: string): LaunchBundle {
   const progress = object(bundle.progress, "launch progress");
   if (
     !Array.isArray(progress.staged) ||
-    progress.staged.length > 5 ||
+    progress.staged.length >= transactions.length ||
     (progress.funding !== undefined &&
       (typeof progress.funding !== "object" || progress.funding === null)) ||
     (progress.activation !== undefined &&

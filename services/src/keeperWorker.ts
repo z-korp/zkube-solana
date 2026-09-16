@@ -34,10 +34,6 @@ const MAX_RAPID_RERUNS = 4;
 const DEFAULT_MAX_WRITES = 6;
 const MAX_MAX_WRITES = 6;
 
-/** SHA-256 of the full padded SBF bytes currently stored in ProgramData. */
-export const KEEPER_EXPECTED_DEPLOYED_SBF_SHA256 =
-  "9fcc24a56c5e1fae8fb92f4df7b11ce9267a187a7fee7413e2f2682fdddc553e";
-
 /** Fly injects the unique deployment tag checked by the release fingerprint. */
 export function keeperWriteEnabledFromEnv(
   env: Record<string, string | undefined>,
@@ -63,7 +59,9 @@ export function keeperReleaseFromEnv(
       env.ZKUBE_KEEPER_PUBLIC_KEY,
       "ZKUBE_KEEPER_PUBLIC_KEY",
     ),
-    deployedProgramDataSha256: KEEPER_EXPECTED_DEPLOYED_SBF_SHA256,
+    deployedProgramDataSha256: requiredReleaseValue(
+      env.ZKUBE_DEPLOYED_SBF_SHA256, "ZKUBE_DEPLOYED_SBF_SHA256",
+    ),
     keeperImageReference: flyImageRef,
     idlHash: KEEPER_EXPECTED_IDL_SHA256,
     launchDayId,
@@ -171,14 +169,14 @@ async function runConfiguredKeeperPass(
   log: (event: KeeperWorkerEvent | KeeperLogEvent) => void,
 ): Promise<Awaited<ReturnType<typeof runKeeperPass>> | undefined> {
   const connection = createDevnetConnection(env);
+  const release = keeperReleaseFromEnv(env);
   const readiness = await checkChainReadiness({
     connection,
     expectedGenesisHash: expectedGenesisHashFromEnv(env),
-    expectedDeployedSbfSha256: KEEPER_EXPECTED_DEPLOYED_SBF_SHA256,
+    expectedDeployedSbfSha256: release.record.deployedProgramDataSha256,
   });
   if (!readiness.ok) throw new Error(readiness.error ?? "chain is not ready");
 
-  const release = keeperReleaseFromEnv(env);
   const writeEnabled = keeperWriteEnabledFromEnv(env);
   const protocolInfo = await connection.getAccountInfo(protocolPda(), "confirmed");
   if (!protocolInfo) {

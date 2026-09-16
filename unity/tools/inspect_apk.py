@@ -80,6 +80,19 @@ def display_name_check(badging, expected):
     return expected
 
 
+def production_check(report, version_code):
+    if version_code is not None:
+        if version_code < 1 or report['versionCode'] != version_code:
+            raise RuntimeError('Production version code is missing or differs from the explicit build input')
+        if report['debugSigned']:
+            raise RuntimeError('Production package is debug-signed')
+    report['distribution'] = 'production-candidate' if version_code is not None else 'local-validation'
+
+
+def debug_certificate(subject):
+    return bool(re.search(r'\bCN\s*=\s*(?:Android|Unity) Debug\b', subject, re.I))
+
+
 def product_name_check(data, expected):
     encoded = expected.encode('utf8')
     if struct.pack('<I', len(encoded)) + encoded not in data:
@@ -194,6 +207,7 @@ def inspect(apk, android_tools, expected_native):
               "debuggable": debuggable, "permissions": permissions,
               "allowBackup": False, "walletActivityExported": False, "unitySplashEnabled": False,
               "signingCertificateSha256": certificate_hashes,
+              "debugSigned": debug_certificate(certificates),
               "releaseSigningAcceptance": "pending; local build signing only",
               "rustSourceLibrarySha256": source_hash,
               "rustStrippedLibrarySha256": stripped_hash,
