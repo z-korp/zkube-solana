@@ -19,7 +19,7 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
-  { pattern: /\bElo\b|keeper-computed rating|K-factor/i, trees: SOURCE,
+  { pattern: /\bElo\b|keeper-computed rating|K-factor/i, trees: AUTHORED,
     reversal: "The cumulative log-rank ladder replaced ratings" },
   { pattern: /full run is what finishes|every change ends with `NO_DNA=1 \.\/validate\.sh` green/i, trees: DOCUMENTS,
     reversal: "Change finishes a commit; release finishes a phase or outgoing artifact" },
