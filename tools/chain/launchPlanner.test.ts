@@ -1,6 +1,8 @@
 // @vitest-environment node
 
 import { createHash } from "node:crypto";
+import { BorshInstructionCoder, convertIdlToCamelCase } from "@anchor-lang/core";
+import { IDL } from "./idl/index.js";
 import {
   Keypair,
   PublicKey,
@@ -9,13 +11,11 @@ import {
 } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
-  buildZkubeLaunchPlan,
   canonicalDevnetReplayDomainHex,
-  formatZkubeLaunchPlan,
   type LaunchPlannerInput,
 } from "./launchPlanner.js";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants.js";
-import { launchStagingPlans } from "./launchRunner.js";
+import { quoteLaunch } from "./operatorPlan.js";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 describe("read-only paused bootstrap and launch planner", () => {
@@ -45,29 +45,25 @@ describe("read-only paused bootstrap and launch planner", () => {
       authorityReserveLamports: 100_000_000,
       deployerReserveLamports: 100_000_000,
     };
-    const plan = await buildZkubeLaunchPlan(
+    const plan = await quoteLaunch(
       input,
       launchConnection({ upgradeAuthority, team, allocationBytes }),
 
     );
 
-    expect(plan.plans).toHaveLength(5);
-    for (let receipts = 0; receipts <= 4; receipts++) {
-      expect(launchStagingPlans(plan.plans, receipts)).toEqual(plan.plans.slice(0, 4));
-      expect(launchStagingPlans(plan.plans, receipts)).not.toContain(plan.plans[4]);
-    }
-    expect(() => launchStagingPlans(plan.plans, 5)).toThrow("bounded receipts");
-    expect(plan.plans[4]?.transaction.instructions).toHaveLength(3);
-    expect(plan.phases.at(-1)).toEqual({
-      label: "Atomic 1 SOL seed, unpause, and activation",
-      transactionIndexes: [4],
-    });
-    expect(plan.costs.seedLamports).toBe(1_500_000_000);
-    expect(plan.costs.transactionCount).toBe(5);
-    expect(plan.approvalFingerprint).toMatch(/^[0-9a-f]{64}$/);
-    expect(formatZkubeLaunchPlan(plan)).toContain(
-      "No transaction was signed or sent. This planner has no send path.",
-    );
+    expect(plan.payload.transactions).toHaveLength(5);
+    expect(plan.payload.transactions[4]?.instructions).toHaveLength(3);
+    const coder = new BorshInstructionCoder(convertIdlToCamelCase(IDL));
+    expect(plan.payload.transactions.map(transaction => transaction.instructions.map(instruction =>
+      instruction.program === SystemProgram.programId.toBase58() ? "transfer" : coder.decode(Buffer.from(instruction.data, "base64"))?.name)))
+      .toEqual([["initializeProtocol"], ["transfer"], ["prepareArenaDaily"], ["prepareArenaDaily"],
+        ["depositArenaDaily", "setProtocolPause", "activateArenaDaily"]]);
+    const operation = plan.payload.operation;
+    if (operation.kind !== "launch") throw new Error("Expected launch plan");
+    expect(operation.costs.seedLamports).toBe(1_500_000_000);
+    expect(operation.costs.transactionCount).toBe(5);
+    expect(plan.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+
   });
 
   it("refuses planning after the exact launch cutoff", async () => {
@@ -96,7 +92,7 @@ describe("read-only paused bootstrap and launch planner", () => {
       deployerReserveLamports: 100_000_000,
     };
     await expect(
-      buildZkubeLaunchPlan(
+      quoteLaunch(
         input,
         launchConnection({
           upgradeAuthority,
@@ -143,7 +139,9 @@ function launchConnection(args: {
     },
     getSlot: async () => 1,
     getBlockTime: async () => args.observedUnixTimestamp ?? 100 * 86_400 + 100,
-    getMultipleAccountsInfo: async () => Array.from({ length: 22 }, () => null),
+    getMultipleAccountsInfo: async (addresses: PublicKey[]) => addresses.map(address =>
+      address.equals(ZKUBE_PROGRAM_ID) ? account(program, true, LOADER, 1) :
+      address.equals(programDataAddress) ? account(programData, false, LOADER, 1_000_000) : null),
     getMinimumBalanceForRentExemption: async (space: number) => space * 10,
     getLatestBlockhash: async () => ({
       blockhash: Keypair.generate().publicKey.toBase58(),

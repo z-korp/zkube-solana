@@ -4,7 +4,11 @@ import {
   type VersionedTransaction,
 } from "@solana/web3.js";
 
-import type { WalletLike } from "./sessionWallet.js";
+export interface WalletLike {
+  publicKey: PublicKey;
+  signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T>;
+  signAllTransactions<T extends Transaction | VersionedTransaction>(transactions: T[]): Promise<T[]>;
+}
 
 /** Anchor only needs a public key for account decoding. This boundary makes
  * accidental signing from spectator/read paths fail closed. */

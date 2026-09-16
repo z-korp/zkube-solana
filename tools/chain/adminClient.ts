@@ -9,13 +9,12 @@ import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
 import { zkubeProgram, type TransactionPlan } from "./program.js";
-import type { WalletLike } from "./sessionWallet.js";
+import type { WalletLike } from "./readOnlyWallet.js";
 import BN from "bn.js";
-import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest.js";
+export const LAUNCH_DAILY_SEED_LAMPORTS = 1_000_000_000;
 
 export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
 const U64_MAX = (1n << 64n) - 1n;
@@ -62,27 +61,6 @@ export async function buildInitializeProtocolPlan(args: {
     .instruction();
   return basePlan(
     "Initialize protocol",
-    args.connection,
-    args.authority.publicKey,
-    [instruction],
-  );
-}
-
-export async function buildSetProtocolPausePlan(args: {
-  connection: Connection;
-  authority: WalletLike;
-  paused: boolean;
-}): Promise<TransactionPlan> {
-  const instruction = await zkubeProgram(args.connection, args.authority)
-    .methods.setProtocolPause(args.paused)
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      authority: args.authority.publicKey,
-    })
-    .instruction();
-  return basePlan(
-    args.paused ? "Pause protocol" : "Unpause protocol",
-    args.connection,
     args.authority.publicKey,
     [instruction],
   );
@@ -103,7 +81,6 @@ export async function buildSetArenaSuspensionPlan(args: {
     .instruction();
   return basePlan(
     `Set Arena suspension until day ${args.untilDay}`,
-    args.connection,
     args.authority.publicKey,
     [instruction],
   );
@@ -120,7 +97,6 @@ export async function buildSeedCadenceFundingPlan(args: {
   });
   return basePlan(
     "Seed recyclable cadence rent",
-    args.connection,
     args.authority.publicKey,
     [cadenceSeed],
   );
@@ -150,8 +126,7 @@ export async function buildPrepareLaunchPeriodPlans(args: {
     plans.push(
       basePlan(
         `Prepare Daily ${dayId}`,
-        args.connection,
-        args.authority.publicKey,
+            args.authority.publicKey,
         [instruction],
       ),
     );
@@ -196,7 +171,6 @@ export async function buildAtomicArcadeLaunchPlan(args: {
     .instruction();
   return basePlan(
     "Atomically seed 1 SOL and launch Arcade",
-    args.connection,
     args.authority.publicKey,
     [seed, unpause, activateDaily],
   );
@@ -230,45 +204,20 @@ export async function buildDepositArenaDailyPlan(args: {
     .instruction();
   return basePlan(
     `Top up ${args.pool} ${args.cadenceId} with ${args.lamports.toString()} lamports`,
-    args.connection,
     args.authority.publicKey,
     [instruction],
   );
 }
 
-export async function buildInitializePlayerPlan(args: {
-  connection: Connection;
-  owner: WalletLike;
-  payer?: PublicKey;
-}): Promise<TransactionPlan> {
-  const payer = args.payer ?? args.owner.publicKey;
-  const instruction = await zkubeProgram(args.connection, args.owner)
-    .methods.initializePlayer()
-    .accountsPartial({
-      playerState: derivePlayerStatePda(args.owner.publicKey),
-      payer,
-      ownerAuthority: args.owner.publicKey,
-      sessionToken: null,
-      actor: args.owner.publicKey,
-      systemProgram: SystemProgram.programId,
-    })
-    .instruction();
-  return basePlan("Initialize player", args.connection, payer, [instruction]);
-}
-
 function basePlan(
   label: string,
-  connection: Connection,
   feePayer: PublicKey,
   instructions: TransactionInstruction[],
 ): TransactionPlan {
   return {
-    layer: "solana-base",
     label,
-    connection,
     transaction: new Transaction().add(...instructions),
     feePayer,
-    signers: [],
   };
 }
 

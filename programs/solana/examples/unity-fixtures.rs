@@ -58,6 +58,53 @@ fn inputs() -> Value {
         "blockhash": blockhash().to_string(), "programId": solana::ID.to_string(), "delegationProgramId": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"})
 }
 
+fn deployment() -> Value {
+    use solana_loader_v3_interface::instruction;
+    let mut artifact: Vec<u8> = (0..1025).map(|index| index as u8).collect();
+    artifact[..4].copy_from_slice(b"\x7fELF");
+    let mut transactions =
+        vec![
+            instruction::create_buffer(&owner(), &device(), &validator(), 370, artifact.len())
+                .unwrap(),
+        ];
+    for (index, bytes) in artifact.chunks(512).enumerate() {
+        transactions.push(vec![instruction::write(
+            &device(),
+            &validator(),
+            (index * 512) as u32,
+            bytes.to_vec(),
+        )]);
+    }
+    transactions.push(
+        instruction::deploy_with_max_program_len(
+            &owner(),
+            &solana::ID,
+            &device(),
+            &validator(),
+            360,
+            artifact.len() + 10_240,
+        )
+        .unwrap(),
+    );
+    let rows: Vec<Value> = transactions
+        .into_iter()
+        .map(|instructions| {
+            let rows: Vec<Value> = instructions.into_iter().map(|instruction| json!({
+            "program": instruction.program_id.to_string(), "data": encoded(instruction.data),
+            "accounts": instruction.accounts.into_iter().map(|account| json!({
+                "address": account.pubkey.to_string(), "signer": account.is_signer,
+                "writable": account.is_writable,
+            })).collect::<Vec<_>>(),
+        })).collect();
+            json!(rows)
+        })
+        .collect();
+    json!({"payer": owner().to_string(), "buffer": device().to_string(),
+        "authority": validator().to_string(), "artifact": encoded(artifact),
+        "bufferRentLamports": 370, "programRentLamports": 360,
+        "programDataRentLamports": 450, "transactions": rows})
+}
+
 fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let accounts = accounts::scenarios();
     let transactions = transactions::scenarios();
@@ -89,7 +136,7 @@ fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
         row["daily"] = economy::finalized(DAY - 200);
     }
     board_cases.push(json!({"kind": "score", "variant": "empty", "daily": economy::finalized(DAY - 200), "envelope": boards::empty(DAY - 200)}));
-    let output = json!({"schema": 1,
+    let output = json!({"schema": 1, "deployment": deployment(),
         "solana": {"inputs": inputs(), "accounts": account_rows, "transactions": transactions,
             "pdas": [{"id": "run-high-u64", "address": accounts::run_address(RUN_ID).to_string()}]},
         "plans": {"inputs": inputs(), "accounts": accounts, "runs": {"daily": runs::row("playing", RUN_ID)},

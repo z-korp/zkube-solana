@@ -4,10 +4,6 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "chain:devnet:deploy": "tsx deploy-devnet.ts",
-    "chain:devnet:launch": "tsx launch-devnet.ts",
-    "chain:devnet:set-suspension": "tsx set-suspension.ts",
-    "chain:devnet:top-up": "tsx top-up-prize-pools.ts",
-    "chain:manifest": "tsx check-deployment-manifest.ts"
+    "chain": "tsx cli.ts"
   }
 }

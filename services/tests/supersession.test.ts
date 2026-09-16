@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /chain:devnet:(?:deploy|launch|top-up|set-suspension)|chain:manifest|deploymentManifest|programExtension|ZKUBE_DEPLOY_APPROVAL|ZKUBE_PRIZE_TOP_UP_APPROVAL|ZKUBE_LAUNCH_MODE|final manifest|public launch bundle under `\/tmp`|stage mode|activate mode/,
+    trees: [SERVICES, TOOLS, AGENT_RULES, README],
+    reversal: "One public plan bundle and one receipt pipeline serve operator commands (2026-09-16)",
+  },
+  {
     pattern: /release:fingerprint|keeperReleaseCli|planMaterializer|semantic plan validation|fingerprint pins every field checked at runtime|keeper payout export|re-verifies every account closed|post-write account re-read/,
     trees: [SERVICES, TOOLS, AGENT_RULES, README],
     reversal: "The keeper selects cadence work, simulates its bounded writes and binds three release inputs (2026-09-16)",

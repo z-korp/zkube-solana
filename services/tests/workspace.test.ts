@@ -2,9 +2,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { launchDayFromEnv, MIN_SUPPORTED_DAY_ID, SOLANA_ENDPOINT, ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
+import { launchDayFromEnv, MIN_SUPPORTED_DAY_ID, SOLANA_ENDPOINT } from "../../shared/chain.js";
 import { createDevnetConnection } from "../src/serviceReadiness.js";
-import { ZKUBE_PROGRAM_ID as operatorProgram, SOLANA_ENDPOINT as operatorEndpoint } from "../../tools/chain/constants.js";
+import { devnetConnection } from "../../tools/chain/chainRelease.js";
 
 const root = new URL("../../", import.meta.url);
 
@@ -21,8 +21,7 @@ it("workspace_has_one_dependency_and_configuration_owner", () => {
 });
 
 it("keeper_and_operator_share_chain_identity_and_launch_day_bounds", () => {
-  expect(operatorProgram).toBe(ZKUBE_PROGRAM_ID);
-  expect(operatorEndpoint).toBe(SOLANA_ENDPOINT);
+  expect(devnetConnection(SOLANA_ENDPOINT).rpcEndpoint).toBe(SOLANA_ENDPOINT);
   expect(createDevnetConnection({}).rpcEndpoint).toBe(SOLANA_ENDPOINT);
   for (const day of [MIN_SUPPORTED_DAY_ID, 0xffff_ffff])
     expect(launchDayFromEnv({ ZKUBE_LAUNCH_DAY_ID: String(day) })).toBe(day);

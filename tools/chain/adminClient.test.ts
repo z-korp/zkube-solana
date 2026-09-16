@@ -5,25 +5,22 @@ import { describe, expect, it } from "vitest";
 import {
   buildAtomicArcadeLaunchPlan,
   buildSeedCadenceFundingPlan,
-  buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
   buildSetArenaSuspensionPlan,
-  buildSetProtocolPausePlan,
   buildDepositArenaDailyPlan,
 } from "./adminClient.js";
 import {
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
   deriveArenaDailyPda,
-  derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
-import { SessionWallet } from "./sessionWallet.js";
+import { createReadOnlyWallet } from "./readOnlyWallet.js";
 
 describe("authority initialization client", () => {
   it("initializes the lean protocol with its team destination", async () => {
-    const authority = new SessionWallet(Keypair.generate());
+    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const keys = Array.from({ length: 8 }, () => Keypair.generate().publicKey);
     const plan = await buildInitializeProtocolPlan({
       connection: {} as Connection,
@@ -43,7 +40,7 @@ describe("authority initialization client", () => {
   });
 
   it("rejects a zero team destination before protocol initialization", async () => {
-    const authority = new SessionWallet(Keypair.generate());
+    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     await expect(
       buildInitializeProtocolPlan({
         connection: {} as Connection,
@@ -57,30 +54,10 @@ describe("authority initialization client", () => {
     ).rejects.toThrow("nonzero");
   });
 
-  it("builds explicit pause and unpause governance instructions", async () => {
-    const authority = new SessionWallet(Keypair.generate());
-    const pause = await buildSetProtocolPausePlan({
-      connection: {} as Connection,
-      authority,
-      paused: true,
-    });
-    const unpause = await buildSetProtocolPausePlan({
-      connection: {} as Connection,
-      authority,
-      paused: false,
-    });
 
-    expect(pause.label).toBe("Pause protocol");
-    expect(unpause.label).toBe("Unpause protocol");
-    expect(
-      pause.transaction.instructions[0].keys[0].pubkey.equals(
-        deriveProtocolConfigPda(),
-      ),
-    ).toBe(true);
-  });
 
   it("sets the explicit suspension boundary and seeds cadence funding", async () => {
-    const authority = new SessionWallet(Keypair.generate());
+    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const suspension = await buildSetArenaSuspensionPlan({
       connection: {} as Connection,
       authority,
@@ -99,7 +76,7 @@ describe("authority initialization client", () => {
   });
 
   it("prepares current and following Daily separately", async () => {
-    const authority = new SessionWallet(Keypair.generate());
+    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const plans = await buildPrepareLaunchPeriodPlans({
       connection: {} as Connection,
       authority,
@@ -119,7 +96,7 @@ describe("authority initialization client", () => {
   });
 
   it("keeps seed, unpause, and Daily activation in one ordered transaction", async () => {
-    const authority = new SessionWallet(Keypair.generate());
+    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const plan = await buildAtomicArcadeLaunchPlan({
       connection: {} as Connection,
       authority,
@@ -136,7 +113,7 @@ describe("authority initialization client", () => {
   });
 
   it("routes a chosen amount to the exact selected prize-pool PDA", async () => {
-    const authority = new SessionWallet(Keypair.generate());
+    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const connection = {} as Connection;
     const cases = [
       {
@@ -165,7 +142,7 @@ describe("authority initialization client", () => {
   });
 
   it("rejects zero, overflow, and invalid cadence top-ups before signing", async () => {
-    const authority = new SessionWallet(Keypair.generate());
+    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const connection = {} as Connection;
     const build = (lamports: bigint, cadenceId = 1) =>
       buildDepositArenaDailyPlan({
@@ -181,20 +158,5 @@ describe("authority initialization client", () => {
     await expect(build(1n, 0x1_0000_0000)).rejects.toThrow("u32");
   });
 
-  it("initializes only the owner-derived player accounts", async () => {
-    const owner = new SessionWallet(Keypair.generate());
-    const payer = Keypair.generate().publicKey;
-    const plan = await buildInitializePlayerPlan({
-      connection: {} as Connection,
-      owner,
-      payer,
-    });
-    const keys = plan.transaction.instructions[0].keys;
 
-    expect(keys[0].pubkey.equals(derivePlayerStatePda(owner.publicKey))).toBe(
-      true,
-    );
-    expect(keys[1].pubkey.equals(payer)).toBe(true);
-    expect(plan.feePayer.equals(payer)).toBe(true);
-  });
 });

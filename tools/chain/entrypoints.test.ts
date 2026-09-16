@@ -8,7 +8,7 @@ const scripts = JSON.parse(readFileSync(new URL("package.json", import.meta.url)
 
 describe("chain_entrypoints_load_offline_under_tsx", () => {
   for (const [name, command] of Object.entries(scripts)) {
-    if (!name.startsWith("chain:devnet:") && name !== "chain:manifest") continue;
+    if (name !== "chain") continue;
     it(name, () => {
       const [runner, entry] = command.split(" ");
       expect(runner).toBe("tsx");

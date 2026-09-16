@@ -43,7 +43,7 @@ bundles are dead. Nothing on chain is authoritative, nothing needs preserving,
 and no migration path exists or should be written. The next deployment is a
 fresh bootstrap of v5 and requires its own exact approval.
 
-Every keeper release fingerprint, launch-plan fingerprint, deployment manifest,
+Every keeper release fingerprint, launch-plan fingerprint,
 and recurring write authority approved before that date is void. None of them
 carries over.
 
@@ -1061,117 +1061,75 @@ without renormalization, alongside the unchanged payout golden vectors.
 The catalog is `campaign-catalog.json`; `committed_catalog_validates_and_emits_protocol_constants`
 checks its version against the core constant. The keeper's schema value is
 owned by `keeperRelease.ts`, and `binds the image, keeper key and launch day while reporting build identity`
-checks the fingerprint. `deploymentManifest.test.ts` checks the manifest schema.
+checks the fingerprint. `operator_cli_options_and_exact_amounts_fail_closed` checks the operator bundle schema.
 
 ## Operator procedures
 
-Every procedure here is approval-gated by the transaction policy above. The
-repository has no current deployed binding. `tools/chain/deployment/devnet-v4.json`
-is the abandoned deployment's frozen record and is never a v5 release input.
-The source program ID is not evidence that corresponding ProgramData or
-protocol accounts are current. A fresh v5 pass must derive and approve every
-live value from its own read-only observations.
+Every command below remains subject to the transaction policy above. There is
+no current deployed binding. `tools/chain/deployment/devnet-v4.json` is the
+abandoned deployment's frozen record and supplies no release inputs.
+Preparation is two exact, independently approved bundles: deployment and launch.
+The public launch bundle then carries the release binding used by later
+operations; `operator_release_checks_devnet_and_programdata` checks the live
+Devnet genesis, canonical ProgramData address, bytes, allocation and authority.
 
-`DEPLOYMENT_MANIFEST_SCHEMA_VERSION` in `deploymentManifest.ts` owns the manifest
-version; `deploymentManifest.test.ts` checks it. The manifest binds the deployed ProgramData and allocation, compiled
-catalog version and hash, exact launch day and seed plan, and keeper release. The v5
-dependency is one-way: frozen SBF and observed ProgramData, unique Fly release
-tag, keeper fingerprint,
-launch-plan fingerprint, then the final manifest. Fly exposes a unique
-`deployment-<ULID>` release tag to the worker; any later Fly deploy invalidates
-write authority. No v4 manifest, fingerprint, account, or approval is reusable.
+From the repository root, `NO_DNA=1 pnpm chain plan deploy --bundle build/chain/deploy.json`
+quotes an already frozen SBF using public payer, buffer and upgrade-authority
+addresses. It plans buffer creation, bounded byte writes and initial deployment
+without loading a signer. `operator_plan_saves_one_public_bundle_without_loading_a_signer`
+guards the public planning path. `deployment_instruction_bytes_and_accounts_match_the_rust_loader`
+compares every loader instruction and account with the Rust SDK's emitted bytes.
+The bundle records exact rent, fees, spend and reserve. Program upgrades remain
+outside this fresh-bootstrap command; `operator_cli_options_and_exact_amounts_fail_closed`
+rejects unsupported operations.
 
-### Deployment
+`NO_DNA=1 pnpm chain plan launch --bundle build/chain/launch.json` binds the
+deployed release, keeper fingerprint, launch day and cutoff. It quotes any
+needed authority/team funding, then five transactions: paused protocol and
+Kredit-vault initialization, cadence funding, two Daily preparations, and the
+atomic first-Daily deposit, unpause and activation. The test
+`plans the full fresh bootstrap and one atomic launch transaction` in
+`launchPlanner.test.ts` checks that order. Public input names are listed by
+`NO_DNA=1 pnpm chain --help`; `chain_entrypoints_load_offline_under_tsx` checks
+that the entry point loads without release inputs.
 
-Preparation is two exact, independently approved bundles. From `tools/chain`,
-`NO_DNA=1 pnpm chain:devnet:deploy` plans the v5 program operation from an
-already frozen SBF. Its live read-only preflight binds Devnet genesis, the
-derived ProgramData address, artifact and padded ProgramData hashes, allocation,
-rent, fees, signer public keys, spend, and reserve. The planner never rebuilds
-the artifact or copies a program keypair. The observed result, not an abandoned
-manifest, supplies the deployed inputs for the rest of the bootstrap.
+`NO_DNA=1 pnpm chain plan top-up --launch-bundle build/chain/launch.json --top-up daily:current:1SOL --bundle build/chain/top-up.json`
+uses the launch binding and program deposit instruction. Amounts carry an
+explicit SOL or lamports suffix; current, following or an exact scheduled day
+identify the Daily. The command combines the approved deposits into one
+transaction and pins their seeded balances;
+`operator_cli_options_and_exact_amounts_fail_closed` and
+`operator_top_up_rejects_seeded_balance_drift_and_a_closed_window` guard amount
+parsing, canonical windows and state drift. A direct transfer to a Daily PDA
+would bypass its seeded ledger; this command uses the same deposit instruction
+checked by `routes a chosen amount to the exact selected prize-pool PDA`.
 
-After the program and independently fingerprinted keeper release exist,
-`NO_DNA=1 pnpm chain:devnet:launch` produces the unsigned fresh-bootstrap
-bundle. It requires every protocol target to be absent, calculates the exact
-deployer funding transaction, initializes the paused protocol and Kredit vault,
-seeds the explicitly approved recyclable cadence-rent float, prepares the current
-and following Daily accounts from that float, and ends
-with one atomic transaction that seeds the first Daily, unpauses, and activates
-it. Its approval expires at the specified pre-entry cutoff. Its five transactions are
-protocol and Kredit vault initialization, cadence funding, two Daily
-preparations, and the atomic launch;
-`launchPlanner.test.ts` pins its complete instruction order. The planner has no
-signing or sending path. Transaction indices and the cadence-rent funding amount
-come only from that v5 plan and are never inherited from an earlier shape.
+`NO_DNA=1 pnpm chain plan set-suspension --launch-bundle build/chain/launch.json --until-day 21000 --bundle build/chain/suspension.json`
+plans the explicit governance veto with the pinned protocol authority.
+`sets the explicit suspension boundary and seeds cadence funding` checks its
+instruction; `operator_rebuild_rejects_changed_instruction_bytes_before_loading_a_signer`
+checks that execution rebuilds the approved bytes. Suspension stays outside
+the keeper allowlist, guarded by `keeper_allowlist_is_exactly_its_plans`.
 
-`NO_DNA=1 pnpm chain:devnet:launch` is the separate approval-gated executor. Its
-`stage` mode simulates, signs once, confirms, and re-reads the planner-declared
-staging transactions, leaving the protocol paused and writing a public launch
-bundle under `/tmp`. A signed receipt is atomically persisted before each
-submission, so `resume` can verify the exact approved message, signer, signature
-status, and blockhash before relaying or re-signing an interrupted pass. The
-deployed keeper must then report `staged_launch_ready` for the approved release
-fingerprint. Only `activate` mode can submit the planner-declared activation
-transaction; it re-verifies the bundle hash, Devnet genesis, ProgramData,
-account contents, cutoff, signer, keeper evidence, and exact instruction bytes
-before the atomic seed/unpause. No client or Fly process contains an
-unconditional launch path.
-
-No initialization has been performed and no keeper release is write-enabled.
-The abandoned v4 deployment's recovery state, release fingerprint, and recurring
-authority are void and grant nothing. A fresh bootstrap requires new approvals
-for deployment, keeper enablement, seeding, and activation, each enumerated
-exactly and none inherited.
-
-### Manual prize top-up
-
-Never transfer SOL directly to a Daily PDA; that does not update its seeded-funds
-ledger. This procedure exists only after a fresh v5 manifest has been generated
-and approved. From `tools/chain`, this read-only plan resolves the confirmed Daily,
-validates that manifest and the live accounts, combines instructions atomically,
-simulates without a signer, and writes a public bundle under `/tmp`:
-
-```bash
-NO_DNA=1 pnpm chain:devnet:top-up -- plan \
-  --manifest <approved-v5-manifest-path> \
-  --top-up daily:current:1SOL
-```
-
-Amounts require an explicit `SOL` or `lamports` suffix, and the Daily may be
-`current`, `following`, or an exact numeric ID. The printed bundle pins Devnet
-genesis, ProgramData hash and allocation, protocol authority, exact Daily PDAs,
-instruction bytes, seeded balances, maximum fee and spend, and the post-write
-authority reserve. Execution is a separate command, valid only after the entire
-printed bundle receives exact approval:
-
-```bash
-ZKUBE_PRIZE_TOP_UP_APPROVAL=<printed-64-hex-fingerprint> \
-ZKUBE_PROTOCOL_AUTHORITY_KEYPAIR=<pinned-authority-path> \
-NO_DNA=1 pnpm chain:devnet:top-up -- execute \
-  --bundle <printed-bundle-path>
-```
-
-The executor loads no keypair until the fingerprint matches. It then rechecks
-the deployment and live cadence window, refuses seeded-balance drift, enforces
-the approved fee and reserve, simulates the signed atomic transaction, persists
-its receipt before relay, confirms it, and verifies each seeded balance. The
-command deliberately rejects Mainnet. Mainnet enablement requires a separately
-reviewed release binding the approved Mainnet genesis, deployment manifest,
-program, authority, economics, distribution decision, and operational policy;
-Devnet approval or this command's existence grants none of those permissions.
-
-### Daily suspension
-
-From `tools/chain`, `chain:devnet:set-suspension plan` writes a public bundle
-under `build/`; the command's help lists its release inputs and day argument.
-`suspension_plan_pins_the_authority_day_and_exact_instruction_without_a_signer`
-checks the read-only proposal. After exact approval, `chain:devnet:set-suspension execute`
-uses `ZKUBE_APPROVAL` and the pinned protocol-authority signer, retaining a
-receipt before relay through the launch runner's shared execution path.
-`suspension_without_the_exact_fingerprint_loads_no_keypair` guards the approval
-boundary. Governance remains outside the keeper allowlist, pinned by
-`keeper_allowlist_is_exactly_its_plans`.
+Only after exact approval, `ZKUBE_APPROVAL=<fingerprint> NO_DNA=1 pnpm chain execute --bundle <path>`
+rebuilds the public plan and checks its fingerprint before loading any keypair.
+`ZKUBE_SIGNER_PATHS` maps the approved public keys to existing signer files;
+`operator_missing_fingerprint_loads_no_keypair` guards that boundary, and
+`operator_signer_read_errors_do_not_echo_file_contents` guards error output. One
+sign, simulate, persist, relay and confirm path serves every operation;
+`operator_signed_simulation_and_durable_receipt_precede_relay` and
+`operator_fee_spend_reserve_and_simulation_failures_prevent_relay` guard its
+ordering and approved bounds. Receipts are saved atomically before relay, and
+resumption reuses or confirms their exact signed bytes;
+`operator_receipts_resume_without_repeating_confirmed_transactions` and
+`operator_pending_receipts_relay_the_same_bytes_without_loading_a_signer` guard
+interruption recovery. `--until <index>` stops after the printed inclusive
+transaction index; `operator_until_stops_after_the_requested_transaction_and_resumes_that_prefix`
+guards staging and resumption. Activation additionally requires the verified
+`ZKUBE_KEEPER_STAGED_RELEASE_FINGERPRINT` and the unexpired launch cutoff;
+`operator_until_is_an_inclusive_bounded_index_and_activation_requires_the_keeper`
+and `refuses planning after the exact launch cutoff` guard those boundaries.
+No command grants recurring keeper authority or Mainnet approval.
 
 ### Gate G1 — physical-device wallet matrix
 

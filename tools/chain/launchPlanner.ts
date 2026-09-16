@@ -1,6 +1,4 @@
 import { launchDayFromEnv } from "../../shared/chain.js";
-import { BorshAccountsCoder, convertIdlToCamelCase } from "@anchor-lang/core";
-import { IDL } from "./idl/index.js";
 import { createHash } from "node:crypto";
 import {
   Connection,
@@ -16,27 +14,23 @@ import {
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
 } from "./adminClient.js";
-import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest.js";
-import { inspectUpgradeableProgram } from "./deploymentRunner.js";
+import { LAUNCH_DAILY_SEED_LAMPORTS } from "./adminClient.js";
+import { assertDevnetRelease, accountCoder, OPERATOR_RESERVE_LAMPORTS, devnetEndpoint } from "./chainRelease.js";
 import {
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
-import { SECONDS_PER_DAY } from "../../services/src/protocolVersions.generated.js";
+import { SECONDS_PER_DAY, DAILY_RUN_CLOSE_OFFSET } from "../../services/src/protocolVersions.generated.js";
 import { createReadOnlyWallet } from "./readOnlyWallet.js";
 import type { TransactionPlan } from "./program.js";
-import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "./constants.js";
+import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 
-const RUN_FREEZE_OFFSET_SECONDS = 23 * 60 * 60 + 59 * 60;
-const DEFAULT_AUTHORITY_RESERVE_LAMPORTS = 100_000_000;
-const DEFAULT_DEPLOYER_RESERVE_LAMPORTS = 100_000_000;
 const TEAM_DESTINATION_FUNDING_LAMPORTS = 1_000_000;
 const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
 
 /** Fixed account allocations come from the same IDL as the instruction builders. */
-const accountCoder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
 export const LAUNCH_ACCOUNT_SPACES = {
   protocolConfig: accountCoder.size("protocolConfig"),
   creditVault: accountCoder.size("creditVault"),
@@ -79,18 +73,9 @@ export interface LaunchCostPlan {
   requiredDeployerBalanceLamports: number;
 }
 
-export interface ZkubeLaunchPlan {
-  input: LaunchPlannerInput;
-  observedUnixTimestamp: number;
-  programDataAddress: string;
-  fundingPlan?: TransactionPlan;
-  plans: TransactionPlan[];
-  phases: Array<{ label: string; transactionIndexes: number[] }>;
-  costs: LaunchCostPlan;
-  approvalPayload: unknown;
-  approvalEvidenceSha256: string;
-  approvalFingerprint: string;
-}
+export type LaunchSettings = Pick<LaunchPlannerInput,
+  "deployer" | "authority" | "teamDestination" | "replayDomainHex" | "launchDayId" |
+  "launchCutoffUnixTimestamp" | "keeperReleaseFingerprint" | "authorityReserveLamports" | "deployerReserveLamports">;
 
 export function launchPlannerInputFromEnv(
   env: Record<string, string | undefined> = process.env,
@@ -100,15 +85,9 @@ export function launchPlannerInputFromEnv(
     throw new Error("ZKUBE_CLUSTER=devnet is required for launch planning");
   }
   const baseRpc = devnetEndpoint(
-    required(env, "VITE_PUBLIC_SOLANA_RPC_ENDPOINT"),
+    required(env, "SOLANA_DEVNET_RPC_URL"),
   );
-  const expectedGenesisHash = required(
-    env,
-    "VITE_PUBLIC_SOLANA_EXPECTED_GENESIS_HASH",
-  );
-  if (expectedGenesisHash !== SOLANA_DEVNET_GENESIS_HASH) {
-    throw new Error("launch planner requires the Solana Devnet genesis hash");
-  }
+  const expectedGenesisHash = SOLANA_DEVNET_GENESIS_HASH;
   return {
     cluster: "devnet",
     baseRpc,
@@ -122,10 +101,7 @@ export function launchPlannerInputFromEnv(
       required(env, "ZKUBE_TEAM_DESTINATION"),
       "team destination",
     ),
-    replayDomainHex: hash(
-      required(env, "ZKUBE_REPLAY_DOMAIN_HEX"),
-      "replay domain",
-    ),
+    replayDomainHex: canonicalDevnetReplayDomainHex(),
     launchDayId: launchDayFromEnv(env),
     launchCutoffUnixTimestamp: positiveInteger(
       required(env, "ZKUBE_LAUNCH_CUTOFF_UNIX"),
@@ -152,53 +128,29 @@ export function launchPlannerInputFromEnv(
           env.ZKUBE_LAUNCH_AUTHORITY_RESERVE_LAMPORTS,
           "authority reserve",
         )
-      : DEFAULT_AUTHORITY_RESERVE_LAMPORTS,
+      : OPERATOR_RESERVE_LAMPORTS,
     deployerReserveLamports: env.ZKUBE_LAUNCH_DEPLOYER_RESERVE_LAMPORTS
       ? positiveInteger(
           env.ZKUBE_LAUNCH_DEPLOYER_RESERVE_LAMPORTS,
           "deployer reserve",
         )
-      : DEFAULT_DEPLOYER_RESERVE_LAMPORTS,
+      : OPERATOR_RESERVE_LAMPORTS,
   };
 }
 
 /**
- * Builds and fingerprints every unsigned bootstrap transaction. It has no
- * signer input and deliberately exposes no transaction-send function.
+ * Quotes the unsigned bootstrap from public state and the frozen release binding.
  */
-export async function buildZkubeLaunchPlan(
+export async function quoteLaunchCosts(
   input: LaunchPlannerInput,
   connection: Connection,
-): Promise<ZkubeLaunchPlan> {
-  const genesisHash = await connection.getGenesisHash();
-  if (genesisHash !== input.expectedGenesisHash) {
-    throw new Error(`Devnet genesis mismatch: received ${genesisHash}`);
-  }
-  if (input.replayDomainHex !== canonicalDevnetReplayDomainHex()) {
-    throw new Error(
-      "launch replay domain is not canonical for this Devnet program",
-    );
-  }
-  const deployer = new PublicKey(input.deployer);
-  const authority = new PublicKey(input.authority);
+): Promise<LaunchCostPlan> {
+  await assertDevnetRelease(connection, { rpc: input.baseRpc,
+    programDataSha256: input.deployedProgramDataSha256,
+    allocationBytes: input.programAllocationBytes, upgradeAuthority: input.programUpgradeAuthority });
+  if (input.replayDomainHex !== canonicalDevnetReplayDomainHex()) throw new Error("Launch replay domain is not canonical");
+  const deployer = new PublicKey(input.deployer), authority = new PublicKey(input.authority);
   const teamDestination = new PublicKey(input.teamDestination);
-  const programState = await inspectUpgradeableProgram(
-    connection,
-    ZKUBE_PROGRAM_ID,
-  );
-  if (
-    programState.deployedSbfSha256 !== input.deployedProgramDataSha256 ||
-    programState.programCapacityBytes !== input.programAllocationBytes
-  ) {
-    throw new Error(
-      "live ProgramData hash or allocation does not match release input",
-    );
-  }
-  if (programState.upgradeAuthority !== input.programUpgradeAuthority) {
-    throw new Error(
-      "live program upgrade authority does not match release input",
-    );
-  }
   const slot = await connection.getSlot("confirmed");
   const observedUnixTimestamp = await connection.getBlockTime(slot);
   if (observedUnixTimestamp === null) {
@@ -239,40 +191,7 @@ export async function buildZkubeLaunchPlan(
     );
   }
 
-  const wallet = createReadOnlyWallet(authority);
-  const plans: TransactionPlan[] = [];
-  plans.push(
-    await buildInitializeProtocolPlan({
-      connection,
-      authority: wallet,
-      config: {
-        teamDestination,
-        replayDomain: Uint8Array.from(
-          Buffer.from(input.replayDomainHex, "hex"),
-        ),
-      },
-    }),
-  );
-  plans.push(
-    await buildSeedCadenceFundingPlan({
-      connection,
-      authority: wallet,
-    }),
-  );
-  plans.push(
-    ...(await buildPrepareLaunchPeriodPlans({
-      connection,
-      authority: wallet,
-      dayId: input.launchDayId,
-    })),
-  );
-  plans.push(
-    await buildAtomicArcadeLaunchPlan({
-      connection,
-      authority: wallet,
-      dayId: input.launchDayId,
-    }),
-  );
+  const plans = await launchTransactionPlans(input, connection);
 
   const accountSpaces = [
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
@@ -328,14 +247,6 @@ export async function buildZkubeLaunchPlan(
       `deployer balance ${deployerBalance} is below launch funding floor ${requiredDeployerBalanceLamports}`,
     );
   }
-  const fundingPlan = buildFundingPlan({
-    connection,
-    deployer,
-    authority,
-    teamDestination,
-    authorityFundingLamports,
-    teamFundingLamports,
-  });
   const costs: LaunchCostPlan = {
     accountRentLamports,
     seedLamports,
@@ -353,83 +264,7 @@ export async function buildZkubeLaunchPlan(
     deployerReserveLamports: input.deployerReserveLamports,
     requiredDeployerBalanceLamports,
   };
-  const phases = [
-    { label: "Initialize paused protocol and Kredit vault", transactionIndexes: [0] },
-    {
-      label: "Seed cadence rent and prepare current/following Daily",
-      transactionIndexes: [1, 2, 3],
-    },
-    { label: "Atomic 1 SOL seed, unpause, and activation", transactionIndexes: [4] },
-  ];
-  const approvalPayload = {
-    operation: "fresh-paused-bootstrap-and-launch",
-    input,
-    observed: {
-      programId: ZKUBE_PROGRAM_ID.toBase58(),
-      programDataAddress: programState.programDataAddress.toBase58(),
-      freshTargetAccounts: targetAccounts.map((address) => address.toBase58()),
-    },
-    phases,
-    costs,
-    fundingTransaction: fundingPlan ? publicLaunchPlan(fundingPlan) : null,
-    transactions: plans.map(publicLaunchPlan),
-    policy: {
-      signingSupported: "separate-exact-approval-runner",
-      sendingSupported: "separate-exact-approval-runner",
-      initialProtocolPaused: true,
-      seedUnpauseActivateAtomic: true,
-    },
-  };
-  const approvalEvidenceSha256 = createHash("sha256")
-    .update(JSON.stringify(approvalPayload))
-    .digest("hex");
-  return {
-    input,
-    observedUnixTimestamp,
-    programDataAddress: programState.programDataAddress.toBase58(),
-    ...(fundingPlan ? { fundingPlan } : {}),
-    plans,
-    phases,
-    costs,
-    approvalPayload,
-    approvalEvidenceSha256,
-    approvalFingerprint: approvalEvidenceSha256,
-  };
-}
-
-export function formatZkubeLaunchPlan(plan: ZkubeLaunchPlan): string {
-  return [
-    "zKube paused bootstrap and launch plan",
-    "Mode: read-only unsigned plan",
-    `Program: ${ZKUBE_PROGRAM_ID.toBase58()}`,
-    `ProgramData: ${plan.programDataAddress}`,
-    `ProgramData SHA-256: ${plan.input.deployedProgramDataSha256}`,
-    `ProgramData allocation: ${plan.input.programAllocationBytes} bytes`,
-    `Authority: ${plan.input.authority}`,
-    `Launch day: ${plan.input.launchDayId}`,
-    `Launch cutoff: ${plan.input.launchCutoffUnixTimestamp}`,
-    `Observed chain time: ${plan.observedUnixTimestamp}`,
-    `Transactions: ${plan.costs.transactionCount}`,
-    `Account rent: ${plan.costs.accountRentLamports} lamports`,
-    `Seeds: ${plan.costs.seedLamports} lamports (1 SOL Daily + cadence rent)`,
-    `Maximum fees: ${plan.costs.maximumFeeLamports} lamports`,
-    `Maximum authority spend: ${plan.costs.maximumAuthoritySpendLamports} lamports`,
-    `Required post-plan reserve: ${plan.costs.authorityReserveLamports} lamports`,
-    `Required authority balance: ${plan.costs.requiredAuthorityBalanceLamports} lamports`,
-    `Current authority balance: ${plan.costs.authorityBalanceLamports} lamports`,
-    `Authority funding: ${plan.costs.authorityFundingLamports} lamports`,
-    `Team destination funding: ${plan.costs.teamFundingLamports} lamports`,
-    `Maximum deployer spend: ${plan.costs.maximumDeployerSpendLamports} lamports`,
-    `Required deployer balance: ${plan.costs.requiredDeployerBalanceLamports} lamports`,
-    `Replay domain: ${plan.input.replayDomainHex}`,
-    `Keeper release fingerprint: ${plan.input.keeperReleaseFingerprint}`,
-    `Approval fingerprint: ${plan.approvalFingerprint}`,
-    ...plan.phases.map(
-      (phase) =>
-        `[planned] ${phase.label}: transactions ${phase.transactionIndexes.join(",")}`,
-    ),
-    "No transaction was signed or sent. This planner has no send path.",
-  ].join("\n");
+  return costs;
 }
 
 function assertLaunchWindow(
@@ -439,7 +274,7 @@ function assertLaunchWindow(
 ): void {
   const opensAt = multiplySafe(dayId, SECONDS_PER_DAY, "launch day clock");
   const runsCloseAt = sumSafe(
-    [opensAt, RUN_FREEZE_OFFSET_SECONDS],
+    [opensAt, DAILY_RUN_CLOSE_OFFSET],
     "run freeze",
   );
   if (
@@ -472,8 +307,7 @@ export function canonicalDevnetReplayDomainHex(): string {
     .digest("hex");
 }
 
-function buildFundingPlan(args: {
-  connection: Connection;
+export function buildFundingPlan(args: {
   deployer: PublicKey;
   authority: PublicKey;
   teamDestination: PublicKey;
@@ -501,36 +335,10 @@ function buildFundingPlan(args: {
   }
   if (transaction.instructions.length === 0) return undefined;
   return {
-    layer: "solana-base",
     label: "Fund launch authority and team destination",
-    connection: args.connection,
     transaction,
     feePayer: args.deployer,
-    signers: [],
   };
-}
-
-export function publicLaunchPlan(plan: TransactionPlan) {
-  return {
-    layer: plan.layer,
-    label: plan.label,
-    feePayer: plan.feePayer.toBase58(),
-    instructions: plan.transaction.instructions.map((instruction) => ({
-      programId: instruction.programId.toBase58(),
-      accounts: instruction.keys.map((account) => ({
-        publicKey: account.pubkey.toBase58(),
-        signer: account.isSigner,
-        writable: account.isWritable,
-      })),
-      dataBase64: Buffer.from(instruction.data).toString("base64"),
-    })),
-  };
-}
-
-export function launchTransactionSha256(plan: TransactionPlan): string {
-  return createHash("sha256")
-    .update(JSON.stringify(publicLaunchPlan(plan)))
-    .digest("hex");
 }
 
 async function liveSingleSignerFee(
@@ -602,19 +410,6 @@ function positiveInteger(
   return parsed;
 }
 
-function devnetEndpoint(value: string): string {
-  const endpoint = new URL(value);
-  if (
-    endpoint.protocol !== "https:" ||
-    /mainnet|localhost|127\.0\.0\.1|localnet/i.test(value)
-  ) {
-    throw new Error(
-      "launch RPC must be HTTPS Devnet, never mainnet or localhost",
-    );
-  }
-  return endpoint.toString().replace(/\/$/, "");
-}
-
 function sumSafe(values: readonly number[], label: string): number {
   return values.reduce((total, value) => {
     const next = total + value;
@@ -631,4 +426,44 @@ function multiplySafe(left: number, right: number, label: string): number {
     throw new Error(`${label} overflow`);
   }
   return value;
+}
+
+export async function launchTransactionPlans(input: LaunchSettings, connection: Connection): Promise<TransactionPlan[]> {
+  const wallet = createReadOnlyWallet(new PublicKey(input.authority));
+  const teamDestination = new PublicKey(input.teamDestination);
+  const plans: TransactionPlan[] = [];
+  plans.push(
+    await buildInitializeProtocolPlan({
+      connection,
+      authority: wallet,
+      config: {
+        teamDestination,
+        replayDomain: Uint8Array.from(
+          Buffer.from(input.replayDomainHex, "hex"),
+        ),
+      },
+    }),
+  );
+  plans.push(
+    await buildSeedCadenceFundingPlan({
+      connection,
+      authority: wallet,
+    }),
+  );
+  plans.push(
+    ...(await buildPrepareLaunchPeriodPlans({
+      connection,
+      authority: wallet,
+      dayId: input.launchDayId,
+    })),
+  );
+  plans.push(
+    await buildAtomicArcadeLaunchPlan({
+      connection,
+      authority: wallet,
+      dayId: input.launchDayId,
+    }),
+  );
+
+  return plans;
 }
