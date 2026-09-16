@@ -14,7 +14,7 @@ import {
   type DailySnapshot,
   type ProtocolSnapshot,
 } from "../src/arcadeReconciliation";
-import { operationPriority } from "../src/keeper";
+import { KEEPER_PLAN_INSTRUCTION } from "../src/arcadeChain";
 
 const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
@@ -70,14 +70,14 @@ describe("v5 Daily keeper reconciliation", () => {
 
   it("routes terminal Arcade runs by location", () => {
     const baseOwner = Keypair.generate().publicKey;
-    const rankedOwner = Keypair.generate().publicKey;
+    const arcadeOwner = Keypair.generate().publicKey;
     const plans = discoverReconciliationPlans({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
         runs: [
-          { ...rankedRun(baseOwner, "terminal", "base"), runId: 1n },
-          rankedRun(rankedOwner, "terminal", "ephemeral_rollup"),
+          { ...arcadeRun(baseOwner, "terminal", "base"), runId: 1n },
+          arcadeRun(arcadeOwner, "terminal", "ephemeral_rollup"),
         ],
       }),
       nowUnix: NOW,
@@ -96,12 +96,12 @@ describe("v5 Daily keeper reconciliation", () => {
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
         runs: [
-          rankedRun(Keypair.generate().publicKey, "terminal", "ephemeral_rollup"),
-          { ...rankedRun(Keypair.generate().publicKey, "terminal", "base"), runId: 4n },
-          rankedRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
-          rankedRun(Keypair.generate().publicKey, "unavailable", "unavailable"),
+          arcadeRun(Keypair.generate().publicKey, "terminal", "ephemeral_rollup"),
+          { ...arcadeRun(Keypair.generate().publicKey, "terminal", "base"), runId: 4n },
+          arcadeRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
+          arcadeRun(Keypair.generate().publicKey, "unavailable", "unavailable"),
           {
-            ...rankedRun(Keypair.generate().publicKey, "playing", "base"),
+            ...arcadeRun(Keypair.generate().publicKey, "playing", "base"),
             runId: 5n,
             reservationActive: false,
           },
@@ -122,14 +122,14 @@ describe("v5 Daily keeper reconciliation", () => {
       .toBe(true);
   });
 
-  it("finishes reachable ER state and expires unavailable ranked state", () => {
+  it("finishes reachable ER state and expires unavailable arcade state", () => {
     const plans = discoverReconciliationPlans({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
         runs: [
-          rankedRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
-          rankedRun(Keypair.generate().publicKey, "unavailable", "unavailable"),
+          arcadeRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
+          arcadeRun(Keypair.generate().publicKey, "unavailable", "unavailable"),
         ],
       }),
       nowUnix: NOW,
@@ -155,7 +155,7 @@ describe("v5 Daily keeper reconciliation", () => {
     const finalization = plans.find(({ operation }) =>
       operation === "finalize_arena_daily");
     expect(finalization?.context).toMatchObject({
-      competition: "daily",
+
       dayId: DAY,
       followingDayId: DAY + 1,
       scorePayoutCount: 2,
@@ -238,12 +238,12 @@ describe("v5 Daily keeper reconciliation", () => {
   });
 
   it("keeps monetary, archive, and cleanup ordering stable", () => {
-    expect(operationPriority("finalize_arena_daily"))
-      .toBeLessThan(operationPriority("archive_arena_daily"));
-    expect(operationPriority("archive_arena_daily"))
-      .toBeLessThan(operationPriority("expire_daily_claims"));
-    expect(operationPriority("expire_daily_claims"))
-      .toBeLessThan(operationPriority("close_arena_daily"));
+    expect(KEEPER_PLAN_INSTRUCTION.finalize_arena_daily.priority)
+      .toBeLessThan(KEEPER_PLAN_INSTRUCTION.archive_arena_daily.priority);
+    expect(KEEPER_PLAN_INSTRUCTION.archive_arena_daily.priority)
+      .toBeLessThan(KEEPER_PLAN_INSTRUCTION.expire_daily_claims.priority);
+    expect(KEEPER_PLAN_INSTRUCTION.expire_daily_claims.priority)
+      .toBeLessThan(KEEPER_PLAN_INSTRUCTION.close_arena_daily.priority);
   });
 });
 
@@ -325,7 +325,7 @@ function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
   };
 }
 
-function rankedRun(
+function arcadeRun(
   owner: PublicKey,
   lifecycle: "playing" | "terminal" | "unavailable",
   location: "base" | "ephemeral_rollup" | "unavailable",

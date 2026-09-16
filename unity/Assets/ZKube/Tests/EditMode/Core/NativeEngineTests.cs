@@ -101,6 +101,15 @@ namespace ZKube.Core.Tests
                 Is.EqualTo(NativeStatus.InvalidEncoding));
         }
 
+        [Test] public void BoardOrderingUsesTheCoreAtMetricAndTimestampBounds()
+        {
+            byte[] a = new byte[32], b = new byte[32]; for (int i = 0; i < b.Length; i++) b[i] = 255;
+            Assert.AreEqual(-1, NativeEngine.CompareBoardEntries(ulong.MaxValue, long.MaxValue, b, 0, long.MinValue, a));
+            Assert.AreEqual(-1, NativeEngine.CompareBoardEntries(1, long.MinValue, b, 1, long.MaxValue, a));
+            Assert.AreEqual(-1, NativeEngine.CompareBoardEntries(1, 1, a, 1, 1, b));
+            Assert.AreEqual(0, NativeEngine.CompareBoardEntries(1, 1, a, 1, 1, a));
+        }
+
         [Test] public void DailyWindowUsesTheCoreAcrossTheFullDayRange()
         {
             foreach (var vector in Read<Trajectories>("native-run-trajectories.json").dailyWindows)

@@ -15,7 +15,8 @@ import {
   cadenceFundingPda,
   arenaDailyPda,
   type KeeperInstructionPlan,
-  type KeeperOperation,
+  KEEPER_PLAN_INSTRUCTION,
+  MAX_BOARD_RENT_LAMPORTS,
 } from "./arcadeChain.js";
 import {
   discoverReconciliation,
@@ -30,7 +31,6 @@ export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
 export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 100_000_000;
 const MAX_WRITES = 6;
 const MAX_BOARD_WRITES = 32;
-const MAX_BOARD_RENT_LAMPORTS = 1_802_208_480;
 
 export interface KeeperLogEvent {
   schemaVersion: 1;
@@ -134,7 +134,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     nowUnix,
   });
   const plans = [...reconciliation.plans].sort(
-    (left, right) => operationPriority(left.operation) - operationPriority(right.operation),
+    (left, right) => KEEPER_PLAN_INSTRUCTION[left.operation].priority - KEEPER_PLAN_INSTRUCTION[right.operation].priority,
   );
 
   let writes = 0;
@@ -485,25 +485,4 @@ function boundedRuntimeInteger(
 
 function safeError(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 240);
-}
-
-export function operationPriority(operation: KeeperOperation): number {
-  switch (operation) {
-    case "prepare_arena_daily": return 0;
-    case "activate_arena_daily": return 1;
-    case "skip_suspended_arena_daily": return 2;
-    case "finish_run": return 3;
-    case "commit_run": return 4;
-    case "consume_arena_run": return 6;
-    case "expire_unresolved_arena_run": return 7;
-    case "finalize_arena_daily": return 8;
-    case "submit_arena_board_chunk": return 9;
-    case "archive_arena_daily": return 10;
-    case "expire_daily_claims": return 11;
-    case "close_arena_daily": return 12;
-    case "cleanup_orphan_active_run": return 13;
-    case "close_arena_player": return 14;
-    default:
-      throw new Error(`keeper operation is outside the exact allowlist: ${String(operation)}`);
-  }
 }

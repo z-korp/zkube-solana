@@ -87,7 +87,7 @@ namespace ZKube.Integration.Client
             var args = call.Arguments;
             string kind = ((JObject)args["board"]).Properties().Single().Name.ToLowerInvariant();
             uint position = (uint)args["position"];
-            if ((kind != "score" && kind != "theme") || position >= ClientPolicy.ArenaBoardCapacity ||
+            if ((kind != "score" && kind != "theme") || position >= Protocol.ArenaBoardCapacity ||
                 call.Accounts["arena_board"] != Pda("arena_board", SolanaAddress.Bytes(call.Accounts["arena_daily"]), Encoding.UTF8.GetBytes(kind))) return false;
             var dailyEnvelope = Observed(evidence, call.Accounts["arena_daily"]);
             var boardEnvelope = Observed(evidence, call.Accounts["arena_board"]);

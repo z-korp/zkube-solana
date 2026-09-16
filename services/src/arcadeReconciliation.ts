@@ -2,13 +2,10 @@ import { PublicKey } from "@solana/web3.js";
 
 import {
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-  DAILY_RECOVERY_DEADLINE_OFFSET,
-  DAILY_RUN_CLOSE_OFFSET,
   KEEPER_RECENT_DAILY_CADENCES,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_CHUNK_CAPACITY,
   ARENA_ENTRY_LAMPORTS,
-  SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
   arcadeConfigPda,
   assertCadenceId,
@@ -24,7 +21,7 @@ import {
   type KeeperPlanContext,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
-import { dailyBoardPools, payoutPlan } from "./zkubeCore.js";
+import { dailyBoardPools, payoutPlan, dailyWindow, scheduledDailyWindow } from "./zkubeCore.js";
 
 export type PeriodStatus = "funding" | "open" | "finalized";
 export type RunLifecycle =
@@ -100,7 +97,7 @@ export interface RunSnapshot {
   owner: PublicKey;
   rentPayer?: PublicKey;
   runId: bigint;
-  /** The Daily owning this ranked run. */
+  /** The Daily owning this arcade run. */
   challengeDayId?: number;
   /** Ranked runs use their challenge day. */
   deadlineDayId?: number;
@@ -179,7 +176,7 @@ export function discoverReconciliation(args: {
   );
 
   if (!args.snapshot.paused) {
-    const activationCurrent = Math.max(today, args.snapshot.suspendedUntilDay);
+    const activationCurrent = scheduledDailyWindow(today, args.snapshot.suspendedUntilDay).first;
     const activationFollowing = nextScheduledDaily(
       activationCurrent,
       args.snapshot.suspendedUntilDay,
@@ -196,7 +193,7 @@ export function discoverReconciliation(args: {
           }));
         }
       } else if (daily.dayId === activationCurrent &&
-          args.nowUnix < today * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET) {
+          args.nowUnix < dailyWindow(today).runsCloseAt) {
         plans.push(validationOnlyPlan("activate_arena_daily", {
           dayId: daily.dayId,
           suspendedUntilDay: args.snapshot.suspendedUntilDay,
@@ -221,7 +218,7 @@ export function discoverReconciliation(args: {
   }
 
   const missingDay = firstMissingScheduledCadence(
-    Math.max(args.snapshot.launchDayId, args.snapshot.suspendedUntilDay),
+    scheduledDailyWindow(args.snapshot.launchDayId, args.snapshot.suspendedUntilDay).first,
     nextScheduledDaily(today, args.snapshot.suspendedUntilDay),
     dailyById,
   );
@@ -309,7 +306,7 @@ function appendBoardConstructionPlans(
       continue;
     }
     plans.push(validationOnlyPlan("submit_arena_board_chunk", {
-      competition: "daily",
+
       dayId: daily.dayId,
       boardKind: kind,
       boardCursor: board.cursor,
@@ -482,8 +479,7 @@ function requireCadenceFunding(context: KeeperPlanContext): void {
 
 function requireArchiveContext(context: KeeperPlanContext, today: number): void {
   requireRecentDay(context.dayId, today);
-  if (context.competition !== "daily" ||
-      !context.arcadeConfig?.equals(arcadeConfigPda()) ||
+  if (!context.arcadeConfig?.equals(arcadeConfigPda()) ||
       !context.cadenceFunding?.equals(cadenceFundingPda())) {
     throw new Error("keeper Daily root identity is invalid");
   }
@@ -511,7 +507,7 @@ function appendCadenceArchivePlan(
     ? snapshot.launchDayId
     : ordered.find(({ cadenceId }) => cadenceId > state.lastDailyId!)?.cadenceId;
   const contextFor = (candidate: CadenceArchiveCandidate) => ({
-    competition: "daily" as const,
+
     dayId: candidate.cadenceId,
     cadenceFunding: state.cadenceFunding,
     arcadeConfig: state.address,
@@ -621,9 +617,9 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     assertSafeTimestamp(daily.runsCloseAt);
     assertSafeTimestamp(daily.recoveryDeadlineAt);
     assertSafeTimestamp(daily.finalizedAt);
-    const start = daily.dayId * SECONDS_PER_DAY;
-    if (daily.runsCloseAt !== start + DAILY_RUN_CLOSE_OFFSET ||
-        daily.recoveryDeadlineAt !== start + DAILY_RECOVERY_DEADLINE_OFFSET) {
+    const window = dailyWindow(daily.dayId);
+    if (daily.runsCloseAt !== window.runsCloseAt ||
+        daily.recoveryDeadlineAt !== window.recoveryDeadlineAt) {
       throw new Error("Daily timing does not match its cadence id");
     }
     validatePredecessorFlag(
@@ -740,14 +736,14 @@ function validateRun(snapshot: ProtocolSnapshot, run: RunSnapshot): void {
   }
   if (run.challengeDayId === undefined ||
       run.deadlineDayId !== run.challengeDayId) {
-    throw new Error("ranked run cadence is invalid");
+    throw new Error("arcade run cadence is invalid");
   }
   assertCadenceId(run.challengeDayId, "run challenge day");
   const daily = snapshot.dailies.find(({ dayId }) => dayId === run.challengeDayId);
   if (!daily || run.runsCloseAt !== daily.runsCloseAt ||
       run.recoveryDeadlineAt !== daily.recoveryDeadlineAt ||
       !run.arenaPlayerExists) {
-    throw new Error("ranked run does not match its Daily");
+    throw new Error("arcade run does not match its Daily");
   }
 }
 
@@ -763,7 +759,7 @@ function appendFinalizationPlan(
   const payoutTotal = daily.settlement.winners
     .reduce((sum, winner) => sum + winner.payoutLamports, 0n);
   plans.push(validationOnlyPlan("finalize_arena_daily", {
-    competition: "daily",
+
     dayId: daily.dayId,
     followingDayId: successorDayId,
     scorePayoutCount: daily.settlement.winners

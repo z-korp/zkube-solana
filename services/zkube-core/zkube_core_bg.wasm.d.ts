@@ -21,6 +21,13 @@ export const finishRun: (a: number, b: number, c: number, d: number, e: number) 
 export const runScoreEligible: (a: number, b: number) => [number, number, number];
 export const runLatchedStarSources: (a: number, b: number) => [number, number, number];
 export const runEndReason: (a: number, b: number) => [number, number, number];
+export const dayIdAt: (a: bigint) => [number, number, number];
+export const dailyWindow: (a: number) => [number, number];
+export const dailyIsScheduled: (a: number, b: number) => number;
+export const scheduledDailyWindow: (a: number, b: number) => [number, number, number, number];
+export const nextScheduledDaily: (a: number, b: number) => [number, number, number];
+export const dailyPair: (a: number) => [number, number];
+export const compareBoardEntries: (a: bigint, b: bigint, c: number, d: number, e: bigint, f: bigint, g: number, h: number) => [number, number, number];
 export const dailyBoardPools: (a: bigint, b: number) => [number, number];
 export const boardWidth: (a: bigint, b: number, c: bigint, d: bigint) => [number, number, number, number];
 export const payoutPlan: (a: bigint, b: number, c: number, d: bigint, e: bigint) => [number, number, number, number];

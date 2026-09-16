@@ -4,6 +4,8 @@ import { PublicKey } from "@solana/web3.js";
 
 import {
   ARENA_BOARD_CAPACITY,
+  MAX_BOARD_RENT_LAMPORTS,
+  MIN_SUPPORTED_DAY_ID,
   ARENA_ENTRY_LAMPORTS,
   ENTRY_SPLIT_LAMPORTS,
   KEEPER_INSTRUCTION_ALLOWLIST,
@@ -30,7 +32,7 @@ export const KEEPER_RELEASE_POLICY = {
   replayVersion: 2,
   maximumWritesPerPass: 6,
   maximumBoardWritesPerPass: 32,
-  maximumBoardRentLamportsPerPass: 1_802_208_480,
+  maximumBoardRentLamportsPerPass: MAX_BOARD_RENT_LAMPORTS,
   recentCadenceWindow: {
     dailies: KEEPER_RECENT_DAILY_CADENCES,
   },
@@ -62,7 +64,7 @@ export function keeperReleaseRecord(input: KeeperReleaseInput) {
   if (input.idlHash !== KEEPER_EXPECTED_IDL_SHA256) {
     throw new Error("IDL hash does not match the keeper materializer");
   }
-  if (!Number.isSafeInteger(input.launchDayId) || input.launchDayId < 4 ||
+  if (!Number.isSafeInteger(input.launchDayId) || input.launchDayId < MIN_SUPPORTED_DAY_ID ||
       input.launchDayId > 0xffff_ffff) {
     throw new Error("launch day must be a supported u32 day");
   }

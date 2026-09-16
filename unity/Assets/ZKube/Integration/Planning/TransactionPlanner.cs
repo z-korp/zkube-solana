@@ -61,7 +61,7 @@ namespace ZKube.Integration.Planning
 
         public TransactionPlan Claim(PlannerActor actor, uint day, string kind, uint position)
         {
-            if ((kind != "score" && kind != "theme") || position >= ClientPolicy.ArenaBoardCapacity)
+            if ((kind != "score" && kind != "theme") || position >= Protocol.ArenaBoardCapacity)
                 throw new ArgumentException("Invalid board claim position");
             var keys = ActorAccounts(actor);
             keys["arena_daily"] = Daily(day); keys["arena_board"] = Board(day, kind); keys["player_state"] = Player(actor.Owner);

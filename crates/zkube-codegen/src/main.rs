@@ -9,11 +9,11 @@ use std::{fmt::Write as _, fs, path::PathBuf, process::ExitCode};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use zkube_core::{
-    ARCADE_ACCOUNT_VERSION, ARCADE_DAILY_RESULT_HASH_DOMAIN, ARENA_ENTRY_LAMPORTS, Bonus,
-    CAMPAIGN_TARGET_LADDER, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT,
-    DAILY_PAIR_SELECTION_SEED, DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES,
-    ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS, Guardian, PLAYER_STATE_ACCOUNT_VERSION,
-    PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules, SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS,
+    ARCADE_ACCOUNT_VERSION, ARENA_ENTRY_LAMPORTS, Bonus, CAMPAIGN_TARGET_LADDER, Constraint,
+    ConstraintKind, DAILY_MAX_MOVES, DAILY_PAIR_COUNT, DAILY_PAIR_SELECTION_SEED,
+    DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_LAMPORTS,
+    Guardian, PLAYER_STATE_ACCOUNT_VERSION, PRESSURE_STEP, PROTOCOL_ACCOUNT_VERSION, RunRules,
+    SECONDS_PER_DAY, SOL_PAYOUT_UNIT_LAMPORTS,
 };
 
 const FIXTURE: &str = "fixtures/campaign-v2.json";
@@ -316,6 +316,12 @@ fn render_tier_weights_rust(catalog: &CampaignCatalog) -> String {
 
 fn render_protocol_constants(catalog: &CampaignCatalog) -> String {
     let catalog_version = zkube_core::CATALOG_VERSION;
+    let board_capacity = zkube_program::state::ARENA_BOARD_CAPACITY;
+    let chunk_capacity = zkube_program::state::ARENA_BOARD_CHUNK_CAPACITY;
+    let entry_size = zkube_program::state::ARENA_BOARD_ENTRY_SIZE;
+    let max_board_rent = zkube_program::state::maximum_board_rent_lamports();
+    let close_offset = zkube_core::DAILY_RUN_CLOSE_OFFSET;
+    let recovery_seconds = zkube_core::RUN_RECOVERY_SECONDS;
     let reserved_bytes = zkube_core::PLAYER_STATE_RESERVED_BYTES;
     let tier_block_weights = &catalog.difficulty_weights;
     format!(
@@ -324,7 +330,12 @@ fn render_protocol_constants(catalog: &CampaignCatalog) -> String {
          export const PLAYER_STATE_ACCOUNT_VERSION = {PLAYER_STATE_ACCOUNT_VERSION} as const;\n\
          export const PLAYER_STATE_RESERVED_BYTES = {reserved_bytes} as const;\n\
          export const ARCADE_ACCOUNT_VERSION = {ARCADE_ACCOUNT_VERSION} as const;\n\
-         export const ARCADE_DAILY_RESULT_HASH_DOMAIN = \"{ARCADE_DAILY_RESULT_HASH_DOMAIN}\" as const;\n\
+         export const ARENA_BOARD_CAPACITY = {board_capacity} as const;\n\
+         export const ARENA_BOARD_CHUNK_CAPACITY = {chunk_capacity} as const;\n\
+         export const ARENA_BOARD_ENTRY_SIZE = {entry_size} as const;\n\
+         export const MAX_BOARD_RENT_LAMPORTS = {max_board_rent} as const;\n\
+         export const DAILY_RUN_CLOSE_OFFSET = {close_offset} as const;\n\
+         export const RUN_RECOVERY_SECONDS = {recovery_seconds} as const;\n\
          export const ARENA_ENTRY_LAMPORTS = {ARENA_ENTRY_LAMPORTS}n;\n\
          export const ENTRY_DAILY_LAMPORTS = {ENTRY_DAILY_LAMPORTS}n;\n\
          export const ENTRY_OPERATOR_LAMPORTS = {ENTRY_OPERATOR_LAMPORTS}n;\n\
@@ -458,9 +469,6 @@ mod tests {
         )));
         assert!(versions.contains("CATALOG_VERSION = 3"));
         assert!(versions.contains("PLAYER_STATE_RESERVED_BYTES = 18"));
-        assert!(
-            versions.contains("ARCADE_DAILY_RESULT_HASH_DOMAIN = \"zkube-arcade-daily-result-v5\"")
-        );
         assert!(versions.contains("ARENA_ENTRY_LAMPORTS = 10000000n"));
         assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
         assert!(versions.contains("PRESSURE_STEP = 15"));

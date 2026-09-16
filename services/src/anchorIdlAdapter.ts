@@ -18,17 +18,16 @@ import {
 } from "@solana/web3.js";
 
 import {
+  KEEPER_PLAN_INSTRUCTION,
+  MIN_SUPPORTED_DAY_ID,
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   ARENA_BOARD_CAPACITY,
   ARENA_BOARD_ENTRY_SIZE,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-  DAILY_RUN_CLOSE_OFFSET,
   PLAYER_STATE_ACCOUNT_VERSION,
   PLAYER_STATE_RESERVED_BYTES,
   PROTOCOL_ACCOUNT_VERSION,
-  RUN_RECOVERY_SECONDS,
-  SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
   ZKUBE_PROGRAM_ID,
   activeRunPda,
@@ -45,7 +44,7 @@ import {
   type KeeperOperation,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
-import { dailyBoardPools, payoutPlan } from "./zkubeCore.js";
+import { dailyBoardPools, payoutPlan, dailyWindow, compareBoardEntries } from "./zkubeCore.js";
 import {
   type DailySnapshot,
   type PeriodStatus,
@@ -72,9 +71,8 @@ const MAX_CADENCE_PERIODS = 10_000;
 const MAX_DISCOVERED_PLAYER_STATES = 10_000;
 export const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
-const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "2ca36852dbb338a3fec04a37b6eda0fa6768578b964636932e929e80179cae2b";
+  "4a578067e71dc9a63c6fe7e69545f413d811f4f99d0ec0e81c82c4962c3e3e08";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -84,22 +82,8 @@ const REQUIRED_ACCOUNTS = [
   "playerState",
   "protocolConfig",
 ] as const;
-const REQUIRED_INSTRUCTIONS = [
-  "prepareArenaDaily",
-  "activateArenaDaily",
-  "skipSuspendedArenaDaily",
-  "finishRun",
-  "commitRun",
-  "consumeArenaRun",
-  "expireUnresolvedArenaRun",
-  "cleanupOrphanActiveRun",
-  "finalizeArenaDaily",
-  "submitArenaBoardChunk",
-  "archiveArenaDaily",
-  "expireDailyClaims",
-  "closeArenaDaily",
-  "closeArenaPlayer",
-] as const;
+const REQUIRED_INSTRUCTIONS = Object.values(KEEPER_PLAN_INSTRUCTION).map(({ instruction }) =>
+  instruction.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()));
 
 interface RemainingAccountMeta {
   pubkey: PublicKey;
@@ -250,7 +234,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       };
       daily.snapshot.scoreSources = sources.score;
       daily.snapshot.themeSources = sources.theme;
-      const sourceSettlement = this.rankedSettlement(
+      const sourceSettlement = this.arcadeSettlement(
         sources.score,
         sources.theme,
         daily.snapshot.scoreQualifiedPlayers,
@@ -723,8 +707,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const output: LoadedDaily[] = [];
     for (const item of loaded) {
       const dayId = u32(item.value.dayId, "ArenaDaily day id");
-      const dayStart = dayId * SECONDS_PER_DAY;
-      const runsCloseAt = dayStart + DAILY_RUN_CLOSE_OFFSET;
+      const { runsCloseAt, recoveryDeadlineAt } = dailyWindow(dayId);
       if (!item.address.equals(arenaDailyPda(dayId))) {
         throw new Error("ArenaDaily PDA or cadence relationship is invalid");
       }
@@ -781,7 +764,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         themeClaimedMask = themeBoard.claimedMask;
         if (scoreBoard.construction.sealed && themeBoard.construction.sealed) {
           try {
-            settlement = this.rankedSettlement(
+            settlement = this.arcadeSettlement(
               scoreBoard.entries,
               themeBoard.entries,
               scoreQualifiedPlayers,
@@ -807,7 +790,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         status,
         finalizedAt,
         runsCloseAt,
-        recoveryDeadlineAt: runsCloseAt + RUN_RECOVERY_SECONDS,
+        recoveryDeadlineAt,
         entriesPaid: bigint(item.value.entriesPaid, "ArenaDaily paid entries"),
         entriesScored: bigint(item.value.entriesScored, "ArenaDaily scored entries"),
         entriesExpired: bigint(item.value.entriesExpired, "ArenaDaily expired entries"),
@@ -1093,13 +1076,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           ));
         } catch (error) {
           if (this.input.nowUnix <
-              player.activeRunDeadlineAt + RUN_RECOVERY_SECONDS) {
+              dailyWindow(currentDayId(player.activeRunDeadlineAt)).recoveryDeadlineAt) {
             throw error;
           }
           const daily = dailyByAddress.get(player.activeRunDaily.toBase58());
           const cadence = daily
             ? { challengeDayId: daily.dayId, deadlineDayId: daily.dayId }
-            : rankedCadenceFromDeadline(
+            : arcadeCadenceFromDeadline(
               player.activeRunDaily,
               player.activeRunDeadlineAt,
             );
@@ -1117,7 +1100,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             location: "unavailable",
             acceptedActions: 0,
             runsCloseAt: player.activeRunDeadlineAt,
-            recoveryDeadlineAt: player.activeRunDeadlineAt + RUN_RECOVERY_SECONDS,
+            recoveryDeadlineAt: dailyWindow(currentDayId(player.activeRunDeadlineAt)).recoveryDeadlineAt,
             reservationActive: true,
           });
         }
@@ -1189,10 +1172,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const daily = dailyByAddress.get(dailyAddress.toBase58());
     const cadence = daily
       ? { challengeDayId: daily.dayId, deadlineDayId: daily.dayId }
-      : rankedCadenceFromDeadline(dailyAddress, deadlineAt);
+      : arcadeCadenceFromDeadline(dailyAddress, deadlineAt);
     const arenaPlayerExists = await this.loadArenaPlayerExists(dailyAddress, owner);
     if (!arenaPlayerExists) {
-      throw new Error("ranked ActiveRun is missing its ArenaPlayer");
+      throw new Error("arcade ActiveRun is missing its ArenaPlayer");
     }
     return {
       owner,
@@ -1205,7 +1188,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       location,
       acceptedActions: u32(loaded.value.actionCounter, "ActiveRun action counter"),
       runsCloseAt: deadlineAt,
-      recoveryDeadlineAt: deadlineAt + RUN_RECOVERY_SECONDS,
+      recoveryDeadlineAt: dailyWindow(currentDayId(deadlineAt)).recoveryDeadlineAt,
       reservationActive,
     };
   }
@@ -1226,7 +1209,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     return true;
   }
 
-  private rankedSettlement(
+  private arcadeSettlement(
     scoreEntries: readonly BoardSourceSnapshot[],
     themeEntries: readonly BoardSourceSnapshot[],
     scoreQualifiedPlayers: number,
@@ -1410,11 +1393,8 @@ function compareBoardSources(
 ): number {
   const leftMetric = kind === "score" ? BigInt(left.score) : left.objectiveTotal;
   const rightMetric = kind === "score" ? BigInt(right.score) : right.objectiveTotal;
-  if (leftMetric !== rightMetric) return leftMetric > rightMetric ? -1 : 1;
-  if (left.finalizedAt !== right.finalizedAt) {
-    return left.finalizedAt - right.finalizedAt;
-  }
-  return Buffer.compare(left.owner.toBuffer(), right.owner.toBuffer());
+  return compareBoardEntries(leftMetric, left.finalizedAt, left.owner.toBytes(),
+    rightMetric, right.finalizedAt, right.owner.toBytes());
 }
 
 function sameSettlementOwners(
@@ -1448,14 +1428,14 @@ function assertIdlInterface(idl: Idl): void {
   }
 }
 
-function rankedCadenceFromDeadline(
+function arcadeCadenceFromDeadline(
   dailyAddress: PublicKey,
   deadlineAt: number,
 ): { challengeDayId: number; deadlineDayId: number } {
-  const challengeDayId = Math.floor(deadlineAt / SECONDS_PER_DAY);
-  if (deadlineAt - challengeDayId * SECONDS_PER_DAY !== DAILY_RUN_CLOSE_OFFSET ||
+  const challengeDayId = currentDayId(deadlineAt);
+  if (deadlineAt !== dailyWindow(challengeDayId).runsCloseAt ||
       !dailyAddress.equals(arenaDailyPda(challengeDayId))) {
-    throw new Error("ranked ActiveRun closed-Daily cadence is invalid");
+    throw new Error("arcade ActiveRun closed-Daily cadence is invalid");
   }
   return { challengeDayId, deadlineDayId: challengeDayId };
 }

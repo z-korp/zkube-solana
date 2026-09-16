@@ -4,10 +4,9 @@
 use crate::run::{bonus_tag, end_reason_tag, phase_tag};
 use crate::{
     BoundaryError, RUN_CONFIG_LEN, RUN_STATE_LEN, array_32, board_width, build_run_config,
-    daily_board_pools, daily_pair_index, decode_run_state, empty_continuation_rows,
-    encode_board_pools, encode_board_width, encode_run_state, initial_replay_commitment,
-    initialize_run, ladder_points, ladder_tier, ladder_tier_floor, payout_for_rank,
-    qualified_player_id, reconcile_run_state,
+    daily_board_pools, decode_run_state, empty_continuation_rows, encode_board_pools,
+    encode_board_width, encode_run_state, initial_replay_commitment, initialize_run, ladder_points,
+    ladder_tier, ladder_tier_floor, payout_for_rank, qualified_player_id, reconcile_run_state,
 };
 use zkube_core::{PresentationEvent, PresentationObserver, Run, RunEndReason, SoftwareSha256};
 
@@ -244,6 +243,11 @@ pub const OPERATIONS: &[Operation] = &[
         id: 27,
         name: "DailyWindow",
         fields: fields![Day: U32],
+    },
+    Operation {
+        id: 28,
+        name: "BoardOrder",
+        fields: fields![LeftMetric: U64, LeftTime: Bytes(8), LeftOwner: Bytes(32), RightMetric: U64, RightTime: Bytes(8), RightOwner: Bytes(32)],
     },
 ];
 
@@ -507,8 +511,12 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
         )
         .map(|v| v.to_vec()),
         12 => {
-            let (realm, theme) = zkube_core::daily_pair(u("Day"));
-            let mut bytes = daily_pair_index(u("Day")).to_le_bytes().to_vec();
+            let index = zkube_core::daily_pair_index(u("Day"));
+            let (realm, theme) = zkube_core::decode_daily_pair(index).expect("draw index");
+            let mut bytes = u32::try_from(index)
+                .expect("pair index")
+                .to_le_bytes()
+                .to_vec();
             bytes.extend_from_slice(&[realm, theme.kind.tag(), theme.value]);
             Ok(bytes)
         }
@@ -563,6 +571,21 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
                 .merge_level(n("Realm"), n("Level"), run.engine.latched_star_count())
                 .map_err(|_| BoundaryError::InvalidEncoding)?;
             Ok(stars.packed().to_vec())
+        }
+        28 => {
+            let order = zkube_core::compare_board_entries(
+                input.u64("LeftMetric"),
+                i64::from_le_bytes(b("LeftTime").try_into().expect("timestamp")),
+                &array_32(b("LeftOwner"))?,
+                input.u64("RightMetric"),
+                i64::from_le_bytes(b("RightTime").try_into().expect("timestamp")),
+                &array_32(b("RightOwner"))?,
+            );
+            Ok(vec![match order {
+                std::cmp::Ordering::Less => 0,
+                std::cmp::Ordering::Equal => 1,
+                std::cmp::Ordering::Greater => 2,
+            }])
         }
         27 => {
             let (opens, closes, recovery) = zkube_core::daily_window(u("Day"));

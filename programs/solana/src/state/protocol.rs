@@ -70,7 +70,7 @@ pub struct PlayerState {
     /// reached stays available: a rank is earned once, and a border the player
     /// liked should not be taken back by a later reset.
     pub featured_frame_tier: u8,
-    /// Best `daily_score` ever recorded on a scored ranked run. A board keeps
+    /// Best `daily_score` ever recorded on a scored arcade run. A board keeps
     /// only payout-bearing rows and its accounts are recycled, so a personal
     /// best has nowhere else to survive.
     pub best_daily_score: u32,

@@ -648,7 +648,7 @@ fn attached_claim_position<'info>(
         !daily.claims_expired && now <= board_claim_deadline(board.sealed_at)?,
         ErrorCode::ClaimWindowClosed
     );
-    let prize = ranked_prize_at_position(
+    let prize = arcade_prize_at_position(
         &board,
         board_info,
         ctx.accounts.owner_authority.key(),
@@ -1264,7 +1264,7 @@ pub fn handler_claim_daily_prize(
             && now <= board_claim_deadline(ctx.accounts.arena_board.sealed_at)?,
         ErrorCode::ClaimWindowClosed
     );
-    let prize = ranked_prize_at_position(
+    let prize = arcade_prize_at_position(
         &ctx.accounts.arena_board,
         &board_info,
         ctx.accounts.owner_authority.key(),

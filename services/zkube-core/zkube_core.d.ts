@@ -11,9 +11,19 @@ export function buildRunConfig(rules_hash: Uint8Array, initial_replay: Uint8Arra
 
 export function campaignMoveBudget(level: number, tier: number): number;
 
+export function compareBoardEntries(left_metric: bigint, left_time: bigint, left_owner: Uint8Array, right_metric: bigint, right_time: bigint, right_owner: Uint8Array): number;
+
 export function dailyBoardPools(pool: bigint, theme_qualified: number): Uint8Array;
 
+export function dailyIsScheduled(day: number, suspended: number): boolean;
+
+export function dailyPair(day: number): Uint32Array;
+
 export function dailyPairIndex(day_id: number): number;
+
+export function dailyWindow(day: number): BigInt64Array;
+
+export function dayIdAt(timestamp: bigint): number;
 
 export function emptyContinuationRows(request_counter: number, vrf_output: Uint8Array, rules_hash: Uint8Array, weights: Uint16Array): Uint8Array;
 
@@ -33,6 +43,8 @@ export function ladderTierFloor(tier: number): bigint;
 
 export function mergeCampaignStars(stored: Uint8Array, incoming: Uint8Array): Uint8Array;
 
+export function nextScheduledDaily(day: number, suspended: number): number;
+
 export function payoutForRank(pool: bigint, denominator: Uint8Array, rank: number, whole_unit: bigint): bigint;
 
 export function payoutPlan(pool: bigint, qualified_winners: number, capacity: number, entry_price: bigint, whole_unit: bigint): Uint8Array;
@@ -50,3 +62,5 @@ export function runEndReason(state: Uint8Array): number;
 export function runLatchedStarSources(state: Uint8Array): number;
 
 export function runScoreEligible(state: Uint8Array): boolean;
+
+export function scheduledDailyWindow(day: number, suspended: number): Uint32Array;

@@ -1,4 +1,4 @@
-//! Native-SOL Daily and ranked-run accounting.
+//! Native-SOL Daily and arcade-run accounting.
 
 use anchor_lang::prelude::*;
 
@@ -719,7 +719,7 @@ pub fn set_board_bitmap(info: &AccountInfo<'_>, board: &ArenaBoard, position: u3
     Ok(())
 }
 
-pub fn ranked_prize_at_position(
+pub fn arcade_prize_at_position(
     board: &ArenaBoard,
     board_info: &AccountInfo<'_>,
     owner: Pubkey,
@@ -749,15 +749,14 @@ pub fn day_id_at(timestamp: i64) -> Result<u32> {
 
 /// The first two eligible Dailies around a wall-clock day.
 pub fn scheduled_daily_window(config: &ArcadeConfig, day_id: u32) -> Result<(u32, u32)> {
-    let first = day_id.max(config.suspended_until_day);
-    let following = first.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
-    Ok((first, following))
+    zkube_core::scheduled_daily_window(day_id, config.suspended_until_day)
+        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
 }
 
 /// The first scheduled Daily that has not opened yet at `day_id`.
 pub fn next_scheduled_daily(config: &ArcadeConfig, day_id: u32) -> Result<u32> {
-    let (first, following) = scheduled_daily_window(config, day_id)?;
-    Ok(if first > day_id { first } else { following })
+    zkube_core::next_scheduled_daily(day_id, config.suspended_until_day)
+        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
 }
 
 /// Entries accept any later daily rather than re-deriving the schedule: the
@@ -867,10 +866,14 @@ pub fn compare_arena_entries(
         DailyBoardKind::Score => u64::from(entry.score),
         DailyBoardKind::Theme => entry.objective_total,
     };
-    metric(right)
-        .cmp(&metric(left))
-        .then_with(|| left.finalized_at.cmp(&right.finalized_at))
-        .then_with(|| left.player.to_bytes().cmp(&right.player.to_bytes()))
+    zkube_core::compare_board_entries(
+        metric(left),
+        left.finalized_at,
+        &left.player.to_bytes(),
+        metric(right),
+        right.finalized_at,
+        &right.player.to_bytes(),
+    )
 }
 
 pub fn verify_submitted_board_entry(
@@ -920,6 +923,14 @@ pub fn verify_board_completion(next_cursor: u32, payout_count: u32, seal: bool) 
         ErrorCode::BoardIncomplete
     );
     Ok(())
+}
+
+/// Two retained boards at the protocol capacity under the SDK rent schedule.
+pub fn maximum_board_rent_lamports() -> u64 {
+    2 * Rent::default().minimum_balance(
+        ArenaBoard::account_space(u32::try_from(ARENA_BOARD_CAPACITY).expect("capacity fits u32"))
+            .expect("board capacity fits"),
+    )
 }
 
 #[cfg(test)]
@@ -1245,7 +1256,7 @@ mod tests {
             ..ArenaBoardEntry::default()
         };
         write_board_entry(&info, count - 1, &entry).unwrap();
-        let prize = ranked_prize_at_position(&board, &info, player, count - 1).unwrap();
+        let prize = arcade_prize_at_position(&board, &info, player, count - 1).unwrap();
         assert_eq!(prize.position, count - 1);
         assert_eq!(prize.amount, board.payout_for_position(count - 1).unwrap());
         set_board_bitmap(&info, &board, count - 1).unwrap();
@@ -1335,7 +1346,7 @@ mod tests {
         let mut lamports = 0;
         let mut data = vec![0u8; ArenaBoard::account_space(1).unwrap()];
         let info = AccountInfo::new(&key, false, false, &mut lamports, &mut data, &owner, false);
-        assert!(ranked_prize_at_position(&board, &info, Pubkey::new_unique(), 0).is_err());
+        assert!(arcade_prize_at_position(&board, &info, Pubkey::new_unique(), 0).is_err());
     }
 
     #[test]

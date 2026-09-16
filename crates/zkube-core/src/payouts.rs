@@ -303,9 +303,46 @@ pub fn sum_rank_payouts(
     })
 }
 
+/// Descending metric, then earliest finalization, then owner bytes.
+#[must_use]
+pub fn compare_board_entries(
+    left_metric: u64,
+    left_time: i64,
+    left_owner: &[u8; 32],
+    right_metric: u64,
+    right_time: i64,
+    right_owner: &[u8; 32],
+) -> core::cmp::Ordering {
+    right_metric
+        .cmp(&left_metric)
+        .then_with(|| left_time.cmp(&right_time))
+        .then_with(|| left_owner.cmp(right_owner))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn board_order_uses_metric_then_time_then_owner_bytes() {
+        use core::cmp::Ordering::{Equal, Greater, Less};
+        let a = [0; 32];
+        let b = [255; 32];
+        assert_eq!(
+            compare_board_entries(u64::MAX, i64::MAX, &b, 0, i64::MIN, &a),
+            Less
+        );
+        assert_eq!(
+            compare_board_entries(0, i64::MIN, &a, u64::MAX, i64::MAX, &b),
+            Greater
+        );
+        assert_eq!(
+            compare_board_entries(10, i64::MIN, &b, 10, i64::MAX, &a),
+            Less
+        );
+        assert_eq!(compare_board_entries(10, 1, &a, 10, 1, &b), Less);
+        assert_eq!(compare_board_entries(10, 1, &a, 10, 1, &a), Equal);
+    }
     use serde_json::Value;
 
     fn reference_board_width(

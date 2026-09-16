@@ -4507,7 +4507,7 @@ export type Solana = {
           {
             "name": "bestDailyScore",
             "docs": [
-              "Best `daily_score` ever recorded on a scored ranked run. A board keeps",
+              "Best `daily_score` ever recorded on a scored arcade run. A board keeps",
               "only payout-bearing rows and its accounts are recycled, so a personal",
               "best has nowhere else to survive."
             ],

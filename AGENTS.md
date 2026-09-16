@@ -964,6 +964,20 @@ The replay domain is derived from genesis and program identity rather than
 stored in the fingerprint. The enforced cadence ordering is finalize, construct
 both boards, append the on-chain root, expire unclaimed rewards, then close.
 
+### Keeper rule ownership amendment — 2026-09-16
+
+Instruction name, connection and priority live in `KEEPER_PLAN_INSTRUCTION`;
+`keeper_allowlist_is_exactly_its_plans` and `materializes every surviving keeper protocol operation`
+check the plan boundary. Program bounds and the derived two-board rent ceiling
+are emitted by codegen. `every_program_capacity_has_an_sbf_test_at_its_maximum`
+checks the maximum-capacity coverage, and the codegen drift check binds the copies.
+Day windows, suspension windows, pair decoding and board ordering call the core.
+`suspension_window_handles_gaps_and_u32_limits`,
+`pair_decode_covers_the_product_and_rejects_outside_indices` and
+`board_order_uses_metric_then_time_then_owner_bytes` guard the rules;
+`keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits` and
+`BoardOrderingUsesTheCoreAtMetricAndTimestampBounds` check the host boundaries.
+
 ## Operator procedures
 
 Every procedure here is approval-gated by the transaction policy above. The

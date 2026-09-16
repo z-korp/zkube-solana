@@ -23,9 +23,46 @@ pub fn daily_window(day_id: u32) -> (i64, i64, i64) {
     (opens, closes, closes + RUN_RECOVERY_SECONDS)
 }
 
+#[must_use]
+pub const fn daily_is_scheduled(day: u32, suspended_until: u32) -> bool {
+    day >= suspended_until
+}
+
+pub fn scheduled_daily_window(day: u32, suspended_until: u32) -> Result<(u32, u32), PeriodError> {
+    let first = day.max(suspended_until);
+    Ok((first, first.checked_add(1).ok_or(PeriodError::Overflow)?))
+}
+
+pub fn next_scheduled_daily(day: u32, suspended_until: u32) -> Result<u32, PeriodError> {
+    let (first, following) = scheduled_daily_window(day, suspended_until)?;
+    Ok(if first > day { first } else { following })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn suspension_window_handles_gaps_and_u32_limits() {
+        assert_eq!(scheduled_daily_window(10, 0), Ok((10, 11)));
+        assert_eq!(scheduled_daily_window(10, 20), Ok((20, 21)));
+        assert_eq!(next_scheduled_daily(10, 20), Ok(20));
+        assert_eq!(next_scheduled_daily(20, 20), Ok(21));
+        assert!(!daily_is_scheduled(19, 20));
+        assert!(daily_is_scheduled(20, 20));
+        assert_eq!(
+            scheduled_daily_window(u32::MAX, 0),
+            Err(PeriodError::Overflow)
+        );
+        assert_eq!(
+            scheduled_daily_window(0, u32::MAX),
+            Err(PeriodError::Overflow)
+        );
+        assert_eq!(
+            day_id_at((i64::from(u32::MAX) + 1) * SECONDS_PER_DAY),
+            Err(PeriodError::Overflow)
+        );
+    }
 
     #[test]
     fn daily_window_is_derived_at_epoch_and_u32_day_bounds() {

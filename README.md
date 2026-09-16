@@ -5,7 +5,7 @@ falling-block board where clearing lines feeds combos, and where a paid run
 competes for a real SOL prize pot.
 
 One application, two modes. **Campaign** is a free 100-level world map.
-**Arcade** is the competitive mode — each ranked run costs exactly 0.01 SOL and
+**Arcade** is the competitive mode — each arcade run costs exactly 0.01 SOL and
 plays for the Daily's Score and Theme boards.
 
 zKube previously ran on Starknet, where it spent several months among the

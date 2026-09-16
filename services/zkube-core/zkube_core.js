@@ -116,6 +116,28 @@ function campaignMoveBudget(level, tier) {
 exports.campaignMoveBudget = campaignMoveBudget;
 
 /**
+ * @param {bigint} left_metric
+ * @param {bigint} left_time
+ * @param {Uint8Array} left_owner
+ * @param {bigint} right_metric
+ * @param {bigint} right_time
+ * @param {Uint8Array} right_owner
+ * @returns {number}
+ */
+function compareBoardEntries(left_metric, left_time, left_owner, right_metric, right_time, right_owner) {
+    const ptr0 = passArray8ToWasm0(left_owner, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(right_owner, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.compareBoardEntries(left_metric, left_time, ptr0, len0, right_metric, right_time, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0];
+}
+exports.compareBoardEntries = compareBoardEntries;
+
+/**
  * @param {bigint} pool
  * @param {number} theme_qualified
  * @returns {Uint8Array}
@@ -129,6 +151,29 @@ function dailyBoardPools(pool, theme_qualified) {
 exports.dailyBoardPools = dailyBoardPools;
 
 /**
+ * @param {number} day
+ * @param {number} suspended
+ * @returns {boolean}
+ */
+function dailyIsScheduled(day, suspended) {
+    const ret = wasm.dailyIsScheduled(day, suspended);
+    return ret !== 0;
+}
+exports.dailyIsScheduled = dailyIsScheduled;
+
+/**
+ * @param {number} day
+ * @returns {Uint32Array}
+ */
+function dailyPair(day) {
+    const ret = wasm.dailyPair(day);
+    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v1;
+}
+exports.dailyPair = dailyPair;
+
+/**
  * @param {number} day_id
  * @returns {number}
  */
@@ -137,6 +182,31 @@ function dailyPairIndex(day_id) {
     return ret >>> 0;
 }
 exports.dailyPairIndex = dailyPairIndex;
+
+/**
+ * @param {number} day
+ * @returns {BigInt64Array}
+ */
+function dailyWindow(day) {
+    const ret = wasm.dailyWindow(day);
+    var v1 = getArrayI64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v1;
+}
+exports.dailyWindow = dailyWindow;
+
+/**
+ * @param {bigint} timestamp
+ * @returns {number}
+ */
+function dayIdAt(timestamp) {
+    const ret = wasm.dayIdAt(timestamp);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] >>> 0;
+}
+exports.dayIdAt = dayIdAt;
 
 /**
  * @param {number} request_counter
@@ -290,6 +360,20 @@ function mergeCampaignStars(stored, incoming) {
     return v3;
 }
 exports.mergeCampaignStars = mergeCampaignStars;
+
+/**
+ * @param {number} day
+ * @param {number} suspended
+ * @returns {number}
+ */
+function nextScheduledDaily(day, suspended) {
+    const ret = wasm.nextScheduledDaily(day, suspended);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] >>> 0;
+}
+exports.nextScheduledDaily = nextScheduledDaily;
 
 /**
  * @param {bigint} pool
@@ -486,6 +570,22 @@ function runScoreEligible(state) {
     return ret[0] !== 0;
 }
 exports.runScoreEligible = runScoreEligible;
+
+/**
+ * @param {number} day
+ * @param {number} suspended
+ * @returns {Uint32Array}
+ */
+function scheduledDailyWindow(day, suspended) {
+    const ret = wasm.scheduledDailyWindow(day, suspended);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v1;
+}
+exports.scheduledDailyWindow = scheduledDailyWindow;
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -509,9 +609,27 @@ function __wbg_get_imports() {
     };
 }
 
+function getArrayI64FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getBigInt64ArrayMemory0().subarray(ptr / 8, ptr / 8 + len);
+}
+
+function getArrayU32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
+let cachedBigInt64ArrayMemory0 = null;
+function getBigInt64ArrayMemory0() {
+    if (cachedBigInt64ArrayMemory0 === null || cachedBigInt64ArrayMemory0.byteLength === 0) {
+        cachedBigInt64ArrayMemory0 = new BigInt64Array(wasm.memory.buffer);
+    }
+    return cachedBigInt64ArrayMemory0;
 }
 
 function getStringFromWasm0(ptr, len) {
@@ -525,6 +643,14 @@ function getUint16ArrayMemory0() {
         cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
     }
     return cachedUint16ArrayMemory0;
+}
+
+let cachedUint32ArrayMemory0 = null;
+function getUint32ArrayMemory0() {
+    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+    }
+    return cachedUint32ArrayMemory0;
 }
 
 let cachedUint8ArrayMemory0 = null;

@@ -12,7 +12,7 @@ pub enum EntrySplitError {
     Overflow,
 }
 
-/// Exact native-SOL routing for one owner-authorized ranked entry.
+/// Exact native-SOL routing for one owner-authorized arcade entry.
 ///
 /// The prize contribution funds the following Daily. This value object proves
 /// that the fixed entry price is conserved exactly.

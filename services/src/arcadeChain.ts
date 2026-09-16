@@ -1,6 +1,12 @@
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
+  ARENA_BOARD_CAPACITY,
+  ARENA_BOARD_CHUNK_CAPACITY,
+  ARENA_BOARD_ENTRY_SIZE,
+  MAX_BOARD_RENT_LAMPORTS,
+  DAILY_RUN_CLOSE_OFFSET,
+  RUN_RECOVERY_SECONDS,
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   CATALOG_VERSION,
@@ -16,11 +22,16 @@ import {
 import {
   DAILY_PAIR_COUNT,
   DAILY_PAIR_SELECTION_SEED,
-  DAILY_THEMES,
 } from "./dailyRules.generated.js";
-import { dailyPairIndex as coreDailyPairIndex } from "./zkubeCore.js";
+import { dayIdAt, dailyPair, dailyIsScheduled as coreDailyIsScheduled, nextScheduledDaily as coreNextScheduledDaily } from "./zkubeCore.js";
 
 export {
+  ARENA_BOARD_CAPACITY,
+  ARENA_BOARD_CHUNK_CAPACITY,
+  ARENA_BOARD_ENTRY_SIZE,
+  MAX_BOARD_RENT_LAMPORTS,
+  DAILY_RUN_CLOSE_OFFSET,
+  RUN_RECOVERY_SECONDS,
   ARCADE_ACCOUNT_VERSION,
   ARENA_ENTRY_LAMPORTS,
   CATALOG_VERSION,
@@ -37,44 +48,39 @@ export {
 export const ZKUBE_PROGRAM_ID = new PublicKey(
   "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
 );
-export const DAILY_RUN_CLOSE_OFFSET = 23 * 60 * 60 + 59 * 60;
-export const RUN_RECOVERY_SECONDS = 6 * 60 * 60;
 export const DAILY_RECOVERY_DEADLINE_OFFSET =
   DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS;
 /** Recurring authority covers at most the trailing 84 Dailies. */
 export const KEEPER_RECENT_DAILY_CADENCES = 84;
-export const ARENA_BOARD_CAPACITY = 1_536;
-export const ARENA_BOARD_CHUNK_CAPACITY = 10;
-export const ARENA_BOARD_ENTRY_SIZE = 84;
+export const MIN_SUPPORTED_DAY_ID = 4;
 export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
   followingDaily: ENTRY_DAILY_LAMPORTS,
   operator: ENTRY_OPERATOR_LAMPORTS,
 });
 
 export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
-  prepare_arena_daily: "prepare_arena_daily",
-  activate_arena_daily: "activate_arena_daily",
-  skip_suspended_arena_daily: "skip_suspended_arena_daily",
-  finalize_arena_daily: "finalize_arena_daily",
-  submit_arena_board_chunk: "submit_arena_board_chunk",
-  archive_arena_daily: "archive_arena_daily",
-  expire_daily_claims: "expire_daily_claims",
-  close_arena_daily: "close_arena_daily",
-  close_arena_player: "close_arena_player",
-  finish_run: "finish_run",
-  commit_run: "commit_run",
-  consume_arena_run: "consume_arena_run",
-  expire_unresolved_arena_run: "expire_unresolved_arena_run",
-  cleanup_orphan_active_run: "cleanup_orphan_active_run",
+  prepare_arena_daily: { instruction: "prepare_arena_daily", connection: "base", priority: 0 },
+  activate_arena_daily: { instruction: "activate_arena_daily", connection: "base", priority: 1 },
+  skip_suspended_arena_daily: { instruction: "skip_suspended_arena_daily", connection: "base", priority: 2 },
+  finalize_arena_daily: { instruction: "finalize_arena_daily", connection: "base", priority: 8 },
+  submit_arena_board_chunk: { instruction: "submit_arena_board_chunk", connection: "base", priority: 9 },
+  archive_arena_daily: { instruction: "archive_arena_daily", connection: "base", priority: 10 },
+  expire_daily_claims: { instruction: "expire_daily_claims", connection: "base", priority: 11 },
+  close_arena_daily: { instruction: "close_arena_daily", connection: "base", priority: 12 },
+  close_arena_player: { instruction: "close_arena_player", connection: "base", priority: 14 },
+  finish_run: { instruction: "finish_run", connection: "ephemeral-rollup", priority: 3 },
+  commit_run: { instruction: "commit_run", connection: "ephemeral-rollup", priority: 4 },
+  consume_arena_run: { instruction: "consume_arena_run", connection: "base", priority: 6 },
+  expire_unresolved_arena_run: { instruction: "expire_unresolved_arena_run", connection: "base", priority: 7 },
+  cleanup_orphan_active_run: { instruction: "cleanup_orphan_active_run", connection: "base", priority: 13 },
 } as const);
 
 export type KeeperOperation = keyof typeof KEEPER_PLAN_INSTRUCTION;
 
 export const KEEPER_INSTRUCTION_ALLOWLIST = Object.freeze(
-  Object.values(KEEPER_PLAN_INSTRUCTION),
+  Object.values(KEEPER_PLAN_INSTRUCTION).map(({ instruction }) => instruction),
 );
 
-export type CompetitionKind = "daily";
 export type DailyBoardKind = "score" | "theme";
 export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
 
@@ -83,7 +89,6 @@ export interface KeeperPlanContext {
   challengeDayId?: number;
   deadlineDayId?: number;
   followingDayId?: number;
-  competition?: CompetitionKind;
   suspendedUntilDay?: number;
   pairIndex?: number;
   realmMapId?: number;
@@ -147,7 +152,7 @@ export function validationOnlyPlan(
 
 export function currentDayId(nowUnix: number): number {
   assertSafeTimestamp(nowUnix);
-  return Math.floor(nowUnix / SECONDS_PER_DAY);
+  return dayIdAt(BigInt(nowUnix));
 }
 
 export function assertCadenceId(value: number, label: string): void {
@@ -203,7 +208,7 @@ export function dailyIsScheduled(
 ): boolean {
   assertCadenceId(dayId, "day id");
   assertCadenceId(suspendedUntilDay, "suspended-until day");
-  return dayId >= suspendedUntilDay;
+  return coreDailyIsScheduled(dayId, suspendedUntilDay);
 }
 
 export function nextScheduledDaily(
@@ -212,21 +217,14 @@ export function nextScheduledDaily(
 ): number {
   assertCadenceId(dayId, "day id");
   assertCadenceId(suspendedUntilDay, "suspended-until day");
-  const candidate = Math.max(dayId + 1, suspendedUntilDay);
-  assertCadenceId(candidate, "following scheduled day id");
-  return candidate;
+  return coreNextScheduledDaily(dayId, suspendedUntilDay);
 }
 
 export function dailyContentSelection(
   dayId: number,
 ): { pairIndex: number; realmMapId: number; objective: { kind: number; value: number } } {
   assertCadenceId(dayId, "day id");
-  const pairIndex = coreDailyPairIndex(dayId);
-  return {
-    pairIndex,
-    realmMapId: Math.floor(pairIndex / DAILY_THEMES.length) + 1,
-    objective: DAILY_THEMES[pairIndex % DAILY_THEMES.length]!,
-  };
+  return dailyPair(dayId);
 }
 
 export function u32(value: number): Buffer {

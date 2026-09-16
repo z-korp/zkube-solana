@@ -132,7 +132,7 @@ namespace ZKube.Integration.Presentation
                 "claimable" => "Your reward · " + RewardSol(board.Yours.PayoutLamports),
                 "claimed" => "Reward collected", "expired" => "The claim window has closed.",
                 "unsealed" => "Results are being finalized. Rewards open when this board is sealed.",
-                "not-ranked" => board.Rows.Count == 0 ? "No qualifying winners on this board." : "You have no reward on this board.",
+                "no-placement" => board.Rows.Count == 0 ? "No qualifying winners on this board." : "You have no reward on this board.",
                 _ => "Results are not available yet."
             };
             Label(rewardPanel, message, 20, false);

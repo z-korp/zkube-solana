@@ -87,7 +87,7 @@ namespace ZKube.Integration
             int rowBytes = MaximumSize(entryType);
             var data = envelope.Data;
             if (envelope.Owner != ProgramId || envelope.Executable || data.Length < headerBytes ||
-                data.Length > headerBytes + ClientPolicy.ArenaBoardCapacity * rowBytes + (ClientPolicy.ArenaBoardCapacity + 7) / 8)
+                data.Length > headerBytes + Protocol.ArenaBoardCapacity * rowBytes + (Protocol.ArenaBoardCapacity + 7) / 8)
                 throw new FormatException("Board account owner or bounded length is invalid");
             var header = DecodeFixed("ArenaBoard", new AccountEnvelope(envelope.Address, envelope.Owner,
                 false, data.Take(headerBytes).ToArray()));
@@ -100,7 +100,7 @@ namespace ZKube.Integration
             uint count = (uint)header["payout_count"], cursor = (uint)header["cursor"];
             long sealedAt = (long)header["sealed_at"];
             bool sealedBoard = (bool)header["sealed"];
-            if (count > ClientPolicy.ArenaBoardCapacity || cursor > count || count > (uint)header["width_count"] ||
+            if (count > Protocol.ArenaBoardCapacity || cursor > count || count > (uint)header["width_count"] ||
                 count > (uint)header["qualified_count"] || (bool)header["capacity_limited"] != (count < (uint)header["width_count"]) ||
                 (count > 0 && BigInteger.Parse((string)header["denominator"], CultureInfo.InvariantCulture) == 0) ||
                 sealedBoard != (cursor == count) || (!sealedBoard && sealedAt != 0) || (sealedBoard && sealedAt <= 0) || sealedAt > 9007199254740991L ||

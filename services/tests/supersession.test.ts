@@ -28,11 +28,15 @@ const SKIPPED = [
   join(TOOLS, "idl"),
   join(UNITY_CLIENT, "Generated/Protocol.g.cs"),
   join(UNITY_CLIENT, "Generated/NativeSchema.g.cs"),
-  join(UNITY_CLIENT, "Generated/ClientPolicy.g.cs"),
   join(UNITY_CLIENT, "Integration/Generated"),
 ];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  {
+    pattern: /CompetitionKind|ranked|operationPriority|usesEphemeralRollup/,
+    trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS, CORE, CORE_WASM, README],
+    reversal: "Arcade has one competition and keeper instruction metadata has one owner (2026-09-15)",
+  },
   {
     pattern: /Finalization allocates one|exact-sized allocation at finalization/i,
     trees: [AGENT_RULES, README, PROGRAM, SERVICES, UNITY_CLIENT, TOOLS],

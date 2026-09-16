@@ -81,6 +81,18 @@ namespace ZKube.Core
         public static DailyWindow DailyWindow(uint day) => ZKube.Core.Generated.DailyWindow.Decode(
             Call(DailyWindowRequest.Operation, new DailyWindowRequest { Day = day }.Encode()));
 
+        public static int CompareBoardEntries(ulong leftMetric, long leftTime, byte[] leftOwner,
+            ulong rightMetric, long rightTime, byte[] rightOwner)
+        {
+            byte[] LeftTime = new byte[8], RightTime = new byte[8];
+            NativeWire.Write(LeftTime, 0, 8, unchecked((ulong)leftTime));
+            NativeWire.Write(RightTime, 0, 8, unchecked((ulong)rightTime));
+            return Call(BoardOrderRequest.Operation, new BoardOrderRequest {
+                LeftMetric = leftMetric, LeftTime = LeftTime, LeftOwner = leftOwner,
+                RightMetric = rightMetric, RightTime = RightTime, RightOwner = rightOwner
+            }.Encode())[0] - 1;
+        }
+
         public static byte[] MergeCampaignStars(byte[] stored, byte[] incoming)
             => Call(MergeCampaignStarsRequest.Operation, new MergeCampaignStarsRequest { Stored = stored, Incoming = incoming }.Encode());
 

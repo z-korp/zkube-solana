@@ -22,7 +22,7 @@ import { discoverReconciliationPlans } from "../src/arcadeReconciliation";
 import { canonicalDevnetReplayDomainHex } from "../src/serviceReadiness";
 
 const SOURCE_IDL_SHA256 =
-  "2ca36852dbb338a3fec04a37b6eda0fa6768578b964636932e929e80179cae2b";
+  "4a578067e71dc9a63c6fe7e69545f413d811f4f99d0ec0e81c82c4962c3e3e08";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
@@ -133,12 +133,12 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         suspendedUntilDay: DAY + 1,
         cadenceFunding: Keypair.generate().publicKey,
       }, "skip_suspended_arena_daily"],
-      ["finish_run", ranked(owner, "ephemeral_rollup"), "finish_run"],
-      ["commit_run", ranked(owner, "ephemeral_rollup"), "commit_run"],
-      ["consume_arena_run", ranked(owner, "base"), "consume_arena_run"],
-      ["expire_unresolved_arena_run", ranked(owner, "unavailable"),
+      ["finish_run", arcade(owner, "ephemeral_rollup"), "finish_run"],
+      ["commit_run", arcade(owner, "ephemeral_rollup"), "commit_run"],
+      ["consume_arena_run", arcade(owner, "base"), "consume_arena_run"],
+      ["expire_unresolved_arena_run", arcade(owner, "unavailable"),
         "expire_unresolved_arena_run"],
-      ["cleanup_orphan_active_run", ranked(owner, "base"),
+      ["cleanup_orphan_active_run", arcade(owner, "base"),
         "cleanup_orphan_active_run"],
       ["finalize_arena_daily", {
         dayId: DAY,
@@ -171,7 +171,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     ];
     const idl = readIdl();
     for (const [operation, context, expectedName] of cases) {
-      expect(KEEPER_PLAN_INSTRUCTION[operation]).toBe(expectedName);
+      expect(KEEPER_PLAN_INSTRUCTION[operation].instruction).toBe(expectedName);
       const [instruction] = await adapter.materialize({
         operation,
         context,
@@ -202,7 +202,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     const owner = Keypair.generate().publicKey;
     const [instruction] = await adapter.materialize({
       operation: "consume_arena_run",
-      context: ranked(owner, "base"),
+      context: arcade(owner, "base"),
       programId: ZKUBE_PROGRAM_ID,
       keeper,
     });
@@ -219,7 +219,7 @@ async function createAdapter(): Promise<AnchorKeeperAdapter> {
     testExpectedIdlSha256: SOURCE_IDL_SHA256,
   });
 }
-function ranked(
+function arcade(
   owner: PublicKey,
   runLocation: "base" | "ephemeral_rollup" | "unavailable",
 ): KeeperPlanContext {

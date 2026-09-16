@@ -1,6 +1,7 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import {
+  KEEPER_PLAN_INSTRUCTION,
   type KeeperInstructionPlan,
   type KeeperOperation,
   type KeeperPlanContext,
@@ -38,7 +39,7 @@ export async function materializeKeeperPlan(
   const materialized: KeeperInstructionPlan = {
     ...plan,
     execution: "instruction",
-    connection: usesEphemeralRollup(plan.operation) ? "ephemeral-rollup" : "base",
+    connection: KEEPER_PLAN_INSTRUCTION[plan.operation].connection,
     instruction: instructions[0],
     instructions,
   };
@@ -63,33 +64,8 @@ export function assertMaterializedKeeperPlan(
       throw new Error("materialized keeper plan introduces a non-keeper signer");
     }
   }
-  const expectedConnection = usesEphemeralRollup(plan.operation)
-    ? "ephemeral-rollup"
-    : "base";
-  if (plan.connection !== expectedConnection) {
+  const expectedConnection = KEEPER_PLAN_INSTRUCTION[plan.operation]?.connection;
+  if (!expectedConnection || plan.connection !== expectedConnection) {
     throw new Error("materialized keeper plan uses the wrong connection boundary");
-  }
-}
-
-function usesEphemeralRollup(operation: KeeperOperation): boolean {
-  switch (operation) {
-    case "finish_run":
-    case "commit_run":
-      return true;
-    case "prepare_arena_daily":
-    case "activate_arena_daily":
-    case "skip_suspended_arena_daily":
-    case "consume_arena_run":
-    case "expire_unresolved_arena_run":
-    case "cleanup_orphan_active_run":
-    case "finalize_arena_daily":
-    case "submit_arena_board_chunk":
-    case "expire_daily_claims":
-    case "archive_arena_daily":
-    case "close_arena_player":
-    case "close_arena_daily":
-      return false;
-    default:
-      throw new Error(`keeper operation is outside the exact allowlist: ${String(operation)}`);
   }
 }

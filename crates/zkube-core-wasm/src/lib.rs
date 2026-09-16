@@ -299,7 +299,7 @@ mod wasm {
     fn js_error(error: BoundaryError) -> JsError {
         let message = match error {
             BoundaryError::InvalidLength => "invalid byte length",
-            BoundaryError::InvalidMode => "replay mode must be 0 (ranked)",
+            BoundaryError::InvalidMode => "replay mode must be 0 (arcade)",
             BoundaryError::InvalidEncoding => "invalid run encoding",
             BoundaryError::Run(_) => "run transition rejected",
             BoundaryError::Randomness(_) => "randomness transition rejected",
@@ -568,6 +568,66 @@ mod wasm {
         run_end_reason(state).map_err(js_error)
     }
 
+    #[wasm_bindgen(js_name = dayIdAt)]
+    pub fn js_day_id_at(timestamp: i64) -> Result<u32, JsError> {
+        zkube_core::day_id_at(timestamp)
+            .map_err(|_| JsError::new("timestamp is outside supported days"))
+    }
+    #[wasm_bindgen(js_name = dailyWindow)]
+    pub fn js_daily_window(day: u32) -> Vec<i64> {
+        let (opens, closes, recovery) = zkube_core::daily_window(day);
+        vec![opens, closes, recovery]
+    }
+    #[wasm_bindgen(js_name = dailyIsScheduled)]
+    pub fn js_daily_is_scheduled(day: u32, suspended: u32) -> bool {
+        zkube_core::daily_is_scheduled(day, suspended)
+    }
+    #[wasm_bindgen(js_name = scheduledDailyWindow)]
+    pub fn js_scheduled_daily_window(day: u32, suspended: u32) -> Result<Vec<u32>, JsError> {
+        let (first, following) = zkube_core::scheduled_daily_window(day, suspended)
+            .map_err(|_| JsError::new("scheduled day overflows u32"))?;
+        Ok(vec![first, following])
+    }
+    #[wasm_bindgen(js_name = nextScheduledDaily)]
+    pub fn js_next_scheduled_daily(day: u32, suspended: u32) -> Result<u32, JsError> {
+        zkube_core::next_scheduled_daily(day, suspended)
+            .map_err(|_| JsError::new("scheduled day overflows u32"))
+    }
+    #[wasm_bindgen(js_name = dailyPair)]
+    pub fn js_daily_pair(day: u32) -> Vec<u32> {
+        let index = zkube_core::daily_pair_index(day);
+        let (realm, theme) = zkube_core::decode_daily_pair(index).expect("draw index");
+        vec![
+            u32::try_from(index).expect("pair index"),
+            u32::from(realm),
+            u32::from(theme.kind.tag()),
+            u32::from(theme.value),
+        ]
+    }
+    #[wasm_bindgen(js_name = compareBoardEntries)]
+    pub fn js_compare_board_entries(
+        left_metric: u64,
+        left_time: i64,
+        left_owner: &[u8],
+        right_metric: u64,
+        right_time: i64,
+        right_owner: &[u8],
+    ) -> Result<i32, JsError> {
+        Ok(
+            match zkube_core::compare_board_entries(
+                left_metric,
+                left_time,
+                &array_32(left_owner).map_err(js_error)?,
+                right_metric,
+                right_time,
+                &array_32(right_owner).map_err(js_error)?,
+            ) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            },
+        )
+    }
     #[wasm_bindgen(js_name = dailyPairIndex)]
     pub fn js_daily_pair_index(day_id: u32) -> u32 {
         daily_pair_index(day_id)

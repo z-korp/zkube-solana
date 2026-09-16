@@ -105,7 +105,7 @@ namespace ZKube.Integration.Client
             var rows = board.Rows.Select(row => new PrizeRow(row, kind, payouts[row.Position])).ToArray();
             var yours = rows.SingleOrDefault(row => row.Record.Player == owner);
             string claim = daily == null ? "unavailable" : expired || (bool)daily["claims_expired"] ? "expired"
-                : yours == null ? "not-ranked" : yours.Record.Claimed ? "claimed" : "claimable";
+                : yours == null ? "no-placement" : yours.Record.Claimed ? "claimed" : "claimable";
             return new PrizeBoard(kind, expired ? "expired" : rows.Length == 0 ? "empty" : "sealed", claim, expiry, rows, owner, board);
         }
 
@@ -130,7 +130,7 @@ namespace ZKube.Integration.Client
             var width = NativeEngine.BoardWidth(board.PoolLamports, board.QualifiedCount);
             uint widthCount = checked((uint)NativeWire.Read(width, 0, 4));
             var denominator = NativeWire.Bytes(width, 4, 16);
-            uint count = Math.Min(widthCount, ClientPolicy.ArenaBoardCapacity);
+            uint count = Math.Min(widthCount, Protocol.ArenaBoardCapacity);
             if (board.PayoutCount != count || board.WidthCount != widthCount ||
                 board.CapacityLimited != (count < widthCount) ||
                 board.Denominator != new BigInteger(denominator.Concat(new byte[] { 0 }).ToArray()))

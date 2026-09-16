@@ -92,6 +92,7 @@ pub use campaign::{
 pub use daily_content::{
     DAILY_PAIR_COUNT, DAILY_PAIR_SELECTION_SEED, DAILY_THEMES, DailyTheme, OBJECTIVE_COUNT,
     REALM_COUNT, daily_pair, daily_pair_index, daily_pair_index_with, daily_pair_with,
+    decode_daily_pair,
 };
 pub use economics::{
     ARENA_ENTRY_LAMPORTS, ENTRY_DAILY_BPS, ENTRY_DAILY_LAMPORTS, ENTRY_OPERATOR_BPS,
@@ -105,12 +106,13 @@ pub use ladder::{
 };
 pub use payouts::{
     BoardWidth, DailyBoardPools, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan,
-    SOL_PAYOUT_UNIT_LAMPORTS, board_width, daily_board_pools, payout_for_rank,
-    rank_weighted_payouts, sol_rank_weighted_payouts, sum_rank_payouts,
+    SOL_PAYOUT_UNIT_LAMPORTS, board_width, compare_board_entries, daily_board_pools,
+    payout_for_rank, rank_weighted_payouts, sol_rank_weighted_payouts, sum_rank_payouts,
 };
 pub use periods::{
     DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_RUN_CLOSE_OFFSET, PeriodError, RUN_RECOVERY_SECONDS,
-    SECONDS_PER_DAY, daily_window, day_id_at,
+    SECONDS_PER_DAY, daily_is_scheduled, daily_window, day_id_at, next_scheduled_daily,
+    scheduled_daily_window,
 };
 pub use presentation::{NoPresentation, PresentationEvent, PresentationObserver};
 pub use randomness::{

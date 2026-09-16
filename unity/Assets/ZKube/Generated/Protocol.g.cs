@@ -8,6 +8,7 @@ namespace ZKube.Core.Generated
         public const ulong EntryOperatorLamports = 1000000UL;
         public const ulong PayoutUnitLamports = 1000000UL;
         public const ulong ClaimWindowSeconds = 2592000UL;
+        public const uint ArenaBoardCapacity = 1536U;
         public const uint DailyMaxMoves = 100U;
         public const uint PressureStep = 15U;
         public const uint DailyPairCount = 160U;

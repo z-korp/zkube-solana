@@ -138,11 +138,21 @@ pub fn daily_pair(day_id: u32) -> (u8, DailyTheme) {
     daily_pair_with::<SoftwareSha256>(day_id)
 }
 
+/// # Panics
+/// A draw outside the fixed product is an internal invariant violation.
 #[must_use]
 pub fn daily_pair_with<H: Sha256Provider>(day_id: u32) -> (u8, DailyTheme) {
     let index = daily_pair_index_with::<H>(day_id);
-    let realm = u8::try_from(index / OBJECTIVE_COUNT).unwrap_or(0) + 1;
-    (realm, DAILY_THEMES[index % OBJECTIVE_COUNT])
+    decode_daily_pair(index).expect("draw index is in the product")
+}
+
+#[must_use]
+pub fn decode_daily_pair(index: usize) -> Option<(u8, DailyTheme)> {
+    if index >= DAILY_PAIR_COUNT {
+        return None;
+    }
+    let realm = u8::try_from(index / OBJECTIVE_COUNT).ok()? + 1;
+    Some((realm, DAILY_THEMES[index % OBJECTIVE_COUNT]))
 }
 
 fn pair_hash_u64_with<H: Sha256Provider>(cycle_index: u32, index: u8) -> u64 {
@@ -162,6 +172,17 @@ fn pair_hash_u64_with<H: Sha256Provider>(cycle_index: u32, index: u8) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pair_decode_covers_the_product_and_rejects_outside_indices() {
+        for index in 0..DAILY_PAIR_COUNT {
+            let (realm, theme) = decode_daily_pair(index).unwrap();
+            assert_eq!(usize::from(realm), index / OBJECTIVE_COUNT + 1);
+            assert_eq!(theme, DAILY_THEMES[index % OBJECTIVE_COUNT]);
+        }
+        assert_eq!(decode_daily_pair(DAILY_PAIR_COUNT), None);
+        assert_eq!(decode_daily_pair(usize::MAX), None);
+    }
 
     #[test]
     fn daily_draw_is_reproducible_from_seed_and_day() {

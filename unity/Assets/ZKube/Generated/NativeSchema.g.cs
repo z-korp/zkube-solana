@@ -690,6 +690,30 @@ namespace ZKube.Core.Generated
         }
     }
 
+    public sealed class BoardOrderRequest
+    {
+        public const int ByteLength = 98;
+        public const uint Operation = 28;
+        public ulong LeftMetric { get; set; }
+        public byte[] LeftTime { get; set; } = new byte[8];
+        public byte[] LeftOwner { get; set; } = new byte[32];
+        public ulong RightMetric { get; set; }
+        public byte[] RightTime { get; set; } = new byte[8];
+        public byte[] RightOwner { get; set; } = new byte[32];
+        public byte[] Encode()
+        {
+            var bytes = new byte[ByteLength];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 8, LeftMetric);
+            NativeWire.Copy(LeftTime, bytes, 10, 8);
+            NativeWire.Copy(LeftOwner, bytes, 18, 32);
+            NativeWire.Write(bytes, 50, 8, RightMetric);
+            NativeWire.Copy(RightTime, bytes, 58, 8);
+            NativeWire.Copy(RightOwner, bytes, 66, 32);
+            return bytes;
+        }
+    }
+
     public sealed class RunSummary
     {
         public const int ByteLength = 199;
