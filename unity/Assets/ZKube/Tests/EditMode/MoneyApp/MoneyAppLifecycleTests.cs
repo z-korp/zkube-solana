@@ -28,9 +28,9 @@ namespace ZKube.Integration.App.Tests
             Assert.That(cleanup.IsCompleted, Is.False, "The reporting error must wait for pending read/executor cleanup");
             if (!stop) Assert.That(e.Services.Identity.Owner, Is.Null, "Disconnect must invalidate identity despite callback failures");
             e.Http.Release.SetResult(true);
-            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await publicRead);
-            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await ownerRead);
-            var error = await MoneyTestEnvironment.Fails<AggregateException>(() => cleanup);
+            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await publicRead);
+            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await ownerRead);
+            var error = await ZKube.Integration.Tests.AsyncAssert.Throws<AggregateException>(() => cleanup);
             Assert.That(error.Flatten().InnerExceptions.Count(x => x.Message.StartsWith("Injected cancellation callback:")), Is.EqualTo(2));
             Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
             Assert.That(e.Native.Seed, Is.Not.Null);
@@ -54,7 +54,7 @@ namespace ZKube.Integration.App.Tests
             var e = new MoneyTestEnvironment(); e.Native.Entered = Signal(); e.Native.Release = Signal();
             var connecting = e.Flow.Connect(e.Owner); await e.Native.Entered.Task;
             await e.Flow.Disconnect(); e.Native.Release.SetResult(true);
-            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await connecting);
+            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await connecting);
             Assert.That(e.Services.Identity.Owner, Is.Null); Assert.That(e.Flow.Owner, Is.Null);
             await e.Flow.StopAsync();
         }
@@ -66,7 +66,7 @@ namespace ZKube.Integration.App.Tests
             var old = e.Flow.RefreshPublic(); await e.Http.Entered.Task;
             Assert.That(retained.IsCurrent, Is.False);
             var newer = e.Flow.RefreshPublic(); e.Http.Release.SetResult(true);
-            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await old);
+            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await old);
             var current = await newer; Assert.That(current.IsCurrent, Is.True); Assert.That(e.Flow.Public, Is.SameAs(current));
             await e.Flow.StopAsync(); Assert.That(current.IsCurrent, Is.False);
             Assert.Throws<OperationCanceledException>(() => _ = current.Value);
@@ -80,7 +80,7 @@ namespace ZKube.Integration.App.Tests
             e.Http.DelayMethod = "getAccountInfo"; e.Http.Entered = Signal(); e.Http.Release = Signal();
             var old = e.Flow.RefreshOwner(); await e.Http.Entered.Task; await e.Flow.Disconnect();
             e.Native.Owner = (string)e.Plans["inputs"]["device"]; var next = await e.Flow.Connect(e.Native.Owner);
-            e.Http.Release.SetResult(true); await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await old);
+            e.Http.Release.SetResult(true); await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await old);
             Assert.That(next.Value, Is.EqualTo(e.Native.Owner)); Assert.That(retained.IsCurrent, Is.False); Assert.That(e.Flow.Owner, Is.Null);
             Assert.That((await e.Services.RunMarkers.Load(e.Owner)).ActiveRun, Is.EqualTo(daily.ActiveRun));
             await e.Flow.StopAsync();
@@ -93,7 +93,7 @@ namespace ZKube.Integration.App.Tests
             e.Http.DelayMethod = "getSignatureStatuses"; e.Http.Entered = Signal(); e.Http.Release = Signal();
             var read = e.Flow.RefreshOwner(); await e.Http.Entered.Task;
             var disconnect = e.Flow.Disconnect(); Assert.That(e.Flow.Owner, Is.Null); Assert.That(e.Services.Identity.Owner, Is.Null);
-            e.Http.Release.SetResult(true); await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await read); await disconnect;
+            e.Http.Release.SetResult(true); await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await read); await disconnect;
             Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
             Assert.That(e.Native.Seed, Is.Not.Null); e.AssertReadOnly(); await e.Flow.StopAsync();
         }
@@ -104,7 +104,7 @@ namespace ZKube.Integration.App.Tests
             var read = e.Flow.RefreshPublic(); await e.Http.Entered.Task;
             var stop = e.Flow.StopAsync(); Assert.That(stop.IsCompleted, Is.False); Assert.That(e.Flow.StopAsync(), Is.SameAs(stop));
             Assert.Throws<ObjectDisposedException>(() => e.Flow.RefreshPublic());
-            e.Http.Release.SetResult(true); await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await read); await stop;
+            e.Http.Release.SetResult(true); await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await read); await stop;
             Assert.That(e.Http.Disposed || e.Native.Disposed || e.Store.Disposed, Is.False); Assert.That(e.Flow.Public, Is.Null);
         }
         [Test]
@@ -113,7 +113,7 @@ namespace ZKube.Integration.App.Tests
             var e = new MoneyTestEnvironment(); e.Native.Entered = Signal(); e.Native.Release = Signal();
             var connecting = e.Flow.Connect(e.Owner); await e.Native.Entered.Task;
             var stop = e.Flow.StopAsync(); Assert.That(stop.IsCompleted, Is.False);
-            e.Native.Release.SetResult(true); await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await connecting); await stop;
+            e.Native.Release.SetResult(true); await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await connecting); await stop;
             Assert.That(e.Flow.Owner, Is.Null); Assert.That(e.Native.Disposed, Is.False);
             // Stop detaches the host. Only explicit Disconnect changes wallet
             // authorization; the platform still owns the borrowed native bridge.

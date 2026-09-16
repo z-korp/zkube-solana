@@ -10,37 +10,18 @@ namespace ZKube.Integration.Tests
 {
     public sealed class WalletClientTests
     {
-        private sealed class Native : INativeWalletTransport
-        {
-            public Func<JObject, Task<JObject>> Reply;
-            public int Calls, Creates; public byte[] Seed;
-            public async Task<string> Request(string json)
-            {
-                Calls++;
-                var request = JObject.Parse(json);
-                var reply = await Reply(request);
-                reply["requestId"] ??= request["requestId"];
-                reply["ok"] ??= true;
-                return reply.ToString();
-            }
-            public Task<byte[]> LoadDeviceSeed(bool create)
-            {
-                if (create && Seed == null) { Seed = Enumerable.Repeat((byte)2, 32).ToArray(); Creates++; }
-                return Task.FromResult(Seed?.ToArray());
-            }
-        }
         private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");
         [Test]
         public async Task OneInstallKeyIsReusedAcrossWalletsAndRestarts()
         {
-            var fixture = Fixture(); var native = new Native();
+            var fixture = Fixture(); var native = new TestNative { AllowCreation = () => true };
             string owner = (string)fixture["inputs"]["owner"], other = (string)fixture["inputs"]["device"];
             using var first = await new WalletClient(native).LoadDeviceSigner(owner, create: true);
             using var second = await new WalletClient(native).LoadDeviceSigner(other, create: true);
             using var restored = await new WalletClient(native).LoadDeviceSigner(owner);
             Assert.That(first.Address, Is.EqualTo(second.Address));
             Assert.That(first.Address, Is.EqualTo(restored.Address));
-            Assert.That(native.Creates, Is.EqualTo(1));
+            Assert.That(native.Creations, Is.EqualTo(1));
             Assert.That(native.Calls, Is.Zero);
         }
         [Test]
@@ -66,7 +47,7 @@ namespace ZKube.Integration.Tests
             string owner = (string)fixture["inputs"]["owner"];
             var rows = fixture["transactions"].ToArray();
             byte[] before = SolanaWire.UnsignedTransaction(Convert.FromBase64String((string)rows[0]["message"]));
-            var native = new Native { Reply = _ => Task.FromResult(new JObject {
+            var native = new TestNative { Reply = _ => Task.FromResult(new JObject {
                 ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner)), ["transaction"] = rows[0]["signedTransaction"] }) };
             var wallet = new WalletClient(native);
             Assert.That(await wallet.Sign(owner, before), Is.EqualTo(Convert.FromBase64String((string)rows[0]["signedTransaction"])));
@@ -88,7 +69,7 @@ namespace ZKube.Integration.Tests
             using var device = new DeviceSigner(Enumerable.Repeat((byte)2, 32).ToArray());
             byte[] unsigned = SolanaWire.UnsignedTransaction(Convert.FromBase64String((string)row["message"]));
             byte[] before = device.PartialSign(unsigned), signed = owner.PartialSign(before);
-            var native = new Native { Reply = _ => Task.FromResult(new JObject {
+            var native = new TestNative { Reply = _ => Task.FromResult(new JObject {
                 ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner.Address)), ["transaction"] = Convert.ToBase64String(signed) }) };
             var wallet = new WalletClient(native);
             Assert.That(await wallet.Sign(owner.Address, before), Is.EqualTo(signed));
@@ -113,10 +94,10 @@ namespace ZKube.Integration.Tests
             var fixture = Fixture();
             string owner = (string)fixture["inputs"]["owner"], device = (string)fixture["inputs"]["device"];
             var response = new TaskCompletionSource<JObject>();
-            var native = new Native { Reply = _ => response.Task };
+            var native = new TestNative { Reply = _ => response.Task };
             var wallet = new WalletClient(native);
             Assert.That(await wallet.LoadDeviceSigner(owner), Is.Null);
-            Assert.That(native.Creates, Is.Zero);
+            Assert.That(native.Creations, Is.Zero);
             var first = wallet.Authorize(owner);
             await AsyncAssert.Throws<WalletRequestException>(async () => await wallet.Authorize(owner));
             response.SetResult(new JObject { ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(device)) });

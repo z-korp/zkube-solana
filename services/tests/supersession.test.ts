@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /RunFlowNative|ChangingReadStore|\bNativeWallet\b|FakeNative/,
+    trees: [UNITY_CLIENT],
+    reversal: "Managed tests share their transport and persistence boundaries and use the Rust fixture loaders (2026-09-16)",
+  },
+  {
     pattern: /DeviceKeyLifecycle|SessionHandoff|LoadCandidateSeed|CreateCandidateSeed|PromoteCandidateSeed|device-candidate|candidateToken|name gate|NameGate|RequireName|StorePage\.Name|store-save-format-v1|removes its signing key here|does not immediately revoke that token|preserves the v1 local save format|Pick the name shown with your progress|DrainsExecutorBeforeDeletingKey/i,
     trees: [UNITY_CLIENT, join(ROOT, "unity/NativeAndroid/src"), README, AGENT_RULES],
     reversal: "One install key is reused; the local name is edited in Profile and codec tests construct their state (2026-09-16)",

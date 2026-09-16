@@ -1,3 +1,4 @@
+using static ZKube.Core.Tests.NativeFixtures;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,10 +11,6 @@ namespace ZKube.Core.Tests
 {
     public sealed class NativeEngineTests
     {
-        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; public Step[] campaignBoundary; public Step[] dailyBoundary, protocolQueries; }
-        [Serializable] public sealed class LocalRandomness { public string seedHex, outputHex; public uint counter; }
-        [Serializable] public sealed class Trajectory { public string name; public string origin; public string configHex; public string initialStateHex; public string finalStateHex; public string finalReplayHex; public Step[] steps; }
-        [Serializable] public sealed class Step { public uint operation, day; public string requestHex; public string responseHex; }
         [Serializable] public sealed class LadderFixture { public string coreVersion; public LadderVector[] vectors; }
         [Serializable] public sealed class LadderVector { public uint qualifiedEntrants; public uint rank; public uint points; }
         [Serializable] public sealed class GameFixture { public PhaseOne phase1Core; }
@@ -34,7 +31,7 @@ namespace ZKube.Core.Tests
 
         public static IEnumerable<TestCaseData> Cases()
         {
-            var fixture = Read<Trajectories>("native-run-trajectories.json");
+            var fixture = NativeFixtures.Data;
             Assert.AreEqual(1, fixture.schemaVersion);
             var names = new HashSet<string>(fixture.cases.Select(c => c.name));
             foreach (var realm in Protocol.Realms)
@@ -81,7 +78,7 @@ namespace ZKube.Core.Tests
 
         [Test] public void CampaignAndDailyQueriesUseTheRustProgressionAndCatalogOwners()
         {
-            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").campaignBoundary)
+            foreach (var vector in NativeFixtures.Data.campaignBoundary)
             {
                 var actual = NativeEngine.Call(vector.operation, Hex(vector.requestHex));
                 CollectionAssert.AreEqual(Hex(vector.responseHex), actual);
@@ -109,7 +106,7 @@ namespace ZKube.Core.Tests
 
         [Test] public void DailyWindowUsesTheCoreAcrossTheFullDayRange()
         {
-            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").dailyBoundary)
+            foreach (var vector in NativeFixtures.Data.dailyBoundary)
             {
                 var expected = DailyInfo.Decode(Hex(vector.responseHex));
                 var actual = NativeEngine.Daily(vector.day);
@@ -123,13 +120,13 @@ namespace ZKube.Core.Tests
 
         [Test] public void RemainingNativeQueriesMatchRustFixtureVectors()
         {
-            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").protocolQueries)
+            foreach (var vector in NativeFixtures.Data.protocolQueries)
                 CollectionAssert.AreEqual(Hex(vector.responseHex), NativeEngine.Call(vector.operation, Hex(vector.requestHex)));
         }
 
         [Test] public void LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds()
         {
-            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").localRandomness)
+            foreach (var vector in NativeFixtures.Data.localRandomness)
                 CollectionAssert.AreEqual(Hex(vector.outputHex), NativeEngine.LocalRowRandomness(Hex(vector.seedHex), vector.counter));
             Assert.Throws<ArgumentException>(() => NativeEngine.LocalRowRandomness(new byte[33], 1));
             var error = Assert.Throws<NativeEngineException>(() => NativeEngine.Call(NativeOperation.LocalRowRandomness,
@@ -145,7 +142,7 @@ namespace ZKube.Core.Tests
                 ("Hammer-perfect-clear-continuation", true), ("Hammer-perfect-clear-cap", false)
             })
             {
-                var trajectory = Read<Trajectories>("native-run-trajectories.json").cases.Single(c => c.name == scenario.Item1);
+                var trajectory = NativeFixtures.Data.cases.Single(c => c.name == scenario.Item1);
                 var action = trajectory.steps.First(s => s.operation == NativeOperation.PlayMove || s.operation == NativeOperation.ApplyBonus);
                 var traced = RunTransition.Decode(Hex(trajectory.configHex), NativeEngine.Call(action.operation, Hex(action.requestHex)));
                 var fact = traced.Events.Single(e => e.Kind == PresentationKind.PerfectClear);
@@ -210,7 +207,7 @@ namespace ZKube.Core.Tests
         [Test]
         public void InvalidActionOrderAndCorruptTokensPreserveCallerState()
         {
-            var fixture = Read<Trajectories>("native-run-trajectories.json").cases.First(c => c.origin == "opening");
+            var fixture = NativeFixtures.Data.cases.First(c => c.origin == "opening");
             var token = new CoreRunToken(Hex(fixture.configHex), Hex(fixture.initialStateHex));
             token = NativeEngine.ApplyVrf(token, 1, Enumerable.Repeat((byte)1, 32).ToArray()).Token;
             var before = (byte[])token.State.Clone();

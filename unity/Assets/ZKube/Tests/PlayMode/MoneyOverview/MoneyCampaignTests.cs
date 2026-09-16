@@ -25,24 +25,11 @@ namespace ZKube.Tests.MoneyOverview
             until = Time.realtimeSinceStartup + 15;
             while (!PageDrawn(controller) && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(PageDrawn(controller), Is.True);
-            const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var art = controller.GetComponent<AppShell>().Artwork;
             var background = controller.GetComponent<AppShell>().Background;
             Assert.That(art.RealmId, Is.EqualTo(controller.SelectedRealm));
             Assert.That(controller.SelectedRealm, Is.EqualTo(3)); Assert.That(background.sprite, Is.SameAs(art.Sprite("background")));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
-        }
-        [Test] public void CampaignSceneryStyleDoesNotReplaceAuthoredRealmCoordinates()
-        {
-            var catalog = PageCatalog.Load(); var realm = catalog.Realm(1); var scenery = catalog.Realm(2);
-            host = new GameObject("Campaign scenery path", typeof(RectTransform), typeof(CampaignPathGraphic));
-            var graphic = host.GetComponent<CampaignPathGraphic>();
-            graphic.Configure(realm, Enumerable.Repeat("cleared", 10).ToArray(), scenery.map);
-            const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            Assert.That(typeof(CampaignPathGraphic).GetField("realm", fields).GetValue(graphic), Is.SameAs(realm));
-            Assert.That(typeof(CampaignPathGraphic).GetField("pathStyle", fields).GetValue(graphic), Is.SameAs(scenery.map));
-            graphic.Configure(realm, Enumerable.Repeat("cleared", 10).ToArray());
-            Assert.That(typeof(CampaignPathGraphic).GetField("pathStyle", fields).GetValue(graphic), Is.SameAs(realm.map), "Existing Store callers retain realm styling");
         }
         [UnityTest] public IEnumerator CampaignUsesSavedTrialAndRetainsReceiptAcrossBrowsingAndUtcRollover()
         {

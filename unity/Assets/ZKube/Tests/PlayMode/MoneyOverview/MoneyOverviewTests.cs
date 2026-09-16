@@ -134,8 +134,8 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator PrepareScenario(string scenario, float scale = 1, float? density = null)
         {
             var startup = Create();
-            solana = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
-            session = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
+            solana = new TextAsset(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
+            session = new TextAsset(ZKube.Integration.Tests.TestBootstrap.TokenJson);
             startup.Configuration.TextScale = scale; startup.Configuration.DisplayDensity = density ?? 0;
             var build = MoneyTestEnvironment.Create(scenario); yield return Wait(build);
             environment = build.GetAwaiter().GetResult(); ((MoneyIdentity)startup.Configuration.Identity).Configuration = new MoneyConfiguration {

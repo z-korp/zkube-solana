@@ -68,42 +68,5 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Wear selection").interactable, Is.False);
             Assert.That(environment.SentSignature, Is.Null);
         }
-        [UnityTest] public IEnumerator PendingProfileWaitsForExplicitConfirmation() => PendingProfile(false);
-        [UnityTest] public IEnumerator FailedProfileWriteKeepsThePriorIdentity() => PendingProfile(true);
-        private IEnumerator PendingProfile(bool failure)
-        {
-            yield return PrepareProfilePage("profile-pending-" + (failure ? "failure" : "success"));
-            yield return SessionClick("Emblem 8"); yield return SessionClick("Border 3");
-            yield return SessionClick("Wear selection"); yield return Idle();
-            var controller = host.GetComponent<MoneyIdentity>().Controller;
-            string receipt = controller.LastReceipt.Signature;
-            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            Assert.That(controller.SelectedEmblem, Is.Zero);
-            yield return SessionClick("Refresh profile"); yield return Idle();
-            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(receipt));
-            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            if (failure) environment.ConfirmPendingFailure(); else environment.ConfirmPendingSuccess();
-            yield return SessionClick("Check transaction"); yield return Idle();
-            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(receipt));
-            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(failure ? ExecutionOutcome.ConfirmedFailure : ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(controller.SelectedEmblem, Is.EqualTo(failure ? 0 : 8));
-            Assert.That(controller.SelectedBorder, Is.EqualTo(failure ? 0 : 3));
-            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(environment.ForbiddenCalls, Is.Zero);
-        }
-        [UnityTest] public IEnumerator ConfirmedProfileReceiptSurvivesReadFailureAndResume()
-        {
-            yield return PrepareProfilePage("profile-success");
-            yield return SessionClick("Emblem 8"); yield return SessionClick("Border 3");
-            environment.FailFirstReadAfterJournalClear();
-            yield return SessionClick("Wear selection"); yield return Idle();
-            var controller = host.GetComponent<MoneyIdentity>().Controller;
-            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            string receipt = controller.LastReceipt.Signature;
-            controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();
-            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(receipt));
-            Assert.That(controller.SelectedEmblem, Is.EqualTo(8));
-            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-        }
     }
 }

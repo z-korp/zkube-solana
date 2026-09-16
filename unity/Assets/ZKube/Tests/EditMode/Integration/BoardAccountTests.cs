@@ -14,7 +14,7 @@ namespace ZKube.Integration.Tests
         public void BoardRewardsValidateActualAnchorAccountsAndKeepClaimedPositionsVisible()
         {
             var fixture = ZKube.Integration.Tests.ProgramScenarios.Load("plans");
-            var bindings = new AccountBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")),
+            var bindings = new AccountBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson,
                 Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
             string owner = (string)fixture["inputs"]["owner"];
             foreach (var board in fixture["boards"])

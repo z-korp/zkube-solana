@@ -72,12 +72,12 @@ namespace ZKube.Tests.ProductReads
             foreach(var bad in new[]{PatchAccount(board,"ArenaBoard",("pool_lamports",Number(1000000001,8))),
                 PatchAccount(board,"ArenaBoard",("paid_lamports",Number(0,8))),PatchAccount(board,"ArenaBoard",("rollover_lamports",Number(1,8))),
                 PatchAccount(board,"ArenaBoard",("claimed_lamports",Number(1,8))),PatchAccount(board,"ArenaBoard",("denominator",new byte[16]))}) {
-                e.Http.Put(bad); await Failure<FormatException>(async()=>{await e.Queries.SettledBoards(day);});
+                e.Http.Put(bad); await ZKube.Integration.Tests.AsyncAssert.Throws<FormatException>(async()=>{await e.Queries.SettledBoards(day);});
             }
             e.Http.Put(board);
             foreach(var bad in new[]{PatchAccount(daily,"ArenaDaily",("score_qualified_players",Number(2,4))),
                 PatchAccount(daily,"ArenaDaily",("ledger.payout_lamports",Number(2000000002,8))),PatchAccount(daily,"ArenaDaily",("status",new byte[]{1}))}) {
-                e.Http.Put(bad); await Failure<FormatException>(async()=>{await e.Queries.SettledBoards(day);});
+                e.Http.Put(bad); await ZKube.Integration.Tests.AsyncAssert.Throws<FormatException>(async()=>{await e.Queries.SettledBoards(day);});
             }
             e.Http.Remove(daily); Assert.That((await e.Queries.SettledBoards(day)).Value.Score.ClaimStatus,Is.EqualTo("unavailable"));
         }

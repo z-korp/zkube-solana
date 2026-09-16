@@ -11,20 +11,13 @@ namespace ZKube.Integration.Client.Runs.Tests
 {
     public sealed partial class RunClientTests
     {
-        private sealed class RunFlowNative : INativeWalletTransport
-        {
-            private readonly NativeWallet native;
-            public RunFlowNative(NativeWallet value) { native = value; }
-            public Task<string> Request(string json) => native.Request(json);
-            public Task<byte[]> LoadDeviceSeed(bool create) => native.LoadDeviceSeed(create);
-        }
         private static async Task<MoneyAppFlow> CreateFlow(Environment env, Func<byte[]> runClientSeed = null)
         {
             var services = new MoneyClientServices(
-                File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/solana.json"),
-                File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/session.json"),
+                ZKube.Integration.Tests.TestBootstrap.ProtocolJson,
+                ZKube.Integration.Tests.TestBootstrap.TokenJson,
                 new MoneyConnectionConfig("https://base.invalid/", "https://router.invalid/", env.Http.Genesis),
-                env.Http, new RunFlowNative(env.Native), env.Storage, () => env.Now, owner => new ZKube.Local.LocalProductStore(owner: owner), runClientSeed);
+                env.Http.Transport, env.Native, env.Storage, () => env.Now, owner => new ZKube.Local.LocalProductStore(owner: owner), runClientSeed);
             var flow = new MoneyAppFlow(services); await flow.Connect(); return flow;
         }
 
@@ -40,7 +33,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var result = (await flow.SubmitRun(launch.Run, launch.Operation.State.Token,
                     RunClientAction.Reroll, 0, 0, 0, env.Now)).Value;
                 Assert.That(result.Error, Is.Null); Assert.That(requested, Is.EqualTo(1));
-                var protocol = new ProtocolBindings(File.ReadAllText(Root + "/unity/Assets/ZKube/Integration/Generated/solana.json"));
+                var protocol = new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
                 var transaction = TransactionSignatures.Describe(Convert.FromBase64String(env.Http.SentTransactions.Single()));
                 var instruction = protocol.DecodeInstruction(transaction.Instructions.Single(value => value.ProgramId == protocol.ProgramId));
                 Assert.That(instruction.Name, Is.EqualTo("request_reroll"));

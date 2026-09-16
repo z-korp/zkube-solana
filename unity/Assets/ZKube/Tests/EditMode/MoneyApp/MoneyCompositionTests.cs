@@ -42,7 +42,7 @@ namespace ZKube.Integration.App.Tests
                 Assert.Throws<MoneyConfigurationException>(() => e.Create(config));
             Assert.That(e.Http.Requests, Is.Empty); Assert.That(e.Native.Calls + e.Store.Calls, Is.Zero);
             e.Http.Genesis = "wrong-genesis";
-            await MoneyTestEnvironment.Fails<Exception>(async () => await e.Flow.RefreshPublic());
+            await ZKube.Integration.Tests.AsyncAssert.Throws<Exception>(async () => await e.Flow.RefreshPublic());
             Assert.That(e.Http.Requests.Select(x => (string)x["method"]), Is.EqualTo(new[] { "getGenesisHash" }));
             Assert.That(e.Flow.Public, Is.Null); await e.Flow.StopAsync();
         }

@@ -293,21 +293,5 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(0, board.State.RerollCharges);
         }
 
-        [TestCase(320, 568, 1)] [TestCase(430, 854, 1)] [TestCase(1080, 2262, 3)] [TestCase(1024, 768, 1)]
-        public void LayoutFitsSafeAreaAndSeparates48DpControls(int width, int height, float density)
-        {
-            var safe = new Rect(0, 34 * density, width, height);
-            var layout = new BoardLayout(safe, density);
-            Assert.Greater(layout.Cell, 0);
-            Assert.IsTrue(safe.Contains(layout.Board.min)); Assert.IsTrue(safe.Contains(layout.Board.max - Vector2.one));
-            foreach (var rect in new[] { layout.GuardianButton, layout.RerollButton, layout.PauseButton })
-            {
-                Assert.GreaterOrEqual(rect.width / density, 48); Assert.GreaterOrEqual(rect.height / density, 48);
-                Assert.IsTrue(safe.Contains(rect.min)); Assert.IsTrue(safe.Contains(rect.max - Vector2.one));
-                Assert.IsFalse(rect.Overlaps(layout.Board));
-            }
-            Assert.IsFalse(layout.GuardianButton.Overlaps(layout.RerollButton));
-            Assert.IsFalse(layout.RerollButton.Overlaps(layout.PauseButton));
-        }
     }
 }

@@ -30,21 +30,13 @@ namespace ZKube.Presentation.Tests
             public byte row, start, destination, column, reason;
             public string output;
         }
-        [Serializable] private sealed class RawList { public RawFixture[] cases; }
-        [Serializable] private sealed class RawFixture
-        {
-            public string name, configHex, initialStateHex;
-            public RawStep[] steps;
-        }
-        [Serializable] private sealed class RawStep { public uint operation; public string requestHex; public Step gesture; }
         public BoardController Board { get; private set; }
         public Fixture Current { get; private set; }
         public bool AutoStart = true;
         private int journeyCursor;
-        public static Fixture[] Fixtures => JsonUtility.FromJson<RawList>(File.ReadAllText(
-            Path.Combine(Application.dataPath, "../../fixtures/native-run-trajectories.json"))).cases.Select(ReadFixture).ToArray();
+        public static Fixture[] Fixtures => ZKube.Core.Tests.NativeFixtures.Data.cases.Select(ReadFixture).ToArray();
 
-        private static Fixture ReadFixture(RawFixture raw)
+        private static Fixture ReadFixture(ZKube.Core.Tests.NativeFixtures.Trajectory raw)
         {
             var authored = raw.name.StartsWith("realm-", StringComparison.Ordinal);
             return new Fixture {
@@ -53,7 +45,8 @@ namespace ZKube.Presentation.Tests
                 // Synthetic probes use Balam's visual composition explicitly.
                 realmId = authored ? byte.Parse(raw.name.Split('-')[1]) : (byte)8,
                 steps = raw.steps.Where(s => s.operation >= NativeOperation.ApplyVrf && s.operation <= NativeOperation.Finish)
-                    .Select(s => s.gesture != null && s.gesture.operation == s.operation ? s.gesture :
+                    .Select(s => s.gesture != null && s.gesture.operation == s.operation ? new Step { operation = s.gesture.operation, row = s.gesture.row, start = s.gesture.start,
+                        destination = s.gesture.destination, column = s.gesture.column, reason = s.gesture.reason, output = s.gesture.output } :
                         throw new FormatException("Native trajectory has no matching gesture")).ToArray()
             };
         }

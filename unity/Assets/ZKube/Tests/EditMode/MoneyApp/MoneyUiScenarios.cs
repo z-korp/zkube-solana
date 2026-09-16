@@ -107,8 +107,7 @@ namespace ZKube.Integration.App.Tests
                 if (scenario == "session-current" || scenario.Contains("refill")) {
                     Http.Add(Ui["currentToken"]);
                     var token = Services.Tokens.Decode(Envelope(Ui["currentToken"]));
-                    await Services.Sessions.Replace(await Services.Sessions.Load(Owner), new SessionRecords(Owner,
-                        new SessionRecord(Owner, (string)Plans["inputs"]["device"], (string)Ui["currentToken"]["address"], token.ValidUntil)));
+                    await ZKube.Integration.Tests.TestBootstrap.SeedSession(Services.Sessions, Owner, (string)Plans["inputs"]["device"], (string)Ui["currentToken"]["address"], token.ValidUntil);
                 }
                 if (scenario.Contains("refill") || scenario.EndsWith("-zero")) SetBalance((string)Plans["inputs"]["device"], 0);
                 if (scenario.Contains("refill"))

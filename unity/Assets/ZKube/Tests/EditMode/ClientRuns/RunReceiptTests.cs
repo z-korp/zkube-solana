@@ -30,7 +30,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             // Confirm/reconcile the real preparation first; subsequent placement
             // reads lag behind. The actual bounded RunClient WaitFor must time out.
             env.Storage.AfterJournalComplete = () => env.Http.Delegated.Remove("daily");
-            await Fails<TimeoutException>(async () => await env.Client.StartDaily(receipts: receipt));
+            await ZKube.Integration.Tests.AsyncAssert.Throws<TimeoutException>(async () => await env.Client.StartDaily(receipts: receipt));
             string address = (await env.Markers.Load(env.Owner)).ActiveRun;
             Receipt(receipt, env.Owner, "daily", address, "start-daily");
             Assert.That(receipt.Steps[0].Result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -49,7 +49,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
                 var receipt = new RunOperationReceipts(env.Owner, binding.Address);
                 env.Storage.AfterJournalComplete = () => env.Http.FailObservation = true;
-                await Fails<IOException>(async () => {
+                await ZKube.Integration.Tests.AsyncAssert.Throws<IOException>(async () => {
                     if (vrf) await env.Client.ResolveVrf(binding, receipts: receipt);
                     else await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll, receipts: receipt);
                 });
@@ -69,7 +69,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
                 env.Http.Confirmed = false; env.Http.SuppressSendEffects = true;
                 var sending = new RunOperationReceipts(env.Owner, binding.Address);
-                await Fails<RunExecutionException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
+                await ZKube.Integration.Tests.AsyncAssert.Throws<RunExecutionException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
                     RunClientAction.Reroll, receipts: sending));
                 Assert.That(sending.Steps.Single().Result.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
                 string signature = (await env.Journal.Load(env.Owner)).Signature;
@@ -98,7 +98,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 new RunOperationReceipts(env.Owner, "different-run") })
             {
                 int requests = env.Http.Requests;
-                await Fails<InvalidOperationException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
+                await ZKube.Integration.Tests.AsyncAssert.Throws<InvalidOperationException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
                     RunClientAction.Reroll, receipts: invalid));
                 Assert.That(invalid.Steps, Is.Empty); Assert.That(env.Http.Requests, Is.EqualTo(requests));
             }
@@ -106,7 +106,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             var receipt = new RunOperationReceipts(env.Owner, binding.Address);
             await env.Client.ResolveVrf(binding, receipts: receipt); // already ready: no execution
             int before = env.Http.Requests;
-            await Fails<InvalidOperationException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
+            await ZKube.Integration.Tests.AsyncAssert.Throws<InvalidOperationException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
                 RunClientAction.Reroll, receipts: receipt));
             Assert.That(env.Http.Requests, Is.EqualTo(before)); Assert.That(receipt.Steps, Is.Empty);
         }
@@ -119,7 +119,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var env = await Environment.Create(); var initial = await env.Client.Inspect();
                 var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
                 env.Http.Confirmed = false;
-                await Fails<RunExecutionException>(async () => await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll));
+                await ZKube.Integration.Tests.AsyncAssert.Throws<RunExecutionException>(async () => await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll));
                 string signature = (await env.Journal.Load(env.Owner)).Signature;
                 if (ownerChanges) await env.Identity.Disconnect(); else env.Http.ReplaceWithSuccessor(false, true);
                 env.Http.Confirmed = true;
@@ -145,7 +145,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 int completed = 0;
                 env.Storage.AfterJournalComplete = () => { if (++completed == failAfterStep) env.Http.FailObservation = true; };
                 if (failAfterStep != 0)
-                    await Fails<IOException>(async () => await env.Client.FinishAndSettle(binding, receipts: receipt));
+                    await ZKube.Integration.Tests.AsyncAssert.Throws<IOException>(async () => await env.Client.FinishAndSettle(binding, receipts: receipt));
                 else Assert.That((await env.Client.FinishAndSettle(binding, receipts: receipt)).Phase, Is.EqualTo("consumed"));
                 Receipt(receipt, env.Owner, mode, binding.Address, failAfterStep == 2
                     ? new[] { "finish-" + mode, "commit-" + mode }
@@ -169,7 +169,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             Task disconnect = Task.CompletedTask;
             env.Storage.AfterJournalComplete = () => { if (ownerChanged) disconnect = env.Identity.Disconnect(); else cancel.Cancel(); };
             var receipt = new RunOperationReceipts(env.Owner, binding.Address);
-            await Fails<OperationCanceledException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
+            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await env.Client.Apply(binding.Accept(initial), binding,
                 RunClientAction.Reroll, cancellation: cancel.Token, receipts: receipt));
             Receipt(receipt, env.Owner, "daily", binding.Address, "reroll-daily");
             Assert.That(receipt.Steps.Single().Result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -202,11 +202,11 @@ namespace ZKube.Integration.Client.Runs.Tests
             var env = await Environment.Create(); var initial = await env.Client.Inspect();
             var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
             env.Http.Confirmed = false;
-            await Fails<RunExecutionException>(async () => await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll));
+            await ZKube.Integration.Tests.AsyncAssert.Throws<RunExecutionException>(async () => await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll));
             string signature = (await env.Journal.Load(env.Owner)).Signature;
             env.Http.Confirmed = true; env.Storage.AfterJournalComplete = () => env.Http.FailObservation = true;
             var receipt = new RunOperationReceipts(env.Owner, binding.Address);
-            await Fails<IOException>(async () => await env.Client.Recover(binding, receipts: receipt));
+            await ZKube.Integration.Tests.AsyncAssert.Throws<IOException>(async () => await env.Client.Recover(binding, receipts: receipt));
             Receipt(receipt, env.Owner, "daily", binding.Address, "reroll-daily");
             Assert.That(receipt.Steps.Single().Result.Signature, Is.EqualTo(signature));
             Assert.That(receipt.Steps.Single().Result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));

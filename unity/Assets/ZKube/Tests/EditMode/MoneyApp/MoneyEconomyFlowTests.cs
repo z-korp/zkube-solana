@@ -62,7 +62,7 @@ namespace ZKube.Integration.App.Tests
                 var state = (await e.Flow.RefreshKredits()).Value;
                 Assert.That(state.Pending.Signature, Is.EqualTo(pending.Signature));
                 Assert.That(state.Profile.Owner, Is.EqualTo(e.Owner));
-                var rejected = await MoneyTestEnvironment.Fails<InvalidOperationException>(() => e.Flow.BuyKredits(1));
+                var rejected = await ZKube.Integration.Tests.AsyncAssert.Throws<InvalidOperationException>(() => e.Flow.BuyKredits(1));
                 StringAssert.Contains("existing transaction", rejected.Message);
                 Assert.That(e.Http.Requests.Any(row => (string)row["method"] == "getSignatureStatuses"), Is.False);
                 Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
@@ -85,8 +85,8 @@ namespace ZKube.Integration.App.Tests
                 var purchase = e.Flow.BuyKredits(1, cancellation.Token);
                 Assert.Throws<InvalidOperationException>(() => e.Flow.BuyKredits(1));
                 cancellation.Cancel(); e.Http.Release.TrySetResult(true);
-                await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await reading);
-                await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await purchase);
+                await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await reading);
+                await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await purchase);
                 e.AssertReadOnly(); Assert.That(e.Native.Calls, Is.EqualTo(1));
             }
             finally { e.Http.Release?.TrySetResult(true); await e.Flow.StopAsync(); }
@@ -103,7 +103,7 @@ namespace ZKube.Integration.App.Tests
                 var origin = e.Services.Identity.Lease();
                 await e.Services.Identity.Disconnect(); await e.Services.Identity.Connect(e.Owner);
                 int calls = e.Http.Requests.Count, native = e.Native.Calls;
-                await MoneyTestEnvironment.Fails<OperationCanceledException>(() => e.Services.Economy.Buy(1, origin.Cancellation));
+                await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(() => e.Services.Economy.Buy(1, origin.Cancellation));
                 Assert.That(e.Http.Requests.Count, Is.EqualTo(calls)); Assert.That(e.Native.Calls, Is.EqualTo(native));
             }
             finally { await e.Flow.StopAsync(); }

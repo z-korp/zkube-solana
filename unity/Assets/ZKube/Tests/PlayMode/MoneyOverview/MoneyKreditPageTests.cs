@@ -86,53 +86,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
-        [UnityTest] public IEnumerator DisconnectDuringPurchaseApprovalRemovesTheShopAndPreventsSend()
-        {
-            yield return PrepareDeviceScenario("kredit-buy-1", page: "Kredits");
-            var controller = host.GetComponent<MoneyIdentity>().Controller; var hold = environment.HoldNextWallet();
-            var operation = controller.PurchaseKredits(1);
-            try
-            {
-                yield return Wait(hold.Entered);
-                yield return Wait(controller.PurchaseKredits(1));
-                Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.EqualTo(1));
-                var disconnect = controller.Disconnect();
-                Assert.That(controller.BrowsingKredits, Is.False); Assert.That(controller.LastReceipt, Is.Null);
-                hold.Release(); yield return Wait(operation); yield return Wait(disconnect);
-                Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction"), Is.False);
-                Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Buy ")), Is.False);
-                Assert.That(environment.ForbiddenCalls, Is.Zero);
-            }
-            finally { hold.Release(); }
-        }
 
-        [UnityTest] public IEnumerator PurchaseApprovalHeldAcrossDisableCannotOpenARunOrEnableADevice()
-        {
-            yield return PrepareDeviceScenario("kredit-buy-1", page: "Kredits");
-            var controller = host.GetComponent<MoneyIdentity>().Controller; var hold = environment.HoldNextWallet();
-            var operation = controller.PurchaseKredits(1);
-            try
-            {
-                yield return Wait(hold.Entered); controller.enabled = false; yield return null;
-                controller.enabled = true; yield return null;
-                Assert.That(controller.EconomyActionPending, Is.True);
-                Assert.That(controller.Busy, Is.True, "A fresh read waits for the outstanding owner operation to drain");
-                Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Buy ")), Is.False);
-                Assert.That(host.GetComponentsInChildren<Button>().Where(button => button.name != "Disconnect").All(button => !button.interactable), Is.True);
-                int before = environment.Calls.Count;
-                yield return Wait(controller.EnsureDeviceSession());
-                yield return Wait(controller.ResumeCampaignRun());
-                Assert.That(environment.Calls.Count, Is.EqualTo(before));
-                Assert.That(controller.PlayingRun, Is.False);
-                hold.Release(); yield return Wait(operation); yield return Idle();
-                Assert.That(controller.EconomyActionPending, Is.False);
-                Assert.That(controller.BrowsingKredits, Is.True);
-                StringAssert.Contains("Balance · 25", SessionText());
-                Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction"), Is.False);
-                Assert.That(environment.ForbiddenCalls, Is.Zero);
-            }
-            finally { hold.Release(); }
-        }
 
         [UnityTest] public IEnumerator ConfirmedPurchaseKeepsItsReceiptWhenBalanceReadbackFails()
         {

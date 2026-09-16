@@ -9,7 +9,7 @@ namespace ZKube.Integration.Tests
 {
     public sealed class ProtocolDecodeTests
     {
-        private static ProtocolBindings Bindings() => new ProtocolBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
+        private static ProtocolBindings Bindings() => new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
         private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");
         [Test]
         public void RustProgramInstructionsDecodeAndReencodeWithTheSharedBorshReader()

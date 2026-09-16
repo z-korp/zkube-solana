@@ -12,29 +12,6 @@ namespace ZKube.Integration.Tests
 {
     public sealed class DurableStoreTests
     {
-        private sealed class Storage : IPublicClientStore
-        {
-            private readonly Dictionary<string, string> records = new Dictionary<string, string>();
-            public bool Fail;
-            public Task<string> Read(string owner, string field)
-            { lock (records) return Task.FromResult(records.TryGetValue(owner + field, out var value) ? value : null); }
-            public Task Write(string owner, string field, string value)
-            {
-                lock (records) { if (Fail) throw new IOException("Synthetic storage failure"); records[owner + field] = value; }
-                return Task.CompletedTask;
-            }
-            public Task<bool> CompareExchange(string owner, string field, string expected, string value)
-            {
-                lock (records)
-                {
-                    if (Fail) throw new IOException("Synthetic storage failure");
-                    records.TryGetValue(owner + field, out var prior);
-                    if (prior != expected) return Task.FromResult(false);
-                    records[owner + field] = value;
-                    return Task.FromResult(true);
-                }
-            }
-        }
         private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");
         private sealed class DiscoveryTransport : IRecoveryTransport
         {
@@ -51,13 +28,13 @@ namespace ZKube.Integration.Tests
         {
             var fixture = Fixture();
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
-            var accounts = new AccountBindings(File.ReadAllText(Path.Combine(generated, "solana.json")), Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
-            var sessions = new SessionTokenBindings(File.ReadAllText(Path.Combine(generated, "session.json")));
+            var accounts = new AccountBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
+            var sessions = new SessionTokenBindings(ZKube.Integration.Tests.TestBootstrap.TokenJson);
             var raw = fixture["accounts"].Single(row => (string)row["id"] == "player-valid");
             string owner = (string)fixture["inputs"]["owner"], delegation = (string)fixture["inputs"]["delegationProgramId"];
             var transport = new DiscoveryTransport { Player = new AccountEnvelope((string)raw["address"], (string)raw["owner"], false,
                 Convert.FromBase64String((string)raw["data"])), Delegation = delegation };
-            var store = new RunStateStore(new Storage(), accounts);
+            var store = new RunStateStore(new TestMemory(), accounts);
             var recovery = new RunRecovery(accounts.ProgramId, delegation, accounts);
             var daily = await store.ResolveOrDiscover(owner, recovery, transport, (long)fixture["inputs"]["nowUnix"]);
             Assert.That(daily.Phase, Is.EqualTo("resolving"));
@@ -71,7 +48,7 @@ namespace ZKube.Integration.Tests
             byte[] bytes = Convert.FromBase64String((string)fixture["transactions"][0]["signedTransaction"]);
             var entry = new PendingTransaction(owner, "synthetic-purchase", "https://base.invalid", true, bytes,
                 (string)fixture["inputs"]["blockhash"], 500);
-            var storage = new Storage();
+            var storage = new TestMemory();
             var first = new TransactionJournal(storage);
             var restored = new TransactionJournal(storage);
             await first.Begin(entry);
@@ -95,15 +72,15 @@ namespace ZKube.Integration.Tests
         {
             var fixture = Fixture();
             string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
-            var accounts = new AccountBindings(File.ReadAllText(Path.Combine(generated, "solana.json")), Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
-            var sessions = new SessionTokenBindings(File.ReadAllText(Path.Combine(generated, "session.json")));
+            var accounts = new AccountBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
+            var sessions = new SessionTokenBindings(ZKube.Integration.Tests.TestBootstrap.TokenJson);
             string owner = (string)fixture["inputs"]["owner"];
             // The real routing fixtures carry the PDA matching this exact u64.
             string active = null;
             foreach (var pda in fixture["pdas"]) if ((string)pda["id"] == "run-high-u64") active = (string)pda["address"];
             Assert.That(active, Is.Not.Null);
             var marker = new RunMarker(owner, (ulong)fixture["inputs"]["runId"], active);
-            var storage = new Storage();
+            var storage = new TestMemory();
             var store = new RunStateStore(storage, accounts);
             await store.Save(marker);
             var restored = await new RunStateStore(storage, accounts).Load(owner);

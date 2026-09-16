@@ -24,10 +24,10 @@ namespace ZKube.Integration.Execution.Tests
         private TransactionPlanner planner;
         private AccountBindings accounts;
         private SessionTokenBindings sessions;
-        private Store store;
+        private TestMemory store;
         private Http http;
-        private Wallet native;
-        private Observer observer;
+        private TestNative native;
+        private TestReconciler observer;
         private TransactionExecutor executor;
         private ConcurrentQueue<string> events;
         private static JObject Fixture(string name) => ZKube.Integration.Tests.ProgramScenarios.Load(name);
@@ -37,20 +37,16 @@ namespace ZKube.Integration.Execution.Tests
         public void Setup()
         {
             solana = Fixture("solana"); plans = Fixture("plans"); rpcFixture = Fixture("transport");
-            string generated = Path.Combine(Application.dataPath, "ZKube/Integration/Generated");
-            string idl = File.ReadAllText(Path.Combine(generated, "solana.json"));
-            var protocol = new ProtocolBindings(idl);
-            accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
-            sessions = new SessionTokenBindings(File.ReadAllText(Path.Combine(generated, "session.json")));
-            planner = new TransactionPlanner(protocol, sessions);
+            var bootstrap = new TestBootstrap();
+            accounts = bootstrap.Accounts; sessions = bootstrap.Tokens; planner = bootstrap.Planner;
             owner = (string)solana["inputs"]["owner"]; device = (string)solana["inputs"]["device"];
-            events = new ConcurrentQueue<string>(); store = new Store(events); native = new Wallet(events);
+            events = new ConcurrentQueue<string>(); store = new TestMemory(events); native = new TestNative(events) { AllowSigning = true, AllowCreation = () => true };
             http = new Http(events, store, rpcFixture, solana, plans, owner);
-            observer = new Observer(accounts, planner);
+            observer = new TestReconciler(accounts, planner);
             executor = NewExecutor();
         }
         private TransactionExecutor NewExecutor() => new TransactionExecutor(planner,
-            new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"],
+            new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"],
                 (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId), new WalletClient(native), new TransactionJournal(store));
         private PendingTransaction SignedPurchase() => new PendingTransaction(owner, "purchase-one", (string)rpcFixture["inputs"]["base"], true,
             Convert.FromBase64String((string)solana["transactions"].Single(row => (string)row["id"] == "purchase-1")["signedTransaction"]),
@@ -94,7 +90,7 @@ namespace ZKube.Integration.Execution.Tests
             var first = await NewExecutor().Resume(owner, observer);
             Assert.That(first.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             http.Height = 501; http.AbsentNonPlayer = true;
-            var final = await NewExecutor().Resume(owner, new Observer(accounts, planner));
+            var final = await NewExecutor().Resume(owner, new TestReconciler(accounts, planner));
             Assert.That(final.Outcome, Is.EqualTo(ExecutionOutcome.ExpiredReconciled));
             Assert.That(http.Count("sendTransaction"), Is.Zero); Assert.That(native.Calls, Is.Zero);
             Assert.That(http.Count("getLatestBlockhash"), Is.Zero); Assert.That(await store.Read(owner, "journal"), Is.Null);
@@ -224,11 +220,11 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task DisconnectDuringWalletSigningDrainsExecutorAndRetainsTheInstallKey()
         {
-            native.DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray();
+            native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
             var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
             var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
             var tokenRow = solana["accounts"].Single(row => (string)row["id"] == "session-valid"); var token = sessions.Decode(Envelope(tokenRow));
-            await records.Replace(await records.Load(owner), new SessionRecords(owner, new SessionRecord(owner, device, (string)tokenRow["address"], token.ValidUntil)));
+            await ZKube.Integration.Tests.TestBootstrap.SeedSession(records, owner, device, (string)tokenRow["address"], token.ValidUntil);
             var lifecycle = new SessionLifecycle(identity, wallet, records, sessions, planner, null,
                 new TransactionJournal(store), executor, observer, accounts.ProgramId, () => 1788912000);
             native.SignEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -238,26 +234,26 @@ namespace ZKube.Integration.Execution.Tests
             await native.SignEntered.Task;
             var disconnect = lifecycle.Disconnect();
             Assert.That(identity.Owner, Is.Null); Assert.That(disconnect.IsCompleted, Is.False);
-            Assert.That(native.DeviceSeed, Is.Not.Null);
+            Assert.That(native.Seed, Is.Not.Null);
             await AsyncAssert.Throws<InvalidOperationException>(() => identity.Connect(owner));
             native.SignRelease.SetResult(true);
             Assert.That((await execution).Outcome, Is.EqualTo(ExecutionOutcome.Rejected)); await disconnect;
-            Assert.That(native.DeviceSeed, Is.Not.Null); Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(device));
+            Assert.That(native.Seed, Is.Not.Null); Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(device));
             Assert.That(http.Count("sendTransaction"), Is.Zero); Assert.That(await store.Read(owner, "journal"), Is.Null);
         }
 
         [Test]
         public async Task DisconnectPreservesBothDurableSessionAndActiveKeyWhenJournalIsUnresolved()
         {
-            native.DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray();
+            native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
             var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
             var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
             var row = solana["accounts"].Single(value => (string)value["id"] == "session-valid"); var token = sessions.Decode(Envelope(row));
-            await records.Replace(await records.Load(owner), new SessionRecords(owner, new SessionRecord(owner, device, (string)row["address"], token.ValidUntil)));
+            await ZKube.Integration.Tests.TestBootstrap.SeedSession(records, owner, device, (string)row["address"], token.ValidUntil);
             var journal = new TransactionJournal(store); await journal.Begin(SignedPurchase());
             var lifecycle = new SessionLifecycle(identity, wallet, records, sessions, planner, null, journal, executor, observer, accounts.ProgramId, () => 1788912000);
             await lifecycle.Disconnect();
-            Assert.That(identity.Owner, Is.Null); Assert.That(native.DeviceSeed, Is.Not.Null);
+            Assert.That(identity.Owner, Is.Null); Assert.That(native.Seed, Is.Not.Null);
             Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(device)); Assert.That(await journal.Load(owner), Is.Not.Null);
         }
 
@@ -266,11 +262,11 @@ namespace ZKube.Integration.Execution.Tests
         public async Task RenewalRevokesAndCreatesTheSameTokenAtomicallyWithTheInstallKey(long remaining)
         {
             var fixture = Fixture("device"); var row = fixture["cases"].Single(value => (long)value["remaining"] == remaining && (ulong)value["balance"] == 1000000);
-            native.DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray();
+            native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
             var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
             var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
             var oldToken = Envelope(row["oldToken"]); var old = sessions.Decode(oldToken);
-            await records.Replace(await records.Load(owner), new SessionRecords(owner, new SessionRecord(owner, device, oldToken.Address, old.ValidUntil)));
+            await ZKube.Integration.Tests.TestBootstrap.SeedSession(records, owner, device, oldToken.Address, old.ValidUntil);
             http.ExtraAccounts[oldToken.Address] = row["oldToken"];
             http.ExtraAccounts[device] = new JObject { ["address"] = device, ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 1000000 };
             http.AfterSend = () =>
@@ -280,8 +276,8 @@ namespace ZKube.Integration.Execution.Tests
                 http.ExtraAccounts[(string)fixture["renewedToken"]["address"]] = fixture["renewedToken"];
                 http.ExtraAccounts[(string)fixture["inputs"]["device"]] = new JObject { ["address"] = fixture["inputs"]["device"], ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 5000000 };
             };
-            var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
-            var protocol = new ProtocolBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
+            var rpc = new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
+            var protocol = new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
             var journal = new TransactionJournal(store);
             var reconciler = new ExecutionReconciler(protocol, accounts, sessions, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
@@ -297,43 +293,43 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task RefillKeepsIdentityAndRevokeClosesTheTokenWhileRetainingTheInstallKey()
         {
-            native.DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray();
+            native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
             var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
             var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
             var tokenRow = plans["accounts"]["session"]; var token = sessions.Decode(Envelope(tokenRow));
-            await records.Replace(await records.Load(owner), new SessionRecords(owner, new SessionRecord(owner, device, (string)tokenRow["address"], token.ValidUntil)));
+            await ZKube.Integration.Tests.TestBootstrap.SeedSession(records, owner, device, (string)tokenRow["address"], token.ValidUntil);
             http.ExtraAccounts[(string)tokenRow["address"]] = tokenRow;
             var funded = new JObject { ["address"] = device, ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 1000000 };
             http.ExtraAccounts[device] = funded;
-            var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
-            var journal = new TransactionJournal(store); var reconciler = new ExecutionReconciler(new ProtocolBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json"))), accounts, sessions, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
+            var rpc = new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
+            var journal = new TransactionJournal(store); var reconciler = new ExecutionReconciler(new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson), accounts, sessions, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
             var lifecycle = new SessionLifecycle(identity, wallet, records, sessions, planner, rpc, journal, executor, reconciler, accounts.ProgramId, () => (long)plans["inputs"]["now"]);
             http.AfterSend = () => funded["lamports"] = PlanningConstants.DeviceAllowanceLamports;
             Assert.That((await lifecycle.Refill()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(native.DeviceSeed, Is.Not.Null); Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(device));
+            Assert.That(native.Seed, Is.Not.Null); Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(device));
             http.AfterSend = () => { funded["lamports"] = 0; http.ExtraAccounts[(string)tokenRow["address"]] = JValue.CreateNull(); http.Confirmation = "processed"; };
             Assert.That((await lifecycle.Revoke()).Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            Assert.That(native.DeviceSeed, Is.Not.Null); Assert.That(await journal.Load(owner), Is.Not.Null);
+            Assert.That(native.Seed, Is.Not.Null); Assert.That(await journal.Load(owner), Is.Not.Null);
             http.Confirmation = "confirmed";
             Assert.That((await executor.Resume(owner, reconciler)).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(native.DeviceSeed, Is.Not.Null); Assert.That((await records.Load(owner)).Active, Is.Null);
+            Assert.That(native.Seed, Is.Not.Null); Assert.That((await records.Load(owner)).Active, Is.Null);
         }
 
         [Test]
         public async Task ExplicitClaimUsesEachBoardSealingWindowEvenForADailyOutsideDiscoveryHistory()
         {
             var economy = Fixture("economy");
-            native.DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray();
+            native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
             var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
             var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
             var tokenRow = plans["accounts"]["session"]; var token = sessions.Decode(Envelope(tokenRow));
-            await records.Replace(await records.Load(owner), new SessionRecords(owner, new SessionRecord(owner, device, (string)tokenRow["address"], token.ValidUntil)));
+            await ZKube.Integration.Tests.TestBootstrap.SeedSession(records, owner, device, (string)tokenRow["address"], token.ValidUntil);
             http.ExtraAccounts[(string)tokenRow["address"]] = tokenRow;
             http.ExtraAccounts[device] = new JObject { ["address"] = device, ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 5000000 };
             foreach (string name in new[] { "oldDaily", "oldScore", "oldExpiredTheme" }) http.ExtraAccounts[(string)economy[name]["address"]] = economy[name];
-            var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
-            var protocol = new ProtocolBindings(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
+            var rpc = new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
+            var protocol = new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
             var journal = new TransactionJournal(store); string accepted = null;
             var reconciler = new ExecutionReconciler(protocol, accounts, sessions, records, planner, rpc, value => { accepted = value; return Task.CompletedTask; }, _ => Task.CompletedTask);
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
@@ -350,79 +346,13 @@ namespace ZKube.Integration.Execution.Tests
             Assert.That(native.Calls, Is.EqualTo(1), "The device claim must not open the wallet again");
         }
 
-        private sealed class Store : IPublicClientStore
+        private sealed class Http
         {
-            private readonly ConcurrentQueue<string> events;
-            private readonly Dictionary<string, string> values = new Dictionary<string, string>();
-            public Store(ConcurrentQueue<string> events) { this.events = events; }
-            public string Peek(string owner, string field) { lock (values) return values.TryGetValue(owner + field, out var value) ? value : null; }
-            public Task<string> Read(string owner, string field) => Task.FromResult(Peek(owner, field));
-            public Task Write(string owner, string field, string value) { lock (values) values[owner + field] = value; return Task.CompletedTask; }
-            public async Task<bool> CompareExchange(string owner, string field, string expected, string value)
-            {
-                await Task.Yield();
-                lock (values)
-                {
-                    if (Peek(owner, field) != expected) return false;
-                    values[owner + field] = value; if (field == "journal" && value != null) events.Enqueue("journal"); return true;
-                }
-            }
-        }
-        private sealed class Wallet : INativeWalletTransport
-        {
-            private readonly ConcurrentQueue<string> events;
-            public int Calls; public bool Reject;
-            public byte[] DeviceSeed;
-            public int Creations;
-            public TaskCompletionSource<bool> SignEntered, SignRelease;
-            public Wallet(ConcurrentQueue<string> events) { this.events = events; }
-            public async Task<string> Request(string json)
-            {
-                await Task.Yield(); Calls++; events.Enqueue("wallet");
-                var request = JObject.Parse(json);
-                if ((string)request["operation"] != "signTransactions")
-                    return new JObject { ["requestId"] = request["requestId"], ["ok"] = true, ["owner"] = request["owner"] }.ToString();
-                SignEntered?.TrySetResult(true); if (SignRelease != null) await SignRelease.Task;
-                if (Reject) return new JObject { ["requestId"] = request["requestId"], ["ok"] = false, ["error"] = "wallet-rejected" }.ToString();
-                Assert.That((string)request["operation"], Is.EqualTo("signTransactions"));
-                using var syntheticOwner = new DeviceSigner(Enumerable.Repeat((byte)1, 32).ToArray());
-                return new JObject { ["requestId"] = request["requestId"], ["ok"] = true, ["owner"] = request["owner"],
-                    ["transaction"] = Convert.ToBase64String(syntheticOwner.PartialSign(Convert.FromBase64String((string)request["transaction"]))) }.ToString();
-            }
-            public Task<byte[]> LoadDeviceSeed(bool create)
-            {
-                if (create && DeviceSeed == null) { DeviceSeed = Enumerable.Repeat((byte)2, 32).ToArray(); Creations++; }
-                return Task.FromResult(DeviceSeed?.ToArray());
-            }
-        }
-        private sealed class Observer : IExecutionReconciler
-        {
-            private readonly AccountBindings bindings;
-            private readonly TransactionPlanner planner;
-            public bool Ready = true; public int Count;
-            public TaskCompletionSource<bool> Entered, Release;
-            public Observer(AccountBindings bindings, TransactionPlanner planner) { this.bindings = bindings; this.planner = planner; }
-            public async Task<bool> Reconcile(ExecutionReconciliation evidence, CancellationToken cancellation)
-            {
-                await Task.Yield(); Count++;
-                Entered?.TrySetResult(true);
-                if (Release != null) await Release.Task;
-                Assert.That(evidence.Transaction.Instructions.Any(ix => ix.ProgramId == bindings.ProgramId), Is.True);
-                Assert.That(TransactionSignatures.ValidateFullySigned(evidence.Pending.Transaction), Is.EqualTo(evidence.Pending.Signature));
-                Assert.That(evidence.Accounts.All(a => a.Observation.Slot >= evidence.MinimumSlot), Is.True);
-                Assert.That(evidence.Accounts.Select(a => a.Address), Is.EquivalentTo(evidence.Transaction.Accounts.Where(a => a.Writable).Select(a => a.Address)));
-                var player = evidence.Accounts.SingleOrDefault(a => a.Address == planner.Player(evidence.Pending.Owner));
-                if (player != null) bindings.PlayerState(player.Observation.Envelope, evidence.Pending.Owner);
-                foreach (var account in evidence.Accounts.Where(a => a != player && a.Observation.Envelope?.Owner == bindings.ProgramId))
-                    RunPlanSnapshot.Decode(bindings, account.Observation.Envelope, evidence.Pending.Owner);
-                return Ready;
-            }
-        }
-        private sealed class Http : IJsonRpcHttp
-        {
-            private readonly ConcurrentQueue<string> events; private readonly Store store;
+            public readonly TestHttp Transport;
+
+            private readonly ConcurrentQueue<string> events; private readonly TestMemory store;
             private readonly JObject rpc, solana, plans; private readonly string owner;
-            public readonly ConcurrentQueue<JObject> Requests = new ConcurrentQueue<JObject>();
+            public ConcurrentQueue<JObject> Requests => Transport.Requests;
             public string Confirmation = "confirmed"; public ulong AccountSlot = 1000, Height = 400;
             public ulong Fee = 5400, Balance = 1000000000, Rent = 890880;
             public bool ThrowAfterSend, AbsentNonPlayer;
@@ -430,25 +360,25 @@ namespace ZKube.Integration.Execution.Tests
             public byte[] Sent;
             public Action AfterSend;
             public readonly Dictionary<string, JToken> ExtraAccounts = new Dictionary<string, JToken>();
-            public Http(ConcurrentQueue<string> events, Store store, JObject rpc, JObject solana, JObject plans, string owner)
-            { this.events = events; this.store = store; this.rpc = rpc; this.solana = solana; this.plans = plans; this.owner = owner; }
+            public Http(ConcurrentQueue<string> events, TestMemory store, JObject rpc, JObject solana, JObject plans, string owner)
+            { Transport = new TestHttp { Reply = Respond }; this.events = events; this.store = store; this.rpc = rpc; this.solana = solana; this.plans = plans; this.owner = owner; }
             public int Count(string method) => Requests.Count(request => (string)request["method"] == method);
-            public async Task<string> Post(Uri endpoint, string json, int maximumResponseBytes, CancellationToken cancellation)
+            private async Task<JToken> Respond(Uri endpoint, JObject request, CancellationToken cancellation)
             {
                 await Task.Yield(); cancellation.ThrowIfCancellationRequested();
-                var request = JObject.Parse(json); string method = (string)request["method"];
-                request["endpoint"] = endpoint.AbsoluteUri; Requests.Enqueue(request); events.Enqueue(method);
+                string method = (string)request["method"];
+                events.Enqueue(method);
                 JToken result;
                 switch (method)
                 {
                     case "getGenesisHash": result = rpc["inputs"]["expectedGenesis"]; break;
-                    case "getLatestBlockhash": result = Context(new JObject { ["blockhash"] = solana["inputs"]["blockhash"], ["lastValidBlockHeight"] = 500 }, 1000); break;
-                    case "getFeeForMessage": result = Context(new JValue(Fee), 1000); break;
-                    case "getBalance": result = Context(new JValue(Balance), 1000); break;
+                    case "getLatestBlockhash": result = TestHttp.Context(new JObject { ["blockhash"] = solana["inputs"]["blockhash"], ["lastValidBlockHeight"] = 500 }, 1000); break;
+                    case "getFeeForMessage": result = TestHttp.Context(new JValue(Fee), 1000); break;
+                    case "getBalance": result = TestHttp.Context(new JValue(Balance), 1000); break;
                     case "getMinimumBalanceForRentExemption": result = new JValue(Rent); break;
                     case "simulateTransaction":
                         var simulationError = SimulationError;
-                        result = Context(new JObject { ["err"] = simulationError?.DeepClone() ?? JValue.CreateNull(), ["logs"] = new JArray(), ["unitsConsumed"] = 100 }, 1000); break;
+                        result = TestHttp.Context(new JObject { ["err"] = simulationError?.DeepClone() ?? JValue.CreateNull(), ["logs"] = new JArray(), ["unitsConsumed"] = 100 }, 1000); break;
                     case "sendTransaction":
                         Assert.That(store.Peek(owner, "journal"), Is.Not.Null, "Send ran before durable commit");
                         Sent = Convert.FromBase64String((string)request["params"][0]);
@@ -456,19 +386,19 @@ namespace ZKube.Integration.Execution.Tests
                         AfterSend?.Invoke();
                         if (ThrowAfterSend) throw new IOException("Synthetic response loss after submission");
                         result = new JValue(signature); break;
-                    case "getSignatureStatuses": result = Context(new JArray(Confirmation == null ? JValue.CreateNull() : new JObject {
+                    case "getSignatureStatuses": result = TestHttp.Context(new JArray(Confirmation == null ? JValue.CreateNull() : new JObject {
                         ["slot"] = 990, ["confirmationStatus"] = Confirmation, ["err"] = StatusError?.DeepClone() ?? JValue.CreateNull() }), 1000); break;
                     case "getBlockHeight": result = new JValue(Height); break;
                     case "getMultipleAccounts":
                         var addresses = request["params"][0].Values<string>().ToArray();
                         Assert.That(addresses.Length, Is.LessThanOrEqualTo(SolanaRpcTransport.MaximumBatchAccounts));
-                        result = Context(new JArray(addresses.Select(Account)), AccountSlot); break;
-                    case "getAccountInfo": result = Context(Account((string)request["params"][0]), AccountSlot); break;
+                        result = TestHttp.Context(new JArray(addresses.Select(Account)), AccountSlot); break;
+                    case "getAccountInfo": result = TestHttp.Context(Account((string)request["params"][0]), AccountSlot); break;
                     case "getDelegationStatus": result = new JObject { ["isDelegated"] = true, ["fqdn"] = rpc["inputs"]["er"],
                         ["delegationRecord"] = new JObject { ["owner"] = rpc["inputs"]["program"], ["authority"] = plans["inputs"]["validator"], ["delegationSlot"] = 900, ["lamports"] = 1 } }; break;
                     default: throw new InvalidOperationException("Unexpected offline RPC " + method);
                 }
-                return new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"], ["result"] = result.DeepClone() }.ToString(Formatting.None);
+                return result;
             }
             private JToken Account(string address)
             {
@@ -482,7 +412,7 @@ namespace ZKube.Integration.Execution.Tests
                 if (AbsentNonPlayer) return JValue.CreateNull();
                 return new JObject { ["owner"] = "11111111111111111111111111111111", ["executable"] = false, ["lamports"] = 1, ["data"] = new JArray("", "base64") };
             }
-            private static JObject Context(JToken value, ulong slot) => new JObject { ["context"] = new JObject { ["slot"] = slot }, ["value"] = value };
+
         }
     }
 }

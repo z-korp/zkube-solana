@@ -23,7 +23,7 @@ namespace ZKube.Integration.App.Tests
         [Test] public async Task money_campaign_needs_an_address_and_no_session()
         {
             var e = new MoneyTestEnvironment();
-            await MoneyTestEnvironment.Fails<InvalidOperationException>(async () => await e.Flow.StartCampaignRun(1, 1));
+            await ZKube.Integration.Tests.AsyncAssert.Throws<InvalidOperationException>(async () => await e.Flow.StartCampaignRun(1, 1));
             await e.Flow.Connect(e.Owner);
             var run = await e.Flow.StartCampaignRun(1, 1);
             Assert.That(run.Value.Bind("Campaign").Accepted, Is.Not.Null);
@@ -33,7 +33,7 @@ namespace ZKube.Integration.App.Tests
             CollectionAssert.AreEqual(run.Value.Bind("Campaign").Accepted.State, (await e.Flow.OpenSavedCampaign()).Value.Bind("Campaign").Accepted.State);
             await e.Flow.Disconnect();
             Assert.That(run.IsCurrent, Is.False);
-            await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await run.Value.Recover(CancellationToken.None));
+            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await run.Value.Recover(CancellationToken.None));
             Assert.That(browse.IsCurrent, Is.False);
             e.AssertReadOnly(); await e.Flow.StopAsync();
         }

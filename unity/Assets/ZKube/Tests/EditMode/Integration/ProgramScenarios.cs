@@ -31,13 +31,14 @@ namespace ZKube.Integration.Tests
         }
         public static void EquivalentMessages(string actual, string expected) => Equivalent(
             SolanaWire.UnsignedTransaction(Convert.FromBase64String(actual)), SolanaWire.UnsignedTransaction(Convert.FromBase64String(expected)));
+        private static readonly Lazy<JObject> data = new Lazy<JObject>(() => JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/program-unity-v1.json")))));
         public static JObject Load(string section)
         {
-            var root = JObject.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath, "../../fixtures/program-unity-v1.json"))));
+            var root = data.Value;
             if (section == "transport") return new JObject { ["inputs"] = new JObject {
                 ["base"] = "https://base.invalid/", ["router"] = "https://router.invalid/", ["er"] = "https://er.invalid/",
                 ["expectedGenesis"] = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG", ["program"] = root["plans"]["inputs"]["programId"] } };
-            var result = (JObject)root[section];
+            var result = (JObject)root[section].DeepClone();
             SignMessages(result);
             if (section == "runs")
                 foreach (string payer in new[] { "ownerConsume", "deviceConsume" })

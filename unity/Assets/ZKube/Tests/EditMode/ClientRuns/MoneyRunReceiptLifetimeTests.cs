@@ -15,7 +15,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var initial = await env.Client.Inspect();
                 var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
                 env.Http.SuccessorAfterConsume = true; env.Http.Confirmed = false;
-                await Fails<RunExecutionException>(async () => await env.Client.FinishAndSettle(binding));
+                await ZKube.Integration.Tests.AsyncAssert.Throws<RunExecutionException>(async () => await env.Client.FinishAndSettle(binding));
                 var pending = await env.Journal.Load(env.Owner); Assert.That(pending, Is.Not.Null);
                 env.Http.Confirmed = true;
                 var receipt = new RunOperationReceipts(env.Owner, binding.Address);

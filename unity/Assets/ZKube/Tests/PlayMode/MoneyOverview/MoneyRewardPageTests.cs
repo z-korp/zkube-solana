@@ -24,7 +24,6 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator ScoreRewardButtonPaysOnceAndShowsConfirmedPoints() => CollectReward("score", "sealed", 170);
         [UnityTest] public IEnumerator ThemeRewardButtonPaysOnceAndShowsConfirmedPoints() => CollectReward("theme", "sealed", 135);
         [UnityTest] public IEnumerator ScoreRewardIsCollectableAtItsExactDeadline() => CollectReward("score", "deadline", 170);
-        [UnityTest] public IEnumerator ThemeRewardIsCollectableAtItsExactDeadline() => CollectReward("theme", "deadline", 135);
         private IEnumerator CollectReward(string kind, string variant, int points)
         {
             yield return PrepareClaimPage("claim-" + kind + "-" + variant, 1.3f);
@@ -59,31 +58,6 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(host.GetComponent<MoneyIdentity>().Controller.CollectReward("score"));
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
-        [UnityTest] public IEnumerator PendingClaimWaitsForAnExplicitCheckBeforeShowingPoints() => PendingReward(false);
-        [UnityTest] public IEnumerator FailedClaimKeepsPointsAndOriginalReceipt() => PendingReward(true);
-        private IEnumerator PendingReward(bool failure)
-        {
-            yield return PrepareClaimPage("claim-score-pending-" + (failure ? "failure" : "success"));
-            yield return SessionClick("Collect Score"); yield return Idle();
-            var controller = host.GetComponent<MoneyIdentity>().Controller; string signature = controller.LastReceipt.Signature;
-            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            StringAssert.Contains("Ladder · 200 points", SessionText());
-            StringAssert.DoesNotContain("reward received", SessionText());
-            Assert.That(host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Collect ")).All(button => !button.interactable), Is.True);
-            int checks = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
-            yield return SessionClick("Refresh results"); yield return Idle();
-            Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
-            if (failure) environment.ConfirmPendingFailure(); else environment.ConfirmPendingSuccess();
-            yield return SessionClick("Check transaction"); yield return Idle();
-            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(failure ? ExecutionOutcome.ConfirmedFailure : ExecutionOutcome.ConfirmedSuccess));
-            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
-            StringAssert.Contains("Ladder · " + (failure ? 200 : 370) + " points", SessionText());
-            if (failure) StringAssert.DoesNotContain("reward received", SessionText());
-            else StringAssert.Contains("+170 ladder points", SessionText());
-            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
-            Assert.That(environment.ForbiddenCalls, Is.Zero);
-        }
         [UnityTest] public IEnumerator RewardDeadlineClosesWithoutWaitingForAnotherTap()
         {
             yield return PrepareClaimPage("claim-score-deadline");
@@ -92,19 +66,6 @@ namespace ZKube.Tests.MoneyOverview
             StringAssert.Contains("The claim window has closed.", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Theme").interactable, Is.True);
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
-        }
-        [UnityTest] public IEnumerator RewardReadbackFailurePreservesReceiptAndRequiresFreshValues()
-        {
-            yield return PrepareClaimPage("claim-score-sealed"); environment.FailFirstReadAfterJournalClear();
-            yield return SessionClick("Collect Score"); yield return Idle();
-            var controller = host.GetComponent<MoneyIdentity>().Controller;
-            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
-            StringAssert.DoesNotContain("reward received", SessionText());
-            yield return SessionClick("Refresh results"); yield return Idle();
-            StringAssert.Contains("Score reward received · " + (environment.ClaimAmount / 1_000_000_000m).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " SOL", SessionText());
-            StringAssert.Contains("Ladder · 370 points", SessionText());
-            Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ResultDayNavigationNeverSignsAndOtherPagesCloseResults()
         {

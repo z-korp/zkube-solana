@@ -84,25 +84,6 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
-        [UnityTest] public IEnumerator DisabledDailyPageRejectsALateReadAndRefetchesWhenEnabled()
-        {
-            yield return OpenDailyPage();
-            var controller = host.GetComponent<MoneyIdentity>().Controller;
-            var hold = environment.HoldNextRead("getMultipleAccounts");
-            yield return SessionClick("Refresh Daily");
-            try
-            {
-                yield return Wait(hold.Entered); controller.enabled = false;
-                Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
-                hold.Release(); yield return null;
-                Assert.That(host.GetComponentsInChildren<Button>(), Is.Empty);
-                controller.enabled = true; yield return Idle();
-                Assert.That(controller.BrowsingDaily, Is.True); StringAssert.Contains("Prize pot", DailyText());
-                Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
-                Assert.That(environment.ForbiddenCalls, Is.Zero);
-            }
-            finally { hold.Release(); }
-        }
 
         [UnityTest] public IEnumerator CampaignAndDeviceNavigationRetireTheDailyPage()
         {

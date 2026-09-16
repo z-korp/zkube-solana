@@ -4,6 +4,7 @@
     "Unity.TextMeshPro",
     "Unity.ugui",
     "ZKube.Core",
+    "ZKube.Core.Tests",
     "ZKube.Presentation"
   ],
   "autoReferenced": false,

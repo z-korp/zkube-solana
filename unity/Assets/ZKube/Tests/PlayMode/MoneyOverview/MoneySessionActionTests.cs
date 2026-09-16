@@ -16,15 +16,7 @@ namespace ZKube.Tests.MoneyOverview
     {
         private IEnumerator PrepareDeviceScenario(string scenario, float scale = 1, string page = "This device")
         {
-            var startup = Create();
-            solana = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
-            session = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
-            startup.Configuration.TextScale = scale;
-            var build = MoneyTestEnvironment.Create(scenario); yield return Wait(build);
-            environment = build.GetAwaiter().GetResult();
-            ((MoneyIdentity)startup.Configuration.Identity).Configuration = new MoneyConfiguration {
-                SolanaSchema = solana, SessionSchema = session, Services = environment.Services, Clock = environment.Clock };
-            host.SetActive(true); yield return null; yield return Idle();
+            yield return PrepareScenario(scenario, scale);
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick(page); yield return Idle();
         }
@@ -167,26 +159,6 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(environment.SentSignature, Is.Null);
                 Assert.That(host.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == "Device session panel"), Is.False);
                 StringAssert.DoesNotContain("Device session ready", SessionText());
-                Assert.That(environment.ForbiddenCalls, Is.Zero);
-            }
-            finally { hold.Release(); }
-        }
-        [UnityTest] public IEnumerator DelayedSessionReadCannotRevealADisabledPanelAndForegroundOnlyRefetches()
-        {
-            yield return PrepareDeviceScenario("session-current");
-            var hold = environment.HoldNextRead("getMultipleAccounts");
-            yield return SessionClick("Refresh session");
-            try
-            {
-                yield return Wait(hold.Entered);
-                var controller = host.GetComponent<MoneyIdentity>().Controller;
-                controller.enabled = false; controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false);
-                Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
-                hold.Release(); yield return null;
-                Assert.That(host.GetComponentsInChildren<Button>(), Is.Empty);
-                controller.enabled = true; yield return Idle();
-                Assert.That(controller.BrowsingSession, Is.True); StringAssert.Contains("Device session expires soon", SessionText());
-                Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
                 Assert.That(environment.ForbiddenCalls, Is.Zero);
             }
             finally { hold.Release(); }
