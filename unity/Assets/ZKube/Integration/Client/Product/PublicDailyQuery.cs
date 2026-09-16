@@ -15,7 +15,7 @@ namespace ZKube.Integration.Client
     public sealed class PublicDaily
     {
         private readonly bool exists;
-        private readonly DailyWindow window;
+        private readonly DailyInfo window;
         public uint DayId { get; }
         public long ObservedAt { get; }
         public string Status { get; }
@@ -27,11 +27,11 @@ namespace ZKube.Integration.Client
         public ulong? PotLamports { get; }
         public long? FreezesAt => !exists ? (long?)null : (long)window.FreezesAt;
         internal PublicDaily(uint day, long timestamp, string status, bool suspended,
-            bool paused, byte realm, byte kind, byte value, ulong? pool, bool exists)
+            bool paused, DailyInfo facts, ulong? pool, bool exists)
         {
-            DayId = day; window = NativeEngine.DailyWindow(day); ObservedAt = timestamp; Status = status;
-            Suspended = suspended; ProtocolPaused = paused; Realm = realm;
-            ObjectiveKind = kind; ObjectiveValue = value; PotLamports = pool;
+            DayId = day; window = facts; ObservedAt = timestamp; Status = status;
+            Suspended = suspended; ProtocolPaused = paused; Realm = facts.Realm;
+            ObjectiveKind = facts.Kind; ObjectiveValue = facts.Value; PotLamports = pool;
             this.exists = exists;
         }
     }
@@ -68,16 +68,16 @@ namespace ZKube.Integration.Client
                 throw new InvalidOperationException("UTC Daily changed during read; read it again");
             var protocol = protocolEnvelope == null ? null : accounts.ProtocolConfig(protocolEnvelope);
             var daily = dailyEnvelope == null ? null : accounts.ArenaDaily(dailyEnvelope, day);
-            var pair = NativeEngine.DailyPair(day);
+            var pair = NativeEngine.Daily(day);
             bool paused = protocol != null && (bool)protocol["paused"];
             bool suspended = protocol != null && day < (uint)protocol["suspended_until_day"];
             string status = protocol == null ? "missing-config"
                 : suspended ? "suspended" : daily == null ? "missing-daily"
-                : paused ? "paused" : DailyStatus(daily, timestamp);
+                : paused ? "paused" : DailyStatus(daily, timestamp, pair);
             // Missing Daily/config has no invented funded pot or playable snapshot.
             bool published = protocol != null && daily != null;
             return new PublicDaily(day, timestamp, status, suspended, paused,
-                pair.Realm, pair.Kind, pair.Value, published ? AvailablePool(daily["ledger"]) : (ulong?)null,
+                pair, published ? AvailablePool(daily["ledger"]) : (ulong?)null,
                 published);
         }
 
@@ -85,9 +85,9 @@ namespace ZKube.Integration.Client
         internal static long ValidateClock(long timestamp)
         { if (timestamp < 0 || timestamp / 86400 > uint.MaxValue) throw new ArgumentOutOfRangeException("now"); return timestamp; }
         internal static uint CurrentDay(long timestamp) => checked((uint)(timestamp / 86400));
-        internal static string DailyStatus(JObject daily, long timestamp)
+        internal static string DailyStatus(JObject daily, long timestamp, DailyInfo window = null)
         {
-            var window = NativeEngine.DailyWindow((uint)daily["day_id"]);
+            window ??= NativeEngine.Daily((uint)daily["day_id"]);
             string status = ((JObject)daily["status"]).Properties().Single().Name.ToLowerInvariant();
             return status == "open" && timestamp >= (long)window.FreezesAt ? "frozen"
                 : status == "open" && timestamp < (long)window.OpensAt ? "not-open" : status;

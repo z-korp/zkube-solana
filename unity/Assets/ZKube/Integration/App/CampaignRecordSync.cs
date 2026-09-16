@@ -26,13 +26,13 @@ namespace ZKube.Integration.App
             Func<CancellationToken, Task<byte[]>> read, Func<byte[], CancellationToken, Task<bool>> writeWhenReady)
         { this.product = product; Runs = runs; this.read = read; this.writeWhenReady = writeWhenReady; }
 
-        public byte[] PackedCampaignStars() => NativeEngine.PackCampaignStars(product.Read.Stars);
+        public byte[] PackedCampaignStars() => NativeEngine.CampaignProgress(product.Read.Stars).Packed;
         public void MergeCampaignRecord(byte[] chainStars)
         {
             product.WriteCampaign(current => {
-                var merged = NativeEngine.MergeCampaignStars(NativeEngine.PackCampaignStars(current.Stars), chainStars);
-                var next = Copy(current); next.Stars = NativeEngine.CampaignProgress(merged).Stars;
-                next.CampaignWritePending = !merged.SequenceEqual(chainStars);
+                var merged = NativeEngine.CampaignProgress(current.Stars, chainStars);
+                var next = Copy(current); next.Stars = merged.Stars;
+                next.CampaignWritePending = !merged.Packed.SequenceEqual(chainStars);
                 return next;
             });
         }
@@ -40,7 +40,7 @@ namespace ZKube.Integration.App
         {
             product.WriteCampaign(current => {
                 var next = Copy(current);
-                next.CampaignWritePending = !NativeEngine.PackCampaignStars(next.Stars).SequenceEqual(submitted);
+                next.CampaignWritePending = !NativeEngine.CampaignProgress(next.Stars).Packed.SequenceEqual(submitted);
                 return next;
             });
         }

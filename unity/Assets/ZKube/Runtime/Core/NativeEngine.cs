@@ -56,7 +56,7 @@ namespace ZKube.Core
         public static byte[] Call(uint operation, byte[] request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
-            // Generated conservative envelope: no size-query double execution on input.
+            // The generated response envelope bounds every operation.
             var output = new byte[NativeSchema.ResponseCapacity];
             uint written = 0;
             var status = (NativeStatus)Invoke(operation, request, checked((uint)request.Length), output,
@@ -70,15 +70,13 @@ namespace ZKube.Core
         {
             if (seed == null || seed.Length > 32) throw new ArgumentException("Local seed exceeds 32 bytes", nameof(seed));
             var padded = new byte[32]; seed.CopyTo(padded, 0);
-            return Call(LocalRowRandomnessRequest.Operation, new LocalRowRandomnessRequest {
-                Seed = padded, SeedLength = checked((byte)seed.Length), Counter = counter
-            }.Encode());
+            return Call(NativeOperation.LocalRowRandomness, NativeRequest.LocalRowRandomness(Seed: padded, SeedLength: checked((byte)seed.Length), Counter: counter));
         }
 
-        public static byte[] BuildConfig(BuildConfigRequest input) => Call(BuildConfigRequest.Operation, input.Encode());
+        public static byte[] BuildConfig(BuildConfigRequest input) => Call(NativeOperation.BuildConfig, input.Encode());
 
-        public static DailyWindow DailyWindow(uint day) => ZKube.Core.Generated.DailyWindow.Decode(
-            Call(DailyWindowRequest.Operation, new DailyWindowRequest { Day = day }.Encode()));
+        public static DailyInfo Daily(uint day) => DailyInfo.Decode(
+            Call(NativeOperation.Daily, NativeRequest.Daily(day)));
 
         public static int CompareBoardEntries(ulong leftMetric, long leftTime, byte[] leftOwner,
             ulong rightMetric, long rightTime, byte[] rightOwner)
@@ -86,19 +84,13 @@ namespace ZKube.Core
             byte[] LeftTime = new byte[8], RightTime = new byte[8];
             NativeWire.Write(LeftTime, 0, 8, unchecked((ulong)leftTime));
             NativeWire.Write(RightTime, 0, 8, unchecked((ulong)rightTime));
-            return Call(BoardOrderRequest.Operation, new BoardOrderRequest {
-                LeftMetric = leftMetric, LeftTime = LeftTime, LeftOwner = leftOwner,
-                RightMetric = rightMetric, RightTime = RightTime, RightOwner = rightOwner
-            }.Encode())[0] - 1;
+            return Call(NativeOperation.BoardOrder, NativeRequest.BoardOrder(LeftMetric: leftMetric, LeftTime: LeftTime, LeftOwner: leftOwner, RightMetric: rightMetric, RightTime: RightTime, RightOwner: rightOwner))[0] - 1;
         }
-
-        public static byte[] MergeCampaignStars(byte[] stored, byte[] incoming)
-            => Call(MergeCampaignStarsRequest.Operation, new MergeCampaignStarsRequest { Stored = stored, Incoming = incoming }.Encode());
 
         public static CoreRunToken Initialize(BuildConfigRequest input)
         {
             var config = BuildConfig(input);
-            return new CoreRunToken(config, Call(InitializeRequest.Operation, new InitializeRequest { Config = config }.Encode()));
+            return new CoreRunToken(config, Call(NativeOperation.Initialize, NativeRequest.Initialize(Config: config)));
         }
 
         public static CoreRunToken Reconcile(BuildConfigRequest config, ReconcileRequest snapshot)
@@ -108,73 +100,59 @@ namespace ZKube.Core
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             snapshot.Config = config;
-            return new CoreRunToken(config, Call(ReconcileRequest.Operation, snapshot.Encode()));
+            return new CoreRunToken(config, Call(NativeOperation.Reconcile, snapshot.Encode()));
         }
 
         public static RunSummary Summary(CoreRunToken token) => Summary(token.State);
         public static RunSummary Summary(byte[] state)
-            => RunSummary.Decode(Call(SummaryRequest.Operation, new SummaryRequest { State = state }.Encode()));
+            => RunSummary.Decode(Call(NativeOperation.Summary, NativeRequest.Summary(State: state)));
 
         public static RunTransition ApplyVrf(CoreRunToken token, uint counter, byte[] output)
-            => new RunTransition(token.Config, Call(ApplyVrfRequest.Operation, new ApplyVrfRequest
-            { Config = token.Config, State = token.State, Counter = counter, Output = output }.Encode()));
+            => new RunTransition(token.Config, Call(NativeOperation.ApplyVrf, NativeRequest.ApplyVrf(Config: token.Config, State: token.State, Counter: counter, Output: output)));
 
         public static RunTransition PlayMove(CoreRunToken token, uint action, ushort expectedMove, byte row, byte start, byte destination)
-            => new RunTransition(token.Config, Call(PlayMoveRequest.Operation, new PlayMoveRequest
-            { Config = token.Config, State = token.State, Action = action,
-                ExpectedMove = expectedMove, Row = row, Start = start, Destination = destination }.Encode()));
+            => new RunTransition(token.Config, Call(NativeOperation.PlayMove, NativeRequest.PlayMove(Config: token.Config, State: token.State, Action: action, ExpectedMove: expectedMove, Row: row, Start: start, Destination: destination)));
 
         public static RunTransition ApplyBonus(CoreRunToken token, uint action, byte row, byte column)
-            => new RunTransition(token.Config, Call(ApplyBonusRequest.Operation, new ApplyBonusRequest
-            { Config = token.Config, State = token.State, Action = action, Row = row, Column = column }.Encode()));
+            => new RunTransition(token.Config, Call(NativeOperation.ApplyBonus, NativeRequest.ApplyBonus(Config: token.Config, State: token.State, Action: action, Row: row, Column: column)));
 
         public static RunTransition RequestReroll(CoreRunToken token, uint action)
-            => new RunTransition(token.Config, Call(RequestRerollRequest.Operation, new RequestRerollRequest
-            { Config = token.Config, State = token.State, Action = action }.Encode()));
+            => new RunTransition(token.Config, Call(NativeOperation.RequestReroll, NativeRequest.RequestReroll(Config: token.Config, State: token.State, Action: action)));
 
         public static RunTransition Finish(CoreRunToken token, byte reason)
-            => new RunTransition(token.Config, Call(FinishRequest.Operation, new FinishRequest
-            { Config = token.Config, State = token.State, Reason = reason }.Encode()));
+            => new RunTransition(token.Config, Call(NativeOperation.Finish, NativeRequest.Finish(Config: token.Config, State: token.State, Reason: reason)));
 
-        public static DailyPair DailyPair(uint day) => Generated.DailyPair.Decode(
-            Call(DailyPairIndexRequest.Operation, new DailyPairIndexRequest { Day = day }.Encode()));
-
-        public static byte[] PackCampaignStars(byte[] stars) => Call(PackCampaignStarsRequest.Operation,
-            new PackCampaignStarsRequest { Stars = stars }.Encode());
-        public static CampaignProgressSummary CampaignProgress(byte[] packed) => CampaignProgressSummary.Decode(
-            Call(CampaignProgressRequest.Operation, new CampaignProgressRequest { Stars = packed }.Encode()));
-        public static byte[] RecordLocalCampaignResult(byte[] packed, byte realm, byte level, CoreRunToken token) =>
-            Call(RecordLocalCampaignResultRequest.Operation, new RecordLocalCampaignResultRequest {
-                Stars = packed, Realm = realm, Level = level, State = token.State
-            }.Encode());
+        public static CampaignProgressSummary CampaignProgress(byte[] stars, byte[] incoming = null) => CampaignProgressSummary.Decode(
+            Call(NativeOperation.CampaignProgress, NativeRequest.CampaignProgress(stars, incoming ?? new byte[25])));
+        public static CampaignProgressSummary RecordLocalCampaignResult(byte[] stars, byte realm, byte level, CoreRunToken token) =>
+            CampaignProgressSummary.Decode(Call(NativeOperation.RecordLocalCampaignResult,
+                NativeRequest.RecordLocalCampaignResult(stars, realm, level, token.State)));
         public static BuildConfigRequest CampaignRules(byte realm, byte level)
         {
             if (realm < 1 || realm > Protocol.Realms.Length) throw new ArgumentOutOfRangeException(nameof(realm));
             var definition = Protocol.Realms[realm - 1];
             if (level < 1 || level > definition.Levels.Length) throw new ArgumentOutOfRangeException(nameof(level));
             var authored = definition.Levels[level - 1];
-            return BuildConfigRequest.Decode(Call(CampaignRulesRequest.Operation, new CampaignRulesRequest {
-                Realm = realm, Level = level, Tier = authored.Tier, Primary = authored.Primary, Secondary = authored.Secondary
-            }.Encode()));
+            return BuildConfigRequest.Decode(Call(NativeOperation.CampaignRules, NativeRequest.CampaignRules(Realm: realm, Level: level, Tier: authored.Tier, Primary: authored.Primary, Secondary: authored.Secondary)));
         }
 
         public static ushort CampaignMoveBudget(byte level, byte tier)
-            => checked((ushort)NativeWire.Read(Call(CampaignMoveBudgetRequest.Operation, new CampaignMoveBudgetRequest { Level = level, Tier = tier }.Encode()), 0, 2));
+            => checked((ushort)NativeWire.Read(Call(NativeOperation.CampaignMoveBudget, NativeRequest.CampaignMoveBudget(Level: level, Tier: tier)), 0, 2));
 
         public static uint LadderPoints(uint qualified, uint rank)
-            => checked((uint)NativeWire.Read(Call(LadderPointsRequest.Operation, new LadderPointsRequest { Qualified = qualified, Rank = rank }.Encode()), 0, 4));
+            => checked((uint)NativeWire.Read(Call(NativeOperation.LadderPoints, NativeRequest.LadderPoints(Qualified: qualified, Rank: rank)), 0, 4));
 
         public static byte LadderTier(ulong points)
-            => Call(LadderTierRequest.Operation, new LadderTierRequest { Points = points }.Encode())[0];
+            => Call(NativeOperation.LadderTier, NativeRequest.LadderTier(Points: points))[0];
 
         public static ulong LadderTierFloor(byte tier)
-            => NativeWire.Read(Call(LadderTierFloorRequest.Operation, new LadderTierFloorRequest { Tier = tier }.Encode()), 0, 8);
+            => NativeWire.Read(Call(NativeOperation.LadderTierFloor, NativeRequest.LadderTierFloor(Tier: tier)), 0, 8);
 
         public static byte[] BoardPools(ulong pool, uint themeQualified)
-            => Call(DailyBoardPoolsRequest.Operation, new DailyBoardPoolsRequest { Pool = pool, ThemeQualified = themeQualified }.Encode());
+            => Call(NativeOperation.DailyBoardPools, NativeRequest.DailyBoardPools(Pool: pool, ThemeQualified: themeQualified));
         public static byte[] BoardWidth(ulong pool, uint qualified)
-            => Call(BoardWidthRequest.Operation, new BoardWidthRequest { Pool = pool, Qualified = qualified }.Encode());
+            => Call(NativeOperation.BoardWidth, NativeRequest.BoardWidth(Pool: pool, Qualified: qualified));
         public static ulong PayoutForRank(ulong pool, byte[] denominator, uint rank)
-            => NativeWire.Read(Call(PayoutForRankRequest.Operation, new PayoutForRankRequest { Pool = pool, Denominator = denominator, Rank = rank }.Encode()), 0, 8);
+            => NativeWire.Read(Call(NativeOperation.PayoutForRank, NativeRequest.PayoutForRank(Pool: pool, Denominator: denominator, Rank: rank)), 0, 8);
     }
 }

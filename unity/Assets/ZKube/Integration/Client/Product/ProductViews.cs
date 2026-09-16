@@ -60,7 +60,7 @@ namespace ZKube.Integration.Client
         public byte StrongestEmblem => facts.StrongestEmblem;
         public static CampaignProgress FromStars(string owner, byte[] stars, PlayerProfile player = null) =>
             new CampaignProgress(player ?? new PlayerProfile(owner, null),
-                NativeEngine.CampaignProgress(NativeEngine.PackCampaignStars(stars)));
+                NativeEngine.CampaignProgress(stars));
         private CampaignProgress(PlayerProfile player, CampaignProgressSummary facts)
         {
             Player = player; this.facts = facts;

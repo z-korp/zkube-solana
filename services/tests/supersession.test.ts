@@ -159,6 +159,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Money tests share injected boundaries and Rust program scenarios; runtime evidence graphs were removed (2026-09-15)",
   },
   {
+    pattern: /\b(?:PackCampaignStars|MergeCampaignStars|DailyPairIndexRequest|DailyWindowRequest|ApplyVrfRequest|PlayMoveRequest|ApplyBonusRequest|RequestRerollRequest|FinishRequest|SummaryRequest)\b/,
+    trees: [UNITY_CLIENT],
+    reversal: "Native calls combine Campaign progress and packing, and Daily content and timing; generated request methods replace single-use holders (2026-09-16)",
+  },
+  {
     pattern: /\b(?:MoneyStartup|StoreStartup|ZKubeMoneyScene|ZKubeStoreScene|StoreCampaignBillingFactory|BoardSettingsPage|TerminalPresenter|LastAttemptDayId)\b|lastAttemptDayId/,
     trees: [UNITY_CLIENT],
     reversal: "The products share startup, presentation data, preferences and board hooks; local Daily saves keep only non-derivable results (2026-09-16)",

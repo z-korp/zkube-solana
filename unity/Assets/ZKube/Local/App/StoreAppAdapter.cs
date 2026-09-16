@@ -76,7 +76,7 @@ namespace ZKube.Local.App
             if (dirty && !loading && Flow.Page != StorePage.Board) StartCoroutine(Render());
         }
         private byte PageRealm => Flow.Page == StorePage.Daily ? Flow.Today.Realm :
-            Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? NativeEngine.DailyPair(Flow.Product.Read.DailyAttempt.DayId).Realm :
+            Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? NativeEngine.Daily(Flow.Product.Read.DailyAttempt.DayId).Realm :
             Flow.Page == StorePage.Profile ? (byte)Math.Max(1, Flow.Product.Read.WornEmblem) : Flow.Realm;
         private void Refresh()
         {
@@ -188,7 +188,7 @@ namespace ZKube.Local.App
         public ResultPageView ResultPage()
         {
             var attempt = Flow.Product.Read.DailyAttempt;
-            var pair = attempt == null ? null : NativeEngine.DailyPair(attempt.DayId);
+            var pair = attempt == null ? null : NativeEngine.Daily(attempt.DayId);
             return new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Product.Read.Name,
                 HasResult = attempt != null, Realm = pair?.Realm ?? 1, Day = attempt?.DayId ?? 0,
                 ObjectiveKind = pair?.Kind ?? 0, ObjectiveValue = pair?.Value ?? 0,

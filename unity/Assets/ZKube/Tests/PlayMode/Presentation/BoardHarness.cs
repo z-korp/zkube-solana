@@ -26,7 +26,7 @@ namespace ZKube.Presentation.Tests
         }
         [Serializable] public sealed class Step
         {
-            public uint operation, counter, action;
+            public uint operation;
             public byte row, start, destination, column, reason;
             public string output;
         }
@@ -36,7 +36,7 @@ namespace ZKube.Presentation.Tests
             public string name, configHex, initialStateHex;
             public RawStep[] steps;
         }
-        [Serializable] private sealed class RawStep { public uint operation; public string requestHex; }
+        [Serializable] private sealed class RawStep { public uint operation; public string requestHex; public Step gesture; }
         public BoardController Board { get; private set; }
         public Fixture Current { get; private set; }
         public bool AutoStart = true;
@@ -49,37 +49,13 @@ namespace ZKube.Presentation.Tests
             var authored = raw.name.StartsWith("realm-", StringComparison.Ordinal);
             return new Fixture {
                 name = raw.name, configHex = raw.configHex, initialStateHex = raw.initialStateHex,
-                configRequestHex = raw.steps.First(s => s.operation == BuildConfigRequest.Operation).requestHex,
+                configRequestHex = raw.steps.First(s => s.operation == NativeOperation.BuildConfig).requestHex,
                 // Synthetic probes use Balam's visual composition explicitly.
                 realmId = authored ? byte.Parse(raw.name.Split('-')[1]) : (byte)8,
-                steps = raw.steps.Select(ReadStep).Where(s => s != null).ToArray()
+                steps = raw.steps.Where(s => s.operation >= NativeOperation.ApplyVrf && s.operation <= NativeOperation.Finish)
+                    .Select(s => s.gesture != null && s.gesture.operation == s.operation ? s.gesture :
+                        throw new FormatException("Native trajectory has no matching gesture")).ToArray()
             };
-        }
-        private static Step ReadStep(RawStep raw)
-        {
-            var bytes = Hex(raw.requestHex);
-            switch (raw.operation)
-            {
-                case ApplyVrfRequest.Operation:
-                    var vrf = ApplyVrfRequest.Decode(bytes);
-                    return new Step { operation = raw.operation, counter = vrf.Counter,
-                        output = BitConverter.ToString(vrf.Output).Replace("-", "") };
-                case PlayMoveRequest.Operation:
-                    var move = PlayMoveRequest.Decode(bytes);
-                    return new Step { operation = raw.operation, action = move.Action,
-                        row = move.Row, start = move.Start, destination = move.Destination };
-                case ApplyBonusRequest.Operation:
-                    var bonus = ApplyBonusRequest.Decode(bytes);
-                    return new Step { operation = raw.operation, action = bonus.Action,
-                        row = bonus.Row, column = bonus.Column };
-                case RequestRerollRequest.Operation:
-                    var reroll = RequestRerollRequest.Decode(bytes);
-                    return new Step { operation = raw.operation, action = reroll.Action };
-                case FinishRequest.Operation:
-                    var finish = FinishRequest.Decode(bytes);
-                    return new Step { operation = raw.operation, reason = finish.Reason };
-                default: return null;
-            }
         }
         private void Start()
         {
@@ -99,28 +75,28 @@ namespace ZKube.Presentation.Tests
         public IEnumerator PlayNextInput()
         {
             while (!ZKube.Tests.Presentation.BoardTestState.Idle(Board) || Board.Busy) yield return null;
-            while (journeyCursor < Current.steps.Length && Current.steps[journeyCursor].operation == ApplyVrfRequest.Operation) journeyCursor++;
+            while (journeyCursor < Current.steps.Length && Current.steps[journeyCursor].operation == NativeOperation.ApplyVrf) journeyCursor++;
             if (journeyCursor >= Current.steps.Length) yield break;
             var step = Current.steps[journeyCursor++];
-            if (step.operation == PlayMoveRequest.Operation)
+            if (step.operation == NativeOperation.PlayMove)
             {
                 int width = Board.View.DisplayGrid[step.row * 8 + step.start];
                 var from = Board.View.Layout.CellCenter(step.row, step.start, width);
                 var to = Board.View.Layout.CellCenter(step.row, step.destination, width);
                 yield return Drag(from, to);
             }
-            else if (step.operation == ApplyBonusRequest.Operation)
+            else if (step.operation == NativeOperation.ApplyBonus)
             {
                 Click("Guardian action");
                 var position = Board.View.Layout.CellCenter(step.row, step.column);
                 Tap(position);
             }
-            else if (step.operation == RequestRerollRequest.Operation) Click("Reroll action");
-            else if (step.operation == FinishRequest.Operation && step.reason == 3)
+            else if (step.operation == NativeOperation.RequestReroll) Click("Reroll action");
+            else if (step.operation == NativeOperation.Finish && step.reason == 3)
             {
                 Click("Pause"); yield return null; Click("Dialog End run"); yield return null; Click("Dialog End run");
             }
-            else if (step.operation == FinishRequest.Operation)
+            else if (step.operation == NativeOperation.Finish)
                 throw new InvalidOperationException("Deadline is external; bind its accepted state separately");
             while (Board.Busy) yield return null;
             yield return null;
@@ -143,7 +119,7 @@ namespace ZKube.Presentation.Tests
             private int outputIndex;
             public OfflineActions(Fixture fixture)
             {
-                outputs = fixture.steps.Where(s => s.operation == ApplyVrfRequest.Operation).Select(s => Hex(s.output)).ToArray();
+                outputs = fixture.steps.Where(s => s.operation == NativeOperation.ApplyVrf).Select(s => Hex(s.output)).ToArray();
                 seed = fixture.name;
             }
             public async Task<BoardActionResult> Submit(CoreRunToken token, BoardAction action, CancellationToken cancellation)

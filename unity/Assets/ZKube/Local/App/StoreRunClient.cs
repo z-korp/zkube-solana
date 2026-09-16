@@ -16,7 +16,7 @@ namespace ZKube.Local.App
         {
             long time = now();
             uint day = checked((uint)Math.Max(0, time / 86400));
-            var pair = NativeEngine.DailyPair(day);
+            var pair = NativeEngine.Daily(day);
             return new LocalDaily(day, pair.Realm, pair.Kind, pair.Value);
         }
         // Call only with a successful native billing query. A failed query has

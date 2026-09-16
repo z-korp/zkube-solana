@@ -53,7 +53,7 @@ namespace ZKube.Integration.Presentation
             dailyRefreshAt = checked(((long)value.DayId + 1) * 86400);
             if (value.PotLamports.HasValue)
             {
-                var window = NativeEngine.DailyWindow(value.DayId);
+                var window = NativeEngine.Daily(value.DayId);
                 long opens = (long)window.OpensAt, freezes = (long)window.FreezesAt;
                 if (opens > timestamp) dailyRefreshAt = Math.Min(dailyRefreshAt, opens);
                 if (freezes > timestamp) dailyRefreshAt = Math.Min(dailyRefreshAt, freezes);
@@ -119,7 +119,7 @@ namespace ZKube.Integration.Presentation
             if (ResultAvailable("Daily")) actions.Add(PageAction("View result", () => OpenSharedPage(AppPage.Result), CanUseDaily));
             if (lobby.PotLamports.HasValue)
             {
-                facts.Add("Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)NativeEngine.DailyWindow(lobby.DayId).FreezesAt).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC");
+                facts.Add("Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)NativeEngine.Daily(lobby.DayId).FreezesAt).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC");
                 facts.Add("Prize pot · " + (lobby.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL");
             }
             facts.Add(lobby.ObjectiveKind == 0 ? "Classic pays the prize pot to Score." : "One run competes on Score and Theme.");

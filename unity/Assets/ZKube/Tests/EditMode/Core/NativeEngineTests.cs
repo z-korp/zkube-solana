@@ -10,10 +10,10 @@ namespace ZKube.Core.Tests
 {
     public sealed class NativeEngineTests
     {
-        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; public Step[] campaignBoundary; public Step[] dailyWindows; }
+        [Serializable] public sealed class Trajectories { public int schemaVersion; public string coreVersion; public Trajectory[] cases; public LocalRandomness[] localRandomness; public Step[] campaignBoundary; public Step[] dailyBoundary, protocolQueries; }
         [Serializable] public sealed class LocalRandomness { public string seedHex, outputHex; public uint counter; }
         [Serializable] public sealed class Trajectory { public string name; public string origin; public string configHex; public string initialStateHex; public string finalStateHex; public string finalReplayHex; public Step[] steps; }
-        [Serializable] public sealed class Step { public uint operation; public string requestHex; public string responseHex; }
+        [Serializable] public sealed class Step { public uint operation, day; public string requestHex; public string responseHex; }
         [Serializable] public sealed class LadderFixture { public string coreVersion; public LadderVector[] vectors; }
         [Serializable] public sealed class LadderVector { public uint qualifiedEntrants; public uint rank; public uint points; }
         [Serializable] public sealed class GameFixture { public PhaseOne phase1Core; }
@@ -57,13 +57,13 @@ namespace ZKube.Core.Tests
             foreach (var step in trajectory.steps)
             {
                 var request = Hex(step.requestHex);
-                if (step.operation == BuildConfigRequest.Operation)
+                if (step.operation == NativeOperation.BuildConfig)
                     CollectionAssert.AreEqual(request, BuildConfigRequest.Decode(request).Encode(), "Generated config request round-trip");
                 var actual = NativeEngine.Call(step.operation, request);
                 CollectionAssert.AreEqual(Hex(step.responseHex), actual, trajectory.name + " operation " + step.operation);
                 // Initialization is checked separately; a trajectory can begin at an explicit snapshot.
-                if (step.operation == ReconcileRequest.Operation) CollectionAssert.AreEqual(state, actual);
-                if (step.operation >= ApplyVrfRequest.Operation && step.operation <= FinishRequest.Operation)
+                if (step.operation == NativeOperation.Reconcile) CollectionAssert.AreEqual(state, actual);
+                if (step.operation >= NativeOperation.ApplyVrf && step.operation <= NativeOperation.Finish)
                 {
                     var result = RunTransition.Decode(config, actual);
                     {
@@ -85,16 +85,16 @@ namespace ZKube.Core.Tests
             {
                 var actual = NativeEngine.Call(vector.operation, Hex(vector.requestHex));
                 CollectionAssert.AreEqual(Hex(vector.responseHex), actual);
-                if (vector.operation == CampaignProgressRequest.Operation)
+                if (vector.operation == NativeOperation.CampaignProgress)
                     CollectionAssert.AreEqual(actual.Take(100), CampaignProgressSummary.Decode(actual).Stars);
-                if (vector.operation == CampaignRulesRequest.Operation)
+                if (vector.operation == NativeOperation.CampaignRules)
                     CollectionAssert.AreEqual(actual, BuildConfigRequest.Decode(actual).Encode());
             }
             var invalid = new byte[100]; invalid[99] = 4;
-            Assert.That(Assert.Throws<NativeEngineException>(() => NativeEngine.PackCampaignStars(invalid)).Status,
+            Assert.That(Assert.Throws<NativeEngineException>(() => NativeEngine.CampaignProgress(invalid)).Status,
                 Is.EqualTo(NativeStatus.InvalidEncoding));
             var playing = NativeEngine.Initialize(NativeEngine.CampaignRules(1, 1));
-            Assert.That(Assert.Throws<NativeEngineException>(() => NativeEngine.RecordLocalCampaignResult(new byte[25], 1, 1, playing)).Status,
+            Assert.That(Assert.Throws<NativeEngineException>(() => NativeEngine.RecordLocalCampaignResult(new byte[100], 1, 1, playing)).Status,
                 Is.EqualTo(NativeStatus.InvalidEncoding));
         }
 
@@ -109,14 +109,22 @@ namespace ZKube.Core.Tests
 
         [Test] public void DailyWindowUsesTheCoreAcrossTheFullDayRange()
         {
-            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").dailyWindows)
+            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").dailyBoundary)
             {
-                var request = DailyWindowRequest.Decode(Hex(vector.requestHex));
-                var expected = DailyWindow.Decode(Hex(vector.responseHex));
-                var actual = NativeEngine.DailyWindow(request.Day);
+                var expected = DailyInfo.Decode(Hex(vector.responseHex));
+                var actual = NativeEngine.Daily(vector.day);
                 Assert.That(actual.OpensAt, Is.EqualTo(expected.OpensAt));
                 Assert.That(actual.FreezesAt, Is.EqualTo(expected.FreezesAt));
+                Assert.That(actual.Realm, Is.EqualTo(expected.Realm));
+                Assert.That(actual.Kind, Is.EqualTo(expected.Kind));
+                Assert.That(actual.Value, Is.EqualTo(expected.Value));
             }
+        }
+
+        [Test] public void RemainingNativeQueriesMatchRustFixtureVectors()
+        {
+            foreach (var vector in Read<Trajectories>("native-run-trajectories.json").protocolQueries)
+                CollectionAssert.AreEqual(Hex(vector.responseHex), NativeEngine.Call(vector.operation, Hex(vector.requestHex)));
         }
 
         [Test] public void LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds()
@@ -124,8 +132,8 @@ namespace ZKube.Core.Tests
             foreach (var vector in Read<Trajectories>("native-run-trajectories.json").localRandomness)
                 CollectionAssert.AreEqual(Hex(vector.outputHex), NativeEngine.LocalRowRandomness(Hex(vector.seedHex), vector.counter));
             Assert.Throws<ArgumentException>(() => NativeEngine.LocalRowRandomness(new byte[33], 1));
-            var error = Assert.Throws<NativeEngineException>(() => NativeEngine.Call(LocalRowRandomnessRequest.Operation,
-                new LocalRowRandomnessRequest { Seed = new byte[32], SeedLength = 33, Counter = 1 }.Encode()));
+            var error = Assert.Throws<NativeEngineException>(() => NativeEngine.Call(NativeOperation.LocalRowRandomness,
+                NativeRequest.LocalRowRandomness(Seed: new byte[32], SeedLength: 33, Counter: 1)));
             Assert.That(error.Status, Is.EqualTo(NativeStatus.InvalidEncoding));
         }
 
@@ -138,7 +146,7 @@ namespace ZKube.Core.Tests
             })
             {
                 var trajectory = Read<Trajectories>("native-run-trajectories.json").cases.Single(c => c.name == scenario.Item1);
-                var action = trajectory.steps.First(s => s.operation == PlayMoveRequest.Operation || s.operation == ApplyBonusRequest.Operation);
+                var action = trajectory.steps.First(s => s.operation == NativeOperation.PlayMove || s.operation == NativeOperation.ApplyBonus);
                 var traced = RunTransition.Decode(Hex(trajectory.configHex), NativeEngine.Call(action.operation, Hex(action.requestHex)));
                 var fact = traced.Events.Single(e => e.Kind == PresentationKind.PerfectClear);
                 Assert.AreEqual(scenario.Item2 ? 1 : 0, fact.Payload.Single());
@@ -182,17 +190,17 @@ namespace ZKube.Core.Tests
         [Test]
         public void ManagedBoundaryRejectsBadInputsWithoutPublishingPartialBytes()
         {
-            var request = new DailyPairIndexRequest { Day = 42 }.Encode();
+            var request = NativeRequest.Daily(Day: 42);
             request[0] = 255;
             Assert.AreEqual(NativeStatus.UnsupportedVersion, Assert.Throws<NativeEngineException>(
-                () => NativeEngine.Call(DailyPairIndexRequest.Operation, request)).Status);
+                () => NativeEngine.Call(NativeOperation.Daily, request)).Status);
             request[0] = (byte)NativeSchema.AbiVersion;
             Assert.AreEqual(NativeStatus.InvalidLength, Assert.Throws<NativeEngineException>(
-                () => NativeEngine.Call(DailyPairIndexRequest.Operation, request.Take(request.Length - 1).ToArray())).Status);
+                () => NativeEngine.Call(NativeOperation.Daily, request.Take(request.Length - 1).ToArray())).Status);
             Assert.AreEqual(NativeStatus.UnknownOperation, Assert.Throws<NativeEngineException>(
                 () => NativeEngine.Call(uint.MaxValue, request)).Status);
-            Assert.Throws<ArgumentNullException>(() => NativeEngine.Call(DailyPairIndexRequest.Operation, null));
-            Assert.Throws<ArgumentException>(() => new SummaryRequest { State = new byte[3] }.Encode());
+            Assert.Throws<ArgumentNullException>(() => NativeEngine.Call(NativeOperation.Daily, null));
+            Assert.Throws<ArgumentException>(() => NativeRequest.Summary(State: new byte[3]));
             Assert.Throws<ArgumentException>(() => BuildConfigRequest.Decode(new byte[NativeSchema.RunConfigLength]));
             var configRequest = new BuildConfigRequest().Encode();
             configRequest[0] ^= 0x80;
@@ -245,10 +253,10 @@ namespace ZKube.Core.Tests
         public void TraceDecoderRejectsUnknownTruncatedAndTrailingPayloads()
         {
             Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(Array.Empty<byte>()));
-            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { 2, 0, 0, 0, 0, 0 }));
-            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { 1, 0, 1, 0, 0, 0, 255, 1, 0, 0 }));
-            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { 1, 0, 1, 0, 0, 0, 7, 1, 0 }));
-            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { 1, 0, 0, 0, 0, 0, 0 }));
+            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { (byte)(NativeSchema.AbiVersion + 1), 0, 0, 0, 0, 0 }));
+            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { (byte)NativeSchema.AbiVersion, 0, 1, 0, 0, 0, 255, 1, 0, 0 }));
+            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { (byte)NativeSchema.AbiVersion, 0, 1, 0, 0, 0, 7, 1, 0 }));
+            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { (byte)NativeSchema.AbiVersion, 0, 0, 0, 0, 0, 0 }));
         }
     }
 }

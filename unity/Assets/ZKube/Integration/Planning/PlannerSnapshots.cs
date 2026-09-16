@@ -80,7 +80,7 @@ namespace ZKube.Integration.Planning
             if (current == null) return new DailyEntryAssessment("missing-daily");
             var daily = bindings.ArenaDaily(current, dayId);
             if (((JObject)daily["status"]).Properties().Single().Name != "Open") return new DailyEntryAssessment("closed");
-            var window = NativeEngine.DailyWindow(dayId);
+            var window = NativeEngine.Daily(dayId);
             if (now < (long)window.OpensAt) return new DailyEntryAssessment("not-open");
             if (now >= (long)window.FreezesAt) return new DailyEntryAssessment("frozen");
             uint followingDay = Math.Max(checked(dayId + 1), suspension);

@@ -43,7 +43,7 @@ namespace ZKube.Local.App
         public bool AttemptedToday => Product.Read.DailyAttempt?.DayId == Today.DayId;
         public string DailyAction => TodayRun != null ? "Resume run" : AttemptedToday ? "View result" : "Play today";
         public bool Cleared(byte realm) => Progress().Cleared[realm - 1] != 0;
-        private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(NativeEngine.PackCampaignStars(Product.Read.Stars));
+        private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(Product.Read.Stars);
         public int Stars(byte realm) => Product.Read.Stars.Skip((realm - 1) * Protocol.CampaignTargets.Length).Take(Protocol.CampaignTargets.Length).Sum(value => (int)value);
         public bool LevelAvailable(byte realm, byte level)
         {

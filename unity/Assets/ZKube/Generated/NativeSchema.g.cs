@@ -5,7 +5,7 @@ namespace ZKube.Core.Generated
 {
     public static class NativeSchema
     {
-        public const ushort AbiVersion = 1;
+        public const ushort AbiVersion = 2;
         public const int RunConfigLength = 88;
         public const int RunStateLength = 231;
         public const int ResponseCapacity = 16384;
@@ -88,10 +88,215 @@ namespace ZKube.Core.Generated
         }
     }
 
+    public static class NativeOperation
+    {
+        public const uint BuildConfig = 1;
+        public const uint Reconcile = 2;
+        public const uint Initialize = 3;
+        public const uint ApplyVrf = 4;
+        public const uint PlayMove = 5;
+        public const uint ApplyBonus = 6;
+        public const uint RequestReroll = 7;
+        public const uint Finish = 8;
+        public const uint Summary = 9;
+        public const uint Daily = 12;
+        public const uint CampaignMoveBudget = 13;
+        public const uint LadderPoints = 14;
+        public const uint LadderTier = 15;
+        public const uint LadderTierFloor = 16;
+        public const uint DailyBoardPools = 17;
+        public const uint BoardWidth = 18;
+        public const uint PayoutForRank = 19;
+        public const uint LocalRowRandomness = 22;
+        public const uint CampaignProgress = 24;
+        public const uint CampaignRules = 25;
+        public const uint RecordLocalCampaignResult = 26;
+        public const uint BoardOrder = 28;
+    }
+    public static class NativeRequest
+    {
+        public static byte[] Initialize(byte[] Config)
+        {
+            var bytes = new byte[90];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Config, bytes, 2, 88);
+            return bytes;
+        }
+        public static byte[] ApplyVrf(byte[] Config, byte[] State, uint Counter, byte[] Output)
+        {
+            var bytes = new byte[357];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Config, bytes, 2, 88);
+            NativeWire.Copy(State, bytes, 90, 231);
+            NativeWire.Write(bytes, 321, 4, Counter);
+            NativeWire.Copy(Output, bytes, 325, 32);
+            return bytes;
+        }
+        public static byte[] PlayMove(byte[] Config, byte[] State, uint Action, ushort ExpectedMove, byte Row, byte Start, byte Destination)
+        {
+            var bytes = new byte[330];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Config, bytes, 2, 88);
+            NativeWire.Copy(State, bytes, 90, 231);
+            NativeWire.Write(bytes, 321, 4, Action);
+            NativeWire.Write(bytes, 325, 2, ExpectedMove);
+            NativeWire.Write(bytes, 327, 1, Row);
+            NativeWire.Write(bytes, 328, 1, Start);
+            NativeWire.Write(bytes, 329, 1, Destination);
+            return bytes;
+        }
+        public static byte[] ApplyBonus(byte[] Config, byte[] State, uint Action, byte Row, byte Column)
+        {
+            var bytes = new byte[327];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Config, bytes, 2, 88);
+            NativeWire.Copy(State, bytes, 90, 231);
+            NativeWire.Write(bytes, 321, 4, Action);
+            NativeWire.Write(bytes, 325, 1, Row);
+            NativeWire.Write(bytes, 326, 1, Column);
+            return bytes;
+        }
+        public static byte[] RequestReroll(byte[] Config, byte[] State, uint Action)
+        {
+            var bytes = new byte[325];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Config, bytes, 2, 88);
+            NativeWire.Copy(State, bytes, 90, 231);
+            NativeWire.Write(bytes, 321, 4, Action);
+            return bytes;
+        }
+        public static byte[] Finish(byte[] Config, byte[] State, byte Reason)
+        {
+            var bytes = new byte[322];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Config, bytes, 2, 88);
+            NativeWire.Copy(State, bytes, 90, 231);
+            NativeWire.Write(bytes, 321, 1, Reason);
+            return bytes;
+        }
+        public static byte[] Summary(byte[] State)
+        {
+            var bytes = new byte[233];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(State, bytes, 2, 231);
+            return bytes;
+        }
+        public static byte[] Daily(uint Day)
+        {
+            var bytes = new byte[6];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 4, Day);
+            return bytes;
+        }
+        public static byte[] CampaignMoveBudget(byte Level, byte Tier)
+        {
+            var bytes = new byte[4];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 1, Level);
+            NativeWire.Write(bytes, 3, 1, Tier);
+            return bytes;
+        }
+        public static byte[] LadderPoints(uint Qualified, uint Rank)
+        {
+            var bytes = new byte[10];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 4, Qualified);
+            NativeWire.Write(bytes, 6, 4, Rank);
+            return bytes;
+        }
+        public static byte[] LadderTier(ulong Points)
+        {
+            var bytes = new byte[10];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 8, Points);
+            return bytes;
+        }
+        public static byte[] LadderTierFloor(byte Tier)
+        {
+            var bytes = new byte[3];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 1, Tier);
+            return bytes;
+        }
+        public static byte[] DailyBoardPools(ulong Pool, uint ThemeQualified)
+        {
+            var bytes = new byte[14];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 8, Pool);
+            NativeWire.Write(bytes, 10, 4, ThemeQualified);
+            return bytes;
+        }
+        public static byte[] BoardWidth(ulong Pool, uint Qualified)
+        {
+            var bytes = new byte[14];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 8, Pool);
+            NativeWire.Write(bytes, 10, 4, Qualified);
+            return bytes;
+        }
+        public static byte[] PayoutForRank(ulong Pool, byte[] Denominator, uint Rank)
+        {
+            var bytes = new byte[30];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 8, Pool);
+            NativeWire.Copy(Denominator, bytes, 10, 16);
+            NativeWire.Write(bytes, 26, 4, Rank);
+            return bytes;
+        }
+        public static byte[] LocalRowRandomness(byte[] Seed, byte SeedLength, uint Counter)
+        {
+            var bytes = new byte[39];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Seed, bytes, 2, 32);
+            NativeWire.Write(bytes, 34, 1, SeedLength);
+            NativeWire.Write(bytes, 35, 4, Counter);
+            return bytes;
+        }
+        public static byte[] CampaignProgress(byte[] Stars, byte[] Incoming)
+        {
+            var bytes = new byte[127];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Stars, bytes, 2, 100);
+            NativeWire.Copy(Incoming, bytes, 102, 25);
+            return bytes;
+        }
+        public static byte[] CampaignRules(byte Realm, byte Level, byte Tier, byte[] Primary, byte[] Secondary)
+        {
+            var bytes = new byte[11];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 1, Realm);
+            NativeWire.Write(bytes, 3, 1, Level);
+            NativeWire.Write(bytes, 4, 1, Tier);
+            NativeWire.Copy(Primary, bytes, 5, 3);
+            NativeWire.Copy(Secondary, bytes, 8, 3);
+            return bytes;
+        }
+        public static byte[] RecordLocalCampaignResult(byte[] Stars, byte Realm, byte Level, byte[] State)
+        {
+            var bytes = new byte[335];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Stars, bytes, 2, 100);
+            NativeWire.Write(bytes, 102, 1, Realm);
+            NativeWire.Write(bytes, 103, 1, Level);
+            NativeWire.Copy(State, bytes, 104, 231);
+            return bytes;
+        }
+        public static byte[] BoardOrder(ulong LeftMetric, byte[] LeftTime, byte[] LeftOwner, ulong RightMetric, byte[] RightTime, byte[] RightOwner)
+        {
+            var bytes = new byte[98];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Write(bytes, 2, 8, LeftMetric);
+            NativeWire.Copy(LeftTime, bytes, 10, 8);
+            NativeWire.Copy(LeftOwner, bytes, 18, 32);
+            NativeWire.Write(bytes, 50, 8, RightMetric);
+            NativeWire.Copy(RightTime, bytes, 58, 8);
+            NativeWire.Copy(RightOwner, bytes, 66, 32);
+            return bytes;
+        }
+    }
     public sealed class BuildConfigRequest
     {
         public const int ByteLength = 87;
-        public const uint Operation = 1;
         public byte[] RulesHash { get; set; } = new byte[32];
         public byte[] InitialReplay { get; set; } = new byte[32];
         public ushort MaxMoves { get; set; }
@@ -165,7 +370,6 @@ namespace ZKube.Core.Generated
     public sealed class ReconcileRequest
     {
         public const int ByteLength = 256;
-        public const uint Operation = 2;
         public byte[] Config { get; set; } = new byte[88];
         public byte Phase { get; set; }
         public byte EndReason { get; set; }
@@ -216,475 +420,6 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 215, 1, HasNextRow);
             NativeWire.Copy(NextRow, bytes, 216, 8);
             NativeWire.Copy(ReplayHash, bytes, 224, 32);
-            return bytes;
-        }
-    }
-
-    public sealed class InitializeRequest
-    {
-        public const int ByteLength = 90;
-        public const uint Operation = 3;
-        public byte[] Config { get; set; } = new byte[88];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Config, bytes, 2, 88);
-            return bytes;
-        }
-    }
-
-    public sealed class ApplyVrfRequest
-    {
-        public const int ByteLength = 357;
-        public const uint Operation = 4;
-        public byte[] Config { get; set; } = new byte[88];
-        public byte[] State { get; set; } = new byte[231];
-        public uint Counter { get; set; }
-        public byte[] Output { get; set; } = new byte[32];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Config, bytes, 2, 88);
-            NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 4, Counter);
-            NativeWire.Copy(Output, bytes, 325, 32);
-            return bytes;
-        }
-        public static ApplyVrfRequest Decode(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid ApplyVrfRequest byte length");
-            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
-            return new ApplyVrfRequest
-            {
-                Config = NativeWire.Bytes(bytes, 2, 88),
-                State = NativeWire.Bytes(bytes, 90, 231),
-                Counter = (uint)NativeWire.Read(bytes, 321, 4),
-                Output = NativeWire.Bytes(bytes, 325, 32),
-            };
-        }
-    }
-
-    public sealed class PlayMoveRequest
-    {
-        public const int ByteLength = 330;
-        public const uint Operation = 5;
-        public byte[] Config { get; set; } = new byte[88];
-        public byte[] State { get; set; } = new byte[231];
-        public uint Action { get; set; }
-        public ushort ExpectedMove { get; set; }
-        public byte Row { get; set; }
-        public byte Start { get; set; }
-        public byte Destination { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Config, bytes, 2, 88);
-            NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 4, Action);
-            NativeWire.Write(bytes, 325, 2, ExpectedMove);
-            NativeWire.Write(bytes, 327, 1, Row);
-            NativeWire.Write(bytes, 328, 1, Start);
-            NativeWire.Write(bytes, 329, 1, Destination);
-            return bytes;
-        }
-        public static PlayMoveRequest Decode(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid PlayMoveRequest byte length");
-            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
-            return new PlayMoveRequest
-            {
-                Config = NativeWire.Bytes(bytes, 2, 88),
-                State = NativeWire.Bytes(bytes, 90, 231),
-                Action = (uint)NativeWire.Read(bytes, 321, 4),
-                ExpectedMove = (ushort)NativeWire.Read(bytes, 325, 2),
-                Row = bytes[327],
-                Start = bytes[328],
-                Destination = bytes[329],
-            };
-        }
-    }
-
-    public sealed class ApplyBonusRequest
-    {
-        public const int ByteLength = 327;
-        public const uint Operation = 6;
-        public byte[] Config { get; set; } = new byte[88];
-        public byte[] State { get; set; } = new byte[231];
-        public uint Action { get; set; }
-        public byte Row { get; set; }
-        public byte Column { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Config, bytes, 2, 88);
-            NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 4, Action);
-            NativeWire.Write(bytes, 325, 1, Row);
-            NativeWire.Write(bytes, 326, 1, Column);
-            return bytes;
-        }
-        public static ApplyBonusRequest Decode(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid ApplyBonusRequest byte length");
-            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
-            return new ApplyBonusRequest
-            {
-                Config = NativeWire.Bytes(bytes, 2, 88),
-                State = NativeWire.Bytes(bytes, 90, 231),
-                Action = (uint)NativeWire.Read(bytes, 321, 4),
-                Row = bytes[325],
-                Column = bytes[326],
-            };
-        }
-    }
-
-    public sealed class RequestRerollRequest
-    {
-        public const int ByteLength = 325;
-        public const uint Operation = 7;
-        public byte[] Config { get; set; } = new byte[88];
-        public byte[] State { get; set; } = new byte[231];
-        public uint Action { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Config, bytes, 2, 88);
-            NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 4, Action);
-            return bytes;
-        }
-        public static RequestRerollRequest Decode(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid RequestRerollRequest byte length");
-            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
-            return new RequestRerollRequest
-            {
-                Config = NativeWire.Bytes(bytes, 2, 88),
-                State = NativeWire.Bytes(bytes, 90, 231),
-                Action = (uint)NativeWire.Read(bytes, 321, 4),
-            };
-        }
-    }
-
-    public sealed class FinishRequest
-    {
-        public const int ByteLength = 322;
-        public const uint Operation = 8;
-        public byte[] Config { get; set; } = new byte[88];
-        public byte[] State { get; set; } = new byte[231];
-        public byte Reason { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Config, bytes, 2, 88);
-            NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 1, Reason);
-            return bytes;
-        }
-        public static FinishRequest Decode(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid FinishRequest byte length");
-            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
-            return new FinishRequest
-            {
-                Config = NativeWire.Bytes(bytes, 2, 88),
-                State = NativeWire.Bytes(bytes, 90, 231),
-                Reason = bytes[321],
-            };
-        }
-    }
-
-    public sealed class SummaryRequest
-    {
-        public const int ByteLength = 233;
-        public const uint Operation = 9;
-        public byte[] State { get; set; } = new byte[231];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(State, bytes, 2, 231);
-            return bytes;
-        }
-    }
-
-    public sealed class DailyPairIndexRequest
-    {
-        public const int ByteLength = 6;
-        public const uint Operation = 12;
-        public uint Day { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 4, Day);
-            return bytes;
-        }
-    }
-
-    public sealed class CampaignMoveBudgetRequest
-    {
-        public const int ByteLength = 4;
-        public const uint Operation = 13;
-        public byte Level { get; set; }
-        public byte Tier { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 1, Level);
-            NativeWire.Write(bytes, 3, 1, Tier);
-            return bytes;
-        }
-    }
-
-    public sealed class LadderPointsRequest
-    {
-        public const int ByteLength = 10;
-        public const uint Operation = 14;
-        public uint Qualified { get; set; }
-        public uint Rank { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 4, Qualified);
-            NativeWire.Write(bytes, 6, 4, Rank);
-            return bytes;
-        }
-    }
-
-    public sealed class LadderTierRequest
-    {
-        public const int ByteLength = 10;
-        public const uint Operation = 15;
-        public ulong Points { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 8, Points);
-            return bytes;
-        }
-    }
-
-    public sealed class LadderTierFloorRequest
-    {
-        public const int ByteLength = 3;
-        public const uint Operation = 16;
-        public byte Tier { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 1, Tier);
-            return bytes;
-        }
-    }
-
-    public sealed class DailyBoardPoolsRequest
-    {
-        public const int ByteLength = 14;
-        public const uint Operation = 17;
-        public ulong Pool { get; set; }
-        public uint ThemeQualified { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 8, Pool);
-            NativeWire.Write(bytes, 10, 4, ThemeQualified);
-            return bytes;
-        }
-    }
-
-    public sealed class BoardWidthRequest
-    {
-        public const int ByteLength = 14;
-        public const uint Operation = 18;
-        public ulong Pool { get; set; }
-        public uint Qualified { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 8, Pool);
-            NativeWire.Write(bytes, 10, 4, Qualified);
-            return bytes;
-        }
-    }
-
-    public sealed class PayoutForRankRequest
-    {
-        public const int ByteLength = 30;
-        public const uint Operation = 19;
-        public ulong Pool { get; set; }
-        public byte[] Denominator { get; set; } = new byte[16];
-        public uint Rank { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 8, Pool);
-            NativeWire.Copy(Denominator, bytes, 10, 16);
-            NativeWire.Write(bytes, 26, 4, Rank);
-            return bytes;
-        }
-    }
-
-    public sealed class LocalRowRandomnessRequest
-    {
-        public const int ByteLength = 39;
-        public const uint Operation = 22;
-        public byte[] Seed { get; set; } = new byte[32];
-        public byte SeedLength { get; set; }
-        public uint Counter { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Seed, bytes, 2, 32);
-            NativeWire.Write(bytes, 34, 1, SeedLength);
-            NativeWire.Write(bytes, 35, 4, Counter);
-            return bytes;
-        }
-    }
-
-    public sealed class MergeCampaignStarsRequest
-    {
-        public const int ByteLength = 52;
-        public const uint Operation = 21;
-        public byte[] Stored { get; set; } = new byte[25];
-        public byte[] Incoming { get; set; } = new byte[25];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Stored, bytes, 2, 25);
-            NativeWire.Copy(Incoming, bytes, 27, 25);
-            return bytes;
-        }
-    }
-
-    public sealed class PackCampaignStarsRequest
-    {
-        public const int ByteLength = 102;
-        public const uint Operation = 23;
-        public byte[] Stars { get; set; } = new byte[100];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Stars, bytes, 2, 100);
-            return bytes;
-        }
-    }
-
-    public sealed class CampaignProgressRequest
-    {
-        public const int ByteLength = 27;
-        public const uint Operation = 24;
-        public byte[] Stars { get; set; } = new byte[25];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Stars, bytes, 2, 25);
-            return bytes;
-        }
-    }
-
-    public sealed class CampaignRulesRequest
-    {
-        public const int ByteLength = 11;
-        public const uint Operation = 25;
-        public byte Realm { get; set; }
-        public byte Level { get; set; }
-        public byte Tier { get; set; }
-        public byte[] Primary { get; set; } = new byte[3];
-        public byte[] Secondary { get; set; } = new byte[3];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 1, Realm);
-            NativeWire.Write(bytes, 3, 1, Level);
-            NativeWire.Write(bytes, 4, 1, Tier);
-            NativeWire.Copy(Primary, bytes, 5, 3);
-            NativeWire.Copy(Secondary, bytes, 8, 3);
-            return bytes;
-        }
-    }
-
-    public sealed class RecordLocalCampaignResultRequest
-    {
-        public const int ByteLength = 260;
-        public const uint Operation = 26;
-        public byte[] Stars { get; set; } = new byte[25];
-        public byte Realm { get; set; }
-        public byte Level { get; set; }
-        public byte[] State { get; set; } = new byte[231];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Copy(Stars, bytes, 2, 25);
-            NativeWire.Write(bytes, 27, 1, Realm);
-            NativeWire.Write(bytes, 28, 1, Level);
-            NativeWire.Copy(State, bytes, 29, 231);
-            return bytes;
-        }
-    }
-
-    public sealed class DailyWindowRequest
-    {
-        public const int ByteLength = 6;
-        public const uint Operation = 27;
-        public uint Day { get; set; }
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 4, Day);
-            return bytes;
-        }
-        public static DailyWindowRequest Decode(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyWindowRequest byte length");
-            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException("Unsupported request version");
-            return new DailyWindowRequest
-            {
-                Day = (uint)NativeWire.Read(bytes, 2, 4),
-            };
-        }
-    }
-
-    public sealed class BoardOrderRequest
-    {
-        public const int ByteLength = 98;
-        public const uint Operation = 28;
-        public ulong LeftMetric { get; set; }
-        public byte[] LeftTime { get; set; } = new byte[8];
-        public byte[] LeftOwner { get; set; } = new byte[32];
-        public ulong RightMetric { get; set; }
-        public byte[] RightTime { get; set; } = new byte[8];
-        public byte[] RightOwner { get; set; } = new byte[32];
-        public byte[] Encode()
-        {
-            var bytes = new byte[ByteLength];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 8, LeftMetric);
-            NativeWire.Copy(LeftTime, bytes, 10, 8);
-            NativeWire.Copy(LeftOwner, bytes, 18, 32);
-            NativeWire.Write(bytes, 50, 8, RightMetric);
-            NativeWire.Copy(RightTime, bytes, 58, 8);
-            NativeWire.Copy(RightOwner, bytes, 66, 32);
             return bytes;
         }
     }
@@ -745,44 +480,33 @@ namespace ZKube.Core.Generated
         }
     }
 
-    public sealed class DailyPair
+    public sealed class DailyInfo
     {
-        public const int ByteLength = 3;
+        public const int ByteLength = 19;
         public byte Realm { get; set; }
         public byte Kind { get; set; }
         public byte Value { get; set; }
-        public static DailyPair Decode(byte[] bytes)
+        public ulong OpensAt { get; set; }
+        public ulong FreezesAt { get; set; }
+        public static DailyInfo Decode(byte[] bytes)
         {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyPair byte length");
-            return new DailyPair
+            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyInfo byte length");
+            return new DailyInfo
             {
                 Realm = bytes[0],
                 Kind = bytes[1],
                 Value = bytes[2],
-            };
-        }
-    }
-
-    public sealed class DailyWindow
-    {
-        public const int ByteLength = 16;
-        public ulong OpensAt { get; set; }
-        public ulong FreezesAt { get; set; }
-        public static DailyWindow Decode(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyWindow byte length");
-            return new DailyWindow
-            {
-                OpensAt = (ulong)NativeWire.Read(bytes, 0, 8),
-                FreezesAt = (ulong)NativeWire.Read(bytes, 8, 8),
+                OpensAt = (ulong)NativeWire.Read(bytes, 3, 8),
+                FreezesAt = (ulong)NativeWire.Read(bytes, 11, 8),
             };
         }
     }
 
     public sealed class CampaignProgressSummary
     {
-        public const int ByteLength = 259;
+        public const int ByteLength = 284;
         public byte[] Stars { get; set; } = new byte[100];
+        public byte[] Packed { get; set; } = new byte[25];
         public ushort Total { get; set; }
         public byte[] LevelUnlocked { get; set; } = new byte[100];
         public byte[] RealmUnlocked { get; set; } = new byte[10];
@@ -797,14 +521,15 @@ namespace ZKube.Core.Generated
             return new CampaignProgressSummary
             {
                 Stars = NativeWire.Bytes(bytes, 0, 100),
-                Total = (ushort)NativeWire.Read(bytes, 100, 2),
-                LevelUnlocked = NativeWire.Bytes(bytes, 102, 100),
-                RealmUnlocked = NativeWire.Bytes(bytes, 202, 10),
-                Cleared = NativeWire.Bytes(bytes, 212, 10),
-                Perfected = NativeWire.Bytes(bytes, 222, 10),
-                EmblemUnlocked = NativeWire.Bytes(bytes, 232, 13),
-                EmblemGold = NativeWire.Bytes(bytes, 245, 13),
-                StrongestEmblem = bytes[258],
+                Packed = NativeWire.Bytes(bytes, 100, 25),
+                Total = (ushort)NativeWire.Read(bytes, 125, 2),
+                LevelUnlocked = NativeWire.Bytes(bytes, 127, 100),
+                RealmUnlocked = NativeWire.Bytes(bytes, 227, 10),
+                Cleared = NativeWire.Bytes(bytes, 237, 10),
+                Perfected = NativeWire.Bytes(bytes, 247, 10),
+                EmblemUnlocked = NativeWire.Bytes(bytes, 257, 13),
+                EmblemGold = NativeWire.Bytes(bytes, 270, 13),
+                StrongestEmblem = bytes[283],
             };
         }
     }

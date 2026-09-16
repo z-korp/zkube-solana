@@ -20,14 +20,12 @@ fn overlap(a: &std::ops::Range<usize>, b: &std::ops::Range<usize>) -> bool {
 /// Invoke one operation from the generated ABI registry. All fields are
 /// little-endian. The request begins with the u16 ABI version.
 ///
-/// A null response with zero capacity is an explicit size query: successful
-/// validation writes the required size, without publishing response bytes.
-/// Every other failure leaves response bytes and `response_written` untouched.
+/// Every failure leaves response bytes and `response_written` untouched.
 /// No pointer is retained; outputs become visible only after complete success.
 ///
 /// # Safety
 /// Request must reference `request_len` readable initialized bytes. Response
-/// must reference `response_capacity` writable bytes (except a size query).
+/// must reference `response_capacity` writable bytes.
 /// `response_written` must reference an aligned writable u32. Those ranges
 /// must not overlap or be accessed concurrently. Null/range/alignment checks
 /// cannot establish whether non-null caller memory is actually mapped.
@@ -56,15 +54,12 @@ pub unsafe extern "C" fn zkube_core_call(
         {
             return 1;
         }
-        let query = response.is_null() && response_capacity == 0;
-        if !query {
-            let Some(output_range) = address_range(response as usize, response_capacity as usize)
-            else {
-                return 1;
-            };
-            if overlap(&input_range, &output_range) || overlap(&written_range, &output_range) {
-                return 1;
-            }
+        let Some(output_range) = address_range(response as usize, response_capacity as usize)
+        else {
+            return 1;
+        };
+        if overlap(&input_range, &output_range) || overlap(&written_range, &output_range) {
+            return 1;
         }
         // SAFETY: caller promises readable memory; null, bounded length,
         // address overflow and output aliasing were checked above.
@@ -76,15 +71,13 @@ pub unsafe extern "C" fn zkube_core_call(
         let Ok(length) = u32::try_from(output.len()) else {
             return 104;
         };
-        if !query && response_capacity < length {
+        if response_capacity < length {
             return 5;
         }
-        if !query {
-            // SAFETY: caller promises writable memory, capacity and disjoint
-            // ranges were checked; output is a separately owned allocation.
-            unsafe {
-                std::ptr::copy_nonoverlapping(output.as_ptr(), response, output.len());
-            }
+        // SAFETY: caller promises writable memory, capacity and disjoint
+        // ranges were checked; output is a separately owned allocation.
+        unsafe {
+            std::ptr::copy_nonoverlapping(output.as_ptr(), response, output.len());
         }
         // SAFETY: caller promises writable u32; alignment/range/aliasing were
         // checked. This and the copy above are the only output publication.
@@ -102,10 +95,10 @@ mod tests {
     use zkube_core_host::native;
 
     #[test]
-    fn rejected_calls_publish_nothing_and_query_is_explicit() {
-        let request = [1u8, 0, 42, 0, 0, 0];
+    fn rejected_calls_publish_nothing() {
+        let request = [u8::try_from(native::ABI_VERSION).unwrap(), 0, 42, 0, 0, 0];
         let expected = native::dispatch(12, &request).unwrap();
-        let response_length = native::fields_len(native::DAILY_PAIR_FIELDS);
+        let response_length = native::fields_len(native::DAILY_FIELDS);
         assert_eq!(expected.len(), response_length);
         let mut output = vec![0xa5; response_length + 1];
         let capacity = u32::try_from(output.len()).unwrap();
@@ -124,7 +117,7 @@ mod tests {
         assert_eq!(status, 5);
         assert_eq!(output, vec![0xa5; response_length + 1]);
         assert_eq!(written, 0xface);
-        // SAFETY: live request/written and the documented null/zero size query.
+        // SAFETY: null output is rejected before any output is published.
         assert_eq!(
             unsafe {
                 zkube_core_call(
@@ -136,9 +129,9 @@ mod tests {
                     &raw mut written,
                 )
             },
-            0
+            1
         );
-        assert_eq!(usize::try_from(written).unwrap(), response_length);
+        assert_eq!(written, 0xface);
         // SAFETY: disjoint live buffers with sufficient capacity.
         assert_eq!(
             unsafe {
@@ -159,7 +152,9 @@ mod tests {
 
     #[test]
     fn nulls_aliasing_versions_and_lengths_are_rejected() {
-        let mut input = [1u8, 0, 42, 0, 0, 0, 0, 0];
+        let version = u8::try_from(native::ABI_VERSION).unwrap();
+        let mut input = [version, 0, 42, 0, 0, 0, 0, 0];
+        let mut output = [0xa5; 32];
         let mut written = 99;
         // SAFETY: intentionally invalid null rejected before dereference.
         assert_eq!(
@@ -190,36 +185,51 @@ mod tests {
             },
             1
         );
-        input[0] = 2;
-        // SAFETY: live input/written and explicit size query.
+        input[0] = version + 1;
+        // SAFETY: disjoint live input/output/written buffers.
         assert_eq!(
             unsafe {
                 zkube_core_call(
                     12,
                     input.as_ptr(),
                     6,
-                    std::ptr::null_mut(),
-                    0,
+                    output.as_mut_ptr(),
+                    32,
                     &raw mut written,
                 )
             },
             3
         );
-        input[0] = 1;
-        // SAFETY: live input/written and explicit size query.
+        input[0] = version;
+        // SAFETY: an oversized length is rejected before forming the input slice.
+        assert_eq!(
+            unsafe {
+                zkube_core_call(
+                    12,
+                    input.as_ptr(),
+                    u32::MAX,
+                    output.as_mut_ptr(),
+                    32,
+                    &raw mut written,
+                )
+            },
+            2
+        );
+        // SAFETY: disjoint live input/output/written buffers.
         assert_eq!(
             unsafe {
                 zkube_core_call(
                     12,
                     input.as_ptr(),
                     5,
-                    std::ptr::null_mut(),
-                    0,
+                    output.as_mut_ptr(),
+                    32,
                     &raw mut written,
                 )
             },
             2
         );
         assert_eq!(written, 99);
+        assert_eq!(output, [0xa5; 32]);
     }
 }

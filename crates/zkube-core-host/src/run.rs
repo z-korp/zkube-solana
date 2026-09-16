@@ -850,7 +850,7 @@ mod tests {
             Err(BoundaryError::InvalidEncoding)
         );
         let mut corrupt = state;
-        corrupt[0] = 2;
+        corrupt[0] = crate::native::ABI_VERSION.to_le_bytes()[0] + 1;
         assert_eq!(
             decode_run_state(&corrupt),
             Err(BoundaryError::InvalidEncoding)

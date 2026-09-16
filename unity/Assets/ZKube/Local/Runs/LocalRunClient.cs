@@ -109,14 +109,10 @@ namespace ZKube.Local
                 var before = NativeEngine.Summary(record.Token);
                 switch (action.Kind)
                 {
-                    case LocalActionKind.Move: Accept(record, PlayMoveRequest.Operation, new PlayMoveRequest { Config = record.Token.Config, State = record.Token.State,
-                        Action = before.ActionCounter, ExpectedMove = before.Moves, Row = action.Row, Start = action.Start, Destination = action.Destination }.Encode(), transitions); break;
-                    case LocalActionKind.Bonus: Accept(record, ApplyBonusRequest.Operation, new ApplyBonusRequest { Config = record.Token.Config, State = record.Token.State,
-                        Action = before.ActionCounter, Row = action.Row, Column = action.Start }.Encode(), transitions); break;
-                    case LocalActionKind.Reroll: Accept(record, RequestRerollRequest.Operation, new RequestRerollRequest { Config = record.Token.Config, State = record.Token.State,
-                        Action = before.ActionCounter }.Encode(), transitions); break;
-                    case LocalActionKind.Finish: Accept(record, FinishRequest.Operation, new FinishRequest { Config = record.Token.Config, State = record.Token.State,
-                        Reason = action.Reason }.Encode(), transitions); break;
+                    case LocalActionKind.Move: Accept(record, NativeOperation.PlayMove, NativeRequest.PlayMove(Config: record.Token.Config, State: record.Token.State, Action: before.ActionCounter, ExpectedMove: before.Moves, Row: action.Row, Start: action.Start, Destination: action.Destination), transitions); break;
+                    case LocalActionKind.Bonus: Accept(record, NativeOperation.ApplyBonus, NativeRequest.ApplyBonus(Config: record.Token.Config, State: record.Token.State, Action: before.ActionCounter, Row: action.Row, Column: action.Start), transitions); break;
+                    case LocalActionKind.Reroll: Accept(record, NativeOperation.RequestReroll, NativeRequest.RequestReroll(Config: record.Token.Config, State: record.Token.State, Action: before.ActionCounter), transitions); break;
+                    case LocalActionKind.Finish: Accept(record, NativeOperation.Finish, NativeRequest.Finish(Config: record.Token.Config, State: record.Token.State, Reason: action.Reason), transitions); break;
                     default: throw new ArgumentOutOfRangeException(nameof(action));
                 }
                 if (NativeEngine.Summary(record.Token).Phase == (byte)CorePhase.AwaitingVrf) NextRow(record, transitions);
@@ -160,7 +156,7 @@ namespace ZKube.Local
             return rules;
         }
         protected virtual void RecordTerminal(Record record, RunSummary summary) { }
-        private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(NativeEngine.PackCampaignStars(store.Read.Stars));
+        private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(store.Read.Stars);
         private void RestoreCampaign()
         {
             var saved = store.Read.CampaignRun;
@@ -186,10 +182,10 @@ namespace ZKube.Local
                 var next = Copy(current);
                 if (terminal)
                 {
-                    var before = NativeEngine.PackCampaignStars(current.Stars);
+                    var before = current.Stars;
                     var merged = NativeEngine.RecordLocalCampaignResult(before, record.Realm, record.Level, record.Token);
-                    next.Stars = NativeEngine.CampaignProgress(merged).Stars;
-                    if (!before.SequenceEqual(merged) && store.Owner != null) next.CampaignWritePending = true;
+                    next.Stars = merged.Stars;
+                    if (!before.SequenceEqual(merged.Stars) && store.Owner != null) next.CampaignWritePending = true;
                     next.CampaignRun = null;
                 }
                 else next.CampaignRun = new LocalCampaignRun { Id = record.Id, CatalogVersion = Protocol.CatalogVersion,
@@ -201,8 +197,7 @@ namespace ZKube.Local
         private static void NextRow(Record record, List<(byte[], byte[])> transitions)
         {
             uint counter = checked(++record.Counter);
-            Accept(record, ApplyVrfRequest.Operation, new ApplyVrfRequest { Config = record.Token.Config, State = record.Token.State,
-                Counter = counter, Output = NativeEngine.LocalRowRandomness(record.Seed, counter) }.Encode(), transitions);
+            Accept(record, NativeOperation.ApplyVrf, NativeRequest.ApplyVrf(Config: record.Token.Config, State: record.Token.State, Counter: counter, Output: NativeEngine.LocalRowRandomness(record.Seed, counter)), transitions);
         }
         private static void Accept(Record record, uint operation, byte[] request, List<(byte[], byte[])> transitions)
         {

@@ -883,7 +883,14 @@ guards the share boundary. Unused provisional-board and spectator reads are remo
 Campaign star packing, level availability, realm completion, emblem eligibility,
 and level configuration come from core operations over the native boundary.
 `CampaignAndDailyQueriesUseTheRustProgressionAndCatalogOwners` checks those
-responses against Rust fixtures, including the full Daily pair returned by op 12.
+responses against Rust fixtures. Campaign progress merges incoming packed stars
+and returns the packed record with eligibility in one call; local result recording
+returns that same shape. Daily content and its UTC window come from one call,
+guarded by `DailyWindowUsesTheCoreAcrossTheFullDayRange`.
+`RemainingNativeQueriesMatchRustFixtureVectors` covers the budget and tier queries.
+The native ABI is version 2; pointer and length checks precede memory access,
+and failed calls publish no output. `nulls_aliasing_versions_and_lengths_are_rejected`
+and `rejected_calls_publish_nothing` guard those boundaries.
 `campaign_packing_roundtrips_and_local_results_preserve_the_maximum` and
 `campaign_eligibility_handles_sparse_saves_and_unsupported_emblems` guard the core.
 The shared local client exposes Campaign play. The store assembly extends it

@@ -10,7 +10,7 @@ use crate::{
 };
 use zkube_core::{PresentationEvent, PresentationObserver, Run, RunEndReason, SoftwareSha256};
 
-pub const ABI_VERSION: u16 = 1;
+pub const ABI_VERSION: u16 = 2;
 pub const MAX_REQUEST_BYTES: usize = 4096;
 // An action can only move the board's cells downward plus one insertion.
 // 80 cells * 10 rows bounds individual falls; each movement record is 9 bytes.
@@ -87,10 +87,10 @@ pub const SUMMARY_FIELDS: &[Field] = fields![
     ReplayHash: Bytes(32), RulesHash: Bytes(32),
 ];
 
-pub const DAILY_PAIR_FIELDS: &[Field] = fields![Realm: U8, Kind: U8, Value: U8];
-pub const DAILY_WINDOW_FIELDS: &[Field] = fields![OpensAt: U64, FreezesAt: U64];
+pub const DAILY_FIELDS: &[Field] =
+    fields![Realm: U8, Kind: U8, Value: U8, OpensAt: U64, FreezesAt: U64];
 pub const CAMPAIGN_PROGRESS_FIELDS: &[Field] = fields![
-    Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS), Total: U16,
+    Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS), Packed: Bytes(zkube_core::CAMPAIGN_STAR_BYTES), Total: U16,
     LevelUnlocked: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS),
     RealmUnlocked: Bytes(zkube_core::CAMPAIGN_MAP_COUNT),
     Cleared: Bytes(zkube_core::CAMPAIGN_MAP_COUNT), Perfected: Bytes(zkube_core::CAMPAIGN_MAP_COUNT),
@@ -153,7 +153,7 @@ pub const OPERATIONS: &[Operation] = &[
     },
     Operation {
         id: 12,
-        name: "DailyPairIndex",
+        name: "Daily",
         fields: fields![Day: U32],
     },
     Operation {
@@ -197,19 +197,9 @@ pub const OPERATIONS: &[Operation] = &[
         fields: fields![Seed: Bytes(32), SeedLength: U8, Counter: U32],
     },
     Operation {
-        id: 21,
-        name: "MergeCampaignStars",
-        fields: fields![Stored: Bytes(zkube_core::CAMPAIGN_STAR_BYTES), Incoming: Bytes(zkube_core::CAMPAIGN_STAR_BYTES)],
-    },
-    Operation {
-        id: 23,
-        name: "PackCampaignStars",
-        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS)],
-    },
-    Operation {
         id: 24,
         name: "CampaignProgress",
-        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_STAR_BYTES)],
+        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS), Incoming: Bytes(zkube_core::CAMPAIGN_STAR_BYTES)],
     },
     Operation {
         id: 25,
@@ -219,12 +209,7 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         id: 26,
         name: "RecordLocalCampaignResult",
-        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_STAR_BYTES), Realm: U8, Level: U8, State: Bytes(RUN_STATE_LEN)],
-    },
-    Operation {
-        id: 27,
-        name: "DailyWindow",
-        fields: fields![Day: U32],
+        fields: fields![Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS), Realm: U8, Level: U8, State: Bytes(RUN_STATE_LEN)],
     },
     Operation {
         id: 28,
@@ -389,7 +374,7 @@ impl Input<'_> {
 /// # Errors
 /// Returns the ABI status for malformed requests or rejected core operations.
 pub fn dispatch(operation: u32, request: &[u8]) -> Result<Vec<u8>, i32> {
-    if request.len() < 2 || request.len() > MAX_REQUEST_BYTES {
+    if request.len() < 2 {
         return Err(2);
     }
     if u16::from_le_bytes([request[0], request[1]]) != ABI_VERSION {
@@ -477,18 +462,23 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
         4..=8 => transition(operation, input),
         9 => Ok(encode_summary(decode_run_state(b("State"))?)),
         12 => {
-            let index = zkube_core::daily_pair_index(u("Day"));
-            let (realm, theme) = zkube_core::decode_daily_pair(index).expect("draw index");
-            Ok(vec![realm, theme.kind.tag(), theme.value])
+            let (realm, theme) = zkube_core::daily_pair(u("Day"));
+            let (opens, freezes, _) = zkube_core::daily_window(u("Day"));
+            let mut bytes = vec![realm, theme.kind.tag(), theme.value];
+            bytes.extend_from_slice(&opens.to_le_bytes());
+            bytes.extend_from_slice(&freezes.to_le_bytes());
+            Ok(bytes)
         }
-        23 => {
-            zkube_core::CampaignStars::from_unpacked(b("Stars").try_into().expect("schema stars"))
-                .map(|stars| stars.packed().to_vec())
-                .map_err(|_| BoundaryError::InvalidEncoding)
+        24 => {
+            let mut stars = zkube_core::CampaignStars::from_unpacked(
+                b("Stars").try_into().expect("schema stars"),
+            )
+            .map_err(|_| BoundaryError::InvalidEncoding)?;
+            stars.merge(zkube_core::CampaignStars::from_packed(
+                b("Incoming").try_into().expect("schema stars"),
+            ));
+            Ok(encode_campaign_progress(stars))
         }
-        24 => Ok(encode_campaign_progress(
-            zkube_core::CampaignStars::from_packed(b("Stars").try_into().expect("schema stars")),
-        )),
         25 => {
             let realm = n("Realm")
                 .checked_sub(1)
@@ -525,13 +515,14 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
             ) {
                 return Err(BoundaryError::InvalidEncoding);
             }
-            let mut stars = zkube_core::CampaignStars::from_packed(
+            let mut stars = zkube_core::CampaignStars::from_unpacked(
                 b("Stars").try_into().expect("schema stars"),
-            );
+            )
+            .map_err(|_| BoundaryError::InvalidEncoding)?;
             stars
                 .merge_level(n("Realm"), n("Level"), run.engine.latched_star_count())
                 .map_err(|_| BoundaryError::InvalidEncoding)?;
-            Ok(stars.packed().to_vec())
+            Ok(encode_campaign_progress(stars))
         }
         28 => {
             let order = zkube_core::compare_board_entries(
@@ -548,11 +539,6 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
                 std::cmp::Ordering::Greater => 2,
             }])
         }
-        27 => {
-            let (opens, closes, _) = zkube_core::daily_window(u("Day"));
-            Ok([opens.to_le_bytes(), closes.to_le_bytes()].concat())
-        }
-        21 => crate::merge_campaign_stars(b("Stored"), b("Incoming")),
         22 => {
             let seed = b("Seed")
                 .get(..usize::from(n("SeedLength")))
@@ -598,6 +584,7 @@ pub fn encode_campaign_progress(stars: zkube_core::CampaignStars) -> Vec<u8> {
         bytes[field_range(CAMPAIGN_PROGRESS_FIELDS, name)].copy_from_slice(value);
     };
     put("Stars", &stars.unpacked());
+    put("Packed", &stars.packed());
     put("Total", &stars.total().to_le_bytes());
     let levels: [u8; zkube_core::CAMPAIGN_TOTAL_LEVELS] = core::array::from_fn(|i| {
         u8::from(stars.level_unlocked(

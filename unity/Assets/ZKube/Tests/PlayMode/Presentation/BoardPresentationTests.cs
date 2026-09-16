@@ -239,7 +239,7 @@ namespace ZKube.Presentation.Tests
             var held = new HeldAction(board.Session.Actions);
             board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, "Balam Daily", board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            var move = evidence.Current.steps.First(s => s.operation == PlayMoveRequest.Operation);
+            var move = evidence.Current.steps.First(s => s.operation == NativeOperation.PlayMove);
             int width = board.State.Grid[move.row * 8 + move.start];
             var from = board.View.Layout.CellCenter(move.row, move.start, width);
             var to = board.View.Layout.CellCenter(move.row, move.destination, width);

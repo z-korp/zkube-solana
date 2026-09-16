@@ -40,19 +40,46 @@ fn local_randomness_vectors() -> Result<Vec<Value>, String> {
     Ok(vectors)
 }
 
-fn daily_window_vectors() -> Vec<Value> {
-    [0_u32, 1, 20_000, u32::MAX]
-        .into_iter()
+fn daily_vectors() -> Vec<Value> {
+    (0_u32..160).chain([20_000, 20_705, u32::MAX])
         .map(|day| {
-            let mut request = Request::new(27);
+            let mut request = Request::new(12);
             request.put("Day", &day.to_le_bytes());
-            let (opens, closes, _) = zkube_core::daily_window(day);
-            let expected = [opens.to_le_bytes(), closes.to_le_bytes()].concat();
-            assert_eq!(native::dispatch(27, &request.bytes).unwrap(), expected);
-            json!({"name": format!("daily-window-{day}"), "operation": 27,
-            "requestHex": hex(&request.bytes), "responseHex": hex(&expected)})
-        })
-        .collect()
+            let (realm, theme) = daily_pair(day);
+            let (opens, freezes, _) = zkube_core::daily_window(day);
+            let expected = [vec![realm, theme.kind.tag(), theme.value], opens.to_le_bytes().to_vec(), freezes.to_le_bytes().to_vec()].concat();
+            assert_eq!(native::dispatch(12, &request.bytes).unwrap(), expected);
+            json!({"day": day, "operation": 12, "requestHex": hex(&request.bytes), "responseHex": hex(&expected)})
+        }).collect()
+}
+
+fn protocol_query_vectors() -> Vec<Value> {
+    let queries = [
+        (
+            13,
+            vec![("Level", vec![10]), ("Tier", vec![7])],
+            zkube_core::campaign_move_budget(10, 7)
+                .unwrap()
+                .to_le_bytes()
+                .to_vec(),
+        ),
+        (
+            15,
+            vec![("Points", 10_000_u64.to_le_bytes().to_vec())],
+            vec![zkube_core::ladder_tier_for_points(10_000)],
+        ),
+        (
+            16,
+            vec![("Tier", vec![4])],
+            zkube_core::ladder_tier_floor(4).to_le_bytes().to_vec(),
+        ),
+    ];
+    queries.into_iter().map(|(operation, fields, expected)| {
+        let mut request = Request::new(operation);
+        for (name, bytes) in fields { request.put(name, &bytes); }
+        assert_eq!(native::dispatch(operation, &request.bytes).unwrap(), expected);
+        json!({"operation": operation, "requestHex": hex(&request.bytes), "responseHex": hex(&expected)})
+    }).collect()
 }
 
 fn campaign_boundary_vectors(
@@ -70,30 +97,23 @@ fn campaign_boundary_vectors(
             "requestHex": hex(&request.bytes), "responseHex": hex(&expected)}));
         Ok(())
     };
-    for day in (0..160).chain([20_705, u32::MAX]) {
-        let mut request = Request::new(12);
-        request.put("Day", &day.to_le_bytes());
-        let (realm, theme) = daily_pair(day);
-        let expected = vec![realm, theme.kind.tag(), theme.value];
-        record(format!("daily-pair-{day}"), request, expected)?;
-    }
     for value in [0, 1, 2, 3, 4, 16, 64, 85, 170, 192, 255] {
         let stars =
             zkube_core::CampaignStars::from_packed([value; zkube_core::CAMPAIGN_STAR_BYTES]);
-        let mut request = Request::new(23);
-        request.put("Stars", &stars.unpacked());
-        record(
-            format!("pack-stars-{value}"),
-            request,
-            stars.packed().to_vec(),
-        )?;
-        let mut request = Request::new(24);
-        request.put("Stars", &stars.packed());
-        record(
-            format!("progress-{value}"),
-            request,
-            native::encode_campaign_progress(stars),
-        )?;
+        for incoming in [0, 85, 170, 255] {
+            let mut merged = stars;
+            let incoming =
+                zkube_core::CampaignStars::from_packed([incoming; zkube_core::CAMPAIGN_STAR_BYTES]);
+            let mut request = Request::new(24);
+            request.put("Stars", &stars.unpacked());
+            request.put("Incoming", &incoming.packed());
+            merged.merge(incoming);
+            record(
+                format!("progress-{value}-{}", incoming.total()),
+                request,
+                native::encode_campaign_progress(merged),
+            )?;
+        }
     }
     for map in &catalog.maps {
         for (index, level) in map.levels.iter().enumerate() {
@@ -133,7 +153,7 @@ fn campaign_boundary_vectors(
             let mut stars = zkube_core::CampaignStars::new();
             stars.merge_level(1, 1, prior).unwrap();
             let mut request = Request::new(26);
-            request.put("Stars", &stars.packed());
+            request.put("Stars", &stars.unpacked());
             request.put("Realm", &[1]);
             request.put("Level", &[1]);
             request.put("State", &state);
@@ -143,7 +163,7 @@ fn campaign_boundary_vectors(
             record(
                 format!("record-{}-{prior}", case["name"].as_str().unwrap()),
                 request,
-                stars.packed().to_vec(),
+                native::encode_campaign_progress(stars),
             )?;
         }
     }
@@ -235,7 +255,34 @@ impl Trajectory {
                 self.name, request.operation
             ));
         }
-        self.steps.push(json!({ "operation": request.operation, "requestHex": hex(&request.bytes), "responseHex": hex(&actual) }));
+        let mut step = json!({ "operation": request.operation, "requestHex": hex(&request.bytes), "responseHex": hex(&actual) });
+        if (4..=8).contains(&request.operation) {
+            let schema = native::OPERATIONS
+                .iter()
+                .find(|op| op.id == request.operation)
+                .unwrap();
+            let mut gesture = json!({"operation": request.operation});
+            for field in schema.fields.iter().filter(|field| {
+                !matches!(
+                    field.name,
+                    "Config" | "State" | "Counter" | "Action" | "ExpectedMove"
+                )
+            }) {
+                let range = native::field_range(schema.fields, field.name);
+                let bytes = &request.bytes[2 + range.start..2 + range.end];
+                gesture[field.name.to_lowercase()] = match field.kind {
+                    native::FieldType::Bytes(_) => json!(hex(bytes)),
+                    _ => json!(
+                        bytes
+                            .iter()
+                            .enumerate()
+                            .fold(0_u64, |n, (i, b)| n | (u64::from(*b) << (8 * i)))
+                    ),
+                };
+            }
+            step["gesture"] = gesture;
+        }
+        self.steps.push(step);
         Ok(())
     }
     fn run(&self) -> Run {
@@ -779,7 +826,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         cases.push(t.finish());
     }
     serde_json::to_string_pretty(&json!({ "schemaVersion": 1, "coreVersion": CORE_VERSION,
-            "dailyWindows": daily_window_vectors(), "campaignBoundary": campaign_boundary_vectors(catalog, &cases)?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
+            "dailyBoundary": daily_vectors(), "protocolQueries": protocol_query_vectors(), "campaignBoundary": campaign_boundary_vectors(catalog, &cases)?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
     .map(|s| s + "\n")
     .map_err(|e| e.to_string())
 }

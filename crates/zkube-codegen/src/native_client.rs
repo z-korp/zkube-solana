@@ -47,9 +47,6 @@ fn emit_class(output: &mut String, name: &str, fields: &[Field], request_id: Opt
         header + native::fields_len(fields)
     )
     .unwrap();
-    if let Some(id) = request_id {
-        writeln!(output, "        public const uint Operation = {id};").unwrap();
-    }
     for field in fields {
         let initial = match field.kind {
             FieldType::Bytes(n) => format!(" = new byte[{n}];"),
@@ -85,9 +82,7 @@ fn emit_class(output: &mut String, name: &str, fields: &[Field], request_id: Opt
         }
         output.push_str("            return bytes;\n        }\n");
     }
-    // Tests decode fixture input requests; opaque core config/state tokens
-    // continue to be decoded exclusively by the native engine.
-    if request_id.is_none() || matches!(request_id, Some(1 | 4..=8 | 27)) {
+    if request_id.is_none() || request_id == Some(1) {
         writeln!(output, "        public static {name} Decode(byte[] bytes)\n        {{\n            if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException(\"Invalid {name} byte length\");").unwrap();
         if request_id.is_some() {
             output.push_str("            if (NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion) throw new ArgumentException(\"Unsupported request version\");\n");
@@ -108,6 +103,47 @@ fn emit_class(output: &mut String, name: &str, fields: &[Field], request_id: Opt
         output.push_str("            };\n        }\n");
     }
     output.push_str("    }\n\n");
+}
+
+fn emit_requests(output: &mut String) {
+    output.push_str("    public static class NativeOperation\n    {\n");
+    for op in native::OPERATIONS {
+        writeln!(output, "        public const uint {} = {};", op.name, op.id).unwrap();
+    }
+    output.push_str("    }\n    public static class NativeRequest\n    {\n");
+    for op in native::OPERATIONS
+        .iter()
+        .filter(|op| !matches!(op.id, 1 | 2))
+    {
+        let parameters = op
+            .fields
+            .iter()
+            .map(|field| format!("{} {}", cs_type(field.kind), field.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(output, "        public static byte[] {}({parameters})\n        {{\n            var bytes = new byte[{}];\n            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);", op.name, 2 + native::fields_len(op.fields)).unwrap();
+        let mut offset = 2;
+        for field in op.fields {
+            match field.kind {
+                FieldType::Bytes(n) => writeln!(
+                    output,
+                    "            NativeWire.Copy({}, bytes, {offset}, {n});",
+                    field.name
+                )
+                .unwrap(),
+                other => writeln!(
+                    output,
+                    "            NativeWire.Write(bytes, {offset}, {}, {});",
+                    other.byte_len(),
+                    field.name
+                )
+                .unwrap(),
+            }
+            offset += field.kind.byte_len();
+        }
+        output.push_str("            return bytes;\n        }\n");
+    }
+    output.push_str("    }\n");
 }
 
 fn schema() -> String {
@@ -137,7 +173,11 @@ fn schema() -> String {
         .unwrap();
     }
     output.push_str("                default: throw new ArgumentException(\"Unknown presentation event\");\n            }\n        }\n    }\n\n");
-    for op in native::OPERATIONS {
+    emit_requests(&mut output);
+    for op in native::OPERATIONS
+        .iter()
+        .filter(|op| matches!(op.id, 1 | 2))
+    {
         emit_class(
             &mut output,
             &format!("{}Request", op.name),
@@ -146,13 +186,7 @@ fn schema() -> String {
         );
     }
     emit_class(&mut output, "RunSummary", native::SUMMARY_FIELDS, None);
-    emit_class(&mut output, "DailyPair", native::DAILY_PAIR_FIELDS, None);
-    emit_class(
-        &mut output,
-        "DailyWindow",
-        native::DAILY_WINDOW_FIELDS,
-        None,
-    );
+    emit_class(&mut output, "DailyInfo", native::DAILY_FIELDS, None);
     emit_class(
         &mut output,
         "CampaignProgressSummary",
