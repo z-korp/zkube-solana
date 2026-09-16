@@ -447,9 +447,15 @@ mod tests {
         assert!(rendered_daily.contains("DAILY_PAIR_COUNT = 160"));
         assert!(rendered_daily.contains("kind: 18"));
         let versions = render_protocol_constants(&catalog);
-        assert!(versions.contains("PROTOCOL_ACCOUNT_VERSION = 3"));
+        assert!(versions.contains(&format!(
+            "PROTOCOL_ACCOUNT_VERSION = {}",
+            zkube_core::PROTOCOL_ACCOUNT_VERSION
+        )));
         assert!(versions.contains("PLAYER_STATE_ACCOUNT_VERSION = 3"));
-        assert!(versions.contains("ARCADE_ACCOUNT_VERSION = 3"));
+        assert!(versions.contains(&format!(
+            "ARCADE_ACCOUNT_VERSION = {}",
+            zkube_core::ARCADE_ACCOUNT_VERSION
+        )));
         assert!(versions.contains("CATALOG_VERSION = 3"));
         assert!(versions.contains("PLAYER_STATE_RESERVED_BYTES = 18"));
         assert!(

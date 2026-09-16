@@ -94,7 +94,8 @@ prizes still pay in SOL. The shop offers 1-, 10-, and 25-Kredit packs at the
 same 0.01 SOL unit price.
 
 **Playing funds the pot, not buying.** Spending a Kredit sends 90% of its price
-to the following paid Daily's pot. The operator's 10% is swept at purchase,
+to the following paid Daily's pot. The operator's 10% goes directly to the
+protocol's team destination at purchase,
 leaving only prize money in the Kredit vault. Prior play funds today; today's
 entries grow the following paid Daily. Nothing is held back from a daily pot
 for anything else.
@@ -113,9 +114,9 @@ to Score.
 the entry price, subject to the minimum-width rule and qualifying field.
 Small pots can therefore pay less than an entry price. Zero payouts are dropped.
 
-**Winners claim instead of being pushed a payment.** Finalization allocates one
-exact-sized account for each board. The keeper submits the sorted rows in small
-chunks, and the program verifies each row against that player's result, the full
+**Winners claim instead of being pushed a payment.** Finalization funds the exact
+rent for each board’s final size. The keeper submits the sorted rows in small
+chunks that grow the account by those rows, and the program verifies each row against that player's result, the full
 ordering, uniqueness, and the program-computed winner count before sealing the
 board. Claims stay disabled until sealing; afterwards the program looks up the
 owner's position and recomputes that rank's payout directly. Each board's reward

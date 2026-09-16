@@ -14,47 +14,6 @@ export type Solana = {
   },
   "instructions": [
     {
-      "name": "acceptProtocolAuthority",
-      "discriminator": [
-        237,
-        122,
-        6,
-        39,
-        53,
-        202,
-        141,
-        113
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "pendingAuthority",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "activateArenaDaily",
       "discriminator": [
         119,
@@ -249,7 +208,7 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arcadeArchive",
+          "name": "arcadeConfig",
           "writable": true,
           "pda": {
             "seeds": [
@@ -261,14 +220,6 @@ export type Solana = {
                   99,
                   97,
                   100,
-                  101,
-                  95,
-                  97,
-                  114,
-                  99,
-                  104,
-                  105,
-                  118,
                   101
                 ]
               }
@@ -608,7 +559,7 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arcadeArchive",
+          "name": "arcadeConfig",
           "pda": {
             "seeds": [
               {
@@ -619,14 +570,6 @@ export type Solana = {
                   99,
                   97,
                   100,
-                  101,
-                  95,
-                  97,
-                  114,
-                  99,
-                  104,
-                  105,
-                  118,
                   101
                 ]
               }
@@ -790,10 +733,7 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arenaDaily",
-          "docs": [
-            "closed System placeholder."
-          ]
+          "name": "arenaDaily"
         },
         {
           "name": "arenaPlayer",
@@ -1581,32 +1521,6 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arcadeArchive",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101,
-                  95,
-                  97,
-                  114,
-                  99,
-                  104,
-                  105,
-                  118,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "arcadeConfig",
           "pda": {
             "seeds": [
@@ -2025,12 +1939,7 @@ export type Solana = {
         },
         {
           "name": "cadenceFunding",
-          "docs": [
-            "Canonical recyclable cadence-rent PDA. It can sign only through the",
-            "narrow funded self-CPI wrapper."
-          ],
           "writable": true,
-          "signer": true,
           "pda": {
             "seeds": [
               {
@@ -2167,161 +2076,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "fundedFinalizeArenaDaily",
-      "discriminator": [
-        44,
-        120,
-        53,
-        233,
-        237,
-        29,
-        9,
-        251
-      ],
-      "accounts": [
-        {
-          "name": "arenaDaily",
-          "writable": true
-        },
-        {
-          "name": "followingDaily",
-          "writable": true
-        },
-        {
-          "name": "scoreBoard",
-          "writable": true
-        },
-        {
-          "name": "themeBoard",
-          "writable": true
-        },
-        {
-          "name": "cadenceFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  100,
-                  101,
-                  110,
-                  99,
-                  101,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "scorePayoutCount",
-          "type": "u32"
-        },
-        {
-          "name": "themePayoutCount",
-          "type": "u32"
-        }
-      ]
-    },
-    {
-      "name": "fundedPrepareArenaDaily",
-      "discriminator": [
-        49,
-        198,
-        221,
-        1,
-        136,
-        42,
-        220,
-        205
-      ],
-      "accounts": [
-        {
-          "name": "protocol"
-        },
-        {
-          "name": "arcadeConfig"
-        },
-        {
-          "name": "arcadeArchive"
-        },
-        {
-          "name": "arenaDaily",
-          "writable": true
-        },
-        {
-          "name": "cadenceFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  100,
-                  101,
-                  110,
-                  99,
-                  101,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "zkubeProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
-        }
-      ],
-      "args": [
-        {
-          "name": "dayId",
-          "type": "u32"
-        }
-      ]
-    },
-    {
       "name": "initializeArcade",
       "discriminator": [
         59,
@@ -2374,35 +2128,6 @@ export type Solana = {
           }
         },
         {
-          "name": "operatorRevenueVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  111,
-                  112,
-                  101,
-                  114,
-                  97,
-                  116,
-                  111,
-                  114,
-                  95,
-                  114,
-                  101,
-                  118,
-                  101,
-                  110,
-                  117,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "creditVault",
           "writable": true,
           "pda": {
@@ -2441,104 +2166,6 @@ export type Solana = {
         }
       ],
       "args": []
-    },
-    {
-      "name": "initializeArcadeArchive",
-      "discriminator": [
-        252,
-        103,
-        113,
-        174,
-        74,
-        226,
-        174,
-        2
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeConfig",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arcadeArchive",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101,
-                  95,
-                  97,
-                  114,
-                  99,
-                  104,
-                  105,
-                  118,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "firstDayId",
-          "type": "u32"
-        }
-      ]
     },
     {
       "name": "initializePlayer",
@@ -2811,32 +2438,6 @@ export type Solana = {
           }
         },
         {
-          "name": "arcadeArchive",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  99,
-                  97,
-                  100,
-                  101,
-                  95,
-                  97,
-                  114,
-                  99,
-                  104,
-                  105,
-                  118,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "arenaDaily",
           "writable": true,
           "pda": {
@@ -2865,9 +2466,32 @@ export type Solana = {
           }
         },
         {
-          "name": "payer",
+          "name": "cadenceFunding",
           "writable": true,
-          "signer": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              }
+            ]
+          }
         },
         {
           "name": "caller",
@@ -2991,55 +2615,6 @@ export type Solana = {
       ]
     },
     {
-      "name": "proposeProtocolAuthority",
-      "discriminator": [
-        196,
-        230,
-        103,
-        192,
-        225,
-        211,
-        253,
-        246
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "pendingAuthority",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "purchaseKredits",
       "discriminator": [
         207,
@@ -3139,33 +2714,8 @@ export type Solana = {
           }
         },
         {
-          "name": "operatorRevenueVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  111,
-                  112,
-                  101,
-                  114,
-                  97,
-                  116,
-                  111,
-                  114,
-                  95,
-                  114,
-                  101,
-                  118,
-                  101,
-                  110,
-                  117,
-                  101
-                ]
-              }
-            ]
-          }
+          "name": "teamDestination",
+          "writable": true
         },
         {
           "name": "owner",
@@ -3817,134 +3367,6 @@ export type Solana = {
           "type": "bool"
         }
       ]
-    },
-    {
-      "name": "updateTeamDestination",
-      "discriminator": [
-        16,
-        114,
-        229,
-        63,
-        229,
-        123,
-        12,
-        250
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "teamDestination"
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "withdrawOperatorRevenue",
-      "discriminator": [
-        230,
-        148,
-        0,
-        222,
-        126,
-        208,
-        248,
-        212
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "operatorRevenueVault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  111,
-                  112,
-                  101,
-                  114,
-                  97,
-                  116,
-                  111,
-                  114,
-                  95,
-                  114,
-                  101,
-                  118,
-                  101,
-                  110,
-                  117,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "teamDestination",
-          "writable": true
-        },
-        {
-          "name": "authority",
-          "signer": true,
-          "relations": [
-            "protocol"
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "lamports",
-          "type": "u64"
-        }
-      ]
     }
   ],
   "accounts": [
@@ -3959,19 +3381,6 @@ export type Solana = {
         1,
         247,
         233
-      ]
-    },
-    {
-      "name": "arcadeArchive",
-      "discriminator": [
-        217,
-        86,
-        182,
-        61,
-        130,
-        66,
-        2,
-        190
       ]
     },
     {
@@ -4037,19 +3446,6 @@ export type Solana = {
         85,
         183,
         70
-      ]
-    },
-    {
-      "name": "operatorRevenueVault",
-      "discriminator": [
-        56,
-        144,
-        233,
-        76,
-        43,
-        97,
-        107,
-        200
       ]
     },
     {
@@ -4508,52 +3904,6 @@ export type Solana = {
       }
     },
     {
-      "name": "arcadeArchive",
-      "docs": [
-        "Small, permanent commitment accumulator for recyclable cadence accounts.",
-        "",
-        "The root is an append-only hash chain. `last_daily_id` advances by exactly",
-        "one for every archived result, beginning at the launch cadence.",
-        "Operational synchronization and rollup counters deliberately do not enter",
-        "the canonical result hashes, so those one-way cleanup steps cannot mutate",
-        "an already committed competition result."
-      ],
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "arcadeConfig",
-            "type": "pubkey"
-          },
-          {
-            "name": "firstDailyId",
-            "type": "u32"
-          },
-          {
-            "name": "lastDailyId",
-            "type": "u32"
-          },
-          {
-            "name": "dailyRoot",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "arcadeConfig",
       "type": {
         "kind": "struct",
@@ -4580,6 +3930,22 @@ export type Solana = {
           {
             "name": "launchDayId",
             "type": "u32"
+          },
+          {
+            "name": "lastDailyId",
+            "docs": [
+              "Last finalized Daily committed by the permanent result root."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "dailyRoot",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "bump",
@@ -5006,34 +4372,6 @@ export type Solana = {
       }
     },
     {
-      "name": "operatorRevenueVault",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "protocol",
-            "type": "pubkey"
-          },
-          {
-            "name": "grossOperatorShare",
-            "type": "u64"
-          },
-          {
-            "name": "withdrawn",
-            "type": "u64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
       "name": "periodStatus",
       "type": {
         "kind": "enum",
@@ -5248,10 +4586,6 @@ export type Solana = {
           },
           {
             "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "pendingAuthority",
             "type": "pubkey"
           },
           {

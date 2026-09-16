@@ -72,7 +72,7 @@ namespace ZKube.Integration.Execution.Tests
         [Test]
         public async Task OwnerPurchaseUsesExactQuoteSimulationAndDurableCommitBeforeSend()
         {
-            var result = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            var result = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             ZKube.Integration.Tests.ProgramScenarios.Equivalent(http.Sent, SignedPurchase().Transaction);
             Assert.That(result.Signature, Is.EqualTo(TransactionSignatures.ValidateFullySigned(http.Sent)));
@@ -109,7 +109,7 @@ namespace ZKube.Integration.Execution.Tests
         public async Task RestartAfterUncertainSendRejectsStaleReadsAndNeverRequotesResignsOrSendsAgain()
         {
             http.ThrowAfterSend = true; http.Confirmation = null;
-            var pending = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            var pending = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(pending.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             Assert.That(await store.Read(owner, "journal"), Is.Not.Null);
             http.Confirmation = "confirmed"; http.AccountSlot = 999;
@@ -126,7 +126,7 @@ namespace ZKube.Integration.Execution.Tests
         public async Task ProcessedErrorsRemainPendingAndFinalizedErrorsReconcileBeforeClearing()
         {
             http.Confirmation = "processed"; http.StatusError = new JObject { ["InstructionError"] = new JArray(0, "InvalidArgument") };
-            var first = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            var first = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(first.Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(observer.Count, Is.Zero);
             http.Confirmation = "finalized"; observer.Ready = false;
             var unresolved = await executor.Resume(owner, observer);
@@ -141,13 +141,13 @@ namespace ZKube.Integration.Execution.Tests
         public async Task RejectionAndFeeShortageNeverReachSigningOrSendingOrCreateAJournal()
         {
             http.Balance = 1;
-            var fee = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            var fee = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(fee.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage)); Assert.That(native.Calls, Is.Zero);
             http.Balance = 1000000000; http.SimulationError = new JObject { ["InstructionError"] = new JArray(0, "InsufficientFunds") };
-            var simulation = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            var simulation = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(simulation.Outcome, Is.EqualTo(ExecutionOutcome.Rejected)); Assert.That(native.Calls, Is.Zero);
             http.SimulationError = null; native.Reject = true;
-            var rejected = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            var rejected = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(rejected.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
             Assert.That(http.Count("sendTransaction"), Is.Zero); Assert.That(await store.Read(owner, "journal"), Is.Null);
         }
@@ -156,7 +156,7 @@ namespace ZKube.Integration.Execution.Tests
         public async Task SignedSimulationRejectionNeverJournalsOrSendsTheWalletResult()
         {
             http.SignedSimulationError = new JObject { ["InstructionError"] = new JArray(0, "InvalidArgument") };
-            var result = await executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            var result = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
             Assert.That(result.Code, Is.EqualTo("signed-simulation-rejected"));
             Assert.That(http.Count("simulateTransaction"), Is.EqualTo(2)); Assert.That(native.Calls, Is.EqualTo(1));
@@ -175,7 +175,7 @@ namespace ZKube.Integration.Execution.Tests
             Assert.That(shortage.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage));
             Assert.That(http.Count("sendTransaction"), Is.Zero); Assert.That(native.Calls, Is.Zero);
             var prior = SignedPurchase(); await new TransactionJournal(store).Begin(prior);
-            var observed = await executor.Execute(planner.Purchase(owner, 25), "purchase-twenty-five", Array.Empty<DeviceSigner>(), observer);
+            var observed = await executor.Execute(planner.Purchase(owner, 25, (string)solana["inputs"]["validator"]), "purchase-twenty-five", Array.Empty<DeviceSigner>(), observer);
             Assert.That(observed.Outcome, Is.EqualTo(ExecutionOutcome.Rejected)); Assert.That(observed.Code, Is.EqualTo("pending-transaction-exists"));
             Assert.That(observed.Intent, Is.EqualTo("purchase-twenty-five")); Assert.That(observer.Count, Is.Zero);
             Assert.That(await new TransactionJournal(store).Load(owner), Is.Not.Null);
@@ -195,7 +195,7 @@ namespace ZKube.Integration.Execution.Tests
             try
             {
                 var second = await executor.Resume(owner, observer);
-                var submission = await executor.Execute(planner.Purchase(owner, 25), "purchase-twenty-five", Array.Empty<DeviceSigner>(), observer);
+                var submission = await executor.Execute(planner.Purchase(owner, 25, (string)solana["inputs"]["validator"]), "purchase-twenty-five", Array.Empty<DeviceSigner>(), observer);
                 Assert.That(second.Code, Is.EqualTo("execution-busy")); Assert.That(submission.Code, Is.EqualTo("execution-busy"));
                 Assert.That(observer.Count, Is.EqualTo(1)); Assert.That(native.Calls, Is.Zero); Assert.That(http.Count("sendTransaction"), Is.Zero);
             }
@@ -226,11 +226,11 @@ namespace ZKube.Integration.Execution.Tests
             var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var cleanup = executor.WithIdle(async () => { entered.SetResult(true); await release.Task; });
             await entered.Task;
-            Assert.That((await executor.Execute(planner.Purchase(owner, 1), "during-cleanup", Array.Empty<DeviceSigner>(), observer)).Code, Is.EqualTo("execution-busy"));
+            Assert.That((await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "during-cleanup", Array.Empty<DeviceSigner>(), observer)).Code, Is.EqualTo("execution-busy"));
             Assert.That((await executor.Resume(owner, observer)).Code, Is.EqualTo("execution-busy"));
             using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
             release.SetResult(true); await cleanup;
-            Assert.That((await executor.Execute(planner.Purchase(owner, 1), "old-lease", Array.Empty<DeviceSigner>(), observer, cancelled.Token)).Code, Is.EqualTo("cancelled"));
+            Assert.That((await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "old-lease", Array.Empty<DeviceSigner>(), observer, cancelled.Token)).Code, Is.EqualTo("cancelled"));
             Assert.That(native.Calls, Is.Zero); Assert.That(http.Count("getLatestBlockhash"), Is.Zero);
         }
 
@@ -247,7 +247,7 @@ namespace ZKube.Integration.Execution.Tests
             native.SignEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             native.SignRelease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var lease = identity.Lease();
-            var execution = executor.Execute(planner.Purchase(owner, 1), "purchase-one", Array.Empty<DeviceSigner>(), observer, lease.Cancellation);
+            var execution = executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer, lease.Cancellation);
             await native.SignEntered.Task;
             var disconnect = lifecycle.Disconnect();
             Assert.That(identity.Owner, Is.Null); Assert.That(disconnect.IsCompleted, Is.False);

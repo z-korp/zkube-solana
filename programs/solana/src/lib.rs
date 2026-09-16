@@ -55,34 +55,8 @@ pub mod solana {
         instructions::arcade_instructions::handler_initialize_arcade(ctx)
     }
 
-    pub fn initialize_arcade_archive(
-        ctx: Context<InitializeArcadeArchive>,
-        first_day_id: u32,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_initialize_arcade_archive(ctx, first_day_id)
-    }
-
     pub fn prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32) -> Result<()> {
         instructions::arcade_instructions::handler_prepare_arena_daily(ctx, day_id)
-    }
-
-    pub fn funded_prepare_arena_daily(
-        ctx: Context<FundedPrepareArenaDaily>,
-        day_id: u32,
-    ) -> Result<()> {
-        instructions::cadence_funding_instructions::handler_funded_prepare_arena_daily(ctx, day_id)
-    }
-
-    pub fn funded_finalize_arena_daily(
-        ctx: Context<FundedFinalizeArenaDaily>,
-        score_payout_count: u32,
-        theme_payout_count: u32,
-    ) -> Result<()> {
-        instructions::cadence_funding_instructions::handler_funded_finalize_arena_daily(
-            ctx,
-            score_payout_count,
-            theme_payout_count,
-        )
     }
 
     pub fn activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<()> {
@@ -185,13 +159,6 @@ pub mod solana {
         instructions::arcade_instructions::handler_close_arena_daily(ctx)
     }
 
-    pub fn withdraw_operator_revenue(
-        ctx: Context<WithdrawOperatorRevenue>,
-        lamports: u64,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_withdraw_operator_revenue(ctx, lamports)
-    }
-
     pub fn set_protocol_pause(ctx: Context<SetProtocolPause>, paused: bool) -> Result<()> {
         instructions::governance_instructions::handler_set_protocol_pause(ctx, paused)
     }
@@ -204,24 +171,6 @@ pub mod solana {
             ctx,
             suspended_until_day,
         )
-    }
-
-    pub fn propose_protocol_authority(
-        ctx: Context<ProposeProtocolAuthority>,
-        pending_authority: Pubkey,
-    ) -> Result<()> {
-        instructions::governance_instructions::handler_propose_protocol_authority(
-            ctx,
-            pending_authority,
-        )
-    }
-
-    pub fn accept_protocol_authority(ctx: Context<AcceptProtocolAuthority>) -> Result<()> {
-        instructions::governance_instructions::handler_accept_protocol_authority(ctx)
-    }
-
-    pub fn update_team_destination(ctx: Context<UpdateTeamDestination>) -> Result<()> {
-        instructions::governance_instructions::handler_update_team_destination(ctx)
     }
 
     pub fn delegate_active_run(ctx: Context<DelegateActiveRun>) -> Result<()> {

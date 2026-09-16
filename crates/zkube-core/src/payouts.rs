@@ -97,14 +97,24 @@ pub fn board_width(
             .checked_add(u128::from(rank_weight(rank)?))
             .ok_or(PayoutError::Overflow)?;
     }
+    let minimum_units = entry_price.div_ceil(whole_unit);
+    let minimum_price = minimum_units.checked_mul(whole_unit);
     let mut winner_count = minimum;
     for rank in minimum + 1..=qualified_winners {
         let weight = rank_weight(rank)?;
         let candidate_denominator = denominator
             .checked_add(u128::from(weight))
             .ok_or(PayoutError::Overflow)?;
-        let payout = payout_for_rank(pool, candidate_denominator, rank, whole_unit)?;
-        if payout < entry_price {
+        // Compare n with D * ceil(entry/unit) rather than dividing n by D.
+        // The rounded threshold is prepared once; overflow cannot qualify a
+        // u64 pot, but the original divisor-overflow error still takes priority.
+        let minimum_numerator =
+            minimum_price.and_then(|price| checked_scale(candidate_denominator, price));
+        if minimum_numerator.is_none() {
+            checked_scale(candidate_denominator, whole_unit).ok_or(PayoutError::Overflow)?;
+            break;
+        }
+        if wide_product(pool, weight) < minimum_numerator.unwrap_or(u128::MAX) {
             break;
         }
         denominator = candidate_denominator;
@@ -128,13 +138,10 @@ pub fn payout_for_rank(
     rank: u32,
     whole_unit: u64,
 ) -> Result<u64, PayoutError> {
-    if whole_unit == 0 {
-        return Err(PayoutError::InvalidWholeUnit);
+    if rank == 0 && denominator != 0 && whole_unit != 0 {
+        return Err(PayoutError::InvalidRank);
     }
-    if denominator == 0 {
-        return Err(PayoutError::ZeroWeight);
-    }
-    rounded_weighted_payout(pool, rank_weight(rank)?, denominator, whole_unit)
+    PayoutPricing::new(pool, denominator, whole_unit)?.for_rank(rank)
 }
 
 /// Bounded convenience wrapper around [`board_width`] and
@@ -153,14 +160,13 @@ pub fn rank_weighted_payouts<const N: usize>(
     let winner_count = usize::try_from(width.winner_count).map_err(|_| PayoutError::Overflow)?;
     let mut payouts = [0u64; N];
     let mut paid = 0u64;
-    for (index, payout) in payouts[..winner_count].iter_mut().enumerate() {
-        *payout = payout_for_rank(
-            pool,
-            width.denominator,
-            u32::try_from(index + 1).map_err(|_| PayoutError::Overflow)?,
-            whole_unit,
-        )?;
-        paid = paid.checked_add(*payout).ok_or(PayoutError::Overflow)?;
+    if winner_count > 0 {
+        let pricing = PayoutPricing::new(pool, width.denominator, whole_unit)?;
+        for (index, payout) in payouts[..winner_count].iter_mut().enumerate() {
+            *payout =
+                pricing.for_rank(u32::try_from(index + 1).map_err(|_| PayoutError::Overflow)?)?;
+            paid = paid.checked_add(*payout).ok_or(PayoutError::Overflow)?;
+        }
     }
     Ok(PayoutPlan {
         payouts,
@@ -191,29 +197,310 @@ fn rank_weight(rank: u32) -> Result<u64, PayoutError> {
     Ok(RANK_WEIGHT_SCALE / u64::from(rank))
 }
 
-fn rounded_weighted_payout(
+// Form the full u64 product from four base-2^32 products. Each middle sum
+// fits u64; explicit wrapping on the limb additions avoids redundant overflow
+// machinery in the SBF compiler while the assembled u128 product is exact.
+#[allow(clippy::inline_always)] // Avoids SBF generic wide multiplication in pricing loops.
+#[inline(always)]
+fn wide_product(left: u64, right: u64) -> u128 {
+    let mask = u64::from(u32::MAX);
+    let left_low = left & mask;
+    let left_high = left >> 32;
+    let right_low = right & mask;
+    let right_high = right >> 32;
+    let bottom = left_low * right_low;
+    let cross = (left_high * right_low).wrapping_add(bottom >> 32);
+    let middle = (left_low * right_high).wrapping_add(cross & mask);
+    let upper = (left_high * right_high)
+        .wrapping_add(cross >> 32)
+        .wrapping_add(middle >> 32);
+    (u128::from(upper) << 64) | u128::from((middle << 32) | (bottom & mask))
+}
+
+// Both products are u64 by u64. The upper product plus the lower carry
+// fits u128; its upper limb reports overflow of the original multiplication.
+#[allow(clippy::cast_possible_truncation)] // Deliberate selection of the low limb.
+fn checked_scale(value: u128, factor: u64) -> Option<u128> {
+    let lower = wide_product(value as u64, factor);
+    let high = (value >> 64) as u64;
+    let upper = if u32::try_from(high | factor).is_ok() {
+        // The low-product carry is at most factor - 1, so this sum fits u64.
+        u128::from(high.wrapping_mul(factor).wrapping_add((lower >> 64) as u64))
+    } else {
+        wide_product(high, factor) + (lower >> 64)
+    };
+    if upper > u128::from(u64::MAX) {
+        return None;
+    }
+    Some((upper << 64) | u128::from(lower as u64))
+}
+
+struct PayoutPricing {
     pool: u64,
-    weight: u64,
+    unit: u64,
     denominator: u128,
-    whole_unit: u64,
+    first_rank_units: Option<u64>,
+}
+
+impl PayoutPricing {
+    fn new(pool: u64, denominator: u128, unit: u64) -> Result<Self, PayoutError> {
+        if unit == 0 {
+            return Err(PayoutError::InvalidWholeUnit);
+        }
+        if denominator == 0 {
+            return Err(PayoutError::ZeroWeight);
+        }
+        let denominator = checked_scale(denominator, unit).ok_or(PayoutError::Overflow)?;
+        Ok(Self {
+            pool,
+            unit,
+            denominator,
+            first_rank_units: if denominator >= u128::from(u64::MAX) {
+                Some(
+                    u64::try_from(wide_product(pool, u64::MAX) / denominator)
+                        .map_err(|_| PayoutError::Overflow)?,
+                )
+            } else {
+                None
+            },
+        })
+    }
+
+    #[allow(clippy::cast_possible_truncation)] // Selects the denominator's low limb.
+    fn for_rank(&self, rank: u32) -> Result<u64, PayoutError> {
+        let numerator = wide_product(self.pool, rank_weight(rank)?);
+        let units = if let Some(first) = self.first_rank_units {
+            let candidate = first / u64::from(rank);
+            // D >= M >= pool, where M = u64::MAX. Replacing floor(M/r)
+            // by M/r changes the quotient by less than pool/D <= 1.
+            // floor(floor(pool*M/D)/r) is therefore exact or one too large.
+            // Its product with D fits u128 and decides the correction exactly.
+            let product = wide_product(candidate, self.denominator as u64).wrapping_add(
+                u128::from(candidate.wrapping_mul((self.denominator >> 64) as u64)) << 64,
+            );
+            candidate - u64::from(product > numerator)
+        } else {
+            u64::try_from(numerator / self.denominator).map_err(|_| PayoutError::Overflow)?
+        };
+        u64::try_from(wide_product(units, self.unit)).map_err(|_| PayoutError::Overflow)
+    }
+}
+
+/// Sum the retained ranks with one prepared divisor and the same rounding as claims.
+pub fn sum_rank_payouts(
+    pool: u64,
+    denominator: u128,
+    count: u32,
+    unit: u64,
 ) -> Result<u64, PayoutError> {
-    let unit_denominator = denominator
-        .checked_mul(u128::from(whole_unit))
-        .ok_or(PayoutError::Overflow)?;
-    let whole_units = u128::from(pool)
-        .checked_mul(u128::from(weight))
-        .ok_or(PayoutError::Overflow)?
-        / unit_denominator;
-    whole_units
-        .checked_mul(u128::from(whole_unit))
-        .and_then(|value| u64::try_from(value).ok())
-        .ok_or(PayoutError::Overflow)
+    if count == 0 {
+        return Ok(0);
+    }
+    let pricing = PayoutPricing::new(pool, denominator, unit)?;
+    (1..=count).try_fold(0u64, |paid, rank| {
+        paid.checked_add(pricing.for_rank(rank)?)
+            .ok_or(PayoutError::Overflow)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::Value;
+
+    fn reference_board_width(
+        pool: u64,
+        qualified_winners: u32,
+        entry_price: u64,
+        whole_unit: u64,
+    ) -> Result<BoardWidth, PayoutError> {
+        if whole_unit == 0 {
+            return Err(PayoutError::InvalidWholeUnit);
+        }
+        if entry_price == 0 {
+            return Err(PayoutError::InvalidEntryPrice);
+        }
+        if qualified_winners == 0 {
+            return Ok(BoardWidth {
+                winner_count: 0,
+                denominator: 0,
+            });
+        }
+
+        let minimum = qualified_winners.min(MIN_BOARD_PAYOUT_PLACES);
+        let mut denominator = 0u128;
+        for rank in 1..=minimum {
+            denominator = denominator
+                .checked_add(u128::from(reference_rank_weight(rank)?))
+                .ok_or(PayoutError::Overflow)?;
+        }
+        let mut winner_count = minimum;
+        for rank in minimum + 1..=qualified_winners {
+            let weight = reference_rank_weight(rank)?;
+            let candidate_denominator = denominator
+                .checked_add(u128::from(weight))
+                .ok_or(PayoutError::Overflow)?;
+            let payout = reference_payout_for_rank(pool, candidate_denominator, rank, whole_unit)?;
+            if payout < entry_price {
+                break;
+            }
+            denominator = candidate_denominator;
+            winner_count = rank;
+        }
+
+        while winner_count > 0
+            && reference_payout_for_rank(pool, denominator, winner_count, whole_unit)? == 0
+        {
+            winner_count -= 1;
+        }
+
+        Ok(BoardWidth {
+            winner_count,
+            denominator,
+        })
+    }
+
+    fn reference_rank_weight(rank: u32) -> Result<u64, PayoutError> {
+        if rank == 0 {
+            return Err(PayoutError::InvalidRank);
+        }
+        Ok(u64::MAX / u64::from(rank))
+    }
+
+    fn reference_payout_for_rank(
+        pool: u64,
+        denominator: u128,
+        rank: u32,
+        unit: u64,
+    ) -> Result<u64, PayoutError> {
+        if unit == 0 {
+            return Err(PayoutError::InvalidWholeUnit);
+        }
+        if denominator == 0 {
+            return Err(PayoutError::ZeroWeight);
+        }
+        let weight = reference_rank_weight(rank)?;
+        let divisor = denominator
+            .checked_mul(u128::from(unit))
+            .ok_or(PayoutError::Overflow)?;
+        let units = u128::from(pool) * u128::from(weight) / divisor;
+        u64::try_from(units * u128::from(unit)).map_err(|_| PayoutError::Overflow)
+    }
+
+    #[test]
+    fn optimized_payouts_match_the_original_at_every_supported_width() {
+        for qualified in 1..=u32::try_from(crate::ARENA_BOARD_CAPACITY).unwrap() {
+            for pool in [
+                0,
+                999_999,
+                10_000_000,
+                101_990_000,
+                1_000_000_000,
+                1_000_000_000_000_000,
+                u64::MAX,
+            ] {
+                for unit in [1, SOL_PAYOUT_UNIT_LAMPORTS] {
+                    let original =
+                        reference_board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, unit)
+                            .unwrap();
+                    let current =
+                        board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, unit).unwrap();
+                    assert_eq!(
+                        current, original,
+                        "qualified={qualified}, pool={pool}, unit={unit}"
+                    );
+                    let mut original_paid = 0;
+                    let mut current_paid = 0;
+                    for rank in 1..=current.winner_count {
+                        let before =
+                            reference_payout_for_rank(pool, original.denominator, rank, unit)
+                                .unwrap();
+                        let after = payout_for_rank(pool, current.denominator, rank, unit).unwrap();
+                        assert_eq!(
+                            after, before,
+                            "qualified={qualified}, pool={pool}, rank={rank}, unit={unit}"
+                        );
+                        assert_eq!(after % unit, 0);
+                        original_paid += before;
+                        current_paid += after;
+                    }
+                    assert_eq!(current_paid, original_paid);
+                    assert_eq!(
+                        sum_rank_payouts(pool, current.denominator, current.winner_count, unit)
+                            .unwrap(),
+                        original_paid
+                    );
+                    let plan = rank_weighted_payouts::<{ crate::ARENA_BOARD_CAPACITY }>(
+                        pool,
+                        qualified,
+                        crate::ARENA_ENTRY_LAMPORTS,
+                        unit,
+                    )
+                    .unwrap();
+                    assert_eq!(plan.paid, original_paid);
+                    assert_eq!(plan.rollover, pool - original_paid);
+                    for rank in 1..=current.winner_count {
+                        assert_eq!(
+                            plan.payouts[rank as usize - 1],
+                            reference_payout_for_rank(pool, original.denominator, rank, unit)
+                                .unwrap()
+                        );
+                    }
+                    assert_eq!(pool - current_paid, pool - original_paid);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn payout_errors_keep_their_original_precedence() {
+        for unit in [0, 1, SOL_PAYOUT_UNIT_LAMPORTS, u64::MAX] {
+            for denominator in [0, 1, u128::from(u64::MAX), u128::MAX] {
+                for rank in [0, 1, 1_536] {
+                    assert_eq!(
+                        payout_for_rank(u64::MAX, denominator, rank, unit),
+                        reference_payout_for_rank(u64::MAX, denominator, rank, unit)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn wide_products_and_checked_scaling_are_exact_at_limb_boundaries() {
+        for shift in 0..128 {
+            let boundary = 1u128 << shift;
+            for value in [
+                boundary,
+                boundary.saturating_sub(1),
+                boundary.saturating_add(1),
+                u128::MAX,
+            ] {
+                for factor in [0, 1, 2, u64::from(u32::MAX), u64::MAX] {
+                    assert_eq!(
+                        checked_scale(value, factor),
+                        value.checked_mul(u128::from(factor))
+                    );
+                }
+            }
+        }
+        let mut state = 0x7a51_f83c_9b2d_0641_dac3_982f_1567_e0b9u128;
+        for _ in 0..100_000 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let left = (state >> 64) as u64;
+            let right = u64::try_from(state & u128::from(u64::MAX)).unwrap();
+            assert_eq!(
+                wide_product(left, right),
+                u128::from(left) * u128::from(right)
+            );
+            assert_eq!(
+                checked_scale(state, right),
+                state.checked_mul(u128::from(right))
+            );
+        }
+    }
 
     #[test]
     fn classic_empty_theme_folds_the_whole_pool_into_score() {

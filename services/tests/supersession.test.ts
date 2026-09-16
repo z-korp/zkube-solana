@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,16 @@ const SKIPPED = [
 ];
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  {
+    pattern: /Finalization allocates one|exact-sized allocation at finalization/i,
+    trees: [AGENT_RULES, README, PROGRAM, SERVICES, UNITY_CLIENT, TOOLS],
+    reversal: "Finalization funds the final width; existing chunk writes grow into it within the CPI growth bound (2026-09-16)",
+  },
+  {
+    pattern: /OperatorRevenueVault|operator_revenue_vault|operatorRevenueVault|OPERATOR_REVENUE_VAULT|withdraw_operator_revenue|withdrawOperatorRevenue|propose_protocol_authority|proposeProtocolAuthority|accept_protocol_authority|acceptProtocolAuthority|update_team_destination|updateTeamDestination|pending_authority|pendingAuthority|ArcadeArchive|arcade_archive|arcadeArchive|ARCADE_ARCHIVE_SEED|initialize_arcade_archive|initializeArcadeArchive|funded_prepare_arena_daily|fundedPrepareArenaDaily|funded_finalize_arena_daily|fundedFinalizeArenaDaily/,
+    trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS],
+    reversal: "Purchase pays the pinned destination directly; ArcadeConfig owns the result root and cadence rent creation has no forwarding wrappers (2026-09-15)",
+  },
   {
     pattern: /PlayerLabel|player_label|PLAYER_LABEL_ACCOUNT_VERSION|\bRunMode\b|active_run_mode|activeRunMode|lifetime_paid_entries|lifetimePaidEntries|\bpodiums\b|DailyPressureProfile/,
     trees: [PROGRAM, SERVICES, UNITY_CLIENT, TOOLS, CORE, CODEGEN],
@@ -263,10 +273,10 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   },
   {
     pattern:
-      /arcadeEconomy|economy\/payout(?:\.ts)?|webPush|pushSubscriptions|pushServer|prizeNotifier|revoke_expired_session|revokeSessionV2|close_arena_player|closeArenaPlayer/i,
+      /arcadeEconomy|economy\/payout(?:\.ts)?|webPush|pushSubscriptions|pushServer|prizeNotifier|revoke_expired_session|revokeSessionV2/i,
     trees: [SERVICES],
     reversal:
-      "the keeper owns cadence and last-resort run recovery only; mirrors, push, and account sweeps were removed",
+      "the keeper owns cadence, its closed-player rent return, and last-resort run recovery; mirrors, push and device revocation remain removed",
   },
   {
     pattern: /\bEndless\b|dailyContentSelection/i,
@@ -394,6 +404,7 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {
+  if ((await stat(dir)).isFile()) return [dir];
   const entries = await readdir(dir, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {

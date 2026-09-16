@@ -72,12 +72,15 @@ pub const fn campaign_move_budget(level: u8, tier: u8) -> Option<u16> {
     Some(scaled.div_ceil(10))
 }
 
+/// Maximum retained rows in one payout board.
+pub const ARENA_BOARD_CAPACITY: usize = 1_536;
+
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
-pub const PROTOCOL_ACCOUNT_VERSION: u8 = 3;
+pub const PROTOCOL_ACCOUNT_VERSION: u8 = 4;
 pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 3;
 pub const PLAYER_STATE_RESERVED_BYTES: usize = 18;
-pub const ARCADE_ACCOUNT_VERSION: u8 = 3;
+pub const ARCADE_ACCOUNT_VERSION: u8 = 4;
 pub const ARCADE_DAILY_RESULT_HASH_DOMAIN: &str = "zkube-arcade-daily-result-v5";
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -103,7 +106,7 @@ pub use ladder::{
 pub use payouts::{
     BoardWidth, DailyBoardPools, MIN_BOARD_PAYOUT_PLACES, PayoutError, PayoutPlan,
     SOL_PAYOUT_UNIT_LAMPORTS, board_width, daily_board_pools, payout_for_rank,
-    rank_weighted_payouts, sol_rank_weighted_payouts,
+    rank_weighted_payouts, sol_rank_weighted_payouts, sum_rank_payouts,
 };
 pub use periods::{
     DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_RUN_CLOSE_OFFSET, PeriodError, RUN_RECOVERY_SECONDS,

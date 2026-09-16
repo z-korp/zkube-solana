@@ -62,13 +62,6 @@ namespace ZKube.Integration
             return fields;
         }
 
-        public JObject OperatorRevenueVault(AccountEnvelope envelope)
-        {
-            var fields = DecodeFixed("OperatorRevenueVault", envelope);
-            RequireIdentity(envelope, fields, Address("operator_revenue"), Protocol.ArcadeAccountVersion);
-            if ((string)fields["protocol"] != Address("protocol")) throw new FormatException("OperatorRevenueVault protocol relationship is invalid");
-            return fields;
-        }
 
         public JObject ArenaDaily(AccountEnvelope envelope)
         {
@@ -112,9 +105,9 @@ namespace ZKube.Integration
                 (count > 0 && BigInteger.Parse((string)header["denominator"], CultureInfo.InvariantCulture) == 0) ||
                 sealedBoard != (cursor == count) || (!sealedBoard && sealedAt != 0) || (sealedBoard && sealedAt <= 0) || sealedAt > 9007199254740991L ||
                 (uint)header["claimed_count"] > count ||
-                data.Length != headerBytes + (long)count * rowBytes + (count + 7) / 8)
+                data.Length != headerBytes + (long)cursor * rowBytes + (count + 7) / 8)
                 throw new FormatException("Board allocation is invalid");
-            int rowsEnd = checked(headerBytes + (int)count * rowBytes);
+            int rowsEnd = checked(headerBytes + (int)cursor * rowBytes);
             uint claimedBits = 0;
             for (int i = rowsEnd; i < data.Length; i++)
             {

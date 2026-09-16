@@ -40,14 +40,14 @@ namespace ZKube.Integration.Planning
         private TransactionPlan Plan(PlannerActor actor, PlanRoute route, IEnumerable<SolanaInstruction> instructions, ulong reserve = 0, ulong? runId = null) =>
             new TransactionPlan(route, actor.Owner, actor.Signer, instructions, reserve, runId);
 
-        public TransactionPlan Purchase(string owner, uint count)
+        public TransactionPlan Purchase(string owner, uint count, string teamDestination)
         {
             if (count == 0) throw new ArgumentOutOfRangeException(nameof(count));
             return Plan(PlannerActor.Wallet(owner), PlanRoute.Base, new[] { Instruction("purchase_kredits",
                 new JObject { ["kredit_count"] = count, ["expected_unit_lamports"] = Protocol.EntryLamports },
                 new Dictionary<string, string> { ["protocol"] = ProtocolAddress, ["arcade_config"] = ArcadeAddress,
                     ["player_state"] = Player(owner), ["credit_vault"] = CreditVaultAddress,
-                    ["operator_revenue_vault"] = Pda(Text("operator_revenue")), ["owner"] = owner }) });
+                    ["team_destination"] = teamDestination, ["owner"] = owner }) });
         }
 
         public TransactionPlan SetFeaturedIdentity(PlannerActor actor, byte emblem, byte frame)

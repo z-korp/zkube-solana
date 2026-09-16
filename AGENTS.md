@@ -46,8 +46,8 @@ Source implements v5 partially. Current state:
 | Area | Status |
 | --- | --- |
 | Deterministic core 1.0.0 | Built — `objective_total`, constraint-latched Campaign stars, capped reroll inventory and grants, harmonic payout width, and the cycle-keyed realm × objective draw |
-| Program surface | Built — 39 instructions and 10 account types; Arcade-only run lifecycle and one Campaign save write |
-| Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 to operator revenue |
+| Program surface | Built — 32 instructions and 8 account types; Arcade-only run lifecycle and one Campaign save write |
+| Entry accounting | Built — 9,000,000 lamports to the following Daily, 1,000,000 directly to the team destination at purchase |
 | `PlayerState` | Built — 206 bytes; the player's reported Campaign stars, separate Score and Theme Daily records, Kredit balance, ladder total and highest tier, worn ladder border, entry streak, and 18 reserved bytes validated as zero |
 | Daily settlement | Built — exact-sized Score/Theme board accounts, verified chunk construction, direct claims, auto-claim on entry, per-board thirty-day expiry from sealing, and exact rollover |
 | Kredits and Daily draw | Built — prepaid purchase/spend paths and protocol-derived realm × objective selection |
@@ -79,7 +79,7 @@ Source implements v5 partially. Current state:
   discounted, or bundled as a bonus, so every entry contributes identical
   lamports and no entry dilutes another.
 - Spending a Kredit routes 9,000,000 lamports to the following Daily and
-  1,000,000 to operator revenue. The operator share is swept at purchase, so the
+  1,000,000 to operator revenue. The operator share goes directly to the protocol team destination at purchase, so the
   credit vault holds prize money only. Nothing is withheld from a daily pot for
   any other purpose, and no entry can increase the pot it competes for.
 - The Daily pot splits Score 50% and Theme 50% over the same runs. Both boards
@@ -102,8 +102,11 @@ Source implements v5 partially. Current state:
 - The owner funds the device session's recyclable fee-and-rent allowance
   directly. A separately seeded System-owned zero-data
   cadence funding PDA recycles Daily account rent after the on-chain archive
-  root commits each finalized result. The cadence funding PDA signs only narrow self-CPI rent paths; there is
-  no Kora or generic paymaster.
+  root in ArcadeConfig commits each finalized result. The cadence funding PDA
+  signs only the System account-creation calls in prepare_arena_daily and
+  finalize_arena_daily; `sbf_cadence_funding_can_prepare_a_missing_post_launch_daily`
+  and `keeper_allowlist_is_exactly_its_plans` guard the boundary.
+  There is no Kora or generic paymaster.
 - Arcade retains its durable run slot and monotonic run-ID sequence for
   cross-device recovery. An unfinished Campaign trial stays on its own device
   as a seed and accepted action log; `local_campaign_run_survives_process_death`
@@ -152,7 +155,7 @@ three Campaign lifecycle instructions, one run slot, the content accounts, and
 16 Campaign-only bytes from `ActiveRun` (355 to 339 bytes). Removing the content
 accounts also removes their two publication/activation instructions: five
 instructions removed in total. The interface contract
-`locks the fresh-bootstrap interface at 39 instructions and 10 accounts` and
+`locks the fresh-bootstrap interface at 32 instructions and 8 accounts` and
 `target_accounts_fit_normal_solana_account_limits` pin the current surface after
 the cleanup below.
 
@@ -166,8 +169,30 @@ active run holds a rules snapshot.
 guards reconstruction, while `daily_window_is_derived_at_epoch_and_u32_day_bounds`
 and `DailyWindowUsesTheCoreAcrossTheFullDayRange` guard the shared clock rule.
 `account_sizes_and_maximum_board_rent_are_explicit` pins the 165-byte Daily.
-The player, active-run and Arcade account versions are 3; generated protocol
-constants and the interface test guard these fresh-bootstrap layouts.
+The player account version is 3; protocol/active-run and Arcade versions are 4.
+Generated protocol constants and the interface test guard these fresh-bootstrap
+layouts. `target_accounts_fit_normal_solana_account_limits` pins the 107-byte
+protocol account; `account_sizes_and_maximum_board_rent_are_explicit` pins the
+87-byte ArcadeConfig.
+
+**Board construction amendment approved 2026-09-16.** The CPI growth limit was
+found on 2026-09-16; no earlier test covered board creation above 120 rows.
+Finalization funds the exact final rent and existing chunk writes grow into it.
+`cadence_funding_creates_exact_boards_through_the_full_capacity` guards allocation
+and construction at the full capacity.
+`full_board_finalization_stays_below_one_million_compute_units` guards the
+1,000,000-CU ceiling for finalizing both maximum-width boards.
+`optimized_payouts_match_the_original_at_every_supported_width` compares widths,
+denominators, every payout, rounding and rollover against the former arithmetic;
+the payout golden vectors remain unchanged. The former full-board path cost
+4,159,542 CU. The optimized path measured 955,402 CU for the same pot and
+956,187 CU for the near-maximum u64 pot, including both 1,536-row boards.
+The compute test above pins the ceiling for future changes.
+This changes neither the recyclable rent
+ceiling nor the keeper write counts: full rent is paid at finalization, with no
+additional funding or writes during construction.
+`account_sizes_and_maximum_board_rent_are_explicit` and
+`keeper_allowlist_is_exactly_its_plans` pin those costs and the existing plans.
 
 **The systems below are locked. The balance is not.** Every structural rule in
 this section is settled and is not to be relitigated without an explicit new
@@ -284,6 +309,11 @@ ladder tier boundaries, and the flat qualifying credit.
   bounds the on-chain rows and payable places; if the width exceeds it, the
   finalized result records that condition and the dropped shares are
   rollover without renormalization.
+  `cadence_funding_creates_exact_boards_through_the_full_capacity` exercises
+  allocation at `ARENA_BOARD_CAPACITY`;
+  `full_board_finalization_stays_below_one_million_compute_units` pins its compute
+  ceiling. The former test also fills `ARENA_BOARD_CHUNK_CAPACITY` on each full
+  write and asserts exact growth with compute below 200,000 CU.
 - **A reroll is an accepted action.** It increments the action counter and
   folds its own replay event, so a run holding a pending or completed reroll
   and no move is scored rather than expired; deterministic resolution when the
@@ -310,8 +340,15 @@ ladder tier boundaries, and the flat qualifying credit.
   scarcest. Do not make every entry place separately either — a take would then
   scale with entries and no break-even would exist.
 - **Settlement is claim-based without an off-chain proof dependency.**
-  Finalization allocates one exact-sized account for each of the Score and Theme
-  boards. The keeper submits at most ten sorted rows per write, and the program
+  Finalization funds the exact rent for each finalized Score and Theme board
+  width, initially allocating its header and claimed bitmap. Each chunk grows
+  the account by exactly its submitted rows; construction cannot exceed the
+  finalized width and sealing requires the exact final data length.
+  `cadence_funding_creates_exact_boards_through_the_full_capacity` exercises
+  120, 121 and 1,536 rows on both boards;
+  `sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards`
+  rejects short, oversized and over-width construction accounts.
+  The keeper submits at most ten sorted rows per write, and the program
   verifies every row against its `ArenaPlayer`, enforces ordering and uniqueness
   across the persisted cursor, and seals only the program-computed count. Claims
   remain disabled until sealing, then locate the owner's position and recompute
@@ -325,9 +362,11 @@ ladder tier boundaries, and the flat qualifying credit.
 - **Spending a Kredit settles what that player is already owed.** Any unclaimed
   reward on a sealed, unexpired board is claimed in the same transaction as the
   entry, so a returning player never makes a second trip and never forfeits
-  through inattention. It composes the existing claim by self-CPI rather than
-  reimplementing it, and settles at most two attached boards per entry, so the
-  work stays bounded rather than looping over an unbounded history. An entry
+  through inattention. It invokes the existing claim instruction, and settles at most two attached boards per entry, so the
+  work stays bounded rather than looping over an unbounded history.
+  `sbf_device_paid_entry_with_two_maximum_boards_stays_below_client_compute_pin`
+  exercises `MAX_AUTO_CLAIMS_PER_ENTRY` with maximum-sized accounts and a
+  360,000-CU ceiling. An entry
   must never fail because an attached claim could not be made: if the board is
   unsealed, the account absent, the window past, or the reward already taken,
   the attachment is skipped and the entry proceeds. Explicit claiming remains
@@ -507,6 +546,9 @@ recurring source it is an instance of, and close that source in the same
 change. The known sources and the guard for each:
 
 - **Unrun gates.** Every change ends with `NO_DNA=1 ./validate.sh` green.
+- **Untested bounds.** Every program capacity has SBF allocation and compute
+  tests at its maximum; `every_program_capacity_has_an_sbf_test_at_its_maximum`
+  inventories the capacity constants and both executable boundary guards.
 - **Divergent mirrors.** One rule lives in one place. A document points at
   the script or constant rather than restating it, and a second
   implementation of the same rule is merged into the first. Cross-layer
@@ -568,8 +610,12 @@ a protocol that no longer exists in source or on chain.
 
 Two invariants survive unchanged and are not restated above:
 `entries_scored + entries_expired == entries_paid`, and the rule that a paid
-entry has no refund or claim-back path. Operator withdrawals remain governance
-actions and cannot spend accounted prize balances.
+entry has no refund or claim-back path. The operator share is transferred to the
+protocol-pinned team destination at purchase;
+`purchase_kredits_pays_the_protocol_destination_directly` guards the split and
+rejects another destination. Authority rotation and a different team destination
+require a program upgrade; the interface lock and supersession sweep guard the
+absence of runtime setters.
 
 ### Competitions
 
@@ -832,8 +878,8 @@ Rust codegen emits its theme catalog for Unity imports.
 | --- | --- | --- |
 | Owner wallet | Durable identity, Kredit purchases and device funding | Signs purchases at the protocol unit price and funds the device allowance |
 | Device session | Approximately seven days of authorized Arcade gameplay and Campaign save writes | Owner-funded fee/rent allowance; may spend prepaid Kredits within its authority |
-| Cadence funding PDA | Recyclable Daily rent float | Separately seeded; narrow self-CPI preparation and finalization only |
-| Arcade archive PDA | Rolling finalized-result commitments | Program-derived append-only roots |
+| Cadence funding PDA | Recyclable Daily rent float | Separately seeded; signs the System creation calls in Daily preparation and finalization only |
+| ArcadeConfig | Scheduling and rolling finalized-result commitment | Launch day supplies the first day; program-derived append-only root |
 | MagicBlock ER | Arcade gameplay and per-row VRF | Router-resolved validator |
 | Solana program | The player's reported Campaign save, competitive records, accounting, boards, settlement | Base-layer authority |
 | Fly keeper | Daily cadence work and last-resort permissionless recovery | Independent bounded signer |
@@ -867,9 +913,12 @@ the System program; the committed IDL regression test rejects the unsafe older
 
 ### Archival
 
-The program-owned `ArcadeArchive` advances one sequential rolling commitment
-per finalized Daily, and `close_arena_daily` requires that root to cover the
-day before returning rent to the cadence funding PDA. The Devnet volume archive
+`ArcadeConfig.last_daily_id` and `daily_root` advance one sequential rolling
+commitment per finalized Daily, beginning at `launch_day_id`.
+`archive_is_strictly_sequential` guards the sequence. `close_arena_daily` requires
+that root to cover the day before returning rent to the cadence funding PDA;
+`sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guards it.
+The Devnet volume archive
 is retired; the Solana ledger is the record. Mainnet indexing is a separate
 deployment decision. `keeper_allowlist_is_exactly_its_plans` keeps the root
 append and root-gated closure in the keeper's exact cadence plan set.
@@ -878,11 +927,15 @@ append and root-gated closure in the keeper's exact cadence plan set.
 
 The keeper has two responsibility classes. Cadence work prepares, activates or
 skips, finalizes, constructs boards, advances the on-chain root, expires claims,
-and closes a Daily. Last-resort work finishes deadline runs, commits and consumes
+and closes a Daily and its resolved ArenaPlayer accounts. Last-resort work
+finishes deadline runs, commits and consumes
 terminal runs, expires unresolved Arena runs, and cleans orphaned runs. Every
-instruction is permissionless or funded through the narrow cadence PDA wrappers;
-governance remains owner work. `keeper_allowlist_is_exactly_its_plans` pins the
-thirteen instructions to the plan producers.
+instruction is permissionless; preparation and finalization use the cadence PDA
+for rent. `a_closed_arena_player_returns_rent_to_its_payer` guards the keeper's
+program-derived instruction and the SBF closure: a live parent retains its
+player records, and a closed parent returns their rent to the stored payer.
+Governance remains owner work. `keeper_allowlist_is_exactly_its_plans` pins the
+fourteen instructions to the plan producers.
 
 A keeper outage is a degradation, not a loss of player authority: winners can
 still claim, interested callers can drive permissionless work, and no off-chain
@@ -903,7 +956,7 @@ withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. The
 runtime identity check pins Fly's unique deployment tag from `FLY_IMAGE_REF`.
 The release fingerprint pins every field checked at runtime: Devnet genesis,
 deployed ProgramData hash, program ID, keeper signer, schema and IDL identity,
-entry economics, the thirteen-instruction allowlist, a six-write general limit,
+entry economics, the fourteen-instruction allowlist, a six-write general limit,
 a separate 32-write board-construction limit, the 1,536-row board bound, the
 1,802,208,480-lamport recyclable board-rent ceiling, a 0.1 SOL simulated spend
 ceiling, a 0.1 SOL reserve floor, and Fly's unique deployment image reference.
@@ -941,11 +994,13 @@ manifest, supplies the deployed inputs for the rest of the bootstrap.
 After the program and independently fingerprinted keeper release exist,
 `NO_DNA=1 pnpm chain:devnet:launch-plan` produces the unsigned fresh-bootstrap
 bundle. It requires every protocol target to be absent, calculates the exact
-deployer funding transaction, initializes paused, initializes the Arcade archive
-with the explicitly approved recyclable cadence-rent float, prepares the current
-and following Daily accounts, and ends
+deployer funding transaction, initializes paused protocol and Arcade accounts,
+seeds the explicitly approved recyclable cadence-rent float, prepares the current
+and following Daily accounts from that float, and ends
 with one atomic transaction that seeds the first Daily, unpauses, and activates
-it. Its approval expires at the specified pre-entry cutoff. The six-transaction bundle has no content-account stage;
+it. Its approval expires at the specified pre-entry cutoff. Its six transactions are
+protocol initialization, Arcade initialization, cadence funding, two Daily
+preparations, and the atomic launch;
 `launchPlanner.test.ts` pins its complete instruction order. The planner has no
 signing or sending path. Transaction indices and the cadence-rent funding amount
 come only from that v5 plan and are never inherited from an earlier shape.

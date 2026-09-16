@@ -41,6 +41,12 @@ namespace ZKube.Integration.Client
             return Profile(lease.Owner, read);
         });
 
+        internal Task<ProductRead<string>> PurchaseDestination(CancellationToken cancellation) => Read(cancellation, async (_, token) => {
+            var read = await rpc.ReadAccount(rpc.Base, addresses.ProtocolAddress, cancellation: token).ConfigureAwait(false);
+            if (read.Envelope == null) throw new InvalidOperationException("Protocol is unavailable");
+            return (string)accounts.ProtocolConfig(read.Envelope)["team_destination"];
+        });
+
         public Task<ProductRead<CampaignProgress>> Campaign(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
             var player = Profile(lease.Owner, read);

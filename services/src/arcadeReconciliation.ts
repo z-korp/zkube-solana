@@ -10,7 +10,7 @@ import {
   ARENA_ENTRY_LAMPORTS,
   SECONDS_PER_DAY,
   SOL_PAYOUT_UNIT_LAMPORTS,
-  arcadeArchivePda,
+  arcadeConfigPda,
   assertCadenceId,
   assertLamports,
   assertPayoutLamports,
@@ -114,10 +114,9 @@ export interface RunSnapshot {
   reservationActive: boolean;
 }
 
-export interface ArcadeArchiveSnapshot {
+export interface ArcadeRootSnapshot {
   address: PublicKey;
   cadenceFunding: PublicKey;
-  firstDailyId: number;
   lastDailyId?: number;
   dailyRoot: string;
 }
@@ -129,14 +128,21 @@ export interface CadenceArchiveCandidate {
   closeEligibleAt: number;
 }
 
+export interface ClosedArenaPlayerSnapshot {
+  dayId: number;
+  owner: PublicKey;
+  rentPayer: PublicKey;
+}
+
 export interface ProtocolSnapshot {
   paused: boolean;
   launchDayId: number;
   suspendedUntilDay: number;
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
-  /** Present only when the deployed archive ABI has been fully validated. */
-  archiveState?: ArcadeArchiveSnapshot;
+  closedArenaPlayers?: readonly ClosedArenaPlayerSnapshot[];
+  /** Validated permanent result root and cadence funding identity. */
+  archiveState?: ArcadeRootSnapshot;
   archiveCandidates?: readonly CadenceArchiveCandidate[];
 }
 
@@ -258,6 +264,15 @@ export function discoverReconciliation(args: {
         .sort((left, right) => left - right)[0],
     );
     appendBoardConstructionPlans(plans, daily);
+  }
+
+  for (const player of [...(args.snapshot.closedArenaPlayers ?? [])].sort((left, right) =>
+    left.dayId - right.dayId || Buffer.compare(left.owner.toBuffer(), right.owner.toBuffer()))) {
+    if (player.dayId < oldestKeeperDay) continue;
+    plans.push(validationOnlyPlan("close_arena_player", {
+      dayId: player.dayId, owner: player.owner, rentRecipient: player.rentPayer,
+      parentDailyClosed: true,
+    }));
   }
 
   const validated: KeeperInstructionPlan[] = [];
@@ -432,6 +447,13 @@ function validateKeeperPlan(plan: KeeperInstructionPlan, nowUnix: number): void 
         throw new Error("Daily closure is not root-gated and expired");
       }
       return;
+    case "close_arena_player":
+      requireRecentDay(context.dayId, today);
+      requireRentRecipient(context);
+      if (!context.owner || context.owner.equals(PublicKey.default) || context.parentDailyClosed !== true) {
+        throw new Error("ArenaPlayer closure requires its owner and closed parent Daily");
+      }
+      return;
     default:
       throw new Error(`keeper operation is outside the exact allowlist: ${String(plan.operation)}`);
   }
@@ -461,7 +483,7 @@ function requireCadenceFunding(context: KeeperPlanContext): void {
 function requireArchiveContext(context: KeeperPlanContext, today: number): void {
   requireRecentDay(context.dayId, today);
   if (context.competition !== "daily" ||
-      !context.arcadeArchive?.equals(arcadeArchivePda()) ||
+      !context.arcadeConfig?.equals(arcadeConfigPda()) ||
       !context.cadenceFunding?.equals(cadenceFundingPda())) {
     throw new Error("keeper Daily root identity is invalid");
   }
@@ -492,7 +514,7 @@ function appendCadenceArchivePlan(
     competition: "daily" as const,
     dayId: candidate.cadenceId,
     cadenceFunding: state.cadenceFunding,
-    arcadeArchive: state.address,
+    arcadeConfig: state.address,
     archiveCommitted: candidate.committed,
     claimsExpired: candidate.claimsExpired,
     claimCloseAt: candidate.closeEligibleAt,
@@ -660,6 +682,17 @@ export function validateProtocolSnapshot(snapshot: ProtocolSnapshot): void {
     validateClaimMask("score", daily.scoreClaimedMask, daily.settlement);
     validateClaimMask("theme", daily.themeClaimedMask, daily.settlement);
   }
+  const closed = snapshot.closedArenaPlayers ?? [];
+  assertUnique(closed.map((player) => `${player.dayId}:${player.owner.toBase58()}`), "closed ArenaPlayer");
+  for (const player of closed) {
+    assertCadenceId(player.dayId, "closed ArenaPlayer day");
+    if (player.dayId < snapshot.launchDayId ||
+        player.dayId > (snapshot.archiveState?.lastDailyId ?? -1) ||
+        snapshot.dailies.some(({ dayId }) => dayId === player.dayId) ||
+        player.owner.equals(PublicKey.default) || player.rentPayer.equals(PublicKey.default)) {
+      throw new Error("ArenaPlayer cleanup is not bound to a closed archived Daily");
+    }
+  }
   for (const run of snapshot.runs) validateRun(snapshot, run);
 }
 
@@ -667,11 +700,10 @@ function validateArchiveSnapshot(snapshot: ProtocolSnapshot): void {
   const candidates = snapshot.archiveCandidates ?? [];
   const state = snapshot.archiveState;
   if (candidates.length === 0 && !state) return;
-  if (!state || !state.address.equals(arcadeArchivePda()) ||
+  if (!state || !state.address.equals(arcadeConfigPda()) ||
       !state.cadenceFunding.equals(cadenceFundingPda()) ||
-      !Number.isSafeInteger(state.firstDailyId) || state.firstDailyId < 0 ||
       !/^[0-9a-f]{64}$/.test(state.dailyRoot)) {
-    throw new Error("Arcade archive or cadence funding identity is invalid");
+    throw new Error("Arcade root or cadence funding identity is invalid");
   }
   if (state.lastDailyId !== undefined) {
     assertCadenceId(state.lastDailyId, "last archived Daily id");

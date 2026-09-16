@@ -6,7 +6,7 @@ import {
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RUN_CLOSE_OFFSET,
   SECONDS_PER_DAY,
-  arcadeArchivePda,
+  arcadeConfigPda,
   cadenceFundingPda,
 } from "../src/arcadeChain";
 import {
@@ -174,9 +174,8 @@ describe("v5 Daily keeper reconciliation", () => {
       launchDayId: DAY,
       dailies: [finalized],
       archiveState: {
-        address: arcadeArchivePda(),
+        address: arcadeConfigPda(),
         cadenceFunding: cadenceFundingPda(),
-        firstDailyId: DAY,
         lastDailyId: DAY - 1,
         dailyRoot: "00".repeat(32),
       },
@@ -221,9 +220,8 @@ describe("v5 Daily keeper reconciliation", () => {
         launchDayId: DAY,
         dailies: [oldDaily, tipDaily, daily(expiryTarget, "open")],
         archiveState: {
-          address: arcadeArchivePda(),
+          address: arcadeConfigPda(),
           cadenceFunding: cadenceFundingPda(),
-          firstDailyId: DAY,
           lastDailyId: DAY + 1,
           dailyRoot: "44".repeat(32),
         },

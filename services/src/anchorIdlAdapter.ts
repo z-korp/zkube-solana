@@ -32,7 +32,6 @@ import {
   SOL_PAYOUT_UNIT_LAMPORTS,
   ZKUBE_PROGRAM_ID,
   activeRunPda,
-  arcadeArchivePda,
   arcadeConfigPda,
   arenaDailyPda,
   arenaBoardPda,
@@ -53,7 +52,8 @@ import {
   type ProtocolSnapshot,
   type RunLifecycle,
   type RunSnapshot,
-  type ArcadeArchiveSnapshot,
+  type ArcadeRootSnapshot,
+  type ClosedArenaPlayerSnapshot,
   type CadenceArchiveCandidate,
   type SettlementSnapshot,
   type BoardSourceSnapshot,
@@ -74,7 +74,7 @@ export const MAX_ARENA_PLAYERS_PER_DAILY = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 const MIN_SUPPORTED_DAY_ID = 4;
 export const KEEPER_EXPECTED_IDL_SHA256 =
-  "4ffc3f357ce4eb177c0295355e6bf99f829256e25292a398c8f3f169cfc8990c";
+  "2ca36852dbb338a3fec04a37b6eda0fa6768578b964636932e929e80179cae2b";
 const REQUIRED_ACCOUNTS = [
   "activeRun",
   "arcadeConfig",
@@ -85,7 +85,7 @@ const REQUIRED_ACCOUNTS = [
   "protocolConfig",
 ] as const;
 const REQUIRED_INSTRUCTIONS = [
-  "fundedPrepareArenaDaily",
+  "prepareArenaDaily",
   "activateArenaDaily",
   "skipSuspendedArenaDaily",
   "finishRun",
@@ -93,11 +93,12 @@ const REQUIRED_INSTRUCTIONS = [
   "consumeArenaRun",
   "expireUnresolvedArenaRun",
   "cleanupOrphanActiveRun",
-  "fundedFinalizeArenaDaily",
+  "finalizeArenaDaily",
   "submitArenaBoardChunk",
   "archiveArenaDaily",
   "expireDailyClaims",
   "closeArenaDaily",
+  "closeArenaPlayer",
 ] as const;
 
 interface RemainingAccountMeta {
@@ -226,7 +227,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       "suspended-until day",
     );
     const paused = boolean(protocol.value.paused, "protocol pause state");
-    const archiveCheckpoint = await this.loadArchiveCheckpoint();
+    const archiveRoot = await this.loadArchiveRoot(config);
 
     const today = currentDayId(this.input.nowUnix);
     const firstDay = launchDayId;
@@ -235,13 +236,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const dailies = await this.loadDailies(dailyIds, launchDayId);
     const launchDailyPresent =
       dailies.some(({ snapshot }) => snapshot.dayId === launchDayId) ||
-      (archiveCheckpoint?.lastDailyId ?? -1) >= launchDayId;
+      (archiveRoot.lastDailyId ?? -1) >= launchDayId;
     if (!launchDailyPresent) {
       throw new Error("seeded Arcade launch cadence is incomplete");
     }
     const playerStates = await this.loadPlayerStates();
     const runs = await this.loadRuns(playerStates, dailies);
-    const boardSources = await this.loadBoardSources(dailies);
+    const { sources: boardSources, closed: closedArenaPlayers } = await this.loadBoardSources(dailies, archiveRoot);
     for (const daily of dailies) {
       const sources = boardSources.get(daily.snapshot.dayId) ?? {
         score: [],
@@ -262,13 +263,14 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       }
       daily.snapshot.settlement = sourceSettlement;
     }
-    const archive = await this.loadArchiveSnapshot(dailies);
+    const archive = this.archiveSnapshot(dailies, archiveRoot);
     return {
       paused,
       launchDayId,
       suspendedUntilDay,
       dailies: dailies.map(({ snapshot }) => snapshot),
       runs,
+      closedArenaPlayers,
       ...(archive ? {
         archiveState: archive.state,
         archiveCandidates: archive.candidates,
@@ -276,37 +278,14 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     };
   }
 
-  private async loadArchiveCheckpoint(): Promise<ArcadeArchiveSnapshot | undefined> {
-    if (!this.idlHasAccount("arcadeArchive") ||
-        !this.idlHasInstruction("archiveArenaDaily")) {
-      return undefined;
-    }
-    const archive = await this.loadRequired(
-      "arcadeArchive",
-      arcadeArchivePda(),
-      ARCADE_ACCOUNT_VERSION,
-    );
-    requirePublicKey(
-      archive.value,
-      "arcadeConfig",
-      arcadeConfigPda(),
-      "ArcadeArchive ArcadeConfig",
-    );
-    const release = this.requiredRelease();
-    const firstDailyId = u32(archive.value.firstDailyId,
-      "ArcadeArchive first Daily id");
-    if (firstDailyId !== release.launchDayId) {
-      throw new Error("ArcadeArchive first cadence identities are invalid");
-    }
-    const lastDailyId = u32(archive.value.lastDailyId,
-      "ArcadeArchive last Daily id");
-    const dailyRoot = bytes32Hex(archive.value.dailyRoot,
-      "ArcadeArchive Daily root");
+  private async loadArchiveRoot(config: LoadedAccount): Promise<ArcadeRootSnapshot> {
+    const launchDayId = this.requiredRelease().launchDayId;
+    const lastDailyId = u32(config.value.lastDailyId, "ArcadeConfig last Daily id");
+    const dailyRoot = bytes32Hex(config.value.dailyRoot, "ArcadeConfig Daily root");
     const today = currentDayId(this.input.nowUnix);
-    if (lastDailyId < firstDailyId - 1 ||
-        lastDailyId > today ||
-        (lastDailyId === firstDailyId - 1) !== /^0{64}$/.test(dailyRoot)) {
-      throw new Error("ArcadeArchive checkpoint or root is invalid");
+    if (lastDailyId < launchDayId - 1 || lastDailyId > today ||
+        (lastDailyId === launchDayId - 1) !== /^0{64}$/.test(dailyRoot)) {
+      throw new Error("ArcadeConfig result root is invalid");
     }
     const fundingAddress = cadenceFundingPda();
     const funding = await this.input.connection.getAccountInfo(
@@ -319,70 +298,18 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error("cadence funding PDA is missing or invalid");
     }
     return {
-      address: archive.address,
+      address: config.address,
       cadenceFunding: fundingAddress,
-      firstDailyId,
       lastDailyId,
       dailyRoot,
     };
   }
 
-  private async loadArchiveSnapshot(
-    dailies: readonly LoadedDaily[],
-  ): Promise<{
-    state: ArcadeArchiveSnapshot;
+  private archiveSnapshot(dailies: readonly LoadedDaily[], state: ArcadeRootSnapshot): {
+    state: ArcadeRootSnapshot;
     candidates: CadenceArchiveCandidate[];
-  } | undefined> {
-    if (!this.idlHasAccount("arcadeArchive") ||
-        !this.idlHasInstruction("archiveArenaDaily")) {
-      return undefined;
-    }
-    const loadedArchive = await this.loadRequired(
-      "arcadeArchive",
-      arcadeArchivePda(),
-      ARCADE_ACCOUNT_VERSION,
-    );
-    requirePublicKey(
-      loadedArchive.value,
-      "arcadeConfig",
-      arcadeConfigPda(),
-      "ArcadeArchive ArcadeConfig",
-    );
-    const firstDailyId = u32(loadedArchive.value.firstDailyId,
-      "ArcadeArchive first Daily id");
-    const release = this.requiredRelease();
-    if (firstDailyId !== release.launchDayId) {
-      throw new Error("ArcadeArchive first cadence identities are invalid");
-    }
-    const lastDailyId = u32(loadedArchive.value.lastDailyId,
-      "ArcadeArchive last Daily id");
-    if (lastDailyId < firstDailyId - 1) {
-      throw new Error("ArcadeArchive sequence is invalid");
-    }
-    const fundingAddress = cadenceFundingPda();
-    const funding = await this.input.connection.getAccountInfo(
-      fundingAddress,
-      "confirmed",
-    );
-    if (!funding || funding.executable ||
-        !funding.owner.equals(SystemProgram.programId) ||
-        funding.data.length !== 0) {
-      throw new Error("cadence funding PDA is missing or invalid");
-    }
-    const dailyRoot = bytes32Hex(loadedArchive.value.dailyRoot,
-      "ArcadeArchive Daily root");
-    const today = currentDayId(this.input.nowUnix);
-    if (lastDailyId > today ||
-        (lastDailyId === firstDailyId - 1) !== /^0{64}$/.test(dailyRoot)) {
-      throw new Error("ArcadeArchive checkpoint or root is invalid");
-    }
-    const state: ArcadeArchiveSnapshot = {
-      address: loadedArchive.address,
-      cadenceFunding: fundingAddress,
-      firstDailyId,
-      lastDailyId,
-      dailyRoot,
-    };
+  } {
+    const lastDailyId = state.lastDailyId!;
     const candidates: CadenceArchiveCandidate[] = [];
     for (const daily of dailies) {
       if (daily.snapshot.status !== "finalized") continue;
@@ -524,16 +451,14 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       case "prepare_arena_daily": {
         const following = requiredNumber(context.followingDayId, "following day id");
         return {
-          name: "fundedPrepareArenaDaily",
+          name: "prepareArenaDaily",
           args: { dayId: following },
           accounts: {
             ...base,
             protocol: protocolPda(),
             arcadeConfig: arcadeConfigPda(),
-            arcadeArchive: arcadeArchivePda(),
             arenaDaily: arenaDailyPda(following),
             cadenceFunding: cadenceFundingPda(),
-            zkubeProgram: ZKUBE_PROGRAM_ID,
           },
         };
       }
@@ -632,7 +557,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         {
           const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
         return {
-          name: "fundedFinalizeArenaDaily",
+          name: "finalizeArenaDaily",
           args: {
             scorePayoutCount: requiredNumber(context.scorePayoutCount, "Score payout count"),
             themePayoutCount: requiredNumber(context.themePayoutCount, "Theme payout count"),
@@ -647,7 +572,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             themeBoard: arenaBoardPda(daily, "theme"),
             cadenceFunding: cadenceFundingPda(),
             systemProgram: SystemProgram.programId,
-            zkubeProgram: ZKUBE_PROGRAM_ID,
           },
         };
         }
@@ -687,7 +611,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             caller: keeper,
-            arcadeArchive: arcadeArchivePda(),
             arcadeConfig: arcadeConfigPda(),
             arenaDaily: daily,
             scoreBoard: arenaBoardPda(daily, "score"),
@@ -706,7 +629,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             caller: keeper,
-            arcadeArchive: arcadeArchivePda(),
+            arcadeConfig: arcadeConfigPda(),
             arenaDaily: daily,
             scoreBoard: arenaBoardPda(daily, "score"),
             themeBoard: arenaBoardPda(daily, "theme"),
@@ -721,7 +644,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           args: {},
           accounts: {
             caller: keeper,
-            arcadeArchive: arcadeArchivePda(),
+            arcadeConfig: arcadeConfigPda(),
             arenaDaily: daily,
             scoreBoard: arenaBoardPda(daily, "score"),
             themeBoard: arenaBoardPda(daily, "theme"),
@@ -729,29 +652,24 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           },
         };
         }
+      case "close_arena_player": {
+        const daily = arenaDailyPda(requiredNumber(dayId, "day id"));
+        return {
+          name: "closeArenaPlayer",
+          args: {},
+          accounts: {
+            caller: keeper,
+            arenaDaily: daily,
+            arenaPlayer: arenaPlayerPda(daily, requiredOwner(owner)),
+            rentRecipient: requireRentRecipient(context.rentRecipient),
+          },
+        };
+      }
       default:
         throw new Error(
           `keeper materializer operation is outside the exact allowlist: ${String(input.operation)}`,
         );
     }
-  }
-
-  private idlHasInstruction(name: string): boolean {
-    return array(
-      (this.idl as unknown as Record<string, unknown>).instructions,
-      "Anchor IDL instructions",
-    ).some((value) =>
-      record(value, "Anchor IDL instruction").name === name
-    );
-  }
-
-  private idlHasAccount(name: string): boolean {
-    return array(
-      (this.idl as unknown as Record<string, unknown>).accounts,
-      "Anchor IDL accounts",
-    ).some((value) =>
-      record(value, "Anchor IDL account").name === name
-    );
   }
 
   private buildInstruction(
@@ -949,7 +867,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     );
     const bitmapBytes = Math.ceil(payoutCount / 8);
     const expectedSize = ARENA_BOARD_HEADER_BYTES +
-      payoutCount * ARENA_BOARD_ENTRY_SIZE + bitmapBytes;
+      cursor * ARENA_BOARD_ENTRY_SIZE + bitmapBytes;
     const plan = payoutPlan(
       poolLamports,
       qualifiedCount,
@@ -992,7 +910,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       });
     }
     const masksOffset = ARENA_BOARD_HEADER_BYTES +
-      payoutCount * ARENA_BOARD_ENTRY_SIZE;
+      cursor * ARENA_BOARD_ENTRY_SIZE;
     const claimedMask = littleEndianMask(
       loaded.account.data.subarray(masksOffset, masksOffset + bitmapBytes),
     );
@@ -1039,10 +957,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
 
   private async loadBoardSources(
     dailies: readonly LoadedDaily[],
-  ): Promise<Map<number, {
-      score: BoardSourceSnapshot[];
-      theme: BoardSourceSnapshot[];
-    }>> {
+    root: ArcadeRootSnapshot,
+  ): Promise<{ sources: Map<number, { score: BoardSourceSnapshot[]; theme: BoardSourceSnapshot[] }>;
+    closed: ClosedArenaPlayerSnapshot[] }> {
+    const closed: ClosedArenaPlayerSnapshot[] = [];
     const boardSources = new Map<number, {
       score: BoardSourceSnapshot[];
       theme: BoardSourceSnapshot[];
@@ -1069,7 +987,17 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           !player.address.equals(arenaPlayerPda(challenge, owner))) {
         throw new Error("ArenaPlayer cleanup PDA or Daily relationship is invalid");
       }
-      if (!liveDaily.has(dayId)) continue;
+      if (!liveDaily.has(dayId)) {
+        const rentPayer = publicKey(player.value.rentPayer, "ArenaPlayer rent payer");
+        if (dayId > (root.lastDailyId ?? -1) || rentPayer.equals(PublicKey.default) ||
+            bigint(player.value.activePaidRunId, "ArenaPlayer active run") !== 0n ||
+            u32(player.value.paidEntries, "ArenaPlayer paid entries") !==
+              u32(player.value.resolvedEntries, "ArenaPlayer resolved entries")) {
+          throw new Error("closed Daily retains an invalid ArenaPlayer");
+        }
+        closed.push({ dayId, owner, rentPayer });
+        continue;
+      }
       const sources = boardSources.get(dayId) ?? { score: [], theme: [] };
       if (boolean(player.value.hasScoreBest, "ArenaPlayer Score best flag")) {
         sources.score.push(boardSourceSnapshot(player, owner, "score"));
@@ -1083,7 +1011,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       sources.score.sort((left, right) => compareBoardSources("score", left, right));
       sources.theme.sort((left, right) => compareBoardSources("theme", left, right));
     }
-    return boardSources;
+    return { sources: boardSources, closed };
   }
 
   private async loadPlayerStates(): Promise<PlayerStateRecord[]> {
@@ -1517,10 +1445,6 @@ function assertIdlInterface(idl: Idl): void {
     if (!instructionNames.has(name)) {
       throw new Error(`checked-in Anchor IDL is missing ${name}`);
     }
-  }
-  if (instructionNames.has("archiveArenaDaily") &&
-      !accountNames.has("arcadeArchive")) {
-    throw new Error("checked-in Anchor IDL is missing arcadeArchive");
   }
 }
 

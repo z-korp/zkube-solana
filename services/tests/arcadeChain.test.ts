@@ -16,9 +16,9 @@ import {
 
 describe("v5 Daily cadence constants", () => {
   it("pins fresh-bootstrap account versions", () => {
-    expect(PROTOCOL_ACCOUNT_VERSION).toBe(3);
+    expect(PROTOCOL_ACCOUNT_VERSION).toBe(4);
     expect(PLAYER_STATE_ACCOUNT_VERSION).toBe(3);
-    expect(ARCADE_ACCOUNT_VERSION).toBe(3);
+    expect(ARCADE_ACCOUNT_VERSION).toBe(4);
   });
 
   it("pins the single 23:59 run and entry deadline", () => {

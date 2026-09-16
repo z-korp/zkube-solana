@@ -72,7 +72,7 @@ pub fn scenarios() -> Vec<Value> {
             expected_unit_lamports: zkube_core::ARENA_ENTRY_LAMPORTS }, solana::accounts::PurchaseKredits {
             protocol: accounts::singleton(PROTOCOL_CONFIG_SEED), arcade_config: accounts::singleton(ARCADE_CONFIG_SEED),
             player_state: accounts::player_address(), credit_vault: accounts::singleton(CREDIT_VAULT_SEED),
-            operator_revenue_vault: accounts::singleton(OPERATOR_REVENUE_VAULT_SEED), owner: owner(),
+            team_destination: validator(), owner: owner(),
             system_program: Pubkey::default(),
         });
         let mut row = message(&format!("purchase-{count}"), owner(), vec![ix], true);
@@ -96,6 +96,39 @@ pub fn scenarios() -> Vec<Value> {
         false,
     ));
     rows
+}
+
+pub fn closed_player() -> Value {
+    let day = DAY - 40;
+    let daily = accounts::daily_address(day);
+    let address = accounts::participant_address(day);
+    let player = ArenaPlayer::initialize(
+        daily,
+        owner(),
+        device(),
+        pda(&[ARENA_PLAYER_SEED, daily.as_ref(), owner().as_ref()]).1,
+    );
+    let mut config = ArcadeConfig::canonical(
+        accounts::singleton(PROTOCOL_CONFIG_SEED),
+        pda(&[ARCADE_CONFIG_SEED]).1,
+    );
+    config.launch_seeded = true;
+    config.launch_day_id = DAY - 100;
+    config.last_daily_id = day;
+    config.daily_root = [9; 32];
+    let call = instruction(
+        solana::instruction::CloseArenaPlayer {},
+        solana::accounts::CloseArenaPlayer {
+            arena_daily: daily,
+            arena_player: address,
+            rent_recipient: device(),
+            caller: validator(),
+        },
+    );
+    json!({"inputs": inputs(), "day": day,
+        "arcade": envelope(accounts::singleton(ARCADE_CONFIG_SEED), &config, 8 + ArcadeConfig::INIT_SPACE),
+        "player": envelope(address, &player, 8 + ArenaPlayer::INIT_SPACE),
+        "transaction": message("close-arena-player", validator(), vec![call], false)})
 }
 
 fn transfer(from: Pubkey, to: Pubkey, amount: u64) -> Instruction {

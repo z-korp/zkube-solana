@@ -28,9 +28,6 @@ import {
 } from "./pdas.js";
 import {
   ARCADE_ACCOUNT_VERSION,
-  ARENA_ENTRY_LAMPORTS,
-  ENTRY_DAILY_LAMPORTS,
-  ENTRY_OPERATOR_LAMPORTS,
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
 } from "../../services/src/protocolVersions.generated.js";
@@ -928,12 +925,7 @@ function assertProtocolAndArcade(
     !key(arcade.protocol, "Arcade protocol").equals(
       deriveProtocolConfigPda(),
     ) ||
-    arcade.launchSeeded !== true ||
-    amount(arcade.entryLamports, "entry lamports") !== ARENA_ENTRY_LAMPORTS ||
-    amount(arcade.dailyLamports, "daily entry share") !==
-      ENTRY_DAILY_LAMPORTS ||
-    amount(arcade.operatorLamports, "operator entry share") !==
-      ENTRY_OPERATOR_LAMPORTS
+    arcade.launchSeeded !== true
   ) {
     throw new Error("Arcade config is not the active canonical economy");
   }

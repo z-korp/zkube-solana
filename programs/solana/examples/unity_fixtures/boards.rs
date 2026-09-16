@@ -100,9 +100,9 @@ pub fn with_terms(day: u32, kind: DailyBoardKind, player: Pubkey, terms: Terms) 
     if terms.claimed {
         board.claimed_lamports = board.payout_for_position(0).unwrap();
     }
-    let mut bytes = vec![0; ArenaBoard::account_space(plan.count).unwrap()];
+    let mut bytes = vec![0; ArenaBoard::construction_space(plan.count, board.cursor).unwrap()];
     board.try_serialize(&mut &mut bytes[..]).unwrap();
-    for index in 0..plan.count {
+    for index in 0..board.cursor {
         let row = ArenaBoardEntry {
             player: if index == 0 {
                 player
@@ -119,7 +119,7 @@ pub fn with_terms(day: u32, kind: DailyBoardKind, player: Pubkey, terms: Terms) 
             .unwrap();
     }
     if terms.claimed {
-        bytes[ArenaBoard::HEADER_SIZE + plan.count as usize * ARENA_BOARD_ENTRY_SIZE] = 1;
+        bytes[ArenaBoard::HEADER_SIZE + board.cursor as usize * ARENA_BOARD_ENTRY_SIZE] = 1;
     }
     json!({"address": address.to_string(), "owner": solana::ID.to_string(), "executable": false, "data": encoded(bytes)})
 }

@@ -18,7 +18,6 @@ import {
   type ZkubeDeploymentManifest,
 } from "./deploymentManifest.js";
 import { VRF_QUEUE } from "./program.js";
-import { deriveOperatorRevenueVaultPda } from "./pdas.js";
 
 describe("zKube deployment manifest v6", () => {
   it("validates a sanitized, fully bound Devnet candidate", () => {
@@ -158,7 +157,7 @@ function candidate(): ZkubeDeploymentManifest {
   )[0].toBase58();
   return {
     schema: "zkube-solana-deployment",
-    schemaVersion: 7,
+    schemaVersion: 8,
     cluster: "devnet",
     createdAt: "2026-07-11T00:00:00.000Z",
     approval: { status: "candidate" },
@@ -186,7 +185,6 @@ function candidate(): ZkubeDeploymentManifest {
     protocol: {
       authority,
       teamDestination,
-      operatorRevenueVault: deriveOperatorRevenueVaultPda().toBase58(),
     },
     content: {
       catalogVersion: 3,
@@ -229,7 +227,6 @@ function environment(
     ZKUBE_PROGRAM_UPGRADE_AUTHORITY: manifest.program.upgradeAuthority,
     ZKUBE_PROTOCOL_AUTHORITY: manifest.protocol.authority,
     ZKUBE_TEAM_DESTINATION: manifest.protocol.teamDestination,
-    ZKUBE_OPERATOR_REVENUE_VAULT: manifest.protocol.operatorRevenueVault,
     ZKUBE_CATALOG_VERSION: String(manifest.content.catalogVersion),
     ZKUBE_CATALOG_SHA256: manifest.content.catalogSha256,
     ZKUBE_LAUNCH_DAY_ID: String(manifest.launch.dayId),

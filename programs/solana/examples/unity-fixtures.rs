@@ -95,6 +95,7 @@ fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
         "plans": {"inputs": inputs(), "accounts": accounts, "runs": {"daily": runs::row("playing", RUN_ID)},
             "terminalRuns": {"daily": runs::row("finished", RUN_ID)}, "boards": boards::scenarios()},
         "runs": runs, "device": device::scenarios(), "economy": economy::scenarios(), "ui": ui::scenarios(),
+        "closedPlayer": transactions::closed_player(),
         "reads": {"inputs": read_inputs, "accounts": read_accounts, "boardCases": board_cases}});
     std::io::stdout()
         .lock()

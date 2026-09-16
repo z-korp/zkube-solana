@@ -502,6 +502,7 @@ export function operationPriority(operation: KeeperOperation): number {
     case "expire_daily_claims": return 11;
     case "close_arena_daily": return 12;
     case "cleanup_orphan_active_run": return 13;
+    case "close_arena_player": return 14;
     default:
       throw new Error(`keeper operation is outside the exact allowlist: ${String(operation)}`);
   }

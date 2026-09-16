@@ -4,7 +4,7 @@ import { Keypair, PublicKey, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 import {
   buildAtomicArcadeLaunchPlan,
-  buildInitializeArcadeArchivePlan,
+  buildSeedCadenceFundingPlan,
   buildInitializeArcadePlan,
   buildInitializePlayerPlan,
   buildInitializeProtocolPlan,
@@ -14,7 +14,6 @@ import {
   buildDepositArenaDailyPlan,
 } from "./adminClient.js";
 import {
-  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
@@ -102,22 +101,13 @@ describe("authority initialization client", () => {
       ),
     ).toBe(true);
 
-    const archive = await buildInitializeArcadeArchivePlan({
+    const funding = await buildSeedCadenceFundingPlan({
       connection: {} as Connection,
       authority,
-      firstDayId: 10_000,
     });
-    expect(archive.transaction.instructions).toHaveLength(2);
-    expect(
-      archive.transaction.instructions[0]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveArcadeArchivePda()),
-      ),
-    ).toBe(true);
-    expect(
-      archive.transaction.instructions[1]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveCadenceFundingPda()),
-      ),
-    ).toBe(true);
+    expect(funding.transaction.instructions).toHaveLength(1);
+    expect(funding.transaction.instructions[0]?.keys.some(({ pubkey }) =>
+      pubkey.equals(deriveCadenceFundingPda()))).toBe(true);
   });
 
   it("prepares current and following Daily separately", async () => {

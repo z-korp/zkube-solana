@@ -52,14 +52,15 @@ export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
 });
 
 export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
-  prepare_arena_daily: "funded_prepare_arena_daily",
+  prepare_arena_daily: "prepare_arena_daily",
   activate_arena_daily: "activate_arena_daily",
   skip_suspended_arena_daily: "skip_suspended_arena_daily",
-  finalize_arena_daily: "funded_finalize_arena_daily",
+  finalize_arena_daily: "finalize_arena_daily",
   submit_arena_board_chunk: "submit_arena_board_chunk",
   archive_arena_daily: "archive_arena_daily",
   expire_daily_claims: "expire_daily_claims",
   close_arena_daily: "close_arena_daily",
+  close_arena_player: "close_arena_player",
   finish_run: "finish_run",
   commit_run: "commit_run",
   consume_arena_run: "consume_arena_run",
@@ -116,7 +117,8 @@ export interface KeeperPlanContext {
   boardKind?: DailyBoardKind;
   rentRecipient?: PublicKey;
   cadenceFunding?: PublicKey;
-  arcadeArchive?: PublicKey;
+  arcadeConfig?: PublicKey;
+  parentDailyClosed?: boolean;
   archiveCommitted?: boolean;
   claimsExpired?: boolean;
   claimCloseAt?: number;
@@ -182,10 +184,8 @@ export function derivePda(seed: string, ...parts: Uint8Array[]): PublicKey {
 
 export const protocolPda = () => derivePda("protocol");
 export const arcadeConfigPda = () => derivePda("arcade");
-export const operatorRevenuePda = () => derivePda("operator_revenue");
 export const creditVaultPda = () => derivePda("credit_vault");
 export const cadenceFundingPda = () => derivePda("cadence_funding");
-export const arcadeArchivePda = () => derivePda("arcade_archive");
 export const arenaDailyPda = (dayId: number) =>
   derivePda("arena_daily", u32(dayId));
 export const arenaBoardPda = (daily: PublicKey, board: DailyBoardKind) =>

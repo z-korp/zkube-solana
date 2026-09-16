@@ -122,7 +122,7 @@ namespace ZKube.Integration.Tests
             var store = new SessionHandoffTests.Store(); var journal = new TransactionJournal(store);
             var http = new Http { Genesis = (string)rpcFixture["inputs"]["expectedGenesis"] };
             var profile = solana["accounts"].Single(row => (string)row["id"] == "player-valid"); http.Add(profile);
-            foreach (string name in new[] { "protocol", "arcade", "credit" }) http.Add(plans["accounts"][name]); http.Add(economy["revenue"]);
+            foreach (string name in new[] { "protocol", "arcade", "credit" }) http.Add(plans["accounts"][name]); http.Add(economy["team"]);
             var rpc = new SolanaRpcTransport(http, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], http.Genesis, protocol.ProgramId);
             var transaction = solana["transactions"].Single(row => (string)row["id"] == "purchase-1");
             await journal.Begin(new PendingTransaction(owner, "purchase-kredits", (string)rpcFixture["inputs"]["base"], true,

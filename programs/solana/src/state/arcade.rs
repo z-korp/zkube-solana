@@ -7,9 +7,7 @@ use crate::state::protocol::PlayerState;
 
 pub const ARCADE_ACCOUNT_VERSION: u8 = zkube_core::ARCADE_ACCOUNT_VERSION;
 pub const ARCADE_CONFIG_SEED: &[u8] = b"arcade";
-pub const ARCADE_ARCHIVE_SEED: &[u8] = b"arcade_archive";
 pub const CADENCE_FUNDING_SEED: &[u8] = b"cadence_funding";
-pub const OPERATOR_REVENUE_VAULT_SEED: &[u8] = b"operator_revenue";
 pub const CREDIT_VAULT_SEED: &[u8] = b"credit_vault";
 pub const ARENA_DAILY_SEED: &[u8] = b"arena_daily";
 pub const ARENA_BOARD_SEED: &[u8] = b"arena_board";
@@ -23,7 +21,7 @@ pub const ENTRY_OPERATOR_LAMPORTS: u64 = zkube_core::ENTRY_OPERATOR_LAMPORTS;
 /// Hard safety ceiling for one independently allocated payout board. The width
 /// rule remains authoritative below this ceiling and any narrowing is recorded
 /// in the immutable board header.
-pub const ARENA_BOARD_CAPACITY: usize = 1_536;
+pub const ARENA_BOARD_CAPACITY: usize = zkube_core::ARENA_BOARD_CAPACITY;
 pub const ARENA_BOARD_CHUNK_CAPACITY: usize = 10;
 pub const ARENA_BOARD_ENTRY_SIZE: usize = 84;
 pub const ARENA_RUNS_CLOSE_OFFSET: i64 = zkube_core::DAILY_RUN_CLOSE_OFFSET;
@@ -48,6 +46,9 @@ pub struct ArcadeConfig {
     pub suspended_until_day: u32,
     pub launch_seeded: bool,
     pub launch_day_id: u32,
+    /// Last finalized Daily committed by the permanent result root.
+    pub last_daily_id: u32,
+    pub daily_root: [u8; 32],
     pub bump: u8,
 }
 
@@ -59,48 +60,18 @@ impl ArcadeConfig {
             suspended_until_day: 0,
             launch_seeded: false,
             launch_day_id: 0,
-            bump,
-        }
-    }
-}
-
-/// Small, permanent commitment accumulator for recyclable cadence accounts.
-///
-/// The root is an append-only hash chain. `last_daily_id` advances by exactly
-/// one for every archived result, beginning at the launch cadence.
-/// Operational synchronization and rollup counters deliberately do not enter
-/// the canonical result hashes, so those one-way cleanup steps cannot mutate
-/// an already committed competition result.
-#[account]
-#[derive(InitSpace)]
-pub struct ArcadeArchive {
-    pub version: u8,
-    pub arcade_config: Pubkey,
-    pub first_daily_id: u32,
-    pub last_daily_id: u32,
-    pub daily_root: [u8; 32],
-    pub bump: u8,
-}
-
-impl ArcadeArchive {
-    pub fn initialize(arcade_config: Pubkey, launch_day_id: u32, bump: u8) -> Result<Self> {
-        Ok(Self {
-            version: ARCADE_ACCOUNT_VERSION,
-            arcade_config,
-            first_daily_id: launch_day_id,
-            last_daily_id: launch_day_id
-                .checked_sub(1)
-                .ok_or(ErrorCode::InvalidPeriod)?,
+            last_daily_id: 0,
             daily_root: [0; 32],
             bump,
-        })
+        }
     }
 
     pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
         require!(
-            day_id >= self.first_daily_id
-                && ((self.last_daily_id < self.first_daily_id && day_id == self.first_daily_id)
-                    || (self.last_daily_id >= self.first_daily_id && day_id > self.last_daily_id)),
+            self.launch_seeded
+                && day_id >= self.launch_day_id
+                && ((self.last_daily_id < self.launch_day_id && day_id == self.launch_day_id)
+                    || (self.last_daily_id >= self.launch_day_id && day_id > self.last_daily_id)),
             ErrorCode::InvalidPeriod
         );
         self.daily_root = crate::game::sha256v(&[
@@ -112,16 +83,6 @@ impl ArcadeArchive {
         self.last_daily_id = day_id;
         Ok(())
     }
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct OperatorRevenueVault {
-    pub version: u8,
-    pub protocol: Pubkey,
-    pub gross_operator_share: u64,
-    pub withdrawn: u64,
-    pub bump: u8,
 }
 
 #[account]
@@ -303,11 +264,16 @@ impl ArenaBoard {
     }
 
     pub fn account_space(payout_count: u32) -> Result<usize> {
+        Self::construction_space(payout_count, payout_count)
+    }
+
+    pub fn construction_space(payout_count: u32, cursor: u32) -> Result<usize> {
+        require!(cursor <= payout_count, ErrorCode::BoardIncomplete);
         require!(
             usize::try_from(payout_count).is_ok_and(|count| count <= ARENA_BOARD_CAPACITY),
             ErrorCode::BoardCapacityExceeded
         );
-        let rows = usize::try_from(payout_count)
+        let rows = usize::try_from(cursor)
             .map_err(|_| ErrorCode::ArithmeticOverflow)?
             .checked_mul(ARENA_BOARD_ENTRY_SIZE)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
@@ -316,13 +282,6 @@ impl ArenaBoard {
             .checked_add(rows)
             .and_then(|value| value.checked_add(masks))
             .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
-    }
-
-    /// Anchor evaluates `space` before the handler can reject instruction
-    /// arguments. Invalid counts deliberately map to zero so account creation
-    /// fails closed without attempting an oversized allocation.
-    pub fn account_space_for_init(payout_count: u32) -> usize {
-        Self::account_space(payout_count).unwrap_or(0)
     }
 
     pub fn validate(&self, daily: Pubkey, kind: DailyBoardKind, data_len: usize) -> Result<()> {
@@ -339,7 +298,7 @@ impl ArenaBoard {
                 && self.sealed == (self.cursor == self.payout_count)
                 && ((!self.sealed && self.sealed_at == 0) || (self.sealed && self.sealed_at > 0))
                 && self.claimed_count <= self.payout_count
-                && data_len == Self::account_space(self.payout_count)?,
+                && data_len == Self::construction_space(self.payout_count, self.cursor)?,
             ErrorCode::AccountingInvariant
         );
         Ok(())
@@ -556,17 +515,13 @@ pub fn board_payout_plan(pool: u64, qualified_winners: u32) -> Result<BoardPayou
     .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
     let maximum = u32::try_from(ARENA_BOARD_CAPACITY).map_err(|_| ErrorCode::ArithmeticOverflow)?;
     let count = width.winner_count.min(maximum);
-    let paid_lamports = (1..=count).try_fold(0u64, |paid, rank| {
-        let amount = zkube_core::payout_for_rank(
-            pool,
-            width.denominator,
-            rank,
-            zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
-        )
-        .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
-        paid.checked_add(amount)
-            .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
-    })?;
+    let paid_lamports = zkube_core::sum_rank_payouts(
+        pool,
+        width.denominator,
+        count,
+        zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
+    )
+    .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
     Ok(BoardPayoutPlan {
         count,
         width_count: width.winner_count,
@@ -1042,7 +997,10 @@ mod tests {
     fn archive_is_strictly_sequential() {
         let arcade = Pubkey::new_unique();
         let launch_day = 20_000;
-        let mut archive = ArcadeArchive::initialize(arcade, launch_day, 7).unwrap();
+        let mut archive = ArcadeConfig::canonical(arcade, 7);
+        archive.launch_seeded = true;
+        archive.launch_day_id = launch_day;
+        archive.last_daily_id = launch_day - 1;
         assert!(archive.append_daily(launch_day + 1, [2; 32]).is_err());
         archive.append_daily(launch_day, [1; 32]).unwrap();
         assert!(archive.append_daily(launch_day, [1; 32]).is_err());
@@ -1231,6 +1189,7 @@ mod tests {
 
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
+        assert_eq!(8 + ArcadeConfig::INIT_SPACE, 87);
         assert_eq!(ArenaBoardEntry::INIT_SPACE, ARENA_BOARD_ENTRY_SIZE);
         assert_eq!(8 + ArenaDaily::INIT_SPACE, 165);
         let mut daily_bytes = Vec::new();
@@ -1245,8 +1204,6 @@ mod tests {
         );
         for size in [
             ArcadeConfig::INIT_SPACE,
-            ArcadeArchive::INIT_SPACE,
-            OperatorRevenueVault::INIT_SPACE,
             CreditVault::INIT_SPACE,
             ArenaDaily::INIT_SPACE,
             ArenaPlayer::INIT_SPACE,

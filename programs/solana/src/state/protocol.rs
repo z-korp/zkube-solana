@@ -27,7 +27,6 @@ pub const INITIAL_RUN_ID: u64 = 1;
 pub struct ProtocolConfig {
     pub version: u8,
     pub authority: Pubkey,
-    pub pending_authority: Pubkey,
     pub team_destination: Pubkey,
     /// Chain/deployment-specific replay domain used by canonical replay v2.
     pub replay_domain: [u8; 32],
@@ -628,6 +627,7 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
+        assert_eq!(8 + ProtocolConfig::INIT_SPACE, 107);
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 206);
         assert_eq!(8 + ActiveRun::INIT_SPACE, 338);
     }

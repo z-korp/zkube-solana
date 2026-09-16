@@ -19,14 +19,8 @@ pub fn finalized(day: u32) -> Value {
 pub fn scenarios() -> Value {
     let day = DAY - 4;
     let old = DAY - 200;
-    let revenue = OperatorRevenueVault {
-        version: ARCADE_ACCOUNT_VERSION,
-        protocol: accounts::singleton(PROTOCOL_CONFIG_SEED),
-        gross_operator_share: 25_000_000,
-        withdrawn: 0,
-        bump: pda(&[OPERATOR_REVENUE_VAULT_SEED]).1,
-    };
-    json!({"revenue": envelope(accounts::singleton(OPERATOR_REVENUE_VAULT_SEED), &revenue, 8 + OperatorRevenueVault::INIT_SPACE),
+    json!({"team": {"address": validator().to_string(), "owner": Pubkey::default().to_string(),
+        "executable": false, "data": ""},
         "claimDaily": finalized(day), "claimedBoard": boards::board(day, DailyBoardKind::Score, true, true, false, owner()),
         "claim": transactions::claim(day, DailyBoardKind::Score), "oldDay": old, "oldDaily": finalized(old),
         "oldScore": boards::board(old, DailyBoardKind::Score, false, true, false, owner()),

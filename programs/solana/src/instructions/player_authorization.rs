@@ -220,7 +220,7 @@ mod tests {
             arcade_config: Pubkey::new_unique(),
             player_state: Pubkey::new_unique(),
             credit_vault: Pubkey::new_unique(),
-            operator_revenue_vault: Pubkey::new_unique(),
+            team_destination: Pubkey::new_unique(),
             owner,
             system_program: anchor_lang::system_program::ID,
         }

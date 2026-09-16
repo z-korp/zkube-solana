@@ -48,7 +48,6 @@ pub fn handler_initialize_protocol(
     let protocol = &mut ctx.accounts.protocol;
     protocol.version = ACCOUNT_VERSION;
     protocol.authority = ctx.accounts.authority.key();
-    protocol.pending_authority = Pubkey::default();
     protocol.team_destination = args.team_destination;
     protocol.replay_domain = args.replay_domain;
     // A fresh deployment must remain inert until Arena rules, funding,

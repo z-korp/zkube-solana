@@ -48,7 +48,7 @@ namespace ZKube.Integration.App.Tests
         }
         public void AddEconomy()
         { foreach (var name in new[] { "protocol", "arcade", "credit" }) Http.Add(Plans["accounts"][name]);
-            Http.Add(Fixture("economy")["revenue"]); if (!Http.Accounts.ContainsKey(Services.Planner.Player(Owner))) Http.Add(Solana["accounts"].Single(x => (string)x["id"] == "player-valid")); }
+            Http.Add(Fixture("economy")["team"]); if (!Http.Accounts.ContainsKey(Services.Planner.Player(Owner))) Http.Add(Solana["accounts"].Single(x => (string)x["id"] == "player-valid")); }
         public PendingTransaction Purchase() => new PendingTransaction(Owner, "purchase-one", Config.BaseUri, true,
             Convert.FromBase64String((string)Solana["transactions"].Single(x => (string)x["id"] == "purchase-1")["signedTransaction"]), (string)Solana["inputs"]["blockhash"], 500);
         public async Task ReadySession()

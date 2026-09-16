@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
+import { BorshAccountsCoder, convertIdlToCamelCase, type Idl } from "@anchor-lang/core";
+import BN from "bn.js";
 
 import { Keypair, PublicKey, SystemProgram, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
@@ -12,22 +14,69 @@ import {
   ZKUBE_PROGRAM_ID,
   KEEPER_PLAN_INSTRUCTION,
   arenaDailyPda,
+  cadenceFundingPda,
   type KeeperOperation,
   type KeeperPlanContext,
 } from "../src/arcadeChain";
+import { discoverReconciliationPlans } from "../src/arcadeReconciliation";
+import { canonicalDevnetReplayDomainHex } from "../src/serviceReadiness";
 
 const SOURCE_IDL_SHA256 =
-  "4ffc3f357ce4eb177c0295355e6bf99f829256e25292a398c8f3f169cfc8990c";
+  "2ca36852dbb338a3fec04a37b6eda0fa6768578b964636932e929e80179cae2b";
 const DAY = 20_651;
 const RUN_ID = 42n;
 
 type ProtocolOperation = KeeperOperation;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("locks the fresh-bootstrap interface at 39 instructions and 10 accounts", async () => {
+  it("a_closed_arena_player_returns_rent_to_its_payer", async () => {
+    const fixtures = JSON.parse(readFileSync(new URL("../../fixtures/program-unity-v1.json", import.meta.url), "utf8"));
+    const fixture = fixtures.closedPlayer;
+    const coder = new BorshAccountsCoder(convertIdlToCamelCase(readIdl() as Idl));
+    const protocolRow = fixtures.plans.accounts.protocol;
+    const protocol = coder.decode("protocolConfig", Buffer.from(protocolRow.data, "base64"));
+    protocol.replayDomain = [...Buffer.from(canonicalDevnetReplayDomainHex(), "hex")];
+    const info = (row: { owner: string; executable: boolean; data: string }) => ({
+      owner: new PublicKey(row.owner), executable: row.executable, lamports: 1_000_000_000,
+      data: Buffer.from(row.data, "base64"), rentEpoch: 0,
+    });
+    const values = new Map([
+      [protocolRow.address, { ...info(protocolRow), data: await coder.encode("protocolConfig", protocol) }],
+      [fixture.arcade.address, info(fixture.arcade)],
+      [cadenceFundingPda().toBase58(), { owner: SystemProgram.programId, executable: false,
+        lamports: 1_000_000_000, data: Buffer.alloc(0), rentEpoch: 0 }],
+    ]);
+    let playerData = Buffer.from(fixture.player.data, "base64");
+    const connection = {
+      getAccountInfo: async (address: PublicKey) => values.get(address.toBase58()) ?? null,
+      getMultipleAccountsInfo: async (addresses: PublicKey[]) => addresses.map(() => null),
+      getProgramAccounts: async (_program: PublicKey, options: { filters: Array<{ memcmp: { bytes: string } }> }) =>
+        options.filters[0]?.memcmp.bytes === coder.memcmp("arenaPlayer").bytes
+          ? [{ pubkey: new PublicKey(fixture.player.address), account: { ...info(fixture.player), data: playerData } }] : [],
+    } as unknown as Connection;
+    const nowUnix = fixture.inputs.now;
+    const adapter = await AnchorKeeperAdapter.create({ connection, nowUnix,
+      release: { launchDayId: fixture.inputs.day - 100 }, testExpectedIdlSha256: SOURCE_IDL_SHA256 });
+    const snapshot = await adapter.loadProtocolSnapshot();
+    const plans = discoverReconciliationPlans({ snapshot, nowUnix });
+    expect(plans.map(({ operation }) => operation)).toEqual(["close_arena_player"]);
+    const [call] = await adapter.materialize({ operation: plans[0]!.operation, context: plans[0]!.context!,
+      programId: ZKUBE_PROGRAM_ID, keeper: new PublicKey(fixture.inputs.validator) });
+    const expected = fixture.transaction.instructions[0];
+    expect(call!.data.toString("base64")).toBe(expected.data);
+    expect(call!.keys.map((key) => ({ address: key.pubkey.toBase58(), signer: key.isSigner,
+      writable: key.isWritable }))).toEqual(expected.accounts);
+
+    const invalid = coder.decode("arenaPlayer", playerData);
+    invalid.activePaidRunId = new BN(1);
+    playerData = await coder.encode("arenaPlayer", invalid);
+    await expect(adapter.loadProtocolSnapshot()).rejects.toThrow("invalid ArenaPlayer");
+  });
+
+  it("locks the fresh-bootstrap interface at 32 instructions and 8 accounts", async () => {
     const idl = readIdl();
-    expect(idl.instructions).toHaveLength(39);
-    expect(idl.accounts).toHaveLength(10);
+    expect(idl.instructions).toHaveLength(32);
+    expect(idl.accounts).toHaveLength(8);
     expect(idl.instructions.map(({ name }) => name)).not.toEqual(expect.arrayContaining([
       "prepare_weekly_jackpot",
       "finalize_season",
@@ -73,7 +122,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         suspendedUntilDay: 0,
         pairIndex: 0,
         realmMapId: 1,
-      }, "funded_prepare_arena_daily"],
+      }, "prepare_arena_daily"],
       ["activate_arena_daily", {
         dayId: DAY,
         suspendedUntilDay: 0,
@@ -96,7 +145,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         followingDayId: DAY + 1,
         scorePayoutCount: 1,
         themePayoutCount: 0,
-      }, "funded_finalize_arena_daily"],
+      }, "finalize_arena_daily"],
       ["submit_arena_board_chunk", {
         dayId: DAY,
         boardKind: "score",
@@ -117,6 +166,8 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       }, "expire_daily_claims"],
       ["archive_arena_daily", { dayId: DAY }, "archive_arena_daily"],
       ["close_arena_daily", { dayId: DAY }, "close_arena_daily"],
+      ["close_arena_player", { dayId: DAY, owner, rentRecipient: keeper,
+        parentDailyClosed: true }, "close_arena_player"],
     ];
     const idl = readIdl();
     for (const [operation, context, expectedName] of cases) {

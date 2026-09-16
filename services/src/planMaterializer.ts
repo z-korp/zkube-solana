@@ -86,6 +86,7 @@ function usesEphemeralRollup(operation: KeeperOperation): boolean {
     case "submit_arena_board_chunk":
     case "expire_daily_claims":
     case "archive_arena_daily":
+    case "close_arena_player":
     case "close_arena_daily":
       return false;
     default:

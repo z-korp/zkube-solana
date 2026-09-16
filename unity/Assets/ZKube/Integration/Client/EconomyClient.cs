@@ -28,7 +28,8 @@ namespace ZKube.Integration.Client
             linked.Token.ThrowIfCancellationRequested();
             if (await journal.Load(lease.Owner).ConfigureAwait(false) != null)
                 return ExecutionResult.Rejected("purchase-kredits", "pending-transaction-exists");
-            return await executor.Execute(planner.Purchase(lease.Owner, pack), "purchase-kredits", Array.Empty<DeviceSigner>(), reconciler, linked.Token).ConfigureAwait(false);
+            var destination = await products.PurchaseDestination(linked.Token).ConfigureAwait(false);
+            return await executor.Execute(planner.Purchase(lease.Owner, pack, destination.Value), "purchase-kredits", Array.Empty<DeviceSigner>(), reconciler, linked.Token).ConfigureAwait(false);
         }
         public async Task<ExecutionResult> SetFeaturedIdentity(byte emblem, byte frame, CancellationToken cancellation = default)
         {

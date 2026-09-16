@@ -28,19 +28,12 @@ import {
   type LaunchPlannerInput,
 } from "./launchPlanner.js";
 import {
-  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
-import {
-  ARENA_ENTRY_LAMPORTS,
-  ENTRY_DAILY_LAMPORTS,
-  ENTRY_OPERATOR_LAMPORTS,
-} from "../../services/src/protocolVersions.generated.js";
 import { createReadOnlyWallet } from "./readOnlyWallet.js";
 import { zkubeProgram, type TransactionPlan } from "./program.js";
 import { ZKUBE_PROGRAM_ID } from "./constants.js";
@@ -384,24 +377,10 @@ async function verifyStagedLaunch(
   if (
     arcade.launchSeeded !== false ||
     integer(arcade.launchDayId) !== 0 ||
-    amount(arcade.entryLamports) !== ARENA_ENTRY_LAMPORTS ||
-    amount(arcade.dailyLamports) !== ENTRY_DAILY_LAMPORTS ||
-    amount(arcade.operatorLamports) !== ENTRY_OPERATOR_LAMPORTS
+    integer(arcade.lastDailyId) !== 0 ||
+    bytesHex(arcade.dailyRoot) !== "00".repeat(32)
   ) {
     throw new Error("paused ArcadeConfig does not match the approved economy");
-  }
-  const vault = await fetchExact(
-    connection,
-    program,
-    "operatorRevenueVault",
-    deriveOperatorRevenueVaultPda(),
-    LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
-  );
-  if (
-    amount(vault.grossOperatorShare) !== 0n ||
-    amount(vault.withdrawn) !== 0n
-  ) {
-    throw new Error("operator vault is not fresh");
   }
   const creditVault = await fetchExact(
     connection,
@@ -416,7 +395,7 @@ async function verifyStagedLaunch(
   ) {
     throw new Error("credit vault is not fresh");
   }
-  await verifyFreshArcadeArchive(connection, program, bundle.input.launchDayId);
+  await verifyCadenceFunding(connection);
   await verifyPeriods(connection, program, bundle, false);
 }
 
@@ -443,11 +422,13 @@ async function verifyActiveLaunch(
   if (
     protocol.paused !== false ||
     arcade.launchSeeded !== true ||
-    integer(arcade.launchDayId) !== bundle.input.launchDayId
+    integer(arcade.launchDayId) !== bundle.input.launchDayId ||
+    integer(arcade.lastDailyId) !== bundle.input.launchDayId - 1 ||
+    bytesHex(arcade.dailyRoot) !== "00".repeat(32)
   ) {
     throw new Error("atomic launch did not activate the approved cadence");
   }
-  await verifyFreshArcadeArchive(connection, program, bundle.input.launchDayId);
+  await verifyCadenceFunding(connection);
   await verifyPeriods(connection, program, bundle, true);
   const balance = await connection.getBalance(authority, "confirmed");
   if (balance < bundle.costs.authorityReserveLamports) {
@@ -455,31 +436,16 @@ async function verifyActiveLaunch(
   }
 }
 
-async function verifyFreshArcadeArchive(
-  connection: Connection,
-  program: ReturnType<typeof zkubeProgram>,
-  launchDayId: number,
-): Promise<void> {
-  const archive = await fetchExact(
-    connection,
-    program,
-    "arcadeArchive",
-    deriveArcadeArchivePda(),
-    LAUNCH_ACCOUNT_SPACES.arcadeArchive,
-  );
-  if (
-    integer(archive.firstDailyId) !== launchDayId ||
-    integer(archive.lastDailyId) !== launchDayId - 1 ||
-    bytesHex(archive.dailyRoot) !== "00".repeat(32)
-  ) {
-    throw new Error("Arcade archive is not the approved fresh checkpoint");
-  }
+async function verifyCadenceFunding(connection: Connection): Promise<void> {
   const funding = await connection.getAccountInfo(
     deriveCadenceFundingPda(),
     "confirmed",
   );
   requireSystemWallet(funding, "cadence funding PDA");
-  if (funding!.lamports !== CADENCE_FUNDING_SEED_LAMPORTS) {
+  const dailyRent = await connection.getMinimumBalanceForRentExemption(
+    LAUNCH_ACCOUNT_SPACES.arenaDaily, "confirmed",
+  );
+  if (funding!.lamports !== CADENCE_FUNDING_SEED_LAMPORTS - 2 * dailyRent) {
     throw new Error("cadence rent float does not match the approved seed");
   }
 }

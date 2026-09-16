@@ -66,16 +66,18 @@ namespace ZKube.Integration.Client
             {
                 if ((uint)call.Arguments["kredit_count"] == 0 || (ulong)call.Arguments["expected_unit_lamports"] != Protocol.EntryLamports ||
                     call.Accounts["protocol"] != Pda("protocol") || call.Accounts["arcade_config"] != Pda("arcade") ||
-                    call.Accounts["credit_vault"] != Pda("credit_vault") || call.Accounts["operator_revenue_vault"] != Pda("operator_revenue")) return false;
+                    call.Accounts["credit_vault"] != Pda("credit_vault")) return false;
                 var credit = Observed(evidence, call.Accounts["credit_vault"]);
-                var revenue = Observed(evidence, call.Accounts["operator_revenue_vault"]);
-                if (succeeded && (credit == null || revenue == null)) return false;
+                var team = Observed(evidence, call.Accounts["team_destination"]);
+                if (succeeded && (credit == null || team == null)) return false;
                 if (credit != null) accounts.CreditVault(credit);
-                if (revenue != null) accounts.OperatorRevenueVault(revenue);
+                if (team != null && (team.Owner != PlanningConstants.SystemProgram || team.Executable || team.Data.Length != 0)) return false;
+
                 var configs = await rpc.HistoricalAccounts(evidence.Pending.Endpoint, true,
                     new[] { call.Accounts["protocol"], call.Accounts["arcade_config"] }, minContextSlot: evidence.MinimumSlot, cancellation: cancellation).ConfigureAwait(false);
                 if (succeeded && configs.Accounts.Any(a => a.Envelope == null)) return false;
-                if (configs.Accounts[0].Envelope != null) accounts.ProtocolConfig(configs.Accounts[0].Envelope);
+                if (configs.Accounts[0].Envelope != null &&
+                    (string)accounts.ProtocolConfig(configs.Accounts[0].Envelope)["team_destination"] != call.Accounts["team_destination"]) return false;
                 if (configs.Accounts[1].Envelope != null) accounts.ArcadeConfig(configs.Accounts[1].Envelope);
                 // Confirmation establishes the instruction outcome. The current
                 // decoded balance is authoritative; never invent oldBalance+pack.

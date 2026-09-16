@@ -111,7 +111,6 @@ pub fn scenarios() -> Value {
     let protocol = ProtocolConfig {
         version: ACCOUNT_VERSION,
         authority: owner(),
-        pending_authority: Pubkey::default(),
         team_destination: validator(),
         replay_domain: [9; 32],
         paused: false,

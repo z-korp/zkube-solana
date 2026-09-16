@@ -13,14 +13,15 @@ import {
 } from "../src/keeperRelease";
 
 const EXACT_ALLOWLIST = [
-  "funded_prepare_arena_daily",
+  "prepare_arena_daily",
   "activate_arena_daily",
   "skip_suspended_arena_daily",
-  "funded_finalize_arena_daily",
+  "finalize_arena_daily",
   "submit_arena_board_chunk",
   "archive_arena_daily",
   "expire_daily_claims",
   "close_arena_daily",
+  "close_arena_player",
   "finish_run",
   "commit_run",
   "consume_arena_run",
@@ -64,7 +65,7 @@ describe("keeper release binding", () => {
   it("keeper_allowlist_is_exactly_its_plans", () => {
     expect(KEEPER_RELEASE_POLICY.allowlist).toEqual(EXACT_ALLOWLIST);
     expect(KEEPER_INSTRUCTION_ALLOWLIST).toEqual(EXACT_ALLOWLIST);
-    expect(Object.keys(KEEPER_PLAN_INSTRUCTION)).toHaveLength(13);
+    expect(Object.keys(KEEPER_PLAN_INSTRUCTION)).toHaveLength(14);
     expect(new Set(Object.values(KEEPER_PLAN_INSTRUCTION)))
       .toEqual(new Set(EXACT_ALLOWLIST));
   });

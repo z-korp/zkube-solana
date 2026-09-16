@@ -8,7 +8,6 @@ import {
 } from "./constants.js";
 import { VRF_QUEUE } from "./program.js";
 import { CATALOG_VERSION } from "../../services/src/protocolVersions.generated.js";
-import { deriveOperatorRevenueVaultPda } from "./pdas.js";
 import { SECONDS_PER_DAY } from "../../services/src/protocolVersions.generated.js";
 
 type DeploymentCluster = "localnet" | "devnet";
@@ -23,7 +22,7 @@ const UPGRADEABLE_LOADER_ID = new PublicKey(
 
 export interface ZkubeDeploymentManifest {
   schema: "zkube-solana-deployment";
-  schemaVersion: 7;
+  schemaVersion: 8;
   cluster: DeploymentCluster;
   createdAt: string;
   approval: {
@@ -58,7 +57,6 @@ export interface ZkubeDeploymentManifest {
   protocol: {
     authority: string;
     teamDestination: string;
-    operatorRevenueVault: string;
   };
   content: {
     catalogVersion: typeof CATALOG_VERSION;
@@ -118,7 +116,7 @@ export function deploymentManifestFromEnv(
   }
   const manifest: ZkubeDeploymentManifest = {
     schema: "zkube-solana-deployment",
-    schemaVersion: 7,
+    schemaVersion: 8,
     cluster,
     createdAt: createdAt.toISOString(),
     approval: {
@@ -165,7 +163,6 @@ export function deploymentManifestFromEnv(
     protocol: {
       authority: required(env, "ZKUBE_PROTOCOL_AUTHORITY"),
       teamDestination: required(env, "ZKUBE_TEAM_DESTINATION"),
-      operatorRevenueVault: deriveOperatorRevenueVaultPda().toBase58(),
     },
     content: {
       catalogVersion: requiredLiteralInteger(
@@ -246,7 +243,7 @@ export function validateDeploymentManifest(
       "schema",
       "Schema",
       manifest.schema === "zkube-solana-deployment" &&
-        manifest.schemaVersion === 7,
+        manifest.schemaVersion === 8,
       "Expected zkube-solana-deployment@6",
     ),
     check(
@@ -324,10 +321,8 @@ export function validateDeploymentManifest(
       "Protocol authority and native-SOL custody",
       validPublicKey(protocol?.authority) &&
         validPublicKey(protocol?.teamDestination) &&
-        protocol?.operatorRevenueVault ===
-          deriveOperatorRevenueVaultPda().toBase58() &&
         protocol?.authority !== protocol?.teamDestination,
-      "Authority, team destination, or canonical operator revenue vault is invalid",
+      "Authority or team destination is invalid",
     ),
     check(
       "content",
@@ -410,7 +405,6 @@ export function deploymentManifestMismatches(
     ["VITE_PUBLIC_SOLANA_VRF_QUEUE", manifest.magic.vrfQueue],
     ["ZKUBE_PROTOCOL_AUTHORITY", manifest.protocol.authority],
     ["ZKUBE_TEAM_DESTINATION", manifest.protocol.teamDestination],
-    ["ZKUBE_OPERATOR_REVENUE_VAULT", manifest.protocol.operatorRevenueVault],
     [
       "ZKUBE_CATALOG_VERSION",
       String(manifest.content.catalogVersion),

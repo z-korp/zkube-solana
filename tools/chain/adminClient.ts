@@ -6,12 +6,10 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
-  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveOperatorRevenueVaultPda,
   derivePlayerStatePda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
@@ -121,7 +119,6 @@ export async function buildInitializeArcadePlan(args: {
     .accountsPartial({
       protocol: deriveProtocolConfigPda(),
       arcadeConfig: deriveArcadeConfigPda(),
-      operatorRevenueVault: deriveOperatorRevenueVaultPda(),
       creditVault: deriveCreditVaultPda(),
       authority: args.authority.publicKey,
       systemProgram: SystemProgram.programId,
@@ -135,32 +132,20 @@ export async function buildInitializeArcadePlan(args: {
   );
 }
 
-export async function buildInitializeArcadeArchivePlan(args: {
+export async function buildSeedCadenceFundingPlan(args: {
   connection: Connection;
   authority: WalletLike;
-  firstDayId: number;
 }): Promise<TransactionPlan> {
-  assertU32(args.firstDayId, "firstDayId");
-  const archiveInstruction = await zkubeProgram(args.connection, args.authority)
-    .methods.initializeArcadeArchive(args.firstDayId)
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      arcadeConfig: deriveArcadeConfigPda(),
-      arcadeArchive: deriveArcadeArchivePda(),
-      authority: args.authority.publicKey,
-      systemProgram: SystemProgram.programId,
-    })
-    .instruction();
   const cadenceSeed = SystemProgram.transfer({
     fromPubkey: args.authority.publicKey,
     toPubkey: deriveCadenceFundingPda(),
     lamports: CADENCE_FUNDING_SEED_LAMPORTS,
   });
   return basePlan(
-    "Initialize Arcade archive and seed recyclable cadence rent",
+    "Seed recyclable cadence rent",
     args.connection,
     args.authority.publicKey,
-    [archiveInstruction, cadenceSeed],
+    [cadenceSeed],
   );
 }
 
@@ -180,9 +165,8 @@ export async function buildPrepareLaunchPeriodPlans(args: {
       .accountsPartial({
         protocol: deriveProtocolConfigPda(),
         arcadeConfig: deriveArcadeConfigPda(),
-        arcadeArchive: deriveArcadeArchivePda(),
         arenaDaily: deriveArenaDailyPda(dayId),
-        payer: args.authority.publicKey,
+        cadenceFunding: deriveCadenceFundingPda(),
         caller: args.authority.publicKey,
         systemProgram: SystemProgram.programId,
       })

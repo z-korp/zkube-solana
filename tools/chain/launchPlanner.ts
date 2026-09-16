@@ -11,7 +11,7 @@ import {
 import {
   CADENCE_FUNDING_SEED_LAMPORTS,
   buildAtomicArcadeLaunchPlan,
-  buildInitializeArcadeArchivePlan,
+  buildSeedCadenceFundingPlan,
   buildInitializeArcadePlan,
   buildInitializeProtocolPlan,
   buildPrepareLaunchPeriodPlans,
@@ -19,12 +19,10 @@ import {
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./deploymentManifest.js";
 import { inspectUpgradeableProgram } from "./deploymentRunner.js";
 import {
-  deriveArcadeArchivePda,
   deriveArcadeConfigPda,
   deriveArenaDailyPda,
   deriveCadenceFundingPda,
   deriveCreditVaultPda,
-  deriveOperatorRevenueVaultPda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
 import { SECONDS_PER_DAY } from "../../services/src/protocolVersions.generated.js";
@@ -43,9 +41,7 @@ const accountCoder = new BorshAccountsCoder(convertIdlToCamelCase(IDL));
 export const LAUNCH_ACCOUNT_SPACES = {
   protocolConfig: accountCoder.size("protocolConfig"),
   arcadeConfig: accountCoder.size("arcadeConfig"),
-  operatorRevenueVault: accountCoder.size("operatorRevenueVault"),
   creditVault: accountCoder.size("creditVault"),
-  arcadeArchive: accountCoder.size("arcadeArchive"),
   arenaDaily: accountCoder.size("arenaDaily"),
 } as const;
 
@@ -266,10 +262,9 @@ export async function buildZkubeLaunchPlan(
     }),
   );
   plans.push(
-    await buildInitializeArcadeArchivePlan({
+    await buildSeedCadenceFundingPlan({
       connection,
       authority: wallet,
-      firstDayId: input.launchDayId,
     }),
   );
   plans.push(
@@ -290,11 +285,7 @@ export async function buildZkubeLaunchPlan(
   const accountSpaces = [
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
     LAUNCH_ACCOUNT_SPACES.arcadeConfig,
-    LAUNCH_ACCOUNT_SPACES.operatorRevenueVault,
     LAUNCH_ACCOUNT_SPACES.creditVault,
-    LAUNCH_ACCOUNT_SPACES.arcadeArchive,
-    LAUNCH_ACCOUNT_SPACES.arenaDaily,
-    LAUNCH_ACCOUNT_SPACES.arenaDaily,
   ];
   const rentFloors = await Promise.all(
     accountSpaces.map((space) =>
@@ -375,7 +366,7 @@ export async function buildZkubeLaunchPlan(
     { label: "Initialize paused protocol", transactionIndexes: [0] },
     { label: "Initialize paused Arcade", transactionIndexes: [1] },
     {
-      label: "Initialize archive and prepare current/following Daily",
+      label: "Seed cadence rent and prepare current/following Daily",
       transactionIndexes: [2, 3, 4],
     },
     { label: "Atomic 1 SOL seed, unpause, and activation", transactionIndexes: [5] },
@@ -477,9 +468,7 @@ function bootstrapTargetAccounts(dayId: number): PublicKey[] {
   return [
     deriveProtocolConfigPda(),
     deriveArcadeConfigPda(),
-    deriveOperatorRevenueVaultPda(),
     deriveCreditVaultPda(),
-    deriveArcadeArchivePda(),
     deriveCadenceFundingPda(),
     deriveArenaDailyPda(dayId),
     deriveArenaDailyPda(dayId + 1),
