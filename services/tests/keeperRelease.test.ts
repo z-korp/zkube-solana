@@ -2,13 +2,11 @@
 import { Keypair } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
-import { KEEPER_EXPECTED_IDL_SHA256 } from "../src/anchorIdlAdapter.js";
 import {
   KEEPER_INSTRUCTION_ALLOWLIST,
   KEEPER_PLAN_INSTRUCTION,
 } from "../src/arcadeChain.js";
 import {
-  KEEPER_RELEASE_POLICY,
   keeperReleaseRecord,
 } from "../src/keeperRelease.js";
 
@@ -29,70 +27,41 @@ const EXACT_ALLOWLIST = [
 ] as const;
 
 describe("keeper release binding", () => {
-  it("binds every runtime-verified release field", () => {
+  it("binds the image, keeper key and launch day while reporting build identity", () => {
     const input = releaseInput();
     const first = keeperReleaseRecord(input);
     expect(keeperReleaseRecord(input)).toEqual(first);
     expect(first.fingerprint).toMatch(/^[0-9a-f]{64}$/);
-    expect(first.record).toMatchObject({
-      schemaVersion: 1,
-      programId: input.programId,
-      keeper: input.keeperPublicKey,
-      entryLamports: "10000000",
-      entrySplitLamports: {
-        followingDaily: "9000000",
-        operator: "1000000",
-      },
-      payoutUnitLamports: "1000000",
-      arenaBoardCapacity: 1_536,
-      replayVersion: 2,
-      maximumWritesPerPass: 6,
-      maximumBoardWritesPerPass: 32,
-      maximumBoardRentLamportsPerPass: 1_802_194_560,
-      recentCadenceWindow: { dailies: 84 },
-      maximumSpendLamportsPerPass: 100_000_000,
-      reserveFloorLamports: 100_000_000,
-      keeperImageReference: input.keeperImageReference,
-      idlHash: KEEPER_EXPECTED_IDL_SHA256,
-    });
-    expect(first.record).not.toHaveProperty("denied");
-    expect(first.record).not.toHaveProperty("materializedInstructionAllowlist");
-    expect(first.record).not.toHaveProperty("replayDomainHex");
-    expect(first.record).not.toHaveProperty("keeperImageDigest");
+    expect(first.record.keeper).toBe(input.keeperPublicKey);
+    expect(first.record.idlHash).toMatch(/^[0-9a-f]{64}$/);
+    for (const changed of [
+      { ...input, keeperPublicKey: Keypair.generate().publicKey.toBase58() },
+      { ...input, launchDayId: input.launchDayId + 1 },
+      { ...input, keeperImageReference: input.keeperImageReference.slice(0, -1) + "Y" },
+    ]) expect(keeperReleaseRecord(changed).fingerprint).not.toBe(first.fingerprint);
   });
 
   it("keeper_allowlist_is_exactly_its_plans", () => {
-    expect(KEEPER_RELEASE_POLICY.allowlist).toEqual(EXACT_ALLOWLIST);
     expect(KEEPER_INSTRUCTION_ALLOWLIST).toEqual(EXACT_ALLOWLIST);
     expect(Object.keys(KEEPER_PLAN_INSTRUCTION)).toHaveLength(13);
     expect(new Set(Object.values(KEEPER_PLAN_INSTRUCTION).map(({ instruction }) => instruction)))
       .toEqual(new Set(EXACT_ALLOWLIST));
   });
 
-  it("rejects placeholders and malformed release inputs", () => {
-    expect(() => keeperReleaseRecord({
-      ...releaseInput(),
-      deployedProgramDataSha256: "UNDEPLOYED_V4",
-    })).toThrow("ProgramData");
-    expect(() => keeperReleaseRecord({
-      ...releaseInput(),
-      programId: "not-a-program",
-    })).toThrow("program ID");
-    expect(() => keeperReleaseRecord({
-      ...releaseInput(),
-      idlHash: "04".repeat(32),
-    })).toThrow("materializer");
+  it("rejects mutable images and malformed release inputs", () => {
+    expect(() => keeperReleaseRecord({ ...releaseInput(), keeperImageReference: "latest" })).toThrow("Fly deployment");
+    expect(() => keeperReleaseRecord({ ...releaseInput(), keeperPublicKey: "invalid" })).toThrow();
+    for (const launchDayId of [-1, 0x100000000, 4.5]) {
+      expect(() => keeperReleaseRecord({ ...releaseInput(), launchDayId })).toThrow("u32 day");
+    }
   });
 });
 
 function releaseInput() {
   return {
-    programId: Keypair.generate().publicKey.toBase58(),
     keeperPublicKey: Keypair.generate().publicKey.toBase58(),
-    deployedProgramDataSha256: "ab".repeat(32),
     keeperImageReference:
       "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
-    idlHash: KEEPER_EXPECTED_IDL_SHA256,
     launchDayId: 20_656,
   };
 }

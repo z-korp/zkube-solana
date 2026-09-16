@@ -1,66 +1,20 @@
-// @vitest-environment node
-
-import { createHash } from "node:crypto";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { type Connection } from "@solana/web3.js";
 import { describe, expect, it, vi } from "vitest";
+import { checkChainReadiness, createDevnetConnection, SOLANA_DEVNET_GENESIS_HASH } from "../src/serviceReadiness.js";
 
-import { ZKUBE_PROGRAM_ID } from "../src/arcadeChain.js";
-import {
-  checkChainReadiness,
-  expectedGenesisHashFromEnv,
-} from "../src/serviceReadiness.js";
-
-const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
-
-describe("keeper chain readiness", () => {
-  it("cannot redirect this release away from Devnet genesis", () => {
-    expect(expectedGenesisHashFromEnv({})).toBe(
-      "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
-    );
-    expect(() => expectedGenesisHashFromEnv({
-      SOLANA_EXPECTED_GENESIS_HASH: Keypair.generate().publicKey.toBase58(),
-    })).toThrow("Devnet genesis");
+describe("keeper RPC boundary", () => {
+  it("requires the Devnet genesis and handles an unavailable RPC", async () => {
+    const getGenesisHash = vi.fn().mockResolvedValue(SOLANA_DEVNET_GENESIS_HASH);
+    const connection = { getGenesisHash } as unknown as Connection;
+    expect(await checkChainReadiness(connection)).toEqual({ ok: true });
+    getGenesisHash.mockResolvedValueOnce("another cluster");
+    expect((await checkChainReadiness(connection)).ok).toBe(false);
+    getGenesisHash.mockRejectedValueOnce(new Error("offline"));
+    expect((await checkChainReadiness(connection)).ok).toBe(false);
   });
 
-  it("binds writes to the exact padded ProgramData fingerprint", async () => {
-    const genesis = Keypair.generate().publicKey.toBase58();
-    const programDataAddress = Keypair.generate().publicKey;
-    const program = Buffer.alloc(36);
-    program.writeUInt32LE(2, 0);
-    programDataAddress.toBuffer().copy(program, 4);
-    const programData = Buffer.alloc(49);
-    programData.writeUInt32LE(3, 0);
-    Buffer.from([1, 2, 3, 0]).copy(programData, 45);
-    const expected = createHash("sha256").update(programData.subarray(45)).digest("hex");
-    const connection = {
-      getGenesisHash: vi.fn().mockResolvedValue(genesis),
-      getAccountInfo: vi.fn(async (address: PublicKey) => {
-        if (address.equals(ZKUBE_PROGRAM_ID)) {
-          return { owner: LOADER, executable: true, data: program };
-        }
-        if (address.equals(programDataAddress)) {
-          return { owner: LOADER, executable: false, data: programData };
-        }
-        return null;
-      }),
-    } as never;
-
-    await expect(
-      checkChainReadiness({
-        connection,
-        expectedGenesisHash: genesis,
-        expectedDeployedSbfSha256: expected,
-      }),
-    ).resolves.toEqual({ ok: true });
-    await expect(
-      checkChainReadiness({
-        connection,
-        expectedGenesisHash: genesis,
-        expectedDeployedSbfSha256: "00".repeat(32),
-      }),
-    ).resolves.toEqual({
-      ok: false,
-      error: "deployed zkube program fingerprint does not match keeper",
-    });
+  it("requires HTTPS outside localhost", () => {
+    expect(() => createDevnetConnection({ SOLANA_DEVNET_RPC_URL: "http://example.com" })).toThrow("HTTPS");
+    expect(createDevnetConnection({ SOLANA_DEVNET_RPC_URL: "http://localhost:8899" }).rpcEndpoint).toBe("http://localhost:8899");
   });
 });

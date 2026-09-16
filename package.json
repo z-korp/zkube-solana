@@ -13,7 +13,7 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings 0",
     "start:keeper": "node dist/services/src/keeperWorker.js",
-    "release:fingerprint": "node dist/services/src/keeperReleaseCli.js",
+    "release:deploy": "tsx services/release-deploy.ts",
     "core:wasm:sync": "node services/sync-zkube-core-wasm.mjs",
     "core:wasm:check": "node services/sync-zkube-core-wasm.mjs --check",
     "idl:sync": "node tools/chain/sync-anchor-idl.mjs",

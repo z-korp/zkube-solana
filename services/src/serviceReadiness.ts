@@ -1,43 +1,8 @@
-import { createHash } from "node:crypto";
-import { Connection, PublicKey } from "@solana/web3.js";
-
-import { ZKUBE_PROGRAM_ID, SOLANA_DEVNET_GENESIS_HASH, SOLANA_ENDPOINT } from "../../shared/chain.js";
+import { Connection } from "@solana/web3.js";
+import { SOLANA_DEVNET_GENESIS_HASH, SOLANA_ENDPOINT } from "../../shared/chain.js";
 export { SOLANA_DEVNET_GENESIS_HASH };
 
-const REPLAY_DOMAIN_TAG = Buffer.from("zkube-replay-domain-v2\0", "utf8");
-
-const UPGRADEABLE_LOADER_ID = new PublicKey(
-  "BPFLoaderUpgradeab1e11111111111111111111111",
-);
-
-export interface ChainReadinessResult {
-  ok: boolean;
-  error?: string;
-}
-
-/** Derived protocol identity; never supplied through the release fingerprint. */
-export function canonicalDevnetReplayDomainHex(): string {
-  return createHash("sha256")
-    .update(REPLAY_DOMAIN_TAG)
-    .update(new PublicKey(SOLANA_DEVNET_GENESIS_HASH).toBuffer())
-    .update(ZKUBE_PROGRAM_ID.toBuffer())
-    .digest("hex");
-}
-
-export function expectedGenesisHashFromEnv(
-  env: Record<string, string | undefined> = process.env,
-): string {
-  const configured = env.SOLANA_EXPECTED_GENESIS_HASH;
-  if (configured && configured !== SOLANA_DEVNET_GENESIS_HASH) {
-    throw new Error("keeper release is pinned to the Solana Devnet genesis");
-  }
-  return SOLANA_DEVNET_GENESIS_HASH;
-}
-
-/** Creates the keeper's base-layer connection; Router and ER RPCs stay separate. */
-export function createDevnetConnection(
-  env: Record<string, string | undefined> = process.env,
-): Connection {
+export function createDevnetConnection(env: Record<string, string | undefined> = process.env): Connection {
   const endpoint = env.SOLANA_DEVNET_RPC_URL ?? SOLANA_ENDPOINT;
   const parsed = new URL(endpoint);
   const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
@@ -47,53 +12,11 @@ export function createDevnetConnection(
   return new Connection(endpoint, "confirmed");
 }
 
-export async function checkChainReadiness(args: {
-  connection: Connection;
-  expectedGenesisHash: string;
-  expectedDeployedSbfSha256: string;
-}): Promise<ChainReadinessResult> {
+export async function checkChainReadiness(connection: Connection): Promise<{ ok: boolean; error?: string }> {
   try {
-    const genesisHash = await args.connection.getGenesisHash();
-    if (genesisHash !== args.expectedGenesisHash) {
-      return { ok: false, error: "RPC genesis hash does not match configured Devnet" };
-    }
-    const program = await args.connection.getAccountInfo(ZKUBE_PROGRAM_ID, "confirmed");
-    if (!program) return { ok: false, error: "zkube program account is missing" };
-    if (!program.owner.equals(UPGRADEABLE_LOADER_ID)) {
-      return { ok: false, error: "zkube program has an unexpected owner" };
-    }
-    if (
-      !program.executable
-      || program.data.length !== 36
-      || program.data.readUInt32LE(0) !== 2
-    ) {
-      return { ok: false, error: "zkube program account is not executable" };
-    }
-    if (!/^[0-9a-f]{64}$/.test(args.expectedDeployedSbfSha256)) {
-      return { ok: false, error: "configured program fingerprint is malformed" };
-    }
-    const programDataAddress = new PublicKey(program.data.subarray(4, 36));
-    const programData = await args.connection.getAccountInfo(
-      programDataAddress,
-      "confirmed",
-    );
-    if (
-      !programData
-      || !programData.owner.equals(UPGRADEABLE_LOADER_ID)
-      || programData.executable
-      || programData.data.length < 45
-      || programData.data.readUInt32LE(0) !== 3
-    ) {
-      return { ok: false, error: "zkube ProgramData account is invalid" };
-    }
-    const deployedSbfSha256 = createHash("sha256")
-      .update(programData.data.subarray(45))
-      .digest("hex");
-    if (deployedSbfSha256 !== args.expectedDeployedSbfSha256) {
-      return { ok: false, error: "deployed zkube program fingerprint does not match keeper" };
-    }
-    return { ok: true };
+    return await connection.getGenesisHash() === SOLANA_DEVNET_GENESIS_HASH
+      ? { ok: true } : { ok: false, error: "RPC genesis does not match Devnet" };
   } catch {
-    return { ok: false, error: "unable to verify RPC and program readiness" };
+    return { ok: false, error: "unable to verify RPC genesis" };
   }
 }

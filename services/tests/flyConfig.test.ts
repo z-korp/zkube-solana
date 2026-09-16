@@ -5,11 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { KEEPER_RELEASE_POLICY } from "../src/keeperRelease.js";
 
-// The deployed config may restate a fingerprinted value only if it restates
-// it exactly. Runtime clamping keeps behaviour correct either way, but a toml
-// that contradicts the release policy teaches the operator the wrong ceiling.
 describe("deployed keeper config", () => {
   it("release_inputs_do_not_reuse_the_abandoned_deployment", async () => {
     const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -32,19 +28,13 @@ describe("deployed keeper config", () => {
     await scan(join(root, "tools/chain"));
     expect(violations).toEqual([]);
   });
-  it("restates release-policy values exactly", async () => {
+  it("keeps release inputs and runtime limits out of deployment configuration", async () => {
     const toml = await readFile(new URL("../fly.keeper.toml", import.meta.url), "utf8");
     const env = (key: string) =>
       toml.match(new RegExp(`^\\s*${key} = "([^"]+)"`, "m"))?.[1];
-    expect(env("KEEPER_MAX_WRITES")).toBe(
-      String(KEEPER_RELEASE_POLICY.maximumWritesPerPass),
-    );
-    expect(env("KEEPER_MAX_SPEND_LAMPORTS_PER_PASS")).toBe(
-      String(KEEPER_RELEASE_POLICY.maximumSpendLamportsPerPass),
-    );
-    expect(env("MIN_KEEPER_LAMPORTS")).toBe(
-      String(KEEPER_RELEASE_POLICY.reserveFloorLamports),
-    );
+    for (const key of ["KEEPER_MAX_WRITES", "KEEPER_MAX_SPEND_LAMPORTS_PER_PASS", "MIN_KEEPER_LAMPORTS"]) {
+      expect(env(key)).toBeUndefined();
+    }
     expect(toml).not.toContain("[[mounts]]");
     expect(env("ZKUBE_ARCHIVE_DIRECTORY")).toBeUndefined();
     expect(env("ZKUBE_KEEPER_IMAGE_DIGEST")).toBeUndefined();

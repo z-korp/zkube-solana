@@ -16,9 +16,6 @@ kill_timeout = "240s"
   # overrides after the new image completes a read-only planning pass.
   KEEPER_WRITE_ENABLED = "false"
   KEEPER_INTERVAL_MS = "60000"
-  KEEPER_MAX_WRITES = "6"
-  KEEPER_MAX_SPEND_LAMPORTS_PER_PASS = "100000000"
-  MIN_KEEPER_LAMPORTS = "100000000"
 
 # No [http_service]: the keeper has no inbound surface.
 

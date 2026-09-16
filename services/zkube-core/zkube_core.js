@@ -23,42 +23,6 @@ function compareBoardEntries(left_metric, left_time, left_owner, right_metric, r
 exports.compareBoardEntries = compareBoardEntries;
 
 /**
- * @param {bigint} pool
- * @param {number} theme_qualified
- * @returns {Uint8Array}
- */
-function dailyBoardPools(pool, theme_qualified) {
-    const ret = wasm.dailyBoardPools(pool, theme_qualified);
-    var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v1;
-}
-exports.dailyBoardPools = dailyBoardPools;
-
-/**
- * @param {number} day
- * @param {number} suspended
- * @returns {boolean}
- */
-function dailyIsScheduled(day, suspended) {
-    const ret = wasm.dailyIsScheduled(day, suspended);
-    return ret !== 0;
-}
-exports.dailyIsScheduled = dailyIsScheduled;
-
-/**
- * @param {number} day
- * @returns {Uint32Array}
- */
-function dailyPair(day) {
-    const ret = wasm.dailyPair(day);
-    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-    return v1;
-}
-exports.dailyPair = dailyPair;
-
-/**
  * @param {number} day
  * @returns {BigInt64Array}
  */
@@ -96,24 +60,6 @@ function nextScheduledDaily(day, suspended) {
     return ret[0] >>> 0;
 }
 exports.nextScheduledDaily = nextScheduledDaily;
-
-/**
- * @param {bigint} pool
- * @param {number} qualified_winners
- * @param {bigint} entry_price
- * @param {bigint} whole_unit
- * @returns {Uint8Array}
- */
-function payoutPlan(pool, qualified_winners, entry_price, whole_unit) {
-    const ret = wasm.payoutPlan(pool, qualified_winners, entry_price, whole_unit);
-    if (ret[3]) {
-        throw takeFromExternrefTable0(ret[2]);
-    }
-    var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v1;
-}
-exports.payoutPlan = payoutPlan;
 
 /**
  * @param {number} day
@@ -161,11 +107,6 @@ function getArrayI64FromWasm0(ptr, len) {
 function getArrayU32FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
-}
-
-function getArrayU8FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
 let cachedBigInt64ArrayMemory0 = null;

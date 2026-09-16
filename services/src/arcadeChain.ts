@@ -3,53 +3,30 @@ export { ZKUBE_PROGRAM_ID, MIN_SUPPORTED_DAY_ID };
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
-  DAILY_PAIR_COUNT,
-  ARENA_BOARD_CAPACITY,
   ARENA_BOARD_CHUNK_CAPACITY,
-  ARENA_BOARD_ENTRY_SIZE,
-  MAX_BOARD_RENT_LAMPORTS,
   DAILY_RUN_CLOSE_OFFSET,
   RUN_RECOVERY_SECONDS,
-  ARENA_ENTRY_LAMPORTS,
-  CATALOG_VERSION,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-  ENTRY_DAILY_LAMPORTS,
-  ENTRY_OPERATOR_LAMPORTS,
   PLAYER_STATE_ACCOUNT_VERSION,
-  PLAYER_STATE_RESERVED_BYTES,
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
-  SOL_PAYOUT_UNIT_LAMPORTS,
 } from "./protocolVersions.generated.js";
-import { dayIdAt, dailyPair, dailyIsScheduled as coreDailyIsScheduled, nextScheduledDaily as coreNextScheduledDaily } from "./zkubeCore.js";
+import { dayIdAt, nextScheduledDaily as coreNextScheduledDaily } from "./zkubeCore.js";
 
 export {
-  DAILY_PAIR_COUNT,
-  ARENA_BOARD_CAPACITY,
   ARENA_BOARD_CHUNK_CAPACITY,
-  ARENA_BOARD_ENTRY_SIZE,
-  MAX_BOARD_RENT_LAMPORTS,
   DAILY_RUN_CLOSE_OFFSET,
   RUN_RECOVERY_SECONDS,
-  ARENA_ENTRY_LAMPORTS,
-  CATALOG_VERSION,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PLAYER_STATE_ACCOUNT_VERSION,
-  PLAYER_STATE_RESERVED_BYTES,
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
-  SOL_PAYOUT_UNIT_LAMPORTS,
 };
 
 export const DAILY_RECOVERY_DEADLINE_OFFSET =
   DAILY_RUN_CLOSE_OFFSET + RUN_RECOVERY_SECONDS;
 /** Recurring authority covers at most the trailing 84 Dailies. */
 export const KEEPER_RECENT_DAILY_CADENCES = 84;
-export const ENTRY_SPLIT_LAMPORTS = Object.freeze({
-  followingDaily: ENTRY_DAILY_LAMPORTS,
-  operator: ENTRY_OPERATOR_LAMPORTS,
-});
-
 export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
   prepare_arena_daily: { instruction: "prepare_arena_daily", connection: "base", priority: 0 },
   activate_arena_daily: { instruction: "activate_arena_daily", connection: "base", priority: 1 },
@@ -77,26 +54,11 @@ export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
 
 export interface KeeperPlanContext {
   dayId?: number;
-  challengeDayId?: number;
-  deadlineDayId?: number;
   followingDayId?: number;
-  suspendedUntilDay?: number;
-  pairIndex?: number;
-  realmMapId?: number;
-  launchCadenceId?: number;
   owner?: PublicKey;
   runId?: bigint;
-  runLocation?: RunLocation;
   includeArenaPlayer?: boolean;
-  predecessorRolloverApplied?: boolean;
-  preactivation?: boolean;
-  deadlineAt?: number;
-  recoveryDeadlineAt?: number;
-  potLamports?: bigint;
-  scoreCapacityLimited?: boolean;
-  themeCapacityLimited?: boolean;
-  boardCursor?: number;
-  boardPayoutCount?: number;
+  boardKind?: DailyBoardKind;
   boardEntries?: readonly {
     source: PublicKey;
     score: number;
@@ -104,37 +66,16 @@ export interface KeeperPlanContext {
     finalizedAt: number;
     replayHash: Uint8Array;
   }[];
-  payoutTotalLamports?: bigint;
-  rolloverLamports?: bigint;
-  boardKind?: DailyBoardKind;
   rentRecipient?: PublicKey;
-  cadenceFunding?: PublicKey;
-  protocol?: PublicKey;
-  parentDailyClosed?: boolean;
-  archiveCommitted?: boolean;
-  claimsExpired?: boolean;
-  claimCloseAt?: number;
 }
 
-/**
- * Discovery produces relationship-checked semantic plans. Instruction bytes
- * and account metas are attached only by the exact checked-in Anchor-IDL
- * materializer, after keeper policy validation.
- */
 export interface KeeperInstructionPlan {
   operation: KeeperOperation;
-  execution: "validation_only" | "instruction";
-  connection?: "base" | "ephemeral-rollup";
-  context?: KeeperPlanContext;
-  instruction?: TransactionInstruction;
-  instructions?: readonly TransactionInstruction[];
+  context: KeeperPlanContext;
 }
 
-export function validationOnlyPlan(
-  operation: KeeperOperation,
-  context: KeeperPlanContext,
-): KeeperInstructionPlan {
-  return { operation, execution: "validation_only", context };
+export function keeperPlan(operation: KeeperOperation, context: KeeperPlanContext): KeeperInstructionPlan {
+  return { operation, context };
 }
 
 export function currentDayId(nowUnix: number): number {
@@ -160,13 +101,6 @@ export function assertLamports(value: bigint, label: string): void {
   }
 }
 
-export function assertPayoutLamports(value: bigint, label: string): void {
-  assertLamports(value, label);
-  if (value % SOL_PAYOUT_UNIT_LAMPORTS !== 0n) {
-    throw new Error(`${label} is not floored to 0.001 SOL`);
-  }
-}
-
 export function derivePda(seed: string, ...parts: Uint8Array[]): PublicKey {
   return PublicKey.findProgramAddressSync(
     [Buffer.from(seed), ...parts.map((part) => Buffer.from(part))],
@@ -188,15 +122,6 @@ export const arenaPlayerPda = (daily: PublicKey, owner: PublicKey) =>
 export const activeRunPda = (owner: PublicKey, runId: bigint) =>
   derivePda("run", Buffer.from("active"), owner.toBytes(), u64(runId));
 
-export function dailyIsScheduled(
-  dayId: number,
-  suspendedUntilDay: number,
-): boolean {
-  assertCadenceId(dayId, "day id");
-  assertCadenceId(suspendedUntilDay, "suspended-until day");
-  return coreDailyIsScheduled(dayId, suspendedUntilDay);
-}
-
 export function nextScheduledDaily(
   dayId: number,
   suspendedUntilDay: number,
@@ -204,13 +129,6 @@ export function nextScheduledDaily(
   assertCadenceId(dayId, "day id");
   assertCadenceId(suspendedUntilDay, "suspended-until day");
   return coreNextScheduledDaily(dayId, suspendedUntilDay);
-}
-
-export function dailyPairForDay(
-  dayId: number,
-): { pairIndex: number; realmMapId: number; objective: { kind: number; value: number } } {
-  assertCadenceId(dayId, "day id");
-  return dailyPair(dayId);
 }
 
 export function u32(value: number): Buffer {
@@ -225,4 +143,12 @@ export function u64(value: bigint): Buffer {
   const bytes = Buffer.alloc(8);
   bytes.writeBigUInt64LE(value);
   return bytes;
+}
+
+export interface ProtocolInstructionMaterializer {
+  materialize(input: {
+    operation: KeeperOperation;
+    context: KeeperPlanContext;
+    keeper: PublicKey;
+  }): Promise<readonly TransactionInstruction[]>;
 }

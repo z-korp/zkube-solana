@@ -1,20 +1,12 @@
-import { createHash } from "node:crypto";
-
 import { Connection, PublicKey, type Commitment } from "@solana/web3.js";
 
 import {
-  PROTOCOL_ACCOUNT_VERSION,
   activeRunPda,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
 
 export const MAGICBLOCK_DEVNET_ROUTER_RPC =
   "https://devnet-router.magicblock.app/";
-
-const ACTIVE_RUN_DISCRIMINATOR = createHash("sha256")
-  .update("account:ActiveRun")
-  .digest()
-  .subarray(0, 8);
 
 export interface DelegationStatus {
   isDelegated: boolean;
@@ -67,10 +59,6 @@ export async function resolveEphemeralConnectionForPlan(args: {
   fetcher?: typeof fetch;
   connectionFactory?: (endpoint: string) => Connection;
 }): Promise<Connection> {
-  if (args.plan.operation !== "finish_run" &&
-      args.plan.operation !== "commit_run") {
-    throw new Error("keeper rejects ER routing for a base-layer operation");
-  }
   const account = activeRunForPlan(args.plan);
   const status = await getDelegationStatus(account, args.routerEndpoint, args.fetcher);
   if (!status.isDelegated || !status.fqdn) {
@@ -82,13 +70,6 @@ export async function resolveEphemeralConnectionForPlan(args: {
   const commitment = args.commitment ?? "confirmed";
   const connection = args.connectionFactory?.(status.fqdn) ??
     new Connection(status.fqdn, commitment);
-  const info = await connection.getAccountInfo(account, commitment);
-  if (!info || !info.owner.equals(args.programId) || info.executable ||
-      info.data.length < 9 || info.data.length >= 10_240 ||
-      !info.data.subarray(0, 8).equals(ACTIVE_RUN_DISCRIMINATOR) ||
-      info.data[8] !== PROTOCOL_ACCOUNT_VERSION) {
-    throw new Error("Router-resolved ActiveRun is missing or malformed on the ER");
-  }
   return connection;
 }
 

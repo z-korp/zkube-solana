@@ -227,10 +227,6 @@ mod wasm {
         let (opens, closes, recovery) = zkube_core::daily_window(day);
         vec![opens, closes, recovery]
     }
-    #[wasm_bindgen(js_name = dailyIsScheduled)]
-    pub fn js_daily_is_scheduled(day: u32, suspended: u32) -> bool {
-        zkube_core::daily_is_scheduled(day, suspended)
-    }
     #[wasm_bindgen(js_name = scheduledDailyWindow)]
     pub fn js_scheduled_daily_window(day: u32, suspended: u32) -> Result<Vec<u32>, JsError> {
         let (first, following) = zkube_core::scheduled_daily_window(day, suspended)
@@ -241,17 +237,6 @@ mod wasm {
     pub fn js_next_scheduled_daily(day: u32, suspended: u32) -> Result<u32, JsError> {
         zkube_core::next_scheduled_daily(day, suspended)
             .map_err(|_| JsError::new("scheduled day overflows u32"))
-    }
-    #[wasm_bindgen(js_name = dailyPair)]
-    pub fn js_daily_pair(day: u32) -> Vec<u32> {
-        let index = zkube_core::daily_pair_index(day);
-        let (realm, theme) = zkube_core::decode_daily_pair(index).expect("draw index");
-        vec![
-            u32::try_from(index).expect("pair index"),
-            u32::from(realm),
-            u32::from(theme.kind.tag()),
-            u32::from(theme.value),
-        ]
     }
     #[wasm_bindgen(js_name = compareBoardEntries)]
     pub fn js_compare_board_entries(
@@ -276,23 +261,6 @@ mod wasm {
                 std::cmp::Ordering::Greater => 1,
             },
         )
-    }
-
-    #[wasm_bindgen(js_name = dailyBoardPools)]
-    pub fn js_daily_board_pools(pool: u64, theme_qualified: u32) -> Vec<u8> {
-        encode_board_pools(daily_board_pools(pool, theme_qualified))
-    }
-
-    #[wasm_bindgen(js_name = payoutPlan)]
-    pub fn js_payout_plan(
-        pool: u64,
-        qualified_winners: u32,
-        entry_price: u64,
-        whole_unit: u64,
-    ) -> Result<Vec<u8>, JsError> {
-        payout_plan(pool, qualified_winners, entry_price, whole_unit)
-            .map(|plan| encode_payout_plan(&plan))
-            .map_err(js_error)
     }
 }
 

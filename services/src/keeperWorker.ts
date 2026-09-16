@@ -7,12 +7,9 @@ import { fileURLToPath } from "node:url";
 import { createDevnetConnection } from "./serviceReadiness.js";
 import {
   AnchorKeeperAdapter,
-  KEEPER_EXPECTED_IDL_SHA256,
 } from "./anchorIdlAdapter.js";
 import {
   boundedKeeperInteger,
-  DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
-  DEFAULT_MIN_KEEPER_LAMPORTS,
   keeperKeypairFromEnv,
   keeperPublicKeyFromEnv,
   runKeeperPass,
@@ -20,7 +17,6 @@ import {
 } from "./keeper.js";
 import {
   checkChainReadiness,
-  expectedGenesisHashFromEnv,
 } from "./serviceReadiness.js";
 import {
   MAGICBLOCK_DEVNET_ROUTER_RPC,
@@ -32,8 +28,6 @@ import { keeperReleaseRecord } from "./keeperRelease.js";
 const DEFAULT_INTERVAL_MS = 60 * 1_000;
 const RAPID_RERUN_DELAY_MS = 1_000;
 const MAX_RAPID_RERUNS = 4;
-const DEFAULT_MAX_WRITES = 6;
-const MAX_MAX_WRITES = 6;
 
 /** Fly injects the unique deployment tag checked by the release fingerprint. */
 export function keeperWriteEnabledFromEnv(
@@ -55,16 +49,11 @@ export function keeperReleaseFromEnv(
   const flyImageRef = requiredReleaseValue(env.FLY_IMAGE_REF, "FLY_IMAGE_REF");
   const launchDayId = launchDayFromEnv(env);
   return keeperReleaseRecord({
-    programId: ZKUBE_PROGRAM_ID.toBase58(),
     keeperPublicKey: requiredReleaseValue(
       env.ZKUBE_KEEPER_PUBLIC_KEY,
       "ZKUBE_KEEPER_PUBLIC_KEY",
     ),
-    deployedProgramDataSha256: requiredReleaseValue(
-      env.ZKUBE_DEPLOYED_SBF_SHA256, "ZKUBE_DEPLOYED_SBF_SHA256",
-    ),
     keeperImageReference: flyImageRef,
-    idlHash: KEEPER_EXPECTED_IDL_SHA256,
     launchDayId,
   });
 }
@@ -171,11 +160,7 @@ async function runConfiguredKeeperPass(
 ): Promise<Awaited<ReturnType<typeof runKeeperPass>> | undefined> {
   const connection = createDevnetConnection(env);
   const release = keeperReleaseFromEnv(env);
-  const readiness = await checkChainReadiness({
-    connection,
-    expectedGenesisHash: expectedGenesisHashFromEnv(env),
-    expectedDeployedSbfSha256: release.record.deployedProgramDataSha256,
-  });
+  const readiness = await checkChainReadiness(connection);
   if (!readiness.ok) throw new Error(readiness.error ?? "chain is not ready");
 
   const writeEnabled = keeperWriteEnabledFromEnv(env);
@@ -196,9 +181,7 @@ async function runConfiguredKeeperPass(
     connection,
     nowUnix: Math.floor(nowMilliseconds / 1_000),
     routerEndpoint,
-    release: {
-      launchDayId: release.record.launchDayId,
-    },
+    launchDayId: release.record.launchDayId,
   });
   const launchState = await adapter.inspectLaunchState();
   if (launchState === "staged_launch_ready") {
@@ -217,21 +200,6 @@ async function runConfiguredKeeperPass(
       : { publicKey: keeperPublicKeyFromEnv(env) },
     writeEnabled,
     now: () => nowMilliseconds,
-    maxWrites: boundedKeeperInteger(
-      env.KEEPER_MAX_WRITES,
-      DEFAULT_MAX_WRITES,
-      MAX_MAX_WRITES,
-    ),
-    minimumBalanceLamports: boundedKeeperInteger(
-      env.MIN_KEEPER_LAMPORTS,
-      DEFAULT_MIN_KEEPER_LAMPORTS,
-      Number.MAX_SAFE_INTEGER,
-    ),
-    maximumSpendLamports: boundedKeeperInteger(
-      env.KEEPER_MAX_SPEND_LAMPORTS_PER_PASS,
-      DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
-      DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
-    ),
     protocolSnapshot,
     protocolMaterializer: adapter,
     resolveEphemeralConnection: (plan) => resolveEphemeralConnectionForPlan({

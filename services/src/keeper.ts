@@ -1,4 +1,5 @@
 import { KEEPER_SCHEMA_VERSION } from "./keeperRelease.js";
+import { MAX_BOARD_RENT_LAMPORTS } from "./protocolVersions.generated.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -10,28 +11,21 @@ import {
 } from "@solana/web3.js";
 
 import {
-  ZKUBE_PROGRAM_ID,
-  activeRunPda,
-  arenaBoardPda,
   cadenceFundingPda,
-  arenaDailyPda,
   type KeeperInstructionPlan,
   KEEPER_PLAN_INSTRUCTION,
-  MAX_BOARD_RENT_LAMPORTS,
 } from "./arcadeChain.js";
 import {
   discoverReconciliation,
   type ProtocolSnapshot,
 } from "./arcadeReconciliation.js";
 import {
-  materializeKeeperPlan,
   type ProtocolInstructionMaterializer,
-} from "./planMaterializer.js";
+} from "./arcadeChain.js";
 
-export const DEFAULT_MIN_KEEPER_LAMPORTS = 100_000_000;
-export const DEFAULT_MAX_KEEPER_SPEND_LAMPORTS = 100_000_000;
-const MAX_WRITES = 6;
-const MAX_BOARD_WRITES = 32;
+export const KEEPER_LIMITS = Object.freeze({
+  writes: 6, boardWrites: 32, spendLamports: 100_000_000, reserveLamports: 100_000_000,
+});
 
 export interface KeeperLogEvent {
   schemaVersion: typeof KEEPER_SCHEMA_VERSION;
@@ -73,17 +67,9 @@ export interface KeeperDependencies {
   keeper: Pick<Keypair, "publicKey"> & Partial<Pick<Keypair, "secretKey">>;
   writeEnabled?: boolean;
   now?: () => number;
-  maxWrites?: number;
-  minimumBalanceLamports?: number;
-  maximumSpendLamports?: number;
   protocolSnapshot?: ProtocolSnapshot;
   protocolMaterializer?: ProtocolInstructionMaterializer;
   resolveEphemeralConnection?: (plan: KeeperInstructionPlan) => Promise<Connection>;
-  verifyAfterWrite?: (
-    plan: KeeperInstructionPlan,
-    connection: Connection,
-    signature: string,
-  ) => Promise<void>;
   log?: (event: KeeperLogEvent) => void;
 }
 
@@ -91,19 +77,9 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   const traceId = randomUUID();
   const nowUnix = Math.floor((input.now?.() ?? Date.now()) / 1_000);
   const writeEnabled = input.writeEnabled ?? false;
-  const maxWrites = boundedRuntimeInteger(input.maxWrites, MAX_WRITES, 1, MAX_WRITES);
-  const minimumBalanceLamports = boundedRuntimeInteger(
-    input.minimumBalanceLamports,
-    DEFAULT_MIN_KEEPER_LAMPORTS,
-    DEFAULT_MIN_KEEPER_LAMPORTS,
-    Number.MAX_SAFE_INTEGER,
-  );
-  const maximumSpendLamports = boundedRuntimeInteger(
-    input.maximumSpendLamports,
-    DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
-    1,
-    DEFAULT_MAX_KEEPER_SPEND_LAMPORTS,
-  );
+  const maxWrites = KEEPER_LIMITS.writes;
+  const minimumBalanceLamports = KEEPER_LIMITS.reserveLamports;
+  const maximumSpendLamports = KEEPER_LIMITS.spendLamports;
   const log = input.log ?? (() => undefined);
   const balanceLamports = await input.connection.getBalance(
     input.keeper.publicKey,
@@ -130,37 +106,38 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     throw new Error("exact Anchor-IDL instruction materializer is not configured");
   }
 
-  const reconciliation = discoverReconciliation({
+  const discovered = discoverReconciliation({
     snapshot: input.protocolSnapshot,
     nowUnix,
   });
-  const plans = [...reconciliation.plans].sort(
+  const plans = discovered.sort(
     (left, right) => KEEPER_PLAN_INSTRUCTION[left.operation].priority - KEEPER_PLAN_INSTRUCTION[right.operation].priority,
   );
 
   let writes = 0;
   let plannedWrites = 0;
-  let failures = reconciliation.rejectedPlans;
+  let failures = 0;
   let spentLamports = 0;
+  let boardRentLamports = 0;
   let attemptedWrites = 0;
   let attemptedBoardWrites = 0;
-  let boardRentLamports = 0;
   let resolvedPlans = 0;
   for (const plan of plans) {
     const boardWrite = plan.operation === "submit_arena_board_chunk";
     if (boardWrite
-      ? attemptedBoardWrites >= MAX_BOARD_WRITES
+      ? attemptedBoardWrites >= KEEPER_LIMITS.boardWrites
       : attemptedWrites >= maxWrites) continue;
-    // A submitted write owns its slot even when confirmation or post-write
-    // verification later fails.
+    // A submitted write owns its slot even when confirmation fails.
     if (boardWrite) attemptedBoardWrites += 1;
     else attemptedWrites += 1;
     resolvedPlans += 1;
-    const materialized = await materializeKeeperPlan(plan, {
-      programId: ZKUBE_PROGRAM_ID,
-      keeper: input.keeper.publicKey,
-      protocol: input.protocolMaterializer,
-    });
+    const materialized = { ...plan,
+      connection: KEEPER_PLAN_INSTRUCTION[plan.operation].connection,
+      instructions: await input.protocolMaterializer.materialize({
+        operation: plan.operation, context: plan.context!,
+        keeper: input.keeper.publicKey,
+      }),
+    };
     if (!writeEnabled) {
       plannedWrites += 1;
       log({
@@ -230,17 +207,13 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - spentLamports)) {
         throw new Error("keeper spend ceiling reached");
       }
-      if (!keeperSpendWithinLimit(
-        boardAllocation,
-        MAX_BOARD_RENT_LAMPORTS - boardRentLamports,
-      )) {
+      if (!keeperSpendWithinLimit(boardAllocation, MAX_BOARD_RENT_LAMPORTS - boardRentLamports)) {
         throw new Error("recyclable board-rent allocation ceiling reached");
       }
       if (before - payerPredicted < minimumBalanceLamports) {
         throw new Error("keeper simulation crosses the reserve floor");
       }
-      // Reserve the simulated spend before submission. An RPC timeout or a
-      // post-confirmation verification failure may still mean the write
+      // Reserve the simulated spend before submission. An RPC timeout may still mean the write
       // landed, so its budget must never be reused during this pass.
       spentLamports += predicted;
       boardRentLamports += boardAllocation;
@@ -248,25 +221,8 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
         maxRetries: 5,
         skipPreflight: materialized.connection === "ephemeral-rollup",
       });
-      await connection.confirmTransaction({ ...latest, signature }, "confirmed");
-      await (input.verifyAfterWrite ?? verifyConfirmedWrite)(
-        materialized,
-        connection,
-        signature,
-      );
-      const after = await connection.getBalance(input.keeper.publicKey, "confirmed");
-      const fundingAfter = fundingWritable
-        ? await connection.getBalance(cadenceFundingPda(), "confirmed")
-        : 0;
-      const actualSpend =
-        Math.max(0, before - after) +
-        Math.max(0, fundingBefore - fundingAfter);
-      if (actualSpend > predicted) {
-        throw new Error("keeper actual spend exceeded its simulated reservation");
-      }
-      if (after < minimumBalanceLamports) {
-        throw new Error("keeper write crossed the reserve floor");
-      }
+      const confirmed = await connection.confirmTransaction({ ...latest, signature }, "confirmed");
+      if (confirmed.value.err) throw new Error(`confirmation failed: ${JSON.stringify(confirmed.value.err)}`);
       writes += 1;
       log({
         schemaVersion: KEEPER_SCHEMA_VERSION,
@@ -326,70 +282,6 @@ async function requiredEphemeralConnection(
     throw new Error("Router-resolved Ephemeral Rollup connection is required");
   }
   return resolver(plan);
-}
-
-export async function verifyConfirmedWrite(
-  plan: KeeperInstructionPlan,
-  connection: Connection,
-  signature: string,
-): Promise<void> {
-  const status = await connection.getSignatureStatus(signature, {
-    searchTransactionHistory: true,
-  });
-  if (!status.value || status.value.err ||
-      (status.value.confirmationStatus !== "confirmed" &&
-        status.value.confirmationStatus !== "finalized")) {
-    throw new Error("confirmed keeper write could not be re-verified");
-  }
-  const touched = [...new Map(
-    plan.instructions?.flatMap((instruction) => instruction.keys)
-      .filter((account) => account.isWritable)
-      .map((account) => [account.pubkey.toBase58(), account.pubkey]) ?? [],
-  ).values()];
-  if (touched.length > 0) {
-    const reread = await connection.getMultipleAccountsInfo(touched, "confirmed");
-    if (reread.length !== touched.length) {
-      throw new Error("keeper post-write account re-read was incomplete");
-    }
-    const closed = expectedClosedAccounts(plan);
-    for (let index = 0; index < touched.length; index += 1) {
-      const address = touched[index]!;
-      const info = reread[index];
-      const shouldBeClosed = closed.has(address.toBase58());
-      if ((shouldBeClosed && info) || (!shouldBeClosed && !info)) {
-        throw new Error("keeper post-write account state does not match the operation");
-      }
-    }
-  }
-}
-
-function expectedClosedAccounts(plan: KeeperInstructionPlan): ReadonlySet<string> {
-  const closed = new Set<string>();
-  if (plan.operation === "consume_arena_run") {
-    const owner = plan.context?.owner;
-    const runId = plan.context?.runId;
-    if (!owner || runId === undefined) {
-      throw new Error("run cleanup verification is missing its ActiveRun identity");
-    }
-    const activeRun = plan.instructions?.[0]?.keys.find((account) =>
-      account.isWritable && !account.isSigner &&
-      account.pubkey.equals(activeRunPda(owner, runId))
-    );
-    if (!activeRun) {
-      throw new Error("run cleanup verification is missing its ActiveRun account");
-    }
-    closed.add(activeRun.pubkey.toBase58());
-  }
-  if (plan.operation === "close_arena_daily") {
-    if (plan.context?.dayId === undefined) {
-      throw new Error("Daily closure verification is missing its identity");
-    }
-    const daily = arenaDailyPda(plan.context.dayId);
-    closed.add(daily.toBase58());
-    closed.add(arenaBoardPda(daily, "score").toBase58());
-    closed.add(arenaBoardPda(daily, "theme").toBase58());
-  }
-  return closed;
 }
 
 export function keeperKeypairFromEnv(
@@ -468,18 +360,6 @@ export function boundedKeeperInteger(
   const parsed = value ? Number(value) : fallback;
   return Number.isSafeInteger(parsed) && parsed >= 1
     ? Math.min(parsed, maximum)
-    : fallback;
-}
-
-function boundedRuntimeInteger(
-  value: number | undefined,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
-  return Number.isSafeInteger(value) && value !== undefined &&
-    value >= minimum && value <= maximum
-    ? value
     : fallback;
 }
 

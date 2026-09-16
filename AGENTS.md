@@ -162,7 +162,7 @@ three Campaign lifecycle instructions, one run slot, the content accounts, and
 leaves 338 bytes. Removing the content
 accounts also removes their two publication/activation instructions: five
 instructions removed in total. The interface contract
-`locks the fresh-bootstrap interface at 30 instructions and 7 accounts` and
+`fresh_bootstrap_interface_is_locked` and
 `target_accounts_fit_normal_solana_account_limits` pin the current surface after
 the cleanup below.
 
@@ -494,12 +494,17 @@ themes, and starting guardian charges are superseded as well.
 - **No recurring keeper authority currently exists.** Every fingerprinted
   release approved before 2026-08-08 died with the abandoned deployment. A new
   one requires a separately approved fingerprinted release enforcing Devnet
-  genesis, deployed ProgramData hash, exact signer, current/recent cadence PDAs,
-  canonical instruction allowlist, the release's two declared write ceilings,
+  genesis, exact signer, current/recent cadence PDAs,
+  canonical instruction allowlist and the two runtime write ceilings,
   0.1 SOL simulated spend per pass, and a 0.1 SOL reserve floor. The schema-1
   source release currently declares six general writes, thirty-two
   board-construction writes, and at most 1,802,194,560 lamports of recyclable board rent per
   pass; those numbers are a proposal until approved, not inherited permission.
+  `keeper_allowlist_is_exactly_its_plans`,
+  `keeper_pass_reserves_write_slots_and_simulates_before_every_send`,
+  `keeper_board_writes_stop_at_the_separate_pass_limit` and
+  `keeper_board_rent_ceiling_bounds_the_sum_of_finalizations_in_one_pass` guard
+  the instruction and spending boundaries.
 - Governance, initial competition seeding, manual reimbursement, terms/rules
   changes, funding, withdrawals, deployment, initial keeper enablement, and all
   mainnet actions remain outside recurring authority and require exact
@@ -769,7 +774,7 @@ view, and its 337-byte account size is pinned by
 `target_accounts_fit_normal_solana_account_limits`.
 `ActualManagedNativeCallsMatchEveryTransitionAndTrace` guards the native run
 boundary against the core trajectories, `program_and_core_score_one_action_identically`
-guards the program projection, and `wasm_protocol_matches_native_golden_vectors`
+guards the program projection, and `keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits`
 guards the keeper's protocol exports.
 
 Replay v2 binds the chain domain, challenge, rules hash, player, run ID, and
@@ -947,7 +952,7 @@ from racing a replacement. `arcade_reservation_and_orphan_share_one_monotonic_ru
 
 The program pins `ephemeral-rollups-sdk` 0.16.2 or newer. Its generated
 undelegation callback must constrain the canonical `undelegate-buffer` PDA and
-the System program; the committed IDL regression test rejects the unsafe older
+the System program; `undelegation_callback_is_constrained_to_its_buffer_pda` rejects the unsafe older
 `#[ephemeral]` expansion.
 
 ### Archival
@@ -988,29 +993,42 @@ allowlist entry and bounded write capacity.
 
 ### Keeper safety
 
-The keeper validates cluster genesis, program and ProgramData identity, account
-owner, bounded length, discriminator, version, PDA, and stored account
-relationships before decoding or planning a write. Discovery performs the one
-semantic plan validation inside each plan's isolation boundary; malformed plans
-are rejected without aborting independent work. Both materialization switches
-fail closed on an unknown operation.
+Writes require `KEEPER_WRITE_ENABLED=true` and the approved SHA-256 fingerprint
+of the immutable Fly image reference, keeper public key and launch day.
+Program identity and the IDL hash come from the build. `keeps writes fail-closed unless explicitly enabled`,
+`binds the image, keeper key and launch day while reporting build identity` and
+`pins loaded secret material to the configured public key` guard those boundaries.
 
-The recurring signer cannot deploy, initialize, seed pots, change rules,
-withdraw revenue, reimburse an entry, invoke a swap, or target mainnet. The
-runtime identity check pins Fly's unique deployment tag from `FLY_IMAGE_REF`.
-The ProgramData hash, keeper key and launch day are release environment inputs:
-`ZKUBE_DEPLOYED_SBF_SHA256`, `ZKUBE_KEEPER_PUBLIC_KEY` and `ZKUBE_LAUNCH_DAY_ID`.
-`release_inputs_do_not_reuse_the_abandoned_deployment` guards source defaults;
-`requires fresh release inputs and binds their changes` guards the runtime boundary.
-The release fingerprint pins every field checked at runtime: Devnet genesis,
-deployed ProgramData hash, program ID, keeper signer, schema and IDL identity,
-entry economics, the thirteen-instruction allowlist, a six-write general limit,
-a separate 32-write board-construction limit, the 1,536-row board bound, the
-1,802,194,560-lamport recyclable board-rent ceiling, a 0.1 SOL simulated spend
-ceiling, a 0.1 SOL reserve floor, and Fly's unique deployment image reference.
-The replay domain is derived from genesis and program identity rather than
-stored in the fingerprint. The enforced cadence ordering is finalize, construct
-both boards, append the on-chain root, expire unclaimed rewards, then close.
+The RPC boundary checks Devnet genesis, HTTPS, account owner, bounded length,
+discriminator, version and decoded field shape. Scans and plans stay within the
+recent cadence window. `requires the Devnet genesis and handles an unavailable RPC`,
+`requires HTTPS outside localhost`,
+`keeper_rpc_decoding_rejects_foreign_malformed_and_unbounded_accounts` and
+`keeper_preparation_advances_past_archived_days_and_keeps_the_recent_window`
+guard those checks. ER writes resolve the current Router location and require
+the program's delegation owner; `rejects a Router owner mismatch before using the ER`
+and `uses the fresh Router location for a write connection` guard that boundary.
+
+The loop orders plans by `KEEPER_PLAN_INSTRUCTION`, materializes the checked-in
+IDL, simulates before relay, reserves the simulated spend even when confirmation
+is uncertain, and enforces `KEEPER_LIMITS`. Its recyclable board-rent ceiling
+applies to the sum across the pass. `keeper_pass_reserves_write_slots_and_simulates_before_every_send`,
+`keeper_simulation_failure_and_reserve_floor_prevent_relay`,
+`keeper_spend_is_reserved_even_when_confirmation_is_uncertain` and
+`keeper_board_rent_ceiling_bounds_the_sum_of_finalizations_in_one_pass` guard
+those limits. `keeps monetary, archive, and cleanup ordering stable` and
+`materializes every surviving keeper protocol operation` guard the execution order and interface.
+
+From the repository root, set the public keeper key and launch day, then run
+`NO_DNA=1 pnpm release:deploy`. It builds an immutable image (or uses the supplied
+`FLY_IMAGE_REF`), saves `build/keeper-release.json`, stages writes disabled, and
+deploys the image. Review its read-only pass, including `staged_launch_ready`
+before bootstrap, and the saved fingerprint;
+`staged_launch_ready_requires_the_paused_protocol_and_both_unfunded_days` guards that state.
+Only a separately approved release
+may set `KEEPER_APPROVED_RELEASE_FINGERPRINT` and enable writes;
+`keeper_release_deploy_saves_the_image_binding_and_disables_writes_before_deployment`
+and `keeps writes fail-closed unless explicitly enabled` guard that order.
 
 ### Keeper rule ownership amendment — 2026-09-16
 
@@ -1019,7 +1037,8 @@ Instruction name, connection and priority live in `KEEPER_PLAN_INSTRUCTION`;
 check the plan boundary. Program bounds and the derived two-board rent ceiling
 are emitted by codegen. `every_program_capacity_has_an_sbf_test_at_its_maximum`
 checks the maximum-capacity coverage, and the codegen drift check binds the copies.
-Day windows, suspension windows, pair decoding and board ordering call the core.
+Keeper day windows, suspension windows and board ordering call the core; native
+pair decoding uses the same core owner.
 `suspension_window_handles_gaps_and_u32_limits`,
 `pair_decode_covers_the_product_and_rejects_outside_indices` and
 `board_order_uses_metric_then_time_then_owner_bytes` guard the rules;
@@ -1036,12 +1055,12 @@ star requirements; the move budget remains a separate run rule. The core has
 one observed form of each transition, with `NoPresentation` used by the program.
 `perfect_clear_observation_preserves_move_bonus_and_capped_state` and
 `ActualManagedNativeCallsMatchEveryTransitionAndTrace` guard the transition and codec results.
-The keeper payout export calls the bounded core plan;
+The native payout boundary calls the bounded core plan;
 `bounded_payout_plan_keeps_the_full_width_and_denominator` guards retained rows
 without renormalization, alongside the unchanged payout golden vectors.
 The catalog is `campaign-catalog.json`; `committed_catalog_validates_and_emits_protocol_constants`
 checks its version against the core constant. The keeper's schema value is
-owned by `keeperRelease.ts`, and `binds every runtime-verified release field`
+owned by `keeperRelease.ts`, and `binds the image, keeper key and launch day while reporting build identity`
 checks the fingerprint. `deploymentManifest.test.ts` checks the manifest schema.
 
 ## Operator procedures

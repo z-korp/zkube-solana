@@ -1,13 +1,11 @@
 // @vitest-environment node
-import { createHash } from "node:crypto";
 
-import { Keypair, type AccountInfo, type PublicKey } from "@solana/web3.js";
+import { Keypair, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import {
-  PROTOCOL_ACCOUNT_VERSION,
   ZKUBE_PROGRAM_ID,
-  validationOnlyPlan,
+  keeperPlan,
 } from "../src/arcadeChain.js";
 import {
   getDelegationStatus,
@@ -40,10 +38,9 @@ describe("MagicBlock Router boundary", () => {
 
   it("rejects a Router owner mismatch before using the ER", async () => {
     const owner = Keypair.generate().publicKey;
-    const plan = validationOnlyPlan("commit_run", {
+    const plan = keeperPlan("commit_run", {
       owner,
       runId: 1n,
-      runLocation: "ephemeral_rollup",
       includeArenaPlayer: false,
     });
     await expect(resolveEphemeralConnectionForPlan({
@@ -66,18 +63,14 @@ describe("MagicBlock Router boundary", () => {
     })).rejects.toThrow("owner");
   });
 
-  it("checks owner, discriminator, version, and bounded length on the ER", async () => {
+  it("uses the fresh Router location for a write connection", async () => {
     const owner = Keypair.generate().publicKey;
-    const plan = validationOnlyPlan("commit_run", {
+    const plan = keeperPlan("commit_run", {
       owner,
       runId: 1n,
-      runLocation: "ephemeral_rollup",
       includeArenaPlayer: false,
     });
-    const data = Buffer.alloc(128);
-    createHash("sha256").update("account:ActiveRun").digest().subarray(0, 8).copy(data);
-    data[8] = PROTOCOL_ACCOUNT_VERSION;
-    const account = fixture(ZKUBE_PROGRAM_ID, data);
+    const connection = { rpcEndpoint: "https://er.example/" } as Connection;
     const resolved = await resolveEphemeralConnectionForPlan({
       plan,
       programId: ZKUBE_PROGRAM_ID,
@@ -95,12 +88,8 @@ describe("MagicBlock Router boundary", () => {
           },
         },
       }), { status: 200 }),
-      connectionFactory: () => ({ getAccountInfo: async () => account }) as never,
+      connectionFactory: endpoint => { expect(endpoint).toBe("https://er.example/"); return connection; },
     });
-    expect(resolved).toBeTruthy();
+    expect(resolved).toBe(connection);
   });
 });
-
-function fixture(owner: PublicKey, data: Buffer): AccountInfo<Buffer> {
-  return { owner, data, executable: false, lamports: 1, rentEpoch: 0 };
-}

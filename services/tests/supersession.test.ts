@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /release:fingerprint|keeperReleaseCli|planMaterializer|semantic plan validation|fingerprint pins every field checked at runtime|keeper payout export|re-verifies every account closed|post-write account re-read/,
+    trees: [SERVICES, TOOLS, AGENT_RULES, README],
+    reversal: "The keeper selects cadence work, simulates its bounded writes and binds three release inputs (2026-09-16)",
+  },
+  {
     pattern: /ArcadeConfig|arcadeConfigPda|deriveArcadeConfigPda|ARCADE_CONFIG_SEED|initialize_arcade|initializeArcade|auto_claim_positions|autoClaimPositions|MAX_AUTO_CLAIMS_PER_ENTRY|best_effort_auto_claims|attached_claim_position|Initialize paused Arcade|invokes the existing claim instruction|This Daily prize position was already claimed|The Daily prize claim window has closed/,
     trees: [PROGRAM, SERVICES, TOOLS, UNITY_CLIENT, AGENT_RULES, README],
     reversal: "Protocol state owns cadence and the client composes idempotent claims before entry (2026-09-16)",

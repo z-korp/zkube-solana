@@ -6,11 +6,9 @@ import {
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RUN_CLOSE_OFFSET,
   SECONDS_PER_DAY,
-  protocolPda,
-  cadenceFundingPda,
 } from "../src/arcadeChain.js";
 import {
-  discoverReconciliationPlans,
+  discoverReconciliation,
   type DailySnapshot,
   type ProtocolSnapshot,
 } from "../src/arcadeReconciliation.js";
@@ -20,8 +18,23 @@ const DAY = 20_651;
 const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
 
 describe("v5 Daily keeper reconciliation", () => {
+  it("keeper_preparation_advances_past_archived_days_and_keeps_the_recent_window", () => {
+    const current = daily(DAY, "open");
+    const plans = discoverReconciliation({ nowUnix: DAY * SECONDS_PER_DAY + 1,
+      snapshot: snapshot({ launchDayId: DAY - 200, dailies: [current],
+        archiveState: { lastDailyId: DAY - 1 },
+        closedArenaPlayers: [85, 84].map(age => ({ dayId: DAY - age,
+          owner: Keypair.generate().publicKey, rentPayer: Keypair.generate().publicKey })),
+      }),
+    });
+    expect(plans.find(plan => plan.operation === "prepare_arena_daily")?.context)
+      .toEqual({ followingDayId: DAY + 1 });
+    expect(plans.filter(plan => plan.operation === "close_arena_player").map(plan => plan.context.dayId))
+      .toEqual([DAY - 84]);
+  });
+
   it("prepares and activates only Daily successors", () => {
-    const plans = discoverReconciliationPlans({
+    const plans = discoverReconciliation({
       snapshot: snapshot({
         paused: false,
         launchDayId: DAY - 1,
@@ -43,7 +56,7 @@ describe("v5 Daily keeper reconciliation", () => {
 
   it("routes a suspended period into the first resumed Daily", () => {
     const lastPaidDay = 87;
-    const plans = discoverReconciliationPlans({
+    const plans = discoverReconciliation({
       snapshot: snapshot({
         paused: false,
         launchDayId: lastPaidDay,
@@ -59,7 +72,6 @@ describe("v5 Daily keeper reconciliation", () => {
     const preparation = plans.find(({ operation }) =>
       operation === "prepare_arena_daily");
     expect(preparation?.context).toMatchObject({
-      dayId: lastPaidDay,
       followingDayId: 95,
     });
     expect(plans.some(({ context }) => {
@@ -71,7 +83,7 @@ describe("v5 Daily keeper reconciliation", () => {
   it("routes terminal Arcade runs by location", () => {
     const baseOwner = Keypair.generate().publicKey;
     const arcadeOwner = Keypair.generate().publicKey;
-    const plans = discoverReconciliationPlans({
+    const plans = discoverReconciliation({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
@@ -90,8 +102,8 @@ describe("v5 Daily keeper reconciliation", () => {
     ]);
   });
 
-  it("validates every emitted recovery plan inside discovery", () => {
-    const plans = discoverReconciliationPlans({
+  it("selects every recovery operation from run state and location", () => {
+    const plans = discoverReconciliation({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
@@ -117,12 +129,10 @@ describe("v5 Daily keeper reconciliation", () => {
     ]);
     const runPlans = plans.filter(({ operation }) => runOperations.has(operation));
     expect(new Set(runPlans.map(({ operation }) => operation))).toEqual(runOperations);
-    expect(runPlans.every(({ execution }) => execution === "validation_only"))
-      .toBe(true);
   });
 
   it("finishes reachable ER state and expires unavailable arcade state", () => {
-    const plans = discoverReconciliationPlans({
+    const plans = discoverReconciliation({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [daily(DAY, "open")],
@@ -144,7 +154,7 @@ describe("v5 Daily keeper reconciliation", () => {
   it("plans conserved Daily payout and successor rollover", () => {
     const owners = [Keypair.generate().publicKey, Keypair.generate().publicKey];
     const settled = daily(DAY, "open", owners);
-    const plans = discoverReconciliationPlans({
+    const plans = discoverReconciliation({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [settled, daily(DAY + 1, "funding")],
@@ -159,11 +169,6 @@ describe("v5 Daily keeper reconciliation", () => {
       followingDayId: DAY + 1,
 
 
-      scoreCapacityLimited: false,
-      themeCapacityLimited: false,
-      payoutTotalLamports: 100_000_000n,
-      rolloverLamports: 1_500_000n,
-      potLamports: 101_500_000n,
     });
   });
 
@@ -173,14 +178,13 @@ describe("v5 Daily keeper reconciliation", () => {
       launchDayId: DAY,
       dailies: [finalized],
       archiveState: {
-        address: protocolPda(),
-        cadenceFunding: cadenceFundingPda(),
+
         lastDailyId: DAY - 1,
-        dailyRoot: "00".repeat(32),
+
       },
       archiveCandidates: [candidate(DAY, false, false)],
     });
-    expect(discoverReconciliationPlans({ snapshot: base, nowUnix: NOW })[0]?.operation)
+    expect(discoverReconciliation({ snapshot: base, nowUnix: NOW })[0]?.operation)
       .toBe("archive_arena_daily");
     const afterClaims = finalized.finalizedAt +
       DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
@@ -191,11 +195,11 @@ describe("v5 Daily keeper reconciliation", () => {
       archiveState: {
         ...base.archiveState!,
         lastDailyId: DAY,
-        dailyRoot: "44".repeat(32),
+
       },
       archiveCandidates: [candidate(DAY, true, false)],
     });
-    expect(discoverReconciliationPlans({ snapshot: committed, nowUnix: afterClaims })[0]?.operation)
+    expect(discoverReconciliation({ snapshot: committed, nowUnix: afterClaims })[0]?.operation)
       .toBe("expire_daily_claims");
     const expiredDaily = { ...finalized, claimsExpired: true };
     const expired = snapshot({
@@ -203,7 +207,7 @@ describe("v5 Daily keeper reconciliation", () => {
       dailies: [expiredDaily, daily(expiryTarget, "open")],
       archiveCandidates: [candidate(DAY, true, true)],
     });
-    expect(discoverReconciliationPlans({ snapshot: expired, nowUnix: afterClaims })[0]?.operation)
+    expect(discoverReconciliation({ snapshot: expired, nowUnix: afterClaims })[0]?.operation)
       .toBe("close_arena_daily");
   });
 
@@ -214,15 +218,14 @@ describe("v5 Daily keeper reconciliation", () => {
     const afterClaims = oldDaily.finalizedAt +
       DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
     const expiryTarget = Math.floor(afterClaims / SECONDS_PER_DAY) + 1;
-    const plans = discoverReconciliationPlans({
+    const plans = discoverReconciliation({
       snapshot: snapshot({
         launchDayId: DAY,
         dailies: [oldDaily, tipDaily, daily(expiryTarget, "open")],
         archiveState: {
-          address: protocolPda(),
-          cadenceFunding: cadenceFundingPda(),
+
           lastDailyId: DAY + 1,
-          dailyRoot: "44".repeat(32),
+
         },
         archiveCandidates: [
           candidate(DAY, true, false),
@@ -263,10 +266,6 @@ function daily(
   status: DailySnapshot["status"],
   owners: readonly PublicKey[] = [],
 ): DailySnapshot {
-  const potLamports = owners.length ? 101_500_000n : 0n;
-  const payouts = owners.length === 1
-    ? [101_000_000n]
-    : [67_000_000n, 33_000_000n];
   return {
     dayId,
     status,
@@ -278,35 +277,14 @@ function daily(
     entriesPaid: status === "funding" ? 0n : 2n,
     entriesScored: status === "funding" ? 0n : 2n,
     entriesExpired: 0n,
-    potLamports,
     predecessorRolloverRequired: dayId !== DAY,
     predecessorRolloverApplied: dayId !== DAY,
-    scoreQualifiedPlayers: owners.length,
-    themeQualifiedPlayers: 0,
-    scoreClaimedMask: 0n,
-    themeClaimedMask: 0n,
     claimsExpired: false,
     ...(status === "finalized" ? {
       scoreBoard: board("score", owners.length, dayId),
       themeBoard: board("theme", 0, dayId),
     } : {}),
-    ...(status !== "funding" ? {
-      settlement: {
-        winners: owners.map((owner, index) => ({
-          board: "score" as const,
-          owner,
-          rank: index + 1,
-          payoutLamports: payouts[index]!,
-        })),
-        rolloverLamports: owners.length === 1
-          ? 500_000n
-          : owners.length === 2
-            ? 1_500_000n
-            : 0n,
-        scoreCapacityLimited: false,
-        themeCapacityLimited: false,
-      },
-    } : {}),
+
   };
 }
 
@@ -333,12 +311,10 @@ function arcadeRun(
     owner,
     rentPayer: Keypair.generate().publicKey,
     runId: 2n,
-    challengeDayId: DAY,
-    deadlineDayId: DAY,
+    dayId: DAY,
     arenaPlayerExists: true,
     lifecycle,
     location,
-    acceptedActions: 1,
     runsCloseAt: DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
     recoveryDeadlineAt: DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET,
     reservationActive: true,

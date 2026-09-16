@@ -9,6 +9,7 @@ COPY tools/chain/package.json ./tools/chain/package.json
 RUN pnpm install --frozen-lockfile
 COPY tsconfig.json ./
 COPY services/src ./services/src
+COPY services/release-deploy.ts ./services/release-deploy.ts
 COPY services/tests ./services/tests
 COPY services/zkube-core ./services/zkube-core
 COPY tools/chain ./tools/chain
