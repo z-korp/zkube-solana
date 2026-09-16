@@ -587,10 +587,12 @@ change. The known sources and the guard for each:
   pairs that must stay hand-synchronized — reconciliation plan and keeper
   policy, core event and program producer, deployed config and release
   policy — each carry an agreement test that fails when they drift.
-- **Superseded vocabulary.** A reversal deletes the dead model's code, copy,
-  and comments in the same change, and adds its phrases to
-  `services/tests/supersession.test.ts`. A reversal without a sweep is
-  incomplete.
+- **Superseded vocabulary.** A reversal deletes the dead model's code, copy
+  and comments, and adds its player-facing and documentation phrases to
+  `services/tests/supersession.test.ts`. Its bounded list retires the oldest
+  reversal when a new one is added;
+  `keeps the reversal list bounded so a new rule retires the oldest` and
+  `keeps reversed models out of authored source` guard the sweep.
 - **Derivable arguments.** An instruction never trusts an argument the
   program can compute itself: it verifies equality or does not take the
   argument.

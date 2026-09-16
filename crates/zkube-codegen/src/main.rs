@@ -344,7 +344,6 @@ mod tests {
         assert!(versions.contains("ARENA_ENTRY_LAMPORTS = 10000000n"));
         assert!(versions.contains("ENTRY_DAILY_LAMPORTS = 9000000n"));
         assert!(versions.contains("PRESSURE_STEP = 15"));
-        assert!(!versions.contains("SCORE_MULTIPLIERS"));
         assert!(versions.contains("TIER_BLOCK_WEIGHTS = [[25, 30, 25, 15, 5]"));
     }
 

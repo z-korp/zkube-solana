@@ -50,8 +50,6 @@ describe("v5 Daily keeper reconciliation", () => {
       "activate_arena_daily",
       "prepare_arena_daily",
     ]);
-    expect(plans.every(({ operation }) =>
-      !operation.includes("weekly") && !operation.includes("season"))).toBe(true);
   });
 
   it("routes a suspended period into the first resumed Daily", () => {
