@@ -243,7 +243,8 @@ ladder tier boundaries, and the flat qualifying credit.
 - **Theme is not Score.** `daily_score` is triangular action points;
   `objective_total` is a count attributable only to the day's fact and is never
   added to score or pressure. A player clearing carelessly wins Score; a player
-  who pursues the fact wins Theme.
+  who pursues the fact wins Theme. `theme_total_is_not_added_to_score` guards
+  the independent totals in the core.
 - **Classic pays 100% to Score, and that is derived rather than configured.**
   The Classic theme is the absent constraint kind and yields zero objective
   increments, so its theme

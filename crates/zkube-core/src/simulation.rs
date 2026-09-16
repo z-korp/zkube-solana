@@ -1116,6 +1116,61 @@ mod tests {
     }
 
     #[test]
+    fn theme_total_is_not_added_to_score() {
+        for objective in crate::DAILY_THEMES {
+            for prior_total in [0, 10_000] {
+                for pressure in [0, PRESSURE_STEP - 1, 12 * PRESSURE_STEP] {
+                    for bonus in [false, true] {
+                        let make_run = |objective, total| {
+                            let mut cfg = config();
+                            cfg.rules.objective = Some(objective);
+                            let mut run = Run::new(cfg).unwrap();
+                            let mut cells = [0; 80];
+                            cells[0] = 1;
+                            if !bonus {
+                                cells[2..8].fill(1);
+                                cells[8] = 1;
+                            }
+                            run.engine.grid = crate::Grid::try_from_cells(cells).unwrap();
+                            run.engine.next_row = Some([1; 8]);
+                            run.engine.phase = RunPhase::Playing;
+                            run.engine.bonus_charges = 1;
+                            run.engine.charges_earned = 1;
+                            run.last_vrf_counter = 1;
+                            run.objective_total = total;
+                            run.pressure_score = pressure;
+                            run.current_tier = cfg.rules.current_tier(pressure);
+                            (cfg.rules, run)
+                        };
+                        let (classic_rules, mut classic) = make_run(crate::DAILY_THEMES[0], 0);
+                        let (theme_rules, mut theme) = make_run(objective, prior_total);
+                        let act = |run: &mut Run, rules| {
+                            if bonus {
+                                run.apply_bonus(rules, 0, 0, 0).unwrap()
+                            } else {
+                                run.play_move(rules, 0, 0, 1, 0, 1).unwrap()
+                            }
+                        };
+                        let report = act(&mut theme, theme_rules);
+                        assert_eq!(report, act(&mut classic, classic_rules));
+                        if !bonus {
+                            assert!(theme.daily_score > 0);
+                        }
+                        assert_eq!(theme.daily_score, classic.daily_score);
+                        assert_eq!(theme.pressure_score, classic.pressure_score);
+                        assert_eq!(theme.current_tier, classic.current_tier);
+                        assert_eq!(theme.engine, classic.engine);
+                        assert_eq!(classic.objective_total, 0);
+                        if objective == crate::DAILY_THEMES[5] {
+                            assert!(theme.objective_total > prior_total);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn pressure_multiplier_is_uncapped_and_the_draw_clamps_at_the_top_row() {
         let rules = rules();
         let pressure_score = 12 * PRESSURE_STEP;
