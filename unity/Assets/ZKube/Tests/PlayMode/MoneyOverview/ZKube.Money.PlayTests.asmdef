@@ -9,7 +9,8 @@
     "ZKube.Local",
     "ZKube.Money",
     "ZKube.Money.Tests",
-    "ZKube.Presentation"
+    "ZKube.Presentation",
+    "ZKube.Presentation.Tests"
   ],
   "autoReferenced": false,
   "overrideReferences": true,

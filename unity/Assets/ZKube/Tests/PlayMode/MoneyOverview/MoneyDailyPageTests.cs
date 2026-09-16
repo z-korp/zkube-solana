@@ -43,8 +43,8 @@ namespace ZKube.Tests.MoneyOverview
             var board = host.GetComponent<MoneyBoardHost>().Board;
             Assert.That(controller.PlayingRun, Is.True);
             float until = Time.realtimeSinceStartup + 15;
-            while (!board.Ready && Time.realtimeSinceStartup < until) yield return null;
-            Assert.That(board.Ready, Is.True, board.ReadinessIssue);
+            while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(ZKube.Tests.Presentation.BoardTestState.Idle(board), Is.True, "Board is still busy or loading");
             Assert.That(board.Session.Accepted.State, Is.EqualTo(token.State));
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);

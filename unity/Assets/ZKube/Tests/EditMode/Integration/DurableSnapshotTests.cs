@@ -53,10 +53,10 @@ namespace ZKube.Integration.Tests
             {
                 using var bytes = new MemoryStream(); using (var writer = new BinaryWriter(bytes, Encoding.UTF8, true)) writer.Write(id);
                 string active = SolanaAddress.Derive(accounts.ProgramId, new[] { Encoding.UTF8.GetBytes("run"), Encoding.UTF8.GetBytes("active"), SolanaAddress.Bytes(owner), bytes.ToArray() }, out _);
-                return new RunMarker(owner, id, active, null, null, 0);
+                return new RunMarker(owner, id, active);
             }
             var marker = Marker(11); var other = Marker(12);
-            var storage = new ChangingReadStore(); var store = new RunStateStore(storage, accounts, sessions);
+            var storage = new ChangingReadStore(); var store = new RunStateStore(storage, accounts);
             await store.Save(marker); string first = storage.Current;
             storage.Arm(null, null); await store.Save(other); string second = storage.Current;
             storage.Arm(second, first);

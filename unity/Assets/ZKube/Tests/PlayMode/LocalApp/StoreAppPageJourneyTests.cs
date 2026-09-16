@@ -96,8 +96,11 @@ namespace ZKube.Tests
             while (!predicate()) { if (Time.realtimeSinceStartup > deadline) Assert.Fail(reason); yield return null; }
             yield return null;
         }
-        private IEnumerator Page(StorePage page) => Wait(() => app != null && app.Flow.Page == page && app.PageReady, "Page did not become ready: " + page);
-        private IEnumerator BoardReady() => Wait(() => board != null && board.Ready && !board.Busy, "Board did not become ready: " + board?.ReadinessIssue);
+        private bool PageDrawn() => !(bool)typeof(StoreAppController).GetField("dirty", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
+            !(bool)typeof(StoreAppController).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
+            app.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Emblem ")).All(image => !image.enabled || image.sprite != null);
+        private IEnumerator Page(StorePage page) => Wait(() => app != null && app.Flow.Page == page && PageDrawn(), "Page did not become ready: " + page);
+        private IEnumerator BoardReady() => Wait(() => board != null && ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy, "Board did not become ready: " + "Board is still busy or loading");
         private IEnumerator NamePlayer()
         {
             var field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
@@ -169,7 +172,7 @@ namespace ZKube.Tests
         {
             yield return NamePlayer(); byte realm = runs.Today().Realm;
             Click(app, "Play today"); yield return BoardReady();
-            Assert.That(board.Session.RealmId, Is.EqualTo(realm)); Assert.That(board.PresentedRealmId, Is.EqualTo(realm));
+            Assert.That(board.Session.RealmId, Is.EqualTo(realm)); Assert.That(ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId, Is.EqualTo(realm));
             Assert.That(product.Read.DailyAttempt.DayId, Is.EqualTo(runs.Today().DayId));
             yield return EndRun(); Click(board.View, "Continue"); yield return Page(StorePage.Result);
             Assert.That(board.gameObject.activeSelf, Is.False); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
@@ -249,7 +252,7 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator NavigationDuringAssetLoadPublishesOnlyTheLatestPageAndDisposalStopsLateWork()
         {
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
-            Click(app, "Next"); Assert.That(app.PageReady, Is.False); yield return null;
+            Click(app, "Next"); Assert.That(PageDrawn(), Is.False); yield return null;
             Assert.That((bool)typeof(StoreAppController).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app), Is.True);
             // Same public navigation command that page buttons dispatch, while
             // the old page's renderer is deliberately retired during loading.

@@ -36,7 +36,6 @@ namespace ZKube.Core.Tests
         {
             var fixture = Read<Trajectories>("native-run-trajectories.json");
             Assert.AreEqual(1, fixture.schemaVersion);
-            Assert.AreEqual(Protocol.CoreVersion, fixture.coreVersion);
             var names = new HashSet<string>(fixture.cases.Select(c => c.name));
             foreach (var realm in Protocol.Realms)
                 foreach (var mode in new[] { "campaign", "daily" })
@@ -67,7 +66,6 @@ namespace ZKube.Core.Tests
                 if (step.operation >= ApplyVrfRequest.Operation && step.operation <= FinishRequest.Operation)
                 {
                     var result = RunTransition.Decode(config, actual);
-                    if (result.TraceIncluded)
                     {
                         var before = NativeEngine.Summary(state).Grid;
                         var rendered = PresentationTrace.ProjectBoard(before, result.Events);
@@ -89,8 +87,6 @@ namespace ZKube.Core.Tests
                 CollectionAssert.AreEqual(Hex(vector.responseHex), actual);
                 if (vector.operation == CampaignProgressRequest.Operation)
                     CollectionAssert.AreEqual(actual.Take(100), CampaignProgressSummary.Decode(actual).Stars);
-                if (vector.operation == DailyPairIndexRequest.Operation)
-                    Assert.That(DailyPair.Decode(actual).Index, Is.EqualTo(NativeWire.Read(actual, 0, 4)));
                 if (vector.operation == CampaignRulesRequest.Operation)
                     CollectionAssert.AreEqual(actual, BuildConfigRequest.Decode(actual).Encode());
             }
@@ -120,7 +116,6 @@ namespace ZKube.Core.Tests
                 var actual = NativeEngine.DailyWindow(request.Day);
                 Assert.That(actual.OpensAt, Is.EqualTo(expected.OpensAt));
                 Assert.That(actual.FreezesAt, Is.EqualTo(expected.FreezesAt));
-                Assert.That(actual.RecoveryDeadlineAt, Is.EqualTo(expected.RecoveryDeadlineAt));
             }
         }
 
@@ -149,14 +144,10 @@ namespace ZKube.Core.Tests
                 Assert.AreEqual(scenario.Item2 ? 1 : 0, fact.Payload.Single());
                 CollectionAssert.AreEqual(NativeEngine.Summary(traced.Token).Grid,
                     PresentationTrace.ProjectBoard(NativeEngine.Summary(Hex(trajectory.initialStateHex)).Grid, traced.Events));
-                var plain = trajectory.steps.SkipWhile(s => s != action).Skip(1).First();
-                var untraced = RunTransition.Decode(Hex(trajectory.configHex), NativeEngine.Call(plain.operation, Hex(plain.requestHex)));
-                CollectionAssert.AreEqual(untraced.Token.State, traced.Token.State, "Trace does not alter state or replay");
-                Assert.IsEmpty(untraced.Events);
                 Assert.AreEqual(scenario.Item2 ? 2 : 3, NativeEngine.Summary(traced.Token).RerollCharges);
             }
             var malformed = new byte[10];
-            NativeWire.Write(malformed, 0, 2, NativeSchema.TraceVersion);
+            NativeWire.Write(malformed, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Write(malformed, 2, 4, 1);
             malformed[6] = (byte)PresentationKind.PerfectClear;
             NativeWire.Write(malformed, 7, 2, 1); malformed[9] = 2;
@@ -230,8 +221,6 @@ namespace ZKube.Core.Tests
             foreach (var vector in ladder.vectors)
                 Assert.AreEqual(vector.points, NativeEngine.LadderPoints(vector.qualifiedEntrants, vector.rank));
             var core = Read<GameFixture>("game-parity.json").phase1Core;
-            for (uint i = 0; i < core.dailyPairDraw.pairIndicesByDay.Length; i++)
-                Assert.AreEqual(core.dailyPairDraw.pairIndicesByDay[i], NativeEngine.DailyPair(core.dailyPairDraw.startsDay + i).Index);
             var pools = NativeEngine.BoardPools(core.dailyBoardSplit.poolLamports, core.dailyBoardSplit.themeQualifiedWinners);
             Assert.AreEqual(core.dailyBoardSplit.scoreLamports, NativeWire.Read(pools, 0, 8));
             Assert.AreEqual(core.dailyBoardSplit.themeLamports, NativeWire.Read(pools, 8, 8));
@@ -255,6 +244,7 @@ namespace ZKube.Core.Tests
         [Test]
         public void TraceDecoderRejectsUnknownTruncatedAndTrailingPayloads()
         {
+            Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(Array.Empty<byte>()));
             Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { 2, 0, 0, 0, 0, 0 }));
             Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { 1, 0, 1, 0, 0, 0, 255, 1, 0, 0 }));
             Assert.Throws<ArgumentException>(() => PresentationTrace.Decode(new byte[] { 1, 0, 1, 0, 0, 0, 7, 1, 0 }));

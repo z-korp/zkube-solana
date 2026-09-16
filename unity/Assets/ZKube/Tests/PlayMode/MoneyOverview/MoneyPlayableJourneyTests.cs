@@ -72,8 +72,8 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator BoardReady()
         {
             float until = Time.realtimeSinceStartup + 15;
-            while (host.GetComponent<MoneyBoardHost>()?.Board?.Ready != true && Time.realtimeSinceStartup < until) yield return null;
-            Assert.That(host.GetComponent<MoneyBoardHost>()?.Board?.Ready, Is.True);
+            while (ZKube.Tests.Presentation.BoardTestState.Idle(host.GetComponent<MoneyBoardHost>()?.Board) != true && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(ZKube.Tests.Presentation.BoardTestState.Idle(host.GetComponent<MoneyBoardHost>()?.Board), Is.True);
         }
         private IEnumerator BoardAccepted(uint count)
         {
@@ -81,7 +81,7 @@ namespace ZKube.Tests.MoneyOverview
             float until = Time.realtimeSinceStartup + 15;
             while (board.State.ActionCounter != count && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(board.State.ActionCounter, Is.EqualTo(count));
-            while (!board.Ready && Time.realtimeSinceStartup < until) yield return null;
+            while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) && Time.realtimeSinceStartup < until) yield return null;
             yield return null;
         }
         private IEnumerator BoardFinished()

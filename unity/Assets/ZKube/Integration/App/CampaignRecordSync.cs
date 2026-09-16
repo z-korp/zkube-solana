@@ -20,7 +20,6 @@ namespace ZKube.Integration.App
         private Task attempt = Task.CompletedTask;
         private bool retryRequested;
         private CancellationToken requestedCancellation, requestedShutdown;
-        public Exception LastError { get; private set; }
         public Task Pending { get { lock (gate) return attempt; } }
 
         public CampaignRecordSync(LocalProductStore product, LocalRunClient runs,
@@ -77,7 +76,6 @@ namespace ZKube.Integration.App
         {
             try
             {
-                LastError = null;
                 var chain = await read(cancellation).ConfigureAwait(false);
                 cancellation.ThrowIfCancellationRequested();
                 MergeCampaignRecord(chain);
@@ -86,7 +84,7 @@ namespace ZKube.Integration.App
                 if (await writeWhenReady(submitted, cancellation).ConfigureAwait(false))
                     AcknowledgeCampaignRecord(submitted);
             }
-            catch (Exception error) { LastError = error; }
+            catch (Exception) { /* Durable progress remains pending for the next start. */ }
         }
     }
 }

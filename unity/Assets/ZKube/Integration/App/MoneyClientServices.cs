@@ -86,7 +86,7 @@ namespace ZKube.Integration.App
             Wallet = new WalletClient(native); Identity = new ClientIdentity(Wallet); Keys = new DeviceKeyLifecycle(native);
             Rpc = new SolanaRpcTransport(http, config.BaseUri, config.RouterUri, config.ExpectedGenesis, Protocol.ProgramId);
             Journal = new TransactionJournal(storage); Sessions = new SessionRecordStore(storage, Tokens, Protocol.ProgramId);
-            RunMarkers = new RunStateStore(storage, Accounts, Tokens);
+            RunMarkers = new RunStateStore(storage, Accounts);
             var handoff = new SessionHandoff(Sessions, Keys, Tokens, Protocol.ProgramId);
             var persistence = new RunPersistence(RunMarkers);
             Dispatcher = new ExecutionDispatcher(
@@ -98,7 +98,7 @@ namespace ZKube.Integration.App
             SessionAccess = new SessionAccess(Wallet, Sessions, Tokens, Rpc, Protocol.ProgramId, now);
             SessionLifecycle = new SessionLifecycle(Identity, Wallet, Keys, Sessions, Tokens, Planner, Rpc,
                 Journal, Executor, Dispatcher, Protocol.ProgramId, now);
-            var recovery = new RunRecovery(Protocol.ProgramId, PlanningConstants.DelegationProgram, Tokens, Accounts);
+            var recovery = new RunRecovery(Protocol.ProgramId, PlanningConstants.DelegationProgram, Accounts);
             Runs = new RunClient(Identity, SessionAccess, Accounts, Planner, Rpc, RunMarkers, recovery,
                 Journal, Executor, Dispatcher, now, Protocol, runClientSeed);
             Products = new ProductQueries(Identity, Accounts, Planner, Rpc, now);

@@ -16,8 +16,7 @@ namespace ZKube.Core
         public static PresentationEvent[] Decode(byte[] bytes)
         {
             if (bytes == null) throw new ArgumentNullException(nameof(bytes));
-            if (bytes.Length == 0) return Array.Empty<PresentationEvent>();
-            if (bytes.Length < 6 || NativeWire.Read(bytes, 0, 2) != NativeSchema.TraceVersion)
+            if (bytes.Length < 6 || NativeWire.Read(bytes, 0, 2) != NativeSchema.AbiVersion)
                 throw new ArgumentException("Invalid trace version");
             uint count = checked((uint)NativeWire.Read(bytes, 2, 4));
             if (count > (bytes.Length - 6) / 4) throw new ArgumentException("Invalid trace count");

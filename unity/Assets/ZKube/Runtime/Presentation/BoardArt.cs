@@ -10,14 +10,6 @@ namespace ZKube.Presentation
 {
     public sealed class BoardArt : IDisposable
     {
-        [Serializable] public sealed class TextureInfo
-        {
-            public string scope, format;
-            public int width, height;
-            public bool supported;
-        }
-        public TextureInfo[] Textures { get; private set; } = Array.Empty<TextureInfo>();
-        public bool FormatsSupported { get; private set; }
         [Serializable] private sealed class Catalog { public Theme[] themes; public GuardianRule[] guardianRules; }
         [Serializable] public sealed class GuardianRule
         {
@@ -89,10 +81,7 @@ namespace ZKube.Presentation
             if (Body == null) Body = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular");
             if (atlas == null || common == null || Display == null || Body == null)
                 throw new InvalidOperationException("Prepare the bundled realm atlas and TMP fonts before opening the board");
-            var realmTexture = Sprite("background").texture;
-            var commonTexture = Sprite("common/bonus__tiki").texture;
-            Textures = new[] { TextureDetails(ThemeId, realmTexture), TextureDetails("common", commonTexture) };
-            FormatsSupported = Textures[0].supported && Textures[1].supported;
+
         }
         public IEnumerator LoadPortraits()
         {
@@ -106,8 +95,6 @@ namespace ZKube.Presentation
             if (disposed || realmLoad != selected) yield break;
             atlas = selected.Request.asset as SpriteAtlas;
             if (atlas == null) throw new InvalidOperationException("Generated profile portraits are missing");
-            Textures = new[] { TextureDetails(ThemeId, Sprite("guardian-1").texture) };
-            FormatsSupported = Textures[0].supported;
         }
         private static AtlasLoad AcquireAtlas(string path)
         {
@@ -129,11 +116,6 @@ namespace ZKube.Presentation
             shared.Collected = true; atlasLoads.Remove(shared.Path);
             if (shared.Request.asset != null) Resources.UnloadAsset(shared.Request.asset);
         }
-        private static TextureInfo TextureDetails(string scope, Texture2D texture) => new TextureInfo
-        {
-            scope = scope, format = texture.format.ToString(), width = texture.width, height = texture.height,
-            supported = SystemInfo.SupportsTextureFormat(texture.format)
-        };
         public Sprite Sprite(string name)
         {
             if (!sprites.TryGetValue(name, out var sprite))
@@ -156,7 +138,7 @@ namespace ZKube.Presentation
             foreach (string key in sprites.Keys.Where(key => !key.StartsWith("common/", StringComparison.Ordinal)).ToArray())
             { UnityEngine.Object.Destroy(sprites[key]); sprites.Remove(key); }
             ReleaseAtlas(ref realmLoad);
-            atlas = null; colors.Clear(); Textures = Array.Empty<TextureInfo>(); FormatsSupported = false;
+            atlas = null; colors.Clear();
             RealmId = 0; ThemeId = null; GuardianName = null; LevelMusicResource = null;
         }
         public void Dispose()

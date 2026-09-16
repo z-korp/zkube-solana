@@ -18,7 +18,7 @@ namespace ZKube.Integration.Presentation
         private RectTransform profilePanel;
         private Button profileButton;
         private MoneyRead<MoneyProfileState> profileRead;
-        private bool browsingProfile, profilePortraitLoading;
+        private bool browsingProfile;
         private byte selectedEmblem, selectedBorder;
         private readonly Dictionary<Button, byte> emblemButtons = new Dictionary<Button, byte>();
         private readonly Dictionary<Button, byte> borderButtons = new Dictionary<Button, byte>();
@@ -42,7 +42,7 @@ namespace ZKube.Integration.Presentation
         }
         private void ReleaseProfilePortraits()
         {
-            profileArtEpoch++; profilePortraitLoading = false;
+            profileArtEpoch++;
             if (profilePanel != null)
                 foreach (var image in profilePanel.GetComponentsInChildren<Image>(true)) image.sprite = null;
             profilePortraitArt?.Dispose(); profilePortraitArt = null;
@@ -193,7 +193,6 @@ namespace ZKube.Integration.Presentation
         }
         private IEnumerator LoadProfilePortraits(List<KeyValuePair<byte, Image>> portraits, long epoch)
         {
-            profilePortraitLoading = true;
             var owned = profilePortraitArt = new BoardArt(); var request = owned.LoadPortraits();
             while (true)
             {
@@ -209,14 +208,14 @@ namespace ZKube.Integration.Presentation
                     if (pair.Value != null) { pair.Value.sprite = owned.Sprite(catalog.Portrait(pair.Key).sprite); pair.Value.enabled = true; }
             }
             catch (Exception) { ProfilePortraitFailure(owned, epoch); yield break; }
-            profilePortraitLoading = false;
+
         }
         private void ProfilePortraitFailure(BoardArt owned, long epoch)
         {
             if (epoch == profileArtEpoch)
             {
                 if (profilePanel != null) foreach (var image in profilePanel.GetComponentsInChildren<Image>(true)) image.sprite = null;
-                profilePortraitLoading = false; status.text = "Portraits unavailable. Refresh to try again.";
+                status.text = "Portraits unavailable. Refresh to try again.";
             }
             owned.Dispose();
         }

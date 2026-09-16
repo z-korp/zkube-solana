@@ -12,12 +12,10 @@ namespace ZKube.Integration
         public ulong ObjectiveTotal { get; }
         public long FinalizedAt { get; }
         public bool Claimed { get; }
-        private readonly byte[] replay;
-        public byte[] ReplayHash => (byte[])replay.Clone();
         internal ValidatedBoardRow(uint position, string player, uint score, ulong objective, long finalized,
-            byte[] replayHash, bool claimed)
+            bool claimed)
         { Position = position; Player = player; Score = score; ObjectiveTotal = objective; FinalizedAt = finalized;
-            replay = (byte[])replayHash.Clone(); Claimed = claimed; }
+            Claimed = claimed; }
     }
     public sealed class ValidatedBoardAccount
     {

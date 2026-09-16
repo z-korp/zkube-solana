@@ -265,16 +265,6 @@ namespace ZKube.Editor
             return sprites[0];
         }
 
-        // Reports imported object types before changing any
-        // packing assumptions. A texture setting alone does not prove a sprite exists.
-        public static void DiagnoseSpriteImport()
-        {
-            const string path = Generated + "Sprites/theme-8/block-1.png";
-            Debug.Log("Sprite import before: " + string.Join(", ", AssetDatabase.LoadAllAssetsAtPath(path).Select(a => a.GetType().Name + ":" + a.name)));
-            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
-            Debug.Log("Sprite import after: " + string.Join(", ", AssetDatabase.LoadAllAssetsAtPath(path).Select(a => a.GetType().Name + ":" + a.name)));
-        }
-
         private static void PrepareFonts(FontEntry[] entries)
         {
             // Keep a bounded Latin/UI seed. These assets use only bundled font

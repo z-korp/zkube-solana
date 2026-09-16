@@ -217,7 +217,7 @@ def record_artifact(apk, before, started):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["native", "probe", "prepare", "diagnose-art", "test", "android", "exec"])
+    parser.add_argument("action", choices=["native", "probe", "prepare", "test", "android", "exec"])
     parser.add_argument("--test-platform", choices=["EditMode", "PlayMode"], default="EditMode")
     parser.add_argument("--test-filter", default="ZKube")
     parser.add_argument("--identity", choices=["money", "store"], default="money")
@@ -243,8 +243,7 @@ def main():
     if args.identity == "store" and target != "Android":
         parser.error("--identity store selects an Android Player build; Editor tests run the shared suite without this option")
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    method = {"probe": "ZKubeBuild.Probe", "prepare": "ZKubeBuild.Prepare",
-              "diagnose-art": "ZKubeAssetImports.DiagnoseSpriteImport"}.get(args.action, "ZKubeBuild.BuildAndroid")
+    method = {"probe": "ZKubeBuild.Probe", "prepare": "ZKubeBuild.Prepare"}.get(args.action, "ZKubeBuild.BuildAndroid")
     # Unity prints its process environment on Gradle failures. Pass only build
     # and desktop paths, so unrelated signer/service credentials cannot enter logs.
     inherited = {"HOME", "USER", "LOGNAME", "PATH", "LANG", "LC_ALL", "SHELL",

@@ -62,22 +62,22 @@ namespace ZKube.Presentation.Tests
             {
                 case ApplyVrfRequest.Operation:
                     var vrf = ApplyVrfRequest.Decode(bytes);
-                    return vrf.Trace == 0 ? null : new Step { operation = raw.operation, counter = vrf.Counter,
+                    return new Step { operation = raw.operation, counter = vrf.Counter,
                         output = BitConverter.ToString(vrf.Output).Replace("-", "") };
                 case PlayMoveRequest.Operation:
                     var move = PlayMoveRequest.Decode(bytes);
-                    return move.Trace == 0 ? null : new Step { operation = raw.operation, action = move.Action,
+                    return new Step { operation = raw.operation, action = move.Action,
                         row = move.Row, start = move.Start, destination = move.Destination };
                 case ApplyBonusRequest.Operation:
                     var bonus = ApplyBonusRequest.Decode(bytes);
-                    return bonus.Trace == 0 ? null : new Step { operation = raw.operation, action = bonus.Action,
+                    return new Step { operation = raw.operation, action = bonus.Action,
                         row = bonus.Row, column = bonus.Column };
                 case RequestRerollRequest.Operation:
                     var reroll = RequestRerollRequest.Decode(bytes);
-                    return reroll.Trace == 0 ? null : new Step { operation = raw.operation, action = reroll.Action };
+                    return new Step { operation = raw.operation, action = reroll.Action };
                 case FinishRequest.Operation:
                     var finish = FinishRequest.Decode(bytes);
-                    return finish.Trace == 0 ? null : new Step { operation = raw.operation, reason = finish.Reason };
+                    return new Step { operation = raw.operation, reason = finish.Reason };
                 default: return null;
             }
         }
@@ -98,7 +98,7 @@ namespace ZKube.Presentation.Tests
 
         public IEnumerator PlayNextInput()
         {
-            while (!Board.Ready || Board.Busy) yield return null;
+            while (!ZKube.Tests.Presentation.BoardTestState.Idle(Board) || Board.Busy) yield return null;
             while (journeyCursor < Current.steps.Length && Current.steps[journeyCursor].operation == ApplyVrfRequest.Operation) journeyCursor++;
             if (journeyCursor >= Current.steps.Length) yield break;
             var step = Current.steps[journeyCursor++];

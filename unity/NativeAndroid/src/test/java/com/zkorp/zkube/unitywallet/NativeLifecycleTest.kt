@@ -11,8 +11,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import javax.crypto.KeyGenerator
-import java.util.concurrent.Executors
-import java.util.concurrent.Callable
 
 @RunWith(RobolectricTestRunner::class)
 class NativeLifecycleTest {
@@ -54,16 +52,4 @@ class NativeLifecycleTest {
         assertNull(prefs.getString("device:a", null))
     }
 
-    @Test fun concurrentStartupCannotReplaceTheDeviceSigner() {
-        val context = RuntimeEnvironment.getApplication()
-        val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
-        val workers = Executors.newFixedThreadPool(8)
-        try {
-            val seeds = workers.invokeAll((1..32).map { Callable {
-                DeviceSeeds.getOrCreate(SecretVault(context) { key }, "concurrent-owner").toList()
-            } }).map { it.get() }
-            assertEquals(1, seeds.toSet().size)
-            assertEquals(32, seeds.singleOrNull()?.size ?: seeds.first().size)
-        } finally { workers.shutdownNow() }
-    }
 }

@@ -16,7 +16,6 @@ namespace ZKube.Integration.Tests
             public Task<string> Request(string json) => throw new InvalidOperationException("No wallet request allowed");
             public Task<byte[]> LoadDeviceSeed(string owner) => Task.FromResult(Active?.ToArray());
             public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult(Candidate?.ToArray());
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new InvalidOperationException("No active key creation allowed");
             public Task RemoveDeviceSeed(string owner) => throw new InvalidOperationException("No key deletion allowed");
             public Task<byte[]> CreateCandidateSeed(string owner)
             { Creations++; Candidate ??= Enumerable.Repeat((byte)2, 32).ToArray(); return Task.FromResult(Candidate.ToArray()); }
@@ -51,7 +50,7 @@ namespace ZKube.Integration.Tests
         {
             using var owner = new DeviceSigner(Enumerable.Repeat((byte)1, 32).ToArray());
             var native = new Native(); var lifecycle = new DeviceKeyLifecycle(native);
-            Assert.That(await lifecycle.LoadCandidate(owner.Address), Is.Null); Assert.That(native.Creations, Is.Zero);
+            Assert.That(await native.LoadCandidateSeed(owner.Address), Is.Null); Assert.That(native.Creations, Is.Zero);
             using var prepared = await lifecycle.PrepareCandidate(owner.Address);
             await lifecycle.Promote(owner.Address, null, prepared.Address);
             Assert.That(native.Active, Is.Not.Null); Assert.That(native.Candidate, Is.Null);

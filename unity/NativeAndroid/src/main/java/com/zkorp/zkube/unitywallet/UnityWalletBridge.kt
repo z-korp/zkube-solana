@@ -28,12 +28,6 @@ object UnityWalletBridge {
         return SecretVault(context).get("device:$owner")?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
     }
 
-    @JvmStatic fun createDeviceSeed(context: Context, owner: String): String {
-        validateOwner(owner)
-        val seed = DeviceSeeds.getOrCreate(SecretVault(context), owner)
-        return Base64.encodeToString(seed, Base64.NO_WRAP)
-    }
-
     @JvmStatic fun removeDeviceSeed(context: Context, owner: String) { validateOwner(owner); DeviceSeeds.remove(SecretVault(context), owner) }
     @JvmStatic fun loadCandidateSeed(context: Context, owner: String): String? {
         validateOwner(owner)
@@ -54,10 +48,6 @@ object UnityWalletBridge {
 }
 
 internal object DeviceSeeds {
-    // All JNI callers share this lock, even though they create separate vault
-    // adapters. An existing signer is never replaced by a concurrent startup.
-    @Synchronized fun getOrCreate(vault: SecretVault, owner: String): ByteArray =
-        vault.get("device:$owner") ?: ByteArray(32).also { SecureRandom().nextBytes(it); vault.put("device:$owner", it) }
     @Synchronized fun remove(vault: SecretVault, owner: String) = vault.remove("device:$owner")
     @Synchronized fun candidate(vault: SecretVault, owner: String): ByteArray =
         vault.get("device-candidate:$owner") ?: ByteArray(32).also { SecureRandom().nextBytes(it); vault.put("device-candidate:$owner", it) }

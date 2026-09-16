@@ -19,7 +19,6 @@ namespace ZKube.Local.App
     public sealed class StoreAppController : MonoBehaviour
     {
         public StoreAppFlow Flow { get; private set; }
-        public bool PageReady { get; private set; }
         private BoardController board;
         private Camera pageCamera;
         private BoardArt art;
@@ -36,19 +35,16 @@ namespace ZKube.Local.App
         private PageCatalog pages;
         private BoardArt portraitArt;
         private long pageEpoch;
-        private int pendingEmblems;
         private CancellationTokenSource sharing = new CancellationTokenSource();
         private StorePage previousPage;
-        private float? injectedDensity;
         private double lastMusic = AudioPolicy.ToggleOnLevel, lastEffects = AudioPolicy.ToggleOnLevel;
         private readonly Color pale = new Color(1, .96f, .84f), panel = new Color(.06f, .10f, .17f, .95f);
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
-        public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController, float? displayDensity = null)
+        public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController)
         {
             if (Flow != null) throw new InvalidOperationException("Store app was already initialized");
             board = boardController ?? throw new ArgumentNullException(nameof(boardController));
-            injectedDensity = displayDensity;
             Flow = new StoreAppFlow(product, runs, billing);
             if (EventSystem.current == null || EventSystem.current.transform.IsChildOf(board.transform))
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");
@@ -98,7 +94,7 @@ namespace ZKube.Local.App
                 if (Flow.Page == StorePage.Settings) { lastMusic = AudioPolicy.ToggleOnLevel; lastEffects = AudioPolicy.ToggleOnLevel; }
                 previousPage = Flow.Page;
             }
-            dirty = true; PageReady = false;
+            dirty = true;
             if (pageCamera != null) pageCamera.enabled = Flow.Page != StorePage.Board;
             if (pageRoot != null) pageRoot.SetActive(Flow.Page != StorePage.Board);
             if (warningRoot != null)
@@ -134,14 +130,14 @@ namespace ZKube.Local.App
             loading = false;
             if (this == null || Flow == null) yield break;
             if (Flow.Page != page || PageRealm != realm) { dirty = true; yield break; }
-            try { Draw(); PageReady = pendingEmblems == 0; }
+            try { Draw(); }
             catch (Exception error) { DrawLoadError(error); }
         }
         private void DrawLoadError(Exception error)
         {
             // A missing imported asset is an explicit retry page, not an
             // exception-driven per-frame load loop.
-            dirty = false; PageReady = false;
+            dirty = false;
             RetirePage();
             pageRoot = CanvasRoot("Page unavailable", 20);
             content = Rect("Failure", pageRoot.transform); Stretch(content, 24);
@@ -324,7 +320,6 @@ namespace ZKube.Local.App
         }
         private IEnumerator LoadEmblems(Dictionary<byte, Image> images, long epoch)
         {
-            pendingEmblems = 1;
             var owned = portraitArt = new BoardArt(); var request = owned.LoadPortraits();
             while (true)
             {
@@ -333,7 +328,7 @@ namespace ZKube.Local.App
                 catch
                 {
                     foreach (var image in images.Values) EmblemFailure(image, epoch);
-                    owned.Dispose(); EmblemReady(epoch); yield break;
+                    owned.Dispose(); yield break;
                 }
                 if (!more) break; yield return request.Current;
             }
@@ -344,7 +339,7 @@ namespace ZKube.Local.App
                 try { pair.Value.sprite = owned.Sprite(pages.Portrait(pair.Key).sprite); pair.Value.enabled = true; }
                 catch { EmblemFailure(pair.Value, epoch); }
             }
-            EmblemReady(epoch);
+
         }
         private void EmblemFailure(Image image, long epoch)
         {
@@ -352,8 +347,6 @@ namespace ZKube.Local.App
             image.enabled = false;
             var note = Label(image.transform, "Portrait unavailable", 14, 0); Stretch(note.rectTransform); note.color = panel;
         }
-        private void EmblemReady(long epoch)
-        { if (epoch == pageEpoch && --pendingEmblems == 0 && Flow?.Page == StorePage.Profile) PageReady = true; }
         private void Volume(string title, double value, Action<double> set, bool music)
         {
             var row = Row(title + " volume");
@@ -418,7 +411,7 @@ namespace ZKube.Local.App
         private RectTransform Row(string name)
         { var rect = Rect(name, content); Height(rect, TouchSize(60 * TextScale)); var group = rect.gameObject.AddComponent<HorizontalLayoutGroup>(); group.spacing = 8; group.childControlHeight = group.childControlWidth = true; group.childForceExpandWidth = true; return rect; }
         private float TouchSize(float preferred) => BoardLayout.CanvasTouchSize(preferred,
-            injectedDensity ?? BoardController.ReadDisplayDensity(), pageRoot.GetComponent<Canvas>().scaleFactor);
+            BoardController.ReadDisplayDensity(), pageRoot.GetComponent<Canvas>().scaleFactor);
         private float ContentWidth()
         {
             if (content.rect.width <= 0) Canvas.ForceUpdateCanvases();
@@ -447,7 +440,7 @@ namespace ZKube.Local.App
         }
         private void RetirePage()
         {
-            pageEpoch++; pendingEmblems = 0; sharing.Cancel(); sharing.Dispose(); sharing = new CancellationTokenSource();
+            pageEpoch++; sharing.Cancel(); sharing.Dispose(); sharing = new CancellationTokenSource();
             if (pageRoot == null) return;
             pageRoot.SetActive(false);
             // Destroy is deferred. Remove all page renderer references now;

@@ -129,7 +129,7 @@ namespace ZKube.Integration
                 string player = (string)row["player"];
                 if (!players.Add(player)) throw new FormatException("Board contains duplicate players");
                 var accepted = new ValidatedBoardRow(position, player, (uint)row["score"], (ulong)row["objective_total"],
-                    (long)row["finalized_at"], row["replay_hash"].Values<byte>().ToArray(),
+                    (long)row["finalized_at"],
                     (data[rowsEnd + (int)(position / 8)] & (1 << (int)(position % 8))) != 0);
                 ulong metric = kind == "score" ? accepted.Score : accepted.ObjectiveTotal;
                 if (metric == 0 || accepted.FinalizedAt < 0 || accepted.FinalizedAt > 9007199254740991L ||

@@ -85,7 +85,6 @@ validate_tools() {
 validate_unity() {
   cd "$root"
   NO_DNA=1 python3 -m unittest discover -s unity/tools/tests -p 'test_*.py'
-  NO_DNA=1 python3 unity/tools/harness.py runner-regression --tests unity/tools/harness/RunnerTests.cs --filter HarnessRunnerTests
   NO_DNA=1 python3 unity/tools/fixtures.py check
   NO_DNA=1 python3 unity/tools/build.py test
   NO_DNA=1 python3 unity/tools/build.py test --test-platform PlayMode

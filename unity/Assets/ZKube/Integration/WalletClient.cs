@@ -12,7 +12,6 @@ namespace ZKube.Integration
     {
         Task<string> Request(string requestJson);
         Task<byte[]> LoadDeviceSeed(string owner);
-        Task<byte[]> CreateDeviceSeed(string owner);
         Task RemoveDeviceSeed(string owner);
     }
 
@@ -50,15 +49,6 @@ namespace ZKube.Integration
             if (seed == null) return null;
             try { return new DeviceSigner(seed); }
             finally { Array.Clear(seed, 0, seed.Length); }
-        }
-        // Explicit caller intent is required; recovery never creates a replacement
-        // device key when ciphertext or the Android keystore key has been lost.
-        public async Task<DeviceSigner> CreateDeviceSigner(string owner)
-        {
-            SolanaAddress.Bytes(owner);
-            var seed = await native.CreateDeviceSeed(owner);
-            try { return new DeviceSigner(seed); }
-            finally { if (seed != null) Array.Clear(seed, 0, seed.Length); }
         }
         public Task RemoveDeviceSigner(string owner) { SolanaAddress.Bytes(owner); return native.RemoveDeviceSeed(owner); }
         private async Task<JObject> Request(string operation, string owner, byte[] transaction)

@@ -174,9 +174,9 @@ namespace ZKube.Editor
         public static void Probe()
         {
             Configure();
-            if (NativeCore.AbiVersion() != 1 || NativeCore.RunStateLength() == 0)
+            if (NativeEngine.AbiVersion() != ZKube.Core.Generated.NativeSchema.AbiVersion)
                 throw new InvalidOperationException("Native boundary probe failed");
-            Debug.Log($"ZKUBE_NATIVE_PROBE abi={NativeCore.AbiVersion()} runStateBytes={NativeCore.RunStateLength()}");
+            Debug.Log($"ZKUBE_NATIVE_PROBE abi={NativeEngine.AbiVersion()}");
         }
 
         public static void Prepare()

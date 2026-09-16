@@ -120,7 +120,6 @@ namespace ZKube.Integration.Presentation
                 var row = navigation.gameObject.AddComponent<HorizontalLayoutGroup>(); row.spacing = 8; row.childForceExpandWidth = true; row.childControlWidth = row.childControlHeight = true;
                 Button(navigation, "Previous realm", () => SelectRealm(browseRealm == 1 ? checked((byte)Protocol.Realms.Length) : (byte)(browseRealm - 1)));
                 Button(navigation, "Next realm", () => SelectRealm(browseRealm == Protocol.Realms.Length ? (byte)1 : (byte)(browseRealm + 1)));
-                if (!realm.Enabled) Label(campaignPanel, "This realm is unavailable for play.", 18, false);
                 if (!realm.Unlocked) Label(campaignPanel, "Clear the previous realm's final trial to unlock this path.", 18, false);
                 Canvas.ForceUpdateCanvases();
                 float width = campaignPanel.rect.width - campaignPanel.GetComponent<VerticalLayoutGroup>().padding.horizontal;

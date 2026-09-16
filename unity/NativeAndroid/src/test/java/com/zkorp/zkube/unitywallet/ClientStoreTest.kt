@@ -15,21 +15,21 @@ class ClientStoreTest {
     private val owner = Base64.encodeToString(ByteArray(32) { 7 }, Base64.NO_WRAP)
     @Test fun publicLocatorsRemainIndependentOfSecretLossAndAreOwnerScoped() {
         val context = RuntimeEnvironment.getApplication()
-        ClientStore.write(context, owner, "campaign", "synthetic locator")
-        ClientStore.write(context, owner, "daily", "separate slot")
+        assertTrue(ClientStore.compareExchange(context, owner, "campaign", null, "synthetic locator"))
+        assertTrue(ClientStore.compareExchange(context, owner, "daily", null, "separate slot"))
         val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
         SecretVault(context) { key }.put("device:$owner", ByteArray(32) { 9 })
         assertNull(SecretVault(context) { throw IllegalStateException("Synthetic key loss") }.get("device:$owner"))
         assertEquals("synthetic locator", ClientStore.read(context.applicationContext, owner, "campaign"))
         assertEquals("separate slot", ClientStore.read(context.applicationContext, owner, "daily"))
         assertNull(ClientStore.read(context, Base64.encodeToString(ByteArray(32) { 8 }, Base64.NO_WRAP), "campaign"))
-        ClientStore.write(context, owner, "campaign", null)
+        assertTrue(ClientStore.compareExchange(context, owner, "campaign", "synthetic locator", null))
         assertNull(ClientStore.read(context, owner, "campaign"))
         assertEquals("separate slot", ClientStore.read(context, owner, "daily"))
     }
     @Test fun concurrentJournalWritersCannotReplaceAnUnresolvedIntent() {
         val context = RuntimeEnvironment.getApplication()
-        ClientStore.write(context, owner, "journal", null)
+        assertTrue(ClientStore.compareExchange(context, owner, "journal", ClientStore.read(context, owner, "journal"), null))
         val pool = Executors.newFixedThreadPool(4)
         try {
             val outcomes = pool.invokeAll((1..16).map { index -> Callable {

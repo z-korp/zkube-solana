@@ -30,7 +30,6 @@ namespace ZKube.Core
     {
         public CoreRunToken Token { get; }
         public PresentationEvent[] Events { get; }
-        public bool TraceIncluded { get; }
         public static RunTransition Decode(byte[] config, byte[] response) => new RunTransition(config, response);
         internal RunTransition(byte[] config, byte[] response)
         {
@@ -41,7 +40,6 @@ namespace ZKube.Core
             if (stateLength != NativeSchema.RunStateLength || traceLength != response.Length - 10 - stateLength)
                 throw new ArgumentException("Invalid native transition length");
             Token = new CoreRunToken(config, NativeWire.Bytes(response, 10, stateLength));
-            TraceIncluded = traceLength != 0;
             Events = PresentationTrace.Decode(NativeWire.Bytes(response, 10 + stateLength, traceLength));
         }
     }
@@ -52,11 +50,12 @@ namespace ZKube.Core
         private static extern int Invoke(uint operation, [In] byte[] request, uint requestLength,
             [In, Out] byte[] response, uint capacity, ref uint written);
 
+        [DllImport("zkube_core_ffi", CallingConvention = CallingConvention.Cdecl, EntryPoint = "zkube_core_abi_version")]
+        public static extern uint AbiVersion();
+
         public static byte[] Call(uint operation, byte[] request)
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
-            if (NativeCore.AbiVersion() != NativeSchema.AbiVersion || NativeCore.RunStateLength() != NativeSchema.RunStateLength)
-                throw new InvalidOperationException("Native engine and generated client versions differ");
             // Generated conservative envelope: no size-query double execution on input.
             var output = new byte[NativeSchema.ResponseCapacity];
             uint written = 0;
@@ -116,26 +115,26 @@ namespace ZKube.Core
         public static RunSummary Summary(byte[] state)
             => RunSummary.Decode(Call(SummaryRequest.Operation, new SummaryRequest { State = state }.Encode()));
 
-        public static RunTransition ApplyVrf(CoreRunToken token, uint counter, byte[] output, bool trace = true)
+        public static RunTransition ApplyVrf(CoreRunToken token, uint counter, byte[] output)
             => new RunTransition(token.Config, Call(ApplyVrfRequest.Operation, new ApplyVrfRequest
-            { Config = token.Config, State = token.State, Trace = trace ? (byte)1 : (byte)0, Counter = counter, Output = output }.Encode()));
+            { Config = token.Config, State = token.State, Counter = counter, Output = output }.Encode()));
 
-        public static RunTransition PlayMove(CoreRunToken token, uint action, ushort expectedMove, byte row, byte start, byte destination, bool trace = true)
+        public static RunTransition PlayMove(CoreRunToken token, uint action, ushort expectedMove, byte row, byte start, byte destination)
             => new RunTransition(token.Config, Call(PlayMoveRequest.Operation, new PlayMoveRequest
-            { Config = token.Config, State = token.State, Trace = trace ? (byte)1 : (byte)0, Action = action,
+            { Config = token.Config, State = token.State, Action = action,
                 ExpectedMove = expectedMove, Row = row, Start = start, Destination = destination }.Encode()));
 
-        public static RunTransition ApplyBonus(CoreRunToken token, uint action, byte row, byte column, bool trace = true)
+        public static RunTransition ApplyBonus(CoreRunToken token, uint action, byte row, byte column)
             => new RunTransition(token.Config, Call(ApplyBonusRequest.Operation, new ApplyBonusRequest
-            { Config = token.Config, State = token.State, Trace = trace ? (byte)1 : (byte)0, Action = action, Row = row, Column = column }.Encode()));
+            { Config = token.Config, State = token.State, Action = action, Row = row, Column = column }.Encode()));
 
-        public static RunTransition RequestReroll(CoreRunToken token, uint action, bool trace = true)
+        public static RunTransition RequestReroll(CoreRunToken token, uint action)
             => new RunTransition(token.Config, Call(RequestRerollRequest.Operation, new RequestRerollRequest
-            { Config = token.Config, State = token.State, Trace = trace ? (byte)1 : (byte)0, Action = action }.Encode()));
+            { Config = token.Config, State = token.State, Action = action }.Encode()));
 
-        public static RunTransition Finish(CoreRunToken token, byte reason, bool trace = true)
+        public static RunTransition Finish(CoreRunToken token, byte reason)
             => new RunTransition(token.Config, Call(FinishRequest.Operation, new FinishRequest
-            { Config = token.Config, State = token.State, Trace = trace ? (byte)1 : (byte)0, Reason = reason }.Encode()));
+            { Config = token.Config, State = token.State, Reason = reason }.Encode()));
 
         public static DailyPair DailyPair(uint day) => Generated.DailyPair.Decode(
             Call(DailyPairIndexRequest.Operation, new DailyPairIndexRequest { Day = day }.Encode()));

@@ -10,10 +10,7 @@ documents, and do not move approval policy or operator runbooks into `README.md`
 
 ## Agent tooling discipline
 
-- Off-Editor C# harnesses use `unity/tools/harness.py` and its shared
-  `ZKube.TestMain`. Each case prints PASS or FAIL, failures include their first
-  stack frame, and the summary returns 0 or 1. Never rethrow from Main or use
-  an abort as a test result. Python tools use `unity/tools/cli.py` to report
+- Python tools use `unity/tools/cli.py` to report
   expected failures with the result/log path instead of a traceback.
   Regenerate Unity fixtures with `unity/tools/fixtures.py generate`, which
   orders native and program producers; do not run writers concurrently.

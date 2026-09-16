@@ -30,16 +30,13 @@ namespace ZKube.Integration.App
         public string Owner => Binding.Owner;
         public string Address => Binding.Address;
         public long DeadlineAt => Binding.DeadlineAt;
-        private MoneyRunOperation lastOperation;
         private MoneyRunOperation lastReceiptOperation;
-        public MoneyRunOperation LastOperation => Volatile.Read(ref lastOperation);
         public MoneyRunOperation LastReceiptOperation => Volatile.Read(ref lastReceiptOperation);
         internal void Record(MoneyRunOperation value)
         {
             // A read failure before execution is a new operation outcome, but
             // cannot erase the last actual transaction accepted for this run.
             if (value.Receipts.Count != 0) Volatile.Write(ref lastReceiptOperation, value);
-            Volatile.Write(ref lastOperation, value);
         }
         internal MoneyRunHandle(IdentityLease identity, RunClientState initial, ActiveRunReconciler native)
         { Identity = identity; Binding = new RunPresentationBinding(initial, native); }

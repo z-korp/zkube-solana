@@ -10,15 +10,11 @@ pub use run::{
     run_score_eligible,
 };
 
-use zkube_core::{
-    BlockWeights, ChainDomain, ChallengeId, DailyBoardPools, PayoutError, ReplayCommitment,
-    RulesHash, continuation_from_vrf, derive_player_id, ladder_points as core_ladder_points,
-};
+use zkube_core::{DailyBoardPools, PayoutError, ladder_points as core_ladder_points};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoundaryError {
     InvalidLength,
-    InvalidMode,
     InvalidEncoding,
     Run(zkube_core::RunTransitionError),
     Randomness(zkube_core::RandomnessError),
@@ -70,73 +66,6 @@ pub fn merge_campaign_stars(stored: &[u8], incoming: &[u8]) -> Result<Vec<u8>, B
             .map_err(|_| BoundaryError::InvalidEncoding)?,
     ));
     Ok(stars.packed().to_vec())
-}
-
-/// Host-compilable wallet-to-player-ID boundary.
-///
-/// # Errors
-///
-/// Rejects inputs other than 32 bytes.
-pub fn qualified_player_id(
-    chain_domain: &[u8],
-    raw_account: &[u8],
-) -> Result<[u8; 32], BoundaryError> {
-    Ok(derive_player_id(ChainDomain(array_32(chain_domain)?), array_32(raw_account)?).to_bytes())
-}
-
-/// Host-compilable replay initialization used by generated JS glue.
-///
-/// # Errors
-///
-/// Rejects malformed identities or an unknown replay mode.
-#[allow(clippy::too_many_arguments)]
-pub fn initial_replay_commitment(
-    chain_domain: &[u8],
-    challenge_id: &[u8],
-    rules_hash: &[u8],
-    raw_account: &[u8],
-    run_id: u64,
-    mode_tag: u8,
-) -> Result<[u8; 32], BoundaryError> {
-    let domain = ChainDomain(array_32(chain_domain)?);
-    let player_id = derive_player_id(domain, array_32(raw_account)?);
-    if mode_tag != 0 {
-        return Err(BoundaryError::InvalidMode);
-    }
-    Ok(ReplayCommitment::initial(
-        domain,
-        ChallengeId(array_32(challenge_id)?),
-        RulesHash(array_32(rules_hash)?),
-        player_id,
-        run_id,
-    )
-    .to_bytes())
-}
-
-/// Return the post-perfect-clear seed row followed by its visible preview.
-///
-/// # Errors
-///
-/// Rejects malformed identities, weight arrays, or unplayable weights.
-pub fn empty_continuation_rows(
-    request_counter: u32,
-    vrf_output: &[u8],
-    rules_hash: &[u8],
-    weights: &[u16],
-) -> Result<[u8; 16], BoundaryError> {
-    let weights: [u16; 5] = weights
-        .try_into()
-        .map_err(|_| BoundaryError::InvalidLength)?;
-    let layout = continuation_from_vrf(
-        array_32(vrf_output)?,
-        request_counter,
-        array_32(rules_hash)?,
-        BlockWeights { values: weights },
-    )?;
-    let mut rows = [0u8; 16];
-    rows[..8].copy_from_slice(layout.grid.row(0).ok_or(BoundaryError::InvalidEncoding)?);
-    rows[8..].copy_from_slice(&layout.preview);
-    Ok(rows)
 }
 
 /// # Errors
@@ -275,11 +204,11 @@ pub fn encode_payout_plan(plan: &ProtocolPayoutPlan) -> Vec<u8> {
 mod wasm {
     use super::*;
     use wasm_bindgen::prelude::*;
+    use zkube_core::{ReplayCommitment, RulesHash};
 
     fn js_error(error: BoundaryError) -> JsError {
         let message = match error {
             BoundaryError::InvalidLength => "invalid byte length",
-            BoundaryError::InvalidMode => "replay mode must be 0 (arcade)",
             BoundaryError::InvalidEncoding => "invalid run encoding",
             BoundaryError::Run(_) => "run transition rejected",
             BoundaryError::Randomness(_) => "randomness transition rejected",
@@ -376,6 +305,7 @@ mod tests {
     }
     use super::*;
     use serde_json::Value;
+    use zkube_core::{ReplayCommitment, RulesHash};
     use zkube_core::{Run, RunConfig, RunEndReason};
 
     fn decode_32(value: &str) -> [u8; 32] {
@@ -402,23 +332,6 @@ mod tests {
             merge_campaign_stars(&[0x55; 25], &[0xaa; 25]).unwrap(),
             vec![0xaa; 25]
         );
-        assert_eq!(
-            qualified_player_id(&[0; 31], &[0; 32]),
-            Err(BoundaryError::InvalidLength)
-        );
-        assert_eq!(
-            initial_replay_commitment(&[0; 32], &[0; 32], &[0; 32], &[0; 32], 1, 2),
-            Err(BoundaryError::InvalidMode)
-        );
-    }
-
-    #[test]
-    fn perfect_clear_boundary_returns_seed_and_preview() {
-        let rows = empty_continuation_rows(29, &[7; 32], &[8; 32], &[16, 20, 22, 24, 18]).unwrap();
-        assert!(rows[..8].contains(&0));
-        assert!(rows[..8].iter().any(|cell| *cell != 0));
-        assert!(rows[8..].contains(&0));
-        assert!(rows[8..].iter().any(|cell| *cell != 0));
     }
 
     #[test]

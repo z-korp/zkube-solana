@@ -10,14 +10,12 @@ namespace ZKube.Integration.Client
     {
         public string Status { get; }
         public uint DayId { get; }
-        public ulong Slot { get; }
-        public ulong? ResumeRunId { get; }
         public ulong Kredits { get; }
         public SessionAssessment Session { get; }
         public bool Ready => Status == "ready";
-        internal DailyEntryReadiness(string status, uint day, ulong slot = 0, ulong? resume = null,
+        internal DailyEntryReadiness(string status, uint day,
             ulong kredits = 0, SessionAssessment session = null)
-        { Status = status; DayId = day; Slot = slot; ResumeRunId = resume; Kredits = kredits; Session = session; }
+        { Status = status; DayId = day; Kredits = kredits; Session = session; }
     }
 
     // Finite observation only. No claims scan, signature, key creation, mutation or
@@ -49,34 +47,34 @@ namespace ZKube.Integration.Client
                 if (await journal.Load(lease.Owner).ConfigureAwait(false) != null) return new DailyEntryReadiness("pending-transaction", day);
                 var first = await rpc.ReadAccounts(rpc.Base, new[] { planner.Player(lease.Owner), planner.ProtocolAddress,
                     planner.ArcadeAddress, planner.Daily(day), planner.CreditVaultAddress }, cancellation: token).ConfigureAwait(false);
-                if (first.Accounts[0].Envelope == null) return new DailyEntryReadiness("missing-player", day, first.Slot);
+                if (first.Accounts[0].Envelope == null) return new DailyEntryReadiness("missing-player", day);
                 var player = PlayerPlanSnapshot.Decode(accounts, first.Accounts[0].Envelope, lease.Owner);
-                if (player.DailyRunId != 0) return new DailyEntryReadiness("resume", day, first.Slot, player.DailyRunId, player.Kredits);
+                if (player.DailyRunId != 0) return new DailyEntryReadiness("resume", day, player.Kredits);
                 uint following = first.Accounts[2].Envelope == null ? checked(day + 1) :
                     Math.Max(checked(day + 1), (uint)accounts.ArcadeConfig(first.Accounts[2].Envelope)["suspended_until_day"]);
                 var second = await rpc.ReadAccounts(rpc.Base, new[] { planner.Daily(following),
                     planner.ActiveRun(lease.Owner, player.NextRunId) }, minContextSlot: first.Slot, cancellation: token).ConfigureAwait(false);
                 var entry = DailyEntrySnapshot.Inspect(accounts, first.Accounts[1].Envelope, first.Accounts[2].Envelope,
                     first.Accounts[3].Envelope, second.Accounts[0].Envelope, first.Accounts[4].Envelope, day, timestamp);
-                if (entry.Snapshot == null) return new DailyEntryReadiness(entry.Status, day, second.Slot, kredits: player.Kredits);
-                if (second.Accounts[1].Envelope != null) return new DailyEntryReadiness("run-address-occupied", day, second.Slot, kredits: player.Kredits);
-                if (player.Kredits == 0) return new DailyEntryReadiness("needs-kredits", day, second.Slot);
+                if (entry.Snapshot == null) return new DailyEntryReadiness(entry.Status, day, kredits: player.Kredits);
+                if (second.Accounts[1].Envelope != null) return new DailyEntryReadiness("run-address-occupied", day, kredits: player.Kredits);
+                if (player.Kredits == 0) return new DailyEntryReadiness("needs-kredits", day);
                 var session = await sessions.Inspect().ConfigureAwait(false);
                 // A fresh current slot/sequence read detects cross-device entry
                 // during this finite observation, without a mutable UI discovery flag.
                 var last = await rpc.ReadAccount(rpc.Base, planner.Player(lease.Owner), minContextSlot: second.Slot, cancellation: token).ConfigureAwait(false);
-                if (last.Envelope == null) return new DailyEntryReadiness("changed", day, last.Slot);
+                if (last.Envelope == null) return new DailyEntryReadiness("changed", day);
                 var after = PlayerPlanSnapshot.Decode(accounts, last.Envelope, lease.Owner);
-                if (after.DailyRunId != 0) return new DailyEntryReadiness("resume", day, last.Slot, after.DailyRunId, after.Kredits);
+                if (after.DailyRunId != 0) return new DailyEntryReadiness("resume", day, after.Kredits);
                 long completedAt = now();
                 if (after.NextRunId != player.NextRunId || after.Kredits != player.Kredits || completedAt / 86400 != day ||
                     await journal.Load(lease.Owner).ConfigureAwait(false) != null)
-                    return new DailyEntryReadiness("changed", day, last.Slot, kredits: after.Kredits);
+                    return new DailyEntryReadiness("changed", day, kredits: after.Kredits);
                 var finalWindow = DailyEntrySnapshot.Inspect(accounts, first.Accounts[1].Envelope, first.Accounts[2].Envelope,
                     first.Accounts[3].Envelope, second.Accounts[0].Envelope, first.Accounts[4].Envelope, day, completedAt);
-                if (finalWindow.Snapshot == null) return new DailyEntryReadiness(finalWindow.Status, day, last.Slot, kredits: after.Kredits);
+                if (finalWindow.Snapshot == null) return new DailyEntryReadiness(finalWindow.Status, day, kredits: after.Kredits);
                 return new DailyEntryReadiness(!session.Current ? "needs-session" : session.Funding != "ready" ? "needs-refill" : "ready",
-                    day, last.Slot, kredits: after.Kredits, session: session);
+                    day, kredits: after.Kredits, session: session);
             }
             var value = await Observe().ConfigureAwait(false);
             token.ThrowIfCancellationRequested();

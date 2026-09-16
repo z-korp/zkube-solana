@@ -11,9 +11,8 @@ namespace ZKube.Integration
     {
         private readonly IPublicClientStore storage;
         private readonly AccountBindings accounts;
-        private readonly SessionTokenBindings sessions;
-        public RunStateStore(IPublicClientStore storage, AccountBindings accounts, SessionTokenBindings sessions)
-        { this.storage = storage; this.accounts = accounts; this.sessions = sessions; }
+        public RunStateStore(IPublicClientStore storage, AccountBindings accounts)
+        { this.storage = storage; this.accounts = accounts; }
         public async Task<RunMarker> Load(string owner)
         {
             SolanaAddress.Bytes(owner);
@@ -27,8 +26,7 @@ namespace ZKube.Integration
             var fields = JObject.Parse(json);
             if ((int?)fields["version"] != 1 || (string)fields["owner"] != owner || (string)fields["mode"] != RunMarker.StorageKey)
                 throw new FormatException("Run marker identity is invalid");
-            var marker = new RunMarker(owner, (ulong)fields["runId"], (string)fields["activeRun"],
-                (string)fields["sessionSigner"], (string)fields["sessionToken"], (long)fields["validUntil"]);
+            var marker = new RunMarker(owner, (ulong)fields["runId"], (string)fields["activeRun"]);
             Validate(marker);
             return marker;
         }
@@ -40,23 +38,10 @@ namespace ZKube.Integration
             if (prior != null && prior.RunId != marker.RunId) throw new InvalidOperationException("An unresolved run already occupies this slot");
             string json = new JObject {
                 ["version"] = 1, ["owner"] = marker.Owner, ["runId"] = marker.RunId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["mode"] = RunMarker.StorageKey, ["activeRun"] = marker.ActiveRun, ["sessionSigner"] = marker.SessionSigner,
-                ["sessionToken"] = marker.SessionToken, ["validUntil"] = marker.ValidUntil,
+                ["mode"] = RunMarker.StorageKey, ["activeRun"] = marker.ActiveRun,
             }.ToString(Newtonsoft.Json.Formatting.None);
             if (!await storage.CompareExchange(marker.Owner, RunMarker.StorageKey, priorJson, json))
                 throw new InvalidOperationException("Run marker changed while saving");
-        }
-        public async Task<RunMarker> AttachCurrentDevice(RunMarker marker, DeviceSigner signer, AccountEnvelope tokenEnvelope, long nowUnix)
-        {
-            Validate(marker);
-            var token = sessions.Decode(tokenEnvelope);
-            if (signer == null || token.Authority != marker.Owner || token.FeePayer != marker.Owner ||
-                token.TargetProgram != accounts.ProgramId || token.SessionSigner != signer.Address ||
-                nowUnix < 0 || nowUnix > 9007199254740991L || token.ValidUntil - nowUnix <= ClientPolicy.SessionReadySkewSeconds)
-                throw new InvalidOperationException("Device session is not currently authorized");
-            var attached = new RunMarker(marker.Owner, marker.RunId, marker.ActiveRun, signer.Address, tokenEnvelope.Address, token.ValidUntil);
-            await Save(attached);
-            return attached;
         }
         public async Task<RunRecoveryResult> ResolveOrDiscover(string owner, RunRecovery recovery,
             IRecoveryTransport transport, long nowUnix)
@@ -72,7 +57,7 @@ namespace ZKube.Integration
                 var player = accounts.PlayerState(envelope, owner);
                 ulong runId = (ulong)player["active_run_id"];
                 if (runId == 0) return new RunRecoveryResult { Phase = "none" };
-                marker = new RunMarker(owner, runId, ActiveAddress(owner, runId), null, null, 0);
+                marker = new RunMarker(owner, runId, ActiveAddress(owner, runId));
                 // The chain's validated slot is sufficient to retain the locator
                 // while ER cloning lags or this device has lost its signing key.
                 await Save(marker);
@@ -97,8 +82,6 @@ namespace ZKube.Integration
         {
             if (marker == null) throw new ArgumentNullException(nameof(marker));
             if (marker.ActiveRun != ActiveAddress(marker.Owner, marker.RunId)) throw new FormatException("Run marker PDA is invalid");
-            if (marker.SessionSigner != null && marker.SessionToken != sessions.Derive(marker.Owner, marker.SessionSigner, accounts.ProgramId))
-                throw new FormatException("Run marker session PDA is invalid");
         }
         private string ActiveAddress(string owner, ulong runId)
         {

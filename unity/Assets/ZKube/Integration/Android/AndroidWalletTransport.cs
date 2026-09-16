@@ -72,10 +72,6 @@ namespace ZKube.Integration.Android
         }
         public Task<string> Read(string owner, string field) => Store(owner, (bridge, activity, key) =>
             bridge.CallStatic<string>("read", activity, key, field));
-        public async Task Write(string owner, string field, string value)
-        {
-            await Store(owner, (bridge, activity, key) => { bridge.CallStatic("write", activity, key, field, value); return true; });
-        }
         public Task<bool> CompareExchange(string owner, string field, string expected, string value) => Store(owner, (bridge, activity, key) =>
             bridge.CallStatic<bool>("compareExchange", activity, key, field, expected, value));
         private Task<T> Store<T>(string owner, Func<AndroidJavaClass, AndroidJavaObject, string, T> call) => OnUnityThread(() => {
@@ -86,7 +82,6 @@ namespace ZKube.Integration.Android
             using var bridge = new AndroidJavaClass("com.zkorp.zkube.unitywallet.ClientStore");
             return call(bridge, activity, key);
         });
-        public Task<byte[]> CreateDeviceSeed(string owner) => Seed("createDeviceSeed", owner);
         private Task<byte[]> Seed(string method, string owner) => OnUnityThread(() => {
             RequireAndroid();
             string key = Convert.ToBase64String(SolanaAddress.Bytes(owner));

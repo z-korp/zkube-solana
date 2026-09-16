@@ -34,7 +34,6 @@ namespace ZKube.Integration.Tests
             public Task<string> Request(string json) => throw new InvalidOperationException("No wallet launch allowed");
             public Task<byte[]> LoadDeviceSeed(string owner) => Task.FromResult(Active?.ToArray());
             public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult(Candidate?.ToArray());
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new InvalidOperationException("No active key creation allowed");
             public Task<byte[]> CreateCandidateSeed(string owner) => throw new InvalidOperationException("No candidate creation allowed");
             public Task RemoveDeviceSeed(string owner) => throw new InvalidOperationException("No deletion allowed");
             public async Task PromoteCandidateSeed(string owner, byte[] oldHash, byte[] nextHash)

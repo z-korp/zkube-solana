@@ -44,6 +44,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "The zKube family names the local product Realms and the Solana product Arena (2026-09-15)",
   },
   {
+    pattern: /StrictJson|NativeCore|TraceIncluded|signed-simulation-rejected|diagnose-art|Match JS Number/,
+    trees: [UNITY_CLIENT, join(ROOT, "unity/tools"), README, AGENT_RULES],
+    reversal: "Unused client probes, duplicate simulation and retired save coercions were removed (2026-09-16)",
+  },
+  {
     pattern: /two run slots|Capgo|themes\.loadAudioSettings|JSON\.(?:parse|stringify)|JavaScript|legacy API|evidence projection|Proposed root-owned|Root must|Root-only|Root's scene|Root verifies/,
     trees: [UNITY_CLIENT],
     reversal: "Unity comments describe its own runtime and persistence rather than the retired client (2026-09-16)",

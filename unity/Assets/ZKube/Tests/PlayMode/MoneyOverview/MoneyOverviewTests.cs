@@ -113,11 +113,11 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(host.activeInHierarchy, Is.True, "This case disables the component, not its GameObject");
                 Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
                 Assert.That(host.GetComponentsInChildren<Button>(), Is.Empty);
-                Assert.That(controller.PageReady, Is.False);
+                Assert.That(PageDrawn(controller), Is.False);
                 controller.SendMessage("OnApplicationPause", true);
                 controller.SendMessage("OnApplicationPause", false);
                 Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty, "Foreground resume cannot reactivate a disabled controller's canvas");
-                Assert.That(controller.PageReady, Is.False);
+                Assert.That(PageDrawn(controller), Is.False);
                 delay.Release(); yield return null;
                 Assert.That(host.GetComponentsInChildren<TMP_Text>(), Is.Empty, "A late callback must not restore visible old content");
                 int before = environment.Calls.Count(call => call.Operation == "getMultipleAccounts");
@@ -226,6 +226,14 @@ namespace ZKube.Tests.MoneyOverview
             }
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
+        private static bool PageDrawn(ZKube.Integration.Presentation.MoneyAppController controller)
+        {
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            return !controller.Busy && controller.isActiveAndEnabled &&
+                !(bool)controller.GetType().GetField("paused", flags).GetValue(controller) &&
+                !(bool)controller.GetType().GetField("artLoading", flags).GetValue(controller) &&
+                controller.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Emblem ")).All(image => !image.enabled || image.sprite != null);
+        }
         private IEnumerator Idle()
         {
             float limit = Time.realtimeSinceStartup + 15;
@@ -245,7 +253,7 @@ namespace ZKube.Tests.MoneyOverview
             var startup = Create(); host.SetActive(true); yield return null;
             Assert.That(startup.Controller.Status, Is.EqualTo("Network configuration is unavailable."));
             Assert.That(startup.Controller.Flow, Is.Null);
-            Assert.That(startup.Controller.PageReady, Is.True);
+            Assert.That(PageDrawn(startup.Controller), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>(true).All(button => !button.interactable), Is.True);
             var text = host.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Overview status");
             Canvas.ForceUpdateCanvases(); text.ForceMeshUpdate();

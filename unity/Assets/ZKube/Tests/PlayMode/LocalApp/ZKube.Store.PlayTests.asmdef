@@ -6,6 +6,7 @@
     "ZKube.Core",
     "ZKube.Local",
     "ZKube.Presentation",
+    "ZKube.Presentation.Tests",
     "ZKube.Store"
   ],
   "autoReferenced": false,

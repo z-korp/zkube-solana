@@ -4,32 +4,14 @@ namespace ZKube.Core.Generated
     public static class Protocol
     {
         public const ulong EntryLamports = 10000000UL;
-        public const ulong EntryDailyLamports = 9000000UL;
-        public const ulong EntryOperatorLamports = 1000000UL;
-        public const ulong PayoutUnitLamports = 1000000UL;
         public const ulong ClaimWindowSeconds = 2592000UL;
         public const uint ArenaBoardCapacity = 1536U;
         public const uint DailyMaxMoves = 100U;
-        public const uint PressureStep = 15U;
-        public const uint DailyPairCount = 160U;
-        public const uint LadderQualifyPoints = 100U;
         public const uint ProtocolAccountVersion = 4U;
         public const uint PlayerStateAccountVersion = 3U;
         public const uint ArcadeAccountVersion = 4U;
         public const uint CatalogVersion = 3U;
-        public const string CoreVersion = "1.0.0";
         public static readonly ushort[] CampaignTargets = { 10, 14, 18, 22, 27, 32, 37, 42, 46, 50 };
-        public static readonly ushort[][] TierBlockWeights =
-        {
-            new ushort[] { 25, 30, 25, 15, 5 },
-            new ushort[] { 22, 28, 25, 18, 7 },
-            new ushort[] { 20, 25, 25, 20, 10 },
-            new ushort[] { 18, 22, 24, 22, 14 },
-            new ushort[] { 16, 20, 22, 24, 18 },
-            new ushort[] { 14, 18, 20, 26, 22 },
-            new ushort[] { 12, 16, 18, 28, 26 },
-            new ushort[] { 10, 14, 16, 30, 30 },
-        };
         public static readonly byte[][] DailyThemes =
         {
             new byte[] { 0, 0 },
@@ -49,7 +31,6 @@ namespace ZKube.Core.Generated
             new byte[] { 18, 3 },
             new byte[] { 18, 4 },
         };
-        public static readonly byte[] DailySelectionSeed = { 122, 107, 117, 98, 101, 45, 100, 97, 105, 108, 121, 45, 112, 111, 111, 108, 45, 118, 48, 49, 45, 112, 117, 98, 108, 105, 99, 45, 115, 101, 101, 100 };
         public static readonly RealmDefinition[] Realms =
         {
             new RealmDefinition(1, new ushort[] { 3, 1, 2, 4 }, new LevelDefinition[]

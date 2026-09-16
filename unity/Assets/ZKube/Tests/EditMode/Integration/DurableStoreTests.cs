@@ -57,11 +57,10 @@ namespace ZKube.Integration.Tests
             string owner = (string)fixture["inputs"]["owner"], delegation = (string)fixture["inputs"]["delegationProgramId"];
             var transport = new DiscoveryTransport { Player = new AccountEnvelope((string)raw["address"], (string)raw["owner"], false,
                 Convert.FromBase64String((string)raw["data"])), Delegation = delegation };
-            var store = new RunStateStore(new Storage(), accounts, sessions);
-            var recovery = new RunRecovery(accounts.ProgramId, delegation, sessions, accounts);
+            var store = new RunStateStore(new Storage(), accounts);
+            var recovery = new RunRecovery(accounts.ProgramId, delegation, accounts);
             var daily = await store.ResolveOrDiscover(owner, recovery, transport, (long)fixture["inputs"]["nowUnix"]);
             Assert.That(daily.Phase, Is.EqualTo("resolving"));
-            Assert.That(daily.SessionAuthorized, Is.False);
             Assert.That((await store.Load(owner)).ActiveRun, Is.EqualTo(daily.Marker.ActiveRun));
         }
         [Test]
@@ -103,14 +102,16 @@ namespace ZKube.Integration.Tests
             string active = null;
             foreach (var pda in fixture["pdas"]) if ((string)pda["id"] == "run-high-u64") active = (string)pda["address"];
             Assert.That(active, Is.Not.Null);
-            var marker = new RunMarker(owner, (ulong)fixture["inputs"]["runId"], active, null, null, 0);
+            var marker = new RunMarker(owner, (ulong)fixture["inputs"]["runId"], active);
             var storage = new Storage();
-            var store = new RunStateStore(storage, accounts, sessions);
+            var store = new RunStateStore(storage, accounts);
             await store.Save(marker);
-            var restored = await new RunStateStore(storage, accounts, sessions).Load(owner);
+            var restored = await new RunStateStore(storage, accounts).Load(owner);
             Assert.That(restored.ActiveRun, Is.EqualTo(marker.ActiveRun));
-            Assert.That(restored.SessionSigner, Is.Null);
             var fields = JObject.Parse(await storage.Read(owner, "daily"));
+            fields["sessionSigner"] = owner; fields["sessionToken"] = owner; fields["validUntil"] = 1;
+            await storage.Write(owner, "daily", fields.ToString());
+            Assert.That((await store.Load(owner)).RunId, Is.EqualTo(marker.RunId), "The v1 locator ignores retired device metadata");
             fields["activeRun"] = owner;
             await storage.Write(owner, "daily", fields.ToString());
             await AsyncAssert.Throws<FormatException>(async () => await store.Load(owner));

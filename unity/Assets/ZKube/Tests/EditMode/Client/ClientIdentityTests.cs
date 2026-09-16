@@ -29,7 +29,6 @@ namespace ZKube.Integration.Tests
                     ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(Owner)) }.ToString();
             }
             public Task<byte[]> LoadDeviceSeed(string owner) => Task.FromResult<byte[]>(null);
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new InvalidOperationException();
             public Task RemoveDeviceSeed(string owner) => throw new InvalidOperationException();
         }
         [Test]

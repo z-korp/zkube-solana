@@ -79,9 +79,8 @@ namespace ZKube.Integration.Execution.Tests
             var order = events.ToArray();
             Assert.That(Array.IndexOf(order, "simulateTransaction"), Is.LessThan(Array.IndexOf(order, "wallet")));
             Assert.That(Array.IndexOf(order, "wallet"), Is.LessThan(Array.IndexOf(order, "journal")));
-            Assert.That(Array.LastIndexOf(order, "simulateTransaction"), Is.GreaterThan(Array.IndexOf(order, "wallet")));
+            Assert.That(http.Count("simulateTransaction"), Is.EqualTo(1));
             Assert.That(Array.LastIndexOf(order, "simulateTransaction"), Is.LessThan(Array.IndexOf(order, "journal")));
-            Assert.That(http.Count("simulateTransaction"), Is.EqualTo(2));
             Assert.That(Array.IndexOf(order, "journal"), Is.LessThan(Array.IndexOf(order, "sendTransaction")));
             Assert.That(observer.Count, Is.EqualTo(1)); Assert.That(await store.Read(owner, "journal"), Is.Null);
             var expectedMessage = (string)solana["transactions"].Single(row => (string)row["id"] == "purchase-1")["message"];
@@ -149,17 +148,6 @@ namespace ZKube.Integration.Execution.Tests
             http.SimulationError = null; native.Reject = true;
             var rejected = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
             Assert.That(rejected.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
-            Assert.That(http.Count("sendTransaction"), Is.Zero); Assert.That(await store.Read(owner, "journal"), Is.Null);
-        }
-
-        [Test]
-        public async Task SignedSimulationRejectionNeverJournalsOrSendsTheWalletResult()
-        {
-            http.SignedSimulationError = new JObject { ["InstructionError"] = new JArray(0, "InvalidArgument") };
-            var result = await executor.Execute(planner.Purchase(owner, 1, (string)solana["inputs"]["validator"]), "purchase-one", Array.Empty<DeviceSigner>(), observer);
-            Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
-            Assert.That(result.Code, Is.EqualTo("signed-simulation-rejected"));
-            Assert.That(http.Count("simulateTransaction"), Is.EqualTo(2)); Assert.That(native.Calls, Is.EqualTo(1));
             Assert.That(http.Count("sendTransaction"), Is.Zero); Assert.That(await store.Read(owner, "journal"), Is.Null);
         }
 
@@ -404,7 +392,6 @@ namespace ZKube.Integration.Execution.Tests
                     ["transaction"] = Convert.ToBase64String(syntheticOwner.PartialSign(Convert.FromBase64String((string)request["transaction"]))) }.ToString();
             }
             public Task<byte[]> LoadDeviceSeed(string owner) => Task.FromResult(DeviceSeed?.ToArray());
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new InvalidOperationException("Unexpected key creation");
             public Task RemoveDeviceSeed(string owner) { Deletions++; DeviceSeed = null; return Task.CompletedTask; }
             public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult(Candidate?.ToArray());
             public Task<byte[]> CreateCandidateSeed(string owner) { Candidate ??= Enumerable.Repeat((byte)3, 32).ToArray(); return Task.FromResult(Candidate.ToArray()); }
@@ -448,7 +435,7 @@ namespace ZKube.Integration.Execution.Tests
             public string Confirmation = "confirmed"; public ulong AccountSlot = 1000, Height = 400;
             public ulong Fee = 5400, Balance = 1000000000, Rent = 890880;
             public bool ThrowAfterSend, AbsentNonPlayer;
-            public JToken StatusError, SimulationError, SignedSimulationError;
+            public JToken StatusError, SimulationError;
             public byte[] Sent;
             public Action AfterSend;
             public readonly Dictionary<string, JToken> ExtraAccounts = new Dictionary<string, JToken>();
@@ -470,11 +457,6 @@ namespace ZKube.Integration.Execution.Tests
                     case "getMinimumBalanceForRentExemption": result = new JValue(Rent); break;
                     case "simulateTransaction":
                         var simulationError = SimulationError;
-                        if (Count("simulateTransaction") == 2 && SignedSimulationError != null)
-                        {
-                            TransactionSignatures.ValidateFullySigned(Convert.FromBase64String((string)request["params"][0]));
-                            simulationError = SignedSimulationError;
-                        }
                         result = Context(new JObject { ["err"] = simulationError?.DeepClone() ?? JValue.CreateNull(), ["logs"] = new JArray(), ["unitsConsumed"] = 100 }, 1000); break;
                     case "sendTransaction":
                         Assert.That(store.Peek(owner, "journal"), Is.Not.Null, "Send ran before durable commit");

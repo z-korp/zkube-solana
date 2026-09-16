@@ -86,4 +86,4 @@ def main():
 
 
 if __name__ == '__main__':
-    run_main(main, ROOT / 'build/unity/harness/store-portrait-import')
+    run_main(main, ROOT / 'build/unity/store-portrait-import')

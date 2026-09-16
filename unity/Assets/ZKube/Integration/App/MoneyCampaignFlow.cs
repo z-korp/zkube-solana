@@ -12,9 +12,8 @@ namespace ZKube.Integration.App
         public CampaignProgress Progress { get; }
         public CampaignBrowseProjection Browse { get; }
         public LocalRunView Run { get; }
-        public bool RecordPending { get; }
-        internal MoneyCampaignState(CampaignProgress progress, CampaignBrowseProjection browse, LocalRunView run, bool pending)
-        { Progress = progress; Browse = browse; Run = run; RecordPending = pending; }
+        internal MoneyCampaignState(CampaignProgress progress, CampaignBrowseProjection browse, LocalRunView run)
+        { Progress = progress; Browse = browse; Run = run; }
     }
     public sealed partial class MoneyAppFlow
     {
@@ -22,8 +21,7 @@ namespace ZKube.Integration.App
             WithCampaign(cancellation, (lease, local) => {
                 var progress = CampaignProgress.FromStars(lease.Owner, local.Product.Read.Stars);
                 var run = local.Runs.Active("campaign");
-                return new MoneyCampaignState(progress, CampaignBrowseProjection.Create(progress, run), run,
-                    local.Product.Read.CampaignWritePending);
+                return new MoneyCampaignState(progress, CampaignBrowseProjection.Create(progress, run), run);
             });
 
         public Task<MoneyRead<LocalBoardActionProvider>> StartCampaignRun(byte realm, byte level, CancellationToken cancellation = default) =>

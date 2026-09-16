@@ -4,14 +4,13 @@
 use crate::run::{bonus_tag, end_reason_tag, phase_tag};
 use crate::{
     BoundaryError, RUN_CONFIG_LEN, RUN_STATE_LEN, array_32, board_width, build_run_config,
-    daily_board_pools, decode_run_state, empty_continuation_rows, encode_board_pools,
-    encode_board_width, encode_run_state, initial_replay_commitment, initialize_run, ladder_points,
-    ladder_tier, ladder_tier_floor, payout_for_rank, qualified_player_id, reconcile_run_state,
+    daily_board_pools, decode_run_state, encode_board_pools, encode_board_width, encode_run_state,
+    initialize_run, ladder_points, ladder_tier, ladder_tier_floor, payout_for_rank,
+    reconcile_run_state,
 };
 use zkube_core::{PresentationEvent, PresentationObserver, Run, RunEndReason, SoftwareSha256};
 
 pub const ABI_VERSION: u16 = 1;
-pub const TRACE_VERSION: u16 = 1;
 pub const MAX_REQUEST_BYTES: usize = 4096;
 // An action can only move the board's cells downward plus one insertion.
 // 80 cells * 10 rows bounds individual falls; each movement record is 9 bytes.
@@ -80,17 +79,16 @@ pub const SNAPSHOT_FIELDS: &[Field] = fields![
 
 pub const SUMMARY_FIELDS: &[Field] = fields![
     Phase: U8, EndReason: U8, ScoreEligible: U8, BonusType: U8, BonusCharges: U8,
-    RerollCharges: U8, ComboCounter: U8, MaxCombo: U8, PrimaryProgress: U8,
-    SecondaryProgress: U8, LatchedStarSources: U8, Streak: U8, ChargesEarned: U8,
-    CurrentTier: U8, LevelLinesCleared: U16, Moves: U16, ActionCounter: U32,
+    RerollCharges: U8, ComboCounter: U8, PrimaryProgress: U8,
+    LatchedStarSources: U8, Streak: U8,
+    CurrentTier: U8, Moves: U16, ActionCounter: U32,
     LastVrfCounter: U32, Score: U32, DailyScore: U32, ObjectiveTotal: U64,
-    PressureScore: U32, Grid: Bytes(80), HasNextRow: U8, NextRow: Bytes(8),
+    Grid: Bytes(80), HasNextRow: U8, NextRow: Bytes(8),
     ReplayHash: Bytes(32), RulesHash: Bytes(32),
 ];
 
-pub const DAILY_PAIR_FIELDS: &[Field] = fields![Index: U32, Realm: U8, Kind: U8, Value: U8];
-pub const DAILY_WINDOW_FIELDS: &[Field] =
-    fields![OpensAt: U64, FreezesAt: U64, RecoveryDeadlineAt: U64];
+pub const DAILY_PAIR_FIELDS: &[Field] = fields![Realm: U8, Kind: U8, Value: U8];
+pub const DAILY_WINDOW_FIELDS: &[Field] = fields![OpensAt: U64, FreezesAt: U64];
 pub const CAMPAIGN_PROGRESS_FIELDS: &[Field] = fields![
     Stars: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS), Total: U16,
     LevelUnlocked: Bytes(zkube_core::CAMPAIGN_TOTAL_LEVELS),
@@ -126,42 +124,32 @@ pub const OPERATIONS: &[Operation] = &[
     Operation {
         id: 4,
         name: "ApplyVrf",
-        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Trace: U8, Counter: U32, Output: Bytes(32)],
+        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Counter: U32, Output: Bytes(32)],
     },
     Operation {
         id: 5,
         name: "PlayMove",
-        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Trace: U8, Action: U32, ExpectedMove: U16, Row: U8, Start: U8, Destination: U8],
+        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Action: U32, ExpectedMove: U16, Row: U8, Start: U8, Destination: U8],
     },
     Operation {
         id: 6,
         name: "ApplyBonus",
-        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Trace: U8, Action: U32, Row: U8, Column: U8],
+        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Action: U32, Row: U8, Column: U8],
     },
     Operation {
         id: 7,
         name: "RequestReroll",
-        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Trace: U8, Action: U32],
+        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Action: U32],
     },
     Operation {
         id: 8,
         name: "Finish",
-        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Trace: U8, Reason: U8],
+        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Reason: U8],
     },
     Operation {
         id: 9,
         name: "Summary",
         fields: fields![State: Bytes(RUN_STATE_LEN)],
-    },
-    Operation {
-        id: 10,
-        name: "PlayerId",
-        fields: fields![ChainDomain: Bytes(32), Account: Bytes(32)],
-    },
-    Operation {
-        id: 11,
-        name: "InitialReplay",
-        fields: fields![ChainDomain: Bytes(32), Challenge: Bytes(32), RulesHash: Bytes(32), Account: Bytes(32), RunId: U64, Mode: U8],
     },
     Operation {
         id: 12,
@@ -202,11 +190,6 @@ pub const OPERATIONS: &[Operation] = &[
         id: 19,
         name: "PayoutForRank",
         fields: fields![Pool: U64, Denominator: Bytes(16), Rank: U32],
-    },
-    Operation {
-        id: 20,
-        name: "EmptyContinuation",
-        fields: fields![Counter: U32, Output: Bytes(32), RulesHash: Bytes(32), Weights: Bytes(10)],
     },
     Operation {
         id: 22,
@@ -330,7 +313,7 @@ pub fn error_status(error: BoundaryError) -> i32 {
     }
     match error {
         BoundaryError::InvalidLength => 2,
-        BoundaryError::InvalidEncoding | BoundaryError::InvalidMode => 6,
+        BoundaryError::InvalidEncoding => 6,
         BoundaryError::Randomness(e) => random(e),
         BoundaryError::Ladder(_) => 300,
         BoundaryError::Payout(e) => match e {
@@ -494,25 +477,10 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
         3 => initialize_run(b("Config")),
         4..=8 => transition(operation, input),
         9 => Ok(encode_summary(decode_run_state(b("State"))?)),
-        10 => qualified_player_id(b("ChainDomain"), b("Account")).map(|v| v.to_vec()),
-        11 => initial_replay_commitment(
-            b("ChainDomain"),
-            b("Challenge"),
-            b("RulesHash"),
-            b("Account"),
-            input.u64("RunId"),
-            n("Mode"),
-        )
-        .map(|v| v.to_vec()),
         12 => {
             let index = zkube_core::daily_pair_index(u("Day"));
             let (realm, theme) = zkube_core::decode_daily_pair(index).expect("draw index");
-            let mut bytes = u32::try_from(index)
-                .expect("pair index")
-                .to_le_bytes()
-                .to_vec();
-            bytes.extend_from_slice(&[realm, theme.kind.tag(), theme.value]);
-            Ok(bytes)
+            Ok(vec![realm, theme.kind.tag(), theme.value])
         }
         23 => {
             zkube_core::CampaignStars::from_unpacked(b("Stars").try_into().expect("schema stars"))
@@ -582,13 +550,8 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
             }])
         }
         27 => {
-            let (opens, closes, recovery) = zkube_core::daily_window(u("Day"));
-            Ok([
-                opens.to_le_bytes(),
-                closes.to_le_bytes(),
-                recovery.to_le_bytes(),
-            ]
-            .concat())
+            let (opens, closes, _) = zkube_core::daily_window(u("Day"));
+            Ok([opens.to_le_bytes(), closes.to_le_bytes()].concat())
         }
         21 => crate::merge_campaign_stars(b("Stored"), b("Incoming")),
         22 => {
@@ -621,14 +584,6 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
             zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
         )
         .map(|v| v.to_le_bytes().to_vec()),
-        20 => {
-            let weights: Vec<u16> = b("Weights")
-                .chunks_exact(2)
-                .map(|s| u16::from_le_bytes([s[0], s[1]]))
-                .collect();
-            empty_continuation_rows(u("Counter"), b("Output"), b("RulesHash"), &weights)
-                .map(|v| v.to_vec())
-        }
         _ => unreachable!("operation registry exhaustively checked"),
     }
 }
@@ -722,10 +677,7 @@ pub fn encode_config_request(config: zkube_core::RunConfig) -> Vec<u8> {
 fn transition(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> {
     let (config, mut run) =
         crate::run::decode_for_transition(input.bytes("Config"), input.bytes("State"))?;
-    let mut trace = Trace {
-        enabled: input.boolean("Trace")?,
-        events: Vec::new(),
-    };
+    let mut trace = Trace { events: Vec::new() };
     match operation {
         4 => run.apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
             config.rules,
@@ -768,11 +720,7 @@ fn transition(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryErro
         }
         _ => unreachable!(),
     }
-    let trace_bytes = if trace.enabled {
-        encode_trace(&trace.events)
-    } else {
-        Vec::new()
-    };
+    let trace_bytes = encode_trace(&trace.events);
     let mut response = Vec::with_capacity(10 + RUN_STATE_LEN + trace_bytes.len());
     response.extend_from_slice(&ABI_VERSION.to_le_bytes());
     response.extend_from_slice(
@@ -791,14 +739,11 @@ fn transition(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryErro
 }
 
 struct Trace {
-    enabled: bool,
     events: Vec<PresentationEvent>,
 }
 impl PresentationObserver for Trace {
     fn observe(&mut self, event: PresentationEvent) {
-        if self.enabled {
-            self.events.push(event);
-        }
+        self.events.push(event);
     }
 }
 
@@ -815,7 +760,7 @@ pub const TRACE_EVENTS: &[(u8, &str, usize)] = &[
 
 fn encode_trace(events: &[PresentationEvent]) -> Vec<u8> {
     let mut output = Vec::new();
-    output.extend_from_slice(&TRACE_VERSION.to_le_bytes());
+    output.extend_from_slice(&ABI_VERSION.to_le_bytes());
     output.extend_from_slice(
         &u32::try_from(events.len())
             .expect("bounded board trace")
@@ -897,21 +842,16 @@ pub fn encode_summary(run: Run) -> Vec<u8> {
     scalar!("BonusCharges", run.engine.bonus_charges);
     scalar!("RerollCharges", run.engine.reroll_charges);
     scalar!("ComboCounter", run.engine.combo_counter);
-    scalar!("MaxCombo", run.engine.max_combo);
     scalar!("PrimaryProgress", run.engine.primary_progress);
-    scalar!("SecondaryProgress", run.engine.secondary_progress);
     scalar!("LatchedStarSources", run.engine.latched_star_sources);
     scalar!("Streak", run.engine.streak);
-    scalar!("ChargesEarned", run.engine.charges_earned);
     scalar!("CurrentTier", run.current_tier);
-    scalar!("LevelLinesCleared", run.engine.level_lines_cleared);
     scalar!("Moves", run.engine.moves);
     scalar!("ActionCounter", run.action_counter);
     scalar!("LastVrfCounter", run.last_vrf_counter);
     scalar!("Score", run.engine.score);
     scalar!("DailyScore", run.daily_score);
     scalar!("ObjectiveTotal", run.objective_total);
-    scalar!("PressureScore", run.pressure_score);
     scalar!("HasNextRow", u8::from(run.engine.next_row.is_some()));
     put("Grid", run.engine.grid.cells());
     put("NextRow", &run.engine.next_row.unwrap_or([0; 8]));

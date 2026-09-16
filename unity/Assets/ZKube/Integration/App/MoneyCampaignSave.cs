@@ -16,7 +16,6 @@ namespace ZKube.Integration.App
         private readonly CancellationTokenSource campaignStop = new CancellationTokenSource();
         private readonly Dictionary<string, CampaignRecordSync> campaigns = new Dictionary<string, CampaignRecordSync>();
         private Func<string, LocalProductStore> campaignStore;
-        public Exception CampaignSyncError { get; private set; }
 
         public CampaignRecordSync Campaign(string owner)
         {
@@ -39,7 +38,7 @@ namespace ZKube.Integration.App
         internal void SyncCampaign(IdentityLease lease)
         {
             try { if (Identity.IsCurrent(lease) && !campaignStop.IsCancellationRequested) Campaign(lease.Owner).Start(lease.Cancellation, campaignStop.Token); }
-            catch (Exception error) { CampaignSyncError = error; }
+            catch (Exception) { /* Starting a background save cannot block local play. */ }
         }
         private async Task<bool> WriteCampaignRecord(string owner, byte[] stars, CancellationToken cancellation)
         {

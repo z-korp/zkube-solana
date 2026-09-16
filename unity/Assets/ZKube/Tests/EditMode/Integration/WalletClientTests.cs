@@ -24,7 +24,6 @@ namespace ZKube.Integration.Tests
                 return reply.ToString();
             }
             public Task<byte[]> LoadDeviceSeed(string owner) => Task.FromResult<byte[]>(null);
-            public Task<byte[]> CreateDeviceSeed(string owner) { Creates++; return Task.FromResult(Enumerable.Repeat((byte)2, 32).ToArray()); }
             public Task RemoveDeviceSeed(string owner) => Task.CompletedTask;
         }
         private static JObject Fixture() => ZKube.Integration.Tests.ProgramScenarios.Load("solana");

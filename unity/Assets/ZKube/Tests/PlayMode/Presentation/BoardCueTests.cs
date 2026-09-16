@@ -23,7 +23,7 @@ namespace ZKube.Presentation.Tests
             board = root.AddComponent<BoardController>();
             evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
             evidence.Load("realm-8-daily");
-            yield return Wait(() => board.Ready && !board.Busy);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
             board.SetMuted(true);
         }
         [UnityTearDown] public IEnumerator TearDown()
@@ -33,14 +33,14 @@ namespace ZKube.Presentation.Tests
             float deadline = Time.realtimeSinceStartup + 20;
             while (!predicate())
             {
-                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Accepted cue timed out: " + board.ReadinessIssue);
+                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Accepted cue timed out: " + "Board is still busy or loading");
                 yield return null;
             }
         }
         private IEnumerator Load(string name, bool reduced)
         {
             board.SetReducedMotion(reduced); evidence.Load(name);
-            yield return Wait(() => board.Ready && !board.Busy);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
         }
         private TMP_Text Label(string name) => board.View.GetComponentsInChildren<TMP_Text>().SingleOrDefault(t => t.name == name);
         private static Rect Bounds(TMP_Text label)
@@ -251,7 +251,7 @@ namespace ZKube.Presentation.Tests
             var initial = board.Session.Accepted; var rules = board.Session.Rules;
             var pending = new Pending();
             board.Bind(new BoardSession(initial, rules, pending, "Daily", board.Session.RealmId));
-            yield return Wait(() => board.Ready);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Guardian action"); evidence.Tap(board.View.Layout.CellCenter(1, 0));
             yield return null;
             Assert.IsTrue(board.Busy); Assert.IsNull(Label("Accepted perfect clear"));

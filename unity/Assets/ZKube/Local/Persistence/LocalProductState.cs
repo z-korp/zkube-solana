@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using ZKube.Persistence;
 
 namespace ZKube.Local
 {
@@ -57,22 +56,21 @@ namespace ZKube.Local
     {
         public const string StorageKey = "zkube:local-product:v1";
         public const int Version = 1;
-        private const double MaximumSafeInteger = 9007199254740991d;
 
         public static LocalProductState Decode(string json)
         {
             if (json == null) return new LocalProductState();
             JObject parsed;
-            try { parsed = StrictJson.Parse(json) as JObject; }
-            catch (FormatException) { return new LocalProductState(); }
-            if (parsed == null || Number(parsed["version"]) != Version) return new LocalProductState();
+            try { parsed = JToken.Parse(json) as JObject; }
+            catch (JsonException) { return new LocalProductState(); }
+            if (parsed == null || parsed["version"]?.Type != JTokenType.Integer || Nonnegative(parsed["version"]) != Version) return new LocalProductState();
             var stars = new byte[100];
             if (parsed["stars"] is JArray array)
                 for (int i = 0; i < Math.Min(array.Count, stars.Length); i++) stars[i] = (byte)Math.Min(3UL, Nonnegative(array[i]));
             string name;
             try { name = NormalizeName(parsed["name"]?.Type == JTokenType.String ? (string)parsed["name"] : null); }
             catch (ArgumentException) { name = null; }
-            string price = parsed["campaignPrice"]?.Type == JTokenType.String ? StrictJson.TrimString((string)parsed["campaignPrice"]) : null;
+            string price = parsed["campaignPrice"]?.Type == JTokenType.String ? ((string)parsed["campaignPrice"]).Trim() : null;
             return new LocalProductState {
                 Name = name, Stars = stars, DailyAttempt = Attempt(parsed["dailyAttempt"] as JObject),
                 Streak = Nonnegative(parsed["streak"]),
@@ -128,7 +126,7 @@ namespace ZKube.Local
 
         public static string NormalizeName(string value)
         {
-            string normalized = Slice(StrictJson.TrimString(value ?? ""), 24);
+            string normalized = Slice((value ?? "").Trim(), 24);
             if (normalized.Length == 0) throw new ArgumentException("Enter a name");
             return normalized;
         }
@@ -152,12 +150,11 @@ namespace ZKube.Local
             for (int i = 0; i < length; i++) if (value[i] < '0' || value[i] > '9') return false;
             return true;
         }
-        private static double Number(JToken value) => value != null && (value.Type == JTokenType.Integer || value.Type == JTokenType.Float)
-            ? (double)value : double.NaN;
         private static ulong Nonnegative(JToken value)
         {
-            double number = Number(value);
-            return number >= 0 && number <= MaximumSafeInteger && Math.Truncate(number) == number ? (ulong)number : 0;
+            if (value?.Type != JTokenType.Integer) return 0;
+            return ulong.TryParse(value.ToString(), System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var number) ? number : 0;
         }
         private static uint Day(JToken value) => (uint)Math.Min(uint.MaxValue, Nonnegative(value));
         private static string Slice(string value, int length) => value.Length <= length ? value : value.Substring(0, length);

@@ -22,7 +22,6 @@ namespace ZKube.Local
         // A snapshot proves native acceptance only. The app host must keep this
         // failure visible; recovering a board never retries or blesses its save.
         public Exception PersistenceFailure { get; private set; }
-        public CoreRunToken AcceptedSnapshot { get { lock (gate) return client.Observe(initial.RunId)?.Token; } }
 
         public LocalBoardActionProvider(LocalRunClient client, LocalRunUpdate initial, Exception persistenceFailure = null)
             : this(client, initial?.View, persistenceFailure) { }
@@ -118,7 +117,7 @@ namespace ZKube.Local
             for (int i = 0; i < transitions.Count; i++)
             {
                 var transition = transitions[i];
-                if (!transition.TraceIncluded || !before.Config.SequenceEqual(transition.Token.Config) ||
+                if (!before.Config.SequenceEqual(transition.Token.Config) ||
                     (i > 0 && NativeEngine.Summary(before).Phase != (byte)CorePhase.AwaitingVrf) ||
                     !PresentationTrace.ProjectBoard(NativeEngine.Summary(before).Grid, transition.Events).SequenceEqual(NativeEngine.Summary(transition.Token).Grid))
                     throw new InvalidOperationException("Local native transition chain does not match accepted state");

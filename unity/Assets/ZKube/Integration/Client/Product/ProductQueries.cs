@@ -57,15 +57,13 @@ namespace ZKube.Integration.Client
         public Task<ProductRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             long timestamp = Clock(); uint day = CurrentDay(timestamp);
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress, addresses.ArcadeAddress,
-                addresses.Daily(day), addresses.Player(lease.Owner), addresses.ArenaPlayer(addresses.Daily(day), lease.Owner) }, cancellation: token).ConfigureAwait(false);
-            var projection = PublicDailyQuery.Decode(accounts, day, Clock(), read.Slot,
+                addresses.Daily(day), addresses.Player(lease.Owner) }, cancellation: token).ConfigureAwait(false);
+            var projection = PublicDailyQuery.Decode(accounts, day, Clock(),
                 read.Accounts[0].Envelope, read.Accounts[1].Envelope, read.Accounts[2].Envelope);
             var profile = Profile(lease.Owner, read.Accounts[3]);
-            JObject dailyPlayer = projection.Daily == null || read.Accounts[4].Envelope == null ? null
-                : accounts.ArenaPlayer(read.Accounts[4].Envelope, day, lease.Owner);
             return new DailyLobby(day, projection.Status, projection.Suspended, projection.ProtocolPaused,
                 projection.Realm, projection.ObjectiveKind, projection.ObjectiveValue, projection.PotLamports,
-                profile, projection.Daily, dailyPlayer);
+                profile);
         });
 
         // Explicit day reads have no discovery lookback restriction: an old
@@ -75,7 +73,7 @@ namespace ZKube.Integration.Client
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score"), addresses.Board(day, "theme") }, cancellation: token).ConfigureAwait(false);
             var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
             string dailyStatus = daily == null ? "missing" : DailyStatus(daily, timestamp);
-            return new DailyBoards(day, read.Slot, dailyStatus,
+            return new DailyBoards(day, dailyStatus,
                 Board(day, "score", read.Accounts[1].Envelope, daily, lease.Owner, timestamp),
                 Board(day, "theme", read.Accounts[2].Envelope, daily, lease.Owner, timestamp));
         });
@@ -147,7 +145,7 @@ namespace ZKube.Integration.Client
                 throw new FormatException("Prize board paid, rollover or claimed ledger differs from native payouts");
             return payouts;
         }
-        private PlayerProfile Profile(string owner, RpcAccount read) => new PlayerProfile(owner, read.Slot,
+        private PlayerProfile Profile(string owner, RpcAccount read) => new PlayerProfile(owner,
             read.Envelope == null ? null : accounts.PlayerState(read.Envelope, owner));
         private long Clock() => PublicDailyQuery.ValidateClock(now());
         private static uint CurrentDay(long timestamp) => PublicDailyQuery.CurrentDay(timestamp);

@@ -6,7 +6,6 @@ namespace ZKube.Core.Generated
     public static class NativeSchema
     {
         public const ushort AbiVersion = 1;
-        public const ushort TraceVersion = 1;
         public const int RunConfigLength = 88;
         public const int RunStateLength = 231;
         public const int ResponseCapacity = 16384;
@@ -239,11 +238,10 @@ namespace ZKube.Core.Generated
 
     public sealed class ApplyVrfRequest
     {
-        public const int ByteLength = 358;
+        public const int ByteLength = 357;
         public const uint Operation = 4;
         public byte[] Config { get; set; } = new byte[88];
         public byte[] State { get; set; } = new byte[231];
-        public byte Trace { get; set; }
         public uint Counter { get; set; }
         public byte[] Output { get; set; } = new byte[32];
         public byte[] Encode()
@@ -252,9 +250,8 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Copy(Config, bytes, 2, 88);
             NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 1, Trace);
-            NativeWire.Write(bytes, 322, 4, Counter);
-            NativeWire.Copy(Output, bytes, 326, 32);
+            NativeWire.Write(bytes, 321, 4, Counter);
+            NativeWire.Copy(Output, bytes, 325, 32);
             return bytes;
         }
         public static ApplyVrfRequest Decode(byte[] bytes)
@@ -265,20 +262,18 @@ namespace ZKube.Core.Generated
             {
                 Config = NativeWire.Bytes(bytes, 2, 88),
                 State = NativeWire.Bytes(bytes, 90, 231),
-                Trace = bytes[321],
-                Counter = (uint)NativeWire.Read(bytes, 322, 4),
-                Output = NativeWire.Bytes(bytes, 326, 32),
+                Counter = (uint)NativeWire.Read(bytes, 321, 4),
+                Output = NativeWire.Bytes(bytes, 325, 32),
             };
         }
     }
 
     public sealed class PlayMoveRequest
     {
-        public const int ByteLength = 331;
+        public const int ByteLength = 330;
         public const uint Operation = 5;
         public byte[] Config { get; set; } = new byte[88];
         public byte[] State { get; set; } = new byte[231];
-        public byte Trace { get; set; }
         public uint Action { get; set; }
         public ushort ExpectedMove { get; set; }
         public byte Row { get; set; }
@@ -290,12 +285,11 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Copy(Config, bytes, 2, 88);
             NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 1, Trace);
-            NativeWire.Write(bytes, 322, 4, Action);
-            NativeWire.Write(bytes, 326, 2, ExpectedMove);
-            NativeWire.Write(bytes, 328, 1, Row);
-            NativeWire.Write(bytes, 329, 1, Start);
-            NativeWire.Write(bytes, 330, 1, Destination);
+            NativeWire.Write(bytes, 321, 4, Action);
+            NativeWire.Write(bytes, 325, 2, ExpectedMove);
+            NativeWire.Write(bytes, 327, 1, Row);
+            NativeWire.Write(bytes, 328, 1, Start);
+            NativeWire.Write(bytes, 329, 1, Destination);
             return bytes;
         }
         public static PlayMoveRequest Decode(byte[] bytes)
@@ -306,23 +300,21 @@ namespace ZKube.Core.Generated
             {
                 Config = NativeWire.Bytes(bytes, 2, 88),
                 State = NativeWire.Bytes(bytes, 90, 231),
-                Trace = bytes[321],
-                Action = (uint)NativeWire.Read(bytes, 322, 4),
-                ExpectedMove = (ushort)NativeWire.Read(bytes, 326, 2),
-                Row = bytes[328],
-                Start = bytes[329],
-                Destination = bytes[330],
+                Action = (uint)NativeWire.Read(bytes, 321, 4),
+                ExpectedMove = (ushort)NativeWire.Read(bytes, 325, 2),
+                Row = bytes[327],
+                Start = bytes[328],
+                Destination = bytes[329],
             };
         }
     }
 
     public sealed class ApplyBonusRequest
     {
-        public const int ByteLength = 328;
+        public const int ByteLength = 327;
         public const uint Operation = 6;
         public byte[] Config { get; set; } = new byte[88];
         public byte[] State { get; set; } = new byte[231];
-        public byte Trace { get; set; }
         public uint Action { get; set; }
         public byte Row { get; set; }
         public byte Column { get; set; }
@@ -332,10 +324,9 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Copy(Config, bytes, 2, 88);
             NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 1, Trace);
-            NativeWire.Write(bytes, 322, 4, Action);
-            NativeWire.Write(bytes, 326, 1, Row);
-            NativeWire.Write(bytes, 327, 1, Column);
+            NativeWire.Write(bytes, 321, 4, Action);
+            NativeWire.Write(bytes, 325, 1, Row);
+            NativeWire.Write(bytes, 326, 1, Column);
             return bytes;
         }
         public static ApplyBonusRequest Decode(byte[] bytes)
@@ -346,21 +337,19 @@ namespace ZKube.Core.Generated
             {
                 Config = NativeWire.Bytes(bytes, 2, 88),
                 State = NativeWire.Bytes(bytes, 90, 231),
-                Trace = bytes[321],
-                Action = (uint)NativeWire.Read(bytes, 322, 4),
-                Row = bytes[326],
-                Column = bytes[327],
+                Action = (uint)NativeWire.Read(bytes, 321, 4),
+                Row = bytes[325],
+                Column = bytes[326],
             };
         }
     }
 
     public sealed class RequestRerollRequest
     {
-        public const int ByteLength = 326;
+        public const int ByteLength = 325;
         public const uint Operation = 7;
         public byte[] Config { get; set; } = new byte[88];
         public byte[] State { get; set; } = new byte[231];
-        public byte Trace { get; set; }
         public uint Action { get; set; }
         public byte[] Encode()
         {
@@ -368,8 +357,7 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Copy(Config, bytes, 2, 88);
             NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 1, Trace);
-            NativeWire.Write(bytes, 322, 4, Action);
+            NativeWire.Write(bytes, 321, 4, Action);
             return bytes;
         }
         public static RequestRerollRequest Decode(byte[] bytes)
@@ -380,19 +368,17 @@ namespace ZKube.Core.Generated
             {
                 Config = NativeWire.Bytes(bytes, 2, 88),
                 State = NativeWire.Bytes(bytes, 90, 231),
-                Trace = bytes[321],
-                Action = (uint)NativeWire.Read(bytes, 322, 4),
+                Action = (uint)NativeWire.Read(bytes, 321, 4),
             };
         }
     }
 
     public sealed class FinishRequest
     {
-        public const int ByteLength = 323;
+        public const int ByteLength = 322;
         public const uint Operation = 8;
         public byte[] Config { get; set; } = new byte[88];
         public byte[] State { get; set; } = new byte[231];
-        public byte Trace { get; set; }
         public byte Reason { get; set; }
         public byte[] Encode()
         {
@@ -400,8 +386,7 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Copy(Config, bytes, 2, 88);
             NativeWire.Copy(State, bytes, 90, 231);
-            NativeWire.Write(bytes, 321, 1, Trace);
-            NativeWire.Write(bytes, 322, 1, Reason);
+            NativeWire.Write(bytes, 321, 1, Reason);
             return bytes;
         }
         public static FinishRequest Decode(byte[] bytes)
@@ -412,8 +397,7 @@ namespace ZKube.Core.Generated
             {
                 Config = NativeWire.Bytes(bytes, 2, 88),
                 State = NativeWire.Bytes(bytes, 90, 231),
-                Trace = bytes[321],
-                Reason = bytes[322],
+                Reason = bytes[321],
             };
         }
     }
@@ -709,7 +693,7 @@ namespace ZKube.Core.Generated
 
     public sealed class RunSummary
     {
-        public const int ByteLength = 199;
+        public const int ByteLength = 190;
         public byte Phase { get; set; }
         public byte EndReason { get; set; }
         public byte ScoreEligible { get; set; }
@@ -717,21 +701,16 @@ namespace ZKube.Core.Generated
         public byte BonusCharges { get; set; }
         public byte RerollCharges { get; set; }
         public byte ComboCounter { get; set; }
-        public byte MaxCombo { get; set; }
         public byte PrimaryProgress { get; set; }
-        public byte SecondaryProgress { get; set; }
         public byte LatchedStarSources { get; set; }
         public byte Streak { get; set; }
-        public byte ChargesEarned { get; set; }
         public byte CurrentTier { get; set; }
-        public ushort LevelLinesCleared { get; set; }
         public ushort Moves { get; set; }
         public uint ActionCounter { get; set; }
         public uint LastVrfCounter { get; set; }
         public uint Score { get; set; }
         public uint DailyScore { get; set; }
         public ulong ObjectiveTotal { get; set; }
-        public uint PressureScore { get; set; }
         public byte[] Grid { get; set; } = new byte[80];
         public byte HasNextRow { get; set; }
         public byte[] NextRow { get; set; } = new byte[8];
@@ -749,34 +728,28 @@ namespace ZKube.Core.Generated
                 BonusCharges = bytes[4],
                 RerollCharges = bytes[5],
                 ComboCounter = bytes[6],
-                MaxCombo = bytes[7],
-                PrimaryProgress = bytes[8],
-                SecondaryProgress = bytes[9],
-                LatchedStarSources = bytes[10],
-                Streak = bytes[11],
-                ChargesEarned = bytes[12],
-                CurrentTier = bytes[13],
-                LevelLinesCleared = (ushort)NativeWire.Read(bytes, 14, 2),
-                Moves = (ushort)NativeWire.Read(bytes, 16, 2),
-                ActionCounter = (uint)NativeWire.Read(bytes, 18, 4),
-                LastVrfCounter = (uint)NativeWire.Read(bytes, 22, 4),
-                Score = (uint)NativeWire.Read(bytes, 26, 4),
-                DailyScore = (uint)NativeWire.Read(bytes, 30, 4),
-                ObjectiveTotal = (ulong)NativeWire.Read(bytes, 34, 8),
-                PressureScore = (uint)NativeWire.Read(bytes, 42, 4),
-                Grid = NativeWire.Bytes(bytes, 46, 80),
-                HasNextRow = bytes[126],
-                NextRow = NativeWire.Bytes(bytes, 127, 8),
-                ReplayHash = NativeWire.Bytes(bytes, 135, 32),
-                RulesHash = NativeWire.Bytes(bytes, 167, 32),
+                PrimaryProgress = bytes[7],
+                LatchedStarSources = bytes[8],
+                Streak = bytes[9],
+                CurrentTier = bytes[10],
+                Moves = (ushort)NativeWire.Read(bytes, 11, 2),
+                ActionCounter = (uint)NativeWire.Read(bytes, 13, 4),
+                LastVrfCounter = (uint)NativeWire.Read(bytes, 17, 4),
+                Score = (uint)NativeWire.Read(bytes, 21, 4),
+                DailyScore = (uint)NativeWire.Read(bytes, 25, 4),
+                ObjectiveTotal = (ulong)NativeWire.Read(bytes, 29, 8),
+                Grid = NativeWire.Bytes(bytes, 37, 80),
+                HasNextRow = bytes[117],
+                NextRow = NativeWire.Bytes(bytes, 118, 8),
+                ReplayHash = NativeWire.Bytes(bytes, 126, 32),
+                RulesHash = NativeWire.Bytes(bytes, 158, 32),
             };
         }
     }
 
     public sealed class DailyPair
     {
-        public const int ByteLength = 7;
-        public uint Index { get; set; }
+        public const int ByteLength = 3;
         public byte Realm { get; set; }
         public byte Kind { get; set; }
         public byte Value { get; set; }
@@ -785,20 +758,18 @@ namespace ZKube.Core.Generated
             if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyPair byte length");
             return new DailyPair
             {
-                Index = (uint)NativeWire.Read(bytes, 0, 4),
-                Realm = bytes[4],
-                Kind = bytes[5],
-                Value = bytes[6],
+                Realm = bytes[0],
+                Kind = bytes[1],
+                Value = bytes[2],
             };
         }
     }
 
     public sealed class DailyWindow
     {
-        public const int ByteLength = 24;
+        public const int ByteLength = 16;
         public ulong OpensAt { get; set; }
         public ulong FreezesAt { get; set; }
-        public ulong RecoveryDeadlineAt { get; set; }
         public static DailyWindow Decode(byte[] bytes)
         {
             if (bytes == null || bytes.Length != ByteLength) throw new ArgumentException("Invalid DailyWindow byte length");
@@ -806,7 +777,6 @@ namespace ZKube.Core.Generated
             {
                 OpensAt = (ulong)NativeWire.Read(bytes, 0, 8),
                 FreezesAt = (ulong)NativeWire.Read(bytes, 8, 8),
-                RecoveryDeadlineAt = (ulong)NativeWire.Read(bytes, 16, 8),
             };
         }
     }

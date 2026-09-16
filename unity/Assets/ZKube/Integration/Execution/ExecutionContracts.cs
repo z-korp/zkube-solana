@@ -15,10 +15,9 @@ namespace ZKube.Integration.Execution
         public string Signature { get; }
         public string Code { get; }
         public string ChainError { get; }
-        public ulong? QuotedFeeLamports { get; }
         internal ExecutionResult(ExecutionOutcome outcome, string intent, string signature = null, string code = null,
-            string chainError = null, ulong? quotedFee = null)
-        { Outcome = outcome; Intent = intent; Signature = signature; Code = code; ChainError = chainError; QuotedFeeLamports = quotedFee; }
+            string chainError = null)
+        { Outcome = outcome; Intent = intent; Signature = signature; Code = code; ChainError = chainError; }
         public static ExecutionResult CompletedLocally(string intent) => new ExecutionResult(ExecutionOutcome.CompletedLocally, intent);
         public static ExecutionResult Rejected(string intent, string code) => new ExecutionResult(ExecutionOutcome.Rejected, intent, code: code);
     }

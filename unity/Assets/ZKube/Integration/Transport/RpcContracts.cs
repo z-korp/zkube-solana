@@ -46,17 +46,14 @@ namespace ZKube.Integration.Transport
     public sealed class RpcValidator
     {
         public string Identity { get; }
-        public string Endpoint { get; }
-        internal RpcValidator(string identity, string endpoint) { Identity = identity; Endpoint = endpoint; }
+        internal RpcValidator(string identity) { Identity = identity; }
     }
 
     public sealed class RpcSimulation
     {
         public bool Succeeded => ErrorJson == null;
         public string ErrorJson { get; }
-        public IReadOnlyList<string> Logs { get; }
-        public ulong? UnitsConsumed { get; }
-        internal RpcSimulation(string error, string[] logs, ulong? units) { ErrorJson = error; Logs = Array.AsReadOnly(logs); UnitsConsumed = units; }
+        internal RpcSimulation(string error) { ErrorJson = error; }
     }
 
     public enum RpcSubmissionPolicy { Wallet, ErSession }

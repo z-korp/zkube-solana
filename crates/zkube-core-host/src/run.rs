@@ -5,12 +5,11 @@ use zkube_core::{
     RunRules, StarRules, TierPolicy,
 };
 
+const _: () = assert!(crate::native::ABI_VERSION <= 0xff);
 /// Versioned `RunConfig` token shared by Campaign and Daily callers.
 pub const RUN_CONFIG_LEN: usize = 88;
 /// Versioned opaque `Run` token returned by every transition.
 pub const RUN_STATE_LEN: usize = 231;
-const CONFIG_VERSION: u8 = 1;
-const STATE_VERSION: u8 = 1;
 
 /// Build the one versioned config token from fields published in an
 /// `ActiveRun`. Mode selects the only two valid shapes: fixed-tier Campaign
@@ -211,7 +210,7 @@ pub fn reconcile_run_state(
 #[must_use]
 pub fn encode_run_config(config: RunConfig) -> [u8; RUN_CONFIG_LEN] {
     let mut writer = Writer::new();
-    writer.write(&[CONFIG_VERSION]);
+    writer.write(&[crate::native::ABI_VERSION.to_le_bytes()[0]]);
     writer.write(config.rules_hash.as_bytes());
     writer.write(config.initial_replay.as_bytes());
     writer.write(config.rules.canonical_bytes().as_slice());
@@ -229,7 +228,7 @@ pub fn decode_run_config(bytes: &[u8]) -> Result<RunConfig, BoundaryError> {
         return Err(BoundaryError::InvalidLength);
     }
     let mut reader = Reader::new(bytes);
-    if reader.u8()? != CONFIG_VERSION {
+    if reader.u8()? != crate::native::ABI_VERSION.to_le_bytes()[0] {
         return Err(BoundaryError::InvalidEncoding);
     }
     let rules_hash = RulesHash(reader.array()?);
@@ -249,7 +248,7 @@ pub fn decode_run_config(bytes: &[u8]) -> Result<RunConfig, BoundaryError> {
 #[must_use]
 pub fn encode_run_state(run: Run) -> [u8; RUN_STATE_LEN] {
     let mut writer = Writer::new();
-    writer.write(&[STATE_VERSION]);
+    writer.write(&[crate::native::ABI_VERSION.to_le_bytes()[0]]);
     writer.write(&[phase_tag(run.engine.phase)]);
     writer.write(&[u8::from(run.engine.next_row.is_some())]);
     writer.write(&[bonus_tag(run.engine.bonus)]);
@@ -293,7 +292,7 @@ pub fn decode_run_state(bytes: &[u8]) -> Result<Run, BoundaryError> {
         return Err(BoundaryError::InvalidLength);
     }
     let mut reader = Reader::new(bytes);
-    if reader.u8()? != STATE_VERSION {
+    if reader.u8()? != crate::native::ABI_VERSION.to_le_bytes()[0] {
         return Err(BoundaryError::InvalidEncoding);
     }
     let phase = decode_phase(reader.u8()?)?;

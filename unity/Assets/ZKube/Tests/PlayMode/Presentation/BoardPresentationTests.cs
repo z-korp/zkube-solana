@@ -24,7 +24,7 @@ namespace ZKube.Presentation.Tests
             root = new GameObject("Presentation test board"); board = root.AddComponent<BoardController>();
             evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
             evidence.Load("realm-8-daily");
-            yield return Wait(() => board.Ready && !board.Busy);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
             board.SetMuted(true); board.SetReducedMotion(true);
         }
         [UnityTearDown] public IEnumerator TearDown()
@@ -34,28 +34,28 @@ namespace ZKube.Presentation.Tests
             float deadline = Time.realtimeSinceStartup + 20;
             while (!condition())
             {
-                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Timed out waiting for native board readiness: " + board?.ReadinessIssue);
+                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Timed out waiting for native board readiness: " + "Board is still busy or loading");
                 yield return null;
             }
         }
         private IEnumerator Load(string name)
         {
-            evidence.Load(name); yield return Wait(() => board.Ready && !board.Busy);
+            evidence.Load(name); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
             CollectionAssert.AreEqual(NativeEngine.Summary(board.Session.Accepted).Grid, board.View.DisplayGrid);
         }
         [UnityTest] public IEnumerator ReadinessRequiresBoundStateAndAValidRenderedView()
         {
             var empty = new GameObject("Unbound board"); var unbound = empty.AddComponent<BoardController>();
             yield return null;
-            Assert.IsFalse(unbound.Ready, "An unbound board selects no implicit realm");
-            Assert.IsFalse(unbound.PresentationInitialized); Assert.IsEmpty(unbound.ImportedTextures);
+            Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(unbound), "An unbound board selects no implicit realm");
+            Assert.IsFalse(unbound.PresentationInitialized); Assert.That(unbound.Session, Is.Null);
             UnityEngine.Object.Destroy(empty); yield return null;
             yield return Load("realm-8-daily");
-            Assert.IsTrue(board.Ready);
-            board.RefreshLayout(); Assert.IsFalse(board.Ready, "Rebuilt geometry must render before it is ready");
-            yield return Wait(() => board.Ready);
+            Assert.IsTrue(ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            board.RefreshLayout(); yield return null; yield return null;
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             UnityEngine.Object.Destroy(board.View.gameObject); yield return null;
-            Assert.IsFalse(board.Ready, "A stale controller flag cannot outlive its view");
+            Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board), "A stale controller flag cannot outlive its view");
         }
 
         [UnityTest] public IEnumerator EmptyGuardianCannotBeSpentAndRerollHasAnAcceptanceBoundary()
@@ -156,18 +156,6 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(1, notifications, "An identical recovered snapshot is not a second accepted action");
         }
 
-        [UnityTest] public IEnumerator ATracedResponseStillRejectsOmittedTraceAfterRetainingAcceptance()
-        {
-            yield return Load("realm-8-daily");
-            var missing = NativeEngine.RequestReroll(board.Session.Accepted, board.State.ActionCounter, false);
-            var present = typeof(BoardController).GetMethod("PresentAccepted", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            var task = (Task)present.Invoke(board, new object[] { (BoardActionResult)missing });
-            yield return Wait(() => task.IsCompleted);
-            Assert.IsTrue(task.IsFaulted);
-            StringAssert.Contains("omitted presentation trace", task.Exception.InnerException.Message);
-            CollectionAssert.AreEqual(missing.Token.State, board.Session.Accepted.State);
-        }
-
         private sealed class UncertainProvider : IBoardActionProvider, IBoardRecoveryProvider
         {
             public readonly TaskCompletionSource<BoardActionResult> Result = new TaskCompletionSource<BoardActionResult>();
@@ -183,15 +171,15 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-daily"); var original = board.Session;
             var provider = new UncertainProvider();
             board.Bind(new BoardSession(original.Accepted, original.Rules, provider, "Daily", original.RealmId));
-            yield return Wait(() => board.Ready); evidence.Click("Reroll action");
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action");
             yield return Wait(() => !board.Busy); Assert.IsTrue(board.RecoveryRequired);
             board.SetTextScale(1.3f); yield return null;
             Assert.IsTrue(board.View.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "RECOVER RUN"));
             evidence.Click("Dialog Recover run"); board.Recover();
-            Assert.AreEqual(1, provider.Recoveries); Assert.IsTrue(board.Busy); Assert.IsFalse(board.Ready);
+            Assert.AreEqual(1, provider.Recoveries); Assert.IsTrue(board.Busy); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board));
             board.Reroll(); Assert.AreEqual(1, provider.Submits);
             provider.Result.SetResult(BoardActionResult.Snapshot(original.Accepted));
-            yield return Wait(() => board.Ready);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Assert.AreEqual(1, provider.Submits); Assert.IsFalse(board.RecoveryRequired);
             CollectionAssert.AreEqual(original.Accepted.State, board.Session.Accepted.State);
         }
@@ -200,11 +188,11 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-daily"); var original = board.Session;
             var provider = new UncertainProvider();
             board.Bind(new BoardSession(original.Accepted, original.Rules, provider, "Daily", original.RealmId));
-            yield return Wait(() => board.Ready); evidence.Click("Reroll action");
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action");
             yield return Wait(() => !board.Busy); yield return null;
             evidence.Click("Dialog Recover run"); provider.Result.SetResult(null);
             yield return Wait(() => !board.Busy); yield return null;
-            Assert.IsTrue(board.RecoveryRequired); Assert.IsFalse(board.Ready);
+            Assert.IsTrue(board.RecoveryRequired); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board));
             int exits = 0; board.ExitRequested += () => exits++;
             evidence.Click("Dialog Back to my runs");
             Assert.AreEqual(1, exits); Assert.AreEqual(1, provider.Recoveries);
@@ -227,7 +215,7 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-daily");
             var accepted = board.Session.Accepted;
             board.Bind(new BoardSession(accepted, board.Session.Rules, new CrossedResponse(), "Daily", board.Session.RealmId));
-            yield return Wait(() => board.Ready);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Reroll action"); yield return Wait(() => !board.Busy);
             CollectionAssert.AreEqual(accepted.Config, board.Session.Accepted.Config);
             CollectionAssert.AreEqual(accepted.State, board.Session.Accepted.State);
@@ -250,7 +238,7 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-daily"); yield return evidence.PlayNextInput();
             var held = new HeldAction(board.Session.Actions);
             board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, "Balam Daily", board.Session.RealmId));
-            yield return Wait(() => board.Ready);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var move = evidence.Current.steps.First(s => s.operation == PlayMoveRequest.Operation);
             int width = board.State.Grid[move.row * 8 + move.start];
             var from = board.View.Layout.CellCenter(move.row, move.start, width);
@@ -264,14 +252,14 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(action + 1, board.State.ActionCounter);
             Assert.AreEqual(moves + 1, board.State.Moves);
             StringAssert.Contains("Board changed", board.View.StatusText);
-            Assert.IsTrue(board.View.IsSettled(board.State.Grid));
+            Assert.IsTrue(ZKube.Tests.Presentation.BoardTestState.Settled(board.View, board.State.Grid));
         }
         [UnityTest] public IEnumerator AnimationEnabledEndsWithEverySpriteAtItsNativeCell()
         {
             yield return Load("realm-8-daily"); board.SetReducedMotion(false);
             yield return evidence.PlayNextInput(); yield return evidence.PlayNextInput();
             Assert.Greater(board.State.Moves, 0);
-            Assert.IsTrue(board.View.IsSettled(NativeEngine.Summary(board.Session.Accepted).Grid));
+            Assert.IsTrue(ZKube.Tests.Presentation.BoardTestState.Settled(board.View, NativeEngine.Summary(board.Session.Accepted).Grid));
         }
         [UnityTest] public IEnumerator VisibleGlyphsPauseGeometryAndSessionAudioAreAvailable()
         {

@@ -23,7 +23,7 @@ namespace ZKube.Presentation.Tests
             root = new GameObject("Typography test board"); board = root.AddComponent<BoardController>();
             evidence = root.AddComponent<BoardHarness>(); evidence.AutoStart = false;
             evidence.Load("realm-8-daily");
-            yield return Wait(() => board.Ready && !board.Busy);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
             board.SetMuted(true); board.SetReducedMotion(true);
         }
         [UnityTearDown] public IEnumerator TearDown()
@@ -36,7 +36,7 @@ namespace ZKube.Presentation.Tests
             float deadline = Time.realtimeSinceStartup + 20;
             while (!condition())
             {
-                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Timed out waiting for native board readiness: " + board?.ReadinessIssue);
+                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Timed out waiting for native board readiness: " + "Board is still busy or loading");
                 yield return null;
             }
         }
@@ -51,7 +51,7 @@ namespace ZKube.Presentation.Tests
             var art = (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
             foreach (string fixture in new[] { "realm-8-campaign", "realm-8-daily" })
             {
-                evidence.Load(fixture); yield return Wait(() => board.Ready);
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 foreach (float scale in new[] { 1f, 1.3f })
                 {
                     var plan = BoardTypography.Build(art, board.State, board.Session, new Rect(0, 0, 320, 568), 1, scale);
@@ -86,8 +86,8 @@ namespace ZKube.Presentation.Tests
         }
         [UnityTest] public IEnumerator NativePartialLatchRendersAllThreeClearSocketsInNarrowGeometry()
         {
-            evidence.Load("shape-latch"); yield return Wait(() => board.Ready);
-            yield return evidence.PlayNextInput(); yield return Wait(() => board.Ready);
+            evidence.Load("shape-latch"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Assert.Greater(board.State.LatchedStarSources, 0);
             Assert.Less(board.State.LatchedStarSources, 7, "This fixture must contain earned and unearned native sockets");
             var art = (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
@@ -137,11 +137,11 @@ namespace ZKube.Presentation.Tests
             foreach (float scale in new[] { 1f, 1.3f })
             {
                 board.SetTextScale(scale);
-                evidence.Load("realm-8-daily"); yield return Wait(() => board.Ready);
+                evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 var daily = board.View;
-                evidence.Load("shape-latch"); yield return Wait(() => board.Ready);
+                evidence.Load("shape-latch"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 Assert.AreNotSame(daily, board.View, "A newly bound run must rebuild its measured layout");
-                yield return evidence.PlayNextInput(); yield return Wait(() => board.Ready);
+                yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 Assert.Greater(board.State.LatchedStarSources, 0);
                 var portrait = board.View.GetComponentsInChildren<Image>().Single(i => i.name == "Calm realm guardian");
                 var title = board.View.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Run title");
@@ -156,7 +156,7 @@ namespace ZKube.Presentation.Tests
                     Assert.LessOrEqual(WorldRect(socket.GetComponent<RectTransform>()).yMax + 2.9f, portraitRect.yMin);
                 }
                 var campaign = board.View;
-                evidence.Load("realm-8-daily"); yield return Wait(() => board.Ready);
+                evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 Assert.AreNotSame(campaign, board.View);
                 Assert.IsFalse(board.View.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Star ", StringComparison.Ordinal)),
                     "Daily must hide Campaign socket controls after rebinding");
@@ -169,10 +169,10 @@ namespace ZKube.Presentation.Tests
         }
         [UnityTest] public IEnumerator NativeDailyBoundariesRemainExactAndLargerTextDoesNotShrinkBackDown()
         {
-            evidence.Load("display-boundary-daily"); yield return Wait(() => board.Ready);
+            evidence.Load("display-boundary-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var token = board.Session.Accepted;
             float standardSize = Label("Score").fontSize;
-            board.SetTextScale(1.3f); yield return Wait(() => board.Ready);
+            board.SetTextScale(1.3f); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Assert.AreSame(token, board.Session.Accepted, "Text size must not alter native acceptance");
             Assert.AreEqual(standardSize * 1.3f, Label("Score").fontSize, .01f);
             Assert.AreEqual(board.State.DailyScore.ToString(), Label("Score").text);
@@ -188,16 +188,16 @@ namespace ZKube.Presentation.Tests
         }
         [UnityTest] public IEnumerator PublishedCampaignLongConstraintFitsItsDetailDialogAtLargerText()
         {
-            evidence.Load("display-long-campaign-constraint"); yield return Wait(() => board.Ready);
-            board.SetTextScale(1.3f); yield return Wait(() => board.Ready);
+            evidence.Load("display-long-campaign-constraint"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            board.SetTextScale(1.3f); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Star 2"); yield return null;
             Assert.AreEqual("BLOW", Label("Dialog title").text);
             StringAssert.Contains("IN CONSECUTIVE MOVES", Label("Dialog details").text);
             Fits(Label("Dialog title")); Fits(Label("Dialog details"));
-            evidence.Click("Dialog Back to the board"); yield return Wait(() => board.Ready);
+            evidence.Click("Dialog Back to the board"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Pause"); yield return null;
             Fits(Label("Dialog Text size: larger label"));
-            evidence.Click("Dialog Text size: larger"); yield return null; yield return Wait(() => board.Ready);
+            evidence.Click("Dialog Text size: larger"); yield return null; yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Assert.AreEqual(1, board.TextScale);
             Assert.IsTrue(board.Paused);
         }
@@ -220,12 +220,12 @@ namespace ZKube.Presentation.Tests
         }
         [UnityTest] public IEnumerator LongTitleEveryNoticeAndWrappedDialogActionsKeepTheirRequestedSize()
         {
-            evidence.Load("realm-8-daily"); yield return Wait(() => board.Ready);
+            evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var session = board.Session;
             board.SetTextScale(1.3f);
             board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions,
                 "Balam daily board presentation with a deliberately long descriptive title", session.RealmId));
-            yield return Wait(() => board.Ready);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Fits(Label("Run title")); Fits(Label("Moves remaining"));
             var view = board.View;
             foreach (string notice in BoardNotices.All())
@@ -236,7 +236,7 @@ namespace ZKube.Presentation.Tests
             evidence.Click("Reroll action"); Assert.IsTrue(board.Busy);
             yield return null; Fits(Label("Action status"));
             Assert.AreSame(view, board.View, "Pending feedback must not rebuild the board");
-            yield return Wait(() => board.Ready);
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             const string action = "Return to the current board and continue playing from the last accepted position without changing this run";
             bool invoked = false;
             board.Pause();

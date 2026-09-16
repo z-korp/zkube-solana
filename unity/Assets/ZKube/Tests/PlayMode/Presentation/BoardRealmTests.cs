@@ -25,8 +25,8 @@ namespace ZKube.Presentation.Tests
         private IEnumerator Ready()
         {
             float deadline = Time.realtimeSinceStartup + 30;
-            while (!board.Ready || board.Busy)
-            { if (Time.realtimeSinceStartup > deadline) Assert.Fail(board.ReadinessIssue); yield return null; }
+            while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) || board.Busy)
+            { if (Time.realtimeSinceStartup > deadline) Assert.Fail("Board is still busy or loading"); yield return null; }
         }
         private static int AtlasOwners(string path)
         {
@@ -53,8 +53,8 @@ namespace ZKube.Presentation.Tests
             foreach (var theme in themes)
             {
                 evidence.Load("realm-" + theme.realmId + "-daily"); yield return Ready();
-                Assert.AreEqual(theme.realmId, board.Session.RealmId); Assert.AreEqual(theme.realmId, board.PresentedRealmId);
-                Assert.AreEqual(theme.id, board.ImportedTextures.Single(value => value.scope != "common").scope);
+                Assert.AreEqual(theme.realmId, board.Session.RealmId); Assert.AreEqual(theme.realmId, ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId);
+                Assert.AreEqual(theme.id, ZKube.Tests.Presentation.BoardTestState.Art(board).ThemeId);
                 var guardian = board.View.GetComponentsInChildren<Image>().Single(value => value.name == "Calm realm guardian");
                 Assert.IsNotNull(guardian.sprite); Assert.AreEqual("boss__idle", guardian.sprite.name.Replace("(Clone)", ""));
                 var label = board.View.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Run title");
@@ -71,18 +71,18 @@ namespace ZKube.Presentation.Tests
         {
             evidence.Load("realm-8-daily"); yield return Ready(); var retired = board.View;
             evidence.Load("realm-1-daily");
-            Assert.IsTrue(board.LoadingRealm); Assert.IsFalse(board.Ready); Assert.IsFalse(retired.gameObject.activeSelf);
+            Assert.IsTrue(!board.PresentationInitialized); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board)); Assert.IsFalse(retired.gameObject.activeSelf);
             evidence.Load("realm-10-daily");
             uint actions = board.State.ActionCounter;
             board.Reroll(); board.SelectGuardian(); board.ShowStar(0);
             Assert.AreEqual(actions, board.State.ActionCounter, "No input mutates a run during its asset load");
-            yield return Ready(); Assert.AreEqual(10, board.PresentedRealmId); Assert.IsTrue(retired == null);
+            yield return Ready(); Assert.AreEqual(10, ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId); Assert.IsTrue(retired == null);
             Assert.AreEqual(1, root.GetComponentsInChildren<BoardView>(true).Length);
         }
         [UnityTest] public IEnumerator DestroyDuringLoadDoesNotLeaveAPlayableViewOrLateOwnerWork()
         {
             evidence.Load("realm-8-daily"); yield return Ready();
-            evidence.Load("realm-2-daily"); Assert.IsTrue(board.LoadingRealm);
+            evidence.Load("realm-2-daily"); Assert.IsTrue(!board.PresentationInitialized);
             UnityEngine.Object.Destroy(root); yield return null; yield return null;
             Assert.IsTrue(board == null); LogAssert.NoUnexpectedReceived();
         }
@@ -92,7 +92,7 @@ namespace ZKube.Presentation.Tests
             Assert.IsTrue(loading.MoveNext()); var request = loading.Current as ResourceRequest;
             Assert.IsNotNull(request); art.Dispose();
             yield return request;
-            Assert.IsFalse(loading.MoveNext()); Assert.AreEqual(0, art.RealmId); Assert.IsEmpty(art.Textures);
+            Assert.IsFalse(loading.MoveNext()); Assert.AreEqual(0, art.RealmId); Assert.That(art.ThemeId, Is.Null);
             art.Dispose(); LogAssert.NoUnexpectedReceived();
         }
         [UnityTest] public IEnumerator PageRealmSwitchAndDisposalDoNotUnloadTheBoardsSharedAtlases()

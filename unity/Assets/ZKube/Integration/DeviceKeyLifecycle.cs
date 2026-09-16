@@ -15,13 +15,6 @@ namespace ZKube.Integration
     {
         private readonly INativeDeviceKeyLifecycle native;
         public DeviceKeyLifecycle(INativeDeviceKeyLifecycle native) { this.native = native ?? throw new ArgumentNullException(nameof(native)); }
-        public async Task<DeviceSigner> LoadCandidate(string owner)
-        {
-            SolanaAddress.Bytes(owner);
-            var seed = await native.LoadCandidateSeed(owner).ConfigureAwait(false);
-            try { return seed == null ? null : new DeviceSigner(seed); }
-            finally { Clear(seed); }
-        }
         // Only an explicit enable/renew action calls this. Reads never create keys.
         public async Task<DeviceSigner> PrepareCandidate(string owner)
         {

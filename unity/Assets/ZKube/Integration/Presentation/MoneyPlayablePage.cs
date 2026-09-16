@@ -69,9 +69,9 @@ namespace ZKube.Integration.Presentation
             if (boardHost == null) return;
             if (state.Run != null)
                 Button(campaignPanel, "Resume Campaign", () => _ = ResumeCampaignRun());
-            if (browseLevel == 0 || state.Run != null || state.Progress.Status != "ready") return;
+            if (browseLevel == 0 || state.Run != null) return;
             var realm = state.Browse.Realms.Single(value => value.MapId == browseRealm);
-            if (realm.Enabled && realm.Unlocked && realm.Levels[browseLevel - 1].CanInspect)
+            if (realm.Unlocked && realm.Levels[browseLevel - 1].CanInspect)
                 Button(campaignPanel, "Start trial", () => _ = StartSelectedTrial());
         }
     }

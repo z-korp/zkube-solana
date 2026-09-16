@@ -56,17 +56,6 @@ namespace ZKube.Integration.Client.Runs
         public Task<RunClientState> Inspect(CancellationToken cancellation = default) =>
             Operate(cancellation, (lease, token) => Observe(lease, token));
 
-        public Task<RunClientState> Recover(CancellationToken cancellation = default) =>
-            Operate(cancellation, async (lease, token) => {
-                if (await journal.Load(lease.Owner).ConfigureAwait(false) != null)
-                {
-                    var result = await executor.Resume(lease.Owner, reconciler, token).ConfigureAwait(false);
-                    if (result.Outcome != ExecutionOutcome.ConfirmedSuccess && result.Outcome != ExecutionOutcome.ConfirmedFailure &&
-                        result.Outcome != ExecutionOutcome.ExpiredReconciled) throw new RunExecutionException(result);
-                }
-                return await Observe(lease, token).ConfigureAwait(false);
-            });
-
         public Task<RunClientState> Recover(RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null)
         {
             if (binding == null) throw new ArgumentNullException(nameof(binding));
@@ -142,8 +131,7 @@ namespace ZKube.Integration.Client.Runs
                 // Persist the locator before any signing/send. A failed or
                 // expired preparation clears it only through fresh absence proof.
                 await markers.Save(new RunMarker(lease.Owner, player.NextRunId,
-                    planner.ActiveRun(lease.Owner, player.NextRunId), session.Actor.Signer,
-                    session.Actor.SessionToken, session.Assessment.ValidUntil)).ConfigureAwait(false);
+                    planner.ActiveRun(lease.Owner, player.NextRunId))).ConfigureAwait(false);
                 var result = await executor.Execute(plan, "start-daily", new[] { session.Signer }, reconciler, token).ConfigureAwait(false);
                 receipts?.Record(result);
                 if (result.Outcome != ExecutionOutcome.Pending) await Observe(lease, token).ConfigureAwait(false);
@@ -151,7 +139,6 @@ namespace ZKube.Integration.Client.Runs
                 return await WaitFor(lease, planner.ActiveRun(lease.Owner, player.NextRunId), token, state => state.Phase == "delegated" || state.Phase == "settleable").ConfigureAwait(false);
             }, receipts);
 
-        public Task<RunClientState> ResolveVrf(CancellationToken cancellation = default, RunOperationReceipts receipts = null) => ResolveVrf(null, cancellation, receipts);
         public Task<RunClientState> ResolveVrf(RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
             Operate(cancellation, async (lease, token) => {
                 // A board remains bound to its original owner and PDA across
@@ -226,9 +213,6 @@ namespace ZKube.Integration.Client.Runs
                     (action == RunClientAction.Abandon ? RunObservation.IsTerminal(NativeEngine.Summary(state.Token)) :
                         RunObservation.HasAcceptedAction(NativeEngine.Summary(state.Token), expectedAction))).ConfigureAwait(false);
             }, receipts);
-
-        public Task<RunClientState> FinishAndSettle(CancellationToken cancellation = default, RunOperationReceipts receipts = null) =>
-            Settle(null, cancellation, receipts);
 
         // A terminal screen owns one run, not whichever run later occupies its slot.
         public Task<RunClientState> FinishAndSettle(RunPresentationBinding binding, CancellationToken cancellation = default, RunOperationReceipts receipts = null)

@@ -110,13 +110,13 @@ namespace ZKube.Local
                 switch (action.Kind)
                 {
                     case LocalActionKind.Move: Accept(record, PlayMoveRequest.Operation, new PlayMoveRequest { Config = record.Token.Config, State = record.Token.State,
-                        Trace = 1, Action = before.ActionCounter, ExpectedMove = before.Moves, Row = action.Row, Start = action.Start, Destination = action.Destination }.Encode(), transitions); break;
+                        Action = before.ActionCounter, ExpectedMove = before.Moves, Row = action.Row, Start = action.Start, Destination = action.Destination }.Encode(), transitions); break;
                     case LocalActionKind.Bonus: Accept(record, ApplyBonusRequest.Operation, new ApplyBonusRequest { Config = record.Token.Config, State = record.Token.State,
-                        Trace = 1, Action = before.ActionCounter, Row = action.Row, Column = action.Start }.Encode(), transitions); break;
+                        Action = before.ActionCounter, Row = action.Row, Column = action.Start }.Encode(), transitions); break;
                     case LocalActionKind.Reroll: Accept(record, RequestRerollRequest.Operation, new RequestRerollRequest { Config = record.Token.Config, State = record.Token.State,
-                        Trace = 1, Action = before.ActionCounter }.Encode(), transitions); break;
+                        Action = before.ActionCounter }.Encode(), transitions); break;
                     case LocalActionKind.Finish: Accept(record, FinishRequest.Operation, new FinishRequest { Config = record.Token.Config, State = record.Token.State,
-                        Trace = 1, Reason = action.Reason }.Encode(), transitions); break;
+                        Reason = action.Reason }.Encode(), transitions); break;
                     default: throw new ArgumentOutOfRangeException(nameof(action));
                 }
                 if (NativeEngine.Summary(record.Token).Phase == (byte)CorePhase.AwaitingVrf) NextRow(record, transitions);
@@ -201,7 +201,7 @@ namespace ZKube.Local
         private static void NextRow(Record record, List<(byte[], byte[])> transitions)
         {
             uint counter = checked(++record.Counter);
-            Accept(record, ApplyVrfRequest.Operation, new ApplyVrfRequest { Config = record.Token.Config, State = record.Token.State, Trace = 1,
+            Accept(record, ApplyVrfRequest.Operation, new ApplyVrfRequest { Config = record.Token.Config, State = record.Token.State,
                 Counter = counter, Output = NativeEngine.LocalRowRandomness(record.Seed, counter) }.Encode(), transitions);
         }
         private static void Accept(Record record, uint operation, byte[] request, List<(byte[], byte[])> transitions)

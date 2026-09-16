@@ -86,7 +86,6 @@ namespace ZKube.Integration.App.Tests
             }
             public Task<byte[]> LoadDeviceSeed(string owner) { KeyLoads++; return Task.FromResult(Seed?.ToArray()); }
             public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult(Candidate?.ToArray());
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new InvalidOperationException("Unexpected key creation");
             public Task<byte[]> CreateCandidateSeed(string owner)
             { if (Environment.UiScenario == null) throw new InvalidOperationException("Unexpected candidate creation"); Candidate = Enumerable.Repeat((byte)3, 32).ToArray(); return Task.FromResult(Candidate.ToArray()); }
             public Task RemoveDeviceSeed(string owner) { Deletions++; Seed = null; return Task.CompletedTask; }

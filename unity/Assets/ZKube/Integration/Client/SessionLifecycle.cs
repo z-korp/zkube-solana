@@ -14,10 +14,9 @@ namespace ZKube.Integration.Client
         public string Action { get; }
         public SessionAssessment Session { get; }
         public ExecutionResult Operation { get; }
-        public Exception ReadbackError { get; }
         public bool Ready => Session != null && Session.Current && Session.Funding == "ready";
-        internal SessionEnsureResult(string action, SessionAssessment session, ExecutionResult operation, Exception readbackError = null)
-        { Action = action; Session = session; Operation = operation; ReadbackError = readbackError; }
+        internal SessionEnsureResult(string action, SessionAssessment session, ExecutionResult operation)
+        { Action = action; Session = session; Operation = operation; }
     }
     public sealed class SessionLifecycle
     {
@@ -179,8 +178,8 @@ namespace ZKube.Integration.Client
         {
             if (!inspect) return new SessionEnsureResult(action, null, operation);
             try { return new SessionEnsureResult(action, await Inspect(lease).ConfigureAwait(false), operation); }
-            catch (Exception error) when (!lease.Cancellation.IsCancellationRequested && identity.IsCurrent(lease))
-            { return new SessionEnsureResult(action, null, operation, error); }
+            catch (Exception) when (!lease.Cancellation.IsCancellationRequested && identity.IsCurrent(lease))
+            { return new SessionEnsureResult(action, null, operation); }
         }
         private async Task<T> Change<T>(Func<IdentityLease, Task<T>> action)
         {

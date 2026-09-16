@@ -17,7 +17,6 @@ namespace ZKube.Integration.Client.Runs.Tests
             public RunFlowNative(NativeWallet value) { native = value; }
             public Task<string> Request(string json) => native.Request(json);
             public Task<byte[]> LoadDeviceSeed(string owner) => native.LoadDeviceSeed(owner);
-            public Task<byte[]> CreateDeviceSeed(string owner) => native.CreateDeviceSeed(owner);
             public Task RemoveDeviceSeed(string owner) => native.RemoveDeviceSeed(owner);
             public Task<byte[]> LoadCandidateSeed(string owner) => Task.FromResult<byte[]>(null);
             public Task<byte[]> CreateCandidateSeed(string owner) => throw new InvalidOperationException("No session creation during run operations");
@@ -96,7 +95,6 @@ namespace ZKube.Integration.Client.Runs.Tests
                     env.Http.FailObservation = true;
                     var retry = (await flow.RecoverRun(launch.Run)).Value;
                     Assert.That(retry.Error, Is.TypeOf<IOException>()); Assert.That(retry.Receipts, Is.Empty);
-                    Assert.That(launch.Run.LastOperation, Is.SameAs(retry));
                     Assert.That(launch.Run.LastReceiptOperation, Is.SameAs(accepted));
                     Assert.That(launch.Run.LastReceiptOperation.Receipts[0].Result, Is.SameAs(exact));
                     Assert.That(env.Http.SentTransactions.Count, Is.EqualTo(sent));

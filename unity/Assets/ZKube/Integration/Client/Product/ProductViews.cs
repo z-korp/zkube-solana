@@ -13,7 +13,6 @@ namespace ZKube.Integration.Client
     {
         private readonly JObject fields;
         public string Owner { get; }
-        public ulong Slot { get; }
         public bool Exists => fields != null;
         public ulong Kredits => fields == null ? 0 : (ulong)fields["kredit_balance"];
         public ulong LadderPoints => fields == null ? 0 : (ulong)fields["ladder_points"];
@@ -25,9 +24,9 @@ namespace ZKube.Integration.Client
         // Preserve independent Score/Theme records and all profile fields through
         // an isolated copy. UI code never receives the validator's mutable object.
         public JObject Fields => (JObject)fields?.DeepClone();
-        internal PlayerProfile(string owner, ulong slot, JObject source)
+        internal PlayerProfile(string owner, JObject source)
         {
-            Owner = owner; Slot = slot; fields = (JObject)source?.DeepClone();
+            Owner = owner; fields = (JObject)source?.DeepClone();
             CurrentTier = NativeEngine.LadderTier(LadderPoints);
             CurrentTierFloor = NativeEngine.LadderTierFloor(CurrentTier);
             NextTierFloor = CurrentTier < NativeEngine.LadderTier(ulong.MaxValue) ? NativeEngine.LadderTierFloor((byte)(CurrentTier + 1)) : (ulong?)null;
@@ -36,7 +35,6 @@ namespace ZKube.Integration.Client
     public sealed class CampaignMapProgress
     {
         public byte MapId { get; }
-        public bool Enabled => true;
         public bool Unlocked { get; }
         public bool Cleared { get; }
         public bool Perfected { get; }
@@ -53,8 +51,6 @@ namespace ZKube.Integration.Client
     }
     public sealed class CampaignProgress
     {
-        public string Status => "ready";
-        public uint? ContentVersion => Protocol.CatalogVersion;
         public PlayerProfile Player { get; }
         public IReadOnlyList<CampaignMapProgress> Maps { get; }
         public int? TotalStars => facts.Total;
@@ -63,7 +59,7 @@ namespace ZKube.Integration.Client
         public IReadOnlyList<byte> EmblemGold { get; }
         public byte StrongestEmblem => facts.StrongestEmblem;
         public static CampaignProgress FromStars(string owner, byte[] stars, PlayerProfile player = null) =>
-            new CampaignProgress(player ?? new PlayerProfile(owner, 0, null),
+            new CampaignProgress(player ?? new PlayerProfile(owner, null),
                 NativeEngine.CampaignProgress(NativeEngine.PackCampaignStars(stars)));
         private CampaignProgress(PlayerProfile player, CampaignProgressSummary facts)
         {
@@ -74,7 +70,6 @@ namespace ZKube.Integration.Client
     }
     public sealed class DailyLobby
     {
-        private readonly JObject daily, player;
         public uint DayId { get; }
         public string Status { get; }
         public bool Suspended { get; }
@@ -84,13 +79,11 @@ namespace ZKube.Integration.Client
         public byte ObjectiveValue { get; }
         public ulong? PotLamports { get; }
         public PlayerProfile Profile { get; }
-        public JObject Daily => (JObject)daily?.DeepClone();
-        public JObject DailyPlayer => (JObject)player?.DeepClone();
         internal DailyLobby(uint day, string status, bool suspended, bool paused, byte realm, byte kind, byte value,
-            ulong? pool, PlayerProfile profile, JObject dailyFields, JObject playerFields)
+            ulong? pool, PlayerProfile profile)
         { DayId = day; Status = status; Suspended = suspended; ProtocolPaused = paused;
             Realm = realm; ObjectiveKind = kind; ObjectiveValue = value; PotLamports = pool; Profile = profile;
-            daily = (JObject)dailyFields?.DeepClone(); player = (JObject)playerFields?.DeepClone(); }
+        }
     }
     public sealed class PrizeRow
     {
@@ -117,11 +110,10 @@ namespace ZKube.Integration.Client
     public sealed class DailyBoards
     {
         public uint DayId { get; }
-        public ulong Slot { get; }
         public string DailyStatus { get; }
         public PrizeBoard Score { get; }
         public PrizeBoard Theme { get; }
-        internal DailyBoards(uint day, ulong slot, string status, PrizeBoard score, PrizeBoard theme)
-        { DayId = day; Slot = slot; DailyStatus = status; Score = score; Theme = theme; }
+        internal DailyBoards(uint day, string status, PrizeBoard score, PrizeBoard theme)
+        { DayId = day; DailyStatus = status; Score = score; Theme = theme; }
     }
 }

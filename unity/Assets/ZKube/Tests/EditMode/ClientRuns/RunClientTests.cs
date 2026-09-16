@@ -33,15 +33,15 @@ namespace ZKube.Integration.Client.Runs.Tests
             foreach (bool delegated in new[] { false, true })
             {
                 var env = await Environment.Create(); env.Http.States["daily"] = "prepared";
-                var initial = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, initial, new ActiveRunReconciler(env.Accounts));
+                var initial = await env.Client.Inspect();
+                var provider = Provider(env, initial);
                 env.Http.ReplaceWithSuccessor(true, delegated);
                 await Fails<InvalidOperationException>(async () => await provider.ResolveVrf(initial.Token, default));
                 Assert.That(env.Http.Sent, Is.Empty); Assert.That(env.Native.KeyLoads, Is.Zero);
             }
             var switched = await Environment.Create(); switched.Http.States["daily"] = "prepared";
-            var before = await switched.Client.Recover();
-            var stale = new RunBoardActionProvider(switched.Client, before, new ActiveRunReconciler(switched.Accounts));
+            var before = await switched.Client.Inspect();
+            var stale = Provider(switched, before);
             await switched.Identity.Disconnect();
             using var other = new DeviceSigner(Enumerable.Repeat((byte)3, 32).ToArray());
             switched.Native.Owner = other.Address; await switched.Identity.Connect(other.Address);
@@ -62,7 +62,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 env.Native.HasKey = unavailable != "missing"; env.Http.RevokedSession = unavailable == "revoked";
                 if (unavailable == "expired") env.Now = env.SessionValidUntil;
                 env.Http.SignerBalance = unavailable == "depleted" ? 0UL : 1000000000UL;
-                var consumed = await env.Client.FinishAndSettle();
+                var consumed = await env.Client.FinishAndSettle(new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts)));
                 Assert.That(consumed.Phase, Is.EqualTo("consumed")); Assert.That(consumed.Token, Is.Null);
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "consume_arena_run" }));
                 Assert.That(env.Http.SentFeePayers, Is.EqualTo(new[] { env.Owner }));
@@ -73,7 +73,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 er.Native.HasKey = unavailable != "missing"; er.Http.RevokedSession = unavailable == "revoked";
                 if (unavailable == "expired") er.Now = er.SessionValidUntil;
                 er.Http.SignerBalance = unavailable == "depleted" ? 0UL : 1000000000UL;
-                await Fails<InvalidOperationException>(async () => await er.Client.FinishAndSettle());
+                await Fails<InvalidOperationException>(async () => await er.Client.FinishAndSettle(new RunPresentationBinding(await er.Client.Inspect(), new ActiveRunReconciler(er.Accounts))));
                 Assert.That(er.Http.Sent, Is.Empty); Assert.That(await er.Markers.Load(er.Owner), Is.Not.Null);
             }
         }
@@ -83,7 +83,7 @@ namespace ZKube.Integration.Client.Runs.Tests
         {
             var env = await Environment.Create(); env.Http.States["daily"] = "finished"; env.Http.Delegated.Remove("daily");
             env.Http.SuccessorAfterConsume = true;
-            var consumed = await env.Client.FinishAndSettle();
+            var consumed = await env.Client.FinishAndSettle(new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts)));
             Assert.That(consumed.Phase, Is.EqualTo("consumed")); Assert.That(consumed.Token, Is.Null);
             Assert.That((await env.Markers.Load(env.Owner)).ActiveRun, Is.EqualTo((string)env.Http.Runs["successor"]["address"]));
             Assert.That(env.Http.Sent, Is.EqualTo(new[] { "consume_arena_run" }));
@@ -94,7 +94,7 @@ namespace ZKube.Integration.Client.Runs.Tests
         {
             var env = await Environment.Create(); env.Http.States["daily"] = "awaitingVrf";
             env.Http.AdvancePendingVrf = true; env.Native.HasKey = false;
-            var result = await env.Client.ResolveVrf();
+            var result = await env.Client.ResolveVrf(new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts)));
             Assert.That(NativeEngine.Summary(result.Token).Phase, Is.EqualTo((byte)CorePhase.Playing));
             Assert.That(env.Native.KeyLoads, Is.Zero); Assert.That(env.Http.Sent, Is.Empty);
         }
@@ -102,7 +102,7 @@ namespace ZKube.Integration.Client.Runs.Tests
         [Test]
         public async Task AnotherDeviceConsumingAndStartingANewRunCannotFulfillTheOldAction()
         {
-            var env = await Environment.Create(); var initial = await env.Client.Recover();
+            var env = await Environment.Create(); var initial = await env.Client.Inspect();
             var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
             env.Http.ConsumeAfterAction = true;
             var result = await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll);
@@ -120,7 +120,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var prepared = await env.Client.StartDaily();
                 Assert.That(prepared.Phase, Is.EqualTo("delegated"));
                 Assert.That(NativeEngine.Summary(prepared.Token).Phase, Is.EqualTo((byte)CorePhase.AwaitingVrf));
-                var ready = await env.Client.ResolveVrf();
+                var ready = await env.Client.ResolveVrf(new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts)));
                 Assert.That(NativeEngine.Summary(ready.Token).Phase, Is.EqualTo((byte)CorePhase.Playing));
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "enter_arena", "delegate_active_run", "request_vrf" }));
                 Assert.That(await env.Markers.Load(env.Owner), Is.Not.Null);
@@ -134,7 +134,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             var env = await Environment.Create(); env.Native.HasKey = false;
             foreach (string mode in new[] { "daily" })
             {
-                var state = await env.Client.Recover();
+                var state = await env.Client.Inspect();
                 Assert.That(state.Phase, Is.EqualTo("delegated"));
                 Assert.That(state.Token.State, Is.EqualTo(Convert.FromBase64String((string)env.Http.Row(mode, "playing")["token"]["state"])));
             }
@@ -147,8 +147,8 @@ namespace ZKube.Integration.Client.Runs.Tests
         {
             foreach (string mode in new[] { "daily" })
             {
-                var env = await Environment.Create(); var initial = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, initial, new ActiveRunReconciler(env.Accounts));
+                var env = await Environment.Create(); var initial = await env.Client.Inspect();
+                var provider = Provider(env, initial);
                 var board = provider.Bind(initial, mode);
                 var result = await provider.Submit(board.Accepted, new BoardAction(BoardActionKind.Reroll), default);
                 Assert.That(NativeEngine.Summary(result.Token).ActionCounter, Is.EqualTo(1));
@@ -168,8 +168,8 @@ namespace ZKube.Integration.Client.Runs.Tests
         [Test]
         public async Task UncertainActionPreservesJournalAndLocatorAndBlocksAnotherIntent()
         {
-            var env = await Environment.Create(); var campaign = await env.Client.Recover();
-            await env.Client.Recover(); env.Http.Confirmed = false;
+            var env = await Environment.Create(); var campaign = await env.Client.Inspect();
+            await env.Client.Inspect(); env.Http.Confirmed = false;
             var binding = new RunPresentationBinding(campaign, new ActiveRunReconciler(env.Accounts));
             await Fails<RunExecutionException>(async () => await env.Client.Apply(binding.Accept(campaign), binding, RunClientAction.Reroll));
             Assert.That(await env.Journal.Load(env.Owner), Is.Not.Null);
@@ -177,7 +177,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             Assert.That(env.Http.Sent.Count, Is.EqualTo(1));
             Assert.That(await env.Markers.Load(env.Owner), Is.Not.Null);
             env.Http.Confirmed = true;
-            var recovered = await env.Client.Recover();
+            var recovered = await env.Client.Recover(binding);
             Assert.That(NativeEngine.Summary(recovered.Token).ActionCounter, Is.EqualTo(1));
             Assert.That(env.Http.Sent.Count, Is.EqualTo(1)); Assert.That(await env.Journal.Load(env.Owner), Is.Null);
         }
@@ -185,9 +185,9 @@ namespace ZKube.Integration.Client.Runs.Tests
         [Test]
         public async Task BoundRecoveryObservesAcceptedActionWithoutResubmitting()
         {
-            var env = await Environment.Create(); var initial = await env.Client.Recover();
+            var env = await Environment.Create(); var initial = await env.Client.Inspect();
             var native = new ActiveRunReconciler(env.Accounts);
-            var provider = new RunBoardActionProvider(env.Client, initial, native);
+            var provider = Provider(env, initial);
             var board = provider.Bind(initial, "Arcade"); env.Http.Confirmed = false;
             await Fails<RunExecutionException>(async () => await provider.Submit(board.Accepted, new BoardAction(BoardActionKind.Reroll), default));
             var pending = await env.Journal.Load(env.Owner);
@@ -210,8 +210,8 @@ namespace ZKube.Integration.Client.Runs.Tests
         {
             foreach (bool ownerChanges in new[] { false, true })
             {
-                var env = await Environment.Create(); var initial = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, initial, new ActiveRunReconciler(env.Accounts));
+                var env = await Environment.Create(); var initial = await env.Client.Inspect();
+                var provider = Provider(env, initial);
                 var board = provider.Bind(initial, "Arcade"); env.Http.Confirmed = false;
                 await Fails<RunExecutionException>(async () => await provider.Submit(board.Accepted, new BoardAction(BoardActionKind.Reroll), default));
                 string signature = (await env.Journal.Load(env.Owner)).Signature;
@@ -234,8 +234,8 @@ namespace ZKube.Integration.Client.Runs.Tests
         [Test]
         public async Task TerminalCommitAndConsumeRequireCopybackAndClearArcadeLocator()
         {
-            var env = await Environment.Create(); await env.Client.Recover();
-            var result = await env.Client.FinishAndSettle();
+            var env = await Environment.Create(); await env.Client.Inspect();
+            var result = await env.Client.FinishAndSettle(new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts)));
             Assert.That(result.Marker, Is.Null);
             Assert.That(env.Http.Sent, Is.EqualTo(new[] { "finish_run", "commit_run", "consume_arena_run" }));
             Assert.That(await env.Markers.Load(env.Owner), Is.Null);
@@ -244,17 +244,17 @@ namespace ZKube.Integration.Client.Runs.Tests
         [Test]
         public async Task ChangedBoardAndChangedRulesAreRejectedBeforeSigning()
         {
-            var env = await Environment.Create(); var initial = await env.Client.Recover();
+            var env = await Environment.Create(); var initial = await env.Client.Inspect();
             var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts));
             env.Http.States["daily"] = "rerolled";
             await Fails<InvalidOperationException>(async () => await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll));
             Assert.That(env.Http.Sent, Is.Empty); Assert.That(env.Native.KeyLoads, Is.Zero);
             var native = RunClient.NativeCandidate(binding.Accept(initial), RunClientAction.Reroll, 0, 0, 0);
-            var current = await env.Client.Recover();
+            var current = await env.Client.Inspect();
             Assert.That(BoardActionResult.Verified(binding.Accept(current), native).IsSnapshot, Is.True);
             Assert.That(BoardActionResult.Verified(native.Token, native).Transition, Is.SameAs(native));
             env.Http.States["daily"] = "playing"; env.Http.ChangedRules = true;
-            var changedRules = await env.Client.Recover();
+            var changedRules = await env.Client.Inspect();
             Assert.Throws<InvalidOperationException>(() => binding.Accept(changedRules));
         }
 
@@ -266,8 +266,8 @@ namespace ZKube.Integration.Client.Runs.Tests
             foreach (bool delegated in new[] { false, true })
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished";
-                var initial = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, initial, new ActiveRunReconciler(env.Accounts));
+                var initial = await env.Client.Inspect();
+                var provider = Provider(env, initial);
                 env.Http.ReplaceWithSuccessor(false, delegated, mode);
                 var result = await provider.FinishAndSettle(default);
                 Assert.That(result.Phase, Is.EqualTo("run-unavailable"));
@@ -275,8 +275,8 @@ namespace ZKube.Integration.Client.Runs.Tests
                 Assert.That(await env.Journal.Load(env.Owner), Is.Null);
             }
             var switched = await Environment.Create(); switched.Http.States["daily"] = "finished";
-            var before = await switched.Client.Recover();
-            var stale = new RunBoardActionProvider(switched.Client, before, new ActiveRunReconciler(switched.Accounts));
+            var before = await switched.Client.Inspect();
+            var stale = Provider(switched, before);
             await switched.Identity.Disconnect(); int requests = switched.Http.Requests;
             Assert.That((await stale.FinishAndSettle(default)).Phase, Is.EqualTo("identity-changed"));
             Assert.That(switched.Http.Requests, Is.EqualTo(requests)); Assert.That(switched.Http.Sent, Is.Empty);
@@ -290,8 +290,8 @@ namespace ZKube.Integration.Client.Runs.Tests
             {
                 string mode = "daily";
                 var env = await Environment.Create(); env.Http.States[mode] = "finished"; env.Http.Delegated.Remove(mode);
-                var state = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, state, new ActiveRunReconciler(env.Accounts));
+                var state = await env.Client.Inspect();
+                var provider = Provider(env, state);
                 env.Native.HasKey = condition != "missing"; env.Http.RevokedSession = condition == "revoked";
                 if (condition == "expired") env.Now = env.SessionValidUntil;
                 if (condition == "depleted") env.Http.SignerBalance = 0;
@@ -310,8 +310,8 @@ namespace ZKube.Integration.Client.Runs.Tests
             foreach (string failure in new[] { "malformed", "rpc", "fee" })
             {
                 var env = await Environment.Create(); env.Http.States["daily"] = "finished"; env.Http.Delegated.Clear();
-                var state = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, state, new ActiveRunReconciler(env.Accounts));
+                var state = await env.Client.Inspect();
+                var provider = Provider(env, state);
                 env.Http.MalformedSession = failure == "malformed"; env.Http.FailSessionRead = failure == "rpc";
                 if (failure == "fee") env.Http.ActualDeviceBalance = 0;
                 if (failure == "malformed") await Fails<FormatException>(async () => await provider.FinishAndSettle(default));
@@ -330,8 +330,8 @@ namespace ZKube.Integration.Client.Runs.Tests
             foreach (string malformed in new[] { "key", "owner", "data", "executable", "balance" })
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished"; env.Http.Delegated.Remove(mode);
-                var initial = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, initial, new ActiveRunReconciler(env.Accounts));
+                var initial = await env.Client.Inspect();
+                var provider = Provider(env, initial);
                 env.Http.RevokedSession = true;
                 if (malformed == "key") env.Native.SeedByte = 3;
                 else env.Http.MalformedFunding = malformed;
@@ -349,8 +349,8 @@ namespace ZKube.Integration.Client.Runs.Tests
             foreach (string mode in new[] { "daily" })
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished"; env.Http.Delegated.Remove(mode);
-                var initial = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, initial, new ActiveRunReconciler(env.Accounts));
+                var initial = await env.Client.Inspect();
+                var provider = Provider(env, initial);
                 env.Http.Confirmed = false;
                 var error = await Fails<RunExecutionException>(async () => await provider.FinishAndSettle(default));
                 Assert.That(error.Result.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
@@ -359,7 +359,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 Assert.That((await env.Journal.Load(env.Owner)).Signature, Is.EqualTo(signature));
                 Assert.That(env.Http.Sent.Count, Is.EqualTo(1)); Assert.That(env.Native.OwnerPrompts, Is.Zero);
                 env.Http.Confirmed = true;
-                await env.Client.Recover();
+                await env.Client.Recover(new RunPresentationBinding(initial, new ActiveRunReconciler(env.Accounts)));
                 Assert.That(await env.Journal.Load(env.Owner), Is.Null);
                 Assert.That(env.Http.Sent.Count, Is.EqualTo(1)); Assert.That(env.Native.OwnerPrompts, Is.Zero);
             }
@@ -372,8 +372,8 @@ namespace ZKube.Integration.Client.Runs.Tests
             foreach (bool expire in new[] { false, true })
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished";
-                var initial = await env.Client.Recover();
-                var provider = new RunBoardActionProvider(env.Client, initial, new ActiveRunReconciler(env.Accounts));
+                var initial = await env.Client.Inspect();
+                var provider = Provider(env, initial);
                 env.Http.CopybackPolls = 5;
                 env.Http.AfterCopyback = () => { if (expire) env.Now = env.SessionValidUntil; };
                 var pending = await Fails<RunExecutionException>(async () => await provider.FinishAndSettle(default));
@@ -403,15 +403,26 @@ namespace ZKube.Integration.Client.Runs.Tests
         {
             foreach (string mode in new[] { "daily" })
             {
-                var env = await Environment.Create(); var observed = await env.Client.Recover();
+                var env = await Environment.Create(); var observed = await env.Client.Inspect();
                 byte expected = (byte)env.Accounts.ActiveRun(observed.Account, env.Owner)["map_id"];
                 var native = new ActiveRunReconciler(env.Accounts);
                 var binding = new RunPresentationBinding(observed, native);
-                var board = new RunBoardActionProvider(env.Client, observed, native).Bind(observed, "Run");
+                var board = Provider(env, observed).Bind(observed, "Run");
                 Assert.That(binding.RealmId, Is.EqualTo(expected)); Assert.That(board.RealmId, Is.EqualTo(expected));
                 CollectionAssert.AreEqual(observed.Token.State, board.Accepted.State);
                 Assert.That(env.Http.Sent, Is.Empty);
             }
+        }
+
+        private static RunBoardActionProvider Provider(Environment environment, RunClientState initial)
+        {
+            var binding = new RunPresentationBinding(initial, new ActiveRunReconciler(environment.Accounts));
+            var client = environment.Client;
+            return new RunBoardActionProvider(binding,
+                (accepted, action, row, start, destination, cancellation) => client.Apply(accepted, binding, action, row, start, destination, cancellation),
+                cancellation => client.ResolveVrf(binding, cancellation),
+                cancellation => client.Recover(binding, cancellation),
+                cancellation => client.FinishAndSettle(binding, cancellation));
         }
 
         private sealed class Environment
@@ -434,7 +445,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 value.Owner = (string)plans["inputs"]["owner"];
                 value.Accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
                 var planner = new TransactionPlanner(protocol, tokens); var storage = new Store(); value.Storage = storage;
-                value.Journal = new TransactionJournal(storage); value.Markers = new RunStateStore(storage, value.Accounts, tokens);
+                value.Journal = new TransactionJournal(storage); value.Markers = new RunStateStore(storage, value.Accounts);
                 value.Native = new NativeWallet { Owner = value.Owner };
                 var wallet = new WalletClient(value.Native); var identity = new ClientIdentity(wallet); value.Identity = identity; await identity.Connect();
                 value.Http = new Http(protocol, plans, Fixture("runs"));
@@ -449,7 +460,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var reconciler = new RunInstructionReconciler(protocol, value.Accounts, planner, rpc, persistence.Accept);
                 var executor = new TransactionExecutor(planner, rpc, wallet, value.Journal);
                 value.Client = new RunClient(identity, new SessionAccess(wallet, records, tokens, rpc, protocol.ProgramId, now), value.Accounts,
-                    planner, rpc, value.Markers, new RunRecovery(protocol.ProgramId, PlanningConstants.DelegationProgram, tokens, value.Accounts),
+                    planner, rpc, value.Markers, new RunRecovery(protocol.ProgramId, PlanningConstants.DelegationProgram, value.Accounts),
                     value.Journal, executor, reconciler, now, protocol);
                 return value;
             }
@@ -478,7 +489,6 @@ namespace ZKube.Integration.Client.Runs.Tests
                 return Task.FromResult(result.ToString());
             }
             public Task<byte[]> LoadDeviceSeed(string owner) { KeyLoads++; return Task.FromResult(HasKey ? Enumerable.Repeat(SeedByte, 32).ToArray() : null); }
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new InvalidOperationException("No session creation in run recovery");
             public Task RemoveDeviceSeed(string owner) => throw new InvalidOperationException("No key deletion in run recovery");
         }
         private sealed class Http : IJsonRpcHttp

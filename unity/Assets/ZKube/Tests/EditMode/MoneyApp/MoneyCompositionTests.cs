@@ -25,7 +25,7 @@ namespace ZKube.Integration.App.Tests
             Assert.That(e.Http.Requests, Is.Empty); Assert.That(e.Native.Calls, Is.Zero); Assert.That(e.Store.Calls, Is.Zero);
             var value = (await e.Flow.RefreshPublic()).Value;
             Assert.That(value.DayId, Is.EqualTo((uint)e.Plans["inputs"]["day"]));
-            Assert.That(value.HasPublication, Is.True);
+            Assert.That(value.PotLamports.HasValue, Is.True);
             var request = e.Http.Requests.Single(x => (string)x["method"] == "getMultipleAccounts");
             CollectionAssert.AreEqual(new[] { e.Services.Planner.ProtocolAddress, e.Services.Planner.ArcadeAddress,
                 e.Services.Planner.Daily(value.DayId) }, request["params"][0].Values<string>());

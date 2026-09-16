@@ -57,7 +57,6 @@ namespace ZKube.Integration.App.Tests
             var merged = new CampaignRecordSync(store, runs, _ => Task.FromResult(final),
                 (stars, token) => throw new InvalidOperationException("Already synchronized"));
             merged.Start(CancellationToken.None); await merged.Pending;
-            Assert.That(merged.LastError, Is.Null);
             Assert.That(Open().Read.CampaignWritePending, Is.False);
         }
 

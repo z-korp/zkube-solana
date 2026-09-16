@@ -24,11 +24,10 @@ namespace ZKube.Integration.Client
         public byte MapId { get; }
         public byte ThemeId { get; }
         public bool Unlocked { get; }
-        public bool Enabled { get; }
         public int CurrentIndex { get; }
         public IReadOnlyList<CampaignBrowseLevel> Levels { get; }
         internal CampaignBrowseRealm(CampaignMapProgress map, byte theme, int current, CampaignBrowseLevel[] levels)
-        { MapId = map.MapId; ThemeId = theme; Unlocked = map.Unlocked; Enabled = map.Enabled; CurrentIndex = current; Levels = Array.AsReadOnly(levels); }
+        { MapId = map.MapId; ThemeId = theme; Unlocked = map.Unlocked; CurrentIndex = current; Levels = Array.AsReadOnly(levels); }
     }
     // UI projection uses the compiled catalog and the device-local saved run.
     public sealed class CampaignBrowseProjection
@@ -55,7 +54,7 @@ namespace ZKube.Integration.Client
                     byte level = checked((byte)(index + 1));
                     bool playing = savedRealm == map.MapId && savedLevel == level;
                     bool cleared = map.Stars[index] > 0 || (map.Cleared && level == Protocol.CampaignTargets.Length);
-                    string state = playing ? "playing" : cleared ? "cleared" : map.Enabled && map.LevelUnlocked[index] != 0 ? "current" : "locked";
+                    string state = playing ? "playing" : cleared ? "cleared" : map.LevelUnlocked[index] != 0 ? "current" : "locked";
                     bool blockedBySaved = savedRealm.HasValue && !playing;
                     var rules = playing ? saved : NativeEngine.CampaignRules(map.MapId, level);
                     return new CampaignBrowseLevel(level, map.Stars[index], state, (playing || map.LevelUnlocked[index] != 0) && !blockedBySaved, playing, rules);

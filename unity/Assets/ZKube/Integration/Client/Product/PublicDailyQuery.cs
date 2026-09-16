@@ -14,10 +14,9 @@ namespace ZKube.Integration.Client
     // Public facts only. No owner, profile, session, personal record or entry promise.
     public sealed class PublicDaily
     {
-        private readonly JObject daily;
+        private readonly bool exists;
         private readonly DailyWindow window;
         public uint DayId { get; }
-        public ulong Slot { get; }
         public long ObservedAt { get; }
         public string Status { get; }
         public bool Suspended { get; }
@@ -26,18 +25,14 @@ namespace ZKube.Integration.Client
         public byte ObjectiveKind { get; }
         public byte ObjectiveValue { get; }
         public ulong? PotLamports { get; }
-        public bool HasPublication => daily != null;
-        public long? OpensAt => daily == null ? (long?)null : (long)window.OpensAt;
-        public long? FreezesAt => daily == null ? (long?)null : (long)window.FreezesAt;
-        public byte? StartingHeight => daily == null ? (byte?)null : NativeEngine.CampaignRules(Realm, 1).StartingHeight;
-        public JObject Daily => (JObject)daily?.DeepClone();
-        internal PublicDaily(uint day, ulong slot, long timestamp, string status, bool suspended,
-            bool paused, byte realm, byte kind, byte value, ulong? pool, JObject fields)
+        public long? FreezesAt => !exists ? (long?)null : (long)window.FreezesAt;
+        internal PublicDaily(uint day, long timestamp, string status, bool suspended,
+            bool paused, byte realm, byte kind, byte value, ulong? pool, bool exists)
         {
-            DayId = day; window = NativeEngine.DailyWindow(day); Slot = slot; ObservedAt = timestamp; Status = status;
+            DayId = day; window = NativeEngine.DailyWindow(day); ObservedAt = timestamp; Status = status;
             Suspended = suspended; ProtocolPaused = paused; Realm = realm;
             ObjectiveKind = kind; ObjectiveValue = value; PotLamports = pool;
-            daily = (JObject)fields?.DeepClone();
+            this.exists = exists;
         }
     }
 
@@ -60,13 +55,13 @@ namespace ZKube.Integration.Client
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress,
                 addresses.ArcadeAddress, addresses.Daily(day) }, cancellation: cancellation).ConfigureAwait(false);
             cancellation.ThrowIfCancellationRequested();
-            return Decode(accounts, day, ValidateClock(now()), read.Slot,
+            return Decode(accounts, day, ValidateClock(now()),
                 read.Accounts[0].Envelope, read.Accounts[1].Envelope, read.Accounts[2].Envelope);
         }
 
         // Both connected and disconnected facades use this validated projection.
         // Validate every supplied public account before an absent peer can hide it.
-        internal static PublicDaily Decode(AccountBindings accounts, uint day, long timestamp, ulong slot,
+        internal static PublicDaily Decode(AccountBindings accounts, uint day, long timestamp,
             AccountEnvelope protocolEnvelope, AccountEnvelope arcadeEnvelope, AccountEnvelope dailyEnvelope)
         {
             if (CurrentDay(ValidateClock(timestamp)) != day)
@@ -80,11 +75,11 @@ namespace ZKube.Integration.Client
             string status = protocol == null || arcade == null ? "missing-config"
                 : suspended ? "suspended" : daily == null ? "missing-daily"
                 : paused ? "paused" : DailyStatus(daily, timestamp);
-            // Missing publication/config has no invented funded pot or playable snapshot.
+            // Missing Daily/config has no invented funded pot or playable snapshot.
             bool published = protocol != null && arcade != null && daily != null;
-            return new PublicDaily(day, slot, timestamp, status, suspended, paused,
+            return new PublicDaily(day, timestamp, status, suspended, paused,
                 pair.Realm, pair.Kind, pair.Value, published ? AvailablePool(daily["ledger"]) : (ulong?)null,
-                published ? daily : null);
+                published);
         }
 
 

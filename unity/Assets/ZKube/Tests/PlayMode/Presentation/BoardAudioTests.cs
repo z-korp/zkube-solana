@@ -40,8 +40,8 @@ namespace ZKube.Presentation.Tests
         private IEnumerator Ready()
         {
             float deadline = Time.realtimeSinceStartup + 30;
-            while (!board.Ready || board.Busy)
-            { if (Time.realtimeSinceStartup > deadline) Assert.Fail(board.ReadinessIssue); yield return null; }
+            while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) || board.Busy)
+            { if (Time.realtimeSinceStartup > deadline) Assert.Fail("Board is still busy or loading"); yield return null; }
         }
         [UnityTest] public IEnumerator IndependentLevelsUseActualDefaultsAndSurviveMasterMute()
         {
@@ -63,7 +63,7 @@ namespace ZKube.Presentation.Tests
             board.SetMusicVolume(.53); board.SetEffectsVolume(.19); yield return null;
             Assert.IsTrue(board.Paused); Assert.IsFalse(Music.isPlaying);
             board.SetMuted(true); evidence.Load("realm-2-daily"); yield return Ready();
-            Assert.AreEqual(2, board.PresentedRealmId);
+            Assert.AreEqual(2, ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId);
             Assert.AreEqual(.53f, Music.volume); Assert.AreEqual(.19f, Effects.volume);
             Assert.IsTrue(Music.mute); Assert.IsTrue(Effects.mute); Assert.IsFalse(Music.isPlaying);
         }

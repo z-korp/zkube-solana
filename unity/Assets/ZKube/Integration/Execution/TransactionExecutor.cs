@@ -48,10 +48,10 @@ namespace ZKube.Integration.Execution
                 await Task.WhenAll(feeTask, balanceTask, rentTask).ConfigureAwait(false);
                 ulong fee = feeTask.Result;
                 if (plan.FeePayer == plan.Owner && balanceTask.Result < fee)
-                    return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage", quotedFee: fee);
+                    return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage");
                 try { plan.RequireDeviceFunding(balanceTask.Result, rentTask.Result, fee); }
                 catch (InvalidOperationException)
-                { return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill", quotedFee: fee); }
+                { return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill"); }
 
                 bool fastEr = plan.Route == PlanRoute.ResolvedEr && !plan.OwnerSignatureRequired;
                 foreach (var signer in signers) transaction = signer.PartialSign(transaction);
@@ -59,17 +59,11 @@ namespace ZKube.Integration.Execution
                 {
                     var simulation = await rpc.Simulate(endpoint, transaction, lease, cancellation).ConfigureAwait(false);
                     if (!simulation.Succeeded) return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "simulation-rejected",
-                        chainError: simulation.ErrorJson, quotedFee: fee);
+                        chainError: simulation.ErrorJson);
                 }
                 cancellation.ThrowIfCancellationRequested();
                 if (plan.OwnerSignatureRequired) transaction = await wallet.Sign(plan.Owner, transaction).ConfigureAwait(false);
                 TransactionSignatures.ValidateFullySigned(transaction);
-                if (!fastEr)
-                {
-                    var simulation = await rpc.Simulate(endpoint, transaction, lease, cancellation).ConfigureAwait(false);
-                    if (!simulation.Succeeded) return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "signed-simulation-rejected",
-                        chainError: simulation.ErrorJson, quotedFee: fee);
-                }
                 cancellation.ThrowIfCancellationRequested();
                 pending = new PendingTransaction(plan.Owner, intent, endpoint.Address.AbsoluteUri, endpoint.IsBase, transaction,
                     lease.Blockhash, lease.LastValidBlockHeight);

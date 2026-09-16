@@ -39,18 +39,6 @@ namespace ZKube.Presentation
         [NonSerialized] private bool bootstrapped, loadingRealm;
         [NonSerialized] private bool playReloadInvalidated;
         public bool PresentationInitialized => initialized && !loadingRealm && !playReloadInvalidated && View != null && View.HasRuntimeGraph;
-        public bool LoadingRealm => loadingRealm;
-        public byte PresentedRealmId => PresentationInitialized ? art.RealmId : (byte)0;
-        public BoardArt.TextureInfo[] ImportedTextures => art == null ? Array.Empty<BoardArt.TextureInfo>() : art.Textures;
-        public bool Ready => PresentationInitialized && art.FormatsSupported && !busy && !recoveryRequired && Session != null && State != null &&
-            View.RenderedLayoutMatchesScreen && !View.NeedsTextReflow && View.TextScale == TextScale && View.IsSettled(State.Grid);
-        public string ReadinessIssue => playReloadInvalidated ? "Editor code reload invalidated the session; restart Play" :
-            loadingRealm ? "The bound realm artwork is loading" : !PresentationInitialized ? "Presentation is not initialized" : Session == null || State == null ? "No accepted run is bound" :
-            !art.FormatsSupported ? "Imported atlas format is unsupported by this graphics device" :
-            busy ? "An action or animation is pending" : recoveryRequired ? "Accepted run recovery is required" :
-            !View.RenderedLayoutMatchesScreen ? "Viewport has not rendered a matching valid layout" :
-            View.NeedsTextReflow || View.TextScale != TextScale ? "Text layout is awaiting reflow" :
-            !View.IsSettled(State.Grid) ? "Sprites do not match the accepted native board" : "";
         public bool Busy => busy;
         public bool RecoveryRequired => recoveryRequired;
         public bool Paused => paused;
@@ -117,7 +105,7 @@ namespace ZKube.Presentation
                 playReloadInvalidated = true; recoveryRequired = true;
                 Session = null; State = null;
                 foreach (var view in GetComponentsInChildren<BoardView>(true)) view.gameObject.SetActive(false);
-                Debug.LogWarning(ReadinessIssue);
+                Debug.LogWarning("Editor code reload invalidated the run; restart Play");
             }
         }
 #endif
@@ -137,7 +125,7 @@ namespace ZKube.Presentation
 
         public void Bind(BoardSession session)
         {
-            if (playReloadInvalidated) throw new InvalidOperationException(ReadinessIssue);
+            if (playReloadInvalidated) throw new InvalidOperationException("Editor code reload invalidated the run; restart Play");
             if (busy) throw new InvalidOperationException("Cannot replace a board while an action is unresolved");
             Session = session ?? throw new ArgumentNullException(nameof(session));
             State = NativeEngine.Summary(session.Accepted);
@@ -356,7 +344,6 @@ namespace ZKube.Presentation
             var transition = result.Transition;
             // Acceptance survives a presentation failure. Rendering may fall
             // back to this snapshot; it must never roll an accepted action back.
-            if (!transition.TraceIncluded) throw new InvalidOperationException("Accepted board transition omitted presentation trace");
             if (!PresentationTrace.ProjectBoard(View.DisplayGrid, transition.Events).SequenceEqual(final.Grid))
                 throw new InvalidOperationException("Presentation trace differs from the native accepted board");
             uint acceptedScore = Session.Daily ? State.DailyScore : State.Score;

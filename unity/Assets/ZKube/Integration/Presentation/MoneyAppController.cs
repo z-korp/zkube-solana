@@ -19,8 +19,6 @@ namespace ZKube.Integration.Presentation
     {
         public MoneyAppFlow Flow { get; private set; }
         public bool Busy { get; private set; }
-        private bool pageReady;
-        public bool PageReady { get => pageReady && !profilePortraitLoading; private set => pageReady = value; }
         public string Status => status == null ? null : status.text;
         public ExecutionResult LastReceipt => identity != null && identity.IsCurrent(receiptLease) ? lastReceipt : null;
         private ExecutionResult lastReceipt;
@@ -68,7 +66,7 @@ namespace ZKube.Integration.Presentation
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
             injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, scale);
             status.text = message; daily.text = ""; owner.text = "";
-            PageReady = true; Controls();
+            Controls();
         }
 
         private void InitializeView(TMP_FontAsset displayFont, TMP_FontAsset bodyFont, float scale)
@@ -145,7 +143,7 @@ namespace ZKube.Integration.Presentation
             Busy = true; Controls(); long epoch = generation;
             try { await Flow.Disconnect(); if (Current(epoch)) status.text = "Disconnected"; }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { Busy = false; PageReady = !PlayingRun && !artLoading; Controls(); } }
+            finally { if (Current(epoch)) { Busy = false; Controls(); } }
         }
         private async Task RunCampaign(Func<long, CancellationToken, Task> operation)
         {
@@ -153,7 +151,7 @@ namespace ZKube.Integration.Presentation
             long epoch = generation;
             try { await operation(epoch, CancellationToken.None); }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { PageReady = !PlayingRun && !artLoading; Controls(); } }
+            finally { if (Current(epoch)) { Controls(); } }
         }
         private static string RunText(ZKube.Local.LocalRunView state) =>
             state == null ? "No saved run" : "Saved on this device";
@@ -162,11 +160,11 @@ namespace ZKube.Integration.Presentation
         {
             if (detached || !isActiveAndEnabled || paused || Flow == null || Busy || PlayingRun) return;
             RetireRead(); reads = new CancellationTokenSource(); long epoch = generation;
-            Busy = true; PageReady = false; Controls();
+            Busy = true; Controls();
             try { await operation(epoch, reads.Token); }
             catch (OperationCanceledException) { if (Current(epoch)) status.text = "Refresh was cancelled. Refresh to try again."; }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { Busy = false; PageReady = !PlayingRun && !artLoading; Controls(); } }
+            finally { if (Current(epoch)) { Busy = false; Controls(); } }
         }
         private async Task Refresh(long epoch, CancellationToken token)
         {
@@ -259,8 +257,7 @@ namespace ZKube.Integration.Presentation
         private void Update()
         {
             if (!initialized || detached) return;
-            if (PlayingRun) { PageReady = (boardHost.Board.Ready ||
-                (boardHost.Board.PresentationInitialized && boardHost.Board.RecoveryRequired && !boardHost.Board.Busy)) && !boardHost.OperationPending; return; }
+            if (PlayingRun) return;
             if (lastSafe != Screen.safeArea || lastSize != new Vector2Int(Screen.width, Screen.height)) { PlaceSafe(); RefreshCampaignLayout(); }
             if (Flow == null || paused) return;
             if (ownerRead != null && !ownerRead.IsCurrent) { ownerRead = null; owner.text = "Owner information changed. Refresh to update."; }
@@ -290,20 +287,20 @@ namespace ZKube.Integration.Presentation
             if (PlayingRun) { boardHost.Suspend(value); return; }
             if (value)
             {
-                RetireRead(); Busy = false; PageReady = false; publicRead = null; ownerRead = null;
+                RetireRead(); Busy = false; publicRead = null; ownerRead = null;
                 if (owner != null) owner.text = "Refresh to view your profile and runs.";
                 if (daily != null) daily.text = "";
                 ClearProductObservations();
                 if (root != null) root.SetActive(false);
             }
             else if (isActiveAndEnabled)
-            { if (root != null) root.SetActive(true); if (Flow == null) PageReady = true; else _ = RefreshOverview(); }
+            { if (root != null) root.SetActive(true); if (Flow != null) _ = RefreshOverview(); }
         }
         private void OnDisable()
         {
             if (!initialized || detached) return;
             if (PlayingRun) boardHost.Close();
-            RetireRead(); Busy = false; PageReady = false; ownerRead = null; publicRead = null;
+            RetireRead(); Busy = false; ownerRead = null; publicRead = null;
             if (root != null) root.SetActive(false);
             owner.text = "Refresh to view your profile and runs.";
             ClearProductObservations();
@@ -313,7 +310,7 @@ namespace ZKube.Integration.Presentation
         {
             if (!initialized || detached || paused) return;
             if (root != null) root.SetActive(true);
-            if (Flow == null) PageReady = true; else _ = RefreshOverview();
+            if (Flow != null) _ = RefreshOverview();
         }
         private void RetireRead()
         {
@@ -324,7 +321,7 @@ namespace ZKube.Integration.Presentation
         }
         public void Detach()
         {
-            if (detached) return; detached = true; PageReady = false; RetireRead();
+            if (detached) return; detached = true; RetireRead();
             if (PlayingRun) boardHost.Close();
             RetireArtwork(); publicRead = null; ownerRead = null; ClearProductObservations();
             if (root != null) root.SetActive(false); Controls();
@@ -347,7 +344,6 @@ namespace ZKube.Integration.Presentation
         private void RequestArt(byte realm)
         {
             requestedRealm = realm;
-            if (artLoading || art == null || art.RealmId != realm) PageReady = false;
             if (!artLoading && isActiveAndEnabled) StartCoroutine(LoadArt());
         }
         private IEnumerator LoadArt()
@@ -362,14 +358,14 @@ namespace ZKube.Integration.Presentation
                 {
                     bool more;
                     try { more = iterator.MoveNext(); }
-                    catch (Exception) { status.text = "Realm artwork unavailable. Refresh to try again."; artLoading = false; art.Dispose(); art = null; PageReady = !Busy && !paused; yield break; }
+                    catch (Exception) { status.text = "Realm artwork unavailable. Refresh to try again."; artLoading = false; art.Dispose(); art = null; yield break; }
                     if (!more) break; yield return iterator.Current;
                 }
                 if (!detached && realm == requestedRealm)
                 { background.sprite = art.Sprite("background"); background.color = new Color(.12f, .12f, .12f, 1); }
             }
             artLoading = false;
-            PageReady = !Busy && !paused && !detached;
+
         }
         private void PlaceSafe()
         {

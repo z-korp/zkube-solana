@@ -22,8 +22,8 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Resume Campaign"); yield return Idle();
             var board = host.GetComponent<MoneyBoardHost>().Board;
             float until = Time.realtimeSinceStartup + 15;
-            while (!board.Ready && Time.realtimeSinceStartup < until) yield return null;
-            Assert.That(board.Ready, Is.True, board.ReadinessIssue);
+            while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(ZKube.Tests.Presentation.BoardTestState.Idle(board), Is.True, "Board is still busy or loading");
             CollectionAssert.AreEqual(accepted.View.Token.State, board.Session.Accepted.State);
             Assert.That(board.Session.Daily, Is.False);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
@@ -40,8 +40,8 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.PlayingRun, Is.True);
             float until = Time.realtimeSinceStartup + 15;
             var run = host.GetComponent<MoneyBoardHost>();
-            while (!run.Board.Ready && Time.realtimeSinceStartup < until) yield return null;
-            Assert.That(run.Board.Ready, Is.True, run.Board.ReadinessIssue);
+            while (!ZKube.Tests.Presentation.BoardTestState.Idle(run.Board) && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(ZKube.Tests.Presentation.BoardTestState.Idle(run.Board), Is.True, "Board is still busy or loading");
         }
 
         [UnityTest] public IEnumerator ArcadeResumeInputBindsTheSavedNativeStateWithoutRequestingAnotherRun()
@@ -51,7 +51,7 @@ namespace ZKube.Tests.MoneyOverview
             var observed = environment.Services.Runs.Inspect(); yield return Wait(observed);
             var state = observed.GetAwaiter().GetResult();
             Assert.That(run.Board.Session.Accepted.State, Is.EqualTo(state.Token.State));
-            Assert.That(run.Board.PresentedRealmId, Is.EqualTo(run.Board.Session.RealmId));
+            Assert.That(ZKube.Tests.Presentation.BoardTestState.Art(run.Board).RealmId, Is.EqualTo(run.Board.Session.RealmId));
             Assert.That(run.Board.HostInputEnabled, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Start trial" || button.name == "Resume Campaign"), Is.False);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);

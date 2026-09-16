@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use zkube_core::{
     Bonus, CORE_VERSION, Constraint, ConstraintKind, DAILY_MAX_MOVES, DAILY_THEMES, Grid, Guardian,
     ReplayCommitment, RulesHash, Run, RunConfig, RunEndReason, RunPhase, RunRules, StarRules,
-    TierPolicy, daily_pair, daily_pair_index,
+    TierPolicy, daily_pair,
 };
 use zkube_core_host::{self as boundary, native};
 
@@ -16,30 +16,6 @@ pub fn hex(bytes: &[u8]) -> String {
         output
     })
 }
-// A stable day exercises the native draw boundary against the core.
-const PUBLICATION_DAY: u32 = 20_705;
-
-fn daily_publication() -> Result<Value, String> {
-    let day = PUBLICATION_DAY;
-    let pair_index = u32::try_from(daily_pair_index(day))
-        .map_err(|_| "Daily pair index exceeds the native u32 boundary")?;
-    let (realm, objective) = daily_pair(day);
-    let mut request = Request::new(12);
-    request.put("Day", &day.to_le_bytes());
-    let actual = native::dispatch(request.operation, &request.bytes)
-        .map_err(|status| format!("Daily publication native query rejected: {status}"))?;
-    let mut expected = pair_index.to_le_bytes().to_vec();
-    expected.extend_from_slice(&[realm, objective.kind.tag(), objective.value]);
-    if actual != expected {
-        return Err("Daily publication native query disagrees with core draw".into());
-    }
-    Ok(json!({
-        "day": day, "pairIndex": pair_index, "realm": realm,
-        "objective": { "kind": objective.kind as u8, "value": objective.value },
-        "maxMoves": DAILY_MAX_MOVES
-    }))
-}
-
 fn local_randomness_vectors() -> Result<Vec<Value>, String> {
     let mut vectors = Vec::new();
     for seed in [b"zkube-local-daily-row-seed-v1".to_vec(), (0..32).collect()] {
@@ -70,13 +46,8 @@ fn daily_window_vectors() -> Vec<Value> {
         .map(|day| {
             let mut request = Request::new(27);
             request.put("Day", &day.to_le_bytes());
-            let (opens, closes, recovery) = zkube_core::daily_window(day);
-            let expected = [
-                opens.to_le_bytes(),
-                closes.to_le_bytes(),
-                recovery.to_le_bytes(),
-            ]
-            .concat();
+            let (opens, closes, _) = zkube_core::daily_window(day);
+            let expected = [opens.to_le_bytes(), closes.to_le_bytes()].concat();
             assert_eq!(native::dispatch(27, &request.bytes).unwrap(), expected);
             json!({"name": format!("daily-window-{day}"), "operation": 27,
             "requestHex": hex(&request.bytes), "responseHex": hex(&expected)})
@@ -103,11 +74,7 @@ fn campaign_boundary_vectors(
         let mut request = Request::new(12);
         request.put("Day", &day.to_le_bytes());
         let (realm, theme) = daily_pair(day);
-        let mut expected = u32::try_from(daily_pair_index(day))
-            .unwrap()
-            .to_le_bytes()
-            .to_vec();
-        expected.extend_from_slice(&[realm, theme.kind.tag(), theme.value]);
+        let expected = vec![realm, theme.kind.tag(), theme.value];
         record(format!("daily-pair-{day}"), request, expected)?;
     }
     for value in [0, 1, 2, 3, 4, 16, 64, 85, 170, 192, 255] {
@@ -287,7 +254,6 @@ impl Trajectory {
         let mut request = Request::new(operation);
         request.put("Config", &config);
         request.put("State", &self.state);
-        request.put("Trace", &[1]);
         let expected = match action {
             Action::Vrf(counter, output) => {
                 request.put("Counter", &counter.to_le_bytes());
@@ -332,13 +298,6 @@ impl Trajectory {
             return Err(format!("{} tracing changed state", self.name));
         }
         self.record(&request, &traced)?;
-        request.put("Trace", &[0]);
-        let untraced = native::dispatch(operation, &request.bytes)
-            .map_err(|s| format!("native untraced status {s}"))?;
-        if untraced[10..] != expected {
-            return Err("disabled tracing changed state".into());
-        }
-        self.record(&request, &untraced)?;
         self.state = expected;
         let mut summary = Request::new(9);
         summary.put("State", &self.state);
@@ -361,6 +320,13 @@ impl Trajectory {
                 );
             }
         }
+        request.put("MaxCombo", &[run.engine.max_combo]);
+        request.put("ChargesEarned", &[run.engine.charges_earned]);
+        request.put(
+            "LevelLinesCleared",
+            &run.engine.level_lines_cleared.to_le_bytes(),
+        );
+        request.put("PressureScore", &run.pressure_score.to_le_bytes());
         let pending = if run.engine.phase == RunPhase::AwaitingVrf {
             run.last_vrf_counter + 1
         } else {
@@ -555,7 +521,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         run.objective_total = u64::from(prior_combo);
         let mut t = Trajectory::new(name, cfg, Some(run))?;
         // One top-row drag clears the prepared full rows without a perfect clear.
-        // Trajectory::apply checks traced/untraced state and native reconciliation.
+        // Trajectory::apply checks state and native reconciliation.
         t.apply(Action::Move(lines, 0, 1))?;
         let after = t.run();
         let expected_objective = match theme {
@@ -813,7 +779,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         cases.push(t.finish());
     }
     serde_json::to_string_pretty(&json!({ "schemaVersion": 1, "coreVersion": CORE_VERSION,
-            "dailyWindows": daily_window_vectors(), "campaignBoundary": campaign_boundary_vectors(catalog, &cases)?, "dailyPublication": daily_publication()?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
+            "dailyWindows": daily_window_vectors(), "campaignBoundary": campaign_boundary_vectors(catalog, &cases)?, "localRandomness": local_randomness_vectors()?, "cases": cases }))
     .map(|s| s + "\n")
     .map_err(|e| e.to_string())
 }

@@ -40,39 +40,14 @@ namespace ZKube.Presentation
         private Image modalShield;
         private SpriteRenderer ghost;
         public BoardLayout Layout { get; private set; }
-        [NonSerialized] private int layoutFrame = -1;
-        [NonSerialized] private int renderedFrame = -1;
-        [NonSerialized] private Vector2Int viewport;
-        [NonSerialized] private Rect safeArea;
         public bool HasRuntimeGraph => art != null && canvas != null && boardCamera != null && guardian != null &&
             score != null && objective != null && status != null && Pointer != null &&
             Layout.Cell > 0 && Layout.Density > 0 && Layout.Board.width > 0 && Layout.Board.height > 0;
-        public bool RenderedLayoutMatchesScreen => HasRuntimeGraph && viewport.x == Screen.width && viewport.y == Screen.height &&
-            safeArea == Screen.safeArea && canvas.isActiveAndEnabled && boardCamera.isActiveAndEnabled &&
-            renderedFrame > layoutFrame && renderedFrame >= Time.frameCount - 1;
-        private void OnRenderObject()
-        {
-            if (Camera.current == boardCamera && HasRuntimeGraph) renderedFrame = Time.frameCount;
-        }
         public byte[] DisplayGrid { get; private set; } = new byte[80];
         public bool GuardianEnabled => guardianButton != null && guardianButton.interactable;
         public bool RerollEnabled => rerollButton != null && rerollButton.interactable;
         public BoardPointer Pointer { get; private set; }
         public string StatusText => status == null ? "" : status.text;
-        public bool IsSettled(byte[] grid)
-        {
-            if (!DisplayGrid.SequenceEqual(grid)) return false;
-            int count = 0;
-            for (int row = 0; row < 10; row++) for (int column = 0; column < 8;)
-            {
-                int width = grid[row * 8 + column];
-                if (width == 0) { column++; continue; }
-                if (!blocks.TryGetValue(row * 8 + column, out var sprite) ||
-                    Vector2.Distance(sprite.transform.position, Layout.CellCenter(row, column, width)) > .01f) return false;
-                count++; column += width;
-            }
-            return count == blocks.Count;
-        }
         private readonly Color gold = new Color32(250, 204, 21, 255);
         private readonly Color themeInk = new Color32(56, 189, 248, 255);
         private readonly Color pale = new Color(.95f, .94f, .85f);
@@ -81,8 +56,6 @@ namespace ZKube.Presentation
         public void Create(BoardController controller, BoardArt source, BoardLayout layout, BoardTypography type)
         {
             owner = controller; art = source; Layout = layout; typography = type;
-            layoutFrame = Time.frameCount; renderedFrame = -1;
-            viewport = new Vector2Int(Screen.width, Screen.height); safeArea = Screen.safeArea;
             whiteTexture = new Texture2D(16, 16, TextureFormat.RGBA32, false);
             for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++)
             {

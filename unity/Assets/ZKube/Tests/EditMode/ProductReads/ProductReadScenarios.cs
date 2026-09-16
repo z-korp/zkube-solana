@@ -91,7 +91,6 @@ namespace ZKube.Tests.ProductReads
                     ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(Owner)) }.ToString());
             }
             public Task<byte[]> LoadDeviceSeed(string owner) => throw new Exception("No device key in product queries");
-            public Task<byte[]> CreateDeviceSeed(string owner) => throw new Exception("No device key in product queries");
             public Task RemoveDeviceSeed(string owner) => throw new Exception("No device key in product queries");
         }
         private sealed class Http : IJsonRpcHttp

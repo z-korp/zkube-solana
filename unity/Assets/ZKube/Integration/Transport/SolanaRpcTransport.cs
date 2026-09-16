@@ -53,7 +53,6 @@ namespace ZKube.Integration.Transport
             SolanaAddress.Bytes(activeRun); await VerifyBase().ConfigureAwait(false);
             var value = Object(await Call(router, "getDelegationStatus", new JArray(activeRun), 16384, default).ConfigureAwait(false));
             bool delegated = Boolean(value["isDelegated"]);
-            string endpoint = value["fqdn"]?.Type == JTokenType.String ? Endpoint((string)value["fqdn"]).AbsoluteUri : null;
             string owner = null;
             if (value["delegationRecord"] is JObject record)
             {
@@ -61,6 +60,7 @@ namespace ZKube.Integration.Transport
                 Unsigned(record["delegationSlot"]); Unsigned(record["lamports"]);
                 if (owner != program) throw new FormatException("Delegation record owner does not match zKube");
             }
+            string endpoint = value["fqdn"]?.Type == JTokenType.String ? Endpoint((string)value["fqdn"]).AbsoluteUri : null;
             if (endpoint != null && (endpoint == BaseEndpoint || endpoint == RouterEndpoint))
                 throw new FormatException("Router returned a non-ER endpoint");
             lock (placements)
@@ -76,8 +76,7 @@ namespace ZKube.Integration.Transport
             await VerifyBase(cancellation).ConfigureAwait(false);
             var value = Object(await Call(router, "getIdentity", new JArray(), 16384, cancellation).ConfigureAwait(false));
             string identity = String(value["identity"]); SolanaAddress.Bytes(identity);
-            string endpoint = value["fqdn"]?.Type == JTokenType.String ? Endpoint((string)value["fqdn"]).AbsoluteUri : null;
-            return new RpcValidator(identity, endpoint);
+            return new RpcValidator(identity);
         }
 
         public async Task<RpcEndpoint> ResolveEr(string activeRun)
@@ -174,10 +173,7 @@ namespace ZKube.Integration.Transport
             var config = EncodingConfig(); config["sigVerify"] = false; config["replaceRecentBlockhash"] = false;
             var result = Object(await Call(endpoint.Address, "simulateTransaction", new JArray(Convert.ToBase64String(transaction), config), 1048576, cancellation).ConfigureAwait(false));
             Slot(result); var value = Object(result["value"]);
-            var logs = value["logs"]?.Type == JTokenType.Null ? Array.Empty<string>() :
-                (value["logs"] as JArray ?? throw new FormatException("Malformed simulation logs")).Select(String).ToArray();
-            if (logs.Length > 4096) throw new FormatException("Too many simulation logs");
-            return new RpcSimulation(Error(value["err"]), logs, value["unitsConsumed"] == null ? (ulong?)null : Unsigned(value["unitsConsumed"]));
+            return new RpcSimulation(Error(value["err"]));
         }
 
         // Stateful operations journal these exact signed bytes. Cosmetic star
@@ -205,12 +201,6 @@ namespace ZKube.Integration.Transport
         {
             TransactionSignatures.ValidateSignature(signature); await Ready(endpoint, cancellation).ConfigureAwait(false);
             return await Status(endpoint.Address, signature, cancellation).ConfigureAwait(false);
-        }
-
-        public async Task<ulong> BlockHeight(RpcEndpoint endpoint, CancellationToken cancellation = default)
-        {
-            await Ready(endpoint, cancellation).ConfigureAwait(false);
-            return Unsigned(await Call(endpoint.Address, "getBlockHeight", new JArray(Commitment()), 4096, cancellation).ConfigureAwait(false));
         }
 
         // These read-only probes accept a validated durable journal endpoint.

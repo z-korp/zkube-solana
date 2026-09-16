@@ -11,14 +11,13 @@ namespace ZKube.Integration.Client.Runs
     {
         public RunMarker Marker { get; }
         public string Phase { get; }
-        public string Endpoint { get; }
         public AccountEnvelope Account { get; }
         private readonly CoreRunToken token;
         public CoreRunToken Token => token == null ? null : new CoreRunToken(token.Config, token.State);
         internal RunClientState(string phase) { Phase = phase; }
         internal RunClientState(RunRecoveryResult observed, ActiveRunReconciler native)
         {
-            Marker = observed.Marker; Phase = observed.Phase; Endpoint = observed.Endpoint;
+            Marker = observed.Marker; Phase = observed.Phase;
             Account = observed.Account;
             if (Account != null) token = native.Reconcile(Account, Marker.Owner);
         }

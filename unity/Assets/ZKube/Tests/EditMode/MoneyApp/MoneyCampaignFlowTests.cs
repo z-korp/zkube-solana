@@ -26,11 +26,11 @@ namespace ZKube.Integration.App.Tests
             await MoneyTestEnvironment.Fails<InvalidOperationException>(async () => await e.Flow.StartCampaignRun(1, 1));
             await e.Flow.Connect(e.Owner);
             var run = await e.Flow.StartCampaignRun(1, 1);
-            Assert.That(run.Value.AcceptedSnapshot, Is.Not.Null);
+            Assert.That(run.Value.Bind("Campaign").Accepted, Is.Not.Null);
             Assert.That(e.Native.KeyLoads, Is.Zero);
             var browse = await e.Flow.RefreshCampaign();
             Assert.That(browse.Value.Browse.Realms.Count, Is.EqualTo(10));
-            CollectionAssert.AreEqual(run.Value.AcceptedSnapshot.State, (await e.Flow.OpenSavedCampaign()).Value.AcceptedSnapshot.State);
+            CollectionAssert.AreEqual(run.Value.Bind("Campaign").Accepted.State, (await e.Flow.OpenSavedCampaign()).Value.Bind("Campaign").Accepted.State);
             await e.Flow.Disconnect();
             Assert.That(run.IsCurrent, Is.False);
             await MoneyTestEnvironment.Fails<OperationCanceledException>(async () => await run.Value.Recover(CancellationToken.None));
@@ -56,7 +56,7 @@ namespace ZKube.Integration.App.Tests
             {
                 var pending = e.Purchase(); await e.Services.Journal.Begin(pending);
                 var run = await e.Flow.StartCampaignRun(1, 1);
-                Assert.That(run.Value.AcceptedSnapshot, Is.Not.Null);
+                Assert.That(run.Value.Bind("Campaign").Accepted, Is.Not.Null);
                 Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
                 var result = await e.Services.Executor.Resume(e.Owner, e.Services.Dispatcher);
                 Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);

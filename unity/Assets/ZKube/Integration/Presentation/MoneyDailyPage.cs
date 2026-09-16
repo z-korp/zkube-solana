@@ -48,8 +48,7 @@ namespace ZKube.Integration.Presentation
             dailyRead = result;
             var value = result.Value.Lobby; long timestamp = now();
             dailyRefreshAt = checked(((long)value.DayId + 1) * 86400);
-            var fields = value.Daily;
-            if (fields != null)
+            if (value.PotLamports.HasValue)
             {
                 var window = NativeEngine.DailyWindow(value.DayId);
                 long opens = (long)window.OpensAt, freezes = (long)window.FreezesAt;
@@ -111,8 +110,7 @@ namespace ZKube.Integration.Presentation
             Label(dailyPanel, realm.realmName + " · " + realm.guardianName, 29, true);
             Label(dailyPanel, objective.name, 25, true); Label(dailyPanel, objective.description, 19, false);
             Label(dailyPanel, PublicStatus(lobby.Status), 21, false);
-            var fields = lobby.Daily;
-            if (fields != null)
+            if (lobby.PotLamports.HasValue)
                 Label(dailyPanel, "Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)NativeEngine.DailyWindow(lobby.DayId).FreezesAt).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC", 19, false);
             if (lobby.PotLamports.HasValue)
                 Label(dailyPanel, "Prize pot · " + (lobby.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL", 25, true);
