@@ -1,4 +1,7 @@
 {
+  "commonImages": {
+    "totem": "/assets/common/bonus/tiki.png"
+  },
   "dailyThemes": [
     {
       "description": "No Theme today — the whole pot pays Score",
@@ -98,15 +101,9 @@
     }
   ],
   "effects": {
-    "bonus-activate": "/assets/common/sounds/effects/bonus-activate.mp3",
-    "boss-defeat": "/assets/common/sounds/effects/boss-defeat.mp3",
-    "boss-intro": "/assets/common/sounds/effects/boss-intro.mp3",
-    "coin": "/assets/common/sounds/effects/coin.mp3",
-    "explode": "/assets/common/sounds/effects/explode.mp3",
-    "levelup": "/assets/common/sounds/effects/levelup.mp3",
+    "constraint-complete": "/assets/common/sounds/effects/constraint-complete.mp3",
     "over": "/assets/common/sounds/effects/over.mp3",
     "star": "/assets/common/sounds/effects/star.mp3",
-    "swipe": "/assets/common/sounds/effects/swipe.mp3",
     "victory": "/assets/common/sounds/effects/victory.mp3"
   },
   "guardianRules": [
@@ -236,11 +233,10 @@
         "block2": "/assets/theme-1/block-2.png",
         "block3": "/assets/theme-1/block-3.png",
         "block4": "/assets/theme-1/block-4.png",
-        "loadingBg": "/assets/theme-1/loading-bg.png",
-        "mapBg": "/assets/theme-1/map-bg.png",
-        "mapNodeBoss": "/assets/theme-1/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-1/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-1/map-node-level.png"
+        "gridBg": "/assets/theme-1/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-1/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-1/boss/defeated.png",
+        "guardianIdle": "/assets/theme-1/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -267,9 +263,7 @@
         "strokeWidth": 2.5
       },
       "music": {
-        "boss": "/assets/theme-1/sounds/musics/boss.mp3",
-        "level": "/assets/theme-1/sounds/musics/level.mp3",
-        "main": "/assets/theme-1/sounds/musics/main.mp3"
+        "level": "/assets/theme-1/sounds/musics/level.mp3"
       },
       "realmId": 1,
       "realmName": "Tiki",
@@ -482,11 +476,10 @@
         "block2": "/assets/theme-2/block-2.png",
         "block3": "/assets/theme-2/block-3.png",
         "block4": "/assets/theme-2/block-4.png",
-        "loadingBg": "/assets/theme-2/loading-bg.png",
-        "mapBg": "/assets/theme-2/map-bg.png",
-        "mapNodeBoss": "/assets/theme-2/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-2/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-2/map-node-level.png"
+        "gridBg": "/assets/theme-2/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-2/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-2/boss/defeated.png",
+        "guardianIdle": "/assets/theme-2/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -513,9 +506,7 @@
         "strokeWidth": 2.8
       },
       "music": {
-        "boss": "/assets/theme-2/sounds/musics/boss.mp3",
-        "level": "/assets/theme-2/sounds/musics/level.mp3",
-        "main": "/assets/theme-2/sounds/musics/main.mp3"
+        "level": "/assets/theme-2/sounds/musics/level.mp3"
       },
       "realmId": 2,
       "realmName": "Egypt",
@@ -728,11 +719,10 @@
         "block2": "/assets/theme-3/block-2.png",
         "block3": "/assets/theme-3/block-3.png",
         "block4": "/assets/theme-3/block-4.png",
-        "loadingBg": "/assets/theme-3/loading-bg.png",
-        "mapBg": "/assets/theme-3/map-bg.png",
-        "mapNodeBoss": "/assets/theme-3/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-3/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-3/map-node-level.png"
+        "gridBg": "/assets/theme-3/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-3/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-3/boss/defeated.png",
+        "guardianIdle": "/assets/theme-3/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -759,9 +749,7 @@
         "strokeWidth": 2.2
       },
       "music": {
-        "boss": "/assets/theme-3/sounds/musics/boss.mp3",
-        "level": "/assets/theme-3/sounds/musics/level.mp3",
-        "main": "/assets/theme-3/sounds/musics/main.mp3"
+        "level": "/assets/theme-3/sounds/musics/level.mp3"
       },
       "realmId": 3,
       "realmName": "Norse",
@@ -974,11 +962,10 @@
         "block2": "/assets/theme-4/block-2.png",
         "block3": "/assets/theme-4/block-3.png",
         "block4": "/assets/theme-4/block-4.png",
-        "loadingBg": "/assets/theme-4/loading-bg.png",
-        "mapBg": "/assets/theme-4/map-bg.png",
-        "mapNodeBoss": "/assets/theme-4/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-4/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-4/map-node-level.png"
+        "gridBg": "/assets/theme-4/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-4/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-4/boss/defeated.png",
+        "guardianIdle": "/assets/theme-4/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -1005,9 +992,7 @@
         "strokeWidth": 2.5
       },
       "music": {
-        "boss": "/assets/theme-4/sounds/musics/boss.mp3",
-        "level": "/assets/theme-4/sounds/musics/level.mp3",
-        "main": "/assets/theme-4/sounds/musics/main.mp3"
+        "level": "/assets/theme-4/sounds/musics/level.mp3"
       },
       "realmId": 4,
       "realmName": "Greece",
@@ -1220,11 +1205,10 @@
         "block2": "/assets/theme-5/block-2.png",
         "block3": "/assets/theme-5/block-3.png",
         "block4": "/assets/theme-5/block-4.png",
-        "loadingBg": "/assets/theme-5/loading-bg.png",
-        "mapBg": "/assets/theme-5/map-bg.png",
-        "mapNodeBoss": "/assets/theme-5/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-5/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-5/map-node-level.png"
+        "gridBg": "/assets/theme-5/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-5/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-5/boss/defeated.png",
+        "guardianIdle": "/assets/theme-5/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -1251,9 +1235,7 @@
         "strokeWidth": 2.5
       },
       "music": {
-        "boss": "/assets/theme-5/sounds/musics/boss.mp3",
-        "level": "/assets/theme-5/sounds/musics/level.mp3",
-        "main": "/assets/theme-5/sounds/musics/main.mp3"
+        "level": "/assets/theme-5/sounds/musics/level.mp3"
       },
       "realmId": 5,
       "realmName": "China",
@@ -1466,11 +1448,10 @@
         "block2": "/assets/theme-6/block-2.png",
         "block3": "/assets/theme-6/block-3.png",
         "block4": "/assets/theme-6/block-4.png",
-        "loadingBg": "/assets/theme-6/loading-bg.png",
-        "mapBg": "/assets/theme-6/map-bg.png",
-        "mapNodeBoss": "/assets/theme-6/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-6/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-6/map-node-level.png"
+        "gridBg": "/assets/theme-6/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-6/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-6/boss/defeated.png",
+        "guardianIdle": "/assets/theme-6/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -1497,9 +1478,7 @@
         "strokeWidth": 3.0
       },
       "music": {
-        "boss": "/assets/theme-6/sounds/musics/boss.mp3",
-        "level": "/assets/theme-6/sounds/musics/level.mp3",
-        "main": "/assets/theme-6/sounds/musics/main.mp3"
+        "level": "/assets/theme-6/sounds/musics/level.mp3"
       },
       "realmId": 6,
       "realmName": "Persia",
@@ -1712,11 +1691,10 @@
         "block2": "/assets/theme-7/block-2.png",
         "block3": "/assets/theme-7/block-3.png",
         "block4": "/assets/theme-7/block-4.png",
-        "loadingBg": "/assets/theme-7/loading-bg.png",
-        "mapBg": "/assets/theme-7/map-bg.png",
-        "mapNodeBoss": "/assets/theme-7/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-7/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-7/map-node-level.png"
+        "gridBg": "/assets/theme-7/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-7/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-7/boss/defeated.png",
+        "guardianIdle": "/assets/theme-7/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -1743,9 +1721,7 @@
         "strokeWidth": 2.2
       },
       "music": {
-        "boss": "/assets/theme-7/sounds/musics/boss.mp3",
-        "level": "/assets/theme-7/sounds/musics/level.mp3",
-        "main": "/assets/theme-7/sounds/musics/main.mp3"
+        "level": "/assets/theme-7/sounds/musics/level.mp3"
       },
       "realmId": 7,
       "realmName": "Japan",
@@ -1958,11 +1934,10 @@
         "block2": "/assets/theme-8/block-2.png",
         "block3": "/assets/theme-8/block-3.png",
         "block4": "/assets/theme-8/block-4.png",
-        "loadingBg": "/assets/theme-8/loading-bg.png",
-        "mapBg": "/assets/theme-8/map-bg.png",
-        "mapNodeBoss": "/assets/theme-8/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-8/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-8/map-node-level.png"
+        "gridBg": "/assets/theme-8/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-8/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-8/boss/defeated.png",
+        "guardianIdle": "/assets/theme-8/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -1989,9 +1964,7 @@
         "strokeWidth": 2.8
       },
       "music": {
-        "boss": "/assets/theme-8/sounds/musics/boss.mp3",
-        "level": "/assets/theme-8/sounds/musics/level.mp3",
-        "main": "/assets/theme-8/sounds/musics/main.mp3"
+        "level": "/assets/theme-8/sounds/musics/level.mp3"
       },
       "realmId": 8,
       "realmName": "Mayan",
@@ -2204,11 +2177,10 @@
         "block2": "/assets/theme-9/block-2.png",
         "block3": "/assets/theme-9/block-3.png",
         "block4": "/assets/theme-9/block-4.png",
-        "loadingBg": "/assets/theme-9/loading-bg.png",
-        "mapBg": "/assets/theme-9/map-bg.png",
-        "mapNodeBoss": "/assets/theme-9/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-9/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-9/map-node-level.png"
+        "gridBg": "/assets/theme-9/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-9/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-9/boss/defeated.png",
+        "guardianIdle": "/assets/theme-9/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -2235,9 +2207,7 @@
         "strokeWidth": 2.5
       },
       "music": {
-        "boss": "/assets/theme-9/sounds/musics/boss.mp3",
-        "level": "/assets/theme-9/sounds/musics/level.mp3",
-        "main": "/assets/theme-9/sounds/musics/main.mp3"
+        "level": "/assets/theme-9/sounds/musics/level.mp3"
       },
       "realmId": 9,
       "realmName": "Tribal",
@@ -2450,11 +2420,10 @@
         "block2": "/assets/theme-10/block-2.png",
         "block3": "/assets/theme-10/block-3.png",
         "block4": "/assets/theme-10/block-4.png",
-        "loadingBg": "/assets/theme-10/loading-bg.png",
-        "mapBg": "/assets/theme-10/map-bg.png",
-        "mapNodeBoss": "/assets/theme-10/map-node-boss.png",
-        "mapNodeCompleted": "/assets/theme-10/map-node-completed.png",
-        "mapNodeLevel": "/assets/theme-10/map-node-level.png"
+        "gridBg": "/assets/theme-10/grid-bg.png",
+        "guardianCelebrate": "/assets/theme-10/boss/celebrate.png",
+        "guardianDefeated": "/assets/theme-10/boss/defeated.png",
+        "guardianIdle": "/assets/theme-10/boss/idle.png"
       },
       "map": {
         "activeRgba": [
@@ -2481,9 +2450,7 @@
         "strokeWidth": 2.8
       },
       "music": {
-        "boss": "/assets/theme-10/sounds/musics/boss.mp3",
-        "level": "/assets/theme-10/sounds/musics/level.mp3",
-        "main": "/assets/theme-10/sounds/musics/main.mp3"
+        "level": "/assets/theme-10/sounds/musics/level.mp3"
       },
       "realmId": 10,
       "realmName": "Inca",

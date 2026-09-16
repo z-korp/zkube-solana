@@ -241,7 +241,10 @@ namespace ZKube.Tests
             Assert.That((IntPtr)nativePointer.GetValue(portraitAtlas), Is.EqualTo(IntPtr.Zero));
             Assert.That(app.GetComponentsInChildren<Image>().Any(value => value.name.StartsWith("Emblem ")), Is.False);
             Assert.That(app.Flow.Realm, Is.EqualTo(2)); Assert.That(retainedArt.Sprite("boss__celebrate"), Is.Not.Null);
-            Assert.That(retainedArt.Sprite("common/bonus__hammer"), Is.Not.Null);
+            var common = (UnityEngine.U2D.SpriteAtlas)typeof(BoardArt).GetField("common", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(retainedArt);
+            var uncached = common.GetSprite("bonus__tiki");
+            Assert.That(uncached, Is.Not.Null);
+            UnityEngine.Object.Destroy(uncached);
         }
         [UnityTest] public IEnumerator NavigationDuringAssetLoadPublishesOnlyTheLatestPageAndDisposalStopsLateWork()
         {

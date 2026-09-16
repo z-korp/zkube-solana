@@ -111,7 +111,10 @@ namespace ZKube.Presentation.Tests
             Assert.IsNotNull(boardArt.Sprite("boss__celebrate"), "An uncached sprite proves the atlas itself survived");
             pageArt.Dispose(); yield return null;
             Assert.IsNotNull(boardArt.Sprite("boss__defeated"));
-            Assert.IsNotNull(boardArt.Sprite("common/bonus__hammer"), "Common atlas ownership is shared too");
+            var common = (UnityEngine.U2D.SpriteAtlas)typeof(BoardArt).GetField("common", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(boardArt);
+            var uncached = common.GetSprite("bonus__tiki");
+            Assert.IsNotNull(uncached, "Common atlas ownership survives a fresh sprite lookup too");
+            UnityEngine.Object.Destroy(uncached);
             Assert.AreSame(font, boardArt.Body);
             Assert.AreNotEqual(IntPtr.Zero, NativeAtlasPointer(sharedAtlas), "The final owner still holds a loaded native atlas");
             boardArt.Dispose();
@@ -136,7 +139,10 @@ namespace ZKube.Presentation.Tests
             string realmPath = "ZKube/Atlases/" + boardArt.ThemeId;
             Assert.AreEqual(3, boardArt.RealmId); Assert.IsTrue(sharedAtlas != null);
             Assert.IsNotNull(boardArt.Sprite("boss__celebrate"));
-            Assert.IsNotNull(boardArt.Sprite("common/bonus__wave"));
+            var common = (UnityEngine.U2D.SpriteAtlas)typeof(BoardArt).GetField("common", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(boardArt);
+            var uncached = common.GetSprite("bonus__tiki");
+            Assert.IsNotNull(uncached);
+            UnityEngine.Object.Destroy(uncached);
             Assert.AreNotEqual(IntPtr.Zero, NativeAtlasPointer(sharedAtlas), "The surviving requester owns the loaded native atlas");
             boardArt.Dispose();
             Assert.AreEqual(0, AtlasOwners(realmPath), "Last release removes the shared lease");

@@ -33,6 +33,11 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /LiberationSans|Outfit-(?:Bold|ExtraBold|Medium|SemiBold)|(?:boss-intro|boss-defeat|bonus-activate)\.mp3/,
+    trees: [UNITY_CLIENT, CODEGEN, join(ROOT, "unity/tools/font_sources/provenance.json")],
+    reversal: "The packages bundle only the catalog assets and font fallbacks used by the game (2026-09-16)",
+  },
+  {
     pattern: /Sol Blocks/i,
     trees: [UNITY_CLIENT, README, AGENT_RULES, join(ROOT, "unity/NativeAndroid/src"),
       join(ROOT, "unity/toolchain.json"), join(ROOT, "unity/dapp-store/publishing.json")],

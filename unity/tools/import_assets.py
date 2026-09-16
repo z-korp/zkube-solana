@@ -44,10 +44,14 @@ def plan():
     files = {}
     entries = []
     scopes = ["common"] + [theme["id"] for theme in catalog["themes"]]
+    references = set(catalog["effects"].values()) | set(catalog["commonImages"].values())
+    for theme in catalog["themes"]:
+        references.update(theme["images"].values())
+        references.update(theme["music"].values())
+        references.add(theme["guardianPortrait"])
     for scope in scopes:
-        for source in sorted((SOURCE / scope).rglob("*")):
-            if source.suffix.lower() not in {".png", ".mp3"}:
-                continue
+        for reference in sorted(value for value in references if value.startswith(f"/assets/{scope}/")):
+            source = SOURCE / reference.removeprefix("/assets/")
             if source.is_symlink() or not source.is_file():
                 raise RuntimeError(f"Expected regular source asset: {source}")
             local = source.relative_to(SOURCE / scope)

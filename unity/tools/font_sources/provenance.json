@@ -14,7 +14,7 @@
       "repository": "https://github.com/Outfitio/Outfit-Fonts",
       "revision": "902773808eb372f70fb34e8946dd1ffe604efc79",
       "directory": "fonts/ttf",
-      "files": ["Outfit-Regular.ttf", "Outfit-Medium.ttf", "Outfit-SemiBold.ttf", "Outfit-Bold.ttf", "Outfit-ExtraBold.ttf"],
+      "files": ["Outfit-Regular.ttf"],
       "licensePath": "OFL.txt"
     },
     {

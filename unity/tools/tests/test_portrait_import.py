@@ -22,6 +22,23 @@ imports.GENERATED = imports.PROJECT / 'Assets/ZKube/Art/Generated'
 
 
 class PortraitImports(unittest.TestCase):
+    def test_imports_only_the_assets_loaded_by_the_game(self):
+        _, catalog = imports.plan()
+        expected = {'assets/common/bonus/tiki.png'}
+        expected.update(f'assets/common/sounds/effects/{name}.mp3'
+                        for name in ('star', 'constraint-complete', 'victory', 'over'))
+        for realm in range(1, 11):
+            expected.update(f'assets/theme-{realm}/{name}.png' for name in
+                            ('background', 'grid-bg', 'block-1', 'block-2', 'block-3', 'block-4',
+                             'boss/idle', 'boss/celebrate', 'boss/defeated'))
+            expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
+        self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
+        self.assertEqual({font['name'] for font in catalog['fonts']},
+                         {'LilitaOne-Regular', 'Outfit-Regular', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular'})
+        outfit = next(font for font in catalog['fonts'] if font['name'] == 'Outfit-Regular')
+        settings = (imports.PROJECT / 'Assets/TextMesh Pro/Resources/TMP Settings.asset').read_text()
+        self.assertIn('m_defaultFontAsset: {fileID: 1, guid: ' + outfit['fontAssetGuid'], settings)
+
     def inputs(self):
         catalog = {'themes': []}; by_source = {}; entries = []; files = {}
         for realm in range(1, 11):

@@ -52,16 +52,15 @@ fn theme(source: &Value) -> Value {
         ("block2", "block-2"),
         ("block3", "block-3"),
         ("block4", "block-4"),
-        ("loadingBg", "loading-bg"),
         ("background", "background"),
-        ("mapBg", "map-bg"),
-        ("mapNodeLevel", "map-node-level"),
-        ("mapNodeBoss", "map-node-boss"),
-        ("mapNodeCompleted", "map-node-completed"),
+        ("gridBg", "grid-bg"),
+        ("guardianIdle", "boss/idle"),
+        ("guardianCelebrate", "boss/celebrate"),
+        ("guardianDefeated", "boss/defeated"),
     ] {
         images.insert(name.into(), json!(format!("/assets/{id}/{file}.png")));
     }
-    let music: serde_json::Map<String, Value> = ["main", "level", "boss"]
+    let music: serde_json::Map<String, Value> = ["level"]
         .into_iter()
         .map(|kind| {
             (
@@ -168,26 +167,16 @@ pub fn render(catalog: &CampaignCatalog, source: &str) -> Result<String, String>
     if realms.len() != catalog.maps.len() {
         return Err("Art realm count disagrees with catalog".into());
     }
-    let effects: serde_json::Map<String, Value> = [
-        "swipe",
-        "explode",
-        "over",
-        "levelup",
-        "victory",
-        "boss-intro",
-        "boss-defeat",
-        "coin",
-        "star",
-        "bonus-activate",
-    ]
-    .into_iter()
-    .map(|name| {
-        (
-            name.into(),
-            json!(format!("/assets/common/sounds/effects/{name}.mp3")),
-        )
-    })
-    .collect();
+    let effects: serde_json::Map<String, Value> =
+        ["over", "victory", "star", "constraint-complete"]
+            .into_iter()
+            .map(|name| {
+                (
+                    name.into(),
+                    json!(format!("/assets/common/sounds/effects/{name}.mp3")),
+                )
+            })
+            .collect();
     let output = json!({
         "schema": 1,
         "themes": realms.iter().map(theme).collect::<Vec<_>>(),
@@ -195,6 +184,7 @@ pub fn render(catalog: &CampaignCatalog, source: &str) -> Result<String, String>
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
             objective(theme.kind.tag(), theme.value)).collect::<Vec<_>>(),
         "effects": effects,
+        "commonImages": {"totem": "/assets/common/bonus/tiki.png"},
     });
     serde_json::to_string_pretty(&output)
         .map(|value| value + "\n")
