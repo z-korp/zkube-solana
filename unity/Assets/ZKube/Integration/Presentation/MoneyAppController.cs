@@ -99,7 +99,7 @@ namespace ZKube.Integration.Presentation
             layout.padding = new RectOffset(10, 10, 18, 30); layout.childControlHeight = true;
             layout.childForceExpandHeight = false; layout.childForceExpandWidth = true;
             content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize; scroll.content = content;
-            Label(content, "zKube", 36, true);
+            Label(content, Application.productName, 36, true);
             status = Label(content, "Loading Daily…", 19, false); status.name = "Overview status";
             pageContent = content;
             overviewPanel = Rect("Overview panel", content);

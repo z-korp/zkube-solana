@@ -1,16 +1,17 @@
-# zKube on Solana
+# zKube
 
-zKube is a wallet-native puzzle game for the Solana dApp Store and Seeker: a
-falling-block board where clearing lines feeds combos, and where a paid run
-competes for a real SOL prize pot.
+zKube is a family of falling-block puzzle games where clearing lines feeds
+combos. **zKube: Realms** is the walletless Android product for Google Play,
+with local Campaign play and a UTC Daily. **zKube: Arena** is the Solana dApp
+Store and Seeker product, with free local Campaign play and paid Arcade runs.
 
-One application, two modes. **Campaign** is a free 100-level world map.
-**Arcade** is the competitive mode — each arcade run costs exactly 0.01 SOL and
-plays for the Daily's Score and Theme boards.
+Both products share the 100-level **Campaign** world map. **Arcade** is the
+money product's competitive mode — each run costs exactly 0.01 SOL and plays
+for the Daily's Score and Theme boards.
 
-zKube previously ran on Starknet, where it spent several months among the
-network's most-used contracts. This repository is the Solana rewrite, built on
-MagicBlock ephemeral rollups so that gameplay executes on-chain at input speed
+The original Starknet release, **zKube: Origins**, spent several months among
+the network's most-used contracts. This repository contains the Unity products
+and the Solana program, using MagicBlock ephemeral rollups for Arcade gameplay
 while money and records settle on Solana base layer.
 
 ## Status
@@ -159,8 +160,8 @@ and the on-chain program must all agree on the same committed golden vectors
 before an ABI can ship. The generated IDL is the contract between program,
 keeper, and client.
 
-The Unity client retains the artwork and protocol behavior, with all gameplay
-executed by the Rust core over the native FFI. The money identity,
+Both products use the Unity client, with all gameplay executed by the Rust core
+over the native FFI. The money identity,
 `com.zkorp.zkube`, targets the Solana dApp Store. The store identity,
 `com.zkorp.zkube.store`, targets Google Play with an ARM64 and x86_64 AAB,
 a local name, a local UTC Daily, and a native purchase to unlock Campaign.

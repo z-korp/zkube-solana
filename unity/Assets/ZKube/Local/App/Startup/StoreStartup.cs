@@ -29,7 +29,7 @@ namespace ZKube.Local.App
             catch (Exception error)
             {
                 billing?.Dispose(); billing = null;
-                failure = "zKube could not open your saved progress. Close and reopen the app to try again.";
+                failure = Application.productName + " could not open your saved progress. Close and reopen the app to try again.";
                 Debug.LogException(error);
             }
         }

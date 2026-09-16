@@ -8,5 +8,6 @@
     "package": "@solana-mobile/dapp-store-cli",
     "version": "1.0.0"
   },
-  "approvalEnvironment": "solana-dapp-store-publish"
+  "approvalEnvironment": "solana-dapp-store-publish",
+  "displayName": "zKube: Arena"
 }

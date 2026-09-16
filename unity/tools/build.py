@@ -246,7 +246,7 @@ def main():
     stem = "zkube" if args.identity == "money" else "zkube-store"
     apk = OUTPUT / f'{stem}.{profile["format"]}'
     env.update(NO_DNA="1", ZKUBE_UNITY_APK=str(apk),
-               ZKUBE_UNITY_IDENTITY=args.identity)
+               ZKUBE_UNITY_IDENTITY=args.identity, ZKUBE_UNITY_PRODUCT_NAME=profile["productName"])
     with editor_lease() as lease_fd:
         generated_idl = PROJECT / "Assets/ZKube/Integration/Generated/solana.json"
         generated_idl.parent.mkdir(parents=True, exist_ok=True)

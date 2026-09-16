@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
-"""Static/pure checks only; never starts Unity, Gradle, native builds or Java."""
+"""Pure policy checks, plus explicit inspection of the two completed packages."""
+import argparse
 import copy
+import hashlib
+import os
+import subprocess
 import io
 import json
 from pathlib import Path
@@ -14,7 +18,7 @@ sys.path.insert(0, str(ROOT / 'unity/tools'))
 from cli import run_main
 from android_identity import identity, abis
 from inspect_android import elf, metadata_check, store_payload, store_manifest, MONEY_ASSEMBLIES
-from inspect_apk import open_archive, read_member
+from inspect_apk import open_archive, read_member, display_name_check, product_name_check
 
 
 def native(machine=183, alignment=16384):
@@ -62,6 +66,20 @@ class StaticTests(unittest.TestCase):
         self.toolchain['androidIdentities'][1]['abis'].append('x86_64')
         self.toolchain['androidIdentities'][1]['locks'] = '../money-locks'
         with self.assertRaises(RuntimeError): identity(self.toolchain, 'store')
+
+    def test_display_name_checks_reject_wrong_missing_and_localized_names(self):
+        publishing = json.loads((ROOT / 'unity/dapp-store/publishing.json').read_text())
+        self.assertEqual(identity(self.toolchain, 'money')['productName'], publishing['displayName'])
+        for name, expected in (('money', 'zKube: Arena'), ('store', 'zKube: Realms')):
+            self.assertEqual(expected, identity(self.toolchain, name)['productName'])
+            badge = "application-label:'" + expected + "'\n"
+            self.assertEqual(expected, display_name_check(badge, expected))
+            encoded = expected.encode('utf8')
+            product_name_check(struct.pack('<I', len(encoded)) + encoded, expected)
+            with self.assertRaises(RuntimeError): display_name_check('', expected)
+            with self.assertRaises(RuntimeError): display_name_check("application-label:'zKube'", expected)
+            with self.assertRaises(RuntimeError): display_name_check(badge + "application-label-fr:'zKube'", expected)
+            with self.assertRaises(RuntimeError): product_name_check(b'zKube', expected)
 
     def test_elf_both_abis_and_alignment(self):
         for machine in (183, 62):
@@ -158,18 +176,44 @@ class StaticTests(unittest.TestCase):
         closure('ZKube.Store', set())
 
     def test_store_manifest_rejects_wallet_and_wrong_identity(self):
-        xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false"><meta-data android:name="unity.splash-enable" android:value="false"/></application></manifest>'''
+        xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false" android:label="zKube: Realms"><meta-data android:name="unity.splash-enable" android:value="false"/></application></manifest>'''
         profile = identity(self.toolchain, 'store')
         self.assertEqual('com.zkorp.zkube.store', store_manifest(xml, profile, self.toolchain)['package'])
+        with self.assertRaises(RuntimeError): store_manifest(xml.replace('zKube: Realms', 'zKube'), profile, self.toolchain)
         with self.assertRaises(RuntimeError): store_manifest(xml.replace('com.zkorp.zkube.store', 'com.zkorp.zkube'), profile, self.toolchain)
         with self.assertRaises(RuntimeError): store_manifest(xml.replace('</application>', '<activity android:name="com.zkorp.zkube.unitywallet.WalletActivity"/></application>'), profile, self.toolchain)
 
 
+def test_built_packages_carry_their_display_name():
+    toolchain = json.loads((ROOT / 'unity/toolchain.json').read_text())
+    editor = Path(os.environ.get('UNITY_EDITOR', str(Path.home() / 'Unity/Hub/Editor' / toolchain['editor'] / 'Editor/Unity')))
+    aapt = editor.parent / 'Data/PlaybackEngines/AndroidPlayer/SDK/build-tools' / toolchain['sdkBuildTools'] / 'aapt2'
+    check = unittest.TestCase()
+    for name, expected in (('money', 'zKube: Arena'), ('store', 'zKube: Realms')):
+        profile = identity(toolchain, name)
+        stem = 'zkube' if name == 'money' else 'zkube-store'
+        artifact = ROOT / 'build/unity' / (stem + '.' + profile['format'])
+        report = json.loads(artifact.with_suffix('.inspection.json').read_text())
+        check.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), report['sha256'])
+        check.assertEqual(expected, report['displayName'])
+        with open_archive(artifact) as archive:
+            prefix = '' if name == 'money' else 'base/'
+            product_name_check(read_member(archive, prefix + 'assets/bin/Data/globalgamemanagers'), expected)
+        apk = artifact if name == 'money' else artifact.with_suffix('.universal.apk')
+        if name == 'store':
+            check.assertEqual(hashlib.sha256(apk.read_bytes()).hexdigest(), report['generatedUniversalApkSha256'])
+        display_name_check(subprocess.check_output([str(aapt), 'dump', 'badging', str(apk)], text=True), expected)
+
+
 def main():
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(StaticTests)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--built-packages', action='store_true')
+    args = parser.parse_args()
+    suite = (unittest.TestSuite([unittest.FunctionTestCase(test_built_packages_carry_their_display_name)])
+             if args.built_packages else unittest.defaultTestLoader.loadTestsFromTestCase(StaticTests))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     if not result.wasSuccessful():
-        raise RuntimeError(f'Store build static checks failed: {len(result.failures)} failures, {len(result.errors)} errors')
+        raise RuntimeError(f'Android identity checks failed: {len(result.failures)} failures, {len(result.errors)} errors')
 
 
 if __name__ == '__main__':

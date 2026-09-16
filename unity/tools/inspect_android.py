@@ -86,6 +86,8 @@ def store_manifest(xml, profile, toolchain):
     if len(apps) != 1:
         raise RuntimeError('AAB must contain one application')
     app = apps[0]
+    if app.get(ANDROID + 'label') != profile['productName']:
+        raise RuntimeError('AAB display name differs from the build identity')
     if app.get(ANDROID + 'allowBackup') != 'false' or app.get(ANDROID + 'debuggable', 'false') == 'true':
         raise RuntimeError('AAB backup/debug settings differ from build policy')
     splash = [node for node in app.findall('meta-data') if node.get(ANDROID + 'name') == 'unity.splash-enable']
@@ -95,7 +97,7 @@ def store_manifest(xml, profile, toolchain):
         if any(any(term in value.lower() for term in ('com.solana', 'unitywallet', 'solana-wallet', 'mobilewalletadapter'))
                for value in node.attrib.values()):
             raise RuntimeError('AAB manifest contains a Solana/wallet component or intent')
-    return {'package': profile['package'], 'versionCode': int(root.get(ANDROID + 'versionCode')),
+    return {'package': profile['package'], 'displayName': profile['productName'], 'versionCode': int(root.get(ANDROID + 'versionCode')),
             'versionName': root.get(ANDROID + 'versionName'), 'debuggable': False,
             'minimumApi': toolchain['androidMinimumApi'], 'targetApi': toolchain['androidApi']}
 
@@ -143,6 +145,8 @@ def inspect(artifact, android_tools, name):
                             '--strip-unneeded', '-o', str(stripped), str(source)], check=True)
             hashes[abi] = dict(source=sha(source.read_bytes()), stripped=sha(stripped.read_bytes()))
         libraries = store_payload(artifact, 'base/', selected, hashes)
+        with open_archive(artifact) as archive:
+            inspect_apk.product_name_check(read_member(archive, 'base/assets/bin/Data/globalgamemanagers'), profile['productName'])
         # Never implicitly read/write ~/.android/debug.keystore. This disposable
         # key signs only the retained local inspection APK; delete the key here.
         keystore = temp / 'inspection.p12'
@@ -158,6 +162,10 @@ def inspect(artifact, android_tools, name):
         with open_archive(apks) as archive:
             apk.write_bytes(read_member(archive, 'universal.apk'))
         apk_libraries = store_payload(apk, '', selected, hashes)
+        badging = subprocess.check_output([str(android_tools / 'aapt2'), 'dump', 'badging', str(apk)], text=True)
+        inspect_apk.display_name_check(badging, profile['productName'])
+        with open_archive(apk) as archive:
+            inspect_apk.product_name_check(read_member(archive, 'assets/bin/Data/globalgamemanagers'), profile['productName'])
         if {(x['abi'], Path(x['path']).name, x['sha256']) for x in libraries} != {
                 (x['abi'], Path(x['path']).name, x['sha256']) for x in apk_libraries}:
             raise RuntimeError('Bundletool changed the native payload')

@@ -92,6 +92,7 @@ validate_unity() {
   for unity_identity in money store; do
     NO_DNA=1 python3 unity/tools/build.py android --identity "$unity_identity"
   done
+  NO_DNA=1 python3 unity/tools/tests/test_android_identity.py --built-packages
 }
 
 validate_documentation_layout

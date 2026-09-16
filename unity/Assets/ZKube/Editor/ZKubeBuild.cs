@@ -66,7 +66,8 @@ namespace ZKube.Editor
             AndroidExternalToolsSettings.jdkRootPath = Path.Combine(android, "OpenJDK");
 
             PlayerSettings.companyName = "zKorp";
-            PlayerSettings.productName = "zKube";
+            PlayerSettings.productName = Environment.GetEnvironmentVariable("ZKUBE_UNITY_PRODUCT_NAME")
+                ?? throw new InvalidOperationException("Build identity has no product name");
             var identity = Identity;
             var store = identity.name == "store";
             // Per-build extra defines control Player compilation. A persistent

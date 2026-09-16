@@ -14,6 +14,7 @@ namespace ZKube.Local.App
         {
             cancellation.ThrowIfCancellationRequested();
 #if UNITY_ANDROID && !UNITY_EDITOR && ZKUBE_STORE
+            var shareTitle = Application.productName + " · Daily";
             var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             using (var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
             using (var activity = unity.GetStatic<AndroidJavaObject>("currentActivity"))
@@ -27,9 +28,9 @@ namespace ZKube.Local.App
                         using var intent = new AndroidJavaObject("android.content.Intent", "android.intent.action.SEND");
                         using var type = intent.Call<AndroidJavaObject>("setType", "text/plain");
                         using var extra = intent.Call<AndroidJavaObject>("putExtra", "android.intent.extra.TEXT", text);
-                        using var title = intent.Call<AndroidJavaObject>("putExtra", "android.intent.extra.TITLE", "zKube Daily");
+                        using var title = intent.Call<AndroidJavaObject>("putExtra", "android.intent.extra.TITLE", shareTitle);
                         using var intents = new AndroidJavaClass("android.content.Intent");
-                        using var chooser = intents.CallStatic<AndroidJavaObject>("createChooser", intent, "zKube Daily");
+                        using var chooser = intents.CallStatic<AndroidJavaObject>("createChooser", intent, shareTitle);
                         current.Call("startActivity", chooser); completion.TrySetResult(false);
                     }
                     catch (Exception error) { completion.TrySetException(error); }

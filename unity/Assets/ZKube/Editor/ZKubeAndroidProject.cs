@@ -67,6 +67,7 @@ namespace ZKube.Editor
             if (application == null) throw new BuildFailedException("Generated launcher manifest has no application");
             XNamespace android = "http://schemas.android.com/apk/res/android";
             application.SetAttributeValue(android + "allowBackup", "false");
+            application.SetAttributeValue(android + "label", UnityEditor.PlayerSettings.productName);
             manifest.Save(manifestPath);
 
             // UnityPlayer reads this separate Java startup-overlay flag. The

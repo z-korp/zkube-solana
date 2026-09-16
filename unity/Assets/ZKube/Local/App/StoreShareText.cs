@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using UnityEngine;
 
 namespace ZKube.Local.App
 {
@@ -10,7 +11,7 @@ namespace ZKube.Local.App
         {
             if (name == null || guardian == null || realm == null || objective == null || objectiveTotal == null)
                 throw new ArgumentNullException("Share result is incomplete");
-            return name + " faced " + guardian + " in " + realm + ". " + objective + ": " + objectiveTotal +
+            return Application.productName + " · Daily\n" + name + " faced " + guardian + " in " + realm + ". " + objective + ": " + objectiveTotal +
                 ". Score: " + score.ToString("N0", culture ?? CultureInfo.CurrentCulture) + ". " +
                 streak.ToString(CultureInfo.InvariantCulture) + " day streak.";
         }

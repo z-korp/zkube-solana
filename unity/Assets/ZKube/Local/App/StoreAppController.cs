@@ -195,7 +195,7 @@ namespace ZKube.Local.App
         }
         private void NameGate(string typed)
         {
-            Text("Welcome to zKube", 36, true); Portrait();
+            Text("Welcome to " + Application.productName, 36, true); Portrait();
             Text("Pick the name shown with your progress. It stays on this device.");
             var holder = Rect("Player name", content); Height(holder, TouchSize(64)); holder.gameObject.AddComponent<Image>().color = panel;
             name = holder.gameObject.AddComponent<TMP_InputField>(); name.characterLimit = 24;
@@ -308,7 +308,7 @@ namespace ZKube.Local.App
         }
         private void Result()
         {
-            Text("zKube Daily", 38, true); Portrait(); var attempt = Flow.Product.Read.DailyAttempt;
+            Text(Application.productName + " · Daily", 38, true); Portrait(); var attempt = Flow.Product.Read.DailyAttempt;
             if (attempt == null) { Text("No Daily result yet."); return; }
             var data = pages.Realm((byte)attempt.Realm); string objective = pages.Objective((byte)attempt.ObjectiveKind, (byte)attempt.ObjectiveValue).name;
             Text(data.realmName + " · " + objective, 20); Text(Flow.Product.Read.Name, 26, true);

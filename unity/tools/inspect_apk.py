@@ -10,6 +10,7 @@ import struct
 import subprocess
 import tempfile
 import zipfile
+from android_identity import identity
 
 
 def elf(data, machine):
@@ -72,6 +73,19 @@ def money_metadata_check(data):
             raise RuntimeError("Money player contains the store Daily client or policy")
 
 
+def display_name_check(badging, expected):
+    labels = re.findall(r"^application-label(?:-[^:]+)?:'([^']*)'$", badging, re.M)
+    if not re.search(r"^application-label:'", badging, re.M) or not labels or any(label != expected for label in labels):
+        raise RuntimeError("Android display name differs from the build identity")
+    return expected
+
+
+def product_name_check(data, expected):
+    encoded = expected.encode('utf8')
+    if struct.pack('<I', len(encoded)) + encoded not in data:
+        raise RuntimeError("Unity product name differs from the build identity")
+
+
 def manifest_nodes(dump):
     """Read aapt2's tree, retaining parentage so child attributes cannot satisfy a parent check."""
     nodes, stack = [], []
@@ -96,6 +110,7 @@ def manifest_nodes(dump):
 def inspect(apk, android_tools, expected_native):
     toolchain = json.loads((Path(__file__).resolve().parents[1] / "toolchain.json").read_text())
     badging = subprocess.check_output([str(android_tools / "aapt2"), "dump", "badging", str(apk)], text=True)
+    display_name = display_name_check(badging, identity(toolchain, "money")["productName"])
     package = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging, re.M)
     if package is None or package[1] != "com.zkorp.zkube":
         raise RuntimeError("APK package differs from the money build identity")
@@ -145,6 +160,7 @@ def inspect(apk, android_tools, expected_native):
         stripped_hash = hashlib.sha256(stripped.read_bytes()).hexdigest()
     libraries = []
     with open_archive(apk) as archive:
+        product_name_check(read_member(archive, "assets/bin/Data/globalgamemanagers"), display_name)
         metadata = read_member(archive, "assets/bin/Data/Managed/Metadata/global-metadata.dat")
         money_metadata_check(metadata)
         if any(token in metadata for token in (b"Unity.Purchasing.dll\x00", b"UnityEngine.Purchasing\x00")):
@@ -173,7 +189,7 @@ def inspect(apk, android_tools, expected_native):
         raise RuntimeError("APK does not contain the Rust engine library")
     subprocess.run([str(android_tools / "zipalign"), "-c", "-P", "16", "4", str(apk)], check=True)
     report = {"apk": apk.name, "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-              "package": package[1], "versionCode": int(package[2]),
+              "package": package[1], "displayName": display_name, "versionCode": int(package[2]),
               "versionName": package[3], "minimumApi": int(minimum[1]), "targetApi": int(target[1]),
               "debuggable": debuggable, "permissions": permissions,
               "allowBackup": False, "walletActivityExported": False, "unitySplashEnabled": False,

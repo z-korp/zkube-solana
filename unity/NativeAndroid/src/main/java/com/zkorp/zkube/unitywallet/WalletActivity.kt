@@ -46,7 +46,7 @@ class WalletActivity : ComponentActivity() {
         if (operation != "authorize" && (expected == null || saved == null)) throw WalletFailure("authorization-required")
         if (saved != null && expected != null) WalletPolicy.requireAccount(Base64.decode(saved.getString("owner"), Base64.NO_WRAP), expected)
         val adapter = MobileWalletAdapter(ConnectionIdentity(Uri.parse("https://zkube-solana.vercel.app"),
-            Uri.parse("assets/pwa-512x512.png"), "zKube")).also { it.blockchain = Solana.Devnet; it.authToken = saved?.getString("authToken") }
+            Uri.parse("assets/pwa-512x512.png"), applicationInfo.loadLabel(packageManager).toString())).also { it.blockchain = Solana.Devnet; it.authToken = saved?.getString("authToken") }
         if (operation == "disconnect") {
             return when (adapter.disconnect(sender)) {
                 is TransactionResult.Success -> { vault.remove("wallet-authorization"); JSONObject() }

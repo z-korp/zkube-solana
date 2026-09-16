@@ -33,6 +33,12 @@ const SKIPPED = [
 
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   {
+    pattern: /Sol Blocks/i,
+    trees: [UNITY_CLIENT, README, AGENT_RULES, join(ROOT, "unity/NativeAndroid/src"),
+      join(ROOT, "unity/toolchain.json"), join(ROOT, "unity/dapp-store/publishing.json")],
+    reversal: "The zKube family names the local product Realms and the Solana product Arena (2026-09-15)",
+  },
+  {
     pattern: /ZKube\.(?:Generated|Persistence|Integration|Transport|Planning|Execution|RunReconciliation|Client|ClientRuns|ProductReads|SolanaPrimitives|AndroidWallet|MoneyApp|MoneyPresentation|MoneyStartup|MoneyOverview|StoreStartup|Local\.(?:Runs|Presentation|App|Billing(?:\.Unity)?))(?:\.Tests|\.PlayTests)?(?:\.asmdef|\.dll|")/,
     trees: [UNITY_CLIENT, join(ROOT, "unity/Assets/ThirdParty/Solana")],
     reversal: "Unity compiles shared code and each identity in the consolidated Core, Presentation, Local, Chain, Money and Store assemblies (2026-09-16)",

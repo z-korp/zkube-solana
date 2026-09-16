@@ -18,6 +18,8 @@ def _identity(toolchain, name):
         'com.zkorp.zkube', 'apk', ['arm64-v8a'])
     if (profile['package'], profile['format'], profile['abis']) != expected:
         raise RuntimeError('Android identity does not match its approved distribution contract')
+    if not isinstance(profile['productName'], str) or not profile['productName'].strip():
+        raise RuntimeError('Android identity requires a display name')
     lock_path = PurePosixPath(profile['locks'])
     if lock_path.is_absolute() or '..' in lock_path.parts or not lock_path.parts:
         raise RuntimeError('Android lock directory must stay within the Unity project')

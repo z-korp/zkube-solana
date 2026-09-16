@@ -56,10 +56,10 @@ Source implements v5 partially. Current state:
 ## Product truth
 
 - The Unity client ships two Android identities (owner scope decision,
-  2026-09-09): `com.zkorp.zkube` targets the Solana dApp Store and Seeker;
-  `com.zkorp.zkube.store` targets Google Play as an AAB with arm64-v8a and
-  x86_64. The store identity has a local name, UTC Daily, native-billing Campaign
-  unlock, profile and settings, with Solana assemblies and wallet plugins
+  2026-09-09): `com.zkorp.zkube` (**zKube: Arena**) targets the Solana dApp Store
+  and Seeker; `com.zkorp.zkube.store` (**zKube: Realms**) targets Google Play as an
+  AAB with arm64-v8a and x86_64. The store identity has a local name, UTC Daily,
+  native-billing Campaign unlock, profile and settings, with Solana assemblies and wallet plugins
   excluded. Unity is the only client; all gameplay uses the Rust core over the FFI. The wallet, Kredit and on-chain rules below govern the money
   identity. Do not start iOS work on this Linux machine.
 - The connected Solana address is the player identity. There are no embedded

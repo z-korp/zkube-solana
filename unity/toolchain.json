@@ -33,7 +33,8 @@
       "abis": [
         "arm64-v8a"
       ],
-      "locks": "NativeAndroid/unity-locks"
+      "locks": "NativeAndroid/unity-locks",
+      "productName": "zKube: Arena"
     },
     {
       "name": "store",
@@ -43,7 +44,8 @@
         "arm64-v8a",
         "x86_64"
       ],
-      "locks": "NativeAndroid/store-unity-locks"
+      "locks": "NativeAndroid/store-unity-locks",
+      "productName": "zKube: Realms"
     }
   ]
 }
