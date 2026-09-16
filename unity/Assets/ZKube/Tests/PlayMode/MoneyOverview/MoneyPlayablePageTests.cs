@@ -36,7 +36,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick("Daily"); yield return Idle();
             yield return SessionClick("Resume Daily"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.PlayingRun, Is.True);
             float until = Time.realtimeSinceStartup + 15;
             var run = host.GetComponent<MoneyBoardHost>();
@@ -61,7 +61,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator ForegroundKeepsInputLockedUntilTheBoundObservationCompletes()
         {
             yield return OpenAcceptedArcade();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var run = host.GetComponent<MoneyBoardHost>();
             var held = environment.HoldNextRead("getAccountInfo");
             try
@@ -85,7 +85,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator DisconnectLocksTheVisibleBoardBeforeAwaitingWalletCleanup()
         {
             yield return OpenAcceptedArcade();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var board = host.GetComponent<MoneyBoardHost>().Board;
             var disconnect = controller.Disconnect();
             Assert.That(board.HostInputEnabled, Is.False);
@@ -98,7 +98,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator AForegroundReadCompletingDuringAnotherPauseCannotUnlockTheBoard()
         {
             yield return OpenAcceptedArcade();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var run = host.GetComponent<MoneyBoardHost>();
             var held = environment.HoldNextRead("getAccountInfo");
             try
@@ -136,7 +136,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator AnObservationReleasedAfterCloseCannotRestoreTheRetiredBoard()
         {
             yield return OpenAcceptedArcade();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var run = host.GetComponent<MoneyBoardHost>();
             var held = environment.HoldNextRead("getAccountInfo");
             try
@@ -158,7 +158,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator HidingThePageRetiresOnlyItsBoardAndPreservesTheSavedRun()
         {
             yield return OpenAcceptedArcade();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var marker = environment.Services.RunMarkers.Load(environment.Owner); yield return Wait(marker);
             Assert.That(marker.GetAwaiter().GetResult(), Is.Not.Null);
             controller.enabled = false; yield return null;

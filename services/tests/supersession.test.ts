@@ -159,6 +159,11 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Money tests share injected boundaries and Rust program scenarios; runtime evidence graphs were removed (2026-09-15)",
   },
   {
+    pattern: /\b(?:MoneyStartup|StoreStartup|ZKubeMoneyScene|ZKubeStoreScene|StoreCampaignBillingFactory|BoardSettingsPage|TerminalPresenter|LastAttemptDayId)\b|lastAttemptDayId/,
+    trees: [UNITY_CLIENT],
+    reversal: "The products share startup, presentation data, preferences and board hooks; local Daily saves keep only non-derivable results (2026-09-16)",
+  },
+  {
     pattern: /ExecutionDispatcher|SessionInstructionReconciler|SessionMaintenanceReconciler|EconomyInstructionReconciler|RunInstructionReconciler|RunSemanticObservation|EconomyObservation|EconomyRevision|ProductRead<|LastReceiptOperation/,
     trees: [UNITY_CLIENT],
     reversal: "One reconciliation path, identity epoch and retained operation replaced overlapping transaction observations (2026-09-16)",

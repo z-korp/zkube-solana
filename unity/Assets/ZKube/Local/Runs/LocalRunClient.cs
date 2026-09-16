@@ -76,7 +76,7 @@ namespace ZKube.Local
             }
         }
         public LocalRunView Active(string mode)
-        { lock (gate) { if (mode != "campaign" && mode != "arcade") throw new ArgumentException("Invalid local mode"); return active.TryGetValue(mode, out var record) ? record.View() : null; } }
+        { lock (gate) { if (mode != "campaign" && mode != "daily") throw new ArgumentException("Invalid local mode"); return active.TryGetValue(mode, out var record) ? record.View() : null; } }
         public LocalRunView Observe(string id)
         { lock (gate) return records.TryGetValue(id, out var record) ? record.View() : null; }
         // Board gestures are bound to the exact state shown to the player.

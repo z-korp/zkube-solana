@@ -1,7 +1,11 @@
 using System;
+using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.Build;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using ZKube.Presentation;
 
 namespace ZKube.Editor.Tests
 {
@@ -49,6 +53,32 @@ namespace ZKube.Editor.Tests
             Environment.SetEnvironmentVariable("ZKUBE_UNITY_IDENTITY", identity);
             var assemblies = new[] { "ZKube.Core.dll", "ZKube.Presentation.dll", "ZKube.Local.dll" };
             CollectionAssert.AreEqual(assemblies, guard.OnFilterAssemblies(BuildOptions.None, assemblies));
+        }
+
+        [TestCase("store", "ZKube.Store")]
+        [TestCase("money", "ZKube.Money")]
+        public void SelectedSceneHasOneSharedStartupAndOnlyItsIdentityConfiguration(string identity, string assembly)
+        {
+            try
+            {
+                ZKubeAppScene.Create(identity);
+                var scene = SceneManager.GetActiveScene();
+                Assert.That(scene.path, Is.EqualTo(ZKubeAppScene.Path));
+                var root = scene.GetRootGameObjects().Single();
+                var startup = root.GetComponent<AppStartup>();
+                Assert.That(root.GetComponents<MonoBehaviour>().Length, Is.EqualTo(2));
+                Assert.That(startup.Configuration.Identity.GetType().Assembly.GetName().Name, Is.EqualTo(assembly));
+                var shared = new SerializedObject(startup).FindProperty("Configuration");
+                Assert.That(shared.FindPropertyRelative("DisplayFont").objectReferenceValue, Is.Not.Null);
+                Assert.That(shared.FindPropertyRelative("BodyFont").objectReferenceValue, Is.Not.Null);
+                if (identity == "money")
+                {
+                    var config = new SerializedObject(startup.Configuration.Identity).FindProperty("Configuration");
+                    Assert.That(config.FindPropertyRelative("SolanaSchema").objectReferenceValue, Is.Not.Null);
+                    Assert.That(config.FindPropertyRelative("SessionSchema").objectReferenceValue, Is.Not.Null);
+                }
+            }
+            finally { ZKubeAppScene.Create(previousIdentity ?? "money"); }
         }
     }
 }

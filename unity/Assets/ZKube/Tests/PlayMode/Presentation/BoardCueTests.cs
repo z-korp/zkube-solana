@@ -233,7 +233,7 @@ namespace ZKube.Presentation.Tests
             yield return Load("Hammer-perfect-clear-continuation", true);
             var accepted = NativeEngine.ApplyBonus(board.Session.Accepted, board.State.ActionCounter, 1, 0);
             var present = typeof(BoardController).GetMethod("PresentAccepted", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            int notifications = 0; board.Accepted += _ => notifications++;
+            int notifications = 0; board.Host.Accepted += _ => notifications++;
             var first = (Task)present.Invoke(board, new object[] { (BoardActionResult)accepted });
             yield return Wait(() => first.IsCompleted);
             Assert.IsFalse(first.IsFaulted, first.Exception?.ToString());

@@ -9,11 +9,8 @@ namespace ZKube.Local
     public sealed class LocalDailyAttempt
     {
         public uint DayId { get; set; }
-        public uint Realm { get; set; }
-        public ulong ObjectiveKind { get; set; }
-        public ulong ObjectiveValue { get; set; }
         public ulong DailyScore { get; set; }
-        public string ObjectiveTotal { get; set; } = "0";
+        public ulong ObjectiveTotal { get; set; }
         public bool Finished { get; set; }
     }
 
@@ -43,7 +40,6 @@ namespace ZKube.Local
         public byte[] Stars { get; set; } = new byte[100];
         public LocalDailyAttempt DailyAttempt { get; set; }
         public ulong Streak { get; set; }
-        public uint? LastAttemptDayId { get; set; }
         public ulong BestDailyScore { get; set; }
         public uint WornEmblem { get; set; }
         public bool CampaignOwned { get; set; }
@@ -75,7 +71,6 @@ namespace ZKube.Local
             return new LocalProductState {
                 Name = name, Stars = stars, DailyAttempt = Attempt(parsed["dailyAttempt"] as JObject),
                 Streak = Nonnegative(parsed["streak"]),
-                LastAttemptDayId = parsed["lastAttemptDayId"]?.Type == JTokenType.Null ? (uint?)null : Day(parsed["lastAttemptDayId"]),
                 BestDailyScore = Nonnegative(parsed["bestDailyScore"]), WornEmblem = (uint)Math.Min(10UL, Nonnegative(parsed["wornEmblem"])),
                 CampaignOwned = parsed["campaignOwned"]?.Type == JTokenType.Boolean && (bool)parsed["campaignOwned"],
                 CampaignPrice = string.IsNullOrEmpty(price) ? null : Slice(price, 40),
@@ -84,22 +79,25 @@ namespace ZKube.Local
             };
         }
 
-        public static string Encode(LocalProductState state)
+        public static string Encode(LocalProductState state, bool campaignOnly = false)
         {
             if (state == null) return "null";
-            var attempt = state.DailyAttempt;
             var document = new JObject {
-                ["version"] = state.Version, ["name"] = state.Name,
+                ["version"] = state.Version,
                 ["stars"] = state.Stars == null ? JValue.CreateNull() : new JArray(Array.ConvertAll(state.Stars, item => (int)item)),
-                ["dailyAttempt"] = attempt == null ? JValue.CreateNull() : new JObject {
-                    ["dayId"] = attempt.DayId, ["realm"] = attempt.Realm,
-                    ["objectiveKind"] = attempt.ObjectiveKind, ["objectiveValue"] = attempt.ObjectiveValue,
-                    ["dailyScore"] = attempt.DailyScore, ["objectiveTotal"] = attempt.ObjectiveTotal, ["finished"] = attempt.Finished,
-                },
-                ["streak"] = state.Streak, ["lastAttemptDayId"] = state.LastAttemptDayId.HasValue ? new JValue(state.LastAttemptDayId.Value) : JValue.CreateNull(),
-                ["bestDailyScore"] = state.BestDailyScore, ["wornEmblem"] = state.WornEmblem,
-                ["campaignOwned"] = state.CampaignOwned, ["campaignPrice"] = state.CampaignPrice,
             };
+            if (!campaignOnly)
+            {
+                var attempt = state.DailyAttempt;
+                document["name"] = state.Name;
+                document["dailyAttempt"] = attempt == null ? JValue.CreateNull() : new JObject {
+                    ["dayId"] = attempt.DayId, ["dailyScore"] = attempt.DailyScore,
+                    ["objectiveTotal"] = attempt.ObjectiveTotal, ["finished"] = attempt.Finished,
+                };
+                document["streak"] = state.Streak; document["bestDailyScore"] = state.BestDailyScore;
+                document["wornEmblem"] = state.WornEmblem;
+                document["campaignOwned"] = state.CampaignOwned; document["campaignPrice"] = state.CampaignPrice;
+            }
             if (state.CampaignRun != null) document["campaignRun"] = JObject.FromObject(state.CampaignRun);
             if (state.CampaignWritePending) document["campaignWritePending"] = true;
             // Escape UTF-16 code units so a split/lone surrogate survives the
@@ -135,21 +133,11 @@ namespace ZKube.Local
         private static LocalDailyAttempt Attempt(JObject value)
         {
             if (value == null) return null;
-            string total = value["objectiveTotal"]?.Type == JTokenType.String ? (string)value["objectiveTotal"] : null;
-            // Persisted totals accept ASCII digits only.
             return new LocalDailyAttempt {
-                DayId = Day(value["dayId"]), Realm = (uint)Math.Min(10UL, Math.Max(1UL, Nonnegative(value["realm"]))),
-                ObjectiveKind = Nonnegative(value["objectiveKind"]), ObjectiveValue = Nonnegative(value["objectiveValue"]),
-                DailyScore = Nonnegative(value["dailyScore"]), ObjectiveTotal = DecimalText(total) ? total : "0",
+                DayId = Day(value["dayId"]), DailyScore = Nonnegative(value["dailyScore"]),
+                ObjectiveTotal = Nonnegative(value["objectiveTotal"]),
                 Finished = value["finished"]?.Type == JTokenType.Boolean && (bool)value["finished"],
             };
-        }
-        private static bool DecimalText(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return false;
-            int length = value.Length;
-            for (int i = 0; i < length; i++) if (value[i] < '0' || value[i] > '9') return false;
-            return true;
         }
         private static ulong Nonnegative(JToken value)
         {
@@ -180,8 +168,8 @@ namespace ZKube.Local
         {
             lock (gate)
             {
-                Read = LocalProductCodec.Decode(LocalProductCodec.Encode(update(Read)));
-                write?.Invoke(key, LocalProductCodec.Encode(Read));
+                Read = LocalProductCodec.Decode(LocalProductCodec.Encode(update(Read), Owner != null));
+                write?.Invoke(key, LocalProductCodec.Encode(Read, Owner != null));
                 return Read;
             }
         }
@@ -190,8 +178,8 @@ namespace ZKube.Local
         {
             lock (gate)
             {
-                var next = LocalProductCodec.Decode(LocalProductCodec.Encode(update(Read)));
-                write?.Invoke(key, LocalProductCodec.Encode(next));
+                var next = LocalProductCodec.Decode(LocalProductCodec.Encode(update(Read), Owner != null));
+                write?.Invoke(key, LocalProductCodec.Encode(next, Owner != null));
                 Read = next;
                 return next;
             }

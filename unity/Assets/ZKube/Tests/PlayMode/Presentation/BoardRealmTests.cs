@@ -42,13 +42,17 @@ namespace ZKube.Presentation.Tests
             // UnityCsReference/6000.3/Runtime/Export/Scripting/UnityEngineObject.bindings.cs
             return (IntPtr)typeof(UnityEngine.Object).GetField("m_CachedPtr", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(asset);
         }
-        [Serializable] private sealed class Catalog { public Theme[] themes; }
-        [Serializable] private sealed class Theme { public byte realmId; public string id, guardianName; }
 
         [UnityTest] public IEnumerator EveryRealmUsesItsImportedArtMusicAndNativeInventory()
         {
-            var resource = Resources.Load<TextAsset>("ZKube/Catalog");
-            var themes = JsonUtility.FromJson<Catalog>(resource.text).themes; Resources.UnloadAsset(resource);
+            var catalog = PageCatalog.Load();
+            Assert.AreSame(catalog, PageCatalog.Load(), "Pages and board share the parsed catalog");
+            foreach (var caption in catalog.constraintNames)
+            {
+                StringAssert.DoesNotContain("{", catalog.ObjectiveName(caption.kind, 3));
+                Assert.That(catalog.ObjectiveName(caption.kind, 0), Is.Not.Empty);
+            }
+            var themes = catalog.themes;
             TMP_FontAsset font = null;
             foreach (var theme in themes)
             {

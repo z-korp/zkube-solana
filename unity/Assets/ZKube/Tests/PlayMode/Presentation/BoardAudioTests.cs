@@ -12,17 +12,18 @@ namespace ZKube.Presentation.Tests
         private GameObject root;
         private BoardController board;
         private BoardHarness evidence;
-        private string savedAudio;
+        private float savedMusic, savedEffects;
         private int savedMute, savedMotion;
-        private bool hadAudio, hadMute, hadMotion;
+        private bool hadMusic, hadEffects, hadMute, hadMotion;
         private AudioSource Music => root.GetComponents<AudioSource>().Single(value => value.loop);
         private AudioSource Effects => root.GetComponents<AudioSource>().Single(value => !value.loop);
         [UnitySetUp] public IEnumerator SetUp()
         {
-            hadAudio = PlayerPrefs.HasKey(AudioPolicy.StorageKey); savedAudio = PlayerPrefs.GetString(AudioPolicy.StorageKey);
+            hadMusic = PlayerPrefs.HasKey(AudioPolicy.MusicKey); savedMusic = PlayerPrefs.GetFloat(AudioPolicy.MusicKey);
+            hadEffects = PlayerPrefs.HasKey(AudioPolicy.EffectsKey); savedEffects = PlayerPrefs.GetFloat(AudioPolicy.EffectsKey);
             hadMute = PlayerPrefs.HasKey("zkube.sound.muted"); savedMute = PlayerPrefs.GetInt("zkube.sound.muted");
             hadMotion = PlayerPrefs.HasKey("zkube.motion.reduced"); savedMotion = PlayerPrefs.GetInt("zkube.motion.reduced");
-            PlayerPrefs.DeleteKey(AudioPolicy.StorageKey); PlayerPrefs.SetInt("zkube.sound.muted", 1);
+            PlayerPrefs.DeleteKey(AudioPolicy.MusicKey); PlayerPrefs.DeleteKey(AudioPolicy.EffectsKey); PlayerPrefs.SetInt("zkube.sound.muted", 1);
             Create(); yield return null;
         }
         private void Create()
@@ -33,7 +34,8 @@ namespace ZKube.Presentation.Tests
         [UnityTearDown] public IEnumerator TearDown()
         {
             Object.Destroy(root); yield return null;
-            if (hadAudio) PlayerPrefs.SetString(AudioPolicy.StorageKey, savedAudio); else PlayerPrefs.DeleteKey(AudioPolicy.StorageKey);
+            if (hadMusic) PlayerPrefs.SetFloat(AudioPolicy.MusicKey, savedMusic); else PlayerPrefs.DeleteKey(AudioPolicy.MusicKey);
+            if (hadEffects) PlayerPrefs.SetFloat(AudioPolicy.EffectsKey, savedEffects); else PlayerPrefs.DeleteKey(AudioPolicy.EffectsKey);
             if (hadMute) PlayerPrefs.SetInt("zkube.sound.muted", savedMute); else PlayerPrefs.DeleteKey("zkube.sound.muted");
             if (hadMotion) PlayerPrefs.SetInt("zkube.motion.reduced", savedMotion); else PlayerPrefs.DeleteKey("zkube.motion.reduced");
         }
@@ -75,7 +77,7 @@ namespace ZKube.Presentation.Tests
             yield return null;
             Assert.AreEqual(.82f, Music.volume); Assert.AreEqual(.13f, Effects.volume);
             Object.Destroy(root); yield return null; Create(); yield return null;
-            Assert.AreEqual(.82, board.MusicVolume); Assert.AreEqual(.13, board.EffectsVolume);
+            Assert.That(board.MusicVolume, Is.EqualTo(.82).Within(0.000001)); Assert.That(board.EffectsVolume, Is.EqualTo(.13).Within(0.000001));
             Assert.AreEqual(.82f, Music.volume); Assert.AreEqual(.13f, Effects.volume);
         }
     }

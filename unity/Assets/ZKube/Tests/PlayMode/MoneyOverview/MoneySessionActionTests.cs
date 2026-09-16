@@ -19,11 +19,11 @@ namespace ZKube.Tests.MoneyOverview
             var startup = Create();
             solana = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
             session = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
-            startup.Configure(solana, session, Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"),
-                Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular"), textScale: scale);
+            startup.Configuration.TextScale = scale;
             var build = MoneyTestEnvironment.Create(scenario); yield return Wait(build);
             environment = build.GetAwaiter().GetResult();
-            startup.InitializeForTests(environment.Services, environment.Clock);
+            ((MoneyIdentity)startup.Configuration.Identity).Configuration = new MoneyConfiguration {
+                SolanaSchema = solana, SessionSchema = session, Services = environment.Services, Clock = environment.Clock };
             host.SetActive(true); yield return null; yield return Idle();
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick(page); yield return Idle();
@@ -34,7 +34,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.SentSignature, Is.Null);
             StringAssert.Contains("spend your prepaid Kredits", SessionText());
             yield return SessionClick("Enable device"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.Contains("Device session ready", SessionText());
@@ -51,7 +51,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Renew device"), Is.False);
             yield return SessionClick("Refill allowance"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             var exact = controller.LastReceipt; var signature = environment.SentSignature;
             // Refilling funds the existing token; it does not extend its expiry.
@@ -71,7 +71,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("session-disable-pending-success");
             StringAssert.Contains("revokes its authorization", SessionText());
             yield return SessionClick("Disable this device"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             var signature = controller.LastReceipt.Signature;
             Assert.That(environment.HasActiveKey, Is.True);
@@ -95,7 +95,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("session-disable-zero");
             yield return SessionClick("Disable this device"); yield return Idle();
-            var receipt = host.GetComponent<MoneyStartup>().Controller.LastReceipt;
+            var receipt = host.GetComponent<MoneyIdentity>().Controller.LastReceipt;
             Assert.That(receipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), receipt.Code);
             Assert.That(environment.HasActiveKey, Is.True); Assert.That(environment.SentSignature, Is.Not.Null);
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
@@ -106,7 +106,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("session-enable-pending-failure");
             yield return SessionClick("Enable device"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             var signature = controller.LastReceipt.Signature;
             environment.ConfirmPendingFailure(); yield return SessionClick("Check transaction"); yield return Idle();
@@ -125,7 +125,7 @@ namespace ZKube.Tests.MoneyOverview
             try
             {
                 yield return Wait(hold.Entered);
-                var controller = host.GetComponent<MoneyStartup>().Controller;
+                var controller = host.GetComponent<MoneyIdentity>().Controller;
                 Assert.That(controller.SessionActionPending, Is.True);
                 controller.enabled = false;
                 controller.SendMessage("OnApplicationPause", true);
@@ -157,7 +157,7 @@ namespace ZKube.Tests.MoneyOverview
             try
             {
                 yield return Wait(hold.Entered);
-                var controller = host.GetComponent<MoneyStartup>().Controller;
+                var controller = host.GetComponent<MoneyIdentity>().Controller;
                 yield return SessionClick("Disconnect");
                 Assert.That(environment.Services.Identity.Owner, Is.Null);
                 Assert.That(controller.BrowsingSession, Is.False);
@@ -179,7 +179,7 @@ namespace ZKube.Tests.MoneyOverview
             try
             {
                 yield return Wait(hold.Entered);
-                var controller = host.GetComponent<MoneyStartup>().Controller;
+                var controller = host.GetComponent<MoneyIdentity>().Controller;
                 controller.enabled = false; controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false);
                 Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
                 hold.Release(); yield return null;
@@ -195,7 +195,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("session-owner-decline");
             yield return SessionClick("Enable device"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
             StringAssert.Contains("not accepted", Text("Transaction receipt"));
             StringAssert.DoesNotContain("Device session ready", SessionText());
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -204,7 +204,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("session-fee-shortage");
             yield return SessionClick("Enable device"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage));
             StringAssert.Contains("not enough SOL", Text("Transaction receipt"));
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -214,7 +214,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("session-enable-success");
             environment.CorruptFirstReadAfterJournalClear();
             yield return SessionClick("Enable device"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller; var exact = controller.LastReceipt;
+            var controller = host.GetComponent<MoneyIdentity>().Controller; var exact = controller.LastReceipt;
             Assert.That(environment.Calls.Count(call => call.Operation == "injected-token-owner-after-journal-clear"), Is.EqualTo(1));
             Assert.That(exact.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(exact.Signature, Is.EqualTo(environment.SentSignature)); Assert.That(exact.Intent, Is.EqualTo("session-renew"));

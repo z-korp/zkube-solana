@@ -309,32 +309,7 @@ namespace ZKube.Presentation
             }
             Destroy(label.gameObject);
         }
-        public static string ObjectiveName(byte kind, byte value)
-        {
-            switch (kind)
-            {
-                case 0: return "CLASSIC";
-                case 1: return "COMBO ≥ " + value;
-                case 2: return value == 0 ? "BREAK BLOCKS" : "BREAK SIZE " + value;
-                case 3: return "CLEAR LINES";
-                case 4: return "EXACT " + value + " LINES";
-                case 5: return "SCORE ≥ " + value;
-                case 6: return "GUARDIAN TRIGGERS";
-                case 7: return "BONUS LINES";
-                case 8: return "BONUS BLOCKS";
-                case 9: return "COMBO ≥ " + value;
-                case 10: return "CLEAR " + value + " LINES AT ONCE";
-                case 11: return "CLEAR " + value + " LINES IN CONSECUTIVE MOVES";
-                case 12: return "BREAK SIZE " + value + " IN ONE ACTION";
-                case 13: return "BREAK EVERY WIDTH AT ONCE";
-                case 14: return "MAKE A " + value + "-POINT MOVE";
-                case 15: return "CLEAR " + value + " LINES WITH ONE BONUS";
-                case 16: return "EMPTY THE BOARD";
-                case 17: return "CLUTCH ≥ " + value;
-                case 18: return "CLEAN ≤ " + value;
-                default: return "OBJECTIVE " + kind;
-            }
-        }
+        public static string ObjectiveName(byte kind, byte value) => PageCatalog.Load().ObjectiveName(kind, value);
 
         public void SetBoard(byte[] grid)
         {

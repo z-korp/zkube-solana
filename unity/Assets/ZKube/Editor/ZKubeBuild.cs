@@ -231,9 +231,8 @@ namespace ZKube.Editor
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
                 AssetDatabase.LoadAssetAtPath<Shader>("Assets/TextMesh Pro/Shaders/TMP_SDF-Mobile.shader");
                 ZKubeAssetImports.Prepare();
-                if (!File.Exists(ZKubeStoreScene.Path)) ZKubeStoreScene.Create();
-                if (!File.Exists(ZKubeMoneyScene.Path)) ZKubeMoneyScene.Create();
-                EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ZKubeMoneyScene.Path, true) };
+                ZKubeAppScene.Create(Identity.name);
+                EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ZKubeAppScene.Path, true) };
                 AssetDatabase.SaveAssets();
                 ZKubeBatchCommand.Complete();
                 EditorApplication.Exit(0);
@@ -248,7 +247,7 @@ namespace ZKube.Editor
             if (Identity.name == "money" && !File.Exists(walletPath)) throw new InvalidOperationException("Missing verified native wallet plugin");
             var output = Environment.GetEnvironmentVariable("ZKUBE_UNITY_APK");
             if (string.IsNullOrEmpty(output)) throw new InvalidOperationException("ZKUBE_UNITY_APK is required");
-            string scenePath = Identity.name == "store" ? ZKubeStoreScene.Path : ZKubeMoneyScene.Path;
+            string scenePath = ZKubeAppScene.Path;
             if (!File.Exists(scenePath)) throw new InvalidOperationException("Prepare the selected application scene before building");
             var previousExport = EditorUserBuildSettings.exportAsGoogleAndroidProject;
             EditorUserBuildSettings.exportAsGoogleAndroidProject =

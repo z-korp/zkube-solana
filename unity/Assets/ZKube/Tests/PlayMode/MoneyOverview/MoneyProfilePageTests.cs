@@ -15,7 +15,7 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator PrepareProfilePage(string scenario, float scale = 1)
         {
             yield return PrepareDeviceScenario(scenario, scale, "Profile");
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.BrowsingProfile, Is.True);
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingProfile, Is.True);
             Assert.That(environment.SentSignature, Is.Null);
         }
         [UnityTest] public IEnumerator FeaturedIdentityRequiresAnExplicitWearAndShowsConfirmedReadback() => WearProfile("profile-success", 8, 3);
@@ -29,7 +29,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareProfilePage(scenario, 1.3f);
             yield return SessionClick("Emblem " + emblem);
             yield return SessionClick("Border " + border);
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.SelectedEmblem, Is.EqualTo(emblem));
             Assert.That(controller.SelectedBorder, Is.EqualTo(border));
             Assert.That(environment.SentSignature, Is.Null);
@@ -54,7 +54,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareProfilePage("profile-fresh");
             StringAssert.Contains("Campaign · 0 / 300 stars", SessionText());
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             foreach (var button in host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Emblem ") && button.name != "Emblem 0"))
                 Assert.That(button.interactable, Is.False, button.name);
             controller.SelectProfileEmblem(1); yield return Wait(controller.WearProfileSelection());
@@ -75,7 +75,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareProfilePage("profile-pending-" + (failure ? "failure" : "success"));
             yield return SessionClick("Emblem 8"); yield return SessionClick("Border 3");
             yield return SessionClick("Wear selection"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             string receipt = controller.LastReceipt.Signature;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             Assert.That(controller.SelectedEmblem, Is.Zero);
@@ -97,7 +97,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Emblem 8"); yield return SessionClick("Border 3");
             environment.FailFirstReadAfterJournalClear();
             yield return SessionClick("Wear selection"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             string receipt = controller.LastReceipt.Signature;
             controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();

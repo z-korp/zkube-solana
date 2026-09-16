@@ -142,7 +142,7 @@ namespace ZKube.Presentation.Tests
             var reroll = NativeEngine.RequestReroll(initial, board.State.ActionCounter);
             var arrived = NativeEngine.ApplyVrf(reroll.Token, board.State.LastVrfCounter + 1, Enumerable.Repeat((byte)9, 32).ToArray());
             var result = BoardActionResult.Snapshot(arrived.Token);
-            int notifications = 0; board.Accepted += _ => notifications++;
+            int notifications = 0; board.Host.Accepted += _ => notifications++;
             var present = typeof(BoardController).GetMethod("PresentAccepted", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var first = (Task)present.Invoke(board, new object[] { result });
             yield return Wait(() => first.IsCompleted);
@@ -193,7 +193,7 @@ namespace ZKube.Presentation.Tests
             evidence.Click("Dialog Recover run"); provider.Result.SetResult(null);
             yield return Wait(() => !board.Busy); yield return null;
             Assert.IsTrue(board.RecoveryRequired); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            int exits = 0; board.ExitRequested += () => exits++;
+            int exits = 0; board.Host.Exit += () => exits++;
             evidence.Click("Dialog Back to my runs");
             Assert.AreEqual(1, exits); Assert.AreEqual(1, provider.Recoveries);
             CollectionAssert.AreEqual(original.Accepted.State, board.Session.Accepted.State);

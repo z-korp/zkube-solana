@@ -18,7 +18,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareScenario(scenario);
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick("Daily"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.BrowsingDaily, Is.True);
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingDaily, Is.True);
         }
 
         [UnityTest] public IEnumerator DailyNavigationReadsThePublicChallengeAndOffersOnlySavedRunResume()
@@ -39,7 +39,7 @@ namespace ZKube.Tests.MoneyOverview
             var read = environment.Services.Runs.Inspect(); yield return Wait(read);
             var token = read.GetAwaiter().GetResult().Token;
             yield return SessionClick("Resume Daily"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var board = host.GetComponent<MoneyBoardHost>().Board;
             Assert.That(controller.PlayingRun, Is.True);
             float until = Time.realtimeSinceStartup + 15;
@@ -52,7 +52,7 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator AnOccupiedDailyCannotOpenOrConfirmTheEntryChoice()
         {
-            yield return OpenDailyPage(); var controller = host.GetComponent<MoneyStartup>().Controller;
+            yield return OpenDailyPage(); var controller = host.GetComponent<MoneyIdentity>().Controller;
             int before = environment.Calls.Count;
             controller.AskDailyEntry(); Assert.That(controller.ConfirmingDailyEntry, Is.False);
             yield return Wait(controller.ConfirmDailyEntry());
@@ -87,7 +87,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator DisabledDailyPageRejectsALateReadAndRefetchesWhenEnabled()
         {
             yield return OpenDailyPage();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var hold = environment.HoldNextRead("getMultipleAccounts");
             yield return SessionClick("Refresh Daily");
             try
@@ -108,7 +108,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return OpenDailyPage();
             yield return SessionClick("Campaign"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.BrowsingDaily, Is.False); Assert.That(controller.BrowsingCampaign, Is.True);
             yield return SessionClick("Overview"); yield return Idle();
             yield return SessionClick("Daily"); yield return Idle();
@@ -142,7 +142,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator AnUnfinishedDeviceRequestStillBlocksRunOpeningAfterPageRecreation()
         {
             yield return PrepareDeviceScenario("session-refill-success");
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var hold = environment.HoldNextWallet();
             var operation = controller.RefillDeviceSession();
             try

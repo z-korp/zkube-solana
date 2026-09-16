@@ -123,38 +123,42 @@ fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
         "description": description, "sentence": format!("{condition} a {name}.")})
 }
 
+const CONSTRAINT_NAMES: [&str; 19] = [
+    "CLASSIC",
+    "COMBO ≥ {0}",
+    "BREAK SIZE {0}",
+    "CLEAR LINES",
+    "EXACT {0} LINES",
+    "SCORE ≥ {0}",
+    "GUARDIAN TRIGGERS",
+    "BONUS LINES",
+    "BONUS BLOCKS",
+    "COMBO ≥ {0}",
+    "CLEAR {0} LINES AT ONCE",
+    "CLEAR {0} LINES IN CONSECUTIVE MOVES",
+    "BREAK SIZE {0} IN ONE ACTION",
+    "BREAK EVERY WIDTH AT ONCE",
+    "MAKE A {0}-POINT MOVE",
+    "CLEAR {0} LINES WITH ONE BONUS",
+    "EMPTY THE BOARD",
+    "CLUTCH ≥ {0}",
+    "CLEAN ≤ {0}",
+];
+
 fn objective(kind: u8, value: u8) -> Value {
-    let (name, description) = match kind {
-        0 => (
-            "Classic Score".into(),
-            "No Theme today — the whole pot pays Score".into(),
-        ),
-        1 => (
-            format!("Combo {value}+"),
-            format!("{value}+-line combo moves"),
-        ),
-        2 => (
-            format!("Break Width {value}"),
-            format!("width-{value} blocks broken"),
-        ),
-        4 => (
-            format!("Exact {value}"),
-            format!("exact {value}-line clears"),
-        ),
-        6 => ("Guardian Triggers".into(), "the realm trigger fired".into()),
-        7 => ("Bonus Lines".into(), "lines cleared with a bonus".into()),
-        8 => ("Bonus Breaks".into(), "blocks broken with a bonus".into()),
-        17 => (
-            format!("Clutch Clears {value}+"),
-            format!("clears started at height {value}+"),
-        ),
-        18 => (
-            format!("Clean Clears {value}"),
-            format!("clears ending at height {value} or lower"),
-        ),
+    let description = match kind {
+        0 => "No Theme today — the whole pot pays Score".into(),
+        1 => format!("{value}+-line combo moves"),
+        2 => format!("width-{value} blocks broken"),
+        4 => format!("exact {value}-line clears"),
+        6 => "the realm trigger fired".into(),
+        7 => "lines cleared with a bonus".into(),
+        8 => "blocks broken with a bonus".into(),
+        17 => format!("clears started at height {value}+"),
+        18 => format!("clears ending at height {value} or lower"),
         _ => unreachable!("protocol objective"),
     };
-    json!({"kind": kind, "value": value, "name": name, "description": description})
+    json!({"kind": kind, "value": value, "description": description})
 }
 
 pub fn render(catalog: &CampaignCatalog, source: &str) -> Result<String, String> {
@@ -178,6 +182,8 @@ pub fn render(catalog: &CampaignCatalog, source: &str) -> Result<String, String>
     let output = json!({
         "schema": 1,
         "themes": realms.iter().map(theme).collect::<Vec<_>>(),
+        "constraintNames": CONSTRAINT_NAMES.iter().enumerate().map(|(kind, name)|
+            json!({"kind": kind, "name": name, "any": (kind == 2).then_some("BREAK BLOCKS")})).collect::<Vec<_>>(),
         "guardianRules": catalog.maps.iter().map(|map| guardian(map.rules)).collect::<Vec<_>>(),
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
             objective(theme.kind.tag(), theme.value)).collect::<Vec<_>>(),

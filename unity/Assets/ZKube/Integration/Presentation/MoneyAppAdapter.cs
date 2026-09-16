@@ -62,14 +62,6 @@ namespace ZKube.Integration.Presentation
             _ = RefreshOverview();
         }
 
-        public void ShowUnavailable(TMP_FontAsset displayFont, TMP_FontAsset bodyFont, string message, float scale = 1, float? displayDensity = null)
-        {
-            if (initialized) throw new InvalidOperationException("Money overview is already initialized");
-            injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, scale);
-            status.text = message; publicDailyPanel.gameObject.SetActive(false); owner.text = "";
-            Controls();
-        }
-
         private void InitializeView(TMP_FontAsset displayFont, TMP_FontAsset bodyFont, float scale)
         {
             textScale = BoardController.SupportedTextScale(scale);

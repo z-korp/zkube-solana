@@ -17,7 +17,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator OpeningSessionAndForegroundPreserveAnExistingPendingReceiptWithoutStatusRequests()
         {
             yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             var exact = controller.LastReceipt;
             int before = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
             yield return SessionClick("This device"); yield return Idle();
@@ -42,7 +42,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             yield return SessionClick("This device"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(host.GetComponentsInChildren<RectTransform>().Count(rect => rect.name == "Device session panel"), Is.EqualTo(1));
             yield return SessionClick("Overview"); yield return Idle();
             yield return SessionClick("Campaign"); yield return Idle();

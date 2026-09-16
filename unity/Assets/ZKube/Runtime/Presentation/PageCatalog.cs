@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Globalization;
 using UnityEngine;
 
 namespace ZKube.Presentation
@@ -10,9 +11,21 @@ namespace ZKube.Presentation
     {
         public RealmPage[] themes;
         public DailyTheme[] dailyThemes;
+        public GuardianRule[] guardianRules;
+        public ConstraintName[] constraintNames;
+        private static PageCatalog cached;
+        [Serializable] public sealed class ConstraintName { public byte kind; public string name, any; }
+        [Serializable] public sealed class GuardianRule
+        {
+            public byte bonus, trigger;
+            public ushort threshold;
+            public string description, sentence;
+        }
+        [Serializable] public sealed class AudioEntry { public string context, resource; }
+        [Serializable] public sealed class Swatch { public string name; public float[] value; }
         public PortraitEntry[] portraits;
         [Serializable] public sealed class PortraitEntry { public byte realmId; public string atlas, sprite, source, sha256; }
-        [Serializable] public sealed class DailyTheme { public byte kind, value; public string name, description; }
+        [Serializable] public sealed class DailyTheme { public byte kind, value; public string description; }
         [Serializable] public sealed class Point { public float x, y; }
         [Serializable] public sealed class PathStyle
         {
@@ -23,16 +36,24 @@ namespace ZKube.Presentation
         [Serializable] public sealed class RealmPage
         {
             public byte realmId;
-            public string realmName, guardianName, guardianGreeting;
+            public string id, realmName, guardianName, guardianGreeting;
+            public Swatch[] rgba;
+            public AudioEntry[] audio;
             public Point[] campaignPath;
             public PathStyle map;
         }
         public static PageCatalog Load()
         {
+            if (cached != null) return cached;
             var asset = Resources.Load<TextAsset>("ZKube/Catalog");
             if (asset == null) throw new InvalidOperationException("Imported page catalog is missing");
-            try { var value = JsonUtility.FromJson<PageCatalog>(asset.text); value.Validate(); return value; }
+            try { var value = JsonUtility.FromJson<PageCatalog>(asset.text); value.Validate(); return cached = value; }
             finally { Resources.UnloadAsset(asset); }
+        }
+        public string ObjectiveName(byte kind, byte value)
+        {
+            var caption = constraintNames.Single(entry => entry.kind == kind);
+            return value == 0 && !string.IsNullOrEmpty(caption.any) ? caption.any : string.Format(CultureInfo.InvariantCulture, caption.name, value);
         }
         public RealmPage Realm(byte id) => themes.Single(value => value.realmId == id);
         public PortraitEntry Portrait(byte id) => portraits.Single(value => value.realmId == id);
@@ -60,8 +81,13 @@ namespace ZKube.Presentation
             }
             if (dailyThemes == null || dailyThemes.Length != ZKube.Core.Generated.Protocol.DailyThemes.Length) throw new FormatException("Imported Daily labels are incomplete");
             foreach (var pair in ZKube.Core.Generated.Protocol.DailyThemes)
-                if (dailyThemes.Count(theme => theme.kind == pair[0] && theme.value == pair[1] && !string.IsNullOrEmpty(theme.name) && !string.IsNullOrEmpty(theme.description)) != 1)
+                if (dailyThemes.Count(theme => theme.kind == pair[0] && theme.value == pair[1] && !string.IsNullOrEmpty(theme.description)) != 1)
                     throw new FormatException("Imported Daily label disagrees with the published objective set");
+            if (constraintNames == null || constraintNames.Any(value => string.IsNullOrEmpty(value.name)) ||
+                constraintNames.Select(value => value.kind).Distinct().Count() != constraintNames.Length ||
+                dailyThemes.Any(value => !constraintNames.Any(name => name.kind == value.kind)))
+                throw new FormatException("Generated constraint names are incomplete");
+            if (guardianRules == null) throw new FormatException("Generated guardian descriptions are missing");
             if (portraits == null || portraits.Length != themes.Length || portraits.Select(value => value.realmId).Distinct().Count() != themes.Length)
                 throw new FormatException("Generated guardian portraits are incomplete");
             foreach (var realm in themes)

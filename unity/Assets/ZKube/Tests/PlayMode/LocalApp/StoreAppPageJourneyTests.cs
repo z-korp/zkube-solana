@@ -45,7 +45,7 @@ namespace ZKube.Tests
         private LocalProductStore product;
         private StoreRunClient runs;
         private bool failSave;
-        private readonly Dictionary<string, string> audio = new Dictionary<string, string>();
+        private readonly Dictionary<string, float> audio = new Dictionary<string, float>();
 
         [UnitySetUp] public IEnumerator SetUp()
         {
@@ -56,9 +56,9 @@ namespace ZKube.Tests
             board = boardRoot.AddComponent<BoardController>();
             // Avoid touching real preferences. The production private field is
             // the concrete AudioPreferences dependency; no new runtime seam.
-            audio.Clear(); audio[AudioPolicy.StorageKey] = "{\"musicVolume\":0,\"effectsVolume\":0.4}";
+            audio.Clear(); audio[AudioPolicy.MusicKey] = 0; audio[AudioPolicy.EffectsKey] = .4f;
             typeof(BoardController).GetField("audioPreferences", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(board,
-                new AudioPreferences(key => audio.TryGetValue(key, out var value) ? value : null, (key, value) => audio[key] = value));
+                new AudioPreferences((key, fallback) => audio.TryGetValue(key, out var value) ? value : fallback, (key, value) => audio[key] = value));
             typeof(BoardController).GetProperty("Muted").SetValue(board, true);
             typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, true);
             typeof(BoardController).GetProperty("Haptics").SetValue(board, false);
@@ -293,8 +293,8 @@ namespace ZKube.Tests
             Assert.That(board.MusicVolume, Is.EqualTo(.73d));
             var effects = app.GetComponentsInChildren<Slider>().Single(value => value.name == "Effects slider"); effects.value = 27;
             Assert.That(board.EffectsVolume, Is.EqualTo(.27d)); Assert.That(board.MusicVolume, Is.EqualTo(.73d));
-            var persisted = JObject.Parse(audio[AudioPolicy.StorageKey]); Assert.That((double)persisted["musicVolume"], Is.EqualTo(.73d));
-            Assert.That((double)persisted["effectsVolume"], Is.EqualTo(.27d)); Assert.That(board.Muted, Is.True);
+            Assert.That(audio[AudioPolicy.MusicKey], Is.EqualTo(.73f));
+            Assert.That(audio[AudioPolicy.EffectsKey], Is.EqualTo(.27f)); Assert.That(board.Muted, Is.True);
             app.GetComponentsInChildren<Slider>().Single(value => value.name == "Music slider").value = 0;
             Click(app, "Profile"); yield return Page(StorePage.Profile); Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Music: off"); yield return Page(StorePage.Settings); Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));

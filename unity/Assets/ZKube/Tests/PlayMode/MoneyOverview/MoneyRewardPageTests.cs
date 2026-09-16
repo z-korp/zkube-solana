@@ -14,7 +14,7 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator PrepareClaimPage(string scenario, float textScale = 1)
         {
             yield return PrepareDeviceScenario(scenario, textScale, "Results");
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             yield return Wait(controller.OpenRewards(environment.ClaimDay)); yield return Idle();
             Assert.That(controller.BrowsingRewards, Is.True);
             Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay));
@@ -30,7 +30,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareClaimPage("claim-" + kind + "-" + variant, 1.3f);
             string name = kind == "score" ? "Score" : "Theme", peer = kind == "score" ? "Theme" : "Score";
             yield return SessionClick("Collect " + name); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.Contains(name + " reward received · " + (environment.ClaimAmount / 1_000_000_000m).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " SOL", SessionText());
@@ -56,7 +56,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(score == null || !score.interactable, Is.True);
             var theme = host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Theme");
             Assert.That(theme.interactable, Is.EqualTo(variant != "missing-session"));
-            yield return Wait(host.GetComponent<MoneyStartup>().Controller.CollectReward("score"));
+            yield return Wait(host.GetComponent<MoneyIdentity>().Controller.CollectReward("score"));
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator PendingClaimWaitsForAnExplicitCheckBeforeShowingPoints() => PendingReward(false);
@@ -65,7 +65,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareClaimPage("claim-score-pending-" + (failure ? "failure" : "success"));
             yield return SessionClick("Collect Score"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller; string signature = controller.LastReceipt.Signature;
+            var controller = host.GetComponent<MoneyIdentity>().Controller; string signature = controller.LastReceipt.Signature;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             StringAssert.Contains("Ladder · 200 points", SessionText());
             StringAssert.DoesNotContain("reward received", SessionText());
@@ -97,7 +97,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareClaimPage("claim-score-sealed"); environment.FailFirstReadAfterJournalClear();
             yield return SessionClick("Collect Score"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             StringAssert.DoesNotContain("reward received", SessionText());
             yield return SessionClick("Refresh results"); yield return Idle();
@@ -108,7 +108,7 @@ namespace ZKube.Tests.MoneyOverview
         }
         [UnityTest] public IEnumerator ResultDayNavigationNeverSignsAndOtherPagesCloseResults()
         {
-            yield return PrepareClaimPage("claim-score-sealed"); var controller = host.GetComponent<MoneyStartup>().Controller;
+            yield return PrepareClaimPage("claim-score-sealed"); var controller = host.GetComponent<MoneyIdentity>().Controller;
             yield return SessionClick("Previous day"); yield return Idle();
             Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay - 1));
             yield return SessionClick("Next day"); yield return Idle();

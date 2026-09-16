@@ -11,6 +11,14 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
+    public sealed class BoardHostHooks
+    {
+        public Action<CoreRunToken> Accepted;
+        public Action<string> Rejected;
+        public Action Exit;
+        public Action<BoardController, string, string> Terminal;
+    }
+
     public sealed class BoardController : MonoBehaviour
     {
         private BoardArt art;
@@ -45,12 +53,7 @@ namespace ZKube.Presentation
         public bool Muted { get; private set; }
         public bool Haptics { get; private set; }
         public float TextScale { get; private set; } = 1;
-        public event Action<CoreRunToken> Accepted;
-        public event Action ExitRequested;
-        public event Action<string> Rejected;
-        // Optional backend-neutral host policy. Local/store boards retain the
-        // default terminal card and input behavior when no host installs it.
-        public Action<BoardController, string, string> TerminalPresenter { get; set; }
+        public BoardHostHooks Host { get; set; } = new BoardHostHooks();
         public bool HostInputEnabled { get; private set; } = true;
         public void SetHostInputEnabled(bool value)
         {
@@ -329,7 +332,7 @@ namespace ZKube.Presentation
             ulong previousTheme = State.ObjectiveTotal;
             bool changed = !result.Token.State.SequenceEqual(Session.Accepted.State);
             Session.Accepted = result.Token; State = final;
-            if (changed) Accepted?.Invoke(result.Token);
+            if (changed) Host?.Accepted?.Invoke(result.Token);
             if (result.IsSnapshot)
             {
                 View.SetBoard(State.Grid); View.SetPreview(State.HasNextRow, State.NextRow);
@@ -397,7 +400,7 @@ namespace ZKube.Presentation
             recoveryRequired = recoveryRequired || State.Phase == (byte)CorePhase.AwaitingVrf || !(error is NativeEngineException);
             State = NativeEngine.Summary(Session.Accepted);
             View.SetBoard(State.Grid); View.SetPreview(State.HasNextRow, State.NextRow);
-            View.Status(message); Rejected?.Invoke(message);
+            View.Status(message); Host?.Rejected?.Invoke(message);
             Debug.LogWarning("Board action: " + error.Message);
         }
         private bool IsTerminal() => State != null && (State.Phase == (byte)CorePhase.Finished || State.Phase == (byte)CorePhase.LevelComplete);
@@ -408,10 +411,10 @@ namespace ZKube.Presentation
                 View.OpenModal("RECOVERING RUN", BoardNotices.Text(BoardNotice.Recovering));
             else if (recoveryUnavailable || !(Session.Actions is IBoardRecoveryProvider))
                 View.OpenModal("RETURN TO YOUR RUNS", "This board cannot continue here. Return to your runs to recover the current state.",
-                    ("Back to my runs", () => ExitRequested?.Invoke()));
+                    ("Back to my runs", () => Host?.Exit?.Invoke()));
             else
                 View.OpenModal("RECOVER RUN", "The action may have been accepted. Check the run before playing again.",
-                    ("Recover run", Recover), ("Back to my runs", () => ExitRequested?.Invoke()));
+                    ("Recover run", Recover), ("Back to my runs", () => Host?.Exit?.Invoke()));
         }
         private void ShowTerminalIfNeeded(bool playFeedback = true)
         {
@@ -422,8 +425,8 @@ namespace ZKube.Presentation
                 ? "Score " + State.DailyScore + "\nTheme " + State.ObjectiveTotal + "\n" + State.Moves + " moves"
                 : "Score " + State.Score + "\n" + ((State.LatchedStarSources & 1) != 0 ? "★" : "☆") + " Score   " + ((State.LatchedStarSources & 2) != 0 ? "★" : "☆") + " Shape   " + ((State.LatchedStarSources & 4) != 0 ? "★" : "☆") + " Blow";
             string title = completed ? "LEVEL COMPLETE" : "RUN ENDED";
-            if (TerminalPresenter != null) TerminalPresenter(this, title, body);
-            else View.OpenModal(title, body, ("Continue", () => ExitRequested?.Invoke()));
+            if (Host?.Terminal != null) Host.Terminal(this, title, body);
+            else View.OpenModal(title, body, ("Continue", () => Host?.Exit?.Invoke()));
         }
 
         public void Pause()

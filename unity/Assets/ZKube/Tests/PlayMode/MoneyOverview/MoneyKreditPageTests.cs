@@ -19,7 +19,7 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator PurchasePack(uint pack)
         {
             yield return PrepareDeviceScenario("kredit-buy-" + pack, 1.3f, "Kredits");
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.BrowsingKredits, Is.True);
             StringAssert.Contains("Balance · 25", SessionText());
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
@@ -54,7 +54,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario(scenario, page: "Kredits");
             yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(environment.KreditPack)); yield return Idle();
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt.Outcome, Is.EqualTo(expected));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(expected));
             StringAssert.Contains("Balance · 25", SessionText());
             Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.EqualTo(signatures));
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction"), Is.False);
@@ -68,7 +68,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario(failure ? "kredit-pending-failure" : "kredit-pending-success", page: "Kredits");
             uint pack = environment.KreditPack;
             yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(pack)); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller; string signature = controller.LastReceipt.Signature;
+            var controller = host.GetComponent<MoneyIdentity>().Controller; string signature = controller.LastReceipt.Signature;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             StringAssert.Contains("Balance · 25", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Buy ")), Is.False);
@@ -89,7 +89,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator DisconnectDuringPurchaseApprovalRemovesTheShopAndPreventsSend()
         {
             yield return PrepareDeviceScenario("kredit-buy-1", page: "Kredits");
-            var controller = host.GetComponent<MoneyStartup>().Controller; var hold = environment.HoldNextWallet();
+            var controller = host.GetComponent<MoneyIdentity>().Controller; var hold = environment.HoldNextWallet();
             var operation = controller.PurchaseKredits(1);
             try
             {
@@ -109,7 +109,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator PurchaseApprovalHeldAcrossDisableCannotOpenARunOrEnableADevice()
         {
             yield return PrepareDeviceScenario("kredit-buy-1", page: "Kredits");
-            var controller = host.GetComponent<MoneyStartup>().Controller; var hold = environment.HoldNextWallet();
+            var controller = host.GetComponent<MoneyIdentity>().Controller; var hold = environment.HoldNextWallet();
             var operation = controller.PurchaseKredits(1);
             try
             {
@@ -139,7 +139,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("kredit-buy-10", page: "Kredits");
             environment.FailFirstReadAfterJournalClear();
             yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(10)); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.Contains("Transaction confirmed", Text("Transaction receipt"));

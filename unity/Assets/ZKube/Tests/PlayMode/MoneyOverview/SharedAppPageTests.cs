@@ -38,7 +38,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator EverySharedPageRendersUnderBothIdentityImplementations()
         {
             yield return PrepareScenario("campaign-playable"); Click("Connect"); yield return Idle();
-            var money = host.GetComponent<MoneyStartup>().Controller;
+            var money = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(money, Is.InstanceOf<IAppPageSource>());
             yield return Wait(money.OpenCampaign()); yield return Rendered(money, AppPage.Campaign);
             Click("Trial 1"); yield return Rendered(money, AppPage.Level);
@@ -78,7 +78,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator CampaignStaysVisibleWhenAnEarlierOverviewReadCompletes()
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
-            var money = host.GetComponent<MoneyStartup>().Controller;
+            var money = host.GetComponent<MoneyIdentity>().Controller;
             delay = environment.HoldNextRead("getMultipleAccounts");
             var overview = money.RefreshOverview(); yield return Wait(delay.Entered);
             try

@@ -919,7 +919,20 @@ and `TheLastOperationIsSharedAcrossPagesAndClearedOnReconnect` guard retention
 and identity changes. `MoneyRunSettlementUsesTheActualReconcilerAndKeepsOrderedCommitConsumeReceipts`
 checks the shared reconciliation path and ordered settlement results.
 The root `assets/` directory owns the artwork and authored presentation inputs;
-Rust codegen emits its theme catalog for Unity imports.
+Rust codegen emits its theme catalog and constraint captions for Unity imports.
+Pages and boards share its parsed instance;
+`EveryRealmUsesItsImportedArtMusicAndNativeInventory` checks that shared catalog.
+Both products use one startup and unavailable page with identity-specific
+configuration. `SelectedSceneHasOneSharedStartupAndOnlyItsIdentityConfiguration`
+checks the generated scene for each product; `UnconfiguredSceneHasReadableTextAndNoEnabledOperation` and
+`TeardownDuringDelayedReadWaitsWithoutLateInputOrSigning` check failure and cleanup.
+Settings use native preference values across pages and boards;
+`SettingsBeforeStartAreAppliedAndPersistAcrossControllerRecreation` and
+`SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount` check
+saved levels, mute and page behavior. Store Daily saves derive the realm and
+objective from their day and retain numeric result totals; money saves contain
+Campaign data only. `MoneySaveContainsOnlyCampaignDataAndDailyMetricsRemainNumbers`
+guards the save boundary.
 `unity/toolchain.json` owns each Android identity's package, display name, ABIs
 and excluded assemblies. `test_profiles_preserve_money_and_add_two_abi_store`,
 `test_both_package_manifests_use_the_identity_contract` and

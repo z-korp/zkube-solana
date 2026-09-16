@@ -1,4 +1,5 @@
 using System.Collections;
+using ZKube.Presentation;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,7 +28,7 @@ namespace ZKube.Tests.MoneyOverview
             delay?.Release();
             if (host != null)
             {
-                var startup = host.GetComponent<MoneyStartup>();
+                var startup = host.GetComponent<AppStartup>();
                 if (startup != null) yield return Wait(startup.StopAsync());
                 Object.Destroy(host);
             }
@@ -46,16 +47,16 @@ namespace ZKube.Tests.MoneyOverview
             StringAssert.Contains(environment.Owner, Text("Owner facts"));
             StringAssert.Contains("Campaign: No saved run", Text("Owner facts"));
             StringAssert.Contains("Daily: Run saved", Text("Owner facts"));
-            var states = host.GetComponent<MoneyStartup>().Controller.Flow.Owner.Value;
+            var states = host.GetComponent<MoneyIdentity>().Controller.Flow.Owner.Value;
             StringAssert.DoesNotContain(states.Daily.Marker.ActiveRun, Text("Owner facts"));
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(true), Is.Empty);
             Click("Check transaction"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt, Is.Null);
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt, Is.Null);
             StringAssert.Contains("There is no transaction waiting to be checked", Text("Transaction receipt"));
             StringAssert.DoesNotContain("no-pending-transaction", Text("Transaction receipt"));
             Click("Disconnect");
             Assert.That(Text("Owner facts"), Is.EqualTo("Disconnected"));
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt, Is.Null);
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt, Is.Null);
             yield return Idle();
             Assert.That(environment.Services.Identity.Owner, Is.Null);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -64,24 +65,24 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
             StringAssert.Contains("Transaction pending", Text("Transaction receipt"));
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             environment.ConfirmPendingFailure(); Click("Check transaction"); yield return Idle();
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
-            var exact = host.GetComponent<MoneyStartup>().Controller.LastReceipt;
+            var exact = host.GetComponent<MoneyIdentity>().Controller.LastReceipt;
             Assert.That(exact.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure)); Assert.That(exact.ChainError, Is.Not.Empty);
             StringAssert.DoesNotContain(exact.ChainError, Text("Transaction receipt"));
             var read = environment.Services.Journal.Load(environment.Owner); yield return Wait(read);
             Assert.That(read.GetAwaiter().GetResult(), Is.Null);
             Click("Refresh"); yield return Idle();
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.LastReceipt, Is.SameAs(exact));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt, Is.SameAs(exact));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator PauseInvalidatesDelayedOwnerPresentationAndForegroundNeverAuthorizes()
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             delay = environment.HoldNextRead("getAccountInfo"); Click("Refresh"); yield return Wait(delay.Entered);
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             controller.SendMessage("OnApplicationPause", true);
             Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
             delay.Release(); yield return null;
@@ -94,7 +95,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview");
             delay = environment.HoldNextRead("getMultipleAccounts"); Click("Refresh"); yield return Wait(delay.Entered);
-            var stop = host.GetComponent<MoneyStartup>().StopAsync();
+            var stop = host.GetComponent<AppStartup>().StopAsync();
             Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
             Assert.That(stop.IsCompleted, Is.False);
             delay.Release(); yield return Wait(stop);
@@ -108,7 +109,7 @@ namespace ZKube.Tests.MoneyOverview
             try
             {
                 yield return Wait(delay.Entered);
-                var controller = host.GetComponent<MoneyStartup>().Controller;
+                var controller = host.GetComponent<MoneyIdentity>().Controller;
                 controller.enabled = false;
                 Assert.That(host.activeInHierarchy, Is.True, "This case disables the component, not its GameObject");
                 Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
@@ -135,9 +136,10 @@ namespace ZKube.Tests.MoneyOverview
             var startup = Create();
             solana = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/solana.json")));
             session = new TextAsset(File.ReadAllText(Path.Combine(Application.dataPath, "ZKube/Integration/Generated/session.json")));
-            startup.Configure(solana, session, Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"), Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular"), textScale: scale, displayDensity: density);
+            startup.Configuration.TextScale = scale; startup.Configuration.DisplayDensity = density ?? 0;
             var build = MoneyTestEnvironment.Create(scenario); yield return Wait(build);
-            environment = build.GetAwaiter().GetResult(); startup.InitializeForTests(environment.Services, environment.Clock);
+            environment = build.GetAwaiter().GetResult(); ((MoneyIdentity)startup.Configuration.Identity).Configuration = new MoneyConfiguration {
+                SolanaSchema = solana, SessionSchema = session, Services = environment.Services, Clock = environment.Clock };
             host.SetActive(true); yield return null; yield return Idle();
         }
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()
@@ -237,7 +239,7 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator Idle()
         {
             float limit = Time.realtimeSinceStartup + 15;
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             while (controller.Busy && Time.realtimeSinceStartup < limit) yield return null;
             Assert.That(controller.Busy, Is.False, "Overview input did not finish");
         }
@@ -253,11 +255,11 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator UnconfiguredSceneHasReadableTextAndNoEnabledOperation()
         {
             var startup = Create(); host.SetActive(true); yield return null;
-            Assert.That(startup.Controller.Status, Is.EqualTo("Network configuration is unavailable."));
-            Assert.That(startup.Controller.Flow, Is.Null);
-            Assert.That(PageDrawn(startup.Controller), Is.True);
+            Assert.That(startup.UnavailableText, Is.EqualTo("Network configuration is unavailable."));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller, Is.Null);
+            Assert.That(host.GetComponentsInChildren<TMP_Text>(), Is.Not.Empty);
             Assert.That(host.GetComponentsInChildren<Button>(true).All(button => !button.interactable), Is.True);
-            var text = host.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Overview status");
+            var text = host.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Unavailable status");
             Canvas.ForceUpdateCanvases(); text.ForceMeshUpdate();
             Assert.That(text.textInfo.characterCount, Is.GreaterThan(10));
             Assert.That(text.rectTransform.rect.width, Is.GreaterThan(0));
@@ -266,20 +268,21 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator UnconfiguredSceneSurvivesPauseAndStopWithoutInventingAFlow()
         {
             var startup = Create(); host.SetActive(true); yield return null;
-            startup.Controller.SendMessage("OnApplicationPause", true);
-            startup.Controller.SendMessage("OnApplicationPause", false); yield return null;
-            Assert.That(startup.Controller.Status, Is.EqualTo("Network configuration is unavailable."));
+            startup.SendMessage("OnApplicationPause", true);
+            startup.SendMessage("OnApplicationPause", false); yield return null;
+            Assert.That(startup.UnavailableText, Is.EqualTo("Network configuration is unavailable."));
             yield return Wait(startup.StopAsync());
             Assert.That(host.GetComponentsInChildren<GraphicRaycaster>().Length, Is.Zero);
-            Assert.That(startup.Controller.Flow, Is.Null);
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller, Is.Null);
         }
-        private MoneyStartup Create()
+        private AppStartup Create()
         {
             if (EventSystem.current == null) input = new GameObject("Money test input", typeof(EventSystem), typeof(StandaloneInputModule));
             host = new GameObject("Money standalone test"); host.SetActive(false);
-            var startup = host.AddComponent<MoneyStartup>();
-            startup.Configure(null, null, Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"),
-                Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular"));
+            var startup = host.AddComponent<AppStartup>();
+            startup.Configuration = new AppStartupConfiguration { Identity = host.AddComponent<MoneyIdentity>(),
+                DisplayFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"),
+                BodyFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular") };
             return startup;
         }
         internal static IEnumerator Wait(Task task)

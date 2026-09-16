@@ -39,7 +39,7 @@ namespace ZKube.Local.App
             Page = StorePage.Daily;
         }
         public LocalDaily Today => Runs.Today();
-        public LocalRunView TodayRun => Product.Read.DailyAttempt?.DayId == Today.DayId ? Runs.Active("arcade") : null;
+        public LocalRunView TodayRun => Product.Read.DailyAttempt?.DayId == Today.DayId ? Runs.Active("daily") : null;
         public bool AttemptedToday => Product.Read.DailyAttempt?.DayId == Today.DayId;
         public string DailyAction => TodayRun != null ? "Resume run" : AttemptedToday ? "View result" : "Play today";
         public bool Cleared(byte realm) => Progress().Cleared[realm - 1] != 0;
@@ -113,13 +113,13 @@ namespace ZKube.Local.App
         public void LeaveBoard()
         {
             Check(); ObservePersistence();
-            Navigate(Provider?.Bind(null).Daily == true ? StorePage.Result : StorePage.Campaign);
+            Navigate(Provider?.Daily == true ? StorePage.Result : StorePage.Campaign);
         }
         public void ObservePersistence()
         {
             if (Provider?.PersistenceFailure != null) Unsaved = true;
         }
-        public async Task RefreshBilling(bool purchase = false, bool restore = false)
+        public async Task RefreshBilling(bool purchase = false)
         {
             Check();
             if (Billing.Busy) return;
@@ -127,7 +127,7 @@ namespace ZKube.Local.App
             Error = null; BillingNotice = "Checking purchases…"; Changed?.Invoke();
             try
             {
-                var answer = purchase ? await Billing.Purchase(cancellation) : restore ? await Billing.Restore(cancellation) : await Billing.Query(cancellation);
+                var answer = purchase ? await Billing.Purchase(cancellation) : await Billing.Query(cancellation);
                 if (!Current(request)) return;
                 BillingNotice = answer.Status == CampaignBillingStatus.PaymentPending ? "Payment is pending. Campaign unlocks after payment completes."
                     : answer.Status == CampaignBillingStatus.ConfirmationPending ? "Campaign unlocked. Store confirmation is pending; restore purchases to check again."

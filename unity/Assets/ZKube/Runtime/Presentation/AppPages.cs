@@ -117,7 +117,7 @@ namespace ZKube.Presentation
             var realm = catalog.Realm(value.Realm);
             var objective = catalog.Objective(value.ObjectiveKind, value.ObjectiveValue);
             Text(realm.realmName + " · " + realm.guardianName, 29, true);
-            Text(objective.name, 25, true); Text(objective.description, 19);
+            Text(catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue), 25, true); Text(objective.description, 19);
             Text(Day(value.Day), 18); Notice(value.Status);
             foreach (var fact in value.Facts) Text(fact, 20);
             foreach (var action in value.Actions) Button(content, action);
@@ -204,7 +204,7 @@ namespace ZKube.Presentation
             if (!value.HasResult) { Text("No result yet."); return; }
             GetComponent<AppShell>()?.RequestRealm(value.Realm);
             var realm = catalog.Realm(value.Realm);
-            var objective = catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).name;
+            var objective = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             Text(realm.realmName + " · " + objective, 20); Text(value.PlayerName, 26, true);
             Text("“" + realm.guardianGreeting + "”", 20);
             if (value.Day != 0) Text(Day(value.Day), 18);

@@ -22,6 +22,7 @@ namespace ZKube.Local
         // A snapshot proves native acceptance only. The app host must keep this
         // failure visible; recovering a board never retries or blesses its save.
         public Exception PersistenceFailure { get; private set; }
+        public bool Daily => initial.Mode == "daily";
 
         public LocalBoardActionProvider(LocalRunClient client, LocalRunUpdate initial, Exception persistenceFailure = null)
             : this(client, initial?.View, persistenceFailure) { }

@@ -87,7 +87,7 @@ namespace ZKube.Tests.LocalBilling
             var cache = new ProductCache(true); var store = new Store();
             using (var billing = new CampaignBilling(store, cache.Read, cache.Apply))
             {
-                var answer = await billing.Restore();
+                var answer = await billing.Query();
                 Assert.IsFalse(answer.Owned); Assert.AreEqual("€0.99", answer.Price);
                 Assert.IsFalse(cache.DurableOwned); Assert.AreEqual(0, store.Purchases);
             }
@@ -174,11 +174,11 @@ namespace ZKube.Tests.LocalBilling
                 Orders = new[] { new CampaignOrder(CampaignBilling.ProductId, "restart", CampaignOrderState.PaidUnconfirmed) } };
             using (var billing = new CampaignBilling(store, cache.Read, cache.Apply))
             {
-                var answer = await billing.Restore();
+                var answer = await billing.Query();
                 Assert.IsTrue(answer.Owned); Assert.AreEqual(CampaignBillingStatus.ConfirmationPending, answer.Status);
                 store.ConfirmationFailed("restart"); store.AutoConfirm = true;
                 Assert.IsTrue(cache.DurableOwned);
-                answer = await billing.Restore(); Assert.AreEqual(CampaignBillingStatus.Updated, answer.Status);
+                answer = await billing.Query(); Assert.AreEqual(CampaignBillingStatus.Updated, answer.Status);
                 Assert.AreEqual(2, store.Confirmations);
             }
         }
@@ -190,7 +190,7 @@ namespace ZKube.Tests.LocalBilling
                 store.Paid(); Assert.AreEqual(0, store.Confirmations); Assert.IsFalse(cache.DurableOwned);
                 Assert.IsNotNull(billing.LastFulfillmentError);
                 cache.FailWrite = false;
-                Assert.IsTrue((await billing.Restore()).Owned); Assert.AreEqual(1, store.Confirmations);
+                Assert.IsTrue((await billing.Query()).Owned); Assert.AreEqual(1, store.Confirmations);
             }
         }
         [Test] public async Task LateFalseQueryCannotUndoPaidEvent()

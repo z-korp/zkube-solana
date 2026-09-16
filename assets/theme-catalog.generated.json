@@ -2,101 +2,182 @@
   "commonImages": {
     "totem": "/assets/common/bonus/tiki.png"
   },
+  "constraintNames": [
+    {
+      "any": null,
+      "kind": 0,
+      "name": "CLASSIC"
+    },
+    {
+      "any": null,
+      "kind": 1,
+      "name": "COMBO ≥ {0}"
+    },
+    {
+      "any": "BREAK BLOCKS",
+      "kind": 2,
+      "name": "BREAK SIZE {0}"
+    },
+    {
+      "any": null,
+      "kind": 3,
+      "name": "CLEAR LINES"
+    },
+    {
+      "any": null,
+      "kind": 4,
+      "name": "EXACT {0} LINES"
+    },
+    {
+      "any": null,
+      "kind": 5,
+      "name": "SCORE ≥ {0}"
+    },
+    {
+      "any": null,
+      "kind": 6,
+      "name": "GUARDIAN TRIGGERS"
+    },
+    {
+      "any": null,
+      "kind": 7,
+      "name": "BONUS LINES"
+    },
+    {
+      "any": null,
+      "kind": 8,
+      "name": "BONUS BLOCKS"
+    },
+    {
+      "any": null,
+      "kind": 9,
+      "name": "COMBO ≥ {0}"
+    },
+    {
+      "any": null,
+      "kind": 10,
+      "name": "CLEAR {0} LINES AT ONCE"
+    },
+    {
+      "any": null,
+      "kind": 11,
+      "name": "CLEAR {0} LINES IN CONSECUTIVE MOVES"
+    },
+    {
+      "any": null,
+      "kind": 12,
+      "name": "BREAK SIZE {0} IN ONE ACTION"
+    },
+    {
+      "any": null,
+      "kind": 13,
+      "name": "BREAK EVERY WIDTH AT ONCE"
+    },
+    {
+      "any": null,
+      "kind": 14,
+      "name": "MAKE A {0}-POINT MOVE"
+    },
+    {
+      "any": null,
+      "kind": 15,
+      "name": "CLEAR {0} LINES WITH ONE BONUS"
+    },
+    {
+      "any": null,
+      "kind": 16,
+      "name": "EMPTY THE BOARD"
+    },
+    {
+      "any": null,
+      "kind": 17,
+      "name": "CLUTCH ≥ {0}"
+    },
+    {
+      "any": null,
+      "kind": 18,
+      "name": "CLEAN ≤ {0}"
+    }
+  ],
   "dailyThemes": [
     {
       "description": "No Theme today — the whole pot pays Score",
       "kind": 0,
-      "name": "Classic Score",
       "value": 0
     },
     {
       "description": "2+-line combo moves",
       "kind": 1,
-      "name": "Combo 2+",
       "value": 2
     },
     {
       "description": "3+-line combo moves",
       "kind": 1,
-      "name": "Combo 3+",
       "value": 3
     },
     {
       "description": "exact 2-line clears",
       "kind": 4,
-      "name": "Exact 2",
       "value": 2
     },
     {
       "description": "exact 3-line clears",
       "kind": 4,
-      "name": "Exact 3",
       "value": 3
     },
     {
       "description": "width-1 blocks broken",
       "kind": 2,
-      "name": "Break Width 1",
       "value": 1
     },
     {
       "description": "width-2 blocks broken",
       "kind": 2,
-      "name": "Break Width 2",
       "value": 2
     },
     {
       "description": "width-3 blocks broken",
       "kind": 2,
-      "name": "Break Width 3",
       "value": 3
     },
     {
       "description": "width-4 blocks broken",
       "kind": 2,
-      "name": "Break Width 4",
       "value": 4
     },
     {
       "description": "the realm trigger fired",
       "kind": 6,
-      "name": "Guardian Triggers",
       "value": 0
     },
     {
       "description": "lines cleared with a bonus",
       "kind": 7,
-      "name": "Bonus Lines",
       "value": 0
     },
     {
       "description": "blocks broken with a bonus",
       "kind": 8,
-      "name": "Bonus Breaks",
       "value": 0
     },
     {
       "description": "clears started at height 7+",
       "kind": 17,
-      "name": "Clutch Clears 7+",
       "value": 7
     },
     {
       "description": "clears started at height 8+",
       "kind": 17,
-      "name": "Clutch Clears 8+",
       "value": 8
     },
     {
       "description": "clears ending at height 3 or lower",
       "kind": 18,
-      "name": "Clean Clears 3",
       "value": 3
     },
     {
       "description": "clears ending at height 4 or lower",
       "kind": 18,
-      "name": "Clean Clears 4",
       "value": 4
     }
   ],

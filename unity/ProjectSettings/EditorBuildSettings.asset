@@ -6,7 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/ZKube/Scenes/Money.unity
-    guid: cb01c3b5687de307fa897cfdc44f241c
+    path: Assets/ZKube/Scenes/App.unity
+    guid: 397769e0e247a8f4c82e81121fd01e10
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

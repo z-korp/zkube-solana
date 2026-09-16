@@ -57,8 +57,7 @@ namespace ZKube.Integration.Presentation
                 token => Execute(acceptedRun, cancellation => flow.SettleRun(acceptedRun, cancellation), token));
             var root = new GameObject("Money accepted run"); root.transform.SetParent(transform, false);
             board = root.AddComponent<BoardController>();
-            board.SetTextScale(textScale); board.TerminalPresenter = PresentTerminal;
-            board.ExitRequested += Close;
+            board.SetTextScale(textScale); board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
             board.Bind(provider.Bind(launch.Operation.State, title));
             board.SetHostInputEnabled(!paused && !Frozen());
         }
@@ -73,7 +72,7 @@ namespace ZKube.Integration.Presentation
             terminalTitle = terminalBody = settlementError = null;
             var root = new GameObject("Money local Campaign"); root.transform.SetParent(transform, false);
             board = root.AddComponent<BoardController>(); board.SetTextScale(textScale);
-            board.TerminalPresenter = PresentTerminal; board.ExitRequested += Close;
+            board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
             board.Bind(launch.Value.Bind(title));
             board.SetHostInputEnabled(!paused);
         }

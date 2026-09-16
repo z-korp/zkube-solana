@@ -28,14 +28,14 @@ namespace ZKube.Tests.MoneyOverview
             Click("Dialog End run"); yield return BoardFinished();
             StringAssert.Contains("Result saved", SessionText());
             Click("Dialog Continue"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyStartup>().Controller.PlayingRun, Is.False);
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.PlayingRun, Is.False);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
         }
 
         [UnityTest] public IEnumerator DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce()
         {
             yield return PrepareDeviceScenario("daily-playable", page: "Daily");
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(environment.SentSignature, Is.Null);
             yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
             Assert.That(controller.ConfirmingDailyEntry, Is.True);

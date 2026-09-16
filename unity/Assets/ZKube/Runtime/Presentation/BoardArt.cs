@@ -10,17 +10,7 @@ namespace ZKube.Presentation
 {
     public sealed class BoardArt : IDisposable
     {
-        [Serializable] private sealed class Catalog { public Theme[] themes; public GuardianRule[] guardianRules; }
-        [Serializable] public sealed class GuardianRule
-        {
-            public byte bonus, trigger;
-            public ushort threshold;
-            public string description, sentence;
-        }
-        private GuardianRule[] guardianRules = Array.Empty<GuardianRule>();
-        [Serializable] private sealed class Theme { public string id, guardianName; public byte realmId; public Swatch[] rgba; public AudioEntry[] audio; }
-        [Serializable] private sealed class AudioEntry { public string context, resource; }
-        [Serializable] private sealed class Swatch { public string name; public float[] value; }
+        private PageCatalog.GuardianRule[] guardianRules = Array.Empty<PageCatalog.GuardianRule>();
         private SpriteAtlas atlas;
         private SpriteAtlas common;
         // Resources returns the same atlas to the page and the playable board.
@@ -51,11 +41,7 @@ namespace ZKube.Presentation
         {
             if (disposed) throw new ObjectDisposedException(nameof(BoardArt));
             ReleaseRealm();
-            var catalog = Resources.Load<TextAsset>("ZKube/Catalog");
-            if (catalog == null) throw new InvalidOperationException("Generated art catalog is missing");
-            Catalog data;
-            try { data = JsonUtility.FromJson<Catalog>(catalog.text); }
-            finally { Resources.UnloadAsset(catalog); }
+            var data = PageCatalog.Load();
             guardianRules = data.guardianRules ?? throw new InvalidOperationException("Regenerate the art catalog with live guardian descriptions");
             var theme = data.themes?.SingleOrDefault(value => value.realmId == realmId)
                 ?? throw new InvalidOperationException("No imported art is bound to realm " + realmId);
@@ -127,7 +113,7 @@ namespace ZKube.Presentation
             return sprite;
         }
         public Color Color(string name, Color fallback) => colors.TryGetValue(name, out var color) ? color : fallback;
-        public GuardianRule Guardian(byte bonus, byte trigger, ushort threshold)
+        public PageCatalog.GuardianRule Guardian(byte bonus, byte trigger, ushort threshold)
         {
             foreach (var rule in guardianRules)
                 if (rule.bonus == bonus && rule.trigger == trigger && rule.threshold == threshold) return rule;

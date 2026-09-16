@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using ZKube.Core;
@@ -34,14 +33,11 @@ namespace ZKube.Local.App
                 if (store.Read.DailyAttempt?.DayId == today.DayId) throw new InvalidOperationException("Today's Daily challenge has already been played");
                 var rules = Rules(Realm(today.Realm)); rules.TierPolicy = 1; rules.MaxMoves = checked((ushort)Protocol.DailyMaxMoves);
                 rules.ObjectiveKind = today.ObjectiveKind; rules.ObjectiveValue = today.ObjectiveValue;
-                var result = Start("arcade", today.Realm, 1, rules, NativeEngine.LocalRowRandomness(Encoding.UTF8.GetBytes("zkube-local-daily-row-seed-v1"), today.DayId), today.DayId);
-                // Opening and active slot exist before reservation
-                // write; write failure propagates after normalized memory changes.
+                var result = Start("daily", today.Realm, 1, rules, NativeEngine.LocalRowRandomness(Encoding.UTF8.GetBytes("zkube-local-daily-row-seed-v1"), today.DayId), today.DayId);
+                // Persist the attempt before returning its opening to the player.
                 store.Write(current => {
-                    var next = Copy(current); next.Streak = current.LastAttemptDayId.HasValue && (long)current.LastAttemptDayId.Value == (long)today.DayId - 1 ? checked(current.Streak + 1) : 1;
-                    next.LastAttemptDayId = today.DayId;
-                    next.DailyAttempt = new LocalDailyAttempt { DayId = today.DayId, Realm = today.Realm, ObjectiveKind = today.ObjectiveKind,
-                        ObjectiveValue = today.ObjectiveValue, ObjectiveTotal = "0" };
+                    var next = Copy(current); next.Streak = current.DailyAttempt != null && (long)current.DailyAttempt.DayId == (long)today.DayId - 1 ? checked(current.Streak + 1) : 1;
+                    next.DailyAttempt = new LocalDailyAttempt { DayId = today.DayId };
                     return next;
                 });
                 return result;
@@ -55,7 +51,7 @@ namespace ZKube.Local.App
                 store.Write(current => {
                     var next = Copy(current);
                     next.BestDailyScore = Math.Max(current.BestDailyScore, summary.DailyScore);
-                    if (next.DailyAttempt != null && next.DailyAttempt.DayId == record.Day) { next.DailyAttempt.DailyScore = summary.DailyScore; next.DailyAttempt.ObjectiveTotal = summary.ObjectiveTotal.ToString(CultureInfo.InvariantCulture); next.DailyAttempt.Finished = true; }
+                    if (next.DailyAttempt != null && next.DailyAttempt.DayId == record.Day) { next.DailyAttempt.DailyScore = summary.DailyScore; next.DailyAttempt.ObjectiveTotal = summary.ObjectiveTotal; next.DailyAttempt.Finished = true; }
                     return next;
                 });
             }

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 
 namespace ZKube.Local.Tests
@@ -14,9 +15,8 @@ namespace ZKube.Local.Tests
             var state = new LocalProductState {
                 Name = "Mira 🚀", CampaignPrice = "€4.99", CampaignOwned = true,
                 Stars = Enumerable.Range(0, 100).Select(i => (byte)(i % 4)).ToArray(),
-                WornEmblem = 7, Streak = 12, LastAttemptDayId = 20705, BestDailyScore = 9000,
-                DailyAttempt = new LocalDailyAttempt { DayId = 20705, Realm = 3, ObjectiveKind = 4,
-                    ObjectiveValue = 2, DailyScore = 840, ObjectiveTotal = "13", Finished = true },
+                WornEmblem = 7, Streak = 12, BestDailyScore = 9000,
+                DailyAttempt = new LocalDailyAttempt { DayId = 20705, DailyScore = 840, ObjectiveTotal = 13, Finished = true },
                 CampaignRun = new LocalCampaignRun { Id = "1", CatalogVersion = ZKube.Core.Generated.Protocol.CatalogVersion, Realm = 2, Level = 5,
                     Seed = Enumerable.Range(0, 32).ToArray(), Actions = {
                         new LocalCampaignAction { Kind = "Move", Row = 2, Start = 1, Destination = 3 },
@@ -30,7 +30,7 @@ namespace ZKube.Local.Tests
             CollectionAssert.AreEqual(state.Stars, restored.Stars);
             CollectionAssert.AreEqual(state.CampaignRun.Seed, restored.CampaignRun.Seed);
             Assert.That(restored.CampaignRun.Actions[0].Destination, Is.EqualTo(3));
-            Assert.That(restored.DailyAttempt.ObjectiveTotal, Is.EqualTo("13"));
+            Assert.That(restored.DailyAttempt.ObjectiveTotal, Is.EqualTo(13));
         }
         [TestCase(null)]
         [TestCase("{}")]
@@ -60,6 +60,23 @@ namespace ZKube.Local.Tests
             Assert.That(store.Read.Name, Is.EqualTo("Kept"));
             var memory = new LocalProductStore();
             Assert.That(memory.Write(current => { current.Name = "Memory"; return current; }).Name, Is.EqualTo("Memory"));
+        }
+        [Test] public void MoneySaveContainsOnlyCampaignDataAndDailyMetricsRemainNumbers()
+        {
+            string saved = null;
+            var store = new LocalProductStore(write: (_, value) => saved = value, owner: "connected-owner");
+            store.Write(state => {
+                state.Name = "Store name"; state.CampaignOwned = true; state.Streak = 8;
+                state.DailyAttempt = new LocalDailyAttempt { DayId = 20000, ObjectiveTotal = 123 };
+                state.Stars[0] = 3; state.CampaignWritePending = true; return state;
+            });
+            var document = JObject.Parse(saved);
+            Assert.That(document.Properties().Select(value => value.Name), Is.EquivalentTo(new[] { "version", "stars", "campaignWritePending" }));
+            Assert.That(new LocalProductStore(_ => saved, owner: "connected-owner").Read.Stars[0], Is.EqualTo(3));
+            var local = JObject.Parse(LocalProductCodec.Encode(new LocalProductState {
+                DailyAttempt = new LocalDailyAttempt { DayId = 20000, ObjectiveTotal = ulong.MaxValue } }));
+            Assert.That(local["dailyAttempt"]["objectiveTotal"].Type, Is.EqualTo(JTokenType.Integer));
+            Assert.That(LocalProductCodec.Decode(local.ToString()).DailyAttempt.ObjectiveTotal, Is.EqualTo(ulong.MaxValue));
         }
     }
 }

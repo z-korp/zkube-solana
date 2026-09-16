@@ -16,7 +16,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             Click("Campaign"); yield return Idle();
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             float until = Time.realtimeSinceStartup + 15;
             while (!PageDrawn(controller) && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(PageDrawn(controller), Is.True);
@@ -49,7 +49,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             Click("Check transaction"); yield return Idle();
             environment.Services.Campaign(environment.Owner).Runs.StartCampaign(1, 1);
-            var controller = host.GetComponent<MoneyStartup>().Controller; var receipt = controller.LastReceipt;
+            var controller = host.GetComponent<MoneyIdentity>().Controller; var receipt = controller.LastReceipt;
             Click("Campaign"); yield return Idle(); yield return null;
             Assert.That(controller.BrowsingCampaign, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Trial 1").interactable, Is.True);
@@ -73,7 +73,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             Click("Campaign"); yield return Idle(); Click("Next");
-            var controller = host.GetComponent<MoneyStartup>().Controller;
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
             delay = environment.HoldNextRead("getAccountInfo"); Click("Refresh Campaign");
             try
             {

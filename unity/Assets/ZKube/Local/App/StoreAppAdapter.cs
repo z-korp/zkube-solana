@@ -48,7 +48,7 @@ namespace ZKube.Local.App
             var font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular");
             shared.Initialize(this, font, font, TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
-            board.ExitRequested += ExitBoard; board.Accepted += Accepted; board.Rejected += Rejected;
+            board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected };
             board.gameObject.SetActive(false);
             warningRoot = CanvasRoot("Unsaved progress", 80);
             var banner = Rect("Save warning", warningRoot.transform);
@@ -76,7 +76,7 @@ namespace ZKube.Local.App
             if (dirty && !loading && Flow.Page != StorePage.Board) StartCoroutine(Render());
         }
         private byte PageRealm => Flow.Page == StorePage.Daily ? Flow.Today.Realm :
-            Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? (byte)Flow.Product.Read.DailyAttempt.Realm :
+            Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? NativeEngine.DailyPair(Flow.Product.Read.DailyAttempt.DayId).Realm :
             Flow.Page == StorePage.Profile ? (byte)Math.Max(1, Flow.Product.Read.WornEmblem) : Flow.Realm;
         private void Refresh()
         {
@@ -182,17 +182,18 @@ namespace ZKube.Local.App
                     return new ProfileChoiceView { Id = id, Realm = id, Name = pages.Realm(id).guardianName,
                         Detail = state.WornEmblem == id ? "Worn" : null, Available = true, Select = () => Flow.Wear(id) };
                 }).ToArray(),
-                Restore = Action("Restore purchases", () => _ = Flow.RefreshBilling(restore: true), !Flow.Billing.Busy) };
+                Restore = Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) };
         }
-        public SettingsPageView SettingsPage() => BoardSettingsPage.Read(board, Refresh);
+        public SettingsPageView SettingsPage() => AppPreferences.Read(Refresh, board);
         public ResultPageView ResultPage()
         {
             var attempt = Flow.Product.Read.DailyAttempt;
+            var pair = attempt == null ? null : NativeEngine.DailyPair(attempt.DayId);
             return new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Product.Read.Name,
-                HasResult = attempt != null, Realm = (byte)(attempt?.Realm ?? 1), Day = attempt?.DayId ?? 0,
-                ObjectiveKind = (byte)(attempt?.ObjectiveKind ?? 0), ObjectiveValue = (byte)(attempt?.ObjectiveValue ?? 0),
+                HasResult = attempt != null, Realm = pair?.Realm ?? 1, Day = attempt?.DayId ?? 0,
+                ObjectiveKind = pair?.Kind ?? 0, ObjectiveValue = pair?.Value ?? 0,
                 Score = attempt?.DailyScore ?? 0,
-                ObjectiveTotal = ulong.Parse(attempt?.ObjectiveTotal ?? "0", System.Globalization.CultureInfo.InvariantCulture),
+                ObjectiveTotal = attempt?.ObjectiveTotal ?? 0,
                 Streak = Flow.Product.Read.Streak,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
                 NativeSharing = ResultSharing.NativeAvailable, Share = ResultSharing.Open,
@@ -226,7 +227,7 @@ namespace ZKube.Local.App
         private void OnDestroy()
         {
             if (Flow != null) { Flow.Changed -= Refresh; Flow.BoardOpened -= OpenBoard; Flow.Dispose(); Flow = null; }
-            if (board != null) { board.ExitRequested -= ExitBoard; board.Accepted -= Accepted; board.Rejected -= Rejected; }
+            if (board != null) board.Host = null;
             RetirePage(); shell.ReleaseArtwork();
         }
     }

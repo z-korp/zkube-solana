@@ -19,7 +19,7 @@ namespace ZKube.Local.App.Tests
             Assert.That(paidStore.CampaignLock(3), Is.Null);
             paidStore.ApplyCampaignEntitlement(true, "$1");
             Assert.That(paidStore.CampaignLock(4), Is.Null);
-            store.WriteCampaign(current => { var next = LocalProductCodec.Decode(LocalProductCodec.Encode(current)); next.Stars[29] = 0; return next; });
+            store.Write(current => { var next = LocalProductCodec.Decode(LocalProductCodec.Encode(current)); next.Stars[29] = 0; return next; });
             Assert.That(money.CampaignLock(4), Is.EqualTo("stars"));
             Assert.That(paidStore.CampaignLock(4), Is.EqualTo("stars"));
         }
