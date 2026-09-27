@@ -112,8 +112,8 @@ device partial signatures are checked before relay.
 Read AGENTS.md before changing source, keeper behavior or anything moving SOL.
 It owns working rules, locked protocol rules and operator procedures. Toolchain
 versions live in rust-toolchain.toml and unity/toolchain.json; package dependencies
-use the root workspace lockfile. validate.sh defines the change and release
-gates. Android handoff metadata lives under unity/dapp-store.
+use the root workspace lockfile. Android handoff metadata lives under
+unity/dapp-store.
 
 ## License
 

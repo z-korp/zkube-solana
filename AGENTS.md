@@ -32,6 +32,8 @@ runbooks or approval policy in README.md.
   `test_both_test_platforms_share_one_preparation_and_lease` guards the shared test preparation and lease.
 - Regenerate fixtures through unity/tools/build.py fixtures --fixture-action generate. Its native and
   program producers run in order, without concurrent writers.
+- Start delegated work in named Herdr agent panes beside the caller, using herdr agent start with its
+  cwd, never as hidden background jobs, so the owner can watch and steer it. Outside Herdr, say so and ask.
 - Reuse existing tool servers; stop a wedged process before replacing it and report its PID and reason.
   Report duplicate configuration. Request a region instead of parsing a huge page.
 - Large scratch work belongs in ignored build/, not the RAM-backed temporary directory. Remove scratch when
@@ -46,20 +48,9 @@ runbooks or approval policy in README.md.
 
 ### Validation and defect classes
 
-The change gate finishes a commit; the release gate finishes a phase or any artifact leaving the machine.
-The default and all select release. validate.sh owns the gate definitions.
-`test_change_gate_keeps_common_checks_and_editmode_without_packages`,
-`test_change_gate_runs_sbf_for_staged_unstaged_and_untracked_program_changes`,
-`test_clean_change_gate_checks_the_last_commit` and
-`test_release_and_all_run_sbf_both_test_platforms_and_both_packages` guard selection.
-
-```bash
-NO_DNA=1 ./validate.sh change
-NO_DNA=1 ./validate.sh release
-```
-
-A red gate outranks the work that exposed it. Fix the recurring source of a defect in the same change, with
-the smallest mechanism that closes that class:
+Run the checks for the areas a change touches before committing it. A red check outranks the work that
+exposed it. Fix the recurring source of a defect in the same change, with the smallest mechanism that closes
+that class:
 
 - **Untested bounds:** every program capacity has allocation and compute coverage at its maximum;
   `every_program_capacity_has_an_sbf_test_at_its_maximum` inventories both guards.
