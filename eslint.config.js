@@ -4,7 +4,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   { ignores: ["dist/**", "**/node_modules/**", "services/zkube-core/**", "tools/chain/idl/**",
-      "build/**", "unity/**", "assets/**", "tools/art/**"] },
+      "build/**", "unity/**", "assets/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { languageOptions: { globals: globals.node } },

@@ -17,5 +17,4 @@ coverage
 build
 unity
 assets
-tools/art
 *.log

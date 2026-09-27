@@ -92,7 +92,6 @@ decision. Any championship is discretionary and separately funded.
 | tools/chain | Operator CLI and the single checked-in program IDL |
 | unity | Both Android identities, shared pages and Rust gameplay |
 | assets | Authoritative artwork and presentation inputs |
-| tools/art | Optional artwork authoring scripts |
 | fixtures | Core golden vectors and Rust-produced boundary scenarios |
 
 Arcade gameplay uses a Router-resolved MagicBlock ephemeral rollup for actions
