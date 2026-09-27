@@ -25,7 +25,11 @@ namespace ZKube.Presentation
             public AtlasLoad(string path) { Path = path; Request = Resources.LoadAsync<SpriteAtlas>(path); }
         }
         private static readonly Dictionary<string, AtlasLoad> atlasLoads = new Dictionary<string, AtlasLoad>();
-        private AtlasLoad realmLoad, commonLoad;
+        private AtlasLoad realmLoad, commonLoad, skinUiLoad, skinRealmLoad;
+        private SpriteAtlas skinUi, skinRealm;
+        private readonly Dictionary<string, Color> tokens = new Dictionary<string, Color>();
+        // Null until a skin is listed in the catalog; pages keep their current look without one.
+        public string SkinId { get; private set; }
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<string, Color> colors = new Dictionary<string, Color>();
         public TMP_FontAsset Display { get; private set; }
@@ -62,6 +66,21 @@ namespace ZKube.Presentation
                 yield return commonLoad.Request;
                 if (disposed || realmLoad != selected) yield break;
                 common = commonLoad.Request.asset as SpriteAtlas;
+            }
+            var skin = data.DefaultSkin;
+            if (skin != null)
+            {
+                SkinId = skin.id;
+                foreach (var token in skin.tokens)
+                    tokens[token.name] = new Color(token.value[0], token.value[1], token.value[2], token.value[3]);
+                var realmSkin = skinRealmLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-theme-" + realmId);
+                if (skinUiLoad == null) skinUiLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-ui");
+                yield return realmSkin.Request;
+                yield return skinUiLoad.Request;
+                if (disposed || realmLoad != selected) yield break;
+                skinRealm = realmSkin.Request.asset as SpriteAtlas;
+                skinUi = skinUiLoad.Request.asset as SpriteAtlas;
+                if (skinRealm == null || skinUi == null) throw new InvalidOperationException("Prepare the bundled skin atlases before opening the page");
             }
             if (Display == null) Display = Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular");
             if (Body == null) Body = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular");
@@ -113,6 +132,21 @@ namespace ZKube.Presentation
             return sprite;
         }
         public Color Color(string name, Color fallback) => colors.TryGetValue(name, out var color) ? color : fallback;
+        public Color Token(string name) => tokens.TryGetValue(name, out var color) ? color
+            : throw new InvalidOperationException("Skin token is missing: " + name);
+        public Sprite SkinUi(string slot) => SkinSprite("ui/", skinUi, slot);
+        public Sprite SkinRealm(string slot) => SkinSprite("realm/", skinRealm, slot);
+        private Sprite SkinSprite(string prefix, SpriteAtlas source, string slot)
+        {
+            var key = "skin/" + prefix + slot;
+            if (!sprites.TryGetValue(key, out var sprite))
+            {
+                sprite = source != null ? source.GetSprite(slot) : null;
+                if (sprite == null) throw new InvalidOperationException("Missing skin sprite: " + prefix + slot);
+                sprites.Add(key, sprite);
+            }
+            return sprite;
+        }
         public PageCatalog.GuardianRule Guardian(byte bonus, byte trigger, ushort threshold)
         {
             foreach (var rule in guardianRules)
@@ -121,10 +155,11 @@ namespace ZKube.Presentation
         }
         private void ReleaseRealm()
         {
-            foreach (string key in sprites.Keys.Where(key => !key.StartsWith("common/", StringComparison.Ordinal)).ToArray())
+            foreach (string key in sprites.Keys.Where(key => !key.StartsWith("common/", StringComparison.Ordinal) &&
+                                                             !key.StartsWith("skin/ui/", StringComparison.Ordinal)).ToArray())
             { UnityEngine.Object.Destroy(sprites[key]); sprites.Remove(key); }
-            ReleaseAtlas(ref realmLoad);
-            atlas = null; colors.Clear();
+            ReleaseAtlas(ref realmLoad); ReleaseAtlas(ref skinRealmLoad);
+            atlas = null; skinRealm = null; colors.Clear(); tokens.Clear(); SkinId = null;
             RealmId = 0; ThemeId = null; GuardianName = null; LevelMusicResource = null;
         }
         public void Dispose()
@@ -133,8 +168,8 @@ namespace ZKube.Presentation
             disposed = true; ReleaseRealm();
             foreach (var sprite in sprites.Values) UnityEngine.Object.Destroy(sprite);
             sprites.Clear();
-            ReleaseAtlas(ref commonLoad);
-            common = null;
+            ReleaseAtlas(ref commonLoad); ReleaseAtlas(ref skinUiLoad);
+            common = null; skinUi = null;
         }
     }
 }

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde_json::{Value, json};
 
 use super::CampaignCatalog;
@@ -161,7 +163,7 @@ fn objective(kind: u8, value: u8) -> Value {
     json!({"kind": kind, "value": value, "description": description})
 }
 
-pub fn render(catalog: &CampaignCatalog, source: &str) -> Result<String, String> {
+pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<String, String> {
     let authored: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
     let realms = authored["realms"]
         .as_array()
@@ -189,6 +191,7 @@ pub fn render(catalog: &CampaignCatalog, source: &str) -> Result<String, String>
             objective(theme.kind.tag(), theme.value)).collect::<Vec<_>>(),
         "effects": effects,
         "commonImages": {"totem": "/assets/common/bonus/tiki.png"},
+        "skins": super::skins::render(root, &authored, realms.len())?,
     });
     serde_json::to_string_pretty(&output)
         .map(|value| value + "\n")

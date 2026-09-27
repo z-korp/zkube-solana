@@ -3,6 +3,7 @@
 mod art_catalog;
 mod native_client;
 mod native_fixtures;
+mod skins;
 
 use std::{fmt::Write as _, fs, path::PathBuf, process::ExitCode};
 
@@ -85,9 +86,13 @@ fn run(cli: &Cli) -> Result<String, String> {
         .map_err(|error| error.to_string())?;
     outputs.push((
         "assets/theme-catalog.generated.json",
-        art_catalog::render(&catalog, &art_source)?,
+        art_catalog::render(&catalog, &art_source, &cli.root)?,
     ));
     outputs.extend([
+        (
+            "unity/Assets/ZKube/Generated/SkinSlots.g.cs",
+            skins::csharp(),
+        ),
         (
             "crates/zkube-core/src/realm_rules.generated.rs",
             render_realm_rules_rust(&catalog),

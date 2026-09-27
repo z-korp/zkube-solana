@@ -34,6 +34,20 @@ namespace ZKube.Presentation.Tests
             var lease = loads[path];
             return lease == null ? 0 : (int)lease.GetType().GetField("Owners").GetValue(lease);
         }
+        [Test] public void EverySkinMustCoverEveryRealm()
+        {
+            var text = Resources.Load<TextAsset>("ZKube/Catalog").text;
+            var catalog = JsonUtility.FromJson<PageCatalog>(text);
+            catalog.Validate();
+            catalog.skins = new[] { new PageCatalog.SkinEntry { id = "test", tokens = new PageCatalog.Swatch[0], ui = new PageCatalog.UiSlot[0],
+                realms = catalog.themes.Select(realm => new PageCatalog.SkinRealm { realmId = realm.realmId }).ToArray() } };
+            catalog.Validate();
+            Assert.AreEqual("test", catalog.DefaultSkin.id);
+            catalog.skins[0].realms = catalog.skins[0].realms.Skip(1).ToArray();
+            Assert.Throws<FormatException>(() => catalog.Validate());
+            catalog.skins = null;
+            Assert.Throws<FormatException>(() => catalog.Validate());
+        }
         private static IntPtr NativeAtlasPointer(UnityEngine.Object asset)
         {
             // Unity 6000.3 Object.IsNativeObjectAlive also checks persistent IDs

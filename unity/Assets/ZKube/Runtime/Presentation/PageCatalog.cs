@@ -13,7 +13,11 @@ namespace ZKube.Presentation
         public DailyTheme[] dailyThemes;
         public GuardianRule[] guardianRules;
         public ConstraintName[] constraintNames;
+        public SkinEntry[] skins;
         private static PageCatalog cached;
+        [Serializable] public sealed class SkinEntry { public string id, name; public Swatch[] tokens; public UiSlot[] ui; public SkinRealm[] realms; }
+        [Serializable] public sealed class UiSlot { public string slot, image; public int[] border; }
+        [Serializable] public sealed class SkinRealm { public byte realmId; }
         [Serializable] public sealed class ConstraintName { public byte kind; public string name, any; }
         [Serializable] public sealed class GuardianRule
         {
@@ -56,6 +60,8 @@ namespace ZKube.Presentation
             return value == 0 && !string.IsNullOrEmpty(caption.any) ? caption.any : string.Format(CultureInfo.InvariantCulture, caption.name, value);
         }
         public RealmPage Realm(byte id) => themes.Single(value => value.realmId == id);
+        // The first listed skin is the default; the generator guarantees every slot exists.
+        public SkinEntry DefaultSkin => skins != null && skins.Length > 0 ? skins[0] : null;
         public PortraitEntry Portrait(byte id) => portraits.Single(value => value.realmId == id);
         public DailyTheme Objective(byte kind, byte value) => dailyThemes.Single(theme => theme.kind == kind && theme.value == value);
         public void Validate()
@@ -88,6 +94,11 @@ namespace ZKube.Presentation
                 dailyThemes.Any(value => !constraintNames.Any(name => name.kind == value.kind)))
                 throw new FormatException("Generated constraint names are incomplete");
             if (guardianRules == null) throw new FormatException("Generated guardian descriptions are missing");
+            if (skins == null) throw new FormatException("Regenerate the catalog with its skin list");
+            foreach (var skin in skins)
+                if (string.IsNullOrEmpty(skin.id) || skin.tokens == null || skin.ui == null || skin.realms == null ||
+                    skin.realms.Select(realm => realm.realmId).OrderBy(id => id).SequenceEqual(themes.Select(realm => realm.realmId).OrderBy(id => id)) == false)
+                    throw new FormatException("Imported skin does not cover every realm");
             if (portraits == null || portraits.Length != themes.Length || portraits.Select(value => value.realmId).Distinct().Count() != themes.Length)
                 throw new FormatException("Generated guardian portraits are incomplete");
             foreach (var realm in themes)

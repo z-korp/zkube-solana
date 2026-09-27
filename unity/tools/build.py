@@ -172,6 +172,7 @@ def asset_plan():
             entry.update(asset=destination.relative_to(PROJECT).as_posix(), guid=guid(destination))
             entries.append(entry)
             files[destination] = data
+    scopes += skin_imports(catalog, entries, files)
     # Keep the ordinary source lookup before adding byte-identical portrait
     # imports; those copies must not replace the realm's board sprite binding.
     by_source = {"/assets/" + Path(e["source"]).relative_to("assets").as_posix(): e for e in entries}
@@ -221,6 +222,35 @@ def asset_plan():
     catalog_path = GENERATED / RESOURCE / "Catalog.json"
     files[catalog_path] = encoded(catalog)
     return files, catalog
+
+
+def skin_imports(catalog, entries, files):
+    """One atlas for each skin's UI kit and one per skin realm. Stretched UI
+    slots carry their authored 9-slice border into the sprite importer."""
+    scopes = []
+    for skin in catalog["skins"]:
+        groups = [(f"skin-{skin['id']}-ui", [(u["slot"], u["image"], u["border"]) for u in skin["ui"]])]
+        groups += [(f"skin-{skin['id']}-theme-{realm['realmId']}",
+                    [(slot, image, [0, 0, 0, 0]) for slot, image in realm["images"].items()])
+                   for realm in skin["realms"]]
+        for scope, slots in groups:
+            scopes.append(scope)
+            for name, reference, border in slots:
+                source = SOURCE / reference.removeprefix("/assets/")
+                if source.is_symlink() or not source.is_file():
+                    raise RuntimeError(f"Expected regular source asset: {source}")
+                data = source.read_bytes()
+                if data[:8] != b"\x89PNG\r\n\x1a\n":
+                    raise RuntimeError(f"Not a PNG: {source}")
+                width, height = struct.unpack(">II", data[16:24])
+                destination = GENERATED / "Sprites" / scope / f"{name}.png"
+                entries.append({"source": source.relative_to(ROOT).as_posix(), "sha256": digest(data),
+                                "bytes": len(data), "scope": scope, "name": name, "kind": "sprite",
+                                "width": width, "height": height, "atlas": f"ZKube/Atlases/{scope}",
+                                "sprite": name, "border": border,
+                                "asset": destination.relative_to(PROJECT).as_posix(), "guid": guid(destination)})
+                files[destination] = data
+    return scopes
 
 
 def portrait_imports(catalog, by_source, entries, files):

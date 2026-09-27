@@ -54,6 +54,7 @@ namespace ZKube.Editor
             public string guid;
             public bool streaming;
             public int maxTextureSize;
+            public int[] border;
         }
         [Serializable] private sealed class FontEntry
         {
@@ -103,11 +104,12 @@ namespace ZKube.Editor
         {
             if (!assetPath.StartsWith(Generated + "Sprites/", StringComparison.Ordinal)) return;
             var catalog = ReadCatalog();
-            ApplyTexture((TextureImporter)assetImporter, catalog.importPolicy, catalog.assets.Single(e => e.asset == assetPath).maxTextureSize);
+            ApplyTexture((TextureImporter)assetImporter, catalog.importPolicy, catalog.assets.Single(e => e.asset == assetPath));
         }
 
-        private static void ApplyTexture(TextureImporter importer, Policy policy, int maxTextureSize)
+        private static void ApplyTexture(TextureImporter importer, Policy policy, Entry entry)
         {
+            int maxTextureSize = entry.maxTextureSize;
             importer.textureType = TextureImporterType.Sprite;
             // Minimal deterministic metadata has no shape field. Unity may
             // default it to Cube; textureType alone does not reset that field.
@@ -115,6 +117,9 @@ namespace ZKube.Editor
             importer.spriteImportMode = SpriteImportMode.Single;
             importer.spritePixelsPerUnit = policy.pixelsPerUnit;
             importer.spritePivot = new Vector2(0.5f, 0.5f);
+            // Authored 9-slice border (left, bottom, right, top) for stretched skin pieces.
+            var border = entry.border ?? Array.Empty<int>();
+            importer.spriteBorder = border.Length == 4 ? new Vector4(border[0], border[1], border[2], border[3]) : Vector4.zero;
             importer.mipmapEnabled = policy.mipmaps;
             importer.isReadable = policy.readable;
             importer.alphaIsTransparency = true;
@@ -174,7 +179,7 @@ namespace ZKube.Editor
                 if (entry.kind == "sprite")
                 {
                     var importer = (TextureImporter)AssetImporter.GetAtPath(entry.asset);
-                    ApplyTexture(importer, catalog.importPolicy, entry.maxTextureSize);
+                    ApplyTexture(importer, catalog.importPolicy, entry);
                     importer.SaveAndReimport();
                 }
             }
