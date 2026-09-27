@@ -6,6 +6,7 @@ import json
 import os
 import re
 from pathlib import Path, PurePosixPath
+import contextlib
 from contextlib import contextmanager
 import fcntl
 import struct
@@ -95,6 +96,21 @@ def editor_lease():
         except BlockingIOError:
             raise RuntimeError("Another Unity build/test operation is active") from None
         yield lease.fileno()
+
+@contextmanager
+def committed_identity():
+    """Identity is per-build configuration. Configure() writes it into tracked
+    settings and plugin metadata, so restore their committed bytes afterwards."""
+    tracked = [PROJECT / "ProjectSettings/ProjectSettings.asset",
+               *PROJECT.glob("Assets/Plugins/**/*.meta"), *PROJECT.glob("Assets/ThirdParty/**/*.meta")]
+    saved = {path: path.read_bytes() for path in tracked if path.is_file()}
+    try:
+        yield
+    finally:
+        for path, data in saved.items():
+            if not path.is_file() or path.read_bytes() != data:
+                path.write_bytes(data)
+
 
 SOURCE = ROOT / "assets"
 FONTS = PROJECT / "tools/font_sources"
@@ -548,7 +564,8 @@ def main():
     env.update(NO_DNA="1", ZKUBE_UNITY_APK=str(apk),
                ZKUBE_UNITY_IDENTITY=args.identity,
                ZKUBE_ANDROID_PRODUCTION="1" if args.production else "0")
-    with editor_lease():
+    # exec runs deliberate Editor edits, so only it keeps settings changes.
+    with editor_lease(), (contextlib.nullcontext() if args.action == "exec" else committed_identity()):
         generated_idl = PROJECT / "Assets/ZKube/Integration/Generated/solana.json"
         generated_idl.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "tools/chain/idl/solana.json", generated_idl)

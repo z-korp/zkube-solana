@@ -61,6 +61,41 @@ class ProcessReportingTests(unittest.TestCase):
             prepare.assert_called_once()
             lease.assert_called_once()
 
+    def test_editor_actions_keep_the_committed_identity_but_exec_keeps_edits(self):
+        project = self.output / 'project'
+        settings = project / 'ProjectSettings/ProjectSettings.asset'
+        meta = project / 'Assets/Plugins/Android/x86_64/libzkube_core_ffi.so.meta'
+        for path in (settings, meta):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('committed store identity')
+        (project / 'toolchain.json').write_text((TOOLS.parent / 'toolchain.json').read_text())
+        def configure(*args, **kwargs):
+            settings.write_text('money identity')
+            meta.write_text('money identity')
+        def tests(command, log, env, completed):
+            configure()
+            path = Path(command[command.index('-testResults') + 1])
+            path.write_text('<test-run result="Passed" total="1" passed="1">'
+                            '<test-case fullname="ZKube.Example.Test" /></test-run>')
+        common = (patch.object(build, 'PROJECT', project), patch.object(build, 'OUTPUT', self.output),
+                  patch.object(build, 'LOCK_PATH', self.output / 'editor.lock'),
+                  patch.object(build, 'toolchain', return_value=(Path('editor'), Path('android'))),
+                  patch.object(build, 'native'), patch.object(build, 'sync_assets'), patch.object(build, 'prepare'))
+        with contextlib.ExitStack() as stack:
+            for item in common: stack.enter_context(item)
+            stack.enter_context(patch.object(build, 'editor_run', side_effect=tests))
+            stack.enter_context(patch.object(sys, 'argv', ['build.py', 'test']))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            build.main()
+        self.assertEqual('committed store identity', settings.read_text())
+        self.assertEqual('committed store identity', meta.read_text())
+        with contextlib.ExitStack() as stack:
+            for item in common: stack.enter_context(item)
+            stack.enter_context(patch.object(build, 'execute', side_effect=configure))
+            stack.enter_context(patch.object(sys, 'argv', ['build.py', 'exec', '--method', 'ZKube.Editor.Example.Run']))
+            build.main()
+        self.assertEqual('money identity', settings.read_text())
+
     def test_production_without_version_fails_before_toolchain_work(self):
         with patch.object(sys, 'argv', ['build.py', 'android', '--production']), \
                 patch.dict(os.environ, {}, clear=True), patch.object(build, 'toolchain') as toolchain:
