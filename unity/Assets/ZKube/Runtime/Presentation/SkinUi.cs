@@ -167,6 +167,68 @@ namespace ZKube.Presentation
             return image;
         }
 
+        // The guardian's dialogue box, as drawn: the box across width from top
+        // down, the realm's ledge rail along its top edge, and the guardian
+        // (180 dp, or narrower on small screens) leaning on the rail, its body
+        // behind the rail and its paws in front. A gold name tag hangs over the
+        // rail with the guardian's title beside it; the line starts 42 dp down.
+        // The box grows to hold the longest page and its rule.
+        public GuardianTalk Talk(string name, float x, float top, float width, PageCatalog.RealmPage realm, TalkPage[] pages, Action finished,
+            Transform parent)
+        {
+            float d = Density, inner = width - 40 * d;
+            float Glyph(float fromTop, float sizeDp) => top - fromTop * d + HudLayout.DigitTop * sizeDp * Scale * d;
+            float lineHeight = 0, ruleHeight = 0;
+            foreach (var page in pages)
+            {
+                lineHeight = Mathf.Max(lineHeight, Lines(page.Line, inner, TalkLineDp, Type.Caption) * TalkLeadingDp * Scale * d);
+                if (page.Rule != null) ruleHeight = Mathf.Max(ruleHeight, TextHeight(page.Rule, inner, 12, Type.Caption) + 20 * Scale * d);
+            }
+            // The rule's heading sits 126 dp down, as drawn, or under a longer line.
+            float ruleTop = Mathf.Max(126, 42 + lineHeight / d + 12);
+            float height = Mathf.Max(190 * d, (ruleHeight > 0 ? ruleTop * d + ruleHeight : 42 * d + lineHeight) + 32 * d);
+            var box = new Rect(x, top - height, width, height);
+
+            float body = Mathf.Min(180 * d, width * .49f), rail = 14 * d;
+            var frame = new Rect(box.center.x - body / 2, top - (1 - Art.GuardianRailY) * body, body, body);
+            var guardian = Rect<Image>(name + " guardian", frame, parent);
+            guardian.sprite = Art.Sprite("boss__idle"); guardian.preserveAspect = true; guardian.raycastTarget = false;
+            var panel = Piece(name, SkinSlots.Dialog, box, parent); panel.raycastTarget = true;
+            var ledge = Rect<Image>(name + " rail", new Rect(box.x - 2 * d, top - rail, width + 4 * d, rail), parent);
+            ledge.sprite = Art.SkinRealm(SkinSlots.Ledge); ledge.type = Image.Type.Sliced; ledge.pixelsPerUnitMultiplier = 1 / Ui;
+            ledge.raycastTarget = false;
+            var paws = Rect<Image>(name + " paws", frame, parent);
+            paws.sprite = Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;
+
+            float tagWidth = Mathf.Max(94 * d, TextWidth(realm.guardianName, 18, Type.Title) + 24 * d);
+            var tag = new Rect(box.x + 12 * d, top + 8 * d - 32 * d, tagWidth, 32 * d);
+            Piece(name + " name tag", SkinSlots.TabSelected, tag, parent);
+            Label(name + " name", realm.guardianName, tag, 18, SkinTokens.TextOnPrimary, parent, Type.Title);
+            float titleX = tag.xMax + 10 * d, titleHeight = TextHeight(realm.guardianTitle.ToUpperInvariant(), box.xMax - titleX - 16 * d, 11, Type.Label);
+            Label(name + " title", realm.guardianTitle.ToUpperInvariant(), new Rect(titleX, Glyph(22, 11) - titleHeight, box.xMax - titleX - 16 * d, titleHeight),
+                11, SkinTokens.TextMuted, parent, Type.Label, TextAlignmentOptions.TopLeft);
+
+            var text = Label(name + " line", "", new Rect(box.x + 20 * d, Glyph(42, TalkLineDp) - lineHeight - 4 * d, inner, lineHeight + 4 * d),
+                TalkLineDp, SkinTokens.Text, parent, Type.Caption, TextAlignmentOptions.TopLeft);
+            text.lineSpacing = LineSpacing(text.font, TalkLeadingDp / TalkLineDp);
+            float headingHeight = TextHeight("EARN", inner, 11, Type.Label);
+            var heading = Label(name + " rule heading", "", new Rect(box.x + 20 * d, Glyph(ruleTop, 11) - headingHeight, inner, headingHeight), 11,
+                SkinTokens.Accent, parent, Type.Label, TextAlignmentOptions.TopLeft);
+            var rule = Label(name + " rule", "", new Rect(box.x + 20 * d, Glyph(ruleTop + 20, 12) - Mathf.Max(1, ruleHeight), inner, Mathf.Max(1, ruleHeight)),
+                12, SkinTokens.Text, parent, Type.Caption, TextAlignmentOptions.TopLeft);
+            var cue = Label(name + " continue", "▼", new Rect(box.xMax - 36 * d, box.y + 8 * d, 20 * d, 20 * d), 10, SkinTokens.Text, parent, Type.Body);
+            float hintHeight = TextHeight(TapHint, width, 12, Type.Caption);
+            Label(name + " hint", TapHint, new Rect(box.x, box.y - 28 * d - hintHeight + HudLayout.DigitTop * 12 * Scale * d, width, hintHeight), 12,
+                SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Top);
+
+            var talk = panel.gameObject.AddComponent<GuardianTalk>();
+            talk.Bind(Art, guardian, text, heading, rule, cue, pages, finished);
+            return talk;
+        }
+        public const string TapHint = "Tap to continue";
+        // The dialogue line is 17 dp on a 24 dp leading, as drawn.
+        public const float TalkLineDp = 17, TalkLeadingDp = 24;
+
         // A round portrait framed by the skin's guardian ring. The guardian's
         // portrait master is painted for the ring's opening, a centred circle
         // 232/320 of the frame, so it is drawn at the ring's size and clipped there.
