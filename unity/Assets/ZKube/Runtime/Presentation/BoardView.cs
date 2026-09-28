@@ -175,7 +175,7 @@ namespace ZKube.Presentation
                     SkinUi.WithAlpha(gold, .28f), hitArea.transform);
                 starHalos[i].enabled = false;
                 stars[i] = ui.Star("Star " + i + " glyph", rect, false, hitArea.transform);
-                starRings[i] = ui.Piece("Star " + i + " ring", SkinSlots.FxRing, rect, hitArea.transform);
+                starRings[i] = ui.Piece("Star " + i + " ring", SkinSlots.FxRingSoft, rect, hitArea.transform);
                 starRings[i].color = gold; starRings[i].enabled = false;
             }
 
@@ -470,8 +470,8 @@ namespace ZKube.Presentation
                 else if (item.Kind == PresentationKind.PerfectClear)
                 {
                     PerfectClear(item.Payload[0] == 1, reducedMotion);
-                    // The perfect clear is the biggest burst on the board.
-                    if (!reducedMotion) Effects.Celebrate(Layout.Board.center, Layout.Cell, art.Token(SkinTokens.Accent), 36, PerfectClearScale);
+                    // The perfect clear bursts over the whole board.
+                    if (!reducedMotion) Effects.Burst(Layout.Board.center, Layout.Cell, art.Token(SkinTokens.Accent), 8 * PerfectClearScale / 2);
                 }
                 else if (item.Kind != PresentationKind.Terminal)
                     throw new InvalidOperationException("Unsupported presentation event " + item.Kind);
@@ -515,46 +515,44 @@ namespace ZKube.Presentation
             }
             foreach (var pair in targets) { pair.Key.transform.position = pair.Value; pair.Key.transform.localScale = scales[pair.Key]; }
         }
-        // Each cleared block swells to 106%, shrinks to 94% and fades by 130 ms while
-        // it breaks; each later clear in one action breaks harder and adds a combo
-        // burst, below the perfect clear. Reduced motion only fades the blocks, over 120 ms.
+        // A completed line sweeps with the key light, then each of its blocks
+        // shatters: a 60 ms white flash on its own shape, then chunks in its width
+        // colour. Each later clear in one action throws more, further, with a
+        // burst over it, below the perfect clear's. Reduced motion only fades the
+        // blocks, over 120 ms.
         public const float PerfectClearScale = 2.6f;
         public static float ComboStrength(int clears) => Mathf.Min(1 + .3f * (clears - 1), PerfectClearScale - .6f);
         private IEnumerator Clear(KeyValuePair<int, SpriteRenderer>[] removed, int clears, uint rows, bool reducedMotion)
         {
             if (removed.Length == 0) yield break;
-            if (!reducedMotion)
+            if (reducedMotion)
             {
-                // Each completed line flashes across the board in the key light
-                // first: the lines the drop completed are the ones that score.
-                for (int row = 0; row < 10; row++)
-                    if ((rows & (1U << row)) != 0)
-                        Effects.LineSweep(new Vector2(Layout.Board.center.x, Layout.Board.y + (row + .5f) * Layout.Cell), Layout.Cell, 8, art.Token(SkinTokens.LightKey));
-                int shards = Effects.ShardsPerBlock(removed.Length);
-                float strength = ComboStrength(clears);
-                foreach (var pair in removed)
-                    Effects.BlockClear(pair.Value.transform.position, DisplayGrid[pair.Key], Layout.Cell, art.Token(SkinTokens.BlockTint(DisplayGrid[pair.Key])),
-                        shards, strength, pair.Key);
-                if (clears >= 2)
+                for (float t = 0; t < .12f; t += Time.unscaledDeltaTime)
                 {
-                    var center = removed.Aggregate(Vector3.zero, (sum, pair) => sum + pair.Value.transform.position) / removed.Length;
-                    Effects.Celebrate(center, Layout.Cell, art.Token(SkinTokens.LightGlow), Mathf.Min(10 + 6 * clears, 28), strength + .3f);
+                    foreach (var pair in removed) pair.Value.color = new Color(1, 1, 1, 1 - t / .12f);
+                    yield return null;
                 }
+                yield break;
             }
-            var scales = removed.ToDictionary(pair => pair.Value, pair => pair.Value.transform.localScale);
-            float duration = reducedMotion ? .12f : .13f;
-            for (float t = 0; t < duration; t += Time.unscaledDeltaTime)
+            for (int row = 0; row < 10; row++)
+                if ((rows & (1U << row)) != 0)
+                    Effects.LineSweep(new Vector2(Layout.Board.center.x, Layout.Board.y + (row + .5f) * Layout.Cell), Layout.Cell, 8, Color.white);
+            float strength = ComboStrength(clears);
+            int allowed = Effects.ChunksPerBlock(removed.Length);
+            foreach (var pair in removed)
             {
-                float grow = reducedMotion ? 1 : t < .06f ? Mathf.Lerp(1, 1.06f, t / .06f) : Mathf.Lerp(1.06f, .94f, (t - .06f) / .07f);
-                float alpha = reducedMotion ? 1 - t / .12f : t < .06f ? 1 : 1 - (t - .06f) / .07f;
-                foreach (var pair in removed)
-                {
-                    pair.Value.transform.localScale = scales[pair.Value] * grow;
-                    pair.Value.color = new Color(1, 1, 1, Mathf.Clamp01(alpha));
-                }
-                yield return null;
+                byte width = DisplayGrid[pair.Key];
+                Effects.Break(pair.Value, width, Layout.Cell, art.Token(SkinTokens.BlockTint(width)),
+                    Mathf.Min(allowed, BoardFx.ChunksFor(width, strength)), strength, pair.Key);
             }
-            foreach (var pair in removed) pair.Value.transform.localScale = scales[pair.Value];
+            if (clears >= 2)
+            {
+                var center = removed.Aggregate(Vector3.zero, (sum, pair) => sum + pair.Value.transform.position) / removed.Length;
+                Effects.Burst(center, Layout.Cell, art.Token(SkinTokens.LightGlow), 3.4f * strength);
+            }
+            // The flash covers the block; it is gone when the flash ends.
+            for (float t = 0; t < BoardFx.FlashSeconds; t += Time.unscaledDeltaTime) yield return null;
+            foreach (var pair in removed) pair.Value.color = Color.clear;
         }
         // A power's removal scores nothing, so it looks nothing like a line
         // clear: no flash, no shards and no burst. Each block lets go of its
@@ -684,6 +682,14 @@ namespace ZKube.Presentation
         public void Terminal(bool completed)
         {
             guardianFinal = true; Face(completed ? "celebrate" : "defeated");
+            if (owner.ReducedMotion) return;
+            var glow = art.Token(SkinTokens.LightGlow);
+            if (completed) GuardianPulse(SkinSlots.FxHalo, glow, .9f, .28f);
+            else
+            {
+                float grey = glow.grayscale;
+                GuardianPulse(SkinSlots.FxDimRipple, Color.Lerp(glow, new Color(grey, grey, grey), .6f), .7f, .22f);
+            }
         }
 
         // The score readout: accepted points count up once their chip reaches it.
@@ -733,6 +739,7 @@ namespace ZKube.Presentation
             if (!earned && combo < 2 && !perfectClear || guardianFinal) return;
             Face("celebrate");
             guardianCheerUntil = Time.unscaledTime + GuardianCheer;
+            if (!owner.ReducedMotion) GuardianPulse(SkinSlots.FxHalo, art.Token(SkinTokens.LightGlow), .9f, .28f);
         }
         // The trail takes 300 ms; the star then scales 0.6, 1.15, 1 over 400 ms
         // with a ring and six sparks.
@@ -745,7 +752,7 @@ namespace ZKube.Presentation
             float d = Layout.Density, size = 18 * d;
             var gold = art.Token(SkinTokens.Accent);
             var trail = ui.Rect<Image>("Star " + index + " trail", new Rect(from.x - size / 2, from.y - size / 2, size, size), canvas.transform);
-            trail.sprite = art.SkinUi(SkinSlots.FxGlow); trail.raycastTarget = false; trail.color = gold;
+            trail.sprite = art.SkinUi(SkinSlots.FxTrail); trail.raycastTarget = false; trail.color = SkinUi.WithAlpha(gold, .65f);
             var origin = star.anchoredPosition;
             star.localScale = Vector3.one * .6f; star.anchoredPosition = origin + star.rect.size * .2f;
             for (float t = 0; t < .3f; t += Time.unscaledDeltaTime)
@@ -756,11 +763,16 @@ namespace ZKube.Presentation
                 yield return null;
             }
             Destroy(trail.gameObject);
+            // The flare blooms behind the star as it ignites.
+            float flare = 48 * d;
+            var bloom = ui.Rect<Image>("Star " + index + " flare", new Rect(to.x - flare / 2, to.y - flare / 2, flare, flare), star.parent);
+            bloom.sprite = art.SkinUi(SkinSlots.FxStarFlare); bloom.raycastTarget = false; bloom.transform.SetSiblingIndex(star.GetSiblingIndex());
             var sparks = new Image[6];
+            string[] kinds = { SkinSlots.FxSpark1, SkinSlots.FxSpark2, SkinSlots.FxSpark3 };
             for (int i = 0; i < 6; i++)
             {
                 sparks[i] = ui.Rect<Image>("Star " + index + " spark", new Rect(to.x - 4 * d, to.y - 4 * d, 8 * d, 8 * d), canvas.transform);
-                sparks[i].sprite = art.SkinUi(SkinSlots.FxSpark); sparks[i].raycastTarget = false; sparks[i].color = gold;
+                sparks[i].sprite = art.SkinUi(kinds[i % 3]); sparks[i].raycastTarget = false; sparks[i].color = gold;
             }
             StartCoroutine(Ring(starRings[index]));
             for (float t = 0; t < .4f && star != null; t += Time.unscaledDeltaTime)
@@ -775,9 +787,11 @@ namespace ZKube.Presentation
                     SkinUi.Place(sparks[i].rectTransform, new Rect(at.x - 4 * d, at.y - 4 * d, 8 * d, 8 * d), canvas.transform);
                     var c = gold; c.a = 1 - k; sparks[i].color = c;
                 }
+                bloom.color = SkinUi.WithAlpha(gold, .8f * Mathf.Sin(Mathf.PI * k));
                 yield return null;
             }
             foreach (var spark in sparks) Destroy(spark.gameObject);
+            Destroy(bloom.gameObject);
             if (star != null) { star.localScale = Vector3.one; star.anchoredPosition = origin; }
         }
         private static IEnumerator Ring(Image ring)
@@ -837,6 +851,12 @@ namespace ZKube.Presentation
             shimmer.color = tint;
         }
 
+        // One pulse of light behind the guardian's head, 192 dp across as drawn.
+        private void GuardianPulse(string slot, Color tint, float seconds, float alpha)
+        {
+            var head = new Vector2(hud.Guardian.center.x, hud.Guardian.y + hud.Guardian.height * .62f);
+            Effects.Behind(slot, head, Layout.Cell, tint, 192 * Layout.Density / Layout.Cell * hud.Guardian.width / (168 * Layout.Density), seconds, alpha);
+        }
         // The guardian rests on the rim: frames only change its face, so its
         // body and paws never move. It blinks every few seconds, cheers for a
         // moment, then returns to its calm face unless the run has ended.

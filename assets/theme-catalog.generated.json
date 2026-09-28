@@ -1827,26 +1827,6 @@
             0,
             0
           ],
-          "image": "/assets/skins/lumen/ui/fx-spark.png",
-          "slot": "fx-spark"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/lumen/ui/fx-shard.png",
-          "slot": "fx-shard"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
           "image": "/assets/skins/lumen/ui/fx-glow.png",
           "slot": "fx-glow"
         },
@@ -1857,8 +1837,148 @@
             0,
             0
           ],
-          "image": "/assets/skins/lumen/ui/fx-ring.png",
-          "slot": "fx-ring"
+          "image": "/assets/skins/lumen/ui/fx-shard-1.png",
+          "slot": "fx-shard-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-shard-2.png",
+          "slot": "fx-shard-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-shard-3.png",
+          "slot": "fx-shard-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-shard-4.png",
+          "slot": "fx-shard-4"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-spark-1.png",
+          "slot": "fx-spark-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-spark-2.png",
+          "slot": "fx-spark-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-spark-3.png",
+          "slot": "fx-spark-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-sweep.png",
+          "slot": "fx-sweep"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-mote.png",
+          "slot": "fx-mote"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-burst.png",
+          "slot": "fx-burst"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-ring-soft.png",
+          "slot": "fx-ring-soft"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-star-flare.png",
+          "slot": "fx-star-flare"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-trail.png",
+          "slot": "fx-trail"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-halo.png",
+          "slot": "fx-halo"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-dim-ripple.png",
+          "slot": "fx-dim-ripple"
         }
       ]
     },
@@ -3217,26 +3337,6 @@
             0,
             0
           ],
-          "image": "/assets/skins/jelly/ui/fx-spark.png",
-          "slot": "fx-spark"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/jelly/ui/fx-shard.png",
-          "slot": "fx-shard"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
           "image": "/assets/skins/jelly/ui/fx-glow.png",
           "slot": "fx-glow"
         },
@@ -3247,8 +3347,148 @@
             0,
             0
           ],
-          "image": "/assets/skins/jelly/ui/fx-ring.png",
-          "slot": "fx-ring"
+          "image": "/assets/skins/jelly/ui/fx-shard-1.png",
+          "slot": "fx-shard-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-shard-2.png",
+          "slot": "fx-shard-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-shard-3.png",
+          "slot": "fx-shard-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-shard-4.png",
+          "slot": "fx-shard-4"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-spark-1.png",
+          "slot": "fx-spark-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-spark-2.png",
+          "slot": "fx-spark-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-spark-3.png",
+          "slot": "fx-spark-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-sweep.png",
+          "slot": "fx-sweep"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-mote.png",
+          "slot": "fx-mote"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-burst.png",
+          "slot": "fx-burst"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-ring-soft.png",
+          "slot": "fx-ring-soft"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-star-flare.png",
+          "slot": "fx-star-flare"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-trail.png",
+          "slot": "fx-trail"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-halo.png",
+          "slot": "fx-halo"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-dim-ripple.png",
+          "slot": "fx-dim-ripple"
         }
       ]
     }

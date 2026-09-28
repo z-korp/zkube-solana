@@ -16,7 +16,7 @@ def skin_slots():
     source = (ROOT / 'crates/zkube-codegen/src/skins.rs').read_text()
     import re
     lists = re.findall(r'UI_(?:STRETCH|FIXED)_SLOTS: \[&str; \d+\] = \[(.*?)\];', source, re.S)
-    return [name for block in lists for name in re.findall(r'"([a-z-]+)"', block)]
+    return [name for block in lists for name in re.findall(r'"([a-z0-9-]+)"', block)]
 
 
 class PortraitImports(unittest.TestCase):

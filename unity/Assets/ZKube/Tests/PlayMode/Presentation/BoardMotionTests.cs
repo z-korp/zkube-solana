@@ -122,33 +122,59 @@ namespace ZKube.Presentation.Tests
         {
             var fx = board.View.Effects;
             var center = (Vector2)board.View.Layout.Board.center; float cell = board.View.Layout.Cell;
-            int per = fx.ShardsPerBlock(80);
+            var block = Blocks().Values.First();
+            int per = fx.ChunksPerBlock(80);
             Assert.Less(per, 6, "Eighty blocks at once share the pool");
-            for (int i = 0; i < 80; i++) fx.BlockClear(center, 1, cell, Color.white, per, 1, i);
+            for (int i = 0; i < 80; i++) fx.Break(block, 1, cell, Color.white, per, 1, i);
             // Even more blocks than the pool can draw leave the reserve untouched.
-            for (int i = 0; i < 40; i++) fx.BlockClear(center, 1, cell, Color.white, BoardFx.MaxShards, 1, i);
+            for (int i = 0; i < 40; i++) fx.Break(block, 1, cell, Color.white, BoardFx.MaxChunks, 1, i);
             Assert.LessOrEqual(fx.Live, BoardFx.PoolSize - BoardFx.CelebrationReserve, "Clears leave the celebration reserve");
             int beforeBurst = fx.Live;
-            fx.Celebrate(center, cell, Color.white, 36, BoardView.PerfectClearScale);
-            Assert.AreEqual(beforeBurst + 38, fx.Live, "A perfect-clear burst still gets its glow, ring and pieces");
+            fx.Burst(center, cell, Color.white, 8 * BoardView.PerfectClearScale / 2);
+            Assert.AreEqual(beforeBurst + 2, fx.Live, "A perfect-clear burst still gets its burst and ring");
             yield return Seconds(1.2f);
             Assert.AreEqual(0, fx.Live);
-            Assert.AreEqual(8, fx.ShardsPerBlock(1), "An empty pool gives one block its full break");
+            Assert.AreEqual(BoardFx.MaxChunks, fx.ChunksPerBlock(1), "An empty pool gives one block its full break");
+        }
+
+        [UnityTest] public IEnumerator ABlockShattersFromItsWholeLengthAndIsGoneBy600Ms()
+        {
+            var fx = board.View.Effects; float cell = board.View.Layout.Cell;
+            var block = Blocks().Values.First();
+            Assert.AreEqual(8, BoardFx.ChunksFor(1, 1)); Assert.AreEqual(12, BoardFx.ChunksFor(4, 1));
+            Assert.Greater(BoardFx.ChunksFor(2, BoardView.ComboStrength(3)), BoardFx.ChunksFor(2, 1), "Combos throw more chunks");
+            fx.Break(block, 4, cell, Color.red, BoardFx.ChunksFor(4, 1), 1, 5);
+            yield return null;
+            var effects = board.View.GetComponentsInChildren<SpriteRenderer>().Where(r => r.name == "Board effect").ToArray();
+            Assert.IsTrue(effects.Any(r => r.sprite == block.sprite && r.sharedMaterial.shader.name == "ZKube/SpriteFlash"),
+                "The block's own shape flashes");
+            yield return Seconds(.1f);
+            var chunks = effects.Where(r => r.gameObject.activeSelf && r.sprite.name.StartsWith("fx-shard-")).ToArray();
+            Assert.AreEqual(12, chunks.Length);
+            float spread = chunks.Max(r => r.transform.position.x) - chunks.Min(r => r.transform.position.x);
+            Assert.Greater(spread, 2.5f * cell, "Chunks come from the whole block, not its centre");
+            foreach (var chunk in chunks)
+            {
+                Assert.AreEqual(Color.red.r, chunk.color.r, "Chunks take the block's width colour");
+                Assert.That(chunk.transform.localScale.y * chunk.sprite.bounds.size.y / cell, Is.InRange(.3f, .46f), "Chunks are 35-45% of a cell");
+            }
+            yield return Seconds(.55f);
+            Assert.AreEqual(0, fx.Live, "Every piece is gone by 600 ms");
         }
 
         [UnityTest] public IEnumerator ShardsReadAtArmsLengthAndCombosBreakHarderBelowThePerfectClear()
         {
             var fx = board.View.Effects;
-            var center = (Vector2)board.View.Layout.Board.center; float cell = board.View.Layout.Cell;
-            fx.BlockClear(center, 1, cell, Color.red, 8, 1, 0);
+            float cell = board.View.Layout.Cell;
+            fx.Break(Blocks().Values.First(), 1, cell, Color.red, BoardFx.ChunksFor(1, 1), 1, 0);
             yield return Seconds(.06f);
-            var shards = board.View.GetComponentsInChildren<SpriteRenderer>().Where(r => r.name == "Board effect" && r.sprite.name.Replace("(Clone)", "") == "fx-shard").ToArray();
-            Assert.AreEqual(8, shards.Length, "A single cleared block throws eight shards");
+            var shards = board.View.GetComponentsInChildren<SpriteRenderer>().Where(r => r.name == "Board effect" && r.sprite.name.StartsWith("fx-shard-")).ToArray();
+            Assert.AreEqual(8, shards.Length, "A single cleared block throws eight chunks");
             foreach (var shard in shards)
             {
                 // The drawn sprite's own size, whatever its spin.
                 float size = shard.transform.localScale.y * shard.sprite.bounds.size.y / cell;
-                Assert.That(size, Is.InRange(.28f, .5f), "A shard is about a third of a cell");
+                Assert.That(size, Is.InRange(.3f, .46f), "A chunk is 35-45% of a cell");
                 Assert.AreEqual(Color.red.r, shard.color.r, .01f, "Shards take the block's colour");
             }
             for (int clears = 1; clears < 6; clears++) Assert.Less(BoardView.ComboStrength(clears), BoardView.ComboStrength(clears + 1) + 1e-4f);

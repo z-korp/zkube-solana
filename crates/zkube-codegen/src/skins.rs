@@ -31,7 +31,7 @@ pub const UI_STRETCH_SLOTS: [&str; 19] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 33] = [
+pub const UI_FIXED_SLOTS: [&str; 45] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -62,10 +62,28 @@ pub const UI_FIXED_SLOTS: [&str; 33] = [
     "icon-lock",
     "icon-trophy",
     // Effect sprites are white with variable alpha; the client tints them.
-    "fx-spark",
-    "fx-shard",
+    // fx-glow is the light code places behind live and earned things.
     "fx-glow",
-    "fx-ring",
+    // A broken block's chunks, tinted by its width colour, and white sparks.
+    "fx-shard-1",
+    "fx-shard-2",
+    "fx-shard-3",
+    "fx-shard-4",
+    "fx-spark-1",
+    "fx-spark-2",
+    "fx-spark-3",
+    // A completed line's sweep and the motes it releases.
+    "fx-sweep",
+    "fx-mote",
+    // Combo and perfect-clear bursts, the soft ring, and an earned star's
+    // flare and trail.
+    "fx-burst",
+    "fx-ring-soft",
+    "fx-star-flare",
+    "fx-trail",
+    // The guardian's celebration halo and its defeat ripple.
+    "fx-halo",
+    "fx-dim-ripple",
 ];
 
 /// Blocks are coloured by width, so each realm draws one block per width.
