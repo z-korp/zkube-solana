@@ -386,12 +386,13 @@ namespace ZKube.Presentation
             }
         }
 
-        public void Ghost(int row, int start, int width, float screenX)
+        // The ghost follows the pointer inside the empty run [minStart, maxStart].
+        public void Ghost(int row, int start, int width, float screenX, int minStart, int maxStart)
         {
             if (ghost == null) ghost = NewSprite("Unaccepted drag preview", BlockSprite((byte)width), 6);
             PositionBlock(ghost, row, start, width);
             var position = ghost.transform.position;
-            position.x = Mathf.Clamp(screenX, Layout.Board.x + width * Layout.Cell / 2, Layout.Board.xMax - width * Layout.Cell / 2);
+            position.x = Mathf.Clamp(screenX, Layout.CellCenter(row, minStart, width).x, Layout.CellCenter(row, maxStart, width).x);
             ghost.transform.position = position; ghost.color = new Color(1, 1, 1, .55f);
         }
         public void ClearGhost() { if (ghost != null) Destroy(ghost.gameObject); ghost = null; }

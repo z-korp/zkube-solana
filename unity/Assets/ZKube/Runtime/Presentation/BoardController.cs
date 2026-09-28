@@ -30,7 +30,7 @@ namespace ZKube.Presentation
         public double MusicVolume => AudioSettings.MusicVolume;
         public double EffectsVolume => AudioSettings.EffectsVolume;
         private bool paused, busy, guardianSelected, recoveryRequired, recoveryUnavailable;
-        private int activePointer = int.MinValue, dragRow, dragStart, dragWidth;
+        private int activePointer = int.MinValue, dragRow, dragStart, dragWidth, dragMin, dragMax;
         private Vector2 down;
         private float grabOffset;
         private byte[] dragGrid;
@@ -226,8 +226,13 @@ namespace ZKube.Presentation
                 {
                     activePointer = pointer; down = position; dragRow = row; dragStart = start; dragWidth = width;
                     dragGrid = (byte[])View.DisplayGrid.Clone();
+                    // A block slides only through the empty run of cells beside it:
+                    // it stops against its neighbours instead of passing through them.
+                    dragMin = start; dragMax = start;
+                    while (dragMin > 0 && dragGrid[row * 8 + dragMin - 1] == 0) dragMin--;
+                    while (dragMax + width < 8 && dragGrid[row * 8 + dragMax + width] == 0) dragMax++;
                     grabOffset = position.x - View.Layout.CellCenter(row, start, width).x;
-                    View.Ghost(row, start, width, position.x - grabOffset); return;
+                    View.Ghost(row, start, width, position.x - grabOffset, dragMin, dragMax); return;
                 }
                 start += width;
             }
@@ -235,16 +240,15 @@ namespace ZKube.Presentation
         public void Drag(int pointer, Vector2 position)
         {
             if (pointer != activePointer) return;
-            View.Ghost(dragRow, dragStart, dragWidth, position.x - grabOffset);
+            View.Ghost(dragRow, dragStart, dragWidth, position.x - grabOffset, dragMin, dragMax);
         }
         public void EndDrag(int pointer, Vector2 position)
         {
             if (pointer != activePointer) return;
-            int destination = Mathf.RoundToInt((position.x - grabOffset - View.Layout.Board.x) / View.Layout.Cell - dragWidth / 2f);
+            int destination = Mathf.Clamp(Mathf.RoundToInt((position.x - grabOffset - View.Layout.Board.x) / View.Layout.Cell - dragWidth / 2f), dragMin, dragMax);
             var snapshot = dragGrid;
             CancelDrag();
             if (Mathf.Abs(position.x - down.x) < 8 * View.Layout.Density || destination == dragStart) return;
-            if (destination < 0 || destination + dragWidth > 8) { View.Status(BoardNotices.Text(BoardNotice.Outside)); return; }
             var action = new BoardAction(BoardActionKind.Move, (byte)dragRow, (byte)dragStart, (byte)destination);
             if (busy) { queued = action; queuedGrid = snapshot; View.Status(BoardNotices.Text(BoardNotice.Queued)); }
             else Submit(action);

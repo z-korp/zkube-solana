@@ -233,6 +233,42 @@ namespace ZKube.Presentation.Tests
             public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
                 => inner.ResolveVrf(accepted, cancellation);
         }
+        private sealed class RecordingAction : IBoardActionProvider
+        {
+            private readonly IBoardActionProvider inner;
+            public readonly System.Collections.Generic.List<BoardAction> Submitted = new System.Collections.Generic.List<BoardAction>();
+            public RecordingAction(IBoardActionProvider inner) { this.inner = inner; }
+            public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+            { Submitted.Add(action); return inner.Submit(accepted, action, cancellation); }
+            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+                => inner.ResolveVrf(accepted, cancellation);
+        }
+        [UnityTest] public IEnumerator ADraggedBlockStopsAgainstItsNeighbourInsteadOfPassingThrough()
+        {
+            yield return Load("realm-8-daily");
+            var recording = new RecordingAction(board.Session.Actions);
+            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, recording, "Balam Daily", board.Session.RealmId));
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var grid = board.State.Grid;
+            // Find a block with a free run on its right that ends at another block.
+            int row = -1, start = -1, width = 0, stop = -1;
+            for (int r = 0; r < 10 && row < 0; r++)
+                for (int c = 0; c < 8;)
+                {
+                    int w = grid[r * 8 + c]; if (w == 0) { c++; continue; }
+                    int end = c;
+                    while (end + w < 8 && grid[r * 8 + end + w] == 0) end++;
+                    if (end > c && end + w < 8) { row = r; start = c; width = w; stop = end; break; }
+                    c += w;
+                }
+            Assume.That(row, Is.GreaterThanOrEqualTo(0), "The fixture needs a block with a gap before a neighbour");
+            var from = board.View.Layout.CellCenter(row, start, width);
+            var beyond = new Vector2(board.View.Layout.Board.xMax - 1, from.y);
+            yield return evidence.Drag(from, beyond);
+            yield return Wait(() => !board.Busy);
+            Assert.AreEqual(1, recording.Submitted.Count);
+            Assert.AreEqual(stop, recording.Submitted[0].Destination, "The drop lands in the last free cell before the neighbour");
+        }
         [UnityTest] public IEnumerator ChangedBoardDiscardsTheDragQueuedBeforeAcceptance()
         {
             yield return Load("realm-8-daily"); yield return evidence.PlayNextInput();

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ZKube.Presentation
 {
-    public enum BoardNotice { Waiting, Outside, Queued, Totem, Wave, Hammer, Pending, WaitingRow, Accepted, Changed, Unavailable, Recover, Recovering }
+    public enum BoardNotice { Waiting, Queued, Totem, Wave, Hammer, Pending, WaitingRow, Accepted, Changed, Unavailable, Recover, Recovering }
     // Status copy has one source so the typography pass can reserve every
     // message before play; pending feedback never needs to rebuild the board.
     public static class BoardNotices
@@ -13,7 +13,6 @@ namespace ZKube.Presentation
             switch (notice)
             {
                 case BoardNotice.Waiting: return "Waiting for a run";
-                case BoardNotice.Outside: return "Keep the block inside the board";
                 case BoardNotice.Queued: return "Swipe queued";
                 case BoardNotice.Totem: return "Tap a block to choose its size";
                 case BoardNotice.Wave: return "Tap a row for Wave";
