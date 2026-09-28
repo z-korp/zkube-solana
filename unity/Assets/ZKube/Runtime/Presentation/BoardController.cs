@@ -462,7 +462,7 @@ namespace ZKube.Presentation
             var rules = session.Rules;
             if (session.Daily)
                 return "Score " + state.DailyScore
-                    + (rules.ObjectiveKind == 0 ? "" : "\n" + BoardView.ObjectiveName(rules.ObjectiveKind, rules.ObjectiveValue) + " · " + state.ObjectiveTotal)
+                    + (rules.ObjectiveKind == 0 ? "" : "\n" + HudLayout.PrimaryCaptionText(session) + " · " + state.ObjectiveTotal)
                     + "\n" + state.Moves + " moves";
             string Star(int source) => (state.LatchedStarSources & (1 << source)) != 0 ? "★ " : "☆ ";
             return "Score " + state.Score + "\n" + Star(0) + ScoreGoal(rules) + "\n" + Star(1) + HudLayout.PrimaryCaptionText(session) + " · "
@@ -475,8 +475,7 @@ namespace ZKube.Presentation
             paused = true;
             var rules = Session.Rules;
             // The dialog names the goal in its own words, never the internal source name.
-            string title = source == 0 ? "SCORE" : source == 1 ? BoardView.ObjectiveName(rules.PrimaryKind, rules.PrimaryValue)
-                : BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue);
+            string title = source == 0 ? "SCORE" : source == 1 ? HudLayout.PrimaryCaptionText(Session) : HudLayout.SecondaryCaptionText(Session);
             bool earned = (State.LatchedStarSources & (1 << source)) != 0;
             string detail = source == 0 ? ScoreGoal(rules)
                 : source == 1 ? State.PrimaryProgress + " / " + rules.PrimaryCount : earned ? "Earned" : "Not earned yet";

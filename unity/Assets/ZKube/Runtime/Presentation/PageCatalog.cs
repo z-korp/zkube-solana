@@ -12,13 +12,14 @@ namespace ZKube.Presentation
         public RealmPage[] themes;
         public DailyTheme[] dailyThemes;
         public GuardianRule[] guardianRules;
-        public ConstraintName[] constraintNames;
+        public ConstraintCaption[] constraintCaptions;
         public SkinEntry[] skins;
         private static PageCatalog cached;
         [Serializable] public sealed class SkinEntry { public string id, name; public Swatch[] tokens; public UiSlot[] ui; public SkinRealm[] realms; }
         [Serializable] public sealed class UiSlot { public string slot, image; public int[] border; }
         [Serializable] public sealed class SkinRealm { public byte realmId; }
-        [Serializable] public sealed class ConstraintName { public byte kind; public string name, any; }
+        // Every goal the product shows, rendered by codegen in sentence case.
+        [Serializable] public sealed class ConstraintCaption { public byte kind, value, count; public string text; }
         [Serializable] public sealed class GuardianRule
         {
             public byte bonus, trigger;
@@ -54,11 +55,12 @@ namespace ZKube.Presentation
             try { var value = JsonUtility.FromJson<PageCatalog>(asset.text); value.Validate(); return cached = value; }
             finally { Resources.UnloadAsset(asset); }
         }
-        public string ObjectiveName(byte kind, byte value)
-        {
-            var caption = constraintNames.Single(entry => entry.kind == kind);
-            return value == 0 && !string.IsNullOrEmpty(caption.any) ? caption.any : string.Format(CultureInfo.InvariantCulture, caption.name, value);
-        }
+        // A Daily objective has no count; a Campaign goal passes its authored count.
+        // Codegen stores wording that does not change with the count at count zero.
+        public string ObjectiveName(byte kind, byte value, byte count = 0) =>
+            (constraintCaptions.SingleOrDefault(entry => entry.kind == kind && entry.value == value && entry.count == count)
+             ?? constraintCaptions.SingleOrDefault(entry => entry.kind == kind && entry.value == value && entry.count == 0)
+             ?? throw new FormatException("No generated caption for constraint kind " + kind + " value " + value + " count " + count)).text;
         public RealmPage Realm(byte id) => themes.Single(value => value.realmId == id);
         // The first listed skin is the default; the generator guarantees every slot exists.
         public SkinEntry DefaultSkin => skins != null && skins.Length > 0 ? skins[0] : null;
@@ -89,9 +91,9 @@ namespace ZKube.Presentation
             foreach (var pair in ZKube.Core.Generated.Protocol.DailyThemes)
                 if (dailyThemes.Count(theme => theme.kind == pair[0] && theme.value == pair[1] && !string.IsNullOrEmpty(theme.description)) != 1)
                     throw new FormatException("Imported Daily label disagrees with the published objective set");
-            if (constraintNames == null || constraintNames.Any(value => string.IsNullOrEmpty(value.name)) ||
-                constraintNames.Select(value => value.kind).Distinct().Count() != constraintNames.Length ||
-                dailyThemes.Any(value => !constraintNames.Any(name => name.kind == value.kind)))
+            if (constraintCaptions == null || constraintCaptions.Any(value => string.IsNullOrEmpty(value.text)) ||
+                constraintCaptions.Select(value => (value.kind, value.value, value.count)).Distinct().Count() != constraintCaptions.Length ||
+                dailyThemes.Any(value => !constraintCaptions.Any(name => name.kind == value.kind && name.value == value.value && name.count == 0)))
                 throw new FormatException("Generated constraint names are incomplete");
             if (guardianRules == null) throw new FormatException("Generated guardian descriptions are missing");
             if (skins == null) throw new FormatException("Regenerate the catalog with its skin list");

@@ -2,101 +2,312 @@
   "commonImages": {
     "totem": "/assets/common/bonus/tiki.png"
   },
-  "constraintNames": [
+  "constraintCaptions": [
     {
-      "any": null,
+      "count": 0,
       "kind": 0,
-      "name": "CLASSIC"
+      "text": "Classic",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 1,
-      "name": "COMBO ≥ {0}"
+      "text": "Moves clearing 2+ lines",
+      "value": 2
     },
     {
-      "any": "BREAK BLOCKS",
+      "count": 0,
+      "kind": 1,
+      "text": "Moves clearing 3+ lines",
+      "value": 3
+    },
+    {
+      "count": 0,
       "kind": 2,
-      "name": "BREAK SIZE {0}"
+      "text": "Clear blocks",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
+      "kind": 2,
+      "text": "Clear size-1 blocks",
+      "value": 1
+    },
+    {
+      "count": 0,
+      "kind": 2,
+      "text": "Clear size-2 blocks",
+      "value": 2
+    },
+    {
+      "count": 0,
+      "kind": 2,
+      "text": "Clear size-3 blocks",
+      "value": 3
+    },
+    {
+      "count": 0,
+      "kind": 2,
+      "text": "Clear size-4 blocks",
+      "value": 4
+    },
+    {
+      "count": 0,
       "kind": 3,
-      "name": "CLEAR LINES"
+      "text": "Clear lines",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 4,
-      "name": "EXACT {0} LINES"
+      "text": "Moves clearing exactly 2 lines",
+      "value": 2
     },
     {
-      "any": null,
+      "count": 0,
+      "kind": 4,
+      "text": "Moves clearing exactly 3 lines",
+      "value": 3
+    },
+    {
+      "count": 0,
       "kind": 5,
-      "name": "SCORE ≥ {0}"
+      "text": "Moves scoring at least 10 points",
+      "value": 10
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 6,
-      "name": "GUARDIAN TRIGGERS"
+      "text": "Trigger the guardian",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 7,
-      "name": "BONUS LINES"
+      "text": "Clear lines with a bonus",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 8,
-      "name": "BONUS BLOCKS"
+      "text": "Clear blocks with a bonus",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 9,
-      "name": "COMBO ≥ {0}"
+      "text": "Clear 2+ lines in one move",
+      "value": 2
     },
     {
-      "any": null,
+      "count": 0,
+      "kind": 9,
+      "text": "Clear 3+ lines in one move",
+      "value": 3
+    },
+    {
+      "count": 0,
+      "kind": 9,
+      "text": "Clear 4+ lines in one move",
+      "value": 4
+    },
+    {
+      "count": 0,
       "kind": 10,
-      "name": "CLEAR {0} LINES AT ONCE"
+      "text": "Clear exactly 2 lines in one move",
+      "value": 2
     },
     {
-      "any": null,
+      "count": 0,
+      "kind": 10,
+      "text": "Clear exactly 3 lines in one move",
+      "value": 3
+    },
+    {
+      "count": 0,
+      "kind": 10,
+      "text": "Clear exactly 4 lines in one move",
+      "value": 4
+    },
+    {
+      "count": 3,
       "kind": 11,
-      "name": "CLEAR {0} LINES IN CONSECUTIVE MOVES"
+      "text": "Clear a line on 3 moves in a row",
+      "value": 1
     },
     {
-      "any": null,
+      "count": 5,
+      "kind": 11,
+      "text": "Clear a line on 5 moves in a row",
+      "value": 1
+    },
+    {
+      "count": 2,
+      "kind": 11,
+      "text": "Clear 2+ lines on 2 moves in a row",
+      "value": 2
+    },
+    {
+      "count": 14,
       "kind": 12,
-      "name": "BREAK SIZE {0} IN ONE ACTION"
+      "text": "Clear 14 blocks in one move",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 3,
+      "kind": 12,
+      "text": "Clear 3 size-1 blocks in one move",
+      "value": 1
+    },
+    {
+      "count": 5,
+      "kind": 12,
+      "text": "Clear 5 size-1 blocks in one move",
+      "value": 1
+    },
+    {
+      "count": 6,
+      "kind": 12,
+      "text": "Clear 6 size-1 blocks in one move",
+      "value": 1
+    },
+    {
+      "count": 8,
+      "kind": 12,
+      "text": "Clear 8 size-1 blocks in one move",
+      "value": 1
+    },
+    {
+      "count": 3,
+      "kind": 12,
+      "text": "Clear 3 size-2 blocks in one move",
+      "value": 2
+    },
+    {
+      "count": 4,
+      "kind": 12,
+      "text": "Clear 4 size-2 blocks in one move",
+      "value": 2
+    },
+    {
+      "count": 6,
+      "kind": 12,
+      "text": "Clear 6 size-2 blocks in one move",
+      "value": 2
+    },
+    {
+      "count": 2,
+      "kind": 12,
+      "text": "Clear 2 size-3 blocks in one move",
+      "value": 3
+    },
+    {
+      "count": 3,
+      "kind": 12,
+      "text": "Clear 3 size-3 blocks in one move",
+      "value": 3
+    },
+    {
+      "count": 4,
+      "kind": 12,
+      "text": "Clear 4 size-3 blocks in one move",
+      "value": 3
+    },
+    {
+      "count": 3,
+      "kind": 12,
+      "text": "Clear 3 size-4 blocks in one move",
+      "value": 4
+    },
+    {
+      "count": 4,
+      "kind": 12,
+      "text": "Clear 4 size-4 blocks in one move",
+      "value": 4
+    },
+    {
+      "count": 0,
       "kind": 13,
-      "name": "BREAK EVERY WIDTH AT ONCE"
+      "text": "Clear every block size in one move",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 14,
-      "name": "MAKE A {0}-POINT MOVE"
+      "text": "Score at least 6 points in one move",
+      "value": 6
     },
     {
-      "any": null,
+      "count": 0,
+      "kind": 14,
+      "text": "Score at least 8 points in one move",
+      "value": 8
+    },
+    {
+      "count": 0,
+      "kind": 14,
+      "text": "Score at least 10 points in one move",
+      "value": 10
+    },
+    {
+      "count": 0,
+      "kind": 14,
+      "text": "Score at least 12 points in one move",
+      "value": 12
+    },
+    {
+      "count": 0,
+      "kind": 14,
+      "text": "Score at least 15 points in one move",
+      "value": 15
+    },
+    {
+      "count": 0,
       "kind": 15,
-      "name": "CLEAR {0} LINES WITH ONE BONUS"
+      "text": "Clear a line with one bonus",
+      "value": 1
     },
     {
-      "any": null,
+      "count": 0,
+      "kind": 15,
+      "text": "Clear 2+ lines with one bonus",
+      "value": 2
+    },
+    {
+      "count": 0,
       "kind": 16,
-      "name": "EMPTY THE BOARD"
+      "text": "Empty the board",
+      "value": 0
     },
     {
-      "any": null,
+      "count": 0,
       "kind": 17,
-      "name": "CLUTCH ≥ {0}"
+      "text": "Clears with the stack at least 6 rows high",
+      "value": 6
     },
     {
-      "any": null,
+      "count": 0,
+      "kind": 17,
+      "text": "Clears with the stack at least 7 rows high",
+      "value": 7
+    },
+    {
+      "count": 0,
+      "kind": 17,
+      "text": "Clears with the stack at least 8 rows high",
+      "value": 8
+    },
+    {
+      "count": 0,
       "kind": 18,
-      "name": "CLEAN ≤ {0}"
+      "text": "Clears leaving 3 rows or fewer",
+      "value": 3
+    },
+    {
+      "count": 0,
+      "kind": 18,
+      "text": "Clears leaving 4 rows or fewer",
+      "value": 4
     }
   ],
   "dailyThemes": [

@@ -103,8 +103,8 @@ namespace ZKube.Integration.Presentation
             var level = realm.Levels[browseLevel - 1]; var rules = level.Rules;
             return new LevelPageView { Realm = browseRealm, Level = browseLevel, Stars = level.Stars,
                 Moves = rules.MaxMoves, Score = rules.PointsRequired + " points",
-                Primary = BoardView.ObjectiveName(rules.PrimaryKind, rules.PrimaryValue) + " · " + rules.PrimaryCount,
-                Secondary = BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue) + " · " + rules.SecondaryCount,
+                Primary = BoardView.ObjectiveName(rules.PrimaryKind, rules.PrimaryValue, rules.PrimaryCount) + " · " + rules.PrimaryCount,
+                Secondary = BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount) + " · " + rules.SecondaryCount,
                 Notice = level.SavedRules ? "Rules of your saved run" : null,
                 Play = state.Run != null ? PageAction("Resume run", () => _ = ResumeCampaignRun(), () => CanBrowse() && boardHost != null) :
                     PageAction("Play", () => _ = StartSelectedTrial(), () => CanBrowse() && boardHost != null && realm.Unlocked && level.CanInspect),

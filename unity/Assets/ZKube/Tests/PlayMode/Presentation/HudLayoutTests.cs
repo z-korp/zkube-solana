@@ -182,7 +182,7 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(standardSize * 1.3f, Label("Score").fontSize, .01f);
             Assert.AreEqual(board.State.DailyScore.ToString(), Label("Score").text);
             Assert.AreEqual(board.State.ObjectiveTotal.ToString(), Label("Theme").text);
-            Assert.AreEqual("GUARDIAN TRIGGERS", Label("Theme label").text);
+            Assert.AreEqual("TRIGGER THE GUARDIAN", Label("Theme label").text);
             foreach (string name in new[] { "Score", "Score label", "Theme", "Theme label", "Guardian earning label", "Guardian earning rule" }) Fits(Label(name));
             Assert.Greater(board.View.Layout.Cell, 0);
             var layout = board.View.Layout;
@@ -215,7 +215,7 @@ namespace ZKube.Presentation.Tests
             evidence.Load("display-long-campaign-constraint"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             board.SetTextScale(1.3f); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Star 2"); yield return null;
-            StringAssert.Contains("IN CONSECUTIVE MOVES", Label("Dialog title").text);
+            StringAssert.Contains("MOVES IN A ROW", Label("Dialog title").text);
             Assert.AreEqual("Not earned yet", Label("Dialog details").text);
             Fits(Label("Dialog title")); Fits(Label("Dialog details"));
             evidence.Click("Dialog Back to the board"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));

@@ -120,28 +120,6 @@ fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
         "description": description, "sentence": format!("{condition} a {name}.")})
 }
 
-const CONSTRAINT_NAMES: [&str; 19] = [
-    "CLASSIC",
-    "COMBO ≥ {0}",
-    "BREAK SIZE {0}",
-    "CLEAR LINES",
-    "EXACT {0} LINES",
-    "SCORE ≥ {0}",
-    "GUARDIAN TRIGGERS",
-    "BONUS LINES",
-    "BONUS BLOCKS",
-    "COMBO ≥ {0}",
-    "CLEAR {0} LINES AT ONCE",
-    "CLEAR {0} LINES IN CONSECUTIVE MOVES",
-    "BREAK SIZE {0} IN ONE ACTION",
-    "BREAK EVERY WIDTH AT ONCE",
-    "MAKE A {0}-POINT MOVE",
-    "CLEAR {0} LINES WITH ONE BONUS",
-    "EMPTY THE BOARD",
-    "CLUTCH ≥ {0}",
-    "CLEAN ≤ {0}",
-];
-
 fn objective(kind: u8, value: u8) -> Value {
     let description = match kind {
         0 => "No Theme today — the whole pot pays Score".into(),
@@ -179,8 +157,7 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
     let output = json!({
         "schema": 1,
         "themes": realms.iter().map(theme).collect::<Vec<_>>(),
-        "constraintNames": CONSTRAINT_NAMES.iter().enumerate().map(|(kind, name)|
-            json!({"kind": kind, "name": name, "any": (kind == 2).then_some("BREAK BLOCKS")})).collect::<Vec<_>>(),
+        "constraintCaptions": super::captions::render(catalog)?,
         "guardianRules": catalog.maps.iter().map(|map| guardian(map.rules)).collect::<Vec<_>>(),
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
             objective(theme.kind.tag(), theme.value)).collect::<Vec<_>>(),

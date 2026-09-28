@@ -259,7 +259,8 @@ pub fn csharp() -> String {
             pascal(token)
         );
     }
-    out += "        public static string BlockTint(int width) => \"block-tint-\" + width;\n    }\n}\n";
+    out +=
+        "        public static string BlockTint(int width) => \"block-tint-\" + width;\n    }\n}\n";
     out
 }
 
@@ -333,7 +334,10 @@ mod tests {
         assert!(source.contains("ButtonPrimaryPressed = \"button-primary-pressed\""));
         assert!(source.contains("TextOnPrimary = \"text-on-primary\""));
         for width in 1..=BLOCK_WIDTHS {
-            assert!(TOKENS.contains(&format!("block-tint-{width}").as_str()), "{width}");
+            assert!(
+                TOKENS.contains(&format!("block-tint-{width}").as_str()),
+                "{width}"
+            );
         }
     }
 

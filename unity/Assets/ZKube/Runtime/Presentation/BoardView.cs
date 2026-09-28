@@ -220,10 +220,11 @@ namespace ZKube.Presentation
             var scoreChip = scoreGain > 0 ? CueText("Accepted score chip", "+" + scoreGain, SkinTokens.Score, 26) : null;
             // The objective's gain names the day's goal in the goal card's own words.
             var themeChip = themeGain > 0 ? CueText("Accepted theme chip", "+" + themeGain + " " + HudLayout.PrimaryCaptionText(owner.Session), SkinTokens.Objective, 16) : null;
-            // Long accepted amounts get measured full-width rows, preserving
-            // the requested font size instead of spilling into another cue.
-            bool stacked = new[] { scoreChip, themeChip }.Any(t => t != null &&
-                t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x + 4 * d > lane);
+            // A chip whose words fit its lane wraps inside it; one with a word too
+            // long for the lane (a huge amount) gets a measured full-width row,
+            // preserving the requested font size instead of spilling into another cue.
+            bool stacked = new[] { scoreChip, themeChip }.Any(t => t != null && t.text.Split(' ').Any(word =>
+                t.GetPreferredValues(word, float.PositiveInfinity, float.PositiveInfinity).x + 4 * d > lane));
             if (scoreChip != null)
             {
                 PlaceCue(scoreChip, Layout.Board.x + 4 * d, y, stacked ? width : lane);
@@ -323,7 +324,7 @@ namespace ZKube.Presentation
             }
             Destroy(label.gameObject);
         }
-        public static string ObjectiveName(byte kind, byte value) => PageCatalog.Load().ObjectiveName(kind, value);
+        public static string ObjectiveName(byte kind, byte value, byte count = 0) => PageCatalog.Load().ObjectiveName(kind, value, count);
 
         public void SetBoard(byte[] grid)
         {

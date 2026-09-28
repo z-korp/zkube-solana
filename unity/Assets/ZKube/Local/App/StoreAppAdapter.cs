@@ -159,8 +159,8 @@ namespace ZKube.Local.App
                 Stars = Flow.Product.Read.Stars[(Flow.Realm - 1) * Protocol.CampaignTargets.Length + Flow.Level - 1],
                 Moves = NativeEngine.CampaignMoveBudget(Flow.Level, level.Tier),
                 Score = Protocol.CampaignTargets[Flow.Level - 1] + " points",
-                Primary = BoardView.ObjectiveName(level.Primary[0], level.Primary[1]) + " · " + level.Primary[2],
-                Secondary = BoardView.ObjectiveName(level.Secondary[0], level.Secondary[1]) + " · " + level.Secondary[2],
+                Primary = BoardView.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2]) + " · " + level.Primary[2],
+                Secondary = BoardView.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2]) + " · " + level.Secondary[2],
                 Play = Action(Flow.Runs.Active("campaign") == null ? "Play" : "Resume run", Flow.PlayCampaign),
                 Back = Action("Back to map", () => Flow.Show(StorePage.Campaign)) };
         }

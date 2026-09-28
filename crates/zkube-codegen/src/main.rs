@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod art_catalog;
+mod captions;
 mod native_client;
 mod native_fixtures;
 mod skins;

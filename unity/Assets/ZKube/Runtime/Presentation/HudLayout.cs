@@ -48,13 +48,14 @@ namespace ZKube.Presentation
         // Daily pressure, as what it does for the player: the points multiplier.
         public static string PressureText(RunSummary state) =>
             "POINTS ×" + (Protocol.PressureMultiplierPercent(state.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        public static string PrimaryCaptionText(BoardSession session) => session.Daily
+        // Goal captions come from the catalog in sentence case; the HUD shows them in capitals.
+        public static string PrimaryCaptionText(BoardSession session) => (session.Daily
             ? BoardView.ObjectiveName(session.Rules.ObjectiveKind, session.Rules.ObjectiveValue)
-            : BoardView.ObjectiveName(session.Rules.PrimaryKind, session.Rules.PrimaryValue);
+            : BoardView.ObjectiveName(session.Rules.PrimaryKind, session.Rules.PrimaryValue, session.Rules.PrimaryCount)).ToUpperInvariant();
         public static string PrimaryText(RunSummary state, BoardSession session) => session.Daily
             ? state.ObjectiveTotal.ToString() : state.PrimaryProgress + " / " + session.Rules.PrimaryCount;
         public static string SecondaryCaptionText(BoardSession session) =>
-            BoardView.ObjectiveName(session.Rules.SecondaryKind, session.Rules.SecondaryValue);
+            BoardView.ObjectiveName(session.Rules.SecondaryKind, session.Rules.SecondaryValue, session.Rules.SecondaryCount).ToUpperInvariant();
         public static string GuardianCaption(byte bonus) => "EARN " + (bonus == 1 ? "HAMMER" : bonus == 3 ? "WAVE" : "TOTEM");
 
         public static HudLayout Build(SkinUi ui, RunSummary state, BoardSession session, Rect safe, float density)
@@ -129,7 +130,7 @@ namespace ZKube.Presentation
             {
                 float half = (w - 3 * gap) / 2;
                 var first = Measure(primaryCaption, primary, half);
-                var second = Measure(session == null ? "CLEAR 3 LINES AT ONCE" : SecondaryCaptionText(session), null, half);
+                var second = Measure(session == null ? "CLEAR 3+ LINES IN ONE MOVE" : SecondaryCaptionText(session), null, half);
                 // Both cards share the taller height so they line up.
                 cards = Mathf.Max(first.h, second.h);
                 Place(first, x + gap, half, cards, out result.PrimaryPlate, out result.PrimaryCaption, out result.PrimaryValue);

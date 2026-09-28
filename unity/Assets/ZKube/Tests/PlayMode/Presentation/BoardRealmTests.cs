@@ -61,10 +61,10 @@ namespace ZKube.Presentation.Tests
         {
             var catalog = PageCatalog.Load();
             Assert.AreSame(catalog, PageCatalog.Load(), "Pages and board share the parsed catalog");
-            foreach (var caption in catalog.constraintNames)
+            foreach (var caption in catalog.constraintCaptions)
             {
-                StringAssert.DoesNotContain("{", catalog.ObjectiveName(caption.kind, 3));
-                Assert.That(catalog.ObjectiveName(caption.kind, 0), Is.Not.Empty);
+                StringAssert.DoesNotContain("{", catalog.ObjectiveName(caption.kind, caption.value, caption.count));
+                Assert.That(catalog.ObjectiveName(caption.kind, caption.value, caption.count), Is.Not.Empty);
             }
             var themes = catalog.themes;
             TMP_FontAsset font = null;
