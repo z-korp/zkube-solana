@@ -25,6 +25,16 @@ namespace ZKube.Editor.Tests
         [TearDown]
         public void TearDown() => Environment.SetEnvironmentVariable("ZKUBE_UNITY_IDENTITY", previousIdentity);
 
+        // The art is authored and approved as composites blended in sRGB, so the
+        // game blends in gamma space too: in linear space every translucent layer
+        // (glows, halos, underpaints, scrim, the 3% cell dimple) draws stronger.
+        [Test]
+        public void ThePlayerBlendsInGammaSpaceAsTheArtIsApproved()
+        {
+            Assert.AreEqual(ColorSpace.Gamma, PlayerSettings.colorSpace);
+            Assert.AreEqual(ColorSpace.Gamma, QualitySettings.activeColorSpace);
+        }
+
         [TestCase("store", "ZKube.Chain")]
         [TestCase("store", "ZKube.Money")]
         [TestCase("store", "Chaos.NaCl")]
