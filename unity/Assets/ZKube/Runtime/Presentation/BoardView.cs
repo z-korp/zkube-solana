@@ -93,9 +93,16 @@ namespace ZKube.Presentation
             backlight.color = new Color(key.r, key.g, key.b, .5f);
             Sliced("Grid well", art.SkinUi(SkinSlots.GridWell), Layout.Rim, -14);
             Sliced("Board frame", art.SkinUi(SkinSlots.BoardFrame), Layout.Rim, -13).color = key;
+            // Each cell is a soft dimple of light in the glass: the art is its shape
+            // at full strength, drawn here at the 3% lift the spec gives, so device
+            // texture compression keeps its edge.
             var cellSprite = art.SkinUi(SkinSlots.GridCell);
             for (int row = 0; row < 10; row++) for (int col = 0; col < 8; col++)
-                Size(NewSprite("Cell " + row + ":" + col, cellSprite, -12), new Rect(Layout.Board.x + col * cell, Layout.Board.y + row * cell, cell, cell));
+            {
+                var dimple = NewSprite("Cell " + row + ":" + col, cellSprite, -12);
+                Size(dimple, new Rect(Layout.Board.x + col * cell, Layout.Board.y + row * cell, cell, cell));
+                dimple.color = new Color(1, 1, 1, CellLift);
+            }
             var top = NewSprite("Board top light", TopLight(key), -11);
             Size(top, new Rect(Layout.Rim.x + 12 * d, Layout.Rim.yMax - BoardLayout.RimDp * d, Layout.Rim.width - 24 * d, BoardLayout.RimDp * d));
             Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Layout.Tray, -10);
@@ -394,6 +401,8 @@ namespace ZKube.Presentation
                 sprite.color = new Color(1, 1, 1, PreviewAlpha); preview.Add(sprite); col += width;
             }
         }
+        // How much lighter an empty cell's centre is than the glass around it.
+        public const float CellLift = .03f;
         // The next row waits in the tray at 60% until it rises.
         public const float PreviewAlpha = .6f;
         private Sprite BlockSprite(byte width) => art.SkinRealm(SkinSlots.Block(width));
