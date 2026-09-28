@@ -591,10 +591,10 @@
         },
         {
           "border": [
-            92,
-            96,
-            92,
-            96
+            42,
+            42,
+            42,
+            42
           ],
           "image": "/assets/skins/jelly/ui/board-frame.png",
           "slot": "board-frame"
@@ -618,6 +618,46 @@
           ],
           "image": "/assets/skins/jelly/ui/preview-tray.png",
           "slot": "preview-tray"
+        },
+        {
+          "border": [
+            28,
+            24,
+            28,
+            24
+          ],
+          "image": "/assets/skins/jelly/ui/slider-track.png",
+          "slot": "slider-track"
+        },
+        {
+          "border": [
+            28,
+            24,
+            28,
+            24
+          ],
+          "image": "/assets/skins/jelly/ui/slider-fill.png",
+          "slot": "slider-fill"
+        },
+        {
+          "border": [
+            48,
+            48,
+            48,
+            48
+          ],
+          "image": "/assets/skins/jelly/ui/list-row.png",
+          "slot": "list-row"
+        },
+        {
+          "border": [
+            44,
+            40,
+            44,
+            40
+          ],
+          "image": "/assets/skins/jelly/ui/toggle-track.png",
+          "slot": "toggle-track"
         },
         {
           "border": [
@@ -716,6 +756,36 @@
             0,
             0
           ],
+          "image": "/assets/skins/jelly/ui/star-big.png",
+          "slot": "star-big"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/slider-knob.png",
+          "slot": "slider-knob"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/toggle-knob.png",
+          "slot": "toggle-knob"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/jelly/ui/icon-hammer.png",
           "slot": "icon-hammer"
         },
@@ -798,6 +868,126 @@
           ],
           "image": "/assets/skins/jelly/ui/icon-kredit.png",
           "slot": "icon-kredit"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-campaign.png",
+          "slot": "icon-campaign"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-daily.png",
+          "slot": "icon-daily"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-profile.png",
+          "slot": "icon-profile"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-share.png",
+          "slot": "icon-share"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-music.png",
+          "slot": "icon-music"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-sound.png",
+          "slot": "icon-sound"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-lock.png",
+          "slot": "icon-lock"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/icon-trophy.png",
+          "slot": "icon-trophy"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-spark.png",
+          "slot": "fx-spark"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-shard.png",
+          "slot": "fx-shard"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-glow.png",
+          "slot": "fx-glow"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/jelly/ui/fx-ring.png",
+          "slot": "fx-ring"
         }
       ]
     }

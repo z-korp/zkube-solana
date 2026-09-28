@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 /// UI pieces drawn stretched; each declares its stretch border in skin.json.
-pub const UI_STRETCH_SLOTS: [&str; 15] = [
+pub const UI_STRETCH_SLOTS: [&str; 19] = [
     "panel",
     "plate",
     "dialog",
@@ -24,10 +24,14 @@ pub const UI_STRETCH_SLOTS: [&str; 15] = [
     "board-frame",
     "grid-well",
     "preview-tray",
+    "slider-track",
+    "slider-fill",
+    "list-row",
+    "toggle-track",
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 18] = [
+pub const UI_FIXED_SLOTS: [&str; 33] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -37,6 +41,9 @@ pub const UI_FIXED_SLOTS: [&str; 18] = [
     "map-node-guardian",
     "star-on",
     "star-off",
+    "star-big",
+    "slider-knob",
+    "toggle-knob",
     "icon-hammer",
     "icon-totem",
     "icon-wave",
@@ -46,6 +53,19 @@ pub const UI_FIXED_SLOTS: [&str; 18] = [
     "icon-settings",
     "icon-close",
     "icon-kredit",
+    "icon-campaign",
+    "icon-daily",
+    "icon-profile",
+    "icon-share",
+    "icon-music",
+    "icon-sound",
+    "icon-lock",
+    "icon-trophy",
+    // Effect sprites are white with variable alpha; the client tints them.
+    "fx-spark",
+    "fx-shard",
+    "fx-glow",
+    "fx-ring",
 ];
 
 /// Blocks are coloured by width, so each realm draws one block per width.

@@ -7,6 +7,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using ZKube.Core.Generated;
 
 namespace ZKube.Presentation.Tests
 {
@@ -98,7 +99,8 @@ namespace ZKube.Presentation.Tests
             {
                 var socket = sockets.Single(b => b.name == "Star " + i);
                 var glyph = socket.GetComponentsInChildren<Image>().Single(image => image.name == "Star " + i + " glyph");
-                Assert.AreEqual((board.State.LatchedStarSources & (1 << i)) != 0 ? "star-on" : "star-off", SpriteName(glyph));
+                bool earned = (board.State.LatchedStarSources & (1 << i)) != 0;
+                Assert.AreEqual(!earned ? "star-off" : glyph.rectTransform.rect.height > 96 ? "star-big" : "star-on", SpriteName(glyph));
                 var rect = WorldRect(socket.GetComponent<RectTransform>());
                 Assert.GreaterOrEqual(rect.width, 48); Assert.GreaterOrEqual(rect.height, 48);
             }
@@ -188,6 +190,25 @@ namespace ZKube.Presentation.Tests
             Assert.IsFalse(layout.GuardianButton.Overlaps(layout.RerollButton)); Assert.IsFalse(layout.RerollButton.Overlaps(layout.PauseButton));
             Assert.GreaterOrEqual(layout.Board.yMin, layout.Frame.yMin + layout.Footer);
             Assert.LessOrEqual(layout.Board.yMax, layout.Frame.yMax - layout.Header);
+        }
+        [UnityTest] public IEnumerator ResultsAndPressureUseThePlayersWordsNotInternalNames()
+        {
+            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var rules = board.Session.Rules;
+            string campaign = BoardController.TerminalBody(board.State, board.Session);
+            StringAssert.Contains("Reach " + rules.PointsRequired + " points", campaign);
+            StringAssert.Contains(HudLayout.PrimaryCaptionText(board.Session) + " · " + HudLayout.PrimaryText(board.State, board.Session), campaign);
+            StringAssert.Contains(HudLayout.SecondaryCaptionText(board.Session), campaign);
+            evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            string daily = BoardController.TerminalBody(board.State, board.Session);
+            StringAssert.Contains(HudLayout.PrimaryCaptionText(board.Session) + " · " + board.State.ObjectiveTotal, daily);
+            foreach (string body in new[] { campaign, daily })
+                foreach (string internalName in new[] { "Theme", "Shape", "Blow", "SHAPE", "BLOW" })
+                    StringAssert.DoesNotContain(internalName, body);
+            Assert.AreEqual("POINTS ×" + (Protocol.PressureMultiplierPercent(board.State.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                Label("Pressure").text);
+            Assert.AreEqual("POINTS ×1", HudLayout.PressureText(new RunSummary { CurrentTier = 0 }));
+            Assert.AreEqual("POINTS ×2.5", HudLayout.PressureText(new RunSummary { CurrentTier = 3 }));
         }
         [UnityTest] public IEnumerator PublishedCampaignLongConstraintFitsItsDetailDialogAtLargerText()
         {

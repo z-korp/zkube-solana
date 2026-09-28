@@ -45,7 +45,9 @@ namespace ZKube.Presentation
         public static float ScoreProgress(RunSummary state, BoardSession session) =>
             session.Daily || session.Rules.PointsRequired == 0 ? 0 : Mathf.Clamp01((float)state.Score / session.Rules.PointsRequired);
         public static string MovesText(RunSummary state, BoardSession session) => Math.Max(0, session.Rules.MaxMoves - state.Moves) + " MOVES";
-        public static string PressureText(RunSummary state) => "PRESSURE " + state.CurrentTier;
+        // Daily pressure, as what it does for the player: the points multiplier.
+        public static string PressureText(RunSummary state) =>
+            "POINTS ×" + (Protocol.PressureMultiplierPercent(state.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         public static string PrimaryCaptionText(BoardSession session) => session.Daily
             ? BoardView.ObjectiveName(session.Rules.ObjectiveKind, session.Rules.ObjectiveValue)
             : BoardView.ObjectiveName(session.Rules.PrimaryKind, session.Rules.PrimaryValue);

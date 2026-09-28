@@ -234,6 +234,7 @@ fn protocol(catalog: &CampaignCatalog) -> String {
     use zkube_core::{
         ARENA_ENTRY_LAMPORTS, CAMPAIGN_TARGET_LADDER, DAILY_MAX_MOVES,
         DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, PLAYER_STATE_ACCOUNT_VERSION,
+        PRESSURE_MULTIPLIER_BASE_PERCENT, PRESSURE_MULTIPLIER_STEP_PERCENT,
         PROTOCOL_ACCOUNT_VERSION,
     };
     let mut output = String::from(
@@ -290,6 +291,12 @@ fn protocol(catalog: &CampaignCatalog) -> String {
         .unwrap();
     }
     output.push_str("        };\n");
+    // The Daily score multiplier the core applies at a pressure tier, in percent.
+    writeln!(
+        output,
+        "        public static uint PressureMultiplierPercent(byte tier) => {PRESSURE_MULTIPLIER_BASE_PERCENT}U + {PRESSURE_MULTIPLIER_STEP_PERCENT}U * tier;"
+    )
+    .unwrap();
     output.push_str("        public static readonly RealmDefinition[] Realms =\n        {\n");
     for map in &catalog.maps {
         writeln!(output, "            new RealmDefinition({}, new ushort[] {{ {} }}, new LevelDefinition[]\n            {{", map.map_id, numbers(&map.rules)).unwrap();

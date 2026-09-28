@@ -69,7 +69,7 @@ namespace ZKube.Presentation
                 var p = Layout.CellCenter(row, col);
                 Size(sprite, new Rect(p.x - cell / 2 + 1, p.y - cell / 2 + 1, cell - 2, cell - 2));
             }
-            Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Grow(Layout.Preview, Layout.FrameInset, BoardLayout.TrayInset * d), -10, Layout.FrameScale);
+            Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Grow(Layout.Preview, Layout.FrameInset, BoardLayout.TrayInset * d), -10, Layout.TrayScale);
 
             canvas = new GameObject("Board interface", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster)).GetComponent<Canvas>();
             canvas.transform.SetParent(transform, false); canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -122,7 +122,7 @@ namespace ZKube.Presentation
                 starButtons[i] = hitArea.gameObject.AddComponent<Button>(); starButtons[i].transition = Selectable.Transition.None;
                 starButtons[i].onClick.AddListener(() => owner.ShowStar(source));
                 float inset = rect.width * HudLayout.StarGlyphInset;
-                stars[i] = ui.Piece("Star " + i + " glyph", SkinSlots.StarOff, new Rect(rect.x + inset, rect.y + inset, rect.width - 2 * inset, rect.height - 2 * inset), hitArea.transform);
+                stars[i] = ui.Star("Star " + i + " glyph", new Rect(rect.x + inset, rect.y + inset, rect.width - 2 * inset, rect.height - 2 * inset), false, hitArea.transform);
             }
 
 
@@ -163,7 +163,7 @@ namespace ZKube.Presentation
             for (int i = 0; i < 3; i++)
             {
                 starButtons[i].gameObject.SetActive(!session.Daily);
-                stars[i].sprite = art.SkinUi((state.LatchedStarSources & (1 << i)) != 0 ? SkinSlots.StarOn : SkinSlots.StarOff);
+                stars[i].sprite = ui.StarSprite((state.LatchedStarSources & (1 << i)) != 0, stars[i].rectTransform.rect.height);
             }
             guardianLabel.text = state.BonusCharges.ToString();
             guardianGlyph.sprite = art.SkinUi(state.BonusType == 1 ? SkinSlots.IconHammer : state.BonusType == 3 ? SkinSlots.IconWave : SkinSlots.IconTotem);

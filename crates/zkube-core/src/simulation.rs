@@ -11,6 +11,16 @@ pub(crate) const RULES_VERSION: u32 = 5;
 pub const CANONICAL_RUN_RULES_LEN: usize = 23;
 pub const DAILY_MAX_MOVES: u16 = 100;
 pub const PRESSURE_STEP: u32 = 15;
+/// Daily action points are multiplied by this percentage at tier zero and rise by
+/// the step per pressure tier, without a cap.
+pub const PRESSURE_MULTIPLIER_BASE_PERCENT: u16 = 100;
+pub const PRESSURE_MULTIPLIER_STEP_PERCENT: u16 = 50;
+
+#[must_use]
+pub const fn pressure_multiplier_percent(tier: u8) -> u16 {
+    PRESSURE_MULTIPLIER_BASE_PERCENT
+        .saturating_add((tier as u16).saturating_mul(PRESSURE_MULTIPLIER_STEP_PERCENT))
+}
 
 /// Exactly one tier policy drives a run. Campaign fixes a tier; Daily derives
 /// it from neutral pressure score.
@@ -109,9 +119,9 @@ impl RunRules {
 
     fn action_score_multiplier(self, tier: u8) -> u16 {
         if self.is_pressure() {
-            100u16.saturating_add(u16::from(tier).saturating_mul(50))
+            pressure_multiplier_percent(tier)
         } else {
-            100
+            PRESSURE_MULTIPLIER_BASE_PERCENT
         }
     }
 

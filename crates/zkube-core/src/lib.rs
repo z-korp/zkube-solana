@@ -140,7 +140,8 @@ pub use rules::{
     RunError, RunPhase, StarRules,
 };
 pub use simulation::{
-    CANONICAL_RUN_RULES_LEN, CanonicalRunRulesBytes, DAILY_MAX_MOVES, PRESSURE_STEP, Run,
+    CANONICAL_RUN_RULES_LEN, CanonicalRunRulesBytes, DAILY_MAX_MOVES,
+    PRESSURE_MULTIPLIER_BASE_PERCENT, PRESSURE_MULTIPLIER_STEP_PERCENT, PRESSURE_STEP, Run,
     RunConfig, RunEndReason, RunRules, RunTransitionError, TierPolicy, daily_rules_hash,
-    daily_rules_hash_with,
+    daily_rules_hash_with, pressure_multiplier_percent,
 };

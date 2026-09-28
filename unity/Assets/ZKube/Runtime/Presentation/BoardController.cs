@@ -425,9 +425,7 @@ namespace ZKube.Presentation
             if (!IsTerminal()) return;
             bool completed = State.Phase == (byte)CorePhase.LevelComplete || State.EndReason == 1;
             View.Terminal(completed); music.Pause(); if (playFeedback) Sound(completed ? "victory" : "over");
-            string body = Session.Daily
-                ? "Score " + State.DailyScore + "\nTheme " + State.ObjectiveTotal + "\n" + State.Moves + " moves"
-                : "Score " + State.Score + "\n" + ((State.LatchedStarSources & 1) != 0 ? "★" : "☆") + " Score   " + ((State.LatchedStarSources & 2) != 0 ? "★" : "☆") + " Shape   " + ((State.LatchedStarSources & 4) != 0 ? "★" : "☆") + " Blow";
+            string body = TerminalBody(State, Session);
             string title = completed ? "LEVEL COMPLETE" : "RUN ENDED";
             if (Host?.Terminal != null) Host.Terminal(this, title, body);
             else View.OpenModal(title, body, ("Continue", () => Host?.Exit?.Invoke()));
@@ -455,6 +453,20 @@ namespace ZKube.Presentation
             if (!Muted) music.UnPause();
             View.Summary(State, Session, !busy && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
         }
+        // The result in the goals' own words: Daily names its objective (Classic has
+        // none), Campaign lists each star with the goal that earns it.
+        public static string TerminalBody(RunSummary state, BoardSession session)
+        {
+            var rules = session.Rules;
+            if (session.Daily)
+                return "Score " + state.DailyScore
+                    + (rules.ObjectiveKind == 0 ? "" : "\n" + BoardView.ObjectiveName(rules.ObjectiveKind, rules.ObjectiveValue) + " · " + state.ObjectiveTotal)
+                    + "\n" + state.Moves + " moves";
+            string Star(int source) => (state.LatchedStarSources & (1 << source)) != 0 ? "★ " : "☆ ";
+            return "Score " + state.Score + "\n" + Star(0) + ScoreGoal(rules) + "\n" + Star(1) + HudLayout.PrimaryCaptionText(session) + " · "
+                + HudLayout.PrimaryText(state, session) + "\n" + Star(2) + HudLayout.SecondaryCaptionText(session);
+        }
+        private static string ScoreGoal(BuildConfigRequest rules) => "Reach " + rules.PointsRequired + " points";
         public void ShowStar(int source)
         {
             if (!PresentationInitialized || Session == null || Session.Daily || paused || recoveryRequired || IsTerminal()) return;
@@ -464,7 +476,7 @@ namespace ZKube.Presentation
             string title = source == 0 ? "SCORE" : source == 1 ? BoardView.ObjectiveName(rules.PrimaryKind, rules.PrimaryValue)
                 : BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue);
             bool earned = (State.LatchedStarSources & (1 << source)) != 0;
-            string detail = source == 0 ? "Reach " + rules.PointsRequired + " points"
+            string detail = source == 0 ? ScoreGoal(rules)
                 : source == 1 ? State.PrimaryProgress + " / " + rules.PrimaryCount : earned ? "Earned" : "Not earned yet";
             View.OpenModal(title, detail, ("Back to the board", Resume));
         }

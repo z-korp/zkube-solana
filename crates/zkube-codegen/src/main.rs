@@ -353,6 +353,32 @@ mod tests {
     }
 
     #[test]
+    fn generated_pressure_multiplier_matches_the_core_at_every_tier() {
+        let source = include_str!("../../../fixtures/campaign-catalog.json");
+        let catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        let outputs = native_client::outputs(&catalog).unwrap();
+        let protocol = outputs
+            .iter()
+            .find(|(path, _)| path.ends_with("Protocol.g.cs"))
+            .map(|(_, text)| text)
+            .unwrap();
+        let (base, step) = (
+            zkube_core::PRESSURE_MULTIPLIER_BASE_PERCENT,
+            zkube_core::PRESSURE_MULTIPLIER_STEP_PERCENT,
+        );
+        assert!(protocol.contains(&format!(
+            "PressureMultiplierPercent(byte tier) => {base}U + {step}U * tier;"
+        )));
+        // The emitted formula has no saturation, so the core must never saturate.
+        for tier in 0..=u8::MAX {
+            assert_eq!(
+                u32::from(zkube_core::pressure_multiplier_percent(tier)),
+                u32::from(base) + u32::from(step) * u32::from(tier)
+            );
+        }
+    }
+
+    #[test]
     fn campaign_structure_keeps_weight_divergence() {
         let source = include_str!("../../../fixtures/campaign-catalog.json");
         let mut catalog: CampaignCatalog = serde_json::from_str(source).unwrap();

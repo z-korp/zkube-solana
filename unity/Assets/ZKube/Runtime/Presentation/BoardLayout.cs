@@ -6,11 +6,15 @@ namespace ZKube.Presentation
     // controls to dp; board cells are fitted separately and may be smaller.
     public readonly struct BoardLayout
     {
-        // The Jelly board frame's gold bar ends 24 dp inside its edge; compact screens draw it slimmer.
         public const float MinimumTouchDp = 48, TrayInset = 6;
-        public float FrameInset => (Compact ? 12 : 14) * Density;
-        // The frame art's gold bar ends 22 dp in; drawing it smaller gives the cells more room.
-        public float FrameScale => (Compact ? 12 : 14) / 22f;
+        // The board frame art's gold bar ends 12 dp inside its edge; it is drawn so
+        // the bar ends exactly at the cells, slimmer on compact screens.
+        private const float FrameBarDp = 12;
+        private static float FrameInsetDp(bool compact) => compact ? 12 : 14;
+        public float FrameInset => FrameInsetDp(Compact) * Density;
+        public float FrameScale => FrameInsetDp(Compact) / FrameBarDp;
+        // The next-row tray's gold bar ends 14 dp in; this scale keeps it inside the inset.
+        public float TrayScale => FrameInsetDp(Compact) / 22f;
         public static float CanvasTouchSize(float preferred, float density, float canvasScale)
         {
             if (float.IsNaN(density) || float.IsInfinity(density) || density <= 0 || float.IsNaN(canvasScale) || float.IsInfinity(canvasScale) || canvasScale <= 0)
@@ -29,7 +33,7 @@ namespace ZKube.Presentation
             Header = Mathf.Max((Compact ? 104 : 150) * Density, headerPixels);
             Footer = Mathf.Max((Compact ? 68 : 96) * Density, footerPixels);
             // The board frame and the next-row tray need room around the cells.
-            float inset = (Compact ? 12 : 14) * Density, previewGap = (Compact ? 20 : 24) * Density;
+            float inset = FrameInsetDp(Compact) * Density, previewGap = (Compact ? 20 : 24) * Density;
             Cell = Mathf.Max(1, Mathf.Min(96 * Density, Mathf.Floor((width - 2 * inset) / 8),
                 Mathf.Floor((Frame.height - Header - Footer - previewGap - inset - TrayInset * Density) / 11)));
             float available = Frame.height - Header - Footer - inset - TrayInset * Density;

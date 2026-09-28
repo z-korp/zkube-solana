@@ -30,6 +30,7 @@ namespace ZKube.Core.Generated
             new byte[] { 18, 3 },
             new byte[] { 18, 4 },
         };
+        public static uint PressureMultiplierPercent(byte tier) => 100U + 50U * tier;
         public static readonly RealmDefinition[] Realms =
         {
             new RealmDefinition(1, new ushort[] { 3, 1, 2, 4 }, new LevelDefinition[]

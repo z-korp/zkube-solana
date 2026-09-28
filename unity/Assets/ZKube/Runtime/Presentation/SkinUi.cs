@@ -97,6 +97,121 @@ namespace ZKube.Presentation
             return image;
         }
 
+        // An earned star uses star-on, or star-big once drawn larger than star-on's
+        // own pixels, so a star is never upscaled; an unearned star uses star-off.
+        public Sprite StarSprite(bool earned, float heightPixels)
+        {
+            if (!earned) return Art.SkinUi(SkinSlots.StarOff);
+            var small = Art.SkinUi(SkinSlots.StarOn);
+            return heightPixels > small.rect.height ? Art.SkinUi(SkinSlots.StarBig) : small;
+        }
+        public Image Star(string name, Rect rect, bool earned, Transform parent)
+        {
+            var image = Rect<Image>(name, rect, parent);
+            image.sprite = StarSprite(earned, rect.height); image.preserveAspect = true; image.raycastTarget = false;
+            return image;
+        }
+
+        // A card: the skin panel with an optional heading. Content belongs inside
+        // CardInset of its edges, clear of the panel's corner leaves.
+        public float CardInset => 28 * Density;
+        public Image Card(string name, Rect rect, string heading, Transform parent, out TMP_Text title)
+        {
+            var panel = Piece(name, SkinSlots.Panel, rect, parent);
+            title = null;
+            if (heading == null) return panel;
+            float width = rect.width - 2 * CardInset, height = TextHeight(heading, width, 17, true);
+            title = Label(name + " heading", heading, new Rect(rect.x + CardInset, rect.yMax - CardInset - height, width, height), 17,
+                SkinTokens.Accent, panel.transform, true);
+            return panel;
+        }
+
+        // A list row: an optional icon and a label on the left, an optional value on
+        // the right. A row with an action is one button.
+        public Image ListRow(string name, Rect rect, string icon, string label, string value, Action action, Transform parent,
+            out TMP_Text labelText, out TMP_Text valueText)
+        {
+            var row = Piece(name, SkinSlots.ListRow, rect, parent);
+            if (action != null)
+            {
+                row.raycastTarget = true;
+                row.gameObject.AddComponent<Button>().onClick.AddListener(() => action());
+            }
+            float pad = 16 * Density, x = rect.x + pad, right = rect.xMax - pad;
+            if (icon != null)
+            {
+                float size = Mathf.Min(rect.height - 16 * Density, 32 * Density);
+                Piece(name + " icon", icon, new Rect(x, rect.center.y - size / 2, size, size), row.transform);
+                x += size + 10 * Density;
+            }
+            valueText = null;
+            if (value != null)
+            {
+                float width = Mathf.Min(TextWidth(value, 15, true), (right - x) / 2);
+                valueText = Label(name + " value", value, new Rect(right - width, rect.y, width, rect.height), 15, SkinTokens.Objective,
+                    row.transform, true, TextAlignmentOptions.Right);
+                right -= width + 8 * Density;
+            }
+            labelText = Label(name + " label", label, new Rect(x, rect.y, right - x, rect.height), 14, SkinTokens.Text, row.transform, false,
+                TextAlignmentOptions.Left);
+            return row;
+        }
+
+        // A slider across rect, which takes the touches (keep it at least 48 dp tall).
+        public SkinSlider Slider(string name, Rect rect, float value, Action<float> changed, Transform parent)
+        {
+            var hit = Rect<Image>(name, rect, parent); hit.color = Color.clear; hit.raycastTarget = true;
+            float knob = Mathf.Min(rect.height, 32 * Density), bar = 16 * Density;
+            var track = new Rect(rect.x + knob / 2, rect.center.y - bar / 2, rect.width - knob, bar);
+            Piece(name + " track", SkinSlots.SliderTrack, track, hit.transform);
+            var clip = Rect<RectMask2D>(name + " fill", track, hit.transform);
+            Piece(name + " fill bar", SkinSlots.SliderFill, track, clip.transform);
+            var handle = Piece(name + " knob", SkinSlots.SliderKnob, new Rect(track.x, track.center.y - knob / 2, knob, knob), hit.transform);
+            var slider = hit.gameObject.AddComponent<SkinSlider>();
+            slider.Bind(track, clip.rectTransform, handle.rectTransform, value, changed);
+            return slider;
+        }
+
+        // An on/off switch at the right end of rect, which takes the taps.
+        public SkinToggle Toggle(string name, Rect rect, bool value, Action<bool> changed, Transform parent)
+        {
+            var hit = Rect<Image>(name, rect, parent); hit.color = Color.clear; hit.raycastTarget = true;
+            float height = Mathf.Min(rect.height, 32 * Density), inset = 4 * Density;
+            var track = new Rect(rect.xMax - 2 * height, rect.center.y - height / 2, 2 * height, height);
+            Piece(name + " track", SkinSlots.ToggleTrack, track, hit.transform);
+            var on = Piece(name + " on", SkinSlots.SliderFill, new Rect(track.x + inset, track.y + inset, track.width - 2 * inset, track.height - 2 * inset),
+                hit.transform);
+            var knob = Piece(name + " knob", SkinSlots.ToggleKnob, new Rect(track.x, track.y, height, height), hit.transform);
+            var toggle = hit.gameObject.AddComponent<SkinToggle>();
+            toggle.Bind(track, on, knob.rectTransform, value, changed);
+            return toggle;
+        }
+
+        // A bottom tab bar with equal tabs, each an icon over its label.
+        public SkinTabBar TabBar(string name, Rect rect, (string icon, string label, Action action)[] tabs, int selected, Transform parent)
+        {
+            if (tabs == null || tabs.Length == 0) throw new ArgumentException("A tab bar needs tabs", nameof(tabs));
+            var bar = Piece(name, SkinSlots.TabBar, rect, parent);
+            float pad = 12 * Density, width = (rect.width - 2 * pad) / tabs.Length;
+            var cells = new Rect[tabs.Length];
+            for (int i = 0; i < tabs.Length; i++) cells[i] = new Rect(rect.x + pad + i * width, rect.y + 6 * Density, width, rect.height - 12 * Density);
+            var plate = Piece(name + " selected", SkinSlots.TabSelected, cells[0], bar.transform);
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                var (icon, label, action) = tabs[i];
+                var cell = cells[i];
+                var hit = Rect<Image>(name + " " + label, cell, bar.transform); hit.color = Color.clear; hit.raycastTarget = true;
+                hit.gameObject.AddComponent<Button>().onClick.AddListener(() => action());
+                float size = cell.height * .45f;
+                Piece(name + " " + label + " icon", icon, new Rect(cell.center.x - size / 2, cell.yMax - 4 * Density - size, size, size), hit.transform);
+                Label(name + " " + label + " label", label, new Rect(cell.x, cell.y, cell.width, cell.height - size - 4 * Density), 12, SkinTokens.Text,
+                    hit.transform, true);
+            }
+            var tabBar = bar.gameObject.AddComponent<SkinTabBar>();
+            tabBar.Bind(cells, plate.rectTransform, selected);
+            return tabBar;
+        }
+
         public T Rect<T>(string name, Rect rect, Transform parent) where T : Component
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(T));
