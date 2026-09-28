@@ -72,7 +72,9 @@ namespace ZKube.Presentation
             {
                 var p = live[shape]; p.Renderer.sprite = block.sprite; p.FixedScale = block.transform.localScale; live[shape] = p;
             }
-            float start = now + FlashSeconds * .6f, length = width * cell;
+            // Pieces stay within about a cell of the block and fade by 600 ms, so a
+            // multi-row clear never paints the board in debris; combos reach a little further.
+            float start = now + FlashSeconds * .6f, length = width * cell, reach = 1 + .5f * (strength - 1);
             Spawn(SkinSlots.FxGlow, center, Vector2.zero, 0, cell, tint, start, .3f, .9f, 1.3f, .55f, 0, 0, 0, 0, width, width);
             int count = Mathf.Clamp(chunks, 0, Mathf.Min(MaxChunks, budget - BreakFixedPieces));
             for (int i = 0; i < count; i++)
@@ -82,18 +84,18 @@ namespace ZKube.Presentation
                 float along = (i + .5f + (Jitter(seed + i) - .5f) * .6f) / count - .5f;
                 var origin = center + new Vector2(along * (length - .3f * cell), (Jitter(seed + 7 * i) - .5f) * .45f * cell);
                 float side = along * 2 + (Jitter(seed + 3 * i) - .5f) * .8f;
-                var velocity = new Vector2(side * (1.1f + .9f * Jitter(i + seed)), 2 + 1.4f * Jitter(i + 5 + seed)) * strength;
+                var velocity = new Vector2(side * (.55f + .55f * Jitter(i + seed)), 1.2f + 1f * Jitter(i + 5 + seed)) * reach;
                 float size = i % 3 == 0 ? .45f : i % 3 == 1 ? .4f : .35f;
                 Spawn(Shards[(i + seed) % Shards.Length], origin, velocity, Gravity, cell, tint, start, ChunkSeconds - FlashSeconds, size, size * .9f,
-                    1, 0, .55f, (i % 2 == 0 ? 1 : -1) * (320 + 70 * (i % 4)), 41 * i + 13 * seed, 1, 1);
+                    1, 0, .3f, (i % 2 == 0 ? 1 : -1) * (320 + 70 * (i % 4)), 41 * i + 13 * seed, 1, 1);
             }
             int sparks = width >= 3 ? 4 : 3;
             for (int i = 0; i < sparks; i++)
             {
                 float angle = (i + .5f) * 2 * Mathf.PI / sparks + Jitter(seed + i) * .8f;
-                var velocity = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) + .6f) * (3.4f + 1.4f * Jitter(seed + 2 * i)) * strength;
+                var velocity = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) + .6f) * (1.8f + .8f * Jitter(seed + 2 * i)) * reach;
                 Spawn(Sparks[(i + seed) % Sparks.Length], center + Vector2.right * (Jitter(seed + 11 * i) - .5f) * length * .6f, velocity, Gravity * .35f,
-                    cell, new Color(1, 1, 1, .85f), start, .45f, .2f, .1f, 1, 0, .4f, 0, 0, 1, 1);
+                    cell, new Color(1, 1, 1, .85f), start, .4f, .2f, .1f, 1, 0, .3f, 0, 0, 1, 1);
             }
         }
 

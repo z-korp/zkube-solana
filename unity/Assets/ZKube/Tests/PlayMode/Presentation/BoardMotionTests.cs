@@ -153,12 +153,20 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(12, chunks.Length);
             float spread = chunks.Max(r => r.transform.position.x) - chunks.Min(r => r.transform.position.x);
             Assert.Greater(spread, 2.5f * cell, "Chunks come from the whole block, not its centre");
+            yield return Seconds(.35f);
+            float centre = block.transform.position.x;
+            foreach (var chunk in chunks.Where(r => r.gameObject.activeSelf))
+            {
+                Assert.LessOrEqual(Mathf.Abs(chunk.transform.position.x - centre), 2 * cell + 1.05f * cell, "Chunks stay within a cell of their block");
+                Assert.LessOrEqual(Mathf.Abs(chunk.transform.position.y - block.transform.position.y), 1.2f * cell);
+                Assert.Less(chunk.color.a, .6f, "Chunks are fading well before 600 ms");
+            }
             foreach (var chunk in chunks)
             {
                 Assert.AreEqual(Color.red.r, chunk.color.r, "Chunks take the block's width colour");
                 Assert.That(chunk.transform.localScale.y * chunk.sprite.bounds.size.y / cell, Is.InRange(.3f, .46f), "Chunks are 35-45% of a cell");
             }
-            yield return Seconds(.55f);
+            yield return Seconds(.2f);
             Assert.AreEqual(0, fx.Live, "Every piece is gone by 600 ms");
         }
 

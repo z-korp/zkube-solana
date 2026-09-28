@@ -116,6 +116,28 @@ namespace ZKube.Presentation.Tests
                 Assert.AreEqual(684, (2670 - plan.NextLabel.yMax) / 3 + HudLayout.DigitTop * 11, 1, "NEXT ROW glyph top");
             }
         }
+        [UnityTest] public IEnumerator TheHeaderIsDrawnFromTheScreenTopAndOnlyTheTitleEntersTheInset()
+        {
+            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var screen = new Rect(0, 0, 1200, 2670);
+            float Dp(float y) => (2670 - y) / 3;
+            // A 40 dp top inset, as a status bar or camera band leaves.
+            var safe = new Rect(0, 0, 1200, 2670 - 120);
+            var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, safe, 3, screen);
+            Assert.AreEqual(174, Dp(plan.Layout.Rim.yMax), .6f, "The board top keeps its drawn 174 dp from the screen's top");
+            Assert.AreEqual(60, Dp(plan.ScorePlate.yMax), .6f, "The plates keep their drawn rows");
+            Assert.LessOrEqual(plan.ScorePlate.yMax, safe.yMax, "The plates stay inside the safe area");
+            Assert.AreEqual(25, Dp(plan.Title.yMax) + HudLayout.DigitTop * 16, 1, "The title sits in the inset, as drawn");
+            // A deeper inset moves the drawing down only as far as the plates need.
+            var deep = new Rect(0, 0, 1200, 2670 - 3 * 70);
+            var lowered = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, deep, 3, screen);
+            Assert.AreEqual(72, Dp(lowered.ScorePlate.yMax), .6f);
+            Assert.AreEqual(186, Dp(lowered.Layout.Rim.yMax), .6f);
+            // A centred camera cutout pushes the title below it.
+            var cutout = new Rect(560, 2670 - 3 * 36, 80, 3 * 36);
+            var clear = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, safe, 3, screen, new[] { cutout });
+            Assert.LessOrEqual(clear.Title.yMax, cutout.yMin, "The title clears the camera");
+        }
         private BoardArt Art() => (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
         private static string SpriteName(Image image) => image.sprite.name.Replace("(Clone)", "");
         private void AssertStars(BoardView view)

@@ -37,7 +37,7 @@ namespace ZKube.Presentation
             float d = Density;
             Frame = safeArea;
             Compact = safeArea.height / d < CompactHeightDp;
-            Header = Mathf.Max(DefaultHeaderDp(Compact) * d, headerPixels);
+            Header = headerPixels > 0 ? headerPixels : DefaultHeaderDp(Compact) * d;
             Footer = Mathf.Max(DefaultFooterDp(Compact) * d, footerPixels);
             TrayInset = TrayInsetDp(Compact) * d;
             float rim = RimDp * d, stack = Header + Footer + 2 * rim + LabelGapDp(Compact) * d + 2 * TrayInset + TrayGapDp(Compact) * d;

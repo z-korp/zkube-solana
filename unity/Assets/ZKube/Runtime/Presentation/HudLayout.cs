@@ -72,13 +72,20 @@ namespace ZKube.Presentation
         public static string PowerName(byte bonus) => bonus == 1 ? "HAMMER" : bonus == 3 ? "WAVE" : "TOTEM";
         public static string GuardianCaption(byte bonus) => "EARN " + PowerName(bonus);
 
-        public static HudLayout Build(SkinUi ui, RunSummary state, BoardSession session, Rect safe, float density)
+        // The header is drawn from the screen's top, as the approved geometry is.
+        // Only the title may sit inside the top safe inset, clear of any camera
+        // cutout; the plates, guardian and board stay inside the safe area.
+        public static HudLayout Build(SkinUi ui, RunSummary state, BoardSession session, Rect safe, float density,
+            Rect? screen = null, Rect[] cutouts = null)
         {
             var art = ui.Art;
             var result = new HudLayout { Scale = ui.Scale, Campaign = session == null || !session.Daily };
             var first = new BoardLayout(safe, density);
             bool compact = first.Compact;
-            float d = first.Density, s = ui.Scale, top = safe.yMax;
+            var drawing = screen ?? safe;
+            float d = first.Density, s = ui.Scale, inset = Mathf.Max(0, drawing.yMax - safe.yMax) / d;
+            // The drawing moves down only as far as the inset would cover the plates.
+            float shift = Mathf.Max(0, inset + 2 - (compact ? 22 : 60)), top = drawing.yMax - shift * d;
             float H(string value, float width, float size, SkinUi.Type type) => ui.TextHeight(value, width, size, type);
             result.TitlePt = compact ? 14 : 16; result.LabelPt = compact ? 11 : 12; result.CaptionPt = compact ? 11 : 12;
             result.NumberPt = compact ? 24 : 28; result.GoalPt = compact ? 18 : 20; result.PointsPt = compact ? 21 : 24;
@@ -93,6 +100,10 @@ namespace ZKube.Presentation
             float titleTop = compact ? 4 : 25, titleWidth = Mathf.Min(safe.width - 32 * d, ui.TextWidth(title, result.TitlePt, SkinUi.Type.Title) + 8 * d);
             float titleHeight = H(title, titleWidth, result.TitlePt, SkinUi.Type.Title);
             result.Title = new Rect(safe.center.x - titleWidth / 2, Glyph(titleTop, result.TitlePt) - titleHeight, titleWidth, titleHeight);
+            foreach (var cutout in cutouts ?? Array.Empty<Rect>())
+                if (cutout.xMax > result.Title.xMin && cutout.xMin < result.Title.xMax && cutout.yMin < result.Title.yMax)
+                    titleTop = Mathf.Max(titleTop, (top - cutout.yMin) / d + 2 + DigitTop * S(result.TitlePt));
+            result.Title = new Rect(result.Title.x, Glyph(titleTop, result.TitlePt) - titleHeight, titleWidth, titleHeight);
             float ribbonTop = titleTop + S(result.TitlePt) + 4;
             result.Ribbon = new Rect(safe.center.x - 75 * d, top - (ribbonTop + 8) * d, 150 * d, 8 * d);
             result.TitleShade = new Rect(safe.center.x - 150 * d, top - (titleTop + S(result.TitlePt) + 22) * d, 300 * d, (S(result.TitlePt) + 40) * d);
@@ -143,7 +154,8 @@ namespace ZKube.Presentation
             result.SecondaryValue = result.Campaign
                 ? Text(result.SecondaryPlate, star, goalTop, valueWidth, result.GoalPt, "0 / 1", SkinUi.Type.Number)
                 : Text(result.SecondaryPlate, 8, goalTop - 2, inner, result.PointsPt, "×1", SkinUi.Type.Number);
-            float header = row2 + plate + 4;
+            // The header's height below the safe top, where the board begins.
+            float header = row2 + plate + 4 + shift - inset;
 
             // The footer: the earning rule beside the tablets, starting at their top.
             var provisional = new BoardLayout(safe, density, header * d);

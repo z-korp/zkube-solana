@@ -181,7 +181,7 @@ namespace ZKube.Presentation
             View = root.AddComponent<BoardView>();
             float density = ReadDisplayDensity();
             var ui = new SkinUi(art, Mathf.Max(.5f, density), TextScale);
-            View.Create(this, art, HudLayout.Build(ui, State, Session, lastSafe, density), ui);
+            View.Create(this, art, HudLayout.Build(ui, State, Session, lastSafe, density, new Rect(0, 0, Screen.width, Screen.height), Screen.cutouts), ui);
         }
         private void Update()
         {
