@@ -49,7 +49,7 @@ namespace ZKube.Local.Tests
             Assert.That(reloaded.Read.Name, Is.EqualTo("Mira"));
             Assert.That(reloaded.Read.Stars.Length, Is.EqualTo(100));
             Assert.That(reloaded.Read.Stars.Take(3), Is.EqualTo(new byte[] { 3, 2, 0 }));
-            Assert.That(reloaded.Read.WornEmblem, Is.EqualTo(10));
+            Assert.That(reloaded.Read.WornEmblem, Is.EqualTo(12), "The last emblem, World Perfect");
             Assert.That(reloaded.Read.CampaignPrice, Is.EqualTo("€0.99"));
         }
         [Test]

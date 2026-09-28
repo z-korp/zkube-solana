@@ -71,7 +71,7 @@ namespace ZKube.Local
             return new LocalProductState {
                 Name = name, Stars = stars, DailyAttempt = Attempt(parsed["dailyAttempt"] as JObject),
                 Streak = Nonnegative(parsed["streak"]),
-                BestDailyScore = Nonnegative(parsed["bestDailyScore"]), WornEmblem = (uint)Math.Min(10UL, Nonnegative(parsed["wornEmblem"])),
+                BestDailyScore = Nonnegative(parsed["bestDailyScore"]), WornEmblem = (uint)Math.Min(ZKube.Presentation.ProfileEmblems.Last, Nonnegative(parsed["wornEmblem"])),
                 CampaignOwned = parsed["campaignOwned"]?.Type == JTokenType.Boolean && (bool)parsed["campaignOwned"],
                 CampaignPrice = string.IsNullOrEmpty(price) ? null : Slice(price, 40),
                 CampaignRun = Campaign(parsed["campaignRun"]),

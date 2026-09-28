@@ -7,6 +7,7 @@ using UnityEngine.TestTools;
 using UnityEngine.UI;
 using ZKube.Integration.App;
 using ZKube.Integration.Execution;
+using ZKube.Presentation;
 
 namespace ZKube.Tests.MoneyOverview
 {
@@ -38,7 +39,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             Assert.That(controller.SelectedEmblem, Is.EqualTo(latestEmblem ?? emblem));
             Assert.That(controller.SelectedBorder, Is.EqualTo(latestBorder ?? border));
-            StringAssert.Contains("Wearing · " + ProfileIdentityCatalog.Emblems.Single(value => value.Id == (latestEmblem ?? emblem)).Name, SessionText());
+            StringAssert.Contains("Wearing · " + ProfileEmblems.All.Single(value => value.Id == (latestEmblem ?? emblem)).Name, SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Wear selection").interactable, Is.False);
             yield return Wait(controller.WearProfileSelection());
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));

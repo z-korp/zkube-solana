@@ -79,7 +79,9 @@ namespace ZKube.Local.App
         private byte PageRealm => Flow.Page == StorePage.Daily ? Flow.Today.Realm :
             Flow.Page == StorePage.Result && Flow.LastCampaign != null ? Flow.LastCampaign.Realm :
             Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? NativeEngine.Daily(Flow.Product.Read.DailyAttempt.DayId).Realm :
-            Flow.Page == StorePage.Profile ? (byte)Math.Max(1, Flow.Product.Read.WornEmblem) : Flow.Realm;
+            Flow.Page == StorePage.Profile ? WornRealm : Flow.Realm;
+        // The realm behind the profile: the worn guardian's, or the first realm.
+        private byte WornRealm => (byte)(ProfileEmblems.All.FirstOrDefault(emblem => emblem.Id == Flow.Product.Read.WornEmblem)?.Realm is byte realm && realm > 0 ? realm : 1);
         private void Refresh()
         {
             if (this == null || Flow == null) return;
@@ -134,7 +136,7 @@ namespace ZKube.Local.App
         {
             yield return Flow.Error;
             // Store status belongs where its purchase and restore actions are.
-            if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Profile) yield break;
+            if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Settings) yield break;
             // The Campaign page states an unreachable store in place of its purchase.
             yield return Flow.Billing.Busy ? "A store operation is still in progress." :
                 Flow.Page == StorePage.Campaign && Flow.StoreUnavailable ? null : Flow.BillingNotice;
@@ -200,16 +202,22 @@ namespace ZKube.Local.App
         public ProfilePageView ProfilePage()
         {
             var state = Flow.Product.Read;
-            return new ProfilePageView { Name = state.Name, ChangeName = Flow.SetName, Realm = (byte)Math.Max(1, state.WornEmblem),
+            var worn = ProfileEmblems.All.FirstOrDefault(emblem => emblem.Id != 0 && emblem.Id == state.WornEmblem);
+            return new ProfilePageView { Name = state.Name, ChangeName = Flow.SetName, Realm = WornRealm, Emblem = worn?.Id ?? 0,
+                Worn = worn == null ? null : "Wearing " + worn.Name,
                 Stars = state.Stars.Sum(value => (int)value), Streak = state.Streak, BestDailyScore = state.BestDailyScore,
-                Emblems = Protocol.Realms.Where(realm => Flow.Cleared(realm.MapId)).Select(realm => {
-                    byte id = realm.MapId;
-                    return new ProfileChoiceView { Id = id, Realm = id, Name = pages.Realm(id).guardianName,
-                        Detail = state.WornEmblem == id ? "Worn" : null, Available = true, Select = () => Flow.Wear(id) };
-                }).ToArray(),
-                Restore = Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) };
+                Emblems = ProfileEmblems.All.Where(emblem => emblem.Id != 0).Select(emblem => {
+                    byte id = emblem.Id;
+                    return new ProfileChoiceView { Id = id, Realm = emblem.Realm, Name = emblem.Name,
+                        Detail = state.WornEmblem == id ? "Worn" : null, Available = Flow.EmblemUnlocked(id), Select = () => Flow.Wear(id) };
+                }).ToArray() };
         }
-        public SettingsPageView SettingsPage() => AppPreferences.Read(Refresh, board);
+        public SettingsPageView SettingsPage()
+        {
+            var view = AppPreferences.Read(Refresh, board);
+            view.Actions = new[] { Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) };
+            return view;
+        }
         public ResultPageView ResultPage()
         {
             var outcome = Flow.LastCampaign;
@@ -218,7 +226,7 @@ namespace ZKube.Local.App
                     HasResult = true, ShowStars = true, Realm = outcome.Realm, Level = outcome.Level, Score = outcome.Score,
                     StarSources = outcome.StarSources, EndReason = outcome.EndReason, MovesLeft = outcome.MovesLeft,
                     PrimaryProgress = outcome.PrimaryProgress, Goals = outcome.Goals,
-                    NewBest = outcome.Stars > outcome.PreviousStars, NativeSharing = ResultSharing.NativeAvailable, Share = ResultSharing.Open,
+                    NewBest = outcome.Stars > outcome.PreviousStars, Share = ResultSharing.Open,
                     Done = Action(outcome.Stars == 3 ? "Continue" : "Map", () => Flow.Show(StorePage.Campaign)),
                     Retry = Action("Retry", Flow.Retry) };
             var attempt = Flow.Product.Read.DailyAttempt;
@@ -230,7 +238,7 @@ namespace ZKube.Local.App
                 ObjectiveTotal = attempt?.ObjectiveTotal ?? 0,
                 Streak = Flow.Product.Read.Streak,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
-                NativeSharing = ResultSharing.NativeAvailable, Share = ResultSharing.Open,
+                Share = ResultSharing.Open,
                 Done = Action("Back to Daily", () => Flow.Show(StorePage.Daily)) };
         }
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;

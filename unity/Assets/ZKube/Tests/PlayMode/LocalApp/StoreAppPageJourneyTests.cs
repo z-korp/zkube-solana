@@ -110,6 +110,7 @@ namespace ZKube.Tests
         private IEnumerator NamePlayer()
         {
             Click(app, "Profile"); yield return Page(StorePage.Profile);
+            Click(app, "Edit name"); yield return null;
             var field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
             Click(app, "Save name"); yield return Page(StorePage.Profile);
             Click(app, "Daily"); yield return Page(StorePage.Daily);
@@ -172,10 +173,12 @@ namespace ZKube.Tests
             var leases = (System.Collections.IDictionary)typeof(BoardArt).GetField("atlasLoads", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             var common = leases["ZKube/Atlases/common"];
             Click(app, "Profile"); yield return Page(StorePage.Profile);
+            Click(app, "Edit name"); yield return null;
             var field = app.GetComponentInChildren<TMP_InputField>(); field.onSubmit.Invoke(" \t ");
             yield return Page(StorePage.Profile);
             Assert.That(product.Read.Name, Is.EqualTo(LocalProductCodec.DefaultName));
             Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Enter a name"), Is.True);
+            Click(app, "Edit name"); yield return null;
             field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
             Click(app, "Save name"); yield return Page(StorePage.Profile);
             Assert.That(product.Read.Name, Is.EqualTo("Page tester"));
@@ -218,11 +221,48 @@ namespace ZKube.Tests
             Assert.That(app.Flow.Error, Is.Null);
             Assert.That(Texts(), Does.Not.Contain("Purchases are unavailable"));
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
-            Click(app, "Profile"); yield return Page(StorePage.Profile);
+            Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Restore purchases");
             yield return Wait(() => app.Flow.BillingNotice == "Purchases are unavailable" && !billing.Busy, "Restore did not report the store failure");
-            yield return Page(StorePage.Profile);
+            yield return Page(StorePage.Settings);
             Assert.That(Texts(), Does.Contain("Purchases are unavailable"));
+        }
+        // Presses a kit slider at a fraction of its track, as a finger would.
+        private void Slide(string name, float fraction)
+        {
+            var slider = app.GetComponentsInChildren<SkinSlider>().Single(value => value.name == name);
+            var track = SkinUi.ScreenRect((RectTransform)slider.transform.Find(name + " track"));
+            slider.OnPointerDown(new PointerEventData(EventSystem.current) { position = new Vector2(track.x + track.width * fraction, track.center.y) });
+        }
+        // The name is edited in place: Save appears only once it differs, the
+        // preview follows it, and saving closes the editor.
+        [UnityTest] public IEnumerator ProfileEditsTheNameInPlaceAndOffersSaveOnlyAfterAChange()
+        {
+            Click(app, "Profile"); yield return Page(StorePage.Profile);
+            Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null);
+            Click(app, "Edit name"); yield return null;
+            Assert.That(Buttons().Any(button => button.name == "Save name"), Is.False, "Nothing to save yet");
+            var field = app.GetComponentInChildren<TMP_InputField>(); field.text = "River"; yield return null;
+            Assert.That(FindButton(app, "Save name").interactable, Is.True);
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name preview").text, Is.EqualTo("River"),
+                "The preview shows the new name");
+            Click(app, "Save name"); yield return Page(StorePage.Profile);
+            Assert.That(product.Read.Name, Is.EqualTo("River"));
+            Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null);
+            Assert.That(FindButton(app, "Edit name").interactable, Is.True);
+        }
+        // Every emblem is shown; only an unlocked one can be worn, and wearing it
+        // is said beside the name.
+        [UnityTest] public IEnumerator EmblemGridShowsEveryEmblemAndWearsOnlyUnlockedOnes()
+        {
+            product.Write(state => { state.Stars[9] = 1; return state; });
+            Click(app, "Profile"); yield return Page(StorePage.Profile);
+            foreach (var emblem in ProfileEmblems.All.Where(emblem => emblem.Id != 0))
+                Assert.That(Texts(), Does.Contain(emblem.Name));
+            Assert.That(Buttons().Any(button => button.name == "Emblem 2"), Is.False, "A locked emblem takes no tap");
+            Click(app, "Emblem 1"); yield return Page(StorePage.Profile);
+            Assert.That(product.Read.WornEmblem, Is.EqualTo(1));
+            Assert.That(Texts(), Does.Contain("Wearing Mako"));
         }
         private Button[] Buttons() => app.GetComponentsInChildren<Button>().Where(value => value.gameObject.activeInHierarchy).ToArray();
         private string[] Texts() => app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy).Select(text => text.text).ToArray();
@@ -266,7 +306,8 @@ namespace ZKube.Tests
             Assert.That(texts, Does.Contain("Score").And.Contain(Protocol.CampaignTargets[0].ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain(level.Primary[2].ToString()));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])));
-            Assert.That(texts, Does.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description).And.Contain(rule.effect));
+            Assert.That(texts, Does.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description).And.Contain(rule.effect)
+                .And.Contain(catalog.Realm(1).guardianLines.encouragement).And.Contain(catalog.Realm(1).guardianTitle));
             Assert.That(texts.Any(text => text.StartsWith("0 / ")), Is.False);
             Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
             Click(app, "Play"); yield return BoardReady();
@@ -275,7 +316,8 @@ namespace ZKube.Tests
             Assert.That(outcome, Is.Not.Null); Assert.That(outcome.Realm, Is.EqualTo(1)); Assert.That(outcome.Level, Is.EqualTo(1));
             Assert.That(outcome.EndReason, Is.EqualTo(3));
             // The guardian says how it went; an ended run lights no star.
-            Assert.That(Texts(), Does.Contain("Run ended").And.Contain("An ended run keeps no stars · try again"));
+            Assert.That(Texts(), Does.Contain("Run ended").And.Contain("An ended run keeps no stars · try again")
+                .And.Contain(catalog.Realm(1).guardianLines.incomplete));
             var sockets = app.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Result star ")).ToArray();
             Assert.That(sockets.Length, Is.EqualTo(3));
             Assert.That(sockets.All(image => image.sprite.name.StartsWith(SkinSlots.StarOff)), Is.True);
@@ -337,13 +379,13 @@ namespace ZKube.Tests
             greeted = 0; yield return NamePlayer();
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
-            Assert.That(Texts(), Does.Contain(catalog.Realm(1).guardianGreeting).And.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.effect));
+            Assert.That(Texts(), Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.effect));
             Click(app, "Continue"); yield return null;
-            Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianGreeting));
+            Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianLines.greeting));
             Assert.That(new GuardianGreetings(() => greeted, _ => { }).Greeted(1), Is.True);
             Click(app, "Daily"); yield return Page(StorePage.Daily);
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
-            Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianGreeting));
+            Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianLines.greeting));
         }
         // The map repeats the current level's action as its primary; realm 1 has no
         // realm before it, so its back arrow is not drawn.
@@ -437,9 +479,9 @@ namespace ZKube.Tests
             yield return EndRun(); yield return Page(StorePage.Result);
             var today = runs.Today(); var catalog = PageCatalog.Load();
             var texts = Texts();
-            Assert.That(texts, Does.Contain("Daily complete").And.Contain(catalog.Realm(today.Realm).guardianGreeting).And.Contain("SCORE").And.Contain("DAILY STREAK"));
+            Assert.That(texts, Does.Contain("Daily complete").And.Contain(catalog.Realm(today.Realm).guardianLines.dailyGreeting).And.Contain("SCORE").And.Contain("DAILY STREAK"));
             if (today.ObjectiveKind != 0) Assert.That(texts, Does.Contain(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue)));
-            var share = FindButton(app, ResultSharing.NativeAvailable ? "Share result" : "Copy result");
+            var share = FindButton(app, "Share result");
             Assert.That(share.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
         }
         // A page change fades the old page out without taking input, raises the
@@ -535,19 +577,20 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount()
         {
             yield return NamePlayer(); Click(app, "Settings"); yield return Page(StorePage.Settings);
-            Click(app, "Music: off"); yield return Page(StorePage.Settings);
+            // The channel's row switches it; the kit slider sets its level.
+            Click(app, "Music switch"); yield return Page(StorePage.Settings);
             Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));
-            var slider = app.GetComponentsInChildren<Slider>().Single(value => value.name == "Music slider"); slider.value = 73;
-            Assert.That(board.MusicVolume, Is.EqualTo(.73d)); Click(app, "Music: on"); yield return Page(StorePage.Settings);
-            Assert.That(board.MusicVolume, Is.Zero); Click(app, "Music: off"); yield return Page(StorePage.Settings);
+            Slide("Music slider", .73f);
+            Assert.That(board.MusicVolume, Is.EqualTo(.73d)); Click(app, "Music switch"); yield return Page(StorePage.Settings);
+            Assert.That(board.MusicVolume, Is.Zero); Click(app, "Music switch"); yield return Page(StorePage.Settings);
             Assert.That(board.MusicVolume, Is.EqualTo(.73d));
-            var effects = app.GetComponentsInChildren<Slider>().Single(value => value.name == "Effects slider"); effects.value = 27;
+            Slide("Effects slider", .27f);
             Assert.That(board.EffectsVolume, Is.EqualTo(.27d)); Assert.That(board.MusicVolume, Is.EqualTo(.73d));
             Assert.That(audio[AudioPolicy.MusicKey], Is.EqualTo(.73f));
             Assert.That(audio[AudioPolicy.EffectsKey], Is.EqualTo(.27f)); Assert.That(board.Muted, Is.True);
-            app.GetComponentsInChildren<Slider>().Single(value => value.name == "Music slider").value = 0;
+            Slide("Music slider", 0);
             Click(app, "Back"); yield return Page(StorePage.Daily); Click(app, "Settings"); yield return Page(StorePage.Settings);
-            Click(app, "Music: off"); yield return Page(StorePage.Settings); Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));
+            Click(app, "Music switch"); yield return Page(StorePage.Settings); Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));
         }
     }
 }

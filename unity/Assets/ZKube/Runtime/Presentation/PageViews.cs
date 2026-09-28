@@ -60,13 +60,14 @@ namespace ZKube.Presentation
 
         public void Render(AppPage page, IEnumerable<string> notices = null)
         {
+            shownNotices = notices?.ToArray();
             if (shell.Artwork == null) throw new InvalidOperationException("Load the page realm before drawing it");
             Retire();
             int to = TabIndex(page);
             bool entering = Shown != page;
             reducedMotion = source.SettingsPage().ReducedMotion;
             if (page == AppPage.Settings && entering) { lastMusic = AudioPolicy.ToggleOnLevel; lastEffects = AudioPolicy.ToggleOnLevel; }
-            if (page != AppPage.Profile) { editedName = null; savedName = null; }
+            if (page != AppPage.Profile) { editedName = null; savedName = null; editingName = false; }
             Shown = page;
             if (to >= 0) lastTab = tabs[to];
             ui?.Dispose(); ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
@@ -94,10 +95,10 @@ namespace ZKube.Presentation
                     Level(level, map, messages); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(2, "PROFILE", null, null, null, Settings(), messages); Profile(profile); break;
+                    Frame(2, "Profile", null, null, null, Settings(), messages); Profile(profile); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
-                    Frame(-1, "SETTINGS", null, new PageAction { Label = "Back", Name = "Back",
+                    Frame(-1, "Settings", brand.ToUpperInvariant(), new PageAction { Label = "Back", Name = "Back",
                         CanInvoke = () => source.CanNavigate(lastTab), Invoke = () => source.Navigate(lastTab) }, null, null, messages);
                     Settings(settings); break;
                 case AppPage.Result:
@@ -118,6 +119,10 @@ namespace ZKube.Presentation
             else if (reveal.HasValue) shell.Reveal(reveal.Value);
             if (entering) shell.Enter(source.SettingsPage().ReducedMotion, ui.Density);
         }
+
+        private string[] shownNotices;
+        // Draws the shown page again in place, for a change only the page holds.
+        private void Redraw() { if (Shown.HasValue) Render(Shown.Value, shownNotices); }
 
         // Removes the drawn page, so the next page enters without a page to leave.
         public void Hide() { Retire(); Shown = null; shell.Clear(shell.SafeArea); }
@@ -285,17 +290,17 @@ namespace ZKube.Presentation
             card.Typed("Daily used", "Today’s attempt is used", SkinUi.Type.Caption, 20, SkinTokens.Text, 9.5f);
             nextDaily = card.Typed("Next Daily", NextDaily(value.NextOpensAt - countdownSecond), SkinUi.Type.Caption, 14, SkinTokens.TextMuted, 20);
             var rows = new PageColumn(ui, card.Parent, actions, card.Left - 8 * d, card.Width + 16 * d, card.Top);
-            ResultRow(rows, "Daily score", "Score", value.Score, SkinTokens.Score, 12);
-            if (value.ObjectiveKind != 0) ResultRow(rows, "Daily objective count", objective, value.ObjectiveTotal, SkinTokens.Objective, 12);
+            ResultRow(rows, "Daily score", "Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), SkinTokens.Score, 12);
+            if (value.ObjectiveKind != 0)
+                ResultRow(rows, "Daily objective count", objective, value.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture), SkinTokens.Objective, 12);
             card.Top = rows.Top - 8 * d;
             for (int i = 0; i < value.Actions.Length; i++) Pill(card, value.Actions[i], i == 0, null, i == value.Actions.Length - 1 ? 0 : 12);
             column = card.End(24);
         }
         // A 52 dp kit list row: the label on the left and its number on the right.
-        private void ResultRow(PageColumn rows, string name, string label, ulong value, string token, float gapDp)
+        private void ResultRow(PageColumn rows, string name, string label, string number, string token, float gapDp)
         {
             float d = ui.Density;
-            string number = value.ToString("N0", CultureInfo.InvariantCulture);
             float numberWidth = ui.TextWidth(number, 18, SkinUi.Type.Number);
             float height = Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(label, rows.Width - 44 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
             var rect = rows.Take(height, gapDp);
@@ -352,113 +357,6 @@ namespace ZKube.Presentation
             ui.Underpaint("Text shade", new Rect(text.center.x - width / 2, text.y, width, text.height), parent);
         }
         private static string Number(byte realm, byte level) => HudLayout.LevelNumber(realm, level);
-
-        private void Profile(ProfilePageView value)
-        {
-            column.Medallion("Worn emblem", ui.Art.Sprite("boss__portrait"), 96, 8);
-            float d = ui.Density;
-            if (value.ChangeName == null) column.Text("Player name", value.Name, 26, SkinTokens.Text, true, 10);
-            else
-            {
-                if (savedName != value.Name) { savedName = value.Name; editedName = value.Name; }
-                var rect = column.Take(PageColumn.RowDp * d * textScale, 8);
-                var plate = ui.Piece("Player name", SkinSlots.Plate, rect, shell.Page); plate.raycastTarget = true;
-                var field = plate.gameObject.AddComponent<TMP_InputField>(); field.characterLimit = 24;
-                var area = ui.Rect<RectMask2D>("Text area", new Rect(rect.x + 32 * d, rect.y + 6 * d, rect.width - 64 * d, rect.height - 12 * d), plate.transform);
-                var label = ui.Label("Name text", "", ScreenOf(area), 20, SkinTokens.Text, area.transform, true);
-                label.textWrappingMode = TextWrappingModes.NoWrap;
-                field.textViewport = area.rectTransform; field.textComponent = label; field.text = editedName;
-                field.onValueChanged.AddListener(text => editedName = text);
-                field.onSubmit.AddListener(text => actions.Run(() => value.ChangeName(text)));
-                column.Button(new PageAction { Label = "Save name", Invoke = () => value.ChangeName(field.text),
-                    CanInvoke = () => field != null && !string.IsNullOrWhiteSpace(field.text) }, false);
-            }
-            if (!string.IsNullOrEmpty(value.Worn)) column.Text("Worn", value.Worn, 15, SkinTokens.Text);
-            column.Row("Best Daily", "Best Daily", value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture));
-            column.Row("Campaign stars", "Campaign stars", value.Stars + " / " + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3);
-            column.Row("Daily streak", "Daily streak", value.Streak + (value.Streak == 1 ? " day" : " days"));
-            foreach (var fact in value.Facts) column.Text("Profile fact", fact, 15, SkinTokens.Text);
-            if (!string.IsNullOrEmpty(value.Notice)) column.Text("Profile notice", value.Notice, 15, SkinTokens.Text);
-            foreach (var action in value.Actions) column.Button(action, false);
-            var images = new List<KeyValuePair<byte, Image>>();
-            if (value.Emblems.Length != 0)
-            {
-                column.Gap(8);
-                column.Text("Emblem heading", "GUARDIAN EMBLEMS", 19, SkinTokens.Accent, true, 10);
-                int columns = textScale > 1 ? 3 : 4;
-                float cell = column.Width / columns, portrait = Mathf.Min(cell - 12 * d, 72 * d);
-                float caption = ui.TextHeight("Ag", cell, 13, false), rowHeight = Mathf.Max(PageColumn.ButtonDp * d, portrait + caption + 10 * d);
-                for (int row = 0; row * columns < value.Emblems.Length; row++)
-                {
-                    var line = column.Take(rowHeight, 8);
-                    for (int i = 0; i < columns && row * columns + i < value.Emblems.Length; i++)
-                    {
-                        var choice = value.Emblems[row * columns + i];
-                        var rect = new Rect(line.x + i * cell, line.y, cell, rowHeight);
-                        var hit = ui.Rect<Image>("Emblem " + choice.Id, rect, shell.Page); hit.color = Color.clear; hit.raycastTarget = true;
-                        var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
-                        var action = new PageAction { Name = "Emblem " + choice.Id, Enabled = choice.Available, CanInvoke = choice.CanSelect, Invoke = choice.Select };
-                        if (choice.Realm != 0)
-                        {
-                            var face = ui.Medallion("Guardian portrait", new Rect(rect.center.x - portrait / 2, rect.yMax - portrait, portrait, portrait), null, hit.transform);
-                            face.enabled = false; images.Add(new KeyValuePair<byte, Image>(choice.Realm, face));
-                        }
-                        ui.Label("Emblem " + choice.Id + " name", choice.Name + (choice.Detail == null ? "" : " · " + choice.Detail),
-                            new Rect(rect.x, rect.y, rect.width, caption), 13, choice.Detail == null ? SkinTokens.Text : SkinTokens.Accent, hit.transform);
-                        actions.Wire(button, action, fade: false);
-                    }
-                }
-            }
-            if (value.Borders.Length != 0) column.Text("Border heading", "BORDER", 19, SkinTokens.Accent, true, 10);
-            foreach (var choice in value.Borders)
-                column.Button(new PageAction { Name = "Border " + choice.Id, Label = choice.Name + (choice.Detail == null ? "" : " · " + choice.Detail),
-                    Enabled = choice.Available, CanInvoke = choice.CanSelect, Invoke = choice.Select }, false);
-            column.Button(value.Save, false); column.Button(value.Restore, false);
-            if (images.Count != 0) StartCoroutine(LoadPortraits(images, epoch));
-        }
-
-        private void Settings(SettingsPageView value)
-        {
-            var card = column.Card("Sound card");
-            Volume(card, "Music", value.Music, value.SetMusic, true);
-            Volume(card, "Effects", value.Effects, value.SetEffects, false);
-            if (value.Muted) card.Button(new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, true);
-            column = card.End();
-            column.Button(new PageAction { Label = "Reduced motion: " + (value.ReducedMotion ? "on" : "off"), Invoke = value.ToggleMotion }, false);
-            column.Button(new PageAction { Label = "Haptics: " + (value.Haptics ? "on" : "off"), Invoke = value.ToggleHaptics }, false);
-            column.Button(new PageAction { Label = "Text size: " + (value.LargeText ? "larger" : "standard"), Invoke = value.ToggleText }, false);
-        }
-        private void Volume(PageColumn card, string title, double value, Action<double> set, bool music)
-        {
-            float d = ui.Density;
-            var toggle = new PageAction { Label = title + (value > 0 ? ": on" : ": off") };
-            card.Button(toggle, false, 8);
-            var rect = card.Take(Mathf.Max(BoardLayout.MinimumTouchDp * d, 44 * d), 4);
-            var holder = ui.Rect<Image>(title + " slider", rect, shell.Page); holder.color = Color.clear;
-            var track = ui.Rect<Image>("Track", new Rect(rect.x + 12 * d, rect.center.y - 7 * d, rect.width - 24 * d, 14 * d), holder.transform);
-            track.color = ui.Art.Token(SkinTokens.Scrim);
-            var fillArea = Holder("Fill area", SkinUi.ScreenRect(track.rectTransform), holder.transform);
-            var fill = ui.Rect<Image>("Fill", SkinUi.ScreenRect(track.rectTransform), fillArea); fill.color = ui.Art.Token(SkinTokens.Positive);
-            fill.rectTransform.anchorMin = Vector2.zero; fill.rectTransform.anchorMax = Vector2.one; fill.rectTransform.sizeDelta = Vector2.zero;
-            float knob = 34 * d;
-            var handleArea = Holder("Handle area", new Rect(rect.x + 12 * d + knob / 2, rect.y, rect.width - 24 * d - knob, rect.height), holder.transform);
-            var handle = ui.Rect<Image>("Handle", new Rect(rect.x, rect.center.y - knob / 2, knob, knob), handleArea);
-            handle.sprite = ui.Art.SkinUi(SkinSlots.Badge); handle.preserveAspect = true;
-            handle.rectTransform.anchorMin = new Vector2(0, .5f); handle.rectTransform.anchorMax = new Vector2(0, .5f);
-            handle.rectTransform.pivot = new Vector2(.5f, .5f); handle.rectTransform.anchoredPosition = Vector2.zero; handle.rectTransform.sizeDelta = new Vector2(knob, knob);
-            var slider = holder.gameObject.AddComponent<Slider>(); slider.minValue = 0; slider.maxValue = 100; slider.wholeNumbers = true;
-            slider.fillRect = fill.rectTransform; slider.handleRect = handle.rectTransform; slider.targetGraphic = handle;
-            slider.SetValueWithoutNotify((float)Math.Round(value * 100));
-            var percent = card.Text(title + " level", Math.Round(value * 100) + "%", 15, SkinTokens.TextMuted, false, 10);
-            Action<double> apply = level => {
-                actions.Run(() => set(level)); value = level;
-                if (level > 0) { if (music) lastMusic = level; else lastEffects = level; }
-                toggle.Label = title + (level > 0 ? ": on" : ": off");
-                slider.SetValueWithoutNotify((float)Math.Round(level * 100)); percent.text = Math.Round(level * 100) + "%";
-            };
-            toggle.Invoke = () => apply(value > 0 ? 0 : music ? lastMusic : lastEffects);
-            slider.onValueChanged.AddListener(next => apply(next / 100d));
-        }
 
         private PageAction ShareAction(ResultPageView value, string text, string label)
         {

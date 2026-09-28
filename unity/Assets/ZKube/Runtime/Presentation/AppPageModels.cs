@@ -94,7 +94,8 @@ namespace ZKube.Presentation
     {
         public string Name, Worn, Notice;
         public Action<string> ChangeName;
-        public byte Realm;
+        // The realm behind the page, and the worn emblem (0 when none is worn).
+        public byte Realm, Emblem;
         public int Stars;
         public ulong Streak, BestDailyScore;
         public string[] Facts = Array.Empty<string>();
@@ -110,6 +111,8 @@ namespace ZKube.Presentation
         public bool Muted, ReducedMotion, Haptics, LargeText;
         public Action<double> SetMusic, SetEffects;
         public Action Unmute, ToggleMotion, ToggleHaptics, ToggleText;
+        // The identity's own settings actions, such as restoring purchases.
+        public PageAction[] Actions = Array.Empty<PageAction>();
     }
 
     public sealed class ResultPageView

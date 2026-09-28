@@ -29,22 +29,28 @@ namespace ZKube.Presentation
             if (value.Share != null)
                 share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName,
                     realm.realmName, "Level " + Number(value.Realm, value.Level) + " stars", (ulong)stars, value.Score, null),
-                    value.NativeSharing ? "Share" : "Copy");
+                    "Share");
             float d = ui.Density;
             // The dialog sits over the dimmed painting.
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .45f);
             Image[] lit = null; TMP_Text scoreText = null; RectTransform chip = null, stroke = null, finish = null;
             var sequence = Dialog("Result", null, (card, rail) => {
+                // A win says the stars kept, or the guardian's defeat on its own
+                // level; any other end, that the run is not over for good.
+                var lines = realm.guardianLines;
+                string line = !cleared ? lines.incomplete : value.Level == Protocol.CampaignTargets.Length ? lines.defeatLine : lines.Stars(stars);
                 var talk = Talk(card.Parent, new Rect(card.Left - 24 * d, 0, card.Width + 48 * d, 0), rail, cleared ? "boss__celebrate" : "boss__defeated",
-                    realm.guardianName, summary, null);
+                    realm, line, null);
                 card.Top = talk.y - 43 * d;
                 Title(card, title, 30);
                 stroke = (RectTransform)card.Parent.GetChild(card.Parent.childCount - 1);
-                card.Gap(13);
+                card.Gap(4.5f);
                 lit = BigStars(card, stars);
                 card.Typed("Score caption", "SCORE", SkinUi.Type.Label, 12, SkinTokens.TextMuted, -8);
                 scoreText = card.Typed("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), SkinUi.Type.Number, 56, SkinTokens.Score, 3);
                 if (value.NewBest) chip = Group("New best chip", card.Parent, () => NewBest(card));
+                card.Gap(value.NewBest ? 24 : 12);
+                card.Typed("Result summary", summary, SkinUi.Type.Caption, 15, SkinTokens.TextMuted, 0);
                 if (!string.IsNullOrEmpty(value.Notice)) card.Typed("Result notice", value.Notice, SkinUi.Type.Body, 15, SkinTokens.Text, 0);
                 card.Gap(21);
                 finish = Group("Result actions", card.Parent, () => {
@@ -105,31 +111,34 @@ namespace ZKube.Presentation
             foreach (var piece in pieces) piece.SetParent(group, true);
             return group;
         }
-        // Three big stars on one row; lit ones first, the middle one larger.
+        // Three big stars on one row, lit ones first: the middle one larger and
+        // raised, as drawn (its light 74 dp across, the others' 58, 86 dp apart).
+        // The star art keeps a margin round its light, so its rect is larger.
         // Returns the lit ones.
         private Image[] BigStars(PageColumn card, int earned)
         {
-            float d = ui.Density, side = 58 * d, middle = 72 * d;
-            var row = card.Take(middle, 30);
+            float d = ui.Density, side = 74 * d, middle = 95 * d;
+            var row = card.Take(middle, 16);
             var lit = new Image[earned];
             for (int i = 0; i < 3; i++)
             {
-                float size = i == 1 ? middle : side, x = row.center.x + (i - 1) * 86 * d;
-                var star = ui.Star("Result star " + (i + 1), new Rect(x - size / 2, row.center.y - size / 2, size, size), i < earned, card.Parent);
+                float size = i == 1 ? middle : side, x = row.center.x + (i - 1) * 86 * d, y = row.center.y + (i == 1 ? 4.4f : -4.4f) * d;
+                var star = ui.Star("Result star " + (i + 1), new Rect(x - size / 2, y - size / 2, size, size), i < earned, card.Parent);
                 if (i < earned) lit[i] = star;
             }
             return lit;
         }
-        // The "New best!" chip: a glass plate with the trophy and the words in
-        // warm light.
+        // The "New best!" chip: a 36 dp glass plate with the trophy and the words
+        // in warm light, as drawn.
         private void NewBest(PageColumn card)
         {
-            float d = ui.Density, text = ui.TextWidth("New best!", 13, SkinUi.Type.Label), width = text + 58 * d;
-            var rect = card.Take(30 * d, 0);
+            float d = ui.Density, text = ui.TextWidth("New best!", 16, SkinUi.Type.Label), width = Mathf.Max(165 * d, text + 70 * d);
+            var rect = card.Take(36 * d, 0);
             var chip = new Rect(rect.center.x - width / 2, rect.y, width, rect.height);
-            ui.Piece("New best", SkinSlots.Plate, chip, card.Parent, .5f);
-            Tinted("New best icon", SkinSlots.IconTrophy, new Rect(chip.x + 14 * d, chip.center.y - 9 * d, 18 * d, 18 * d), SkinTokens.Accent, card.Parent);
-            ui.Label("New best label", "New best!", new Rect(chip.x + 38 * d, chip.y, text + 8 * d, chip.height), 13, SkinTokens.Accent,
+            ui.Piece("New best", SkinSlots.Plate, chip, card.Parent, .6f);
+            float start = chip.center.x - (text + 30 * d) / 2;
+            Tinted("New best icon", SkinSlots.IconTrophy, new Rect(start, chip.center.y - 11 * d, 22 * d, 22 * d), SkinTokens.Accent, card.Parent);
+            ui.Label("New best label", "New best!", new Rect(start + 30 * d, chip.y, text + 4 * d, chip.height), 16, SkinTokens.Accent,
                 card.Parent, SkinUi.Type.Label, TextAlignmentOptions.Left);
         }
         // Two secondary pills side by side; the share pill leads with its icon.
@@ -152,14 +161,14 @@ namespace ZKube.Presentation
             float d = ui.Density;
             var realm = catalog.Realm(value.Realm);
             column.Gap(177 - 4);
-            var talk = Talk(shell.Page, new Rect(column.Left, 0, column.Width, 0), column.Top, "boss__satisfied", realm.guardianName, realm.guardianGreeting, null);
+            var talk = Talk(shell.Page, new Rect(column.Left, 0, column.Width, 0), column.Top, "boss__satisfied", realm, realm.guardianLines.dailyGreeting, null);
             column.Top = talk.y - 19 * d;
             var card = column.Card("Result card", null, 24, 20, 20);
             card.Typed("Score caption", "SCORE", SkinUi.Type.Label, 12, SkinTokens.TextMuted, -2);
             card.Typed("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), SkinUi.Type.Number, 56, SkinTokens.Score, 14);
             string objective = value.ObjectiveKind == 0 ? null : catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             var rows = new PageColumn(ui, card.Parent, actions, card.Left - 8 * d, card.Width + 16 * d, card.Top);
-            if (objective != null) ResultRow(rows, "Objective", objective, value.ObjectiveTotal, SkinTokens.Objective, 12);
+            if (objective != null) ResultRow(rows, "Objective", objective, value.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture), SkinTokens.Objective, 12);
             card.Top = rows.Top;
             if (value.Streak.HasValue)
             {
@@ -178,7 +187,7 @@ namespace ZKube.Presentation
                 string text = ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName, realm.realmName,
                     objective ?? "Score only", value.ObjectiveTotal, value.Score, value.Streak);
                 var buttons = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top);
-                Pill(buttons, ShareAction(value, text, value.NativeSharing ? "Share result" : "Copy result"), true, null, 0);
+                Pill(buttons, ShareAction(value, text, "Share result"), true, null, 0);
                 column = new PageColumn(ui, shell.Page, actions, column.Left, column.Width, buttons.Top);
             }
         }
@@ -190,7 +199,7 @@ namespace ZKube.Presentation
             float d = ui.Density;
             var realm = catalog.Realm(value.Realm);
             column.Gap(213 - 4);
-            var talk = Talk(shell.Page, new Rect(column.Left, 0, column.Width, 0), column.Top, "boss__idle", realm.guardianName,
+            var talk = Talk(shell.Page, new Rect(column.Left, 0, column.Width, 0), column.Top, "boss__idle", realm,
                 "Play today’s Daily to see your score and the day’s objective count here.", null);
             column.Top = talk.y - 30 * d;
             column.Typed("No result", "No result yet", SkinUi.Type.Title, 27, SkinTokens.Text, 50);

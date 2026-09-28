@@ -265,8 +265,9 @@ namespace ZKube.Presentation
             var realm = catalog.Realm(value.Realm);
             float mapBottom = column.Top;
             Dialog("Level", value.Back, (card, rail) => {
-                var talk = Talk(card.Parent, new Rect(card.Left - 24 * ui.Density, 0, card.Width + 48 * ui.Density, 0), rail, "boss__idle",
-                    realm.guardianName, null, catalog.Rule(value.Realm));
+                // The guardian's own level has its trial line; the others its encouragement.
+                var talk = Talk(card.Parent, new Rect(card.Left - 24 * ui.Density, 0, card.Width + 48 * ui.Density, 0), rail, "boss__idle", realm,
+                    value.Level == Protocol.CampaignTargets.Length ? realm.guardianLines.trialIntro : realm.guardianLines.encouragement, catalog.Rule(value.Realm));
                 card.Top = talk.y - 45 * ui.Density;
                 foreach (var notice in notices) card.Note("Notice", notice);
                 Title(card, "Level " + Number(value.Realm, value.Level), 30);
@@ -373,7 +374,7 @@ namespace ZKube.Presentation
             var scrim = ui.Rect<Image>("Greeting scrim", shell.ScreenArea, root);
             scrim.color = ui.Art.Token(SkinTokens.Scrim); scrim.raycastTarget = true;
             float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d) - 8 * d, left = safe.center.x - width / 2;
-            var box = Talk(root, new Rect(left, 0, width, 0), safe.center.y + 15 * d, "boss__greeting", realm.guardianName, realm.guardianGreeting, catalog.Rule(realmId));
+            var box = Talk(root, new Rect(left, 0, width, 0), safe.center.y + 15 * d, "boss__greeting", realm, realm.guardianLines.greeting, catalog.Rule(realmId));
             // A long greeting lifts so it and its prompt stay above the tab bar, and
             // the guardian stays under the top of the safe area.
             float lift = Mathf.Min(Mathf.Max(0, ui.TabBarRect(safe).yMax + 16 * d - (box.y - 60 * d)),
@@ -405,7 +406,7 @@ namespace ZKube.Presentation
         // scene component fills; until it lands a still frame holds its place.
         // area gives the box's x and width; the rail is the box's top. Returns the
         // box.
-        private Rect Talk(Transform parent, Rect area, float rail, string frame, string name, string line, PageCatalog.GuardianRule rule)
+        private Rect Talk(Transform parent, Rect area, float rail, string frame, PageCatalog.RealmPage realm, string line, PageCatalog.GuardianRule rule)
         {
             float d = ui.Density, size = TalkBustDp * d;
             var bust = new Rect(area.center.x - size / 2, rail - (1 - ui.Art.GuardianRailY) * size, size, size);
@@ -413,7 +414,8 @@ namespace ZKube.Presentation
             figure.sprite = ui.Art.Sprite(frame); figure.preserveAspect = true; figure.raycastTarget = false;
             var text = new PageColumn(ui, parent, actions, area.x + 20 * d, area.width - 40 * d, rail - 19 * d);
             int first = parent.childCount;
-            text.Typed("Talk name", name, SkinUi.Type.Title, 17, SkinTokens.Accent, line == null ? 14 : 6, TextAlignmentOptions.Left);
+            text.Typed("Talk name", realm.guardianName, SkinUi.Type.Title, 17, SkinTokens.Accent, 0, TextAlignmentOptions.Left);
+            text.Typed("Talk title", realm.guardianTitle, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, line == null ? 14 : 8, TextAlignmentOptions.Left);
             if (line != null) text.Typed("Talk line", line, SkinUi.Type.Caption, 16, SkinTokens.Text, rule == null ? 0 : 22, TextAlignmentOptions.Left);
             if (rule != null)
             {

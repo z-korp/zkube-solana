@@ -138,11 +138,12 @@ namespace ZKube.Local.App
                 Unsaved = true; Open(TodayRun, error);
             }
         }
-        public void Wear(byte realm)
+        public bool EmblemUnlocked(byte emblem) => emblem >= 1 && emblem <= ZKube.Presentation.ProfileEmblems.Last && Progress().EmblemUnlocked[emblem] != 0;
+        public void Wear(byte emblem)
         {
             Check();
-            if (realm < 1 || realm > Protocol.Realms.Length || !Cleared(realm)) throw new InvalidOperationException("Defeat this guardian first");
-            Write(state => state.WornEmblem = realm); Changed?.Invoke();
+            if (!EmblemUnlocked(emblem)) throw new InvalidOperationException("Earn this emblem first");
+            Write(state => state.WornEmblem = emblem); Changed?.Invoke();
         }
         // A finished Campaign run passes its outcome to the result page; leaving a
         // run any other way returns to the map.

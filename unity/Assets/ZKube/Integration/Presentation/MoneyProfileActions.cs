@@ -65,7 +65,7 @@ namespace ZKube.Integration.Presentation
             profileRead.Value.Pending == null && profileRead.Value.Session.Current && profileRead.Value.Session.Funding == "ready";
         private bool ProfileSelectionChanged() => profileRead != null && profileRead.IsCurrent &&
             (selectedEmblem != profileRead.Value.Identity.StoredEmblem || selectedBorder != profileRead.Value.Profile.WornTier);
-        private static ProfileEmblemDefinition EmblemDefinition(byte id) => ProfileIdentityCatalog.Emblems.Single(value => value.Id == id);
+        private static ProfileEmblemDefinition EmblemDefinition(byte id) => ProfileEmblems.All.Single(value => value.Id == id);
         private static ProfileTierDefinition TierDefinition(byte id) => ProfileIdentityCatalog.Tiers.Single(value => value.Id == id);
         private void BeginProfilePanel() => ReplacePagePanel(ref profilePanel, "Player profile");
         private void ProfileNavigation()

@@ -437,15 +437,21 @@ namespace ZKube.Presentation
             if (PresentationInitialized && Session != null && recoveryRequired) { ShowRecovery(); return; }
             if (!PresentationInitialized || Session == null || IsTerminal()) return;
             paused = true; queued = null; CancelDrag(); music.Pause();
-            View.OpenModal("PAUSED", art.Title(Session), EndRun,
-                ("Resume", Resume),
-                (Muted ? "Sound: off" : "Sound: on", () => { SetMuted(!Muted); Pause(); }),
-                (ReducedMotion ? "Reduced motion: on" : "Reduced motion: off", () => { SetReducedMotion(!ReducedMotion); Pause(); }),
-                (Haptics ? "Haptics: on" : "Haptics: off", () => { SetHaptics(!Haptics); Pause(); }),
-                (TextScale > 1 ? "Text size: larger" : "Text size: standard", () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); }),
-                (EndRun, () => View.OpenModal("END THIS RUN?", EndRunDetail(State), EndRun,
-                    ("Keep playing", Resume), (EndRun, () => { paused = false; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); }))));
+            pauseDialog?.Close();
+            pauseDialog = PauseDialog.Open(View, art, art.Title(Session), Resume, new[] {
+                new PauseDialog.Row { Name = Muted ? "Sound: off" : "Sound: on", Label = "Sound", On = !Muted, Invoke = () => { SetMuted(!Muted); Pause(); } },
+                new PauseDialog.Row { Name = ReducedMotion ? "Reduced motion: on" : "Reduced motion: off", Label = "Reduced motion", On = ReducedMotion,
+                    Invoke = () => { SetReducedMotion(!ReducedMotion); Pause(); } },
+                new PauseDialog.Row { Name = Haptics ? "Haptics: on" : "Haptics: off", Label = "Haptics", On = Haptics, Invoke = () => { SetHaptics(!Haptics); Pause(); } },
+                new PauseDialog.Row { Name = TextScale > 1 ? "Text size: larger" : "Text size: standard", Label = "Text size", Value = TextScale > 1 ? "Larger" : "Standard",
+                    Invoke = () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); } },
+            }, () => {
+                pauseDialog?.Close(); pauseDialog = null;
+                View.OpenModal("END THIS RUN?", EndRunDetail(State), EndRun,
+                    ("Keep playing", Resume), (EndRun, () => { paused = false; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); }));
+            });
         }
+        private PauseDialog pauseDialog;
         public const string EndRun = "End run";
         // Only a run with accepted actions keeps anything when it ends.
         public static string EndRunDetail(RunSummary state) =>
@@ -454,7 +460,7 @@ namespace ZKube.Presentation
         {
             if (!HostInputEnabled) return;
             if (recoveryRequired) { ShowRecovery(); return; }
-            paused = false; View.CloseModal();
+            paused = false; View.CloseModal(); pauseDialog?.Close(); pauseDialog = null;
             if (!Muted) music.UnPause();
             View.Summary(State, Session, !busy && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
         }

@@ -3,19 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using ZKube.Core.Generated;
 using ZKube.Integration.Client;
+using ZKube.Presentation;
 
 namespace ZKube.Integration.App
 {
-    public enum ProfileEmblemKind { Automatic, Guardian, Realm, World }
-    public sealed class ProfileEmblemDefinition
-    {
-        public byte Id { get; }
-        public ProfileEmblemKind Kind { get; }
-        public byte Realm { get; }
-        public string Name { get; }
-        public ProfileEmblemDefinition(byte id, ProfileEmblemKind kind, byte realm, string name)
-        { Id = id; Kind = kind; Realm = realm; Name = name; }
-    }
     public sealed class ProfileTierDefinition
     {
         public byte Id { get; }
@@ -45,7 +36,7 @@ namespace ZKube.Integration.App
             Profile = campaign.Player;
             StoredEmblem = (byte?)Profile.Fields?["featured_emblem"] ?? 0;
             ProgressAvailable = campaign.Maps.Count == Protocol.Realms.Length;
-            Emblems = Array.AsReadOnly(ProfileIdentityCatalog.Emblems.Select(definition =>
+            Emblems = Array.AsReadOnly(ProfileEmblems.All.Select(definition =>
                 new ProfileEmblemChoice(definition, campaign.EmblemUnlocked[definition.Id] != 0,
                     campaign.EmblemUnlocked[definition.Id] != 0 && campaign.EmblemGold[definition.Id] != 0)).ToArray());
             DisplayedEmblem = StoredEmblem == 0 ? campaign.StrongestEmblem : StoredEmblem;

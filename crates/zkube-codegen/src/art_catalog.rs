@@ -265,6 +265,8 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
             "mark": "/assets/common/mark.png",
             "wordmark-realms": "/assets/common/brand/realms.png",
             "wordmark-arena": "/assets/common/brand/arena.png",
+            "emblem-11": "/assets/common/emblems/emblem-11.png",
+            "emblem-12": "/assets/common/emblems/emblem-12.png",
         },
         "skins": super::skins::render(root, &authored, realms.len())?,
     });
