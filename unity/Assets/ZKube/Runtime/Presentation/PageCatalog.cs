@@ -41,12 +41,23 @@ namespace ZKube.Presentation
         [Serializable] public sealed class RealmPage
         {
             public byte realmId;
-            public string id, realmName, guardianName, guardianGreeting;
+            public string id, realmName, guardianName, guardianTitle;
+            public GuardianLines guardianLines;
             public Swatch[] rgba;
             public AudioEntry[] audio;
             public Point[] campaignPath;
             public PathStyle map;
             public GuardianContact guardian;
+        }
+        // What the guardian says, by moment (codegen checks each is present and spoken).
+        [Serializable] public sealed class GuardianLines
+        {
+            public string greeting, dailyGreeting, encouragement, trialIntro, respectLine, oneStar, twoStar, threeStar,
+                incomplete, defeatLine, newBestLine;
+            public string[] All => new[] { greeting, dailyGreeting, encouragement, trialIntro, respectLine, oneStar, twoStar, threeStar,
+                incomplete, defeatLine, newBestLine };
+            // A win by the stars it kept.
+            public string Stars(int stars) => stars >= 3 ? threeStar : stars == 2 ? twoStar : oneStar;
         }
         // Where the guardian's paws rest, as fractions of its square canvas from the top.
         [Serializable] public sealed class GuardianContact { public float railY, railFrontY; }
@@ -76,7 +87,8 @@ namespace ZKube.Presentation
             foreach (var realm in themes)
             {
                 if (realm.realmId < 1 || realm.realmId > 10 || string.IsNullOrEmpty(realm.realmName) || string.IsNullOrEmpty(realm.guardianName) ||
-                    string.IsNullOrEmpty(realm.guardianGreeting) || realm.campaignPath == null || realm.campaignPath.Length != 10 || realm.map == null)
+                    string.IsNullOrEmpty(realm.guardianTitle) || realm.guardianLines == null ||
+                    realm.guardianLines.All.Any(string.IsNullOrWhiteSpace) || realm.campaignPath == null || realm.campaignPath.Length != 10 || realm.map == null)
                     throw new FormatException("Imported realm page is incomplete");
                 foreach (var point in realm.campaignPath)
                     if (point == null || !Finite(point.x) || !Finite(point.y) || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1)

@@ -35,6 +35,50 @@ pub const GUARDIAN_FRAMES: [&str; 10] = [
     "portrait",
 ];
 
+/// What each guardian says, by moment: its first map greeting, the Daily,
+/// mid-run encouragement, the guardian level's preview, respect once passed,
+/// a win by stars kept, an ended run, its defeat and an Arcade personal best.
+pub const GUARDIAN_LINES: [&str; 11] = [
+    "greeting",
+    "dailyGreeting",
+    "encouragement",
+    "trialIntro",
+    "respectLine",
+    "oneStar",
+    "twoStar",
+    "threeStar",
+    "incomplete",
+    "defeatLine",
+    "newBestLine",
+];
+
+/// A realm's guardian title and lines, each present and spoken.
+fn guardian_lines(source: &Value) -> Result<(Value, Value), String> {
+    let realm = &source["realmId"];
+    let text = |value: &Value, what: &str| {
+        value
+            .as_str()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| json!(line))
+            .ok_or_else(|| format!("realm {realm} guardian needs a {what}"))
+    };
+    let title = text(&source["guardianTitle"], "title")?;
+    let lines = source["guardianLines"]
+        .as_object()
+        .ok_or_else(|| format!("realm {realm} guardian needs its lines"))?;
+    let names: std::collections::BTreeSet<&str> = lines.keys().map(String::as_str).collect();
+    if names != GUARDIAN_LINES.into_iter().collect() {
+        return Err(format!(
+            "realm {realm} guardian must say exactly the lines {GUARDIAN_LINES:?}"
+        ));
+    }
+    let mut spoken = serde_json::Map::new();
+    for name in GUARDIAN_LINES {
+        spoken.insert(name.into(), text(&lines[name], name)?);
+    }
+    Ok((title, Value::Object(spoken)))
+}
+
 #[derive(serde::Deserialize)]
 struct GuardianContact {
     canvas_px: [u32; 2],
@@ -121,9 +165,10 @@ fn theme(source: &Value, root: &Path) -> Result<Value, String> {
         })
         .collect();
     let guardian = guardian_contact(root, &id)?;
+    let (title, lines) = guardian_lines(source)?;
     Ok(json!({
         "id": id, "realmId": realm, "realmName": source["realmName"],
-        "guardianName": source["guardianName"], "guardianGreeting": source["guardianGreeting"],
+        "guardianName": source["guardianName"], "guardianTitle": title, "guardianLines": lines,
         "guardianPortrait": format!("/assets/{id}/boss/portrait.png"), "guardian": guardian,
         "campaignPath": source["campaignPath"], "rgba": swatches, "images": images, "music": music,
         "map": {
@@ -228,6 +273,38 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_guardian_says_every_line_and_none_is_empty() {
+        let authored: Value =
+            serde_json::from_str(include_str!("../../../assets/catalog.json")).unwrap();
+        for realm in authored["realms"].as_array().unwrap() {
+            let (title, lines) = guardian_lines(realm).unwrap();
+            assert!(!title.as_str().unwrap().is_empty());
+            assert_eq!(lines.as_object().unwrap().len(), GUARDIAN_LINES.len());
+        }
+        let mut realm = authored["realms"][0].clone();
+        realm["guardianLines"]["oneStar"] = json!("  ");
+        assert!(guardian_lines(&realm).unwrap_err().contains("oneStar"));
+        realm["guardianLines"]
+            .as_object_mut()
+            .unwrap()
+            .remove("oneStar");
+        assert!(
+            guardian_lines(&realm)
+                .unwrap_err()
+                .contains("exactly the lines")
+        );
+        realm["guardianLines"]["oneStar"] = json!("Back.");
+        realm["guardianLines"]["taunt"] = json!("Extra.");
+        assert!(
+            guardian_lines(&realm)
+                .unwrap_err()
+                .contains("exactly the lines")
+        );
+        realm["guardianTitle"] = json!("");
+        assert!(guardian_lines(&realm).unwrap_err().contains("title"));
+    }
 
     #[test]
     fn guardian_contact_names_every_frame_and_a_rail_inside_its_canvas() {

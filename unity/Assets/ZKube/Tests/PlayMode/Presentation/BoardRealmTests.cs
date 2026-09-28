@@ -34,6 +34,21 @@ namespace ZKube.Presentation.Tests
             var lease = loads[path];
             return lease == null ? 0 : (int)lease.GetType().GetField("Owners").GetValue(lease);
         }
+        [Test] public void EveryGuardianSpeaksEveryLine()
+        {
+            var catalog = JsonUtility.FromJson<PageCatalog>(Resources.Load<TextAsset>("ZKube/Catalog").text);
+            catalog.Validate();
+            foreach (var realm in catalog.themes)
+            {
+                Assert.That(realm.guardianTitle, Is.Not.Empty, realm.guardianName);
+                Assert.AreEqual(11, realm.guardianLines.All.Length);
+                foreach (var line in realm.guardianLines.All) Assert.That(line, Is.Not.Null.And.Not.Empty, realm.guardianName);
+                Assert.AreEqual(realm.guardianLines.oneStar, realm.guardianLines.Stars(1));
+                Assert.AreEqual(realm.guardianLines.threeStar, realm.guardianLines.Stars(3));
+            }
+            catalog.themes[0].guardianLines.incomplete = " ";
+            Assert.Throws<FormatException>(() => catalog.Validate(), "A guardian with a silent line is rejected");
+        }
         [Test] public void EverySkinMustCoverEveryRealm()
         {
             var text = Resources.Load<TextAsset>("ZKube/Catalog").text;
