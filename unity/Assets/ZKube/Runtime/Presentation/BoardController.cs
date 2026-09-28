@@ -361,6 +361,8 @@ namespace ZKube.Presentation
             StartCoroutine(Animate(transition, completion));
             using (lifetime.Token.Register(() => completion.TrySetCanceled())) await completion.Task;
             View.Summary(State, Session, false);
+            View.Celebrate(previousStars, State.LatchedStarSources, State.ComboCounter,
+                transition.Events.Any(e => e.Kind == PresentationKind.PerfectClear));
             if (State.LatchedStarSources != previousStars) Sound("star");
             else if ((Session.Daily ? State.DailyScore : State.Score) > previousScore) Sound("constraint-complete");
             if (Haptics && Application.platform == RuntimePlatform.Android) Handheld.Vibrate();

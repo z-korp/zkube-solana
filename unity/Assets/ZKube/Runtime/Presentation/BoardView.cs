@@ -35,6 +35,17 @@ namespace ZKube.Presentation
         private GameObject modal;
         private Image modalShield;
         private SpriteRenderer ghost;
+        // Block sprites are reused: a board change returns them here instead of destroying them.
+        private readonly Stack<SpriteRenderer> spareBlocks = new Stack<SpriteRenderer>();
+        public int BlockSpritesCreated { get; private set; }
+        public BoardFx Effects { get; private set; }
+        private uint scoreShown, scoreTarget;
+        private bool countingScore, guardianFinal;
+        private float guardianCheerUntil;
+        private Vector2 guardianOrigin;
+        private readonly Image[] starRings = new Image[3];
+        private readonly HashSet<RectTransform> popping = new HashSet<RectTransform>();
+        private const float GuardianCheer = .9f;
         public BoardLayout Layout { get; private set; }
         public bool HasRuntimeGraph => art != null && canvas != null && boardCamera != null && guardian != null &&
             score != null && objective != null && status != null && Pointer != null &&
@@ -56,6 +67,7 @@ namespace ZKube.Presentation
             boardCamera.backgroundColor = Color.black;
             boardCamera.clearFlags = CameraClearFlags.SolidColor;
             boardRoot = new GameObject("Native board sprites").transform; boardRoot.SetParent(transform, false);
+            Effects = gameObject.AddComponent<BoardFx>(); Effects.Initialize(art, boardRoot, 8);
 
             var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.Background), -20);
             Size(background, new Rect(0, 0, Screen.width, Screen.height), true);
@@ -88,6 +100,7 @@ namespace ZKube.Presentation
             heading = ui.Label("Run title", HudLayout.TitleText(art, owner.Session), hud.Title, hud.TitlePt, SkinTokens.Text, root, true);
 
             guardian = ui.Medallion("Calm realm guardian", hud.Medallion, art.Sprite("boss__idle"), root);
+            guardianOrigin = guardian.rectTransform.anchoredPosition;
             ui.Piece("Score plate", SkinSlots.Plate, hud.ScorePlate, root, HudLayout.PlateBorderScale);
             scoreLabel = ui.Label("Score label", HudLayout.ScoreCaptionText(owner.Session), hud.ScoreCaption, hud.CaptionPt, SkinTokens.TextMuted, root);
             score = ui.Label("Score", "0", hud.ScoreValue, hud.ValuePt, SkinTokens.Score, root, true);
@@ -123,6 +136,8 @@ namespace ZKube.Presentation
                 starButtons[i].onClick.AddListener(() => owner.ShowStar(source));
                 float inset = rect.width * HudLayout.StarGlyphInset;
                 stars[i] = ui.Star("Star " + i + " glyph", new Rect(rect.x + inset, rect.y + inset, rect.width - 2 * inset, rect.height - 2 * inset), false, hitArea.transform);
+                starRings[i] = ui.Piece("Star " + i + " ring", SkinSlots.FxRing, rect, hitArea.transform);
+                starRings[i].color = art.Token(SkinTokens.Accent); starRings[i].enabled = false;
             }
 
 
@@ -148,7 +163,7 @@ namespace ZKube.Presentation
         public void Summary(RunSummary state, BoardSession session, bool available)
         {
             heading.text = HudLayout.TitleText(art, session);
-            score.text = HudLayout.ScoreText(state, session);
+            ShowScore(session.Daily ? state.DailyScore : state.Score);
             scoreLabel.text = HudLayout.ScoreCaptionText(session);
             if (progressFill != null)
             {
@@ -192,6 +207,7 @@ namespace ZKube.Presentation
         public void ShowGains(uint scoreGain, ulong themeGain, byte combo, bool reducedMotion)
         {
             if (scoreGain == 0 && themeGain == 0) return;
+            if (scoreGain > 0 && !reducedMotion) StartCoroutine(CountScore(scoreShown + scoreGain));
             float d = Layout.Density;
             float y = Layout.Board.yMax - Layout.Cell;
             float width = Layout.Board.width - 8 * d, lane = (width - 4 * d) / 2;
@@ -304,32 +320,47 @@ namespace ZKube.Presentation
 
         public void SetBoard(byte[] grid)
         {
-            foreach (var block in blocks.Values) Destroy(block.gameObject);
+            foreach (var block in blocks.Values) ReturnBlock(block);
             blocks.Clear(); DisplayGrid = (byte[])grid.Clone();
             for (int row = 0; row < 10; row++) for (int col = 0; col < 8;)
             {
                 byte width = grid[row * 8 + col];
                 if (width == 0) { col++; continue; }
-                var sprite = NewSprite("Block " + row + ":" + col, BlockSprite(width), 2);
+                var sprite = TakeBlock("Block " + row + ":" + col, width);
                 PositionBlock(sprite, row, col, width); blocks.Add(row * 8 + col, sprite); col += width;
             }
         }
         public void SetPreview(byte presence, byte[] row)
         {
-            foreach (var block in preview) Destroy(block.gameObject); preview.Clear();
+            foreach (var block in preview) ReturnBlock(block); preview.Clear();
             if (presence == 0) return;
             for (int col = 0; col < 8;)
             {
                 byte width = row[col]; if (width == 0) { col++; continue; }
-                var sprite = NewSprite("Next block " + col, BlockSprite(width), 2);
+                var sprite = TakeBlock("Next block " + col, width);
                 Size(sprite, new Rect(Layout.Preview.x + col * Layout.Cell + 1, Layout.Preview.y + 1, width * Layout.Cell - 2, Layout.Cell - 2));
                 sprite.color = new Color(1, 1, 1, .85f); preview.Add(sprite); col += width;
             }
         }
         private Sprite BlockSprite(byte width) => art.SkinRealm(SkinSlots.Block(width));
+        private SpriteRenderer TakeBlock(string name, byte width)
+        {
+            SpriteRenderer sprite;
+            if (spareBlocks.Count > 0) { sprite = spareBlocks.Pop(); sprite.gameObject.SetActive(true); }
+            else { sprite = NewSprite(name, null, 2); BlockSpritesCreated++; }
+            sprite.name = name; sprite.sprite = BlockSprite(width); sprite.color = Color.white;
+            return sprite;
+        }
+        private void ReturnBlock(SpriteRenderer sprite)
+        {
+            sprite.gameObject.SetActive(false); spareBlocks.Push(sprite);
+        }
 
+        // Plays one accepted transition. Every step ends with the sprites exactly
+        // where the native board puts them; the motion in between is presentation.
         public IEnumerator Trace(PresentationEvent[] events, bool reducedMotion, Action<string> sound)
         {
+            int clears = 0;
             for (int index = 0; index < events.Length; index++)
             {
                 var item = events[index];
@@ -351,24 +382,17 @@ namespace ZKube.Presentation
                     } while (index < events.Length && events[index].Kind == PresentationKind.BlockMoved && events[index].Payload[0] == reason);
                     index--;
                     sound(reason == 0 ? "move" : "swipe");
-                    float duration = reducedMotion ? 0 : reason == 0 ? .1f : .22f;
-                    for (float elapsed = 0; elapsed < duration; elapsed += Time.unscaledDeltaTime)
-                    {
-                        float t = Mathf.SmoothStep(0, 1, elapsed / duration);
-                        foreach (var pair in targets) pair.Key.transform.position = Vector3.Lerp(starts[pair.Key], pair.Value, t);
-                        yield return null;
-                    }
-                    foreach (var pair in targets) pair.Key.transform.position = pair.Value;
+                    if (reason == 0) yield return Slide(targets, starts, reducedMotion ? 0 : .1f);
+                    else yield return Fall(targets, starts, reducedMotion);
                     continue;
                 }
                 if (item.Kind == PresentationKind.RowsCleared || item.Kind == PresentationKind.BonusApplied)
                 {
                     byte[] after = PresentationTrace.ProjectBoard(DisplayGrid, new[] { item });
-                    var removed = blocks.Where(pair => after[pair.Key] == 0).Select(pair => pair.Value).ToArray();
+                    var removed = blocks.Where(pair => after[pair.Key] == 0).ToArray();
                     sound(item.Kind == PresentationKind.RowsCleared ? "break" : "bonus-activate");
-                    var flash = art.Token(SkinTokens.Accent);
-                    foreach (var sprite in removed) sprite.color = flash;
-                    yield return new WaitForSecondsRealtime(reducedMotion ? .05f : .1f);
+                    if (item.Kind == PresentationKind.RowsCleared) clears++;
+                    yield return Clear(removed, clears, reducedMotion);
                     SetBoard(after);
                 }
                 else if (item.Kind == PresentationKind.PreviewChanged)
@@ -377,34 +401,136 @@ namespace ZKube.Presentation
                 }
                 else if (item.Kind == PresentationKind.RowInserted)
                 {
-                    var positions = blocks.Values.ToDictionary(s => s, s => s.transform.position);
-                    float duration = reducedMotion ? 0 : .18f;
-                    for (float elapsed = 0; elapsed < duration; elapsed += Time.unscaledDeltaTime)
-                    {
-                        foreach (var pair in positions) pair.Key.transform.position = pair.Value + Vector3.up * Layout.Cell * Mathf.SmoothStep(0, 1, elapsed / duration);
-                        yield return null;
-                    }
+                    yield return Insert(item.Payload, reducedMotion);
                     SetBoard(PresentationTrace.ProjectBoard(DisplayGrid, new[] { item }));
                 }
                 else if (item.Kind == PresentationKind.BoardReplaced)
                     SetBoard(PresentationTrace.ProjectBoard(DisplayGrid, new[] { item }));
                 else if (item.Kind == PresentationKind.PerfectClear)
+                {
                     PerfectClear(item.Payload[0] == 1, reducedMotion);
+                    if (!reducedMotion) Effects.Celebrate(Layout.Board.center, Layout.Cell, art.Token(SkinTokens.Accent), 24, 2);
+                }
                 else if (item.Kind != PresentationKind.Terminal)
                     throw new InvalidOperationException("Unsupported presentation event " + item.Kind);
             }
+        }
+        private static IEnumerator Slide(Dictionary<SpriteRenderer, Vector3> targets, Dictionary<SpriteRenderer, Vector3> starts, float duration)
+        {
+            for (float elapsed = 0; elapsed < duration; elapsed += Time.unscaledDeltaTime)
+            {
+                float t = Mathf.SmoothStep(0, 1, elapsed / duration);
+                foreach (var pair in targets) pair.Key.transform.position = Vector3.Lerp(starts[pair.Key], pair.Value, t);
+                yield return null;
+            }
+            foreach (var pair in targets) pair.Key.transform.position = pair.Value;
+        }
+        // Blocks fall under one shared acceleration, so a longer drop lands later,
+        // then squash on landing and spring back. Reduced motion drops them in a blink.
+        private IEnumerator Fall(Dictionary<SpriteRenderer, Vector3> targets, Dictionary<SpriteRenderer, Vector3> starts, bool reducedMotion)
+        {
+            float rows = targets.Max(pair => starts[pair.Key].y - pair.Value.y) / Layout.Cell;
+            float fall = reducedMotion ? .06f : Mathf.Clamp(.11f * Mathf.Sqrt(rows), .08f, .28f), settle = reducedMotion ? 0 : .14f;
+            var scales = targets.Keys.ToDictionary(sprite => sprite, sprite => sprite.transform.localScale);
+            for (float elapsed = 0; elapsed < fall + settle; elapsed += Time.unscaledDeltaTime)
+            {
+                foreach (var pair in targets)
+                {
+                    var sprite = pair.Key; var start = starts[sprite]; var target = pair.Value; var scale = scales[sprite];
+                    float own = (start.y - target.y) / Layout.Cell, land = fall * Mathf.Sqrt(Mathf.Max(own, 0) / Mathf.Max(rows, 1e-3f));
+                    if (elapsed < land)
+                    {
+                        float t = elapsed / land;
+                        sprite.transform.position = Vector3.Lerp(start, target, reducedMotion ? t : t * t);
+                        continue;
+                    }
+                    float b = (elapsed - land) / settle, squash = reducedMotion || b >= 1 ? 0 : .14f * Mathf.Sin(2 * Mathf.PI * b) * (1 - b);
+                    sprite.transform.localScale = new Vector3(scale.x * (1 + .6f * squash), scale.y * (1 - squash), 1);
+                    // The squash keeps the block's bottom edge on its landing cell.
+                    sprite.transform.position = target + Vector3.down * ((Layout.Cell - 2) * squash / 2);
+                }
+                yield return null;
+            }
+            foreach (var pair in targets) { pair.Key.transform.position = pair.Value; pair.Key.transform.localScale = scales[pair.Key]; }
+        }
+        // The Jelly block-clear: each block swells to 106%, shrinks to 94% and fades
+        // by 130 ms while its burst starts; a second or later clear in one action adds
+        // a combo burst. Reduced motion only fades the blocks, over 120 ms.
+        private IEnumerator Clear(KeyValuePair<int, SpriteRenderer>[] removed, int clears, bool reducedMotion)
+        {
+            if (removed.Length == 0) yield break;
+            if (!reducedMotion)
+            {
+                int particles = Effects.ParticlesPerBlock(removed.Length);
+                foreach (var pair in removed)
+                    Effects.BlockClear(pair.Value.transform.position, Layout.Cell, art.Token(SkinTokens.BlockTint(DisplayGrid[pair.Key])), particles);
+                if (clears >= 2)
+                {
+                    var center = removed.Aggregate(Vector3.zero, (sum, pair) => sum + pair.Value.transform.position) / removed.Length;
+                    Effects.Celebrate(center, Layout.Cell, art.Token(SkinTokens.Accent), Mathf.Min(8 + 4 * clears, 24), 1 + .2f * clears);
+                }
+            }
+            var scales = removed.ToDictionary(pair => pair.Value, pair => pair.Value.transform.localScale);
+            float duration = reducedMotion ? .12f : .13f;
+            for (float t = 0; t < duration; t += Time.unscaledDeltaTime)
+            {
+                float grow = reducedMotion ? 1 : t < .06f ? Mathf.Lerp(1, 1.06f, t / .06f) : Mathf.Lerp(1.06f, .94f, (t - .06f) / .07f);
+                float alpha = reducedMotion ? 1 - t / .12f : t < .06f ? 1 : 1 - (t - .06f) / .07f;
+                foreach (var pair in removed)
+                {
+                    pair.Value.transform.localScale = scales[pair.Value] * grow;
+                    pair.Value.color = new Color(1, 1, 1, Mathf.Clamp01(alpha));
+                }
+                yield return null;
+            }
+            foreach (var pair in removed) pair.Value.transform.localScale = scales[pair.Value];
+        }
+        // The next row lifts out of the tray while the board rises one row, both
+        // overshooting slightly and settling. Reduced motion moves them at once.
+        private IEnumerator Insert(byte[] row, bool reducedMotion)
+        {
+            foreach (var block in preview) ReturnBlock(block); preview.Clear();
+            var rising = blocks.Values.ToDictionary(sprite => sprite, sprite => sprite.transform.position);
+            var incoming = new List<(SpriteRenderer sprite, Vector3 from, Vector3 to)>();
+            for (int col = 0; col < 8;)
+            {
+                byte width = row[col]; if (width == 0) { col++; continue; }
+                var sprite = TakeBlock("Incoming block " + col, width);
+                PositionBlock(sprite, 0, col, width);
+                var to = sprite.transform.position;
+                var from = new Vector3(to.x, Layout.Preview.center.y, to.z);
+                incoming.Add((sprite, from, to)); sprite.transform.position = from;
+                col += width;
+            }
+            float duration = reducedMotion ? 0 : .26f;
+            for (float elapsed = 0; elapsed < duration; elapsed += Time.unscaledDeltaTime)
+            {
+                float k = BackOut(elapsed / duration);
+                foreach (var pair in rising) pair.Key.transform.position = pair.Value + Vector3.up * Layout.Cell * k;
+                foreach (var (sprite, from, to) in incoming) sprite.transform.position = Vector3.LerpUnclamped(from, to, k);
+                yield return null;
+            }
+            foreach (var (sprite, _, _) in incoming) ReturnBlock(sprite);
+        }
+        // Ease out with a small overshoot: about 6% past the end before settling.
+        private static float BackOut(float t)
+        {
+            const float c = 1.2f;
+            t -= 1;
+            return 1 + (c + 1) * t * t * t + c * t * t;
         }
 
         // The ghost follows the pointer inside the empty run [minStart, maxStart].
         public void Ghost(int row, int start, int width, float screenX, int minStart, int maxStart)
         {
-            if (ghost == null) ghost = NewSprite("Unaccepted drag preview", BlockSprite((byte)width), 6);
+            if (ghost == null) ghost = NewSprite("Unaccepted drag preview", null, 6);
+            ghost.sprite = BlockSprite((byte)width); ghost.gameObject.SetActive(true);
             PositionBlock(ghost, row, start, width);
             var position = ghost.transform.position;
             position.x = Mathf.Clamp(screenX, Layout.CellCenter(row, minStart, width).x, Layout.CellCenter(row, maxStart, width).x);
             ghost.transform.position = position; ghost.color = new Color(1, 1, 1, .55f);
         }
-        public void ClearGhost() { if (ghost != null) Destroy(ghost.gameObject); ghost = null; }
+        public void ClearGhost() { if (ghost != null) ghost.gameObject.SetActive(false); }
 
         public void OpenModal(string title, string body, params (string label, Action action)[] actions)
         {
@@ -457,7 +583,101 @@ namespace ZKube.Presentation
             modal = null;
             if (modalShield != null) { modalShield.color = Color.clear; modalShield.raycastTarget = false; }
         }
-        public void Terminal(bool completed) { guardian.sprite = art.Sprite(completed ? "boss__celebrate" : "boss__defeated"); }
+        public void Terminal(bool completed)
+        {
+            guardianFinal = true; guardian.sprite = art.Sprite(completed ? "boss__celebrate" : "boss__defeated");
+            guardianCheerUntil = Time.unscaledTime + GuardianCheer;
+        }
+
+        // The score readout: accepted points count up once their chip reaches it.
+        private void ShowScore(uint value)
+        {
+            scoreTarget = value;
+            if (!countingScore) { scoreShown = value; score.text = value.ToString(); }
+        }
+        private IEnumerator CountScore(uint target)
+        {
+            countingScore = true; scoreTarget = target;
+            yield return new WaitForSecondsRealtime(.35f);
+            uint from = scoreShown;
+            for (float t = 0; t < .45f && scoreTarget >= from; t += Time.unscaledDeltaTime)
+            {
+                scoreShown = from + (uint)Mathf.RoundToInt((scoreTarget - from) * (1 - Mathf.Pow(1 - t / .45f, 3)));
+                score.text = scoreShown.ToString();
+                yield return null;
+            }
+            countingScore = false; ShowScore(scoreTarget);
+            Pop(score.rectTransform, 1.18f, .2f);
+        }
+
+        // After an accepted action: newly earned stars pop with a ring, and the
+        // guardian cheers a combo, a perfect clear or a star. Reduced motion keeps
+        // the new sprites and the guardian's face, without movement.
+        public void Celebrate(byte previousStars, byte earnedStars, byte combo, bool perfectClear)
+        {
+            bool earned = false;
+            for (int i = 0; i < 3; i++)
+            {
+                if ((earnedStars & (1 << i)) == 0 || (previousStars & (1 << i)) != 0 || !starButtons[i].gameObject.activeSelf) continue;
+                earned = true;
+                if (owner.ReducedMotion) continue;
+                Pop(stars[i].rectTransform, 1.5f, .35f);
+                StartCoroutine(Ring(starRings[i]));
+            }
+            if (!earned && combo < 2 && !perfectClear || guardianFinal) return;
+            guardian.sprite = art.Sprite("boss__celebrate");
+            guardianCheerUntil = Time.unscaledTime + GuardianCheer;
+        }
+        private static IEnumerator Ring(Image ring)
+        {
+            ring.enabled = true;
+            var origin = ring.rectTransform.anchoredPosition;
+            for (float t = 0; t < .4f; t += Time.unscaledDeltaTime)
+            {
+                float k = t / .4f, size = Mathf.Lerp(.6f, 1.8f, k);
+                ring.rectTransform.localScale = new Vector3(size, size, 1);
+                ring.rectTransform.anchoredPosition = origin - ring.rectTransform.rect.size * (size - 1) / 2;
+                var color = ring.color; color.a = 1 - k; ring.color = color;
+                yield return null;
+            }
+            ring.rectTransform.localScale = Vector3.one; ring.rectTransform.anchoredPosition = origin; ring.enabled = false;
+        }
+        // Scales a HUD piece up and back about its centre, once at a time.
+        private void Pop(RectTransform target, float peak, float duration)
+        {
+            if (owner.ReducedMotion || !popping.Add(target)) return;
+            StartCoroutine(PopOnce(target, peak, duration));
+        }
+        private IEnumerator PopOnce(RectTransform target, float peak, float duration)
+        {
+            var origin = target.anchoredPosition;
+            for (float t = 0; t < duration && target != null; t += Time.unscaledDeltaTime)
+            {
+                float size = 1 + (peak - 1) * Mathf.Sin(Mathf.PI * t / duration);
+                target.localScale = new Vector3(size, size, 1);
+                target.anchoredPosition = origin - target.rect.size * (size - 1) / 2;
+                yield return null;
+            }
+            if (target != null) { target.localScale = Vector3.one; target.anchoredPosition = origin; }
+            popping.Remove(target);
+        }
+
+        // The guardian breathes while idle and bounces when it cheers; it returns
+        // to its calm face afterwards unless the run has ended.
+        private void Update()
+        {
+            if (guardian == null) return;
+            float now = Time.unscaledTime, left = guardianCheerUntil - now, size = 1;
+            if (!owner.ReducedMotion)
+            {
+                size += .025f * Mathf.Sin(now * 2 * Mathf.PI / 3.2f);
+                if (left > 0) size += .12f * Mathf.Sin(Mathf.PI * (1 - left / GuardianCheer));
+            }
+            if (left <= 0 && !guardianFinal && guardianCheerUntil > 0) { guardianCheerUntil = 0; guardian.sprite = art.Sprite("boss__idle"); }
+            var rect = guardian.rectTransform;
+            rect.localScale = new Vector3(size, size, 1);
+            rect.anchoredPosition = guardianOrigin - rect.rect.size * (size - 1) / 2;
+        }
 
         private SpriteRenderer NewSprite(string name, Sprite sprite, int order)
         {

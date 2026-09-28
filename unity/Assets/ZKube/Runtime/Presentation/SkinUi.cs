@@ -52,6 +52,7 @@ namespace ZKube.Presentation
         {
             var face = Piece(name, SkinSlots.ButtonIcon, rect, parent); face.raycastTarget = true;
             var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
+            face.gameObject.AddComponent<PressSquash>();
             button.transition = Selectable.Transition.SpriteSwap;
             button.spriteState = new SpriteState { pressedSprite = Art.SkinUi(SkinSlots.ButtonIconPressed), disabledSprite = face.sprite };
             button.onClick.AddListener(() => action());
@@ -70,6 +71,7 @@ namespace ZKube.Presentation
         {
             var face = Piece(name, primary ? SkinSlots.ButtonPrimary : SkinSlots.ButtonSecondary, rect, parent); face.raycastTarget = true;
             var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
+            face.gameObject.AddComponent<PressSquash>();
             button.transition = Selectable.Transition.SpriteSwap;
             button.spriteState = new SpriteState
             {
@@ -136,6 +138,7 @@ namespace ZKube.Presentation
             {
                 row.raycastTarget = true;
                 row.gameObject.AddComponent<Button>().onClick.AddListener(() => action());
+                row.gameObject.AddComponent<PressSquash>();
             }
             float pad = 16 * Density, x = rect.x + pad, right = rect.xMax - pad;
             if (icon != null)
@@ -187,12 +190,19 @@ namespace ZKube.Presentation
             return toggle;
         }
 
+        // The bottom tab bar, ornaments included, sits inside the side gutters and
+        // above the bottom of the safe area. Pages end their scroll area at its yMax.
+        public Rect TabBarRect(Rect safeArea) =>
+            new Rect(safeArea.x + 16 * Density, safeArea.y + 8 * Density, safeArea.width - 32 * Density, 72 * Density);
+
         // A bottom tab bar with equal tabs, each an icon over its label.
-        public SkinTabBar TabBar(string name, Rect rect, (string icon, string label, Action action)[] tabs, int selected, Transform parent)
+        public SkinTabBar TabBar(string name, Rect safeArea, (string icon, string label, Action action)[] tabs, int selected, Transform parent)
         {
             if (tabs == null || tabs.Length == 0) throw new ArgumentException("A tab bar needs tabs", nameof(tabs));
+            var rect = TabBarRect(safeArea);
             var bar = Piece(name, SkinSlots.TabBar, rect, parent);
-            float pad = 12 * Density, width = (rect.width - 2 * pad) / tabs.Length;
+            // Tabs keep clear of the scroll ornaments at both ends.
+            float pad = 20 * Density, width = (rect.width - 2 * pad) / tabs.Length;
             var cells = new Rect[tabs.Length];
             for (int i = 0; i < tabs.Length; i++) cells[i] = new Rect(rect.x + pad + i * width, rect.y + 6 * Density, width, rect.height - 12 * Density);
             var plate = Piece(name + " selected", SkinSlots.TabSelected, cells[0], bar.transform);

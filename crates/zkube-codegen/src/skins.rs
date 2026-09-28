@@ -71,7 +71,7 @@ pub const UI_FIXED_SLOTS: [&str; 33] = [
 /// Blocks are coloured by width, so each realm draws one block per width.
 pub const BLOCK_WIDTHS: u8 = 4;
 
-pub const TOKENS: [&str; 10] = [
+pub const TOKENS: [&str; 14] = [
     "text",
     "text-muted",
     "text-on-primary",
@@ -82,6 +82,11 @@ pub const TOKENS: [&str; 10] = [
     "score",
     "objective",
     "scrim",
+    // Effects for a cleared block take the colour of its width.
+    "block-tint-1",
+    "block-tint-2",
+    "block-tint-3",
+    "block-tint-4",
 ];
 
 pub fn realm_slots() -> Vec<String> {
@@ -254,7 +259,7 @@ pub fn csharp() -> String {
             pascal(token)
         );
     }
-    out += "    }\n}\n";
+    out += "        public static string BlockTint(int width) => \"block-tint-\" + width;\n    }\n}\n";
     out
 }
 
@@ -327,6 +332,9 @@ mod tests {
         }
         assert!(source.contains("ButtonPrimaryPressed = \"button-primary-pressed\""));
         assert!(source.contains("TextOnPrimary = \"text-on-primary\""));
+        for width in 1..=BLOCK_WIDTHS {
+            assert!(TOKENS.contains(&format!("block-tint-{width}").as_str()), "{width}");
+        }
     }
 
     #[test]

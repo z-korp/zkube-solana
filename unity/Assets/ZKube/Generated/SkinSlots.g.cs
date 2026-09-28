@@ -73,5 +73,10 @@ namespace ZKube.Core.Generated
         public const string Score = "score";
         public const string Objective = "objective";
         public const string Scrim = "scrim";
+        public const string BlockTint1 = "block-tint-1";
+        public const string BlockTint2 = "block-tint-2";
+        public const string BlockTint3 = "block-tint-3";
+        public const string BlockTint4 = "block-tint-4";
+        public static string BlockTint(int width) => "block-tint-" + width;
     }
 }

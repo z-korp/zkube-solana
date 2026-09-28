@@ -66,10 +66,29 @@ namespace ZKube.Presentation.Tests
             toggle.SetWithoutNotify(true); Assert.IsTrue(toggle.Value); Assert.AreEqual(2, reported.Count);
         }
 
+        [Test] public void TabBarStaysInsideTheGuttersAndAboveTheSafeBottom()
+        {
+            var safe = new Rect(0, 24, 360, 616);
+            var bar = ui.TabBar("Tabs", safe, new (string, string, System.Action)[]
+            {
+                (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }),
+            }, 0, root.transform);
+            var drawn = SkinUi.ScreenRect((RectTransform)bar.transform);
+            Assert.AreEqual(ui.TabBarRect(safe), drawn, "Pages learn the bar's edges from TabBarRect");
+            Assert.GreaterOrEqual(drawn.xMin, safe.xMin + 16); Assert.LessOrEqual(drawn.xMax, safe.xMax - 16);
+            Assert.Greater(drawn.yMin, safe.yMin, "The bar sits above the bottom safe inset");
+            foreach (var image in bar.GetComponentsInChildren<Image>())
+            {
+                var piece = SkinUi.ScreenRect(image.rectTransform);
+                Assert.IsTrue(piece.xMin >= drawn.xMin - .01f && piece.xMax <= drawn.xMax + .01f && piece.yMin >= drawn.yMin - .01f && piece.yMax <= drawn.yMax + .01f,
+                    image.name + " stays inside the bar");
+            }
+        }
+
         [Test] public void TabBarTabsRunTheirActionAndSelectMovesThePlate()
         {
             var opened = new List<string>();
-            var bar = ui.TabBar("Tabs", new Rect(0, 0, 360, 64), new (string, string, System.Action)[]
+            var bar = ui.TabBar("Tabs", new Rect(0, 0, 360, 640), new (string, string, System.Action)[]
             {
                 (SkinSlots.IconCampaign, "Campaign", () => opened.Add("Campaign")),
                 (SkinSlots.IconDaily, "Daily", () => opened.Add("Daily")),
@@ -85,6 +104,35 @@ namespace ZKube.Presentation.Tests
             foreach (var tab in new[] { "Campaign", "Daily", "Profile" })
                 Assert.GreaterOrEqual(SkinUi.ScreenRect((RectTransform)Part(bar, "Tabs " + tab).transform).height, BoardLayout.MinimumTouchDp);
             Assert.Throws<System.ArgumentOutOfRangeException>(() => bar.Select(3));
+        }
+
+        [UnityTest] public IEnumerator ButtonsSquashWhilePressedAndRestAfterReleaseUnlessMotionIsReduced()
+        {
+            bool reduced = AppPreferences.ReducedMotion;
+            try
+            {
+                foreach (bool reduce in new[] { false, true })
+                {
+                    AppPreferences.SetReducedMotion(reduce);
+                    var button = ui.TextButton("Play " + reduce, new Rect(40, 40, 200, 56), "Play", () => { }, true, root.transform, out _);
+                    var squash = button.GetComponent<PressSquash>();
+                    var rect = (RectTransform)button.transform;
+                    var resting = SkinUi.ScreenRect(rect);
+                    squash.OnPointerDown(At(100, 60));
+                    for (float end = Time.realtimeSinceStartup + .2f; Time.realtimeSinceStartup < end;) yield return null;
+                    if (reduce) Assert.AreEqual(Vector3.one, rect.localScale);
+                    else
+                    {
+                        Assert.Less(rect.localScale.x, .97f);
+                        Assert.AreEqual(resting.center.x, SkinUi.ScreenRect(rect).center.x, .5f, "The squash keeps the button centred");
+                    }
+                    squash.OnPointerUp(At(100, 60));
+                    for (float end = Time.realtimeSinceStartup + .8f; Time.realtimeSinceStartup < end;) yield return null;
+                    Assert.AreEqual(Vector3.one, rect.localScale);
+                    Assert.AreEqual(resting, SkinUi.ScreenRect(rect));
+                }
+            }
+            finally { AppPreferences.SetReducedMotion(reduced); }
         }
 
         [Test] public void EarnedStarsAreNeverDrawnLargerThanTheirSource()
