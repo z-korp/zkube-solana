@@ -105,8 +105,10 @@ namespace ZKube.Presentation
             GetComponent<AppShell>()?.RequestRealm(value.Realm);
             Text(catalog.Realm(value.Realm).guardianName, 32, true);
             Text("Trial " + value.Level, 26, true); Text(Stars(value.Stars), 20);
-            Text(value.Moves + " moves"); Text("Score · " + value.Score);
-            Text("Shape · " + value.Primary); Text("Blow · " + value.Secondary);
+            var goals = value.Goals;
+            Text(value.Moves + " moves"); Text("Score 0 / " + goals.Points);
+            Text(catalog.ObjectiveName(goals.PrimaryKind, goals.PrimaryValue, goals.PrimaryCount) + " 0 / " + goals.PrimaryCount);
+            Text(catalog.ObjectiveName(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount) + " 0 / 1");
             Notice(value.Notice); Button(content, value.Play); Button(content, value.Back);
         }
 

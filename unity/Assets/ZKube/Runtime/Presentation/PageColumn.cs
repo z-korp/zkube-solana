@@ -49,16 +49,13 @@ namespace ZKube.Presentation
         public readonly PageActions Actions;
         public readonly float Left, Width;
         public float Top;
-        private readonly PageColumn outer;
-        private readonly Image card;
-        private readonly float padding;
+        private PageColumn outer;
+        private string name, heading;
+        private int sibling;
         private float D => Ui.Density;
 
         public PageColumn(SkinUi ui, Transform parent, PageActions actions, float left, float width, float top)
         { Ui = ui; Parent = parent; Actions = actions; Left = left; Width = width; Top = top; }
-        private PageColumn(PageColumn outer, Image card, float padding)
-            : this(outer.Ui, outer.Parent, outer.Actions, outer.Left + padding, outer.Width - 2 * padding, outer.Top - padding * .9f)
-        { this.outer = outer; this.card = card; this.padding = padding; }
 
         public Rect Take(float height, float gapDp = 10)
         { var rect = new Rect(Left, Top - height, Width, height); Top -= height + gapDp * D; return rect; }
@@ -80,39 +77,38 @@ namespace ZKube.Presentation
             return Actions.Bind(button, action);
         }
 
-        // A read-only list row: a caption on the left and a value on the right.
-        public Rect Row(string name, string caption, string value, string valueToken = SkinTokens.Accent, float gapDp = 10)
+        // Two buttons side by side; a missing one leaves the other at full width.
+        public void Pair(PageAction left, PageAction right, float gapDp = 12)
         {
-            // The plate's leaf ends take about 30 dp on each side.
-            float inner = Width - 64 * D, half = inner * .6f;
-            float height = Mathf.Max(RowDp * D, Mathf.Max(Ui.TextHeight(caption, half, 16, false),
-                Ui.TextHeight(value ?? "", inner - half, 18, true)) + 20 * D);
+            if (left == null || right == null) { Button(left ?? right, false, gapDp); return; }
+            float gap = 10 * D, half = (Width - gap) / 2;
+            float height = Mathf.Max(ButtonDp * D, Mathf.Max(Ui.TextHeight(left.Label, half - 20 * D, 17, true), Ui.TextHeight(right.Label, half - 20 * D, 17, true)) + 24 * D);
             var rect = Take(height, gapDp);
-            Ui.Piece(name, SkinSlots.Plate, rect, Parent);
-            var body = new Rect(rect.x + 32 * D, rect.y, inner, rect.height);
-            Ui.Label(name + " caption", caption, new Rect(body.x, body.y, half, body.height), 16, SkinTokens.Text, Parent, false, TextAlignmentOptions.Left);
-            if (value != null)
-                Ui.Label(name + " value", value, new Rect(body.x + half, body.y, inner - half, body.height), 18, valueToken, Parent, true, TextAlignmentOptions.Right);
-            return rect;
+            foreach (var (action, x) in new[] { (left, rect.x), (right, rect.x + half + gap) })
+            {
+                var button = Ui.TextButton(action.Name ?? action.Label, new Rect(x, rect.y, half, height), action.Label, Actions.Click(action), false, Parent, out var text);
+                text.fontSize = 17 * D * Ui.Scale; Actions.Bind(button, action);
+            }
         }
 
-        // A short message on a plate: identity notices, errors and store status.
-        public Rect Note(string name, string text, float gapDp = 10)
+        // A kit list row, grown to fit its label: an optional icon, the label and
+        // an optional value on the right.
+        public Image Row(string name, string label, string value = null, string icon = null, float gapDp = 10)
         {
-            float height = Mathf.Max(40 * D, Ui.TextHeight(text, Width - 64 * D, 14, false) + 16 * D);
-            var rect = Take(height, gapDp);
-            Ui.Piece(name, SkinSlots.Plate, rect, Parent);
-            Ui.Label(name + " text", text, new Rect(rect.x + 32 * D, rect.y, rect.width - 64 * D, rect.height), 14, SkinTokens.Text, Parent);
-            return rect;
+            float inner = Width - 32 * D - (icon == null ? 0 : 42 * D);
+            if (value != null) inner -= Mathf.Min(Ui.TextWidth(value, 15, true), inner / 2) + 8 * D;
+            float height = Mathf.Max(RowDp * D, Ui.TextHeight(label, inner, 14, false) + 16 * D);
+            return Ui.ListRow(name, Take(height, gapDp), icon, label, value, null, Parent, out _, out _);
         }
+        // A short message in a row: identity notices, errors and store status.
+        public Image Note(string name, string text, float gapDp = 10) => Row(name, text, gapDp: gapDp);
 
         public Rect Stars(string name, byte earned, float sizeDp, float gapDp = 8)
         {
             float size = sizeDp * D, gap = 4 * D, width = 3 * size + 2 * gap;
             var rect = Take(size, gapDp);
             for (int i = 0; i < 3; i++)
-                Ui.Piece(name + " " + (i + 1), i < earned ? SkinSlots.StarOn : SkinSlots.StarOff,
-                    new Rect(Left + (Width - width) / 2 + i * (size + gap), rect.y, size, size), Parent);
+                Ui.Star(name + " " + (i + 1), new Rect(Left + (Width - width) / 2 + i * (size + gap), rect.y, size, size), i < earned, Parent);
             return rect;
         }
 
@@ -123,18 +119,21 @@ namespace ZKube.Presentation
             return Ui.Medallion(name, new Rect(Left + (Width - size) / 2, rect.y, size, size), portrait, Parent);
         }
 
-        // A card is the skin panel behind a padded inner column; End sizes the
-        // panel to what was stacked inside it.
-        public PageColumn Card(string name, float paddingDp = 24)
+        // A kit card around a padded inner column. End draws the card behind what
+        // was stacked inside it, sized to fit, with its optional heading.
+        public PageColumn Card(string name, string heading = null)
         {
-            var panel = Ui.Piece(name, SkinSlots.Panel, new Rect(Left, Top - 1, Width, 1), Parent);
-            return new PageColumn(this, panel, paddingDp * D);
+            float inset = Ui.CardInset, headingHeight = heading == null ? 0 : Ui.TextHeight(heading, Width - 2 * inset, 17, true) + 8 * D;
+            var inner = new PageColumn(Ui, Parent, Actions, Left + inset, Width - 2 * inset, Top - inset - headingHeight)
+            { outer = this, name = name, heading = heading, sibling = Parent.childCount };
+            return inner;
         }
         public PageColumn End(float gapDp = 18)
         {
             if (outer == null) throw new InvalidOperationException("Only a card column can end");
-            float bottom = Top - padding * .6f;
-            SkinUi.Place(card.rectTransform, new Rect(outer.Left, bottom, outer.Width, outer.Top - bottom), Parent);
+            float bottom = Top - Ui.CardInset * .6f;
+            var card = Ui.Card(name, new Rect(outer.Left, bottom, outer.Width, outer.Top - bottom), heading, Parent, out _);
+            card.transform.SetSiblingIndex(sibling);
             outer.Top = bottom - gapDp * D;
             return outer;
         }

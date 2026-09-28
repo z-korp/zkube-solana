@@ -47,6 +47,8 @@ namespace ZKube.Integration.Presentation
             }
         }
         public void Report(Exception error) => ShowError(error);
+        // The Arena overview has no Campaign card yet; its pages move to the page shell next.
+        public CampaignSummaryView CampaignSummary() => null;
         private void CloseSharedView()
         {
             sharedPage = null;

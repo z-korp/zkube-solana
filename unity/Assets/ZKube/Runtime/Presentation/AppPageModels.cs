@@ -34,12 +34,29 @@ namespace ZKube.Presentation
         public PageAction Previous, Next, Resume, Purchase, Result;
     }
 
+    // A level's three star goals as rules; the pages word each goal from its
+    // catalog constraint and show its progress.
+    public sealed class CampaignGoals
+    {
+        public uint Points;
+        public byte PrimaryKind, PrimaryValue, PrimaryCount, SecondaryKind, SecondaryValue, SecondaryCount;
+    }
+
     public sealed class LevelPageView
     {
         public byte Realm, Level, Stars;
         public uint Moves;
-        public string Score, Primary, Secondary, Notice;
+        public CampaignGoals Goals;
+        public string Notice;
         public PageAction Play, Back;
+    }
+
+    // The realm a returning player continues in: the furthest realm the core progression opens.
+    public sealed class CampaignSummaryView
+    {
+        public byte Realm;
+        public int Stars, Cleared, Levels;
+        public PageAction Open;
     }
 
     public sealed class DailyPageView
@@ -93,13 +110,20 @@ namespace ZKube.Presentation
         public ulong Score, ObjectiveTotal;
         public ulong? Streak;
         public bool HasResult, ShowStars, NativeSharing;
+        // Campaign results: the level, how the run ended (core end reason), moves
+        // left and whether it raised the level's best stars.
+        public byte Level, EndReason;
+        public uint MovesLeft, PrimaryProgress;
+        public CampaignGoals Goals;
+        public bool NewBest;
         public Func<string, CancellationToken, Task<bool>> Share;
-        public PageAction Done;
+        public PageAction Done, Retry;
     }
 
     public interface IAppPageSource
     {
         CampaignPageView CampaignView();
+        CampaignSummaryView CampaignSummary();
         LevelPageView LevelPage();
         DailyPageView DailyPage();
         ProfilePageView ProfilePage();

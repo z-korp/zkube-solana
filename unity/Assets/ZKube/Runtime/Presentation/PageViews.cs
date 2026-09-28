@@ -16,7 +16,7 @@ namespace ZKube.Presentation
     // through IAppPageSource; the identity adapter adds its own notices.
     public sealed class PageViews : MonoBehaviour
     {
-        public const float TabBarDp = 78, GutterDp = 16, ColumnDp = 480, IconDp = 48;
+        public const float GutterDp = 16, ColumnDp = 480, IconDp = 48;
         private static readonly AppPage[] tabs = { AppPage.Campaign, AppPage.Daily, AppPage.Profile };
         private IAppPageSource source;
         private PageShell shell;
@@ -31,6 +31,10 @@ namespace ZKube.Presentation
         private long epoch;
         private CancellationTokenSource sharing = new CancellationTokenSource();
         private PageAction back;
+        private Rect tabBar;
+        private float headerBottom;
+        private int selectedTab;
+        private float? reveal;
         private TMP_Text countdown;
         private DailyPageView countdownView;
         private long countdownSecond = -1;
@@ -61,35 +65,45 @@ namespace ZKube.Presentation
             if (to >= 0) lastTab = tabs[to];
             ui?.Dispose(); ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
+            float kept = entering ? -1 : shell.Offset;
             switch (page)
             {
                 case AppPage.Daily:
                     var daily = source.DailyPage(); var brand = Brand();
-                    Frame(page, brand[0], brand[1], null, null, Settings(), messages); Daily(daily); break;
+                    Frame(1, brand[0], brand[1], null, null, Settings(), messages); Daily(daily); break;
                 case AppPage.Campaign:
                     var campaign = source.CampaignView(); var realm = catalog.Realm(campaign.Realm);
-                    Frame(page, realm.realmName, "REALM " + campaign.Realm + " / " + Protocol.Realms.Length,
-                        campaign.Previous, campaign.Next, null, messages);
-                    Campaign(campaign); break;
+                    Frame(0, realm.realmName, "REALM " + campaign.Realm + " / " + Protocol.Realms.Length,
+                        campaign.Previous, campaign.Next, null, Array.Empty<string>(), fullBleed: true);
+                    Campaign(campaign, messages); break;
                 case AppPage.Level:
-                    var level = source.LevelPage();
-                    Frame(page, catalog.Realm(level.Realm).realmName, "REALM " + level.Realm + " / " + Protocol.Realms.Length, level.Back, null, null, messages);
-                    Level(level); break;
+                    var level = source.LevelPage(); var map = source.CampaignView();
+                    Frame(0, catalog.Realm(level.Realm).realmName, "REALM " + level.Realm + " / " + Protocol.Realms.Length,
+                        null, null, null, Array.Empty<string>(), fullBleed: true);
+                    back = level.Back;
+                    Level(level, map, messages); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(page, "PROFILE", null, null, null, Settings(), messages); Profile(profile); break;
+                    Frame(2, "PROFILE", null, null, null, Settings(), messages); Profile(profile); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
-                    Frame(page, "SETTINGS", null, new PageAction { Label = "Back", Name = "Back",
+                    Frame(-1, "SETTINGS", null, new PageAction { Label = "Back", Name = "Back",
                         CanInvoke = () => source.CanNavigate(lastTab), Invoke = () => source.Navigate(lastTab) }, null, null, messages);
                     Settings(settings); break;
                 case AppPage.Result:
                     var result = source.ResultPage();
-                    Frame(page, result.HasResult ? result.Mode.ToUpperInvariant() + " COMPLETE" : result.Mode.ToUpperInvariant(), null, null, null, null, messages);
-                    Result(result); break;
+                    if (result.HasResult && result.ShowStars)
+                    {
+                        Frame(-1, "LEVEL " + Number(result.Realm, result.Level), catalog.Realm(result.Realm).realmName.ToUpperInvariant(), null, null, null, messages);
+                        back = result.Done; CampaignResult(result);
+                    }
+                    else { Frame(1, result.HasResult ? result.Mode.ToUpperInvariant() + " COMPLETE" : result.Mode.ToUpperInvariant(), null, null, null, null, messages); Result(result); }
+                    break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
             }
             shell.Finish(column.Top - 16 * ui.Density);
+            if (kept >= 0) shell.Offset = kept;
+            else if (reveal.HasValue) shell.Reveal(reveal.Value);
             if (entering) shell.Enter(from < 0 || to < 0 || from == to ? 0 : Math.Sign(to - from), source.SettingsPage().ReducedMotion, ui.Density);
         }
 
@@ -130,20 +144,31 @@ namespace ZKube.Presentation
         private PageAction Settings() => new PageAction { Label = "Settings", Name = "Settings",
             CanInvoke = () => source.CanNavigate(AppPage.Settings), Invoke = () => source.Navigate(AppPage.Settings) };
 
-        // Header, body frame and tab bar for one page.
-        private void Frame(AppPage page, string title, string subtitle, PageAction left, PageAction right, PageAction settings, string[] notices)
+        // Header, body frame and tab bar for one page. The tab bar sits inside the
+        // side gutters and above the bottom safe inset; the body scrolls between the
+        // header and the top of the tab bar. A full-bleed page (the map) scrolls
+        // under both instead.
+        private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, PageAction settings, string[] notices,
+            bool fullBleed = false)
         {
             var safe = Screen.safeArea; float d = ui.Density;
+            reveal = null; selectedTab = tab;
             float icon = IconDp * d, titleWidth = safe.width - 2 * (icon + 24 * d);
             float titleHeight = ui.TextHeight(title, titleWidth, 24, true), subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 13, true);
             float header = Mathf.Max(icon + 20 * d, titleHeight + subtitleHeight + 18 * d);
-            bool tabbed = TabIndex(page) >= 0;
-            var tabBar = new Rect(safe.x + 4 * d, safe.y + 4 * d, safe.width - 8 * d, TabBarDp * d);
-            float bottom = tabbed ? tabBar.yMax : safe.y;
-            var body = new Rect(safe.x, bottom, safe.width, safe.yMax - header - bottom);
+            tabBar = ui.TabBarRect(safe);
+            float bottom = tab >= 0 ? tabBar.yMax : safe.y;
+            headerBottom = safe.yMax - header;
+            var body = fullBleed ? new Rect(0, 0, Screen.width, Screen.height) : new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
             shell.Clear(body);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
             var chrome = shell.Chrome;
+            if (fullBleed)
+            {
+                // The map scrolls under the header; a band keeps the title readable.
+                var band = ui.Rect<Image>("Header band", Rect.MinMaxRect(0, headerBottom - 6 * d, Screen.width, Screen.height), chrome);
+                var shade = ui.Art.Token(SkinTokens.Scrim); shade.a *= .75f; band.color = shade; band.raycastTarget = false;
+            }
             float top = safe.yMax - 8 * d;
             float textTop = top - (header - 8 * d - titleHeight - subtitleHeight) / 2 + 2 * d;
             ui.Label("Page title", title, new Rect(safe.center.x - titleWidth / 2, textTop - titleHeight, titleWidth, titleHeight), 24, SkinTokens.Text, chrome, true);
@@ -155,14 +180,14 @@ namespace ZKube.Presentation
             if (left != null) HeaderButton(left, new Rect(safe.x + 12 * d, iconY, icon, icon), SkinSlots.IconBack, false);
             if (right != null) HeaderButton(right, new Rect(safe.xMax - 12 * d - icon, iconY, icon, icon), SkinSlots.IconBack, true);
             else if (settings != null) HeaderButton(settings, new Rect(safe.xMax - 12 * d - icon, iconY, icon, icon), SkinSlots.IconSettings, false);
-            if (tabbed) TabBar(tabBar, page);
+            if (tab >= 0) TabBar(safe, tab);
             float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
             column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);
             foreach (var notice in notices) column.Note("Notice", notice);
         }
-        private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored)
+        private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored, Transform parent = null)
         {
-            var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), shell.Chrome, false, out var glyph, out _);
+            var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), parent ?? shell.Chrome, false, out var glyph, out _);
             if (mirrored)
             {
                 var glyphRect = glyph.rectTransform;
@@ -171,23 +196,16 @@ namespace ZKube.Presentation
             }
             actions.Bind(button, action);
         }
-        private void TabBar(Rect rect, AppPage page)
+        // The kit tab bar; each tab is bound to its page action so it dims while
+        // navigation is unavailable.
+        private void TabBar(Rect safe, int selected)
         {
-            float d = ui.Density, inset = 18 * d, width = (rect.width - 2 * inset) / tabs.Length;
-            ui.Piece("Tab bar", SkinSlots.TabBar, rect, shell.Chrome).raycastTarget = true;
-            for (int i = 0; i < tabs.Length; i++)
-            {
-                var target = tabs[i];
-                string label = target == AppPage.Daily ? dailyTab : target.ToString();
-                var cell = new Rect(rect.x + inset + i * width, rect.y + 8 * d, width, rect.height - 16 * d);
-                if (TabIndex(page) == i)
-                    ui.Piece(label + " tab selected", SkinSlots.TabSelected, new Rect(cell.x + 2 * d, cell.y - 2 * d, cell.width - 4 * d, cell.height + 4 * d), shell.Chrome);
-                var hit = ui.Rect<Image>(label, cell, shell.Chrome); hit.color = Color.clear; hit.raycastTarget = true;
-                var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
-                var action = new PageAction { Label = label, Name = label, CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) };
-                ui.Label(label + " label", label, cell, 15, SkinTokens.Text, hit.transform, true);
-                actions.Wire(button, action);
-            }
+            var icons = new[] { SkinSlots.IconCampaign, SkinSlots.IconDaily, SkinSlots.IconProfile };
+            var bound = tabs.Select(target => new PageAction { Label = target == AppPage.Daily ? dailyTab : target.ToString(),
+                Name = target == AppPage.Daily ? dailyTab : target.ToString(), CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) }).ToArray();
+            var bar = ui.TabBar("Tab bar", safe, bound.Select((action, i) => (icons[i], action.Label, actions.Click(action))).ToArray(), selected, shell.Chrome);
+            var buttons = bar.GetComponentsInChildren<Button>();
+            for (int i = 0; i < buttons.Length; i++) actions.Bind(buttons[i], bound[i], fade: false);
         }
         private static int TabIndex(AppPage page) =>
             page == AppPage.Campaign || page == AppPage.Level ? 0 : page == AppPage.Daily || page == AppPage.Result ? 1 : page == AppPage.Profile ? 2 : -1;
@@ -196,8 +214,7 @@ namespace ZKube.Presentation
         private void Daily(DailyPageView value)
         {
             var realm = catalog.Realm(value.Realm);
-            var card = column.Card("Daily card");
-            card.Text("Daily heading", "TODAY'S DAILY", 19, SkinTokens.Accent, true, 10);
+            var card = column.Card("Daily card", "TODAY'S DAILY");
             card.Medallion("Daily guardian", ui.Art.Sprite("boss__idle"), 84, 6);
             card.Text("Daily guardian name", realm.guardianName, 26, SkinTokens.Text, true, 4);
             card.Text("Daily objective", Sentence(catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).description), 17, SkinTokens.Text, false, 6);
@@ -211,18 +228,15 @@ namespace ZKube.Presentation
             card.Gap(10);
             for (int i = 0; i < value.Actions.Length; i++) card.Button(value.Actions[i], i == 0);
             column = card.End();
-            var campaign = source.CampaignView();
-            if (campaign == null) return;
-            var world = catalog.Realm(campaign.Realm);
-            card = column.Card("Campaign card");
-            card.Text("Campaign heading", "CAMPAIGN", 19, SkinTokens.Accent, true, 8);
-            card.Text("Campaign realm", world.realmName, 24, SkinTokens.Text, true, 6);
-            int cleared = campaign.Trials.Count(trial => trial.Stars > 0);
-            card.Text("Campaign levels", cleared + " / " + campaign.Trials.Length + " levels complete", 17, SkinTokens.Text, false, 6);
-            StarCount(card, campaign.Stars + " / " + campaign.Trials.Length * 3 + " stars");
+            var summary = source.CampaignSummary();
+            if (summary == null) return;
+            card = column.Card("Campaign card", "CAMPAIGN");
+            card.Text("Campaign realm", catalog.Realm(summary.Realm).realmName, 24, SkinTokens.Text, true, 2);
+            card.Text("Campaign realm number", "REALM " + summary.Realm + " / " + Protocol.Realms.Length, 13, SkinTokens.Accent, true, 8);
+            card.Text("Campaign levels", summary.Cleared + " / " + summary.Levels + " levels complete", 17, SkinTokens.Text, false, 6);
+            StarCount(card, summary.Stars + " / " + summary.Levels * 3 + " stars");
             card.Gap(10);
-            card.Button(new PageAction { Label = "Explore map", Name = "Explore map",
-                CanInvoke = () => source.CanNavigate(AppPage.Campaign), Invoke = () => source.Navigate(AppPage.Campaign) }, false);
+            card.Button(summary.Open, false);
             column = card.End();
         }
         private void StarCount(PageColumn card, string text)
@@ -230,76 +244,176 @@ namespace ZKube.Presentation
             float d = ui.Density, star = 26 * d, width = ui.TextWidth(text, 17, false);
             var rect = card.Take(Mathf.Max(star, ui.TextHeight(text, card.Width, 17, false)), 6);
             float x = card.Left + (card.Width - star - 8 * d - width) / 2;
-            ui.Piece("Campaign star", SkinSlots.StarOn, new Rect(x, rect.center.y - star / 2, star, star), shell.Page);
-            ui.Label("Campaign stars", text, new Rect(x + star + 8 * d, rect.y, width, rect.height), 17, SkinTokens.Text, shell.Page, false, TextAlignmentOptions.Left);
+            ui.Star("Campaign star", new Rect(x, rect.center.y - star / 2, star, star), true, card.Parent);
+            ui.Label("Campaign stars", text, new Rect(x + star + 8 * d, rect.y, width, rect.height), 17, SkinTokens.Text, card.Parent, false, TextAlignmentOptions.Left);
         }
 
-        // The realm path with one node per level.
-        private void Campaign(CampaignPageView value)
+        // The realm map: the skin's map art scrolls under the header and tab bar,
+        // the authored path runs as a trail between the nodes, and the page opens
+        // on the level to play next. Locks, purchase and saved-run notices sit on a
+        // card above the tab bar.
+        private void Campaign(CampaignPageView value, string[] notices)
+        {
+            Map(value, 0);
+            var lines = notices.Concat(new[] { value.Notice, value.SavedRun }).Where(text => !string.IsNullOrEmpty(text)).ToArray();
+            var buttons = new[] { value.Resume, value.Purchase, value.Result }.Where(action => action != null).ToArray();
+            if (lines.Length == 0 && buttons.Length == 0) return;
+            Float("Campaign notice", false, null, card => {
+                foreach (var line in lines) card.Text("Campaign notice text", line, 15, SkinTokens.Text, false, 8);
+                for (int i = 0; i < buttons.Length; i++) card.Button(buttons[i], i == 0, i == buttons.Length - 1 ? 0 : 10);
+            });
+        }
+
+        private void Map(CampaignPageView value, byte focusLevel)
         {
             var realm = catalog.Realm(value.Realm);
-            if (!string.IsNullOrEmpty(value.Notice)) column.Text("Campaign notice", value.Notice, 15, SkinTokens.Text);
-            if (!string.IsNullOrEmpty(value.SavedRun)) column.Text("Saved run", value.SavedRun, 15, SkinTokens.Text);
-            column.Button(value.Resume, true); column.Button(value.Purchase, true); column.Button(value.Result, false);
-            float d = ui.Density, node = 64 * d, guardian = 84 * d;
-            var map = column.Take(Mathf.Max(560 * d * textScale, 10 * (node + 30 * d * textScale)), 0);
-            var area = new Rect(map.x + guardian / 2, map.y + guardian / 2, map.width - guardian, map.height - guardian);
-            for (int index = 0; index < value.Trials.Length; index++)
+            float d = ui.Density, width = Screen.width;
+            var art = ui.Art.SkinRealm(SkinSlots.Map);
+            float height = Mathf.Max(width * art.rect.height / art.rect.width, Screen.height);
+            var map = new Rect(0, Screen.height - height, width, height);
+            var image = ui.Rect<Image>("Realm map", map, shell.Page); image.sprite = art; image.raycastTarget = false;
+            column = new PageColumn(ui, shell.Page, actions, 0, width, map.y + 16 * d);
+            int count = value.Trials.Length;
+            // The path spans the map between the header and the tab bar, so every
+            // node can scroll clear of both.
+            var path = Rect.MinMaxRect(map.xMin, map.yMin + tabBar.yMax + 24 * d, map.xMax, map.yMax - (Screen.height - headerBottom) - 24 * d);
+            Vector2 At(int index)
             {
-                var trial = value.Trials[index];
-                bool boss = index == value.Trials.Length - 1;
                 var point = realm.campaignPath[index];
-                var center = new Vector2(area.x + point.x * area.width, area.yMax - point.y * area.height);
-                float size = boss ? guardian : node;
-                string slot = boss ? SkinSlots.MapNodeGuardian : trial.Stars > 0 ? SkinSlots.MapNodeDone : trial.Available ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked;
-                var rect = new Rect(center.x - size / 2, center.y - size / 2, size, size);
-                var face = ui.Piece("Trial " + trial.Level, slot, rect, shell.Page); face.raycastTarget = true;
-                var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
-                var action = new PageAction { Name = "Trial " + trial.Level, Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open };
-                string number = ((value.Realm - 1) * value.Trials.Length + trial.Level).ToString(CultureInfo.InvariantCulture);
-                if (slot == SkinSlots.MapNodeOpen)
-                    ui.Label("Trial " + trial.Level + " number", number, rect, 20, SkinTokens.TextOnPrimary, face.transform, true);
-                else
-                {
-                    float w = ui.TextWidth(number, 14, true), h = ui.TextHeight(number, w, 14, true);
-                    ui.Label("Trial " + trial.Level + " number", number, new Rect(rect.xMax, rect.center.y - h / 2, w, h), 14, SkinTokens.Text, face.transform, true);
-                }
-                if (trial.Stars > 0 || trial.Playing)
-                {
-                    float star = 18 * d;
-                    for (int i = 0; i < 3; i++)
-                        ui.Piece("Trial " + trial.Level + " star " + (i + 1), i < trial.Stars ? SkinSlots.StarOn : SkinSlots.StarOff,
-                            new Rect(center.x - 1.5f * star + i * star, rect.y - star * .8f, star, star), face.transform);
-                }
-                actions.Wire(button, action, fade: false);
+                return new Vector2(path.x + point.x * path.width, path.yMax - point.y * path.height);
             }
+            int focus = focusLevel > 0 ? focusLevel - 1 : Array.FindIndex(value.Trials, trial => trial.Playing);
+            if (focus < 0) focus = Array.FindIndex(value.Trials, trial => trial.Available && trial.Stars == 0);
+            if (focus < 0) focus = Math.Max(0, Array.FindLastIndex(value.Trials, trial => trial.Available || trial.Stars > 0));
+            float Radius(int index) => NodeDp(index == count - 1, focusLevel == 0 && index == focus) * d / 2 + 6 * d;
+            float step = 13 * d, dot = 7 * d;
+            for (int i = 0; i + 1 < count; i++)
+            {
+                Vector2 from = At(i), to = At(i + 1);
+                var next = value.Trials[i + 1];
+                float clearFrom = Radius(i), clearTo = Radius(i + 1), length = Vector2.Distance(from, to);
+                int dots = Mathf.FloorToInt(length / step);
+                var color = ui.Art.Token(SkinTokens.Text);
+                if (!next.Available && next.Stars == 0) color.a = .4f;
+                for (int k = 1; k < dots; k++)
+                {
+                    var point = Vector2.Lerp(from, to, k / (float)dots);
+                    if (Vector2.Distance(point, from) < clearFrom || Vector2.Distance(point, to) < clearTo) continue;
+                    var piece = ui.Rect<Image>("Trail " + (i + 1) + "." + k, new Rect(point.x - dot / 2, point.y - dot / 2, dot, dot), shell.Page);
+                    piece.color = color; piece.raycastTarget = false;
+                    var rect = piece.rectTransform; rect.pivot = new Vector2(.5f, .5f); rect.anchoredPosition += rect.sizeDelta / 2;
+                    rect.localRotation = Quaternion.Euler(0, 0, 45);
+                }
+            }
+            for (int index = 0; index < count; index++)
+                Node(value, value.Trials[index], At(index), index == count - 1, focusLevel == 0 && index == focus);
+            reveal = At(focus).y;
         }
 
-        private void Level(LevelPageView value)
+        // One level on the map. The open node carries its number; a done or locked
+        // node, whose art shows a check or a lock, has it underneath, with the earned
+        // stars below. The level to play next is larger and says so under it.
+        // The touch area covers the node, its number and its stars.
+        private void Node(CampaignPageView value, CampaignTrialView trial, Vector2 center, bool guardian, bool next)
         {
+            float d = ui.Density;
+            string name = "Trial " + trial.Level, number = Number(value.Realm, trial.Level);
+            bool done = trial.Stars > 0, open = trial.Available;
+            float size = NodeDp(guardian, next) * d, star = 19 * d;
+            var rect = new Rect(center.x - size / 2, center.y - size / 2, size, size);
+            string caption = guardian ? number + " · " + catalog.Realm(value.Realm).guardianName.ToUpperInvariant() : open && !done ? null : number;
+            float captionSize = guardian ? 16 : 17;
+            var captionRect = caption == null ? new Rect(rect.x, rect.y, rect.width, 0) : Measured(caption, captionSize, center.x, rect.y - 2 * d);
+            bool stars = done || trial.Playing;
+            var starRow = new Rect(center.x - 1.5f * star, captionRect.y - star + 2 * d, 3 * star, stars ? star : 0);
+            string cue = next && open ? trial.Playing ? "RESUME" : "PLAY" : null;
+            var cueRect = cue == null ? rect : Measured(cue, 18, center.x, (stars ? starRow.y : captionRect.y) - 2 * d);
+            var area = Union(Union(Union(rect, captionRect), stars ? starRow : rect), cueRect);
+            var hit = ui.Rect<Image>(name, new Rect(area.x - 6 * d, area.y - 6 * d, area.width + 12 * d, area.height + 12 * d), shell.Page);
+            hit.color = Color.clear; hit.raycastTarget = true;
+            var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
+            if (guardian)
+            {
+                var portrait = ui.Medallion(name + " guardian", rect, ui.Art.Sprite("boss__idle"), hit.transform);
+                if (!open && !done)
+                {
+                    portrait.color = new Color(.45f, .45f, .45f, 1);
+                    ui.Piece(name + " lock", SkinSlots.IconLock, new Rect(rect.xMax - 30 * d, rect.y, 32 * d, 32 * d), hit.transform);
+                }
+            }
+            else
+            {
+                ui.Piece(name + " node", done ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked, rect, hit.transform);
+                if (caption == null)
+                    ui.Label(name + " number", number, new Rect(rect.x, rect.y + size * .04f, rect.width, rect.height), next ? 27 : 23,
+                        SkinTokens.TextOnPrimary, hit.transform, true);
+            }
+            if (caption != null) ui.Label(name + " number", caption, captionRect, captionSize, guardian ? SkinTokens.Accent : SkinTokens.Text, hit.transform, true);
+            if (stars)
+                for (int i = 0; i < 3; i++)
+                    ui.Star(name + " star " + (i + 1), new Rect(starRow.x + i * star, starRow.y, star, star), i < trial.Stars, hit.transform);
+            if (cue != null) ui.Label(name + " cue", cue, cueRect, 18, SkinTokens.Accent, hit.transform, true);
+            actions.Wire(button, new PageAction { Name = name, Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open }, fade: false);
+        }
+        private static float NodeDp(bool guardian, bool next) => guardian ? 96 : next ? 74 : 62;
+        // A one-line display label's rectangle, centred on x under a top edge.
+        private Rect Measured(string text, float sizeDp, float x, float top)
+        {
+            float w = ui.TextWidth(text, sizeDp, true) + 8 * ui.Density, h = ui.TextHeight(text, w, sizeDp, true);
+            return new Rect(x - w / 2, top - h, w, h);
+        }
+        private static Rect Union(Rect a, Rect b) => Rect.MinMaxRect(Mathf.Min(a.xMin, b.xMin), Mathf.Min(a.yMin, b.yMin), Mathf.Max(a.xMax, b.xMax), Mathf.Max(a.yMax, b.yMax));
+
+        // The level preview: a dialog over the dimmed map it was opened from.
+        private void Level(LevelPageView value, CampaignPageView map, string[] notices)
+        {
+            Map(map, value.Level);
+            var scrim = ui.Rect<Image>("Level scrim", new Rect(0, 0, Screen.width, Screen.height), shell.Chrome);
+            scrim.color = ui.Art.Token(SkinTokens.Scrim); scrim.raycastTarget = true;
             var realm = catalog.Realm(value.Realm);
-            var card = column.Card("Level card");
-            card.Text("Level title", "LEVEL " + ((value.Realm - 1) * Protocol.CampaignTargets.Length + value.Level), 28, SkinTokens.Accent, true, 4);
-            card.Text("Level realm", realm.realmName + " · " + realm.guardianName, 17, SkinTokens.Text, false, 8);
-            card.Stars("Best stars", value.Stars, 30, 12);
-            Goal(card, "Score goal", "Reach " + value.Score);
-            Goal(card, "Shape goal", value.Primary);
-            Goal(card, "Blow goal", value.Secondary);
-            card.Gap(6);
-            card.Text("Level moves", value.Moves + " moves", 20, SkinTokens.Accent, true, 8);
-            if (!string.IsNullOrEmpty(value.Notice)) card.Text("Level notice", value.Notice, 15, SkinTokens.Text);
-            card.Gap(6);
-            card.Button(value.Play, true);
-            column = card.End();
+            Float("Level", true, value.Back, card => {
+                foreach (var notice in notices) card.Note("Notice", notice);
+                card.Text("Level title", "LEVEL " + Number(value.Realm, value.Level), 30, SkinTokens.Text, true, 2);
+                card.Text("Level realm", realm.realmName + " · " + realm.guardianName, 17, SkinTokens.Text, false, 10);
+                if (value.Stars > 0) card.Stars("Best stars", value.Stars, 26, 10);
+                Goals(card, value.Goals, 0, 0, 0);
+                card.Gap(4);
+                card.Text("Level moves", value.Moves + " moves", 20, SkinTokens.Accent, true, 10);
+                if (!string.IsNullOrEmpty(value.Notice)) card.Text("Level notice", value.Notice, 15, SkinTokens.Text, false, 10);
+                card.Button(value.Play, true, 0);
+            });
         }
-        private void Goal(PageColumn card, string name, string text)
+        // The three star goals, each with its progress: score, the repeated goal
+        // and the one-move goal, starred once earned.
+        private void Goals(PageColumn card, CampaignGoals goals, ulong score, uint primary, byte earned)
         {
-            float d = ui.Density, star = 28 * d, inner = card.Width - star - 72 * d;
-            var rect = card.Take(Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(text, inner, 16, false) + 20 * d), 10);
-            ui.Piece(name, SkinSlots.Plate, rect, shell.Page);
-            ui.Piece(name + " star", SkinSlots.StarOn, new Rect(rect.x + 26 * d, rect.center.y - star / 2, star, star), shell.Page);
-            ui.Label(name + " text", text, new Rect(rect.x + star + 36 * d, rect.y, inner, rect.height), 16, SkinTokens.Text, shell.Page, false, TextAlignmentOptions.Left);
+            string Star(int bit) => (earned & bit) != 0 ? SkinSlots.StarOn : SkinSlots.StarOff;
+            card.Row("Score goal", "Score", score.ToString("N0", CultureInfo.InvariantCulture) + " / " + goals.Points.ToString("N0", CultureInfo.InvariantCulture), Star(1));
+            card.Row("Primary goal", catalog.ObjectiveName(goals.PrimaryKind, goals.PrimaryValue, goals.PrimaryCount), Math.Min(primary, goals.PrimaryCount) + " / " + goals.PrimaryCount, Star(2));
+            card.Row("Secondary goal", catalog.ObjectiveName(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount), ((earned & 4) != 0 ? 1 : 0) + " / 1", Star(4));
         }
+
+        // A card in the chrome layer: centred between the header and the tab bar as
+        // a dialog, or pinned just above the tab bar. It is laid out at the top of
+        // the screen, then moved into place once its height is known.
+        private void Float(string name, bool centred, PageAction close, Action<PageColumn> fill)
+        {
+            float d = ui.Density; var safe = Screen.safeArea;
+            var holder = Holder(name, new Rect(0, 0, Screen.width, Screen.height), shell.Chrome);
+            float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d), left = safe.center.x - width / 2;
+            var outer = new PageColumn(ui, holder, actions, left, width, Screen.height);
+            var card = outer.Card(name + " card");
+            if (close != null) card.Gap(14);
+            fill(card);
+            card.End(0);
+            if (close != null)
+                HeaderButton(close, new Rect(left + width - 56 * d, Screen.height - 58 * d, 48 * d, 48 * d), SkinSlots.IconClose, false, holder);
+            float height = Screen.height - outer.Top, floor = selectedTab >= 0 ? tabBar.yMax : safe.y;
+            float bottom = centred ? Mathf.Max(floor + 8 * d, (headerBottom + floor) / 2 - height / 2) : floor + 10 * d;
+            holder.anchoredPosition += new Vector2(0, bottom - outer.Top);
+        }
+        private static string Number(byte realm, byte level) =>
+            ((realm - 1) * Protocol.CampaignTargets.Length + level).ToString(CultureInfo.InvariantCulture);
 
         private void Profile(ProfilePageView value)
         {
@@ -408,6 +522,8 @@ namespace ZKube.Presentation
             slider.onValueChanged.AddListener(next => apply(next / 100d));
         }
 
+        // The Daily result: the guardian, the score, the day's objective in words
+        // and the streak, with sharing. The tab bar leads back to the Daily.
         private void Result(ResultPageView value)
         {
             if (!value.HasResult)
@@ -417,29 +533,58 @@ namespace ZKube.Presentation
                 return;
             }
             var realm = catalog.Realm(value.Realm);
-            string objective = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             var card = column.Card("Result card");
             card.Medallion("Result guardian", ui.Art.Sprite("boss__idle"), 88, 6);
-            card.Text("Result guardian name", realm.guardianName, 24, SkinTokens.Text, true, 4);
-            if (value.Day != 0) card.Text("Result day", Day(value.Day), 14, SkinTokens.TextMuted, false, 8);
+            card.Text("Result guardian name", realm.guardianName, 24, SkinTokens.Text, true, 10);
             card.Text("Score caption", "SCORE", 15, SkinTokens.Text, false, 0);
-            card.Text("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), 44, SkinTokens.Score, true, 10);
-            if (value.ShowStars) card.Stars("Result stars", (byte)((value.StarSources & 1) + ((value.StarSources >> 1) & 1) + ((value.StarSources >> 2) & 1)), 36, 10);
-            card.Row("Theme", value.ShowStars ? objective : objective == "CLASSIC" ? "Theme" : objective, value.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture));
-            if (value.Streak.HasValue) card.Row("Streak", "Daily streak", value.Streak.Value + (value.Streak.Value == 1 ? " day" : " days"));
-            if (!string.IsNullOrEmpty(value.Notice)) card.Text("Result notice", value.Notice, 15, SkinTokens.Text);
-            card.Text("Greeting", "“" + realm.guardianGreeting + "”", 14, SkinTokens.TextMuted, false, 10);
+            card.Text("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), 44, SkinTokens.Score, true, 12);
+            string objective = value.ObjectiveKind == 0 ? null : catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).description;
+            if (objective != null) card.Row("Objective", Sentence(objective), value.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture));
+            if (value.Streak.HasValue) card.Row("Streak", "Daily streak", Days(value.Streak.Value));
+            if (!string.IsNullOrEmpty(value.Notice)) card.Text("Result notice", value.Notice, 15, SkinTokens.Text, false, 10);
             if (value.Share != null)
             {
-                string text = ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName,
-                    realm.guardianName, realm.realmName, objective, value.ObjectiveTotal, value.Score, value.Streak);
-                var action = new PageAction { Label = value.NativeSharing ? "Share" : "Copy result" };
-                action.Invoke = () => Share(value, text, action, epoch);
-                card.Button(action, true);
+                string text = ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName, realm.realmName,
+                    objective == null ? "Score only" : Sentence(objective), value.ObjectiveTotal, value.Score, value.Streak);
+                card.Gap(4); card.Button(ShareAction(value, text, value.NativeSharing ? "Share result" : "Copy result"), true, 0);
             }
-            card.Button(value.Done, value.Share == null);
             column = card.End();
         }
+
+        // A Campaign result: how the run ended, the stars it holds and what to do next.
+        private void CampaignResult(ResultPageView value)
+        {
+            int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
+            string title = value.EndReason == 1 ? "LEVEL CLEARED!" : value.EndReason == 3 ? "RUN ENDED" : value.MovesLeft == 0 ? "OUT OF MOVES" : "BOARD FULL";
+            var card = column.Card("Result card");
+            card.Text("Result title", title, 22, SkinTokens.Accent, true, 14);
+            card.Stars("Result stars", (byte)stars, 62, 16);
+            card.Text("Score caption", "SCORE", 15, SkinTokens.Text, false, 0);
+            card.Text("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), 44, SkinTokens.Score, true, 12);
+            if (value.NewBest) card.Row("New best", "New best: " + stars + (stars == 1 ? " star" : " stars"), icon: SkinSlots.IconTrophy);
+            if (value.Goals != null) Goals(card, value.Goals, value.Score, value.PrimaryProgress, value.StarSources);
+            // The core keeps no stars from a run the player ends.
+            card.Text("Result status", value.EndReason == 3 ? "An ended run keeps no stars · Try again" : stars == 3 ? "All three goals complete" :
+                stars == 0 ? "No stars yet · Try again" : stars + (stars == 1 ? " star" : " stars") + " secured · Try again", 16, SkinTokens.Text, false, 12);
+            if (!string.IsNullOrEmpty(value.Notice)) card.Text("Result notice", value.Notice, 15, SkinTokens.Text, false, 10);
+            var realm = catalog.Realm(value.Realm);
+            PageAction share = null;
+            if (value.Share != null)
+                share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName,
+                    realm.realmName, "Level " + Number(value.Realm, value.Level) + " stars", (ulong)stars, value.Score, null),
+                    value.NativeSharing ? "Share" : "Copy");
+            card.Button(stars == 3 ? value.Done : value.Retry, true);
+            card.Pair(stars == 3 ? value.Retry : value.Done, share, 0);
+            column = card.End();
+        }
+        private PageAction ShareAction(ResultPageView value, string text, string label)
+        {
+            var action = new PageAction { Label = label, Name = "Share" };
+            action.Invoke = () => Share(value, text, action, epoch);
+            return action;
+        }
+        private static string Days(ulong days) => days + (days == 1 ? " day" : " days");
+
         private async void Share(ResultPageView value, string text, PageAction action, long expectedEpoch)
         {
             action.Enabled = false; var token = sharing.Token;

@@ -11,6 +11,16 @@ namespace ZKube.Local.App
 {
     public enum StorePage { Daily, Campaign, Level, Profile, Settings, Board, Result }
 
+    // How a Campaign run ended, kept for its result page.
+    public sealed class CampaignOutcome
+    {
+        public byte Realm, Level, StarSources, EndReason, PreviousStars;
+        public ulong Score;
+        public uint MovesLeft, PrimaryProgress;
+        public ZKube.Presentation.CampaignGoals Goals;
+        public int Stars => (StarSources & 1) + (StarSources >> 1 & 1) + (StarSources >> 2 & 1);
+    }
+
     // The concrete store page flow. Campaign recovery uses the same durable
     // local record as the money identity, with the store purchase policy.
     public sealed class StoreAppFlow : IDisposable
@@ -28,6 +38,9 @@ namespace ZKube.Local.App
         public LocalBoardActionProvider Provider { get; private set; }
         public string Error { get; private set; }
         public string BillingNotice { get; private set; }
+        // Set when the result page shows a Campaign run; null for the Daily result.
+        public CampaignOutcome LastCampaign { get; private set; }
+        private byte startingStars;
         public bool Unsaved { get; private set; }
         public event Action Changed;
         public event Action<LocalBoardActionProvider> BoardOpened;
@@ -36,7 +49,7 @@ namespace ZKube.Local.App
             Product = product ?? throw new ArgumentNullException(nameof(product));
             Runs = runs ?? throw new ArgumentNullException(nameof(runs));
             Billing = billing ?? throw new ArgumentNullException(nameof(billing));
-            Page = StorePage.Daily;
+            Page = StorePage.Daily; Realm = FurthestRealm;
         }
         public LocalDaily Today => Runs.Today();
         public LocalRunView TodayRun => Product.Read.DailyAttempt?.DayId == Today.DayId ? Runs.Active("daily") : null;
@@ -44,6 +57,18 @@ namespace ZKube.Local.App
         public string DailyAction => TodayRun != null ? "Resume run" : AttemptedToday ? "View result" : "Play today";
         public bool Cleared(byte realm) => Progress().Cleared[realm - 1] != 0;
         private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(Product.Read.Stars);
+        // The furthest realm the core progression opens; the store purchase policy
+        // is shown on that realm's page rather than skipping it.
+        public byte FurthestRealm
+        {
+            get
+            {
+                var open = Progress().RealmUnlocked;
+                for (int realm = open.Length; realm > 1; realm--) if (open[realm - 1] != 0) return (byte)realm;
+                return 1;
+            }
+        }
+        public byte LevelStars(byte realm, byte level) => Product.Read.Stars[(realm - 1) * Protocol.CampaignTargets.Length + level - 1];
         public int Stars(byte realm) => Product.Read.Stars.Skip((realm - 1) * Protocol.CampaignTargets.Length).Take(Protocol.CampaignTargets.Length).Sum(value => (int)value);
         public bool LevelAvailable(byte realm, byte level)
         {
@@ -85,10 +110,17 @@ namespace ZKube.Local.App
             {
                 if (current.Realm != Realm || current.Level != Level)
                     throw new InvalidOperationException($"Run in progress in realm {current.Realm}, level {current.Level}");
-                Open(current); return;
+                startingStars = LevelStars(Realm, Level); Open(current); return;
             }
             if (!LevelAvailable(Realm, Level)) throw new InvalidOperationException("This trial is locked");
+            startingStars = LevelStars(Realm, Level);
             Open(Runs.StartCampaign(Realm, Level));
+        }
+        public void Retry()
+        {
+            Check();
+            var last = LastCampaign ?? throw new InvalidOperationException("There is no Campaign result to retry");
+            Realm = last.Realm; Level = last.Level; PlayCampaign();
         }
         public void PlayDaily()
         {
@@ -110,10 +142,15 @@ namespace ZKube.Local.App
             if (realm < 1 || realm > Protocol.Realms.Length || !Cleared(realm)) throw new InvalidOperationException("Defeat this guardian first");
             Write(state => state.WornEmblem = realm); Changed?.Invoke();
         }
-        public void LeaveBoard()
+        // A finished Campaign run passes its outcome to the result page; leaving a
+        // run any other way returns to the map.
+        public void LeaveBoard(CampaignOutcome outcome = null)
         {
             Check(); ObservePersistence();
-            Navigate(Provider?.Daily == true ? StorePage.Result : StorePage.Campaign);
+            bool daily = Provider?.Daily == true;
+            if (!daily && outcome != null) { outcome.PreviousStars = startingStars; startingStars = LevelStars(outcome.Realm, outcome.Level); }
+            LastCampaign = daily ? null : outcome;
+            Navigate(daily || outcome != null ? StorePage.Result : StorePage.Campaign);
         }
         public void ObservePersistence()
         {

@@ -31,6 +31,8 @@ namespace ZKube.Local.App
         private Vector2Int lastSize;
         private Exception lastFulfillment;
         private PageCatalog pages;
+        public const float TerminalHoldSeconds = 1.2f;
+        private Coroutine outcome;
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
         public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController)
@@ -44,7 +46,7 @@ namespace ZKube.Local.App
             pageRoot = shell.Root;
             views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Daily", TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
-            board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected };
+            board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected, Terminal = Terminal };
             board.gameObject.SetActive(false);
             warningRoot = CanvasRoot("Unsaved progress", 80);
             var banner = Rect("Save warning", warningRoot.transform);
@@ -75,6 +77,7 @@ namespace ZKube.Local.App
             if (dirty && !loading && Flow.Page != StorePage.Board) StartCoroutine(Render());
         }
         private byte PageRealm => Flow.Page == StorePage.Daily ? Flow.Today.Realm :
+            Flow.Page == StorePage.Result && Flow.LastCampaign != null ? Flow.LastCampaign.Realm :
             Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? NativeEngine.Daily(Flow.Product.Read.DailyAttempt.DayId).Realm :
             Flow.Page == StorePage.Profile ? (byte)Math.Max(1, Flow.Product.Read.WornEmblem) : Flow.Realm;
         private void Refresh()
@@ -124,6 +127,8 @@ namespace ZKube.Local.App
         private IEnumerable<string> Notices()
         {
             yield return Flow.Error;
+            // Store status belongs where its purchase and restore actions are.
+            if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Profile) yield break;
             yield return Flow.Billing.Busy ? "A store operation is still in progress." : Flow.BillingNotice;
             if (Flow.Billing.LastFulfillmentError != null) yield return "Store confirmation needs attention. Restore purchases to retry.";
         }
@@ -149,15 +154,22 @@ namespace ZKube.Local.App
                 }).ToArray()
             };
         }
+        public CampaignSummaryView CampaignSummary()
+        {
+            byte realm = Flow.FurthestRealm;
+            var stars = Enumerable.Range(1, Protocol.CampaignTargets.Length).Select(level => Flow.LevelStars(realm, (byte)level)).ToArray();
+            return new CampaignSummaryView { Realm = realm, Stars = stars.Sum(value => (int)value), Cleared = stars.Count(value => value > 0),
+                Levels = stars.Length, Open = Action("Explore map", () => Flow.SelectRealm(realm)) };
+        }
         public LevelPageView LevelPage()
         {
             var level = Protocol.Realms.Single(value => value.MapId == Flow.Realm).Levels[Flow.Level - 1];
             return new LevelPageView { Realm = Flow.Realm, Level = Flow.Level,
                 Stars = Flow.Product.Read.Stars[(Flow.Realm - 1) * Protocol.CampaignTargets.Length + Flow.Level - 1],
                 Moves = NativeEngine.CampaignMoveBudget(Flow.Level, level.Tier),
-                Score = Protocol.CampaignTargets[Flow.Level - 1] + " points",
-                Primary = BoardView.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2]) + " · " + level.Primary[2],
-                Secondary = BoardView.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2]) + " · " + level.Secondary[2],
+                Goals = new CampaignGoals { Points = Protocol.CampaignTargets[Flow.Level - 1],
+                    PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1], PrimaryCount = level.Primary[2],
+                    SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] },
                 Play = Action(Flow.Runs.Active("campaign") == null ? "Play" : "Resume run", Flow.PlayCampaign),
                 Back = Action("Back to map", () => Flow.Show(StorePage.Campaign)) };
         }
@@ -184,6 +196,15 @@ namespace ZKube.Local.App
         public SettingsPageView SettingsPage() => AppPreferences.Read(Refresh, board);
         public ResultPageView ResultPage()
         {
+            var outcome = Flow.LastCampaign;
+            if (outcome != null)
+                return new ResultPageView { ProductName = Application.productName, Mode = "Campaign", PlayerName = Flow.Product.Read.Name,
+                    HasResult = true, ShowStars = true, Realm = outcome.Realm, Level = outcome.Level, Score = outcome.Score,
+                    StarSources = outcome.StarSources, EndReason = outcome.EndReason, MovesLeft = outcome.MovesLeft,
+                    PrimaryProgress = outcome.PrimaryProgress, Goals = outcome.Goals,
+                    NewBest = outcome.Stars > outcome.PreviousStars, NativeSharing = ResultSharing.NativeAvailable, Share = ResultSharing.Open,
+                    Done = Action(outcome.Stars == 3 ? "Continue" : "Map", () => Flow.Show(StorePage.Campaign)),
+                    Retry = Action("Retry", Flow.Retry) };
             var attempt = Flow.Product.Read.DailyAttempt;
             var pair = attempt == null ? null : NativeEngine.Daily(attempt.DayId);
             return new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Product.Read.Name,
@@ -202,7 +223,25 @@ namespace ZKube.Local.App
         public void Report(Exception error) => Flow.Report(error);
         private void OpenBoard(LocalBoardActionProvider provider)
         { board.gameObject.SetActive(true); board.Bind(provider.Bind(null)); if (pageRoot != null) pageRoot.SetActive(false); }
-        private void ExitBoard() { board.gameObject.SetActive(false); Flow.LeaveBoard(); }
+        private void ExitBoard() { StopOutcome(); board.gameObject.SetActive(false); Flow.LeaveBoard(); }
+        // A finished run stays on the board for a moment, then opens its result page.
+        private void Terminal(BoardController source)
+        { if (source == board && outcome == null) outcome = StartCoroutine(Outcome()); }
+        private IEnumerator Outcome()
+        {
+            yield return new WaitForSecondsRealtime(TerminalHoldSeconds);
+            outcome = null;
+            if (board == null || !board.gameObject.activeSelf || board.State == null || board.Session == null || board.RecoveryRequired) yield break;
+            var state = board.State; var session = board.Session;
+            var result = session.Daily ? null : new CampaignOutcome { Realm = session.RealmId, Level = Flow.Level,
+                Score = state.Score, StarSources = state.LatchedStarSources, EndReason = state.EndReason, PrimaryProgress = state.PrimaryProgress,
+                Goals = new CampaignGoals { Points = session.Rules.PointsRequired, PrimaryKind = session.Rules.PrimaryKind,
+                    PrimaryValue = session.Rules.PrimaryValue, PrimaryCount = session.Rules.PrimaryCount,
+                    SecondaryKind = session.Rules.SecondaryKind, SecondaryValue = session.Rules.SecondaryValue, SecondaryCount = session.Rules.SecondaryCount },
+                MovesLeft = (uint)Math.Max(0L, (long)session.Rules.MaxMoves - state.Moves) };
+            board.gameObject.SetActive(false); Flow.LeaveBoard(result);
+        }
+        private void StopOutcome() { if (outcome != null) StopCoroutine(outcome); outcome = null; }
         private void Accepted(CoreRunToken _) { Flow.ObservePersistence(); Refresh(); }
         private void Rejected(string _) { Flow.ObservePersistence(); Refresh(); }
         private void OnApplicationPause(bool paused) { if (!paused && Flow != null) { Refresh(); _ = Flow.RefreshBilling(); } }

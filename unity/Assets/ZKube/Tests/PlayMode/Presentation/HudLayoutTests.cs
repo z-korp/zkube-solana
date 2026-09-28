@@ -191,20 +191,9 @@ namespace ZKube.Presentation.Tests
             Assert.GreaterOrEqual(layout.Board.yMin, layout.Frame.yMin + layout.Footer);
             Assert.LessOrEqual(layout.Board.yMax, layout.Frame.yMax - layout.Header);
         }
-        [UnityTest] public IEnumerator ResultsAndPressureUseThePlayersWordsNotInternalNames()
+        [UnityTest] public IEnumerator PressureUsesThePlayersWordsNotInternalNames()
         {
-            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            var rules = board.Session.Rules;
-            string campaign = BoardController.TerminalBody(board.State, board.Session);
-            StringAssert.Contains("Reach " + rules.PointsRequired + " points", campaign);
-            StringAssert.Contains(HudLayout.PrimaryCaptionText(board.Session) + " · " + HudLayout.PrimaryText(board.State, board.Session), campaign);
-            StringAssert.Contains(HudLayout.SecondaryCaptionText(board.Session), campaign);
             evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            string daily = BoardController.TerminalBody(board.State, board.Session);
-            StringAssert.Contains(HudLayout.PrimaryCaptionText(board.Session) + " · " + board.State.ObjectiveTotal, daily);
-            foreach (string body in new[] { campaign, daily })
-                foreach (string internalName in new[] { "Theme", "Shape", "Blow", "SHAPE", "BLOW" })
-                    StringAssert.DoesNotContain(internalName, body);
             Assert.AreEqual("POINTS ×" + (Protocol.PressureMultiplierPercent(board.State.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
                 Label("Pressure").text);
             Assert.AreEqual("POINTS ×1", HudLayout.PressureText(new RunSummary { CurrentTier = 0 }));

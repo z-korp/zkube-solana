@@ -177,15 +177,17 @@ namespace ZKube.Tests
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
             Assert.That(leases["ZKube/Atlases/common"], Is.SameAs(common));
         }
-        [UnityTest] public IEnumerator PageButtonBindsLocalBoardAndTerminalContinueReturnsToResult()
+        // A finished run holds on the board for a moment, then its result page opens.
+        [UnityTest] public IEnumerator PageButtonBindsLocalBoardAndTerminalOpensTheResultPage()
         {
             yield return NamePlayer(); byte realm = runs.Today().Realm;
             Click(app, "Play today"); yield return BoardReady();
             Assert.That(board.Session.RealmId, Is.EqualTo(realm)); Assert.That(ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId, Is.EqualTo(realm));
             Assert.That(product.Read.DailyAttempt.DayId, Is.EqualTo(runs.Today().DayId));
-            yield return EndRun(); Click(board.View, "Continue"); yield return Page(StorePage.Result);
+            yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(board.gameObject.activeSelf, Is.False); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
-            Click(app, "Done"); yield return Page(StorePage.Daily);
+            Assert.That(app.Flow.LastCampaign, Is.Null);
+            Click(app, "Daily"); yield return Page(StorePage.Daily);
             Assert.That(FindButton(app, "View result").interactable, Is.True);
         }
         [UnityTest] public IEnumerator CampaignPageHasAuthoredNodesAndRealPreviewHandler()
@@ -216,26 +218,63 @@ namespace ZKube.Tests
             first.onClick.Invoke(); yield return Page(StorePage.Level);
             Click(app, "Play"); yield return BoardReady(); Assert.That(board.Session.RealmId, Is.EqualTo(1));
         }
+        [UnityTest] public IEnumerator CampaignRunOpensItsResultAndRetryReplaysTheSameLevel()
+        {
+            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Trial 1"); yield return Page(StorePage.Level);
+            Click(app, "Play"); yield return BoardReady();
+            yield return EndRun(); yield return Page(StorePage.Result);
+            var outcome = app.Flow.LastCampaign;
+            Assert.That(outcome, Is.Not.Null); Assert.That(outcome.Realm, Is.EqualTo(1)); Assert.That(outcome.Level, Is.EqualTo(1));
+            Assert.That(outcome.EndReason, Is.EqualTo(3));
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "RUN ENDED"), Is.True);
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "LEVEL 1"), Is.True);
+            // Every goal is worded from its constraint with its progress; no internal source names.
+            var level = Protocol.Realms[0].Levels[0]; var catalog = PageCatalog.Load();
+            var texts = app.GetComponentsInChildren<TMP_Text>().Select(text => text.text).ToArray();
+            Assert.That(texts, Does.Contain("Score").And.Contain("0 / " + Protocol.CampaignTargets[0]));
+            Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain("0 / " + level.Primary[2]));
+            Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])).And.Contain("0 / 1"));
+            Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
+            Click(app, "Retry"); yield return BoardReady();
+            Assert.That(board.Session.RealmId, Is.EqualTo(1)); Assert.That(runs.Active("campaign").Level, Is.EqualTo(1));
+            yield return EndRun(); yield return Page(StorePage.Result);
+            Click(app, "Map"); yield return Page(StorePage.Campaign);
+        }
+        // The home Campaign card follows the furthest realm the core progression opens.
+        [UnityTest] public IEnumerator HomeCampaignCardShowsTheFurthestOpenRealm()
+        {
+            product.Write(state => { state.Stars[9] = 1; state.Stars[19] = 2; return state; });
+            var summary = app.CampaignSummary();
+            Assert.That(summary.Realm, Is.EqualTo(3)); Assert.That(summary.Stars, Is.Zero);
+            yield return Page(StorePage.Daily);
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "REALM 3 / 10"), Is.True);
+            Click(app, "Explore map"); yield return Page(StorePage.Campaign);
+            Assert.That(app.Flow.Realm, Is.EqualTo(3));
+        }
         private Button[] Nodes() => app.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Trial ")).ToArray();
-        // Each node shows its level number on one line, inside the caption's own
-        // rectangle, at both text sizes.
+        // Each node shows its level number on one line, inside the node's touch
+        // area, at both text sizes.
         private static void AssertNodeCaptions(Button[] nodes)
         {
             foreach (var node in nodes)
             {
                 var caption = node.GetComponentInChildren<TMP_Text>(); caption.ForceMeshUpdate();
                 Assert.That(caption.textInfo.lineCount, Is.EqualTo(1), node.name);
-                var bounds = caption.rectTransform.rect;
+                var bounds = ((RectTransform)node.transform).rect;
                 foreach (var character in caption.textInfo.characterInfo.Take(caption.textInfo.characterCount).Where(value => value.isVisible))
                     foreach (var corner in new[] { character.bottomLeft, character.topRight })
-                        Assert.That(bounds.Contains(corner), Is.True, node.name + " caption exceeds its label");
+                    {
+                        var local = node.transform.InverseTransformPoint(caption.transform.TransformPoint(corner));
+                        Assert.That(bounds.Contains(local), Is.True, node.name + " caption exceeds its tile");
+                    }
             }
         }
         [UnityTest] public IEnumerator RealmPagesAndEmblemDisposalPreserveTheInactiveBoardsAtlas()
         {
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
             var retainedArt = (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
-            yield return EndRun(); Click(board.View, "Continue"); yield return Page(StorePage.Result);
+            yield return EndRun(); yield return Page(StorePage.Result);
             var leases = (System.Collections.IDictionary)typeof(BoardArt).GetField("atlasLoads", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             var before = leases.Keys.Cast<string>().Where(key => key.Contains("/theme-")).ToHashSet();
             product.Write(state => { for (int realm = 1; realm <= 10; realm++) state.Stars[realm * 10 - 1] = 1; return state; });
@@ -282,7 +321,7 @@ namespace ZKube.Tests
             yield return Wait(() => board.RecoveryRequired && !board.Busy, "Expected recovery after accepted save failure");
             yield return Wait(() => WarningVisible, "Unsaved overlay was not shown over the board");
             Click(board.View, "Recover run"); yield return Wait(() => !board.RecoveryRequired && !board.Busy, "Accepted snapshot was not recovered");
-            Assert.That(WarningVisible, Is.True); Click(board.View, "Continue"); yield return Page(StorePage.Result);
+            Assert.That(WarningVisible, Is.True); yield return Page(StorePage.Result);
             Assert.That(WarningVisible, Is.True); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
         }
         [UnityTest] public IEnumerator SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount()

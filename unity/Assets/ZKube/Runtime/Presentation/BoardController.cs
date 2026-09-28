@@ -16,7 +16,7 @@ namespace ZKube.Presentation
         public Action<CoreRunToken> Accepted;
         public Action<string> Rejected;
         public Action Exit;
-        public Action<BoardController, string, string> Terminal;
+        public Action<BoardController> Terminal;
     }
 
     public sealed class BoardController : MonoBehaviour
@@ -427,10 +427,9 @@ namespace ZKube.Presentation
             if (!IsTerminal()) return;
             bool completed = State.Phase == (byte)CorePhase.LevelComplete || State.EndReason == 1;
             View.Terminal(completed); music.Pause(); if (playFeedback) Sound(completed ? "victory" : "over");
-            string body = TerminalBody(State, Session);
-            string title = completed ? "LEVEL COMPLETE" : "RUN ENDED";
-            if (Host?.Terminal != null) Host.Terminal(this, title, body);
-            else View.OpenModal(title, body, ("Continue", () => Host?.Exit?.Invoke()));
+            // The host shows the result; a board without one simply leaves.
+            if (Host?.Terminal != null) Host.Terminal(this);
+            else Host?.Exit?.Invoke();
         }
 
         public void Pause()
@@ -454,19 +453,6 @@ namespace ZKube.Presentation
             paused = false; View.CloseModal();
             if (!Muted) music.UnPause();
             View.Summary(State, Session, !busy && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
-        }
-        // The result in the goals' own words: Daily names its objective (Classic has
-        // none), Campaign lists each star with the goal that earns it.
-        public static string TerminalBody(RunSummary state, BoardSession session)
-        {
-            var rules = session.Rules;
-            if (session.Daily)
-                return "Score " + state.DailyScore
-                    + (rules.ObjectiveKind == 0 ? "" : "\n" + HudLayout.PrimaryCaptionText(session) + " · " + state.ObjectiveTotal)
-                    + "\n" + state.Moves + " moves";
-            string Star(int source) => (state.LatchedStarSources & (1 << source)) != 0 ? "★ " : "☆ ";
-            return "Score " + state.Score + "\n" + Star(0) + ScoreGoal(rules) + "\n" + Star(1) + HudLayout.PrimaryCaptionText(session) + " · "
-                + HudLayout.PrimaryText(state, session) + "\n" + Star(2) + HudLayout.SecondaryCaptionText(session);
         }
         private static string ScoreGoal(BuildConfigRequest rules) => "Reach " + rules.PointsRequired + " points";
         public void ShowStar(int source)

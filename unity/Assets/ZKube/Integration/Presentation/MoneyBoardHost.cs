@@ -132,10 +132,12 @@ namespace ZKube.Integration.Presentation
                 board.SetHostInputEnabled(true);
         }
 
-        private void PresentTerminal(BoardController source, string title, string body)
+        private void PresentTerminal(BoardController source)
         {
             if (source != board) return;
-            terminalTitle = title; terminalBody = body;
+            var state = board.State;
+            terminalTitle = state.Phase == (byte)CorePhase.LevelComplete || state.EndReason == 1 ? "LEVEL COMPLETE" : "RUN ENDED";
+            terminalBody = "Score " + (board.Session.Daily ? state.DailyScore : state.Score);
             RenderTerminal();
         }
         private void RenderTerminal()

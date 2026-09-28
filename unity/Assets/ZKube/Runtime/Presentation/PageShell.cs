@@ -82,6 +82,15 @@ namespace ZKube.Presentation
             Scroll.verticalNormalizedPosition = 1;
         }
 
+        // The scroll offset from the top, kept when a page redraws in place.
+        public float Offset
+        {
+            get => content.anchoredPosition.y;
+            set => content.anchoredPosition = new Vector2(0, Mathf.Clamp(value, 0, Mathf.Max(0, content.sizeDelta.y - Viewport.rect.height)));
+        }
+        // Scrolls so an unscrolled screen height sits in the middle of the viewport.
+        public void Reveal(float y) => Offset = SkinUi.ScreenRect(Viewport).yMax - y - Viewport.rect.height / 2;
+
         // A short slide and fade from the side of the destination tab. Reduced
         // motion shows the page at once.
         public void Enter(int direction, bool reducedMotion, float density)
