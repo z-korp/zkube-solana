@@ -8,8 +8,9 @@ namespace ZKube.Presentation
     {
         // The Jelly board frame's gold bar ends 24 dp inside its edge; compact screens draw it slimmer.
         public const float MinimumTouchDp = 48, TrayInset = 6;
-        public float FrameInset => (Compact ? 14 : 22) * Density;
-        public float FrameScale => Compact ? 14f / 22f : 1;
+        public float FrameInset => (Compact ? 12 : 14) * Density;
+        // The frame art's gold bar ends 22 dp in; drawing it smaller gives the cells more room.
+        public float FrameScale => (Compact ? 12 : 14) / 22f;
         public static float CanvasTouchSize(float preferred, float density, float canvasScale)
         {
             if (float.IsNaN(density) || float.IsInfinity(density) || density <= 0 || float.IsNaN(canvasScale) || float.IsInfinity(canvasScale) || canvasScale <= 0)
@@ -28,7 +29,7 @@ namespace ZKube.Presentation
             Header = Mathf.Max((Compact ? 104 : 150) * Density, headerPixels);
             Footer = Mathf.Max((Compact ? 68 : 96) * Density, footerPixels);
             // The board frame and the next-row tray need room around the cells.
-            float inset = (Compact ? 14 : 22) * Density, previewGap = (Compact ? 22 : 32) * Density;
+            float inset = (Compact ? 12 : 14) * Density, previewGap = (Compact ? 20 : 24) * Density;
             Cell = Mathf.Max(1, Mathf.Min(96 * Density, Mathf.Floor((width - 2 * inset) / 8),
                 Mathf.Floor((Frame.height - Header - Footer - previewGap - inset - TrayInset * Density) / 11)));
             float available = Frame.height - Header - Footer - inset - TrayInset * Density;

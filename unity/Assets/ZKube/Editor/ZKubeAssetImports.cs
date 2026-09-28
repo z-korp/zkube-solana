@@ -277,6 +277,8 @@ namespace ZKube.Editor
             return sprites[0];
         }
 
+        private const int FontSampling = 90, FontPadding = 14, FontAtlas = 2048;
+
         private static void PrepareFonts(FontEntry[] entries)
         {
             // Keep a bounded Latin/UI seed. These assets use only bundled font
@@ -292,10 +294,17 @@ namespace ZKube.Editor
                     throw new InvalidOperationException("Generated font GUID drift: " + entry.asset);
                 string path = Generated + "Resources/" + entry.resource + ".asset";
                 var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
+                // A larger sampling size and padding keep glyph edges sharp and leave
+                // room for the outline and shadow the game text uses.
+                if (font != null && (font.atlasPadding != FontPadding || font.atlasWidth != FontAtlas || font.faceInfo.pointSize != FontSampling))
+                {
+                    AssetDatabase.DeleteAsset(path);
+                    font = null;
+                }
                 if (font == null)
                 {
                     font = TMP_FontAsset.CreateFontAsset(AssetDatabase.LoadAssetAtPath<Font>(entry.asset),
-                        64, 8, GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic, true);
+                        FontSampling, FontPadding, GlyphRenderMode.SDFAA, FontAtlas, FontAtlas, AtlasPopulationMode.Dynamic, true);
                     if (font == null) throw new InvalidOperationException("Failed to create TMP font: " + entry.name);
                     font.name = entry.name;
                     font = CreateWithGuid(font, path, entry.fontAssetGuid,
@@ -321,7 +330,7 @@ namespace ZKube.Editor
             {
                 if (pair.Value == symbols || pair.Value == math) continue;
                 pair.Value.fallbackFontAssetTable = pair.Key == "LilitaOne-Regular"
-                    ? new List<TMP_FontAsset> { fonts["Outfit-Regular"], symbols, math }
+                    ? new List<TMP_FontAsset> { fonts["Fredoka-SemiBold"], symbols, math }
                     : new List<TMP_FontAsset> { symbols, math };
                 const string required = "zKube Campaign Arcade Score Theme Kredit 0123456789★☆✓◇×←→↑↓…–—‘’“”•≤≥";
                 if (!pair.Value.HasCharacters(required, out uint[] missing, true, true))

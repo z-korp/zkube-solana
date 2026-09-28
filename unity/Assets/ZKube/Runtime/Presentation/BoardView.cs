@@ -27,7 +27,7 @@ namespace ZKube.Presentation
         private Transform boardRoot;
         private Camera boardCamera;
         private Image guardian, progressFill, guardianGlyph, rerollGlyph, statusPlate;
-        private TMP_Text score, objective, secondary, moves, status, heading, scoreLabel, objectiveLabel, secondaryLabel;
+        private TMP_Text score, objective, moves, pressure, status, heading, scoreLabel, objectiveLabel, secondaryLabel;
         private TMP_Text guardianLabel, rerollLabel, guardianRuleHeading, guardianRule;
         private readonly Image[] stars = new Image[3];
         private readonly Button[] starButtons = new Button[3];
@@ -85,27 +85,34 @@ namespace ZKube.Presentation
             Pointer = hit.gameObject.AddComponent<BoardPointer>(); Pointer.Owner = owner;
 
             ui.Piece("Title ribbon", SkinSlots.TitleRibbon, hud.Title, root);
-            heading = ui.Label("Run title", HudLayout.TitleText(art, owner.Session), hud.Title, HudLayout.TitleSize, SkinTokens.Text, root, true);
+            heading = ui.Label("Run title", HudLayout.TitleText(art, owner.Session), hud.Title, hud.TitlePt, SkinTokens.Text, root, true);
 
             guardian = ui.Medallion("Calm realm guardian", hud.Medallion, art.Sprite("boss__idle"), root);
-            ui.Piece("Score plate", SkinSlots.Plate, hud.ScorePlate, root);
-            scoreLabel = ui.Label("Score label", HudLayout.ScoreCaptionText(owner.Session), hud.ScoreCaption, HudLayout.CaptionSize, SkinTokens.TextMuted, root);
-            score = ui.Label("Score", "0", hud.ScoreValue, HudLayout.ValueSize, SkinTokens.Score, root, true);
+            ui.Piece("Score plate", SkinSlots.Plate, hud.ScorePlate, root, HudLayout.PlateBorderScale);
+            scoreLabel = ui.Label("Score label", HudLayout.ScoreCaptionText(owner.Session), hud.ScoreCaption, hud.CaptionPt, SkinTokens.TextMuted, root);
+            score = ui.Label("Score", "0", hud.ScoreValue, hud.ValuePt, SkinTokens.Score, root, true);
             if (hud.Progress.height > 0)
             {
                 var track = ui.Rect<Image>("Score progress", hud.Progress, root); track.color = art.Token(SkinTokens.Scrim); track.raycastTarget = false;
                 progressFill = ui.Rect<Image>("Score progress fill", hud.Progress, track.transform);
                 progressFill.color = art.Token(SkinTokens.Accent); progressFill.raycastTarget = false;
             }
-            ui.Piece("Moves pill", SkinSlots.Plate, hud.Moves, root);
-            moves = ui.Label("Moves remaining", "", hud.Moves, HudLayout.MovesSize, SkinTokens.Text, root, true);
+            ui.Piece("Moves pill", SkinSlots.Plate, hud.Moves, root, HudLayout.PlateBorderScale);
+            moves = ui.Label("Moves remaining", "", hud.Moves, hud.PillPt, SkinTokens.Text, root, true);
+            if (hud.Pressure.height > 0)
+            {
+                ui.Piece("Pressure pill", SkinSlots.Plate, hud.Pressure, root, HudLayout.PlateBorderScale);
+                pressure = ui.Label("Pressure", "", hud.Pressure, hud.PillPt, SkinTokens.Objective, root, true);
+            }
 
-            ui.Piece("Primary plate", SkinSlots.Plate, hud.PrimaryPlate, root);
-            objectiveLabel = ui.Label("Theme label", "", hud.PrimaryCaption, HudLayout.CaptionSize, SkinTokens.TextMuted, root);
-            objective = ui.Label("Theme", "0", hud.PrimaryValue, HudLayout.MinorValueSize, SkinTokens.Objective, root, true);
-            ui.Piece("Secondary plate", SkinSlots.Plate, hud.SecondaryPlate, root);
-            secondaryLabel = ui.Label("Secondary label", "", hud.SecondaryCaption, HudLayout.CaptionSize, SkinTokens.TextMuted, root);
-            secondary = ui.Label("Secondary", "", hud.SecondaryValue, HudLayout.MinorValueSize, SkinTokens.Objective, root, true);
+            ui.Piece("Primary plate", SkinSlots.Plate, hud.PrimaryPlate, root, HudLayout.PlateBorderScale);
+            objectiveLabel = ui.Label("Theme label", "", hud.PrimaryCaption, hud.CaptionPt, SkinTokens.Text, root, false, TextAlignmentOptions.Left);
+            objective = ui.Label("Theme", "0", hud.PrimaryValue, hud.CardValuePt, SkinTokens.Objective, root, true, TextAlignmentOptions.Right);
+            if (hud.Campaign)
+            {
+                ui.Piece("Secondary plate", SkinSlots.Plate, hud.SecondaryPlate, root, HudLayout.PlateBorderScale);
+                secondaryLabel = ui.Label("Secondary label", "", hud.SecondaryCaption, hud.CaptionPt, SkinTokens.Text, root, false, TextAlignmentOptions.Left);
+            }
             for (int i = 0; i < 3; i++)
             {
                 int source = i;
@@ -114,22 +121,22 @@ namespace ZKube.Presentation
                 hitArea.color = Color.clear; hitArea.raycastTarget = true;
                 starButtons[i] = hitArea.gameObject.AddComponent<Button>(); starButtons[i].transition = Selectable.Transition.None;
                 starButtons[i].onClick.AddListener(() => owner.ShowStar(source));
-                float inset = rect.width * .25f;
+                float inset = rect.width * HudLayout.StarGlyphInset;
                 stars[i] = ui.Piece("Star " + i + " glyph", SkinSlots.StarOff, new Rect(rect.x + inset, rect.y + inset, rect.width - 2 * inset, rect.height - 2 * inset), hitArea.transform);
             }
 
 
-            guardianRuleHeading = ui.Label("Guardian earning label", "", hud.RuleHeading, HudLayout.RuleHeadingSize, SkinTokens.Accent, root, true,
+            guardianRuleHeading = ui.Label("Guardian earning label", "", hud.RuleHeading, hud.RuleHeadingPt, SkinTokens.Accent, root, true,
                 TextAlignmentOptions.BottomLeft);
-            guardianRule = ui.Label("Guardian earning rule", "", hud.Rule, HudLayout.RuleSize, SkinTokens.Text, root, false, TextAlignmentOptions.TopLeft);
+            guardianRule = ui.Label("Guardian earning rule", "", hud.Rule, hud.RulePt, SkinTokens.Text, root, false, TextAlignmentOptions.TopLeft);
             guardianButton = ui.IconButton("Guardian action", Layout.GuardianButton, SkinSlots.IconTotem, owner.SelectGuardian, root, true,
                 out guardianGlyph, out guardianLabel);
             rerollButton = ui.IconButton("Reroll action", Layout.RerollButton, SkinSlots.IconReroll, owner.Reroll, root, true,
                 out rerollGlyph, out rerollLabel);
             ui.IconButton("Pause", Layout.PauseButton, SkinSlots.IconPause, owner.Pause, root, false, out _, out _);
 
-            statusPlate = ui.Piece("Action status plate", SkinSlots.Plate, hud.Status, root);
-            status = ui.Label("Action status", "", hud.Status, HudLayout.StatusSize, SkinTokens.Text, root);
+            statusPlate = ui.Piece("Action status plate", SkinSlots.Plate, hud.Status, root, HudLayout.PlateBorderScale);
+            status = ui.Label("Action status", "", hud.Status, hud.StatusPt, SkinTokens.Text, root);
             statusPlate.enabled = false;
             // This always-rendered transparent surface already has a canvas
             // depth when a dialog opens. It catches the opening frame while new
@@ -151,8 +158,8 @@ namespace ZKube.Presentation
             moves.text = HudLayout.MovesText(state, session);
             objectiveLabel.text = HudLayout.PrimaryCaptionText(session);
             objective.text = HudLayout.PrimaryText(state, session);
-            secondaryLabel.text = hud.ShortSecondary ? "BLOW" : HudLayout.SecondaryCaptionText(session);
-            secondary.text = HudLayout.SecondaryText(state, session);
+            if (secondaryLabel != null) secondaryLabel.text = HudLayout.SecondaryCaptionText(session);
+            if (pressure != null) pressure.text = HudLayout.PressureText(state);
             for (int i = 0; i < 3; i++)
             {
                 starButtons[i].gameObject.SetActive(!session.Daily);
@@ -168,8 +175,8 @@ namespace ZKube.Presentation
             rerollLabel.text = state.RerollCharges.ToString();
             SetAvailable(guardianButton, guardianGlyph, available && state.BonusCharges > 0);
             SetAvailable(rerollButton, rerollGlyph, available && state.RerollCharges > 0);
-            NeedsTextReflow = new[] { heading, moves, score, scoreLabel, objective, objectiveLabel, secondary, secondaryLabel, guardianRuleHeading, guardianRule }
-                .Any(label => label.gameObject.activeInHierarchy && label.GetPreferredValues(label.text, label.rectTransform.rect.width, float.PositiveInfinity).y > label.rectTransform.rect.height + .5f);
+            NeedsTextReflow = new[] { heading, moves, pressure, score, scoreLabel, objective, objectiveLabel, secondaryLabel, guardianRuleHeading, guardianRule }
+                .Any(label => label != null && label.gameObject.activeInHierarchy && label.GetPreferredValues(label.text, label.rectTransform.rect.width, float.PositiveInfinity).y > label.rectTransform.rect.height + .5f);
         }
         private static void SetAvailable(Button button, Image glyph, bool available)
         {
@@ -237,6 +244,8 @@ namespace ZKube.Presentation
         {
             var size = label.rectTransform.sizeDelta;
             var target = (Vector2)destination.rectTransform.TransformPoint(destination.rectTransform.rect.center) - size / 2;
+            // Chips rise straight toward the HUD and keep their own lane.
+            target.x = label.rectTransform.anchoredPosition.x;
             // The entire glyph allowance stays inside the board. Travel aims
             // toward the readout but ends before entering its labels or keys.
             float inset = 4 * Layout.Density;

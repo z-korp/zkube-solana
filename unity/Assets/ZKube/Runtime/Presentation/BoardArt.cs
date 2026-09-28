@@ -83,7 +83,7 @@ namespace ZKube.Presentation
                 if (skinRealm == null || skinUi == null) throw new InvalidOperationException("Prepare the bundled skin atlases before opening the page");
             }
             if (Display == null) Display = Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular");
-            if (Body == null) Body = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular");
+            if (Body == null) Body = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold");
             if (atlas == null || common == null || Display == null || Body == null)
                 throw new InvalidOperationException("Prepare the bundled realm atlas and TMP fonts before opening the board");
 

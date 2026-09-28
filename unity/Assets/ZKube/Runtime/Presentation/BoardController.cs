@@ -460,10 +460,12 @@ namespace ZKube.Presentation
             if (!PresentationInitialized || Session == null || Session.Daily || paused || recoveryRequired || IsTerminal()) return;
             paused = true;
             var rules = Session.Rules;
-            string title = source == 0 ? "SCORE" : source == 1 ? "SHAPE" : "BLOW";
+            // The dialog names the goal in its own words, never the internal source name.
+            string title = source == 0 ? "SCORE" : source == 1 ? BoardView.ObjectiveName(rules.PrimaryKind, rules.PrimaryValue)
+                : BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue);
+            bool earned = (State.LatchedStarSources & (1 << source)) != 0;
             string detail = source == 0 ? "Reach " + rules.PointsRequired + " points"
-                : source == 1 ? BoardView.ObjectiveName(rules.PrimaryKind, rules.PrimaryValue) + "\n" + State.PrimaryProgress + " / " + rules.PrimaryCount
-                : BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue) + "\n" + ((State.LatchedStarSources & 4) != 0 ? "Earned" : "Waiting for the moment");
+                : source == 1 ? State.PrimaryProgress + " / " + rules.PrimaryCount : earned ? "Earned" : "Not earned yet";
             View.OpenModal(title, detail, ("Back to the board", Resume));
         }
         // Android may kill the process without a quit callback. A settings action

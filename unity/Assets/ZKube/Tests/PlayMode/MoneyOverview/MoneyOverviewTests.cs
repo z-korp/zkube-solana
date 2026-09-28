@@ -282,7 +282,7 @@ namespace ZKube.Tests.MoneyOverview
             var startup = host.AddComponent<AppStartup>();
             startup.Configuration = new AppStartupConfiguration { Identity = host.AddComponent<MoneyIdentity>(),
                 DisplayFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"),
-                BodyFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular") };
+                BodyFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold") };
             return startup;
         }
         internal static IEnumerator Wait(Task task)

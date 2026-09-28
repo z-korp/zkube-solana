@@ -24,11 +24,12 @@ namespace ZKube.Presentation
             Density = density; Scale = textScale;
         }
 
-        public Image Piece(string name, string slot, Rect rect, Transform parent)
+        // borderScale draws a sliced piece's ends smaller than authored.
+        public Image Piece(string name, string slot, Rect rect, Transform parent, float borderScale = 1)
         {
             var image = Rect<Image>(name, rect, parent);
             image.sprite = Art.SkinUi(slot); image.raycastTarget = false;
-            if (image.sprite.border != Vector4.zero) { image.type = Image.Type.Sliced; image.pixelsPerUnitMultiplier = 1 / Ui; }
+            if (image.sprite.border != Vector4.zero) { image.type = Image.Type.Sliced; image.pixelsPerUnitMultiplier = 1 / (Ui * borderScale); }
             else image.preserveAspect = true;
             return image;
         }
@@ -37,7 +38,8 @@ namespace ZKube.Presentation
             TextAlignmentOptions alignment = TextAlignmentOptions.Center)
         {
             var text = Rect<TextMeshProUGUI>(name, rect, parent);
-            text.font = display ? Art.Display : Art.Body; text.text = value; text.fontSize = sizeDp * Density * Scale;
+            text.font = display ? Art.Display : Art.Body; text.fontSharedMaterial = Styled(text.font, display);
+            text.text = value; text.fontSize = sizeDp * Density * Scale;
             text.color = Art.Token(token); text.alignment = alignment; text.raycastTarget = false;
             text.enableWordWrapping = true; text.enableAutoSizing = false; text.overflowMode = TextOverflowModes.Overflow;
             return text;
@@ -125,6 +127,25 @@ namespace ZKube.Presentation
             return text;
         }
 
+        // Game text: display type gets a dark outline and a drop shadow, body type a
+        // soft shadow. One shared material per font keeps text batched.
+        private readonly System.Collections.Generic.Dictionary<TMP_FontAsset, Material> styles =
+            new System.Collections.Generic.Dictionary<TMP_FontAsset, Material>();
+        private Material Styled(TMP_FontAsset font, bool display)
+        {
+            if (styles.TryGetValue(font, out var material)) return material;
+            material = new Material(font.material) { name = font.name + " game style" };
+            material.SetFloat(ShaderUtilities.ID_OutlineWidth, display ? .22f : 0);
+            material.SetColor(ShaderUtilities.ID_OutlineColor, new Color(.05f, .07f, .06f, .85f));
+            material.EnableKeyword(ShaderUtilities.Keyword_Underlay);
+            material.SetColor(ShaderUtilities.ID_UnderlayColor, new Color(0, 0, 0, display ? .6f : .45f));
+            material.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, display ? -.9f : -.6f);
+            material.SetFloat(ShaderUtilities.ID_UnderlaySoftness, .2f);
+            material.SetFloat(ShaderUtilities.ID_UnderlayDilate, display ? .25f : 0);
+            styles.Add(font, material);
+            return material;
+        }
+
         private Sprite Circle()
         {
             if (circle != null) return circle;
@@ -141,6 +162,8 @@ namespace ZKube.Presentation
 
         public void Dispose()
         {
+            foreach (var material in styles.Values) UnityEngine.Object.Destroy(material);
+            styles.Clear();
             if (circle != null) UnityEngine.Object.Destroy(circle);
             if (circleTexture != null) UnityEngine.Object.Destroy(circleTexture);
         }

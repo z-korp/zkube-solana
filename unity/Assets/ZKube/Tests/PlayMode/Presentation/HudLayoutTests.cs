@@ -48,23 +48,26 @@ namespace ZKube.Presentation.Tests
             // board width, measured with the actual loaded fonts and the native
             // fixture HUD rather than hard-coded rail heights.
             var art = Art();
-            foreach (string fixture in new[] { "realm-8-campaign", "realm-8-daily" })
+            foreach (string fixture in new[] { "realm-8-campaign", "display-long-campaign-constraint", "realm-8-daily" })
             {
                 evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 foreach (float scale in new[] { 1f, 1.3f })
                 {
                     var plan = HudLayout.Build(new SkinUi(art, 1, scale), board.State, board.Session, new Rect(0, 0, 360, 640), 1);
-                    Assert.GreaterOrEqual(plan.Layout.Cell, scale == 1 ? 30 : 26, fixture + " must retain usable narrow-board size at " + scale +
-                        $" (header {plan.Layout.Header}, footer {plan.Layout.Footer}, title {plan.Title}, medallion {plan.Medallion}, score {plan.ScorePlate}," +
-                        $" moves {plan.Moves}, primary {plan.PrimaryPlate}, secondary {plan.SecondaryPlate}, rule above {plan.RuleAbove})");
-                    Assert.GreaterOrEqual(plan.Layout.Board.width / plan.Layout.Frame.width, scale == 1 ? .75f : .65f);
+                    string detail = $" at {scale} (header {plan.Layout.Header}, footer {plan.Layout.Footer}, cell {plan.Layout.Cell}, title {plan.Title}," +
+                        $" medallion {plan.Medallion}, score {plan.ScorePlate}, moves {plan.Moves}, pressure {plan.Pressure}, primary {plan.PrimaryPlate}," +
+                        $" secondary {plan.SecondaryPlate}, rule above {plan.RuleAbove})";
+                    Assert.GreaterOrEqual(plan.Layout.Cell, scale == 1 ? 30 : 26, fixture + " must retain usable narrow-board size" + detail);
+                    Assert.GreaterOrEqual(plan.Layout.Board.width / plan.Layout.Frame.width, scale == 1 ? .75f : .65f, fixture + " board width" + detail);
                     Assert.GreaterOrEqual(plan.Medallion.xMin, plan.ScorePlate.xMax, "The medallion sits between the columns");
-                    Assert.LessOrEqual(plan.Medallion.xMax, plan.PrimaryPlate.xMin);
+                    Assert.LessOrEqual(plan.Medallion.xMax, plan.Moves.xMin);
                     Assert.LessOrEqual(plan.Medallion.yMax, plan.Title.yMin, "The medallion is wholly below the title ribbon");
-                    var plates = new[] { plan.ScorePlate, plan.Moves, plan.PrimaryPlate, plan.SecondaryPlate, plan.Title };
-                    for (int a = 0; a < plates.Length; a++) for (int b = a + 1; b < plates.Length; b++)
-                        Assert.IsFalse(plates[a].Overlaps(plates[b]), fixture + " HUD pieces " + a + " and " + b + " overlap at " + scale);
-                    foreach (var plate in plates) Assert.GreaterOrEqual(plate.yMin, plan.Layout.Board.yMax, "The HUD stays above the board");
+                    var pieces = new System.Collections.Generic.List<Rect> { plan.Title, plan.ScorePlate, plan.Moves, plan.PrimaryPlate };
+                    if (board.Session.Daily) pieces.Add(plan.Pressure); else pieces.Add(plan.SecondaryPlate);
+                    for (int a = 0; a < pieces.Count; a++) for (int b = a + 1; b < pieces.Count; b++)
+                        Assert.IsFalse(pieces[a].Overlaps(pieces[b]), fixture + " HUD pieces " + a + " and " + b + " overlap at " + scale);
+                    foreach (var piece in pieces) Assert.GreaterOrEqual(piece.yMin, plan.Layout.Board.yMax, "The HUD stays above the board");
+                    Assert.LessOrEqual(plan.PrimaryPlate.yMax, Mathf.Min(plan.ScorePlate.yMin, plan.Medallion.yMin), "Goals sit on their own row");
                     if (!board.Session.Daily)
                     {
                         var owners = new[] { plan.ScorePlate, plan.PrimaryPlate, plan.SecondaryPlate };
@@ -72,11 +75,10 @@ namespace ZKube.Presentation.Tests
                         {
                             var rect = plan.Star(star);
                             Assert.GreaterOrEqual(rect.width, 48); Assert.GreaterOrEqual(rect.height, 48);
-                            Assert.GreaterOrEqual(rect.xMin, owners[star].xMin, "Each star sits inside the plate of its source");
+                            Assert.GreaterOrEqual(rect.xMin, owners[star].xMin, "Each star sits inside the piece of its source");
                             Assert.LessOrEqual(rect.xMax, owners[star].xMax);
-                            Assert.AreEqual(owners[star].center.y, rect.center.y, .01f);
-                            foreach (var plate in plates.Where(plate => plate != owners[star]))
-                                Assert.IsFalse(rect.Overlaps(plate), "Star " + star + " reaches into another HUD piece");
+                            foreach (var piece in pieces.Where(piece => piece != owners[star]))
+                                Assert.IsFalse(rect.Overlaps(piece), "Star " + star + " reaches into another HUD piece");
                         }
                     }
                     Assert.IsFalse(plan.Layout.GuardianButton.Overlaps(plan.Layout.RerollButton));
@@ -192,8 +194,8 @@ namespace ZKube.Presentation.Tests
             evidence.Load("display-long-campaign-constraint"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             board.SetTextScale(1.3f); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Star 2"); yield return null;
-            Assert.AreEqual("BLOW", Label("Dialog title").text);
-            StringAssert.Contains("IN CONSECUTIVE MOVES", Label("Dialog details").text);
+            StringAssert.Contains("IN CONSECUTIVE MOVES", Label("Dialog title").text);
+            Assert.AreEqual("Not earned yet", Label("Dialog details").text);
             Fits(Label("Dialog title")); Fits(Label("Dialog details"));
             evidence.Click("Dialog Back to the board"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Pause"); yield return null;

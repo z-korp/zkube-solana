@@ -45,7 +45,7 @@ namespace ZKube.Local.App
             shell = gameObject.AddComponent<AppShell>(); shell.Initialize(Application.productName);
             pageRoot = shell.Root; content = shell.Content;
             shared = gameObject.AddComponent<AppPages>();
-            var font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Outfit-Regular");
+            var font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold");
             shared.Initialize(this, font, font, TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
             board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected };

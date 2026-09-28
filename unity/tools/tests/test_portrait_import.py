@@ -33,10 +33,10 @@ class PortraitImports(unittest.TestCase):
         expected.update(f'assets/skins/jelly/ui/{name}.png' for name in skin_slots())
         self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
         self.assertEqual({font['name'] for font in catalog['fonts']},
-                         {'LilitaOne-Regular', 'Outfit-Regular', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular'})
-        outfit = next(font for font in catalog['fonts'] if font['name'] == 'Outfit-Regular')
+                         {'LilitaOne-Regular', 'Fredoka-SemiBold', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular'})
+        body = next(font for font in catalog['fonts'] if font['name'] == 'Fredoka-SemiBold')
         settings = (imports.PROJECT / 'Assets/TextMesh Pro/Resources/TMP Settings.asset').read_text()
-        self.assertIn('m_defaultFontAsset: {fileID: 1, guid: ' + outfit['fontAssetGuid'], settings)
+        self.assertIn('m_defaultFontAsset: {fileID: 1, guid: ' + body['fontAssetGuid'], settings)
 
     def inputs(self):
         catalog = {'themes': []}; by_source = {}; entries = []; files = {}
