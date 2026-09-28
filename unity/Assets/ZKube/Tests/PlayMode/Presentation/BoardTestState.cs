@@ -10,6 +10,7 @@ namespace ZKube.Tests.Presentation
     {
         private const BindingFlags Fields = BindingFlags.Instance | BindingFlags.NonPublic;
         public static BoardArt Art(BoardController board) => (BoardArt)typeof(BoardController).GetField("art", Fields).GetValue(board);
+        public static BoardArt Art(BoardView view) => (BoardArt)typeof(BoardView).GetField("art", Fields).GetValue(view);
         public static bool Idle(BoardController board) => board != null && board.PresentationInitialized &&
             !board.Busy && !board.RecoveryRequired && board.Session != null && board.State != null &&
             !board.View.NeedsTextReflow && board.View.TextScale == board.TextScale && Settled(board.View, board.State.Grid);

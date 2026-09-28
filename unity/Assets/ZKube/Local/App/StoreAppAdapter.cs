@@ -53,7 +53,7 @@ namespace ZKube.Local.App
             banner.anchorMin = new Vector2(0, 1); banner.anchorMax = Vector2.one; banner.pivot = new Vector2(.5f, 1);
             banner.sizeDelta = new Vector2(0, 76); banner.gameObject.AddComponent<Image>().color = new Color(.35f, .12f, .03f, .98f);
             warning = Rect("Save warning text", banner).gameObject.AddComponent<TextMeshProUGUI>();
-            warning.font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold"); warning.fontSize = 18; warning.color = Color.white;
+            warning.font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + SkinUi.FontName(SkinUi.Type.Body)); warning.fontSize = 18; warning.color = Color.white;
             warning.alignment = TextAlignmentOptions.Center; warning.raycastTarget = false;
             warning.text = "Progress is not saved. Keep the app open; closing it may lose this result.";
             Stretch(warning.rectTransform, 14);
@@ -222,7 +222,7 @@ namespace ZKube.Local.App
         public IReadOnlyList<PageAction> IdentityNavigation => Array.Empty<PageAction>();
         public void Report(Exception error) => Flow.Report(error);
         private void OpenBoard(LocalBoardActionProvider provider)
-        { board.gameObject.SetActive(true); board.Bind(provider.Bind(null)); if (pageRoot != null) pageRoot.SetActive(false); }
+        { board.gameObject.SetActive(true); board.Bind(provider.Bind(provider.Title)); if (pageRoot != null) pageRoot.SetActive(false); }
         private void ExitBoard() { StopOutcome(); board.gameObject.SetActive(false); Flow.LeaveBoard(); }
         // A finished run stays on the board for a moment, then opens its result page.
         private void Terminal(BoardController source)

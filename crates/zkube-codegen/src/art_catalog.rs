@@ -20,7 +20,59 @@ fn rgba(hex: &str) -> Value {
     json!([r, g, b, 1])
 }
 
-fn theme(source: &Value) -> Value {
+/// Every guardian frame, drawn whole behind the board rim or dialogue rail;
+/// the paws layer is drawn in front of it.
+pub const GUARDIAN_FRAMES: [&str; 10] = [
+    "idle",
+    "blink",
+    "talk-mid",
+    "talk-open",
+    "greeting",
+    "satisfied",
+    "surprised",
+    "celebrate",
+    "defeated",
+    "portrait",
+];
+
+#[derive(serde::Deserialize)]
+struct GuardianContact {
+    canvas_px: [u32; 2],
+    frame_names: Vec<String>,
+    representation: String,
+    paws: String,
+    rail_y_px: u32,
+    rail_front_y_px: u32,
+}
+
+/// Where the guardian's paws rest, as fractions of its square canvas from the top.
+fn guardian_contact(root: &Path, id: &str) -> Result<Value, String> {
+    let path = root.join(format!("assets/{id}/boss/contact.json"));
+    let text = std::fs::read_to_string(&path)
+        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let contact: GuardianContact = serde_json::from_str(&text)
+        .map_err(|error| format!("invalid {}: {error}", path.display()))?;
+    let [width, height] = contact.canvas_px;
+    if width != height
+        || contact.representation != "full-frame-behind-rail"
+        || contact.paws != "paws.png"
+        || contact.frame_names != GUARDIAN_FRAMES
+        || !(0 < contact.rail_y_px
+            && contact.rail_y_px <= contact.rail_front_y_px
+            && contact.rail_front_y_px < height)
+    {
+        return Err(format!(
+            "{} must describe full frames {GUARDIAN_FRAMES:?} over a square canvas, with paws.png and a rail inside it",
+            path.display()
+        ));
+    }
+    let fraction = |y: u32| f64::from(y) / f64::from(height);
+    Ok(
+        json!({"railY": fraction(contact.rail_y_px), "railFrontY": fraction(contact.rail_front_y_px)}),
+    )
+}
+
+fn theme(source: &Value, root: &Path) -> Result<Value, String> {
     let realm = source["realmId"].as_u64().expect("realm id");
     let id = format!("theme-{realm}");
     let color = |key: &str| source[key].as_str().expect("authored color");
@@ -49,13 +101,15 @@ fn theme(source: &Value) -> Value {
         swatches.push(json!({"name": name, "value": [1, 1, 1, alpha]}));
     }
     let mut images = serde_json::Map::new();
-    for (name, file) in [
-        ("background", "background"),
-        ("guardianIdle", "boss/idle"),
-        ("guardianCelebrate", "boss/celebrate"),
-        ("guardianDefeated", "boss/defeated"),
-    ] {
-        images.insert(name.into(), json!(format!("/assets/{id}/{file}.png")));
+    images.insert(
+        "background".into(),
+        json!(format!("/assets/{id}/background.png")),
+    );
+    for frame in GUARDIAN_FRAMES.iter().chain(&["paws"]) {
+        images.insert(
+            format!("guardian-{frame}"),
+            json!(format!("/assets/{id}/boss/{frame}.png")),
+        );
     }
     let music: serde_json::Map<String, Value> = ["level"]
         .into_iter()
@@ -66,10 +120,11 @@ fn theme(source: &Value) -> Value {
             )
         })
         .collect();
-    json!({
+    let guardian = guardian_contact(root, &id)?;
+    Ok(json!({
         "id": id, "realmId": realm, "realmName": source["realmName"],
         "guardianName": source["guardianName"], "guardianGreeting": source["guardianGreeting"],
-        "guardianPortrait": format!("/assets/{id}/boss/idle.png"),
+        "guardianPortrait": format!("/assets/{id}/boss/portrait.png"), "guardian": guardian,
         "campaignPath": source["campaignPath"], "rgba": swatches, "images": images, "music": music,
         "map": {
             "pathStyle": source["pathStyle"], "lockedDash": source["lockedDash"],
@@ -77,7 +132,7 @@ fn theme(source: &Value) -> Value {
             "clearedRgba": rgba(accent), "activeRgba": rgba(color("accent2")),
             "lockedRgba": rgba(&mix(bg, 0, 45)),
         },
-    })
+    }))
 }
 
 fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
@@ -156,7 +211,7 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
             .collect();
     let output = json!({
         "schema": 1,
-        "themes": realms.iter().map(theme).collect::<Vec<_>>(),
+        "themes": realms.iter().map(|realm| theme(realm, root)).collect::<Result<Vec<_>, _>>()?,
         "constraintCaptions": super::captions::render(catalog)?,
         "guardianRules": catalog.maps.iter().map(|map| guardian(map.rules)).collect::<Vec<_>>(),
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
@@ -168,4 +223,37 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
     serde_json::to_string_pretty(&output)
         .map(|value| value + "\n")
         .map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn guardian_contact_names_every_frame_and_a_rail_inside_its_canvas() {
+        let root = std::env::temp_dir().join(format!("zkube-guardian-{}", std::process::id()));
+        let dir = root.join("assets/theme-1/boss");
+        std::fs::create_dir_all(&dir).unwrap();
+        let write =
+            |contact: Value| std::fs::write(dir.join("contact.json"), contact.to_string()).unwrap();
+        let good = json!({"canvas_px": [1536, 1536], "frame_names": GUARDIAN_FRAMES,
+            "representation": "full-frame-behind-rail", "paws": "paws.png",
+            "rail_y_px": 1280, "rail_front_y_px": 1330, "hud_width_dp": 168});
+        write(good.clone());
+        let contact = guardian_contact(&root, "theme-1").unwrap();
+        assert_eq!(contact["railY"], json!(1280.0 / 1536.0));
+        assert_eq!(contact["railFrontY"], json!(1330.0 / 1536.0));
+        for (field, value) in [
+            ("frame_names", json!(["idle"])),
+            ("canvas_px", json!([1536, 1024])),
+            ("rail_y_px", json!(1536)),
+            ("representation", json!("head-layers")),
+        ] {
+            let mut bad = good.clone();
+            bad[field] = value;
+            write(bad);
+            assert!(guardian_contact(&root, "theme-1").is_err(), "{field}");
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
 }

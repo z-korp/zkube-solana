@@ -26,26 +26,28 @@ namespace ZKube.Presentation
         private Canvas canvas;
         private Transform boardRoot;
         private Camera boardCamera;
-        private Image guardian, progressFill, guardianGlyph, rerollGlyph, statusPlate;
-        private TMP_Text score, objective, moves, pressure, status, heading, scoreLabel, objectiveLabel, secondaryLabel;
-        private TMP_Text guardianLabel, rerollLabel, guardianRuleHeading, guardianRule;
-        private readonly Image[] stars = new Image[3];
+        private SpriteRenderer guardian, paws, pawsShadow;
+        private Image statusPlate, ruleShade, headingShade;
+        private TMP_Text score, targetText, objective, moves, secondary, status, heading, scoreLabel, objectiveLabel, secondaryLabel;
+        private TMP_Text guardianRuleHeading, guardianRule;
+        private readonly Image[] stars = new Image[3], starHalos = new Image[3], starRings = new Image[3];
         private readonly Button[] starButtons = new Button[3];
-        private Button guardianButton, rerollButton;
+        private SkinTablet guardianTablet, rerollTablet;
         private GameObject modal;
         private Image modalShield;
         private SpriteRenderer ghost;
+        private Texture2D topLightTexture;
+        private Sprite topLight;
         // Block sprites are reused: a board change returns them here instead of destroying them.
         private readonly Stack<SpriteRenderer> spareBlocks = new Stack<SpriteRenderer>();
         public int BlockSpritesCreated { get; private set; }
         public BoardFx Effects { get; private set; }
         private uint scoreShown, scoreTarget;
         private bool countingScore, guardianFinal;
-        private float guardianCheerUntil;
-        private Vector2 guardianOrigin;
-        private readonly Image[] starRings = new Image[3];
+        private string guardianFace = "idle";
+        private float guardianCheerUntil, nextBlink, blinkUntil;
         private readonly HashSet<RectTransform> popping = new HashSet<RectTransform>();
-        private const float GuardianCheer = .9f;
+        private const float GuardianCheer = .9f, BlinkSeconds = .12f;
         // A wait for the network shows only after this delay, so immediate local
         // play never shows it.
         public const float AwaitDelay = .45f;
@@ -57,8 +59,9 @@ namespace ZKube.Presentation
             score != null && objective != null && status != null && Pointer != null &&
             Layout.Cell > 0 && Layout.Density > 0 && Layout.Board.width > 0 && Layout.Board.height > 0;
         public byte[] DisplayGrid { get; private set; } = new byte[80];
-        public bool GuardianEnabled => guardianButton != null && guardianButton.interactable;
-        public bool RerollEnabled => rerollButton != null && rerollButton.interactable;
+        public bool GuardianEnabled => guardianTablet != null && guardianTablet.Button.interactable;
+        public bool RerollEnabled => rerollTablet != null && rerollTablet.Button.interactable;
+        public string GuardianFace => guardianFace;
         public BoardPointer Pointer { get; private set; }
         public string StatusText => status == null ? "" : status.text;
 
@@ -73,25 +76,60 @@ namespace ZKube.Presentation
             boardCamera.backgroundColor = Color.black;
             boardCamera.clearFlags = CameraClearFlags.SolidColor;
             boardRoot = new GameObject("Native board sprites").transform; boardRoot.SetParent(transform, false);
-            Effects = gameObject.AddComponent<BoardFx>(); Effects.Initialize(art, boardRoot, 8);
+            Effects = gameObject.AddComponent<BoardFx>(); Effects.Initialize(art, boardRoot, 10);
 
-            var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.Background), -20);
+            // Back to front: the painting, the guardian behind the rim, the board's
+            // backlight, the glass well, the frame in the realm's key light, the
+            // dimple cells, the rim's lit top surface and the tray. Blocks, then the
+            // guardian's paws and their contact shadow, rest on top.
+            var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.HudBackground), -20);
             Size(background, new Rect(0, 0, Screen.width, Screen.height), true);
             float d = Layout.Density, cell = Layout.Cell;
-            Sliced("Board frame", art.SkinUi(SkinSlots.BoardFrame), Grow(Layout.Board, Layout.FrameInset, Layout.FrameInset), -12, Layout.FrameScale);
-            Sliced("Grid well", art.SkinUi(SkinSlots.GridWell), Grow(Layout.Board, 3 * d, 3 * d), -10);
+            var key = art.Token(SkinTokens.LightKey);
+            guardian = NewSprite("Calm realm guardian", art.Sprite("boss__idle"), -16);
+            Size(guardian, hud.Guardian);
+            var backlight = NewSprite("Board backlight", art.SkinUi(SkinSlots.FxGlow), -15);
+            Size(backlight, new Rect(Layout.Rim.x - 12 * d, Layout.Rim.y - 24 * d, Layout.Rim.width + 24 * d, Layout.Rim.height + 48 * d));
+            backlight.color = new Color(key.r, key.g, key.b, .5f);
+            Sliced("Grid well", art.SkinUi(SkinSlots.GridWell), Layout.Rim, -14);
+            Sliced("Board frame", art.SkinUi(SkinSlots.BoardFrame), Layout.Rim, -13).color = key;
             var cellSprite = art.SkinUi(SkinSlots.GridCell);
             for (int row = 0; row < 10; row++) for (int col = 0; col < 8; col++)
-            {
-                var sprite = NewSprite("Cell " + row + ":" + col, cellSprite, -8);
-                var p = Layout.CellCenter(row, col);
-                Size(sprite, new Rect(p.x - cell / 2 + 1, p.y - cell / 2 + 1, cell - 2, cell - 2));
-            }
-            Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Grow(Layout.Preview, Layout.FrameInset, BoardLayout.TrayInset * d), -10, Layout.TrayScale);
+                Size(NewSprite("Cell " + row + ":" + col, cellSprite, -12), new Rect(Layout.Board.x + col * cell, Layout.Board.y + row * cell, cell, cell));
+            var top = NewSprite("Board top light", TopLight(key), -11);
+            Size(top, new Rect(Layout.Rim.x + 12 * d, Layout.Rim.yMax - BoardLayout.RimDp * d, Layout.Rim.width - 24 * d, BoardLayout.RimDp * d));
+            Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Layout.Tray, -10);
+            var pawsSprite = art.Sprite("boss__paws");
+            pawsShadow = NewSprite("Guardian contact shadow", pawsSprite, 7);
+            Size(pawsShadow, new Rect(hud.Guardian.x + .7f * d, hud.Guardian.y - 1.3f * d, hud.Guardian.width, hud.Guardian.height));
+            pawsShadow.color = new Color(0, 0, 0, .45f);
+            paws = NewSprite("Guardian paws", pawsSprite, 8);
+            Size(paws, hud.Guardian);
 
             canvas = new GameObject("Board interface", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster)).GetComponent<Canvas>();
             canvas.transform.SetParent(transform, false); canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             BuildHud();
+            nextBlink = Time.unscaledTime + 2.5f;
+        }
+        // The rim's 4 dp top surface: the key light fading to deep moonstone.
+        private Sprite TopLight(Color key)
+        {
+            topLightTexture = new Texture2D(1, 12, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var deep = new Color(45 / 255f, 81 / 255f, 97 / 255f);
+            for (int y = 0; y < 12; y++) topLightTexture.SetPixel(0, y, Color.Lerp(deep, key, y / 11f));
+            topLightTexture.Apply();
+            return topLight = Sprite.Create(topLightTexture, new Rect(0, 0, 1, 12), Vector2.one / 2, 100);
+        }
+
+        private TMP_Text Text(string name, string value, Rect rect, float size, string token, Transform root, SkinUi.Type type,
+            TextAlignmentOptions alignment = TextAlignmentOptions.TopLeft)
+        {
+            var label = ui.Label(name, value, rect, size, token, root, type, alignment);
+            if (type == SkinUi.Type.Caption || type == SkinUi.Type.Label)
+                label.lineSpacing = SkinUi.LineSpacing(label.font, HudLayout.CaptionLeading);
+            // A number reads as one line whatever its length.
+            if (type == SkinUi.Type.Number) label.enableWordWrapping = false;
+            return label;
         }
 
         private void BuildHud()
@@ -102,61 +140,58 @@ namespace ZKube.Presentation
             hit.color = Color.clear; hit.raycastTarget = true;
             Pointer = hit.gameObject.AddComponent<BoardPointer>(); Pointer.Owner = owner;
 
-            ui.Piece("Title ribbon", SkinSlots.TitleRibbon, hud.Title, root);
-            heading = ui.Label("Run title", HudLayout.TitleText(art, owner.Session), hud.Title, hud.TitlePt, SkinTokens.Text, root, true);
+            var shade = ui.Rect<Image>("Title shade", hud.TitleShade, root);
+            shade.sprite = art.SkinUi(SkinSlots.FxGlow); shade.color = new Color(2 / 255f, 7 / 255f, 14 / 255f, .62f); shade.raycastTarget = false;
+            heading = Text("Run title", HudLayout.TitleText(art, owner.Session), hud.Title, hud.TitlePt, SkinTokens.Text, root, SkinUi.Type.Title,
+                TextAlignmentOptions.Top);
+            ui.Piece("Title ribbon", SkinSlots.TitleRibbon, hud.Ribbon, root);
 
-            guardian = ui.Medallion("Calm realm guardian", hud.Medallion, art.Sprite("boss__idle"), root);
-            guardianOrigin = guardian.rectTransform.anchoredPosition;
-            ui.Piece("Score plate", SkinSlots.Plate, hud.ScorePlate, root, HudLayout.PlateBorderScale);
-            scoreLabel = ui.Label("Score label", HudLayout.ScoreCaptionText(owner.Session), hud.ScoreCaption, hud.CaptionPt, SkinTokens.TextMuted, root);
-            score = ui.Label("Score", "0", hud.ScoreValue, hud.ValuePt, SkinTokens.Score, root, true);
-            if (hud.Progress.height > 0)
-            {
-                var track = ui.Rect<Image>("Score progress", hud.Progress, root); track.color = art.Token(SkinTokens.Scrim); track.raycastTarget = false;
-                progressFill = ui.Rect<Image>("Score progress fill", hud.Progress, track.transform);
-                progressFill.color = art.Token(SkinTokens.Accent); progressFill.raycastTarget = false;
-            }
-            ui.Piece("Moves pill", SkinSlots.Plate, hud.Moves, root, HudLayout.PlateBorderScale);
-            moves = ui.Label("Moves remaining", "", hud.Moves, hud.PillPt, SkinTokens.Text, root, true);
-            if (hud.Pressure.height > 0)
-            {
-                ui.Piece("Pressure pill", SkinSlots.Plate, hud.Pressure, root, HudLayout.PlateBorderScale);
-                pressure = ui.Label("Pressure", "", hud.Pressure, hud.PillPt, SkinTokens.Objective, root, true);
-            }
-
-            ui.Piece("Primary plate", SkinSlots.Plate, hud.PrimaryPlate, root, HudLayout.PlateBorderScale);
-            objectiveLabel = ui.Label("Theme label", "", hud.PrimaryCaption, hud.CaptionPt, SkinTokens.Text, root, false, TextAlignmentOptions.Left);
-            objective = ui.Label("Theme", "0", hud.PrimaryValue, hud.CardValuePt, SkinTokens.Objective, root, true, TextAlignmentOptions.Right);
+            ui.Piece("Score plate", SkinSlots.Plate, hud.ScorePlate, root);
+            ui.Piece("Moves plate", SkinSlots.Plate, hud.MovesPlate, root);
+            ui.Piece("Primary plate", SkinSlots.Plate, hud.PrimaryPlate, root);
+            ui.Piece("Secondary plate", SkinSlots.Plate, hud.SecondaryPlate, root);
+            scoreLabel = Text("Score label", "SCORE", hud.ScoreCaption, hud.LabelPt, SkinTokens.TextMuted, root, SkinUi.Type.Label);
+            score = Text("Score", "0", hud.ScoreValue, hud.NumberPt, SkinTokens.Score, root, SkinUi.Type.Number);
             if (hud.Campaign)
-            {
-                ui.Piece("Secondary plate", SkinSlots.Plate, hud.SecondaryPlate, root, HudLayout.PlateBorderScale);
-                secondaryLabel = ui.Label("Secondary label", "", hud.SecondaryCaption, hud.CaptionPt, SkinTokens.Text, root, false, TextAlignmentOptions.Left);
-            }
-            for (int i = 0; i < 3; i++)
+                targetText = Text("Score target", "", hud.ScoreTarget, hud.TargetPt, SkinTokens.TextMuted, root, SkinUi.Type.Caption);
+            Text("Moves label", "MOVES", hud.MovesCaption, hud.LabelPt, SkinTokens.TextMuted, root, SkinUi.Type.Label);
+            moves = Text("Moves remaining", "", hud.MovesValue, hud.NumberPt, SkinTokens.Score, root, SkinUi.Type.Number);
+            objectiveLabel = Text("Theme label", "", hud.PrimaryCaption, hud.CaptionPt, SkinTokens.Text, root, SkinUi.Type.Caption);
+            objective = Text("Theme", "0", hud.PrimaryValue, hud.GoalPt, SkinTokens.Objective, root, SkinUi.Type.Number);
+            secondaryLabel = Text(hud.Campaign ? "Secondary label" : "Pressure label", "", hud.SecondaryCaption, hud.CaptionPt,
+                hud.Campaign ? SkinTokens.Text : SkinTokens.TextMuted, root, SkinUi.Type.Caption);
+            secondary = Text(hud.Campaign ? "Secondary" : "Pressure", "", hud.SecondaryValue, hud.Campaign ? hud.GoalPt : hud.PointsPt,
+                hud.Campaign ? SkinTokens.Objective : SkinTokens.Accent, root, SkinUi.Type.Number);
+            var gold = art.Token(SkinTokens.Accent);
+            for (int i = 0; i < 3 && hud.Campaign; i++)
             {
                 int source = i;
-                var rect = hud.Star(i);
-                var hitArea = ui.Rect<Image>("Star " + i, rect, root);
+                var hitArea = ui.Rect<Image>("Star " + i, hud.Plate(i), root);
                 hitArea.color = Color.clear; hitArea.raycastTarget = true;
                 starButtons[i] = hitArea.gameObject.AddComponent<Button>(); starButtons[i].transition = Selectable.Transition.None;
                 starButtons[i].onClick.AddListener(() => owner.ShowStar(source));
-                float inset = rect.width * HudLayout.StarGlyphInset;
-                stars[i] = ui.Star("Star " + i + " glyph", new Rect(rect.x + inset, rect.y + inset, rect.width - 2 * inset, rect.height - 2 * inset), false, hitArea.transform);
+                var rect = hud.Star(i);
+                starHalos[i] = ui.Glow("Star " + i + " light", new Rect(rect.x - rect.width * .25f, rect.y - rect.height * .25f, rect.width * 1.5f, rect.height * 1.5f),
+                    SkinUi.WithAlpha(gold, .28f), hitArea.transform);
+                starHalos[i].enabled = false;
+                stars[i] = ui.Star("Star " + i + " glyph", rect, false, hitArea.transform);
                 starRings[i] = ui.Piece("Star " + i + " ring", SkinSlots.FxRing, rect, hitArea.transform);
-                starRings[i].color = art.Token(SkinTokens.Accent); starRings[i].enabled = false;
+                starRings[i].color = gold; starRings[i].enabled = false;
             }
 
+            var next = Text("Next row label", "NEXT ROW", hud.NextLabel, hud.LabelPt * 11 / 12, SkinTokens.TextMuted, root, SkinUi.Type.Label,
+                TextAlignmentOptions.Top);
+            FitUnderpaint(ui.Underpaint("Next row shade", Rect.zero, root), next, true);
+            next.transform.SetAsLastSibling();
+            headingShade = ui.Underpaint("Guardian earning shade", Rect.zero, root);
+            ruleShade = ui.Underpaint("Guardian rule shade", Rect.zero, root);
+            guardianRuleHeading = Text("Guardian earning label", "", hud.RuleHeading, hud.RuleHeadingPt, SkinTokens.Accent, root, SkinUi.Type.Label);
+            guardianRule = ui.Label("Guardian earning rule", "", hud.Rule, hud.RulePt, SkinTokens.Text, root, SkinUi.Type.Caption, TextAlignmentOptions.TopLeft);
+            guardianTablet = ui.Tablet("Guardian action", Layout.GuardianButton, SkinSlots.IconTotem, owner.SelectGuardian, root, true);
+            rerollTablet = ui.Tablet("Reroll action", Layout.RerollButton, SkinSlots.IconReroll, owner.Reroll, root, true);
+            ui.Tablet("Pause", Layout.PauseButton, SkinSlots.IconPause, owner.Pause, root, false);
 
-            guardianRuleHeading = ui.Label("Guardian earning label", "", hud.RuleHeading, hud.RuleHeadingPt, SkinTokens.Accent, root, true,
-                TextAlignmentOptions.BottomLeft);
-            guardianRule = ui.Label("Guardian earning rule", "", hud.Rule, hud.RulePt, SkinTokens.Text, root, false, TextAlignmentOptions.TopLeft);
-            guardianButton = ui.IconButton("Guardian action", Layout.GuardianButton, SkinSlots.IconTotem, owner.SelectGuardian, root, true,
-                out guardianGlyph, out guardianLabel);
-            rerollButton = ui.IconButton("Reroll action", Layout.RerollButton, SkinSlots.IconReroll, owner.Reroll, root, true,
-                out rerollGlyph, out rerollLabel);
-            ui.IconButton("Pause", Layout.PauseButton, SkinSlots.IconPause, owner.Pause, root, false, out _, out _);
-
-            statusPlate = ui.Piece("Action status plate", SkinSlots.Plate, hud.Status, root, HudLayout.PlateBorderScale);
+            statusPlate = ui.Piece("Action status plate", SkinSlots.Plate, hud.Status, root);
             status = ui.Label("Action status", "", hud.Status, hud.StatusPt, SkinTokens.Text, root);
             statusPlate.enabled = false;
             // This always-rendered transparent surface already has a canvas
@@ -165,45 +200,52 @@ namespace ZKube.Presentation
             modalShield = ui.Rect<Image>("Modal input shield", new Rect(0, 0, Screen.width, Screen.height), root);
             modalShield.color = Color.clear; modalShield.raycastTarget = false;
         }
+        // Sizes a text's underpaint to the words it actually holds.
+        private void FitUnderpaint(Image patch, TMP_Text text, bool centred)
+        {
+            var rect = SkinUi.ScreenRect(text.rectTransform);
+            var size = text.GetPreferredValues(text.text, rect.width, float.PositiveInfinity);
+            float width = Mathf.Min(rect.width, size.x), height = Mathf.Min(rect.height, size.y);
+            float x = centred ? rect.center.x - width / 2 : rect.x;
+            SkinUi.Place(patch.rectTransform, new Rect(x, rect.yMax - height, width, height), patch.transform.parent);
+            float pad = 12 * Layout.Density;
+            patch.rectTransform.anchoredPosition -= new Vector2(pad, pad * .75f);
+            patch.rectTransform.sizeDelta += new Vector2(2 * pad, 1.5f * pad);
+            patch.enabled = !string.IsNullOrEmpty(text.text) && text.gameObject.activeSelf;
+        }
 
         public void Summary(RunSummary state, BoardSession session, bool available)
         {
             heading.text = HudLayout.TitleText(art, session);
+            if (targetText != null) targetText.text = HudLayout.ScoreTargetText(session);
             ShowScore(session.Daily ? state.DailyScore : state.Score);
-            scoreLabel.text = HudLayout.ScoreCaptionText(session);
-            if (progressFill != null)
-            {
-                var full = progressFill.transform.parent.GetComponent<RectTransform>().rect;
-                progressFill.rectTransform.sizeDelta = new Vector2(full.width * HudLayout.ScoreProgress(state, session), full.height);
-            }
             moves.text = HudLayout.MovesText(state, session);
+            moves.color = art.Token(HudLayout.MovesLow(state, session) ? SkinTokens.Negative : SkinTokens.Score);
             objectiveLabel.text = HudLayout.PrimaryCaptionText(session);
             objective.text = HudLayout.PrimaryText(state, session);
-            if (secondaryLabel != null) secondaryLabel.text = HudLayout.SecondaryCaptionText(session);
-            if (pressure != null) pressure.text = HudLayout.PressureText(state);
-            for (int i = 0; i < 3; i++)
+            secondaryLabel.text = HudLayout.SecondaryCaptionText(session);
+            secondary.text = HudLayout.SecondaryText(state, session);
+            if (!session.Daily)
             {
-                starButtons[i].gameObject.SetActive(!session.Daily);
-                stars[i].sprite = ui.StarSprite((state.LatchedStarSources & (1 << i)) != 0, stars[i].rectTransform.rect.height);
+                objective.color = art.Token((state.LatchedStarSources & 2) != 0 ? SkinTokens.Positive : SkinTokens.Objective);
+                secondary.color = art.Token((state.LatchedStarSources & 4) != 0 ? SkinTokens.Positive : SkinTokens.Objective);
             }
-            guardianLabel.text = state.BonusCharges.ToString();
-            guardianGlyph.sprite = art.SkinUi(state.BonusType == 1 ? SkinSlots.IconHammer : state.BonusType == 3 ? SkinSlots.IconWave : SkinSlots.IconTotem);
+            for (int i = 0; i < 3 && starButtons[i] != null; i++)
+            {
+                bool earned = (state.LatchedStarSources & (1 << i)) != 0;
+                stars[i].sprite = ui.StarSprite(earned, stars[i].rectTransform.rect.height);
+                starHalos[i].enabled = earned;
+            }
+            guardianTablet.Icon.sprite = art.SkinUi(state.BonusType == 1 ? SkinSlots.IconHammer : state.BonusType == 3 ? SkinSlots.IconWave : SkinSlots.IconTotem);
             var rule = art.Guardian(state.BonusType, session.Rules.Trigger, session.Rules.TriggerThreshold);
-            bool showEarningRule = state.BonusCharges == 0 && rule != null;
-            guardianRuleHeading.gameObject.SetActive(showEarningRule); guardianRule.gameObject.SetActive(showEarningRule);
+            guardianRuleHeading.gameObject.SetActive(rule != null); guardianRule.gameObject.SetActive(rule != null);
             guardianRuleHeading.text = HudLayout.GuardianCaption(state.BonusType);
             guardianRule.text = rule?.description ?? "";
-            rerollLabel.text = state.RerollCharges.ToString();
-            SetAvailable(guardianButton, guardianGlyph, available && state.BonusCharges > 0);
-            SetAvailable(rerollButton, rerollGlyph, available && state.RerollCharges > 0);
-            NeedsTextReflow = new[] { heading, moves, pressure, score, scoreLabel, objective, objectiveLabel, secondaryLabel, guardianRuleHeading, guardianRule }
+            FitUnderpaint(headingShade, guardianRuleHeading, false); FitUnderpaint(ruleShade, guardianRule, false);
+            guardianTablet.Show(state.BonusCharges, available);
+            rerollTablet.Show(state.RerollCharges, available);
+            NeedsTextReflow = new[] { heading, moves, score, scoreLabel, objective, objectiveLabel, secondary, secondaryLabel, guardianRuleHeading, guardianRule }
                 .Any(label => label != null && label.gameObject.activeInHierarchy && label.GetPreferredValues(label.text, label.rectTransform.rect.width, float.PositiveInfinity).y > label.rectTransform.rect.height + .5f);
-        }
-        private static void SetAvailable(Button button, Image glyph, bool available)
-        {
-            button.interactable = available;
-            var tint = available ? Color.white : new Color(.55f, .55f, .55f, .8f);
-            button.image.color = tint; glyph.color = tint;
         }
         public void Status(string text)
         {
@@ -254,6 +296,8 @@ namespace ZKube.Presentation
         private TMP_Text CueText(string name, string value, string token, float size)
         {
             var label = ui.Label(name, value, Rect.zero, size, token, canvas.transform, true);
+            // Side margins keep glyphs whose ink overhangs their advance inside the cue.
+            label.margin = new Vector4(2 * Layout.Density, 0, 2 * Layout.Density, 0);
             label.transform.SetSiblingIndex(modalShield.transform.GetSiblingIndex());
             return label;
         }
@@ -307,7 +351,7 @@ namespace ZKube.Presentation
             StartCoroutine(HoldPerfectClear(title));
             var rect = new Rect(Layout.Board.x, title.rectTransform.anchoredPosition.y - 32 * d, Layout.Board.width, 28 * d);
             if (rerollGranted)
-                EarnedChip("Accepted reroll chip", "+1 REROLL", rect, rerollLabel, SkinTokens.Accent, 16, reducedMotion);
+                EarnedChip("Accepted reroll chip", "+1 REROLL", rect, rerollTablet.Count, SkinTokens.Accent, 16, reducedMotion);
             else
             {
                 var full = CueText("Accepted reroll cap", "REROLLS FULL", SkinTokens.Text, 14);
@@ -346,10 +390,12 @@ namespace ZKube.Presentation
             {
                 byte width = row[col]; if (width == 0) { col++; continue; }
                 var sprite = TakeBlock("Next block " + col, width);
-                Size(sprite, new Rect(Layout.Preview.x + col * Layout.Cell + 1, Layout.Preview.y + 1, width * Layout.Cell - 2, Layout.Cell - 2));
-                sprite.color = new Color(1, 1, 1, .85f); preview.Add(sprite); col += width;
+                Size(sprite, Layout.BlockRect(Layout.Preview.x + col * Layout.Cell, Layout.Preview.y, width));
+                sprite.color = new Color(1, 1, 1, PreviewAlpha); preview.Add(sprite); col += width;
             }
         }
+        // The next row waits in the tray at 60% until it rises.
+        public const float PreviewAlpha = .6f;
         private Sprite BlockSprite(byte width) => art.SkinRealm(SkinSlots.Block(width));
         private SpriteRenderer TakeBlock(string name, byte width)
         {
@@ -398,9 +444,16 @@ namespace ZKube.Presentation
                 {
                     byte[] after = PresentationTrace.ProjectBoard(DisplayGrid, new[] { item });
                     var removed = blocks.Where(pair => after[pair.Key] == 0).ToArray();
-                    sound(item.Kind == PresentationKind.RowsCleared ? "break" : "bonus-activate");
-                    if (item.Kind == PresentationKind.RowsCleared) clears++;
-                    yield return Clear(removed, clears, reducedMotion);
+                    if (item.Kind == PresentationKind.RowsCleared)
+                    {
+                        sound("break"); clears++;
+                        yield return Clear(removed, clears, (uint)NativeWire.Read(item.Payload, 0, 2), reducedMotion);
+                    }
+                    else
+                    {
+                        sound("bonus-activate");
+                        yield return Dissolve(removed, reducedMotion);
+                    }
                     SetBoard(after);
                 }
                 else if (item.Kind == PresentationKind.PreviewChanged)
@@ -456,7 +509,7 @@ namespace ZKube.Presentation
                     float b = (elapsed - land) / settle, squash = reducedMotion || b >= 1 ? 0 : .14f * Mathf.Sin(2 * Mathf.PI * b) * (1 - b);
                     sprite.transform.localScale = new Vector3(scale.x * (1 + .6f * squash), scale.y * (1 - squash), 1);
                     // The squash keeps the block's bottom edge on its landing cell.
-                    sprite.transform.position = target + Vector3.down * ((Layout.Cell - 2) * squash / 2);
+                    sprite.transform.position = target + Vector3.down * (.94f * Layout.Cell * squash / 2);
                 }
                 yield return null;
             }
@@ -467,11 +520,16 @@ namespace ZKube.Presentation
         // burst, below the perfect clear. Reduced motion only fades the blocks, over 120 ms.
         public const float PerfectClearScale = 2.6f;
         public static float ComboStrength(int clears) => Mathf.Min(1 + .3f * (clears - 1), PerfectClearScale - .6f);
-        private IEnumerator Clear(KeyValuePair<int, SpriteRenderer>[] removed, int clears, bool reducedMotion)
+        private IEnumerator Clear(KeyValuePair<int, SpriteRenderer>[] removed, int clears, uint rows, bool reducedMotion)
         {
             if (removed.Length == 0) yield break;
             if (!reducedMotion)
             {
+                // Each completed line flashes across the board in the key light
+                // first: the lines the drop completed are the ones that score.
+                for (int row = 0; row < 10; row++)
+                    if ((rows & (1U << row)) != 0)
+                        Effects.LineSweep(new Vector2(Layout.Board.center.x, Layout.Board.y + (row + .5f) * Layout.Cell), Layout.Cell, 8, art.Token(SkinTokens.LightKey));
                 int shards = Effects.ShardsPerBlock(removed.Length);
                 float strength = ComboStrength(clears);
                 foreach (var pair in removed)
@@ -480,7 +538,7 @@ namespace ZKube.Presentation
                 if (clears >= 2)
                 {
                     var center = removed.Aggregate(Vector3.zero, (sum, pair) => sum + pair.Value.transform.position) / removed.Length;
-                    Effects.Celebrate(center, Layout.Cell, art.Token(SkinTokens.Accent), Mathf.Min(10 + 6 * clears, 28), strength + .3f);
+                    Effects.Celebrate(center, Layout.Cell, art.Token(SkinTokens.LightGlow), Mathf.Min(10 + 6 * clears, 28), strength + .3f);
                 }
             }
             var scales = removed.ToDictionary(pair => pair.Value, pair => pair.Value.transform.localScale);
@@ -493,6 +551,33 @@ namespace ZKube.Presentation
                 {
                     pair.Value.transform.localScale = scales[pair.Value] * grow;
                     pair.Value.color = new Color(1, 1, 1, Mathf.Clamp01(alpha));
+                }
+                yield return null;
+            }
+            foreach (var pair in removed) pair.Value.transform.localScale = scales[pair.Value];
+        }
+        // A power's removal scores nothing, so it looks nothing like a line
+        // clear: no flash, no shards and no burst. Each block lets go of its
+        // light as a soft puff and dissolves, shrinking slowly, over 340 ms.
+        // Reduced motion only fades the blocks, over 160 ms.
+        public const float DissolveSeconds = .34f;
+        private IEnumerator Dissolve(KeyValuePair<int, SpriteRenderer>[] removed, bool reducedMotion)
+        {
+            if (removed.Length == 0) yield break;
+            var glow = art.Token(SkinTokens.LightGlow);
+            if (!reducedMotion)
+                foreach (var pair in removed)
+                    Effects.Release(pair.Value.transform.position, DisplayGrid[pair.Key], Layout.Cell, glow, pair.Key);
+            var scales = removed.ToDictionary(pair => pair.Value, pair => pair.Value.transform.localScale);
+            float duration = reducedMotion ? .16f : DissolveSeconds;
+            for (float t = 0; t < duration; t += Time.unscaledDeltaTime)
+            {
+                float k = t / duration, ease = k * k;
+                foreach (var pair in removed)
+                {
+                    if (!reducedMotion) pair.Value.transform.localScale = scales[pair.Value] * (1 - .16f * ease);
+                    var tint = Color.Lerp(Color.white, glow, reducedMotion ? 0 : .5f * k); tint.a = 1 - ease;
+                    pair.Value.color = tint;
                 }
                 yield return null;
             }
@@ -555,7 +640,7 @@ namespace ZKube.Presentation
             float d = Layout.Density, width = Layout.Frame.width - 32 * d, inner = width - 48 * d;
             float titleHeight = ui.TextHeight(title, inner, 22, true) + 4 * d;
             float bodyHeight = ui.TextHeight(body, inner, 14, false) + 4 * d;
-            var buttonHeights = actions.Select(action => Mathf.Max(52 * d, ui.TextHeight(action.label, inner - 20 * d, 15, true) + 24 * d)).ToArray();
+            var buttonHeights = actions.Select(action => Mathf.Max(52 * d, ui.TextHeight(action.label, inner - 20 * d, SkinUi.ButtonDp, SkinUi.Type.Number) + 24 * d)).ToArray();
             float contentHeight = 28 * d + titleHeight + 8 * d + bodyHeight + 16 * d + buttonHeights.Sum() + actions.Length * 8 * d + 20 * d;
             float height = Mathf.Min(Layout.Frame.height - 24 * d, contentHeight);
             var rect = new Rect(Layout.Frame.center.x - width / 2, Layout.Frame.center.y - height / 2, width, height);
@@ -598,15 +683,24 @@ namespace ZKube.Presentation
         }
         public void Terminal(bool completed)
         {
-            guardianFinal = true; guardian.sprite = art.Sprite(completed ? "boss__celebrate" : "boss__defeated");
-            guardianCheerUntil = Time.unscaledTime + GuardianCheer;
+            guardianFinal = true; Face(completed ? "celebrate" : "defeated");
         }
 
         // The score readout: accepted points count up once their chip reaches it.
         private void ShowScore(uint value)
         {
             scoreTarget = value;
-            if (!countingScore) { scoreShown = value; score.text = value.ToString(); }
+            if (!countingScore) { scoreShown = value; score.text = value.ToString(); PlaceTarget(); }
+        }
+        // The target follows the score's digits, 8 dp after them.
+        private void PlaceTarget()
+        {
+            if (targetText == null) return;
+            var value = SkinUi.ScreenRect(score.rectTransform);
+            float x = value.x + score.GetPreferredValues(score.text).x + 8 * Layout.Density;
+            var rect = SkinUi.ScreenRect(targetText.rectTransform);
+            SkinUi.Place(targetText.rectTransform, new Rect(x, rect.y, Mathf.Max(1, hud.ScorePlate.xMax - 4 * Layout.Density - x), rect.height),
+                targetText.transform.parent);
         }
         private IEnumerator CountScore(uint target)
         {
@@ -616,30 +710,75 @@ namespace ZKube.Presentation
             for (float t = 0; t < .45f && scoreTarget >= from; t += Time.unscaledDeltaTime)
             {
                 scoreShown = from + (uint)Mathf.RoundToInt((scoreTarget - from) * (1 - Mathf.Pow(1 - t / .45f, 3)));
-                score.text = scoreShown.ToString();
+                score.text = scoreShown.ToString(); PlaceTarget();
                 yield return null;
             }
             countingScore = false; ShowScore(scoreTarget);
             Pop(score.rectTransform, 1.18f, .2f);
         }
 
-        // After an accepted action: newly earned stars pop with a ring, and the
-        // guardian cheers a combo, a perfect clear or a star. Reduced motion keeps
-        // the new sprites and the guardian's face, without movement.
+        // After an accepted action: each newly earned star ignites, a trail of
+        // light flying to it from the counter that earned it, and the guardian
+        // celebrates a combo, a perfect clear or a star. Reduced motion switches
+        // the star on and keeps the guardian's face, without movement.
         public void Celebrate(byte previousStars, byte earnedStars, byte combo, bool perfectClear)
         {
             bool earned = false;
             for (int i = 0; i < 3; i++)
             {
-                if ((earnedStars & (1 << i)) == 0 || (previousStars & (1 << i)) != 0 || !starButtons[i].gameObject.activeSelf) continue;
+                if (starButtons[i] == null || (earnedStars & (1 << i)) == 0 || (previousStars & (1 << i)) != 0) continue;
                 earned = true;
-                if (owner.ReducedMotion) continue;
-                Pop(stars[i].rectTransform, 1.5f, .35f);
-                StartCoroutine(Ring(starRings[i]));
+                if (!owner.ReducedMotion) StartCoroutine(Ignite(i));
             }
             if (!earned && combo < 2 && !perfectClear || guardianFinal) return;
-            guardian.sprite = art.Sprite("boss__celebrate");
+            Face("celebrate");
             guardianCheerUntil = Time.unscaledTime + GuardianCheer;
+        }
+        // The trail takes 300 ms; the star then scales 0.6, 1.15, 1 over 400 ms
+        // with a ring and six sparks.
+        private IEnumerator Ignite(int index)
+        {
+            var star = stars[index].rectTransform;
+            var source = (index == 0 ? score : index == 1 ? objective : secondary).rectTransform;
+            var to = SkinUi.ScreenRect(star).center;
+            var from = SkinUi.ScreenRect(source).center;
+            float d = Layout.Density, size = 18 * d;
+            var gold = art.Token(SkinTokens.Accent);
+            var trail = ui.Rect<Image>("Star " + index + " trail", new Rect(from.x - size / 2, from.y - size / 2, size, size), canvas.transform);
+            trail.sprite = art.SkinUi(SkinSlots.FxGlow); trail.raycastTarget = false; trail.color = gold;
+            var origin = star.anchoredPosition;
+            star.localScale = Vector3.one * .6f; star.anchoredPosition = origin + star.rect.size * .2f;
+            for (float t = 0; t < .3f; t += Time.unscaledDeltaTime)
+            {
+                float k = Mathf.SmoothStep(0, 1, t / .3f);
+                var at = Vector2.Lerp(from, to, k) + Vector2.up * Mathf.Sin(Mathf.PI * k) * 12 * d;
+                SkinUi.Place(trail.rectTransform, new Rect(at.x - size / 2, at.y - size / 2, size, size), canvas.transform);
+                yield return null;
+            }
+            Destroy(trail.gameObject);
+            var sparks = new Image[6];
+            for (int i = 0; i < 6; i++)
+            {
+                sparks[i] = ui.Rect<Image>("Star " + index + " spark", new Rect(to.x - 4 * d, to.y - 4 * d, 8 * d, 8 * d), canvas.transform);
+                sparks[i].sprite = art.SkinUi(SkinSlots.FxSpark); sparks[i].raycastTarget = false; sparks[i].color = gold;
+            }
+            StartCoroutine(Ring(starRings[index]));
+            for (float t = 0; t < .4f && star != null; t += Time.unscaledDeltaTime)
+            {
+                float k = t / .4f, scale = k < .5f ? Mathf.Lerp(.6f, 1.15f, k / .5f) : Mathf.Lerp(1.15f, 1, (k - .5f) / .5f);
+                star.localScale = new Vector3(scale, scale, 1);
+                star.anchoredPosition = origin - star.rect.size * (scale - 1) / 2;
+                for (int i = 0; i < 6; i++)
+                {
+                    float angle = (i + .5f) * Mathf.PI / 3, reach = 26 * d * Mathf.Sqrt(k);
+                    var at = to + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * reach;
+                    SkinUi.Place(sparks[i].rectTransform, new Rect(at.x - 4 * d, at.y - 4 * d, 8 * d, 8 * d), canvas.transform);
+                    var c = gold; c.a = 1 - k; sparks[i].color = c;
+                }
+                yield return null;
+            }
+            foreach (var spark in sparks) Destroy(spark.gameObject);
+            if (star != null) { star.localScale = Vector3.one; star.anchoredPosition = origin; }
         }
         private static IEnumerator Ring(Image ring)
         {
@@ -698,22 +837,25 @@ namespace ZKube.Presentation
             shimmer.color = tint;
         }
 
-        // The guardian breathes while idle and bounces when it cheers; it returns
-        // to its calm face afterwards unless the run has ended.
+        // The guardian rests on the rim: frames only change its face, so its
+        // body and paws never move. It blinks every few seconds, cheers for a
+        // moment, then returns to its calm face unless the run has ended.
+        private void Face(string frame)
+        {
+            if (guardianFace == frame) return;
+            guardianFace = frame; guardian.sprite = art.Sprite("boss__" + frame);
+        }
         private void Update()
         {
             ShowAwaiting(Time.unscaledTime);
             if (guardian == null) return;
-            float now = Time.unscaledTime, left = guardianCheerUntil - now, size = 1;
-            if (!owner.ReducedMotion)
-            {
-                size += .025f * Mathf.Sin(now * 2 * Mathf.PI / 3.2f);
-                if (left > 0) size += .12f * Mathf.Sin(Mathf.PI * (1 - left / GuardianCheer));
-            }
-            if (left <= 0 && !guardianFinal && guardianCheerUntil > 0) { guardianCheerUntil = 0; guardian.sprite = art.Sprite("boss__idle"); }
-            var rect = guardian.rectTransform;
-            rect.localScale = new Vector3(size, size, 1);
-            rect.anchoredPosition = guardianOrigin - rect.rect.size * (size - 1) / 2;
+            float now = Time.unscaledTime;
+            if (guardianFinal) return;
+            if (guardianCheerUntil > 0 && now < guardianCheerUntil) return;
+            if (guardianCheerUntil > 0) { guardianCheerUntil = 0; Face("idle"); nextBlink = now + 3.2f; }
+            if (owner.ReducedMotion) { if (guardianFace == "blink") Face("idle"); return; }
+            if (blinkUntil > 0 && now >= blinkUntil) { blinkUntil = 0; Face("idle"); nextBlink = now + 3.2f + 1.9f * Mathf.Repeat(now * .618f, 1); }
+            else if (blinkUntil == 0 && now >= nextBlink) { Face("blink"); blinkUntil = now + BlinkSeconds; }
         }
 
         private SpriteRenderer NewSprite(string name, Sprite sprite, int order)
@@ -723,7 +865,7 @@ namespace ZKube.Presentation
             return renderer;
         }
         // Stretched board pieces keep their authored borders at the kit scale.
-        private void Sliced(string name, Sprite sprite, Rect rect, int order, float chrome = 1)
+        private SpriteRenderer Sliced(string name, Sprite sprite, Rect rect, int order, float chrome = 1)
         {
             var renderer = NewSprite(name, sprite, order);
             float scale = sprite.pixelsPerUnit * ui.Ui * chrome;
@@ -731,12 +873,11 @@ namespace ZKube.Presentation
             renderer.size = rect.size / scale;
             renderer.transform.localScale = new Vector3(scale, scale, 1);
             renderer.transform.position = rect.center;
+            return renderer;
         }
-        private static Rect Grow(Rect rect, float x, float y) => new Rect(rect.x - x, rect.y - y, rect.width + 2 * x, rect.height + 2 * y);
         private void PositionBlock(SpriteRenderer renderer, int row, int col, int width)
         {
-            var p = Layout.CellCenter(row, col, width);
-            Size(renderer, new Rect(p.x - width * Layout.Cell / 2 + 1, p.y - Layout.Cell / 2 + 1, width * Layout.Cell - 2, Layout.Cell - 2));
+            Size(renderer, Layout.BlockRect(Layout.Board.x + col * Layout.Cell, Layout.Board.y + row * Layout.Cell, width));
         }
         private static void Size(SpriteRenderer renderer, Rect rect, bool cover = false)
         {
@@ -746,6 +887,11 @@ namespace ZKube.Presentation
             renderer.transform.localScale = new Vector3(scale.x, scale.y, 1);
             renderer.transform.position = rect.center;
         }
-        private void OnDestroy() => ui?.Dispose();
+        private void OnDestroy()
+        {
+            ui?.Dispose();
+            if (topLight != null) Destroy(topLight);
+            if (topLightTexture != null) Destroy(topLightTexture);
+        }
     }
 }

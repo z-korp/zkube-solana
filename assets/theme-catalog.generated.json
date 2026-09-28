@@ -3297,15 +3297,27 @@
           "y": 0.18
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "Today the tides shift for all challengers equally. Ride them better than anyone.",
       "guardianName": "Mako",
-      "guardianPortrait": "/assets/theme-1/boss/idle.png",
+      "guardianPortrait": "/assets/theme-1/boss/portrait.png",
       "id": "theme-1",
       "images": {
         "background": "/assets/theme-1/background.png",
-        "guardianCelebrate": "/assets/theme-1/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-1/boss/defeated.png",
-        "guardianIdle": "/assets/theme-1/boss/idle.png"
+        "guardian-blink": "/assets/theme-1/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-1/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-1/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-1/boss/greeting.png",
+        "guardian-idle": "/assets/theme-1/boss/idle.png",
+        "guardian-paws": "/assets/theme-1/boss/paws.png",
+        "guardian-portrait": "/assets/theme-1/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-1/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-1/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-1/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-1/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -3535,15 +3547,27 @@
           "y": 0.16
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The Nile tests all equally today. Precision will separate the worthy from the rest.",
       "guardianName": "Sobek",
-      "guardianPortrait": "/assets/theme-2/boss/idle.png",
+      "guardianPortrait": "/assets/theme-2/boss/portrait.png",
       "id": "theme-2",
       "images": {
         "background": "/assets/theme-2/background.png",
-        "guardianCelebrate": "/assets/theme-2/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-2/boss/defeated.png",
-        "guardianIdle": "/assets/theme-2/boss/idle.png"
+        "guardian-blink": "/assets/theme-2/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-2/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-2/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-2/boss/greeting.png",
+        "guardian-idle": "/assets/theme-2/boss/idle.png",
+        "guardian-paws": "/assets/theme-2/boss/paws.png",
+        "guardian-portrait": "/assets/theme-2/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-2/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-2/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-2/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-2/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -3773,15 +3797,27 @@
           "y": 0.16
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The storm rages equally for all today. Strike harder than your rivals.",
       "guardianName": "Fenris",
-      "guardianPortrait": "/assets/theme-3/boss/idle.png",
+      "guardianPortrait": "/assets/theme-3/boss/portrait.png",
       "id": "theme-3",
       "images": {
         "background": "/assets/theme-3/background.png",
-        "guardianCelebrate": "/assets/theme-3/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-3/boss/defeated.png",
-        "guardianIdle": "/assets/theme-3/boss/idle.png"
+        "guardian-blink": "/assets/theme-3/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-3/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-3/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-3/boss/greeting.png",
+        "guardian-idle": "/assets/theme-3/boss/idle.png",
+        "guardian-paws": "/assets/theme-3/boss/paws.png",
+        "guardian-portrait": "/assets/theme-3/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-3/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-3/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-3/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-3/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -4011,15 +4047,27 @@
           "y": 0.17
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The same puzzle for all minds today. Prove yours is the sharpest.",
       "guardianName": "Noctua",
-      "guardianPortrait": "/assets/theme-4/boss/idle.png",
+      "guardianPortrait": "/assets/theme-4/boss/portrait.png",
       "id": "theme-4",
       "images": {
         "background": "/assets/theme-4/background.png",
-        "guardianCelebrate": "/assets/theme-4/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-4/boss/defeated.png",
-        "guardianIdle": "/assets/theme-4/boss/idle.png"
+        "guardian-blink": "/assets/theme-4/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-4/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-4/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-4/boss/greeting.png",
+        "guardian-idle": "/assets/theme-4/boss/idle.png",
+        "guardian-paws": "/assets/theme-4/boss/paws.png",
+        "guardian-portrait": "/assets/theme-4/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-4/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-4/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-4/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-4/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -4249,15 +4297,27 @@
           "y": 0.18
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The dragon's gaze falls on all challengers today. Outlast them all.",
       "guardianName": "Long",
-      "guardianPortrait": "/assets/theme-5/boss/idle.png",
+      "guardianPortrait": "/assets/theme-5/boss/portrait.png",
       "id": "theme-5",
       "images": {
         "background": "/assets/theme-5/background.png",
-        "guardianCelebrate": "/assets/theme-5/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-5/boss/defeated.png",
-        "guardianIdle": "/assets/theme-5/boss/idle.png"
+        "guardian-blink": "/assets/theme-5/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-5/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-5/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-5/boss/greeting.png",
+        "guardian-idle": "/assets/theme-5/boss/idle.png",
+        "guardian-paws": "/assets/theme-5/boss/paws.png",
+        "guardian-portrait": "/assets/theme-5/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-5/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-5/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-5/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-5/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -4487,15 +4547,27 @@
           "y": 0.17
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The same mosaic for all eyes today. See the pattern faster than anyone.",
       "guardianName": "Lamassu",
-      "guardianPortrait": "/assets/theme-6/boss/idle.png",
+      "guardianPortrait": "/assets/theme-6/boss/portrait.png",
       "id": "theme-6",
       "images": {
         "background": "/assets/theme-6/background.png",
-        "guardianCelebrate": "/assets/theme-6/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-6/boss/defeated.png",
-        "guardianIdle": "/assets/theme-6/boss/idle.png"
+        "guardian-blink": "/assets/theme-6/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-6/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-6/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-6/boss/greeting.png",
+        "guardian-idle": "/assets/theme-6/boss/idle.png",
+        "guardian-paws": "/assets/theme-6/boss/paws.png",
+        "guardian-portrait": "/assets/theme-6/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-6/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-6/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-6/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-6/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -4725,15 +4797,27 @@
           "y": 0.16
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The same trick for all challengers today. Let's see who falls for it last.",
       "guardianName": "Kitsune",
-      "guardianPortrait": "/assets/theme-7/boss/idle.png",
+      "guardianPortrait": "/assets/theme-7/boss/portrait.png",
       "id": "theme-7",
       "images": {
         "background": "/assets/theme-7/background.png",
-        "guardianCelebrate": "/assets/theme-7/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-7/boss/defeated.png",
-        "guardianIdle": "/assets/theme-7/boss/idle.png"
+        "guardian-blink": "/assets/theme-7/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-7/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-7/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-7/boss/greeting.png",
+        "guardian-idle": "/assets/theme-7/boss/idle.png",
+        "guardian-paws": "/assets/theme-7/boss/paws.png",
+        "guardian-portrait": "/assets/theme-7/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-7/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-7/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-7/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-7/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -4963,15 +5047,27 @@
           "y": 0.12
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The jungle offers its three gifts to all today. Use them wisely, others won't hesitate.",
       "guardianName": "Balam",
-      "guardianPortrait": "/assets/theme-8/boss/idle.png",
+      "guardianPortrait": "/assets/theme-8/boss/portrait.png",
       "id": "theme-8",
       "images": {
         "background": "/assets/theme-8/background.png",
-        "guardianCelebrate": "/assets/theme-8/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-8/boss/defeated.png",
-        "guardianIdle": "/assets/theme-8/boss/idle.png"
+        "guardian-blink": "/assets/theme-8/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-8/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-8/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-8/boss/greeting.png",
+        "guardian-idle": "/assets/theme-8/boss/idle.png",
+        "guardian-paws": "/assets/theme-8/boss/paws.png",
+        "guardian-portrait": "/assets/theme-8/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-8/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-8/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-8/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-8/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -5201,15 +5297,27 @@
           "y": 0.17
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "The same beat for all today. Match the rhythm longer than anyone else.",
       "guardianName": "Mamba",
-      "guardianPortrait": "/assets/theme-9/boss/idle.png",
+      "guardianPortrait": "/assets/theme-9/boss/portrait.png",
       "id": "theme-9",
       "images": {
         "background": "/assets/theme-9/background.png",
-        "guardianCelebrate": "/assets/theme-9/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-9/boss/defeated.png",
-        "guardianIdle": "/assets/theme-9/boss/idle.png"
+        "guardian-blink": "/assets/theme-9/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-9/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-9/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-9/boss/greeting.png",
+        "guardian-idle": "/assets/theme-9/boss/idle.png",
+        "guardian-paws": "/assets/theme-9/boss/paws.png",
+        "guardian-portrait": "/assets/theme-9/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-9/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-9/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-9/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-9/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [
@@ -5439,15 +5547,27 @@
           "y": 0.14
         }
       ],
+      "guardian": {
+        "railFrontY": 0.8658854166666666,
+        "railY": 0.8333333333333334
+      },
       "guardianGreeting": "One path. One summit. All climbers face the same mountain today. Reach highest.",
       "guardianName": "Kuntur",
-      "guardianPortrait": "/assets/theme-10/boss/idle.png",
+      "guardianPortrait": "/assets/theme-10/boss/portrait.png",
       "id": "theme-10",
       "images": {
         "background": "/assets/theme-10/background.png",
-        "guardianCelebrate": "/assets/theme-10/boss/celebrate.png",
-        "guardianDefeated": "/assets/theme-10/boss/defeated.png",
-        "guardianIdle": "/assets/theme-10/boss/idle.png"
+        "guardian-blink": "/assets/theme-10/boss/blink.png",
+        "guardian-celebrate": "/assets/theme-10/boss/celebrate.png",
+        "guardian-defeated": "/assets/theme-10/boss/defeated.png",
+        "guardian-greeting": "/assets/theme-10/boss/greeting.png",
+        "guardian-idle": "/assets/theme-10/boss/idle.png",
+        "guardian-paws": "/assets/theme-10/boss/paws.png",
+        "guardian-portrait": "/assets/theme-10/boss/portrait.png",
+        "guardian-satisfied": "/assets/theme-10/boss/satisfied.png",
+        "guardian-surprised": "/assets/theme-10/boss/surprised.png",
+        "guardian-talk-mid": "/assets/theme-10/boss/talk-mid.png",
+        "guardian-talk-open": "/assets/theme-10/boss/talk-open.png"
       },
       "map": {
         "activeRgba": [

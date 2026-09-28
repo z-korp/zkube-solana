@@ -150,6 +150,55 @@ namespace ZKube.Presentation.Tests
             Assert.Throws<System.InvalidOperationException>(() => art.Token(SkinTokens.BlockTint(SkinSlots.BlockWidths + 1)));
         }
 
+        [Test] public void GlowsAreCappedAndOnlyThreeBreathe()
+        {
+            var lights = new List<Image>();
+            for (int i = 0; i < SkinUi.MaxBreathing; i++) lights.Add(ui.Glow("Breathing " + i, new Rect(0, 0, 40, 40), Color.white, root.transform, 2.4f));
+            Assert.Throws<System.InvalidOperationException>(() => ui.Glow("One breath too many", new Rect(0, 0, 40, 40), Color.white, root.transform, 2.4f));
+            while (ui.LiveGlows < SkinUi.MaxGlows) lights.Add(ui.Glow("Steady", new Rect(0, 0, 40, 40), SkinUi.WithAlpha(Color.white, .4f), root.transform));
+            Assert.AreEqual(.4f, lights[lights.Count - 1].color.a, 1e-4f, "A steady glow keeps its strength");
+            Assert.AreEqual("fx-glow", lights[0].sprite.name.Replace("(Clone)", ""));
+            Assert.Throws<System.InvalidOperationException>(() => ui.Glow("Ninth", new Rect(0, 0, 40, 40), Color.white, root.transform));
+            Object.DestroyImmediate(lights[0].gameObject);
+            Assert.DoesNotThrow(() => ui.Glow("Freed", new Rect(0, 0, 40, 40), Color.white, root.transform), "A destroyed glow frees its place");
+        }
+
+        [Test] public void SelectedTabInkIsDarkOnTheChipAndTheOthersArePale()
+        {
+            var bar = ui.TabBar("Tabs", new Rect(0, 0, 360, 640), new (string, string, System.Action)[]
+            {
+                (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }),
+            }, 0, root.transform);
+            var dark = art.Token(SkinTokens.TextOnPrimary);
+            Assert.AreEqual(dark, bar.Ink(0));
+            Assert.AreEqual(.72f * art.Token(SkinTokens.Text).a, bar.Ink(1).a, 1e-4f);
+            bar.Select(1);
+            Assert.AreEqual(dark, bar.Ink(1)); Assert.AreEqual(dark, Part(bar, "Tabs Daily icon").color);
+            Assert.AreEqual(art.Font(SkinUi.Type.Label), bar.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Tabs Daily label").font);
+        }
+
+        [Test] public void PillsTakeALeadingIconAndTheButtonType()
+        {
+            var button = ui.TextButton("Play", new Rect(20, 20, 240, 56), "Play", () => { }, true, root.transform, out var label, SkinSlots.IconDaily);
+            var icon = Part(button, "Play icon");
+            var iconRect = SkinUi.ScreenRect(icon.rectTransform);
+            Assert.AreEqual(24, iconRect.width, .01f); Assert.AreEqual(42, iconRect.x, .01f);
+            Assert.AreEqual(art.Token(SkinTokens.TextOnPrimary), icon.color);
+            Assert.AreEqual(140 + 12, SkinUi.ScreenRect(label.rectTransform).center.x, .01f, "The word centres 12 dp right of the pill's centre");
+            Assert.AreEqual(art.Font(SkinUi.Type.Number), label.font);
+            Assert.AreEqual(SkinUi.ButtonDp, label.fontSize, .01f);
+        }
+
+        [Test] public void MedallionsShowThePortraitMasterThroughTheRingsOpening()
+        {
+            var portrait = art.Sprite("boss__portrait");
+            var image = ui.Medallion("Guardian", new Rect(0, 0, 320, 320), portrait, root.transform);
+            Assert.AreEqual(new Rect(0, 0, 320, 320), SkinUi.ScreenRect(image.rectTransform), "The master fills the ring");
+            var clip = image.transform.parent.GetComponent<RectTransform>();
+            Assert.AreEqual(232, SkinUi.ScreenRect(clip).width, .01f, "The opening is 232/320 of the ring");
+            Assert.IsNotNull(clip.GetComponent<Mask>());
+        }
+
         [Test] public void EarnedStarsAreNeverDrawnLargerThanTheirSource()
         {
             string Name(bool earned, float pixels) => ui.StarSprite(earned, pixels).name.Replace("(Clone)", "");

@@ -56,30 +56,28 @@ namespace ZKube.Presentation.Tests
                 {
                     var plan = HudLayout.Build(new SkinUi(art, 1, scale), board.State, board.Session, new Rect(0, 0, 360, 640), 1);
                     string detail = $" at {scale} (header {plan.Layout.Header}, footer {plan.Layout.Footer}, cell {plan.Layout.Cell}, title {plan.Title}," +
-                        $" medallion {plan.Medallion}, score {plan.ScorePlate}, moves {plan.Moves}, pressure {plan.Pressure}, primary {plan.PrimaryPlate}," +
-                        $" secondary {plan.SecondaryPlate}, rule above {plan.RuleAbove})";
+                        $" guardian {plan.Guardian}, score {plan.ScorePlate}, moves {plan.MovesPlate}, primary {plan.PrimaryPlate}," +
+                        $" secondary {plan.SecondaryPlate})";
                     Assert.GreaterOrEqual(plan.Layout.Cell, scale == 1 ? 30 : 26, fixture + " must retain usable narrow-board size" + detail);
                     Assert.GreaterOrEqual(plan.Layout.Board.width / plan.Layout.Frame.width, scale == 1 ? .75f : .65f, fixture + " board width" + detail);
-                    Assert.GreaterOrEqual(plan.Medallion.xMin, plan.ScorePlate.xMax, "The medallion sits between the columns");
-                    Assert.LessOrEqual(plan.Medallion.xMax, plan.Moves.xMin);
-                    Assert.LessOrEqual(plan.Medallion.yMax, plan.Title.yMin, "The medallion is wholly below the title ribbon");
-                    var pieces = new System.Collections.Generic.List<Rect> { plan.Title, plan.ScorePlate, plan.Moves, plan.PrimaryPlate };
-                    if (board.Session.Daily) pieces.Add(plan.Pressure); else pieces.Add(plan.SecondaryPlate);
+                    var plates = new[] { plan.ScorePlate, plan.MovesPlate, plan.PrimaryPlate, plan.SecondaryPlate };
+                    foreach (var plate in plates) Assert.AreEqual(plan.ScorePlate.size, plate.size, "The four plates are one size" + detail);
+                    Assert.AreEqual(plan.ScorePlate.x, plan.MovesPlate.x); Assert.AreEqual(plan.PrimaryPlate.x, plan.SecondaryPlate.x);
+                    Assert.AreEqual(plan.ScorePlate.y, plan.PrimaryPlate.y, "Score and the first goal share a row");
+                    Assert.Less(plan.ScorePlate.xMax, plan.PrimaryPlate.xMin, "Score and moves on the left, goals on the right");
+                    Assert.AreEqual(plan.Layout.Rim.center.x, plan.Guardian.center.x, .01f, "The guardian is centred");
+                    var pieces = new System.Collections.Generic.List<Rect> { plan.Title }; pieces.AddRange(plates);
                     for (int a = 0; a < pieces.Count; a++) for (int b = a + 1; b < pieces.Count; b++)
                         Assert.IsFalse(pieces[a].Overlaps(pieces[b]), fixture + " HUD pieces " + a + " and " + b + " overlap at " + scale);
-                    foreach (var piece in pieces) Assert.GreaterOrEqual(piece.yMin, plan.Layout.Board.yMax, "The HUD stays above the board");
-                    Assert.LessOrEqual(plan.PrimaryPlate.yMax, Mathf.Min(plan.ScorePlate.yMin, plan.Medallion.yMin), "Goals sit on their own row");
+                    foreach (var piece in pieces) Assert.GreaterOrEqual(piece.yMin, plan.Layout.Rim.yMax, "The HUD stays above the board");
                     if (!board.Session.Daily)
                     {
-                        var owners = new[] { plan.ScorePlate, plan.PrimaryPlate, plan.SecondaryPlate };
                         for (int star = 0; star < 3; star++)
                         {
-                            var rect = plan.Star(star);
-                            Assert.GreaterOrEqual(rect.width, 48); Assert.GreaterOrEqual(rect.height, 48);
-                            Assert.GreaterOrEqual(rect.xMin, owners[star].xMin, "Each star sits inside the piece of its source");
-                            Assert.LessOrEqual(rect.xMax, owners[star].xMax);
-                            foreach (var piece in pieces.Where(piece => piece != owners[star]))
-                                Assert.IsFalse(rect.Overlaps(piece), "Star " + star + " reaches into another HUD piece");
+                            var touch = plan.Plate(star); var glyph = plan.Star(star);
+                            Assert.GreaterOrEqual(touch.width, 48); Assert.GreaterOrEqual(touch.height, 48, "A star opens from its whole plate");
+                            Assert.IsTrue(touch.Contains(glyph.min) && touch.Contains(glyph.max), "Each star sits inside the plate of its source");
+                            Assert.AreEqual(HudLayout.StarDp, glyph.width, .01f);
                         }
                     }
                     Assert.IsFalse(plan.Layout.GuardianButton.Overlaps(plan.Layout.RerollButton));
@@ -87,6 +85,35 @@ namespace ZKube.Presentation.Tests
                     Assert.GreaterOrEqual(plan.Layout.PauseButton.width, 48);
                     Assert.GreaterOrEqual(plan.Layout.GuardianButton.width, 48);
                 }
+            }
+        }
+        [UnityTest] public IEnumerator TheSeekerHeaderHasItsApprovedGeometry()
+        {
+            // production/hud/header-geometry.json, drawn at 400 x 890 dp and 3 px/dp.
+            foreach (string fixture in new[] { "realm-8-campaign", "realm-8-daily" })
+            {
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, new Rect(0, 0, 1200, 2670), 3);
+                Rect Dp(Rect r) => new Rect(r.x / 3, (2670 - r.yMax) / 3, r.width / 3, r.height / 3);
+                void Near(Rect expected, Rect actual, string what)
+                {
+                    Assert.AreEqual(expected.x, actual.x, .6f, what + " x " + actual); Assert.AreEqual(expected.y, actual.y, .6f, what + " y " + actual);
+                    Assert.AreEqual(expected.width, actual.width, .6f, what + " width " + actual); Assert.AreEqual(expected.height, actual.height, .6f, what + " height " + actual);
+                }
+                Near(new Rect(8, 60, 120, 52), Dp(plan.ScorePlate), "score plate");
+                Near(new Rect(8, 118, 120, 52), Dp(plan.MovesPlate), "moves plate");
+                Near(new Rect(272, 60, 120, 52), Dp(plan.PrimaryPlate), "first goal plate");
+                Near(new Rect(272, 118, 120, 52), Dp(plan.SecondaryPlate), "second goal plate");
+                Near(new Rect(116, 35, 168, 168), Dp(plan.Guardian), "guardian");
+                Near(new Rect(125, 45, 150, 8), Dp(plan.Ribbon), "title stroke");
+                Near(new Rect(8, 174, 384, 478), Dp(plan.Layout.Rim), "board frame");
+                if (!board.Session.Daily)
+                    for (int star = 0; star < 3; star++)
+                    {
+                        var plate = Dp(plan.Plate(star));
+                        Near(new Rect(plate.x + 8, plate.y + 28, 20, 20), Dp(plan.Star(star)), "star " + star);
+                    }
+                Assert.AreEqual(684, (2670 - plan.NextLabel.yMax) / 3 + HudLayout.DigitTop * 11, 1, "NEXT ROW glyph top");
             }
         }
         private BoardArt Art() => (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
@@ -134,9 +161,9 @@ namespace ZKube.Presentation.Tests
                         var view = narrow.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
                         view.Summary(board.State, board.Session, true);
                         Canvas.ForceUpdateCanvases(); yield return null;
-                        var portrait = view.GetComponentsInChildren<Image>().Single(i => i.name == "Calm realm guardian");
+                        var guardian = view.GetComponentsInChildren<SpriteRenderer>().Single(i => i.name == "Calm realm guardian");
                         var title = view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Run title"); Fits(title);
-                        Assert.LessOrEqual(WorldRect(portrait.rectTransform).yMax, WorldRect(title.rectTransform).yMin);
+                        AssertLeansOnTheRim(view, guardian);
                         AssertStars(view);
                     }
                     finally { UnityEngine.Object.Destroy(narrow); }
@@ -156,9 +183,9 @@ namespace ZKube.Presentation.Tests
                 Assert.AreNotSame(daily, board.View, "A newly bound run must rebuild its measured layout");
                 yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 Assert.Greater(board.State.LatchedStarSources, 0);
-                var portrait = board.View.GetComponentsInChildren<Image>().Single(i => i.name == "Calm realm guardian");
-                var title = board.View.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Run title");
-                Assert.LessOrEqual(WorldRect(portrait.rectTransform).yMax, WorldRect(title.rectTransform).yMin);
+                var guardian = board.View.GetComponentsInChildren<SpriteRenderer>().Single(i => i.name == "Calm realm guardian");
+                Fits(board.View.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Run title"));
+                AssertLeansOnTheRim(board.View, guardian);
                 AssertStars(board.View);
                 var campaign = board.View;
                 evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
@@ -166,6 +193,14 @@ namespace ZKube.Presentation.Tests
                 Assert.IsFalse(board.View.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Star ", StringComparison.Ordinal)),
                     "Daily must hide Campaign socket controls after rebinding");
             }
+        }
+        // The guardian's rail line, from its catalog contact, sits 1 dp below the rim's top.
+        private static void AssertLeansOnTheRim(BoardView view, SpriteRenderer guardian)
+        {
+            var bounds = guardian.bounds; var rim = view.Layout.Rim;
+            float rail = bounds.max.y - ZKube.Tests.Presentation.BoardTestState.Art(view).GuardianRailY * bounds.size.y;
+            Assert.AreEqual(rim.yMax - view.Layout.Density, rail, .5f, "The guardian leans on the frame's top rim");
+            Assert.AreEqual(rim.center.x, bounds.center.x, .5f, "The guardian is centred on the board");
         }
         private static Rect WorldRect(RectTransform transform)
         {
@@ -182,7 +217,7 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(standardSize * 1.3f, Label("Score").fontSize, .01f);
             Assert.AreEqual(board.State.DailyScore.ToString(), Label("Score").text);
             Assert.AreEqual(board.State.ObjectiveTotal.ToString(), Label("Theme").text);
-            Assert.AreEqual("TRIGGER THE GUARDIAN", Label("Theme label").text);
+            Assert.AreEqual(BoardView.ObjectiveName(board.Session.Rules.ObjectiveKind, board.Session.Rules.ObjectiveValue), Label("Theme label").text);
             foreach (string name in new[] { "Score", "Score label", "Theme", "Theme label", "Guardian earning label", "Guardian earning rule" }) Fits(Label(name));
             Assert.Greater(board.View.Layout.Cell, 0);
             var layout = board.View.Layout;
@@ -194,17 +229,18 @@ namespace ZKube.Presentation.Tests
         [UnityTest] public IEnumerator PressureUsesThePlayersWordsNotInternalNames()
         {
             evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            Assert.AreEqual("POINTS ×" + (Protocol.PressureMultiplierPercent(board.State.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+            Assert.AreEqual("POINTS", Label("Pressure label").text);
+            Assert.AreEqual("×" + (Protocol.PressureMultiplierPercent(board.State.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
                 Label("Pressure").text);
-            Assert.AreEqual("POINTS ×1", HudLayout.PressureText(new RunSummary { CurrentTier = 0 }));
-            Assert.AreEqual("POINTS ×2.5", HudLayout.PressureText(new RunSummary { CurrentTier = 3 }));
+            Assert.AreEqual("×1", HudLayout.PressureValue(new RunSummary { CurrentTier = 0 }));
+            Assert.AreEqual("×2.5", HudLayout.PressureValue(new RunSummary { CurrentTier = 3 }));
         }
         [UnityTest] public IEnumerator PublishedCampaignLongConstraintFitsItsDetailDialogAtLargerText()
         {
             evidence.Load("display-long-campaign-constraint"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             board.SetTextScale(1.3f); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Star 2"); yield return null;
-            StringAssert.Contains("MOVES IN A ROW", Label("Dialog title").text);
+            StringAssert.Contains("moves in a row", Label("Dialog title").text.ToLowerInvariant());
             Assert.AreEqual("Not earned yet", Label("Dialog details").text);
             Fits(Label("Dialog title")); Fits(Label("Dialog details"));
             evidence.Click("Dialog Back to the board"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
@@ -239,7 +275,7 @@ namespace ZKube.Presentation.Tests
             board.View.OpenModal("PAUSED", "A long action must wrap without losing its hit area.", (action, () => { invoked = true; board.Resume(); }));
             yield return null;
             var buttonLabel = Label("Dialog " + action + " label"); Fits(buttonLabel);
-            Assert.AreEqual(15 * board.View.Layout.Density * 1.3f, buttonLabel.fontSize, .01f);
+            Assert.AreEqual(SkinUi.ButtonDp * board.View.Layout.Density * 1.3f, buttonLabel.fontSize, .01f);
             Assert.GreaterOrEqual(buttonLabel.rectTransform.rect.height / board.View.Layout.Density, 48);
             evidence.Click("Dialog " + action); Assert.IsTrue(invoked);
         }

@@ -281,8 +281,8 @@ namespace ZKube.Tests.MoneyOverview
             host = new GameObject("Money standalone test"); host.SetActive(false);
             var startup = host.AddComponent<AppStartup>();
             startup.Configuration = new AppStartupConfiguration { Identity = host.AddComponent<MoneyIdentity>(),
-                DisplayFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular"),
-                BodyFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold") };
+                DisplayFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + SkinUi.FontName(SkinUi.Type.Number)),
+                BodyFont = Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + SkinUi.FontName(SkinUi.Type.Body)) };
             return startup;
         }
         internal static IEnumerator Wait(Task task)

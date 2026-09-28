@@ -4,183 +4,182 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
-    // The board HUD, in two rows under a title ribbon. Row one: the score plate
-    // (with a Campaign progress bar), the guardian medallion and the moves pill
-    // (plus the pressure pill in Daily). Row two: the goals in plain words, as
-    // two side-by-side Campaign constraint cards or one Daily objective card.
-    // Every height is measured with the shipped fonts at the requested text
-    // size; text grows its piece, never shrinks.
+    // The Lumen board HUD, reproduced from the approved header geometry
+    // (400 x 890 dp): a Fraunces title over a light stroke, four plates of one
+    // size (score and moves on the left, the two goals on the right) and the
+    // guardian centred between them, leaning on the board frame's top rim.
+    // Under the board: the NEXT ROW label, the tray, and a footer with the
+    // guardian's earning rule beside the power, reroll and pause tablets.
+    // Offsets are glyph tops, as drawn; text grows its plate, never shrinks.
     public sealed class HudLayout
     {
         public BoardLayout Layout;
         public float Scale;
-        public bool Campaign, RuleAbove;
-        public Rect Title, Medallion, ScorePlate, ScoreCaption, ScoreValue, Progress, Moves, Pressure;
-        public Rect PrimaryPlate, PrimaryCaption, PrimaryValue, SecondaryPlate, SecondaryCaption;
-        public Rect Status, RuleHeading, Rule;
-        public float StarSize;
-        // The star glyph is drawn this fraction inside its touch square.
-        public const float StarGlyphInset = .12f;
-        // HUD plates draw their leaf ends at one size, whatever the plate's height,
-        // so text insets clear them on every piece.
-        public const float PlateBorderScale = .6f;
-        // Each Campaign star sits on the piece of its source: score, the
-        // cumulative constraint and the one-move constraint.
-        public Rect Star(int index)
+        public bool Campaign;
+        public Rect Title, Ribbon, TitleShade, Guardian;
+        public Rect ScorePlate, ScoreCaption, ScoreValue, ScoreTarget, MovesPlate, MovesCaption, MovesValue;
+        public Rect PrimaryPlate, PrimaryCaption, PrimaryValue, SecondaryPlate, SecondaryCaption, SecondaryValue;
+        public Rect NextLabel, RuleHeading, Rule, Status;
+        // Type sizes in dp for this layout, before the player's text size.
+        public float TitlePt, LabelPt, CaptionPt, NumberPt, GoalPt, PointsPt, TargetPt, RuleHeadingPt, RulePt, StatusPt;
+        // A caption line advances 13 dp at 12 dp, as drawn.
+        public const float CaptionLeading = 13f / 12;
+        public const float StarDp = 20;
+        public float Density => Layout.Density;
+
+        // Each Campaign star shows on the plate of its source: score, the
+        // cumulative goal and the one-move goal. The whole plate opens its detail.
+        public Rect Star(int index) => StarOn(index, Plate(index));
+        public Rect Plate(int index) => index switch
         {
-            if (index < 0 || index > 2) throw new ArgumentOutOfRangeException(nameof(index));
-            var plate = index == 0 ? ScorePlate : index == 1 ? PrimaryPlate : SecondaryPlate;
-            return new Rect(plate.xMax - StarSize - 2 * Layout.Density, plate.center.y - StarSize / 2, StarSize, StarSize);
+            0 => ScorePlate, 1 => PrimaryPlate, 2 => SecondaryPlate, _ => throw new ArgumentOutOfRangeException(nameof(index)),
+        };
+        private Rect StarOn(int index, Rect plate)
+        {
+            var value = index == 0 ? ScoreValue : index == 1 ? PrimaryValue : SecondaryValue;
+            float size = StarDp * Density, glyph = ValueCentre(value, index == 0 ? NumberPt : GoalPt);
+            return new Rect(plate.x + 8 * Density, glyph - size / 2, size, size);
         }
+        // The vertical centre of a value's digits inside its text rect.
+        private float ValueCentre(Rect value, float sizeDp) => value.yMax - (DigitTop + .4f) * sizeDp * Scale * Density;
+        // Digit tops sit this far (in em) below the font's ascender, where a
+        // top-aligned TMP line starts.
+        public static float DigitTop = .31f;
 
-        private const float TitleSize = 17, CaptionSize = 11, ValueSize = 26, CardValueSize = 18, PillSize = 12, RuleHeadingSize = 11,
-            RuleSize = 12, StatusSize = 12;
-        // Type sizes in dp for this layout; compact screens use a tighter HUD.
-        public float TitlePt, CaptionPt, ValuePt, CardValuePt, PillPt, RuleHeadingPt, RulePt, StatusPt;
-
-        public static string TitleText(BoardArt art, BoardSession session) => art.Title(session).ToUpperInvariant();
-        public static string ScoreCaptionText(BoardSession session) => session.Daily ? "SCORE" : "SCORE / " + session.Rules.PointsRequired;
+        public static string TitleText(BoardArt art, BoardSession session) => art.Title(session);
+        // Campaign levels are numbered across realms.
+        public static string LevelNumber(byte realm, byte level) =>
+            ((realm - 1) * Protocol.CampaignTargets.Length + level).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        public static string CampaignTitle(byte realm, byte level) =>
+            PageCatalog.Load().Realm(realm).realmName + " · Level " + LevelNumber(realm, level);
         public static string ScoreText(RunSummary state, BoardSession session) =>
             (session.Daily ? state.DailyScore : state.Score).ToString();
-        public static float ScoreProgress(RunSummary state, BoardSession session) =>
-            session.Daily || session.Rules.PointsRequired == 0 ? 0 : Mathf.Clamp01((float)state.Score / session.Rules.PointsRequired);
-        public static string MovesText(RunSummary state, BoardSession session) => Math.Max(0, session.Rules.MaxMoves - state.Moves) + " MOVES";
+        public static string ScoreTargetText(BoardSession session) => session.Daily ? "" : "/ " + session.Rules.PointsRequired;
+        public static string MovesText(RunSummary state, BoardSession session) => Math.Max(0, session.Rules.MaxMoves - state.Moves).ToString();
+        public static bool MovesLow(RunSummary state, BoardSession session) => session.Rules.MaxMoves - state.Moves <= 5;
         // Daily pressure, as what it does for the player: the points multiplier.
-        public static string PressureText(RunSummary state) =>
-            "POINTS ×" + (Protocol.PressureMultiplierPercent(state.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        // Goal captions come from the catalog in sentence case; the HUD shows them in capitals.
-        public static string PrimaryCaptionText(BoardSession session) => (session.Daily
+        public static string PressureValue(RunSummary state) =>
+            "×" + (Protocol.PressureMultiplierPercent(state.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        public static string PrimaryCaptionText(BoardSession session) => session.Daily
             ? BoardView.ObjectiveName(session.Rules.ObjectiveKind, session.Rules.ObjectiveValue)
-            : BoardView.ObjectiveName(session.Rules.PrimaryKind, session.Rules.PrimaryValue, session.Rules.PrimaryCount)).ToUpperInvariant();
+            : BoardView.ObjectiveName(session.Rules.PrimaryKind, session.Rules.PrimaryValue, session.Rules.PrimaryCount);
         public static string PrimaryText(RunSummary state, BoardSession session) => session.Daily
             ? state.ObjectiveTotal.ToString() : state.PrimaryProgress + " / " + session.Rules.PrimaryCount;
-        public static string SecondaryCaptionText(BoardSession session) =>
-            BoardView.ObjectiveName(session.Rules.SecondaryKind, session.Rules.SecondaryValue, session.Rules.SecondaryCount).ToUpperInvariant();
-        public static string GuardianCaption(byte bonus) => "EARN " + (bonus == 1 ? "HAMMER" : bonus == 3 ? "WAVE" : "TOTEM");
+        public static string SecondaryCaptionText(BoardSession session) => session.Daily ? "POINTS" :
+            BoardView.ObjectiveName(session.Rules.SecondaryKind, session.Rules.SecondaryValue, session.Rules.SecondaryCount);
+        public static string SecondaryText(RunSummary state, BoardSession session) => session.Daily
+            ? PressureValue(state) : ((state.LatchedStarSources & 4) != 0 ? 1 : 0) + " / 1";
+        public static string PowerName(byte bonus) => bonus == 1 ? "HAMMER" : bonus == 3 ? "WAVE" : "TOTEM";
+        public static string GuardianCaption(byte bonus) => "EARN " + PowerName(bonus);
 
         public static HudLayout Build(SkinUi ui, RunSummary state, BoardSession session, Rect safe, float density)
         {
             var art = ui.Art;
             var result = new HudLayout { Scale = ui.Scale, Campaign = session == null || !session.Daily };
-            var normal = new BoardLayout(safe, density);
-            float d = normal.Density, x = normal.Frame.x, w = normal.Frame.width, top = normal.Frame.yMax, gap = 6 * d;
-            float H(string value, float width, float size, bool display) => ui.TextHeight(value, width, size, display);
-            result.StarSize = 48 * d;
-            float k = normal.Compact ? .9f : 1;
-            result.TitlePt = TitleSize * k; result.CaptionPt = CaptionSize * k; result.ValuePt = ValueSize * k; result.CardValuePt = CardValueSize * k;
-            result.PillPt = PillSize * k; result.RuleHeadingPt = RuleHeadingSize * k; result.RulePt = RuleSize * k; result.StatusPt = StatusSize * k;
+            var first = new BoardLayout(safe, density);
+            bool compact = first.Compact;
+            float d = first.Density, s = ui.Scale, top = safe.yMax;
+            float H(string value, float width, float size, SkinUi.Type type) => ui.TextHeight(value, width, size, type);
+            result.TitlePt = compact ? 14 : 16; result.LabelPt = compact ? 11 : 12; result.CaptionPt = compact ? 11 : 12;
+            result.NumberPt = compact ? 24 : 28; result.GoalPt = compact ? 18 : 20; result.PointsPt = compact ? 21 : 24;
+            result.TargetPt = compact ? 12 : 14; result.RuleHeadingPt = 11; result.RulePt = 12; result.StatusPt = 12;
+            // A type size as drawn, in dp, at the player's text size.
+            float S(float sizeDp) => sizeDp * s;
+            // Converts a glyph top, dp below the safe top, to the top of its text rect.
+            float Glyph(float dpFromTop, float sizeDp) => top - dpFromTop * d + DigitTop * S(sizeDp) * d;
 
-            string title = session == null ? "GUARDIAN · DAILY" : TitleText(art, session);
-            float titleWidth = Mathf.Min(w * .8f, ui.TextWidth(title, result.TitlePt, true) + 72 * d);
-            float titleHeight = H(title, titleWidth - 48 * d, result.TitlePt, true) + 10 * d;
-            result.Title = new Rect(normal.Frame.center.x - titleWidth / 2, top - titleHeight, titleWidth, titleHeight);
-            float rowTop = result.Title.yMin - 3 * d;
+            // The title and its light stroke.
+            string title = session == null ? "Guardian · Daily" : TitleText(art, session);
+            float titleTop = compact ? 4 : 25, titleWidth = Mathf.Min(safe.width - 32 * d, ui.TextWidth(title, result.TitlePt, SkinUi.Type.Title) + 8 * d);
+            float titleHeight = H(title, titleWidth, result.TitlePt, SkinUi.Type.Title);
+            result.Title = new Rect(safe.center.x - titleWidth / 2, Glyph(titleTop, result.TitlePt) - titleHeight, titleWidth, titleHeight);
+            float ribbonTop = titleTop + S(result.TitlePt) + 4;
+            result.Ribbon = new Rect(safe.center.x - 75 * d, top - (ribbonTop + 8) * d, 150 * d, 8 * d);
+            result.TitleShade = new Rect(safe.center.x - 150 * d, top - (titleTop + S(result.TitlePt) + 22) * d, 300 * d, (S(result.TitlePt) + 40) * d);
 
-            // Row one. The columns leave room for the full medallion; compact
-            // screens then draw it no taller than the plates beside it, so the
-            // guardian never adds height the grid could use.
-            float medallion = Mathf.Clamp(w * .28f, 72 * d, 112 * d) * (normal.Compact ? .78f : 1);
-            float column = (w - medallion - 4 * gap) / 2;
-            float left = x + gap, right = x + w - gap - column;
-            // Campaign text stops 4 dp before the drawn star; Daily keeps a 12 dp margin like the left.
-            float reserve = result.Campaign ? 2 * d + result.StarSize * (1 - StarGlyphInset) + 4 * d : 12 * d, inner = column - 12 * d - reserve;
-            string score = session == null ? "0" : ScoreText(state, session);
-            string scoreCaption = session == null ? "SCORE" : ScoreCaptionText(session);
-            float captionHeight = H(scoreCaption, inner, result.CaptionPt, false), valueHeight = H(score, inner, result.ValuePt, true);
-            float bar = result.Campaign ? 9 * d : 0;
-            // The Campaign progress bar carries its own margin, so it takes the plate's bottom padding.
-            float plate = Mathf.Max(result.Campaign ? result.StarSize : 0, 6 * d + captionHeight + valueHeight + bar + (result.Campaign ? 3 : 6) * d);
-            result.ScorePlate = new Rect(left, rowTop - plate, column, plate);
-            result.ScoreCaption = new Rect(left + 12 * d, rowTop - 6 * d - captionHeight, inner, captionHeight);
-            result.ScoreValue = new Rect(left + 12 * d, result.ScoreCaption.y - valueHeight, inner, valueHeight);
-            result.Progress = new Rect(left + 12 * d, result.ScoreValue.y - bar + 2 * d, column - 12 * d - reserve, Mathf.Max(0, bar - 4 * d));
-            string moves = session == null ? "100 MOVES" : MovesText(state, session);
-            float pill = H(moves, column - 20 * d, result.PillPt, true) + 10 * d;
-            result.Moves = new Rect(right, rowTop - pill, column, pill);
-            result.Pressure = result.Campaign ? new Rect(right, result.Moves.y, column, 0)
-                : new Rect(right, result.Moves.y - gap - pill, column, pill);
-            float plates = rowTop - Mathf.Min(result.ScorePlate.y, result.Pressure.height > 0 ? result.Pressure.y : result.Moves.y);
-            if (normal.Compact) medallion = Mathf.Min(medallion, plates);
-            result.Medallion = new Rect(normal.Frame.center.x - medallion / 2, rowTop - medallion, medallion, medallion);
-            float rowBottom = rowTop - Mathf.Max(plates, medallion);
+            // Four plates of one size around the guardian, which overlaps each by 12 dp.
+            float guardianWidth = (compact ? 96 : 168) * d, rimWidth = first.Rim.width;
+            float plateWidth = Mathf.Min(120 * d, (rimWidth - guardianWidth) / 2 + 12 * d);
+            float left = first.Rim.x, right = first.Rim.xMax - plateWidth, inner = plateWidth - 16 * d;
+            // The plates start under the title's box, never above the drawn row.
+            float titleBottom = (top - result.Title.y) / d;
+            float rowTop = Mathf.Max(compact ? 22 : 60, titleBottom + 2), gap = compact ? 4 : 6;
+            string scoreLabel = "SCORE", movesLabel = "MOVES";
+            string primaryCaption = session == null ? "Clear lines" : PrimaryCaptionText(session);
+            string secondaryCaption = session == null ? "Moves clearing 2+ lines" : SecondaryCaptionText(session);
+            // A plate's content: caption lines from 6 dp at the drawn 13 dp leading,
+            // then its value; offsets are glyph tops, as drawn.
+            float CaptionBlock(string value, SkinUi.Type type, float size) =>
+                ui.Lines(value, inner, size, type) * S(size) * CaptionLeading;
+            float labelBlock = CaptionBlock(scoreLabel, SkinUi.Type.Label, result.LabelPt);
+            float goalBlock = Mathf.Max(CaptionBlock(primaryCaption, SkinUi.Type.Caption, result.CaptionPt),
+                CaptionBlock(secondaryCaption, SkinUi.Type.Caption, result.CaptionPt));
+            float numberTop = 6 + Mathf.Max(compact ? 17 : 21, labelBlock);
+            float goalTop = 6 + Mathf.Max(compact ? 19 : 24, goalBlock - 2);
+            float Height(float valueTop, float valueSize) => valueTop + S(valueSize) * .74f + 4;
+            float plate = Mathf.Max(compact ? MinimumPlateDp(true) : 52,
+                Mathf.Max(Height(numberTop, result.NumberPt), Height(goalTop, Mathf.Max(result.GoalPt, result.PointsPt))));
+            float row1 = rowTop, row2 = rowTop + plate + gap;
+            Rect PlateAt(float x, float fromTop) => new Rect(x, top - (fromTop + plate) * d, plateWidth, plate * d);
+            result.ScorePlate = PlateAt(left, row1); result.MovesPlate = PlateAt(left, row2);
+            result.PrimaryPlate = PlateAt(right, row1); result.SecondaryPlate = PlateAt(right, row2);
+            Rect Text(Rect owner, float x, float fromPlateTop, float width, float size, string value, SkinUi.Type type)
+            {
+                float height = H(value, width, size, type) + 2 * d;
+                float rectTop = owner.yMax - fromPlateTop * d + DigitTop * S(size) * d;
+                return new Rect(owner.x + x * d, rectTop - height, width, height);
+            }
+            float star = result.Campaign ? 34 : 8, valueWidth = plateWidth - (star + 8) * d;
+            result.ScoreCaption = Text(result.ScorePlate, 8, 6, inner, result.LabelPt, scoreLabel, SkinUi.Type.Label);
+            result.ScoreValue = Text(result.ScorePlate, star, numberTop, valueWidth, result.NumberPt, "0", SkinUi.Type.Number);
+            result.ScoreTarget = Text(result.ScorePlate, star, numberTop + 8 * s * (compact ? .85f : 1), valueWidth, result.TargetPt, "/ 0",
+                SkinUi.Type.Caption);
+            result.MovesCaption = Text(result.MovesPlate, 8, 6, inner, result.LabelPt, movesLabel, SkinUi.Type.Label);
+            result.MovesValue = Text(result.MovesPlate, 8, numberTop, inner, result.NumberPt, "0", SkinUi.Type.Number);
+            result.PrimaryCaption = Text(result.PrimaryPlate, 8, 6, inner, result.CaptionPt, primaryCaption, SkinUi.Type.Caption);
+            result.PrimaryValue = Text(result.PrimaryPlate, star, goalTop, valueWidth, result.GoalPt, "0 / 0", SkinUi.Type.Number);
+            result.SecondaryCaption = Text(result.SecondaryPlate, 8, 6, inner, result.CaptionPt, secondaryCaption,
+                SkinUi.Type.Caption);
+            result.SecondaryValue = result.Campaign
+                ? Text(result.SecondaryPlate, star, goalTop, valueWidth, result.GoalPt, "0 / 1", SkinUi.Type.Number)
+                : Text(result.SecondaryPlate, 8, goalTop - 2, inner, result.PointsPt, "×1", SkinUi.Type.Number);
+            float header = row2 + plate + 4;
 
-            // Row two: the goals, in plain words. A count sits to the right of its
-            // goal; a one-move goal has no count, its star says whether it is done.
-            // Text keeps clear of the plate's leaf ends; Campaign cards keep their right end for the star.
-            float cardTop = rowBottom - gap, cardMinimum = result.Campaign ? result.StarSize : 0, ends = 14 * d;
-            float rightEnd = result.Campaign ? reserve : ends;
-            (float h, float captionWidth, float valueWidth, float c, float v) Measure(string caption, string value, float cardWidth)
-            {
-                float valueWidth = value == null ? 0 : ui.TextWidth(value, result.CardValuePt, true) + 4 * d;
-                float captionWidth = Mathf.Max(24 * d, cardWidth - ends - rightEnd - (value == null ? 0 : valueWidth + 6 * d));
-                float c = H(caption, captionWidth, result.CaptionPt, false), v = value == null ? 0 : H(value, valueWidth, result.CardValuePt, true);
-                return (Mathf.Max(cardMinimum, 8 * d + Mathf.Max(c, v)), captionWidth, valueWidth, c, v);
-            }
-            void Place((float h, float captionWidth, float valueWidth, float c, float v) m, float cardX, float cardWidth, float h,
-                out Rect plateRect, out Rect captionRect, out Rect valueRect)
-            {
-                plateRect = new Rect(cardX, cardTop - h, cardWidth, h);
-                captionRect = new Rect(cardX + ends, cardTop - h / 2 - m.c / 2, m.captionWidth, m.c);
-                valueRect = new Rect(captionRect.xMax + 6 * d, cardTop - h / 2 - m.v / 2, m.valueWidth, m.v);
-            }
-            string primaryCaption = session == null ? "CLEAR LINES" : PrimaryCaptionText(session);
-            string primary = session == null ? "0 / 0" : PrimaryText(state, session);
-            float cards;
-            if (result.Campaign)
-            {
-                float half = (w - 3 * gap) / 2;
-                var first = Measure(primaryCaption, primary, half);
-                var second = Measure(session == null ? "CLEAR 3+ LINES IN ONE MOVE" : SecondaryCaptionText(session), null, half);
-                // Both cards share the taller height so they line up.
-                cards = Mathf.Max(first.h, second.h);
-                Place(first, x + gap, half, cards, out result.PrimaryPlate, out result.PrimaryCaption, out result.PrimaryValue);
-                Place(second, x + 2 * gap + half, half, cards, out result.SecondaryPlate, out result.SecondaryCaption, out _);
-            }
-            else
-            {
-                var only = Measure(primaryCaption, primary, w - 2 * gap);
-                cards = only.h;
-                Place(only, x + gap, w - 2 * gap, cards, out result.PrimaryPlate, out result.PrimaryCaption, out result.PrimaryValue);
-                result.SecondaryPlate = result.SecondaryCaption = new Rect(x + gap, cardTop - cards, 0, 0);
-            }
-            float header = top - (cardTop - cards) + 3 * d;
-
-            // Footer: the guardian's earning rule to the left of the buttons, centred
-            // on them and using the footer's height, or above them when it does not
-            // fit that column at this text size.
-            float footer = normal.Footer;
+            // The footer: the earning rule beside the tablets, starting at their top.
+            var provisional = new BoardLayout(safe, density, header * d);
             var rule = state == null || session == null ? null : art.Guardian(state.BonusType, session.Rules.Trigger, session.Rules.TriggerThreshold);
-            float leftWidth = Mathf.Max(1, normal.GuardianButton.x - x - 16 * d);
-            string ruleCaption = GuardianCaption(state == null ? (byte)2 : state.BonusType);
-            float headingHeight = H(ruleCaption, leftWidth, result.RuleHeadingPt, true);
-            float ruleHeight = H(rule?.description ?? "", leftWidth, result.RulePt, false);
-            result.RuleAbove = rule != null && headingHeight + ruleHeight > normal.Footer - 8 * d;
-            if (result.RuleAbove)
-            {
-                headingHeight = H(ruleCaption, w - 16 * d, result.RuleHeadingPt, true);
-                ruleHeight = H(rule.description, w - 16 * d, result.RulePt, false);
-                footer = Mathf.Max(footer, normal.GuardianButton.height + 14 * d + headingHeight + ruleHeight);
-            }
-            result.Layout = new BoardLayout(safe, density, header, footer, result.RuleAbove);
-            var key = result.Layout.GuardianButton;
-            if (result.RuleAbove)
-            {
-                result.Rule = new Rect(x + 8 * d, key.yMax + 4 * d, w - 16 * d, ruleHeight);
-                result.RuleHeading = new Rect(result.Rule.x, result.Rule.yMax, result.Rule.width, headingHeight);
-            }
-            else
-            {
-                float blockTop = key.center.y + (headingHeight + ruleHeight) / 2;
-                result.RuleHeading = new Rect(x + 8 * d, blockTop - headingHeight, leftWidth, headingHeight);
-                result.Rule = new Rect(x + 8 * d, result.RuleHeading.y - ruleHeight, leftWidth, ruleHeight);
-            }
+            float column = Mathf.Max(1, provisional.GuardianButton.x - provisional.FooterColumn.x - 16 * d);
+            string heading = GuardianCaption(state == null ? (byte)2 : state.BonusType);
+            float headingHeight = H(heading, column, result.RuleHeadingPt, SkinUi.Type.Label);
+            float ruleHeight = H(rule?.description ?? "", column, result.RulePt, SkinUi.Type.Caption);
+            // Glyph tops 4 and 22 dp under the tablets' top, as drawn.
+            float headingTop = compact ? 2 : 4, ruleTop = headingTop + 18 * s;
+            float footer = Mathf.Max(BoardLayout.DefaultFooterDp(compact) * d,
+                ruleTop * d + ruleHeight + (compact ? 8 : 16) * d);
+            result.Layout = new BoardLayout(safe, density, header * d, footer);
+            var layout = result.Layout;
+            float tabletTop = layout.GuardianButton.yMax;
+            float GlyphBelow(float dp, float size) => tabletTop - dp * d + DigitTop * S(size) * d;
+            result.RuleHeading = new Rect(layout.FooterColumn.x + 8 * d, GlyphBelow(headingTop, result.RuleHeadingPt) - headingHeight, column, headingHeight);
+            result.Rule = new Rect(result.RuleHeading.x, GlyphBelow(ruleTop, result.RulePt) - ruleHeight, column, ruleHeight);
+
+            // The guardian leans on the frame's top rim: its rail line sits 1 dp below the rim's top.
+            float railY = art.GuardianRailY, rail = layout.Rim.yMax - 1 * d;
+            result.Guardian = new Rect(safe.center.x - guardianWidth / 2, rail - (1 - railY) * guardianWidth, guardianWidth, guardianWidth);
+
+            float labelHeight = H("NEXT ROW", layout.Rim.width, result.LabelPt * 11 / 12, SkinUi.Type.Label);
+            float labelTop = layout.Rim.y - (compact ? 10 : 32) * d + DigitTop * S(result.LabelPt * 11 / 12) * d;
+            result.NextLabel = new Rect(layout.Rim.x, labelTop - labelHeight, layout.Rim.width, labelHeight);
 
             // Notices float as a toast on the board's top edge instead of taking a row.
-            var board = result.Layout.Board;
+            var board = layout.Board;
             float statusHeight = 0;
-            foreach (string notice in BoardNotices.All()) statusHeight = Mathf.Max(statusHeight, H(notice, board.width - 24 * d, result.StatusPt, false));
+            foreach (string notice in BoardNotices.All())
+                statusHeight = Mathf.Max(statusHeight, H(notice, board.width - 24 * d, result.StatusPt, SkinUi.Type.Body));
             result.Status = new Rect(board.x + 12 * d, board.yMax - statusHeight - 14 * d, board.width - 24 * d, statusHeight + 10 * d);
             return result;
         }
+        // Compact plates keep the 48 dp touch height of the stars they open.
+        public static float MinimumPlateDp(bool compact) => compact ? BoardLayout.MinimumTouchDp : 52;
     }
 }

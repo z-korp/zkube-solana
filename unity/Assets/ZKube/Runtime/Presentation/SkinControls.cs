@@ -1,3 +1,4 @@
+using TMPro;
 using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -118,18 +119,83 @@ namespace ZKube.Presentation
         private RectTransform selected;
         public int Selected { get; private set; }
 
-        internal void Bind(Rect[] tabRects, RectTransform plate, int index)
+        private Image[] icons;
+        private TMP_Text[] labels;
+        private Color onChip, off;
+
+        internal void Bind(Rect[] tabRects, RectTransform plate, int index, Image[] tabIcons, TMP_Text[] tabLabels, Color selectedInk, Color ink)
         {
-            tabs = tabRects; selected = plate;
+            tabs = tabRects; selected = plate; icons = tabIcons; labels = tabLabels; onChip = selectedInk; off = ink;
             Select(index);
         }
 
-        // Moves the highlight; the page decides what a tab shows.
+        // Moves the gold chip: the selected tab's icon and label turn dark on it,
+        // the others stay pale at 72%. The page decides what a tab shows.
         public void Select(int index)
         {
             if (index < 0 || index >= tabs.Length) throw new ArgumentOutOfRangeException(nameof(index));
             Selected = index;
             SkinUi.Place(selected, tabs[index], selected.parent);
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                var ink = i == index ? onChip : new Color(off.r, off.g, off.b, off.a * .72f);
+                icons[i].color = ink; labels[i].color = ink;
+            }
+        }
+        public Color Ink(int index) => labels[index].color;
+    }
+
+    // A code-placed light: an fx-glow behind something live or earned. A
+    // breathing glow swings between 70% and 100% of its strength; reduced
+    // motion holds it still. SkinUi caps how many are live at once.
+    public sealed class SkinGlow : MonoBehaviour
+    {
+        private Image image;
+        private Color tint;
+        private float period;
+        internal System.Collections.Generic.List<SkinGlow> Registry;
+        public bool Breathing => period > 0;
+        internal void Bind(Image glow, Color color, float breathSeconds) { image = glow; tint = color; period = breathSeconds; Show(); }
+        private void Update() { if (Breathing) Show(); }
+        private void Show()
+        {
+            float k = !Breathing || AppPreferences.ReducedMotion ? 1 : .85f + .15f * Mathf.Sin(Time.unscaledTime * 2 * Mathf.PI / period);
+            var c = tint; c.a *= k; image.color = c;
+        }
+        private void OnDestroy() => Registry?.Remove(this);
+    }
+
+    // A tablet built by SkinUi.Tablet. A charged power glows in the realm's key
+    // light, breathing over 3 s, with a lit gold badge; an empty one keeps its
+    // place unlit, its icon at 40% and a dimmed badge showing 0. Nothing is ever
+    // greyed out: only the button stops taking taps.
+    public sealed class SkinTablet : MonoBehaviour
+    {
+        public Button Button { get; private set; }
+        public Image Icon { get; private set; }
+        public TMP_Text Count { get; private set; }
+        private Image halo, badgeHalo, badge;
+        private Color onBadge, onDim;
+        public bool Charged { get; private set; }
+        public const float BreathSeconds = 3;
+
+        internal void Bind(Button button, Image icon, Image light, Image badgeLight, Image badgePiece, TMP_Text count, Color badgeText, Color text)
+        {
+            Button = button; Icon = icon; halo = light; badgeHalo = badgeLight; badge = badgePiece; Count = count;
+            onBadge = badgeText; onDim = text;
+            Show(halo == null ? (int?)null : 0, true);
+        }
+
+        // charges is null for an uncounted utility; interactive says whether a tap acts now.
+        public void Show(int? charges, bool interactive)
+        {
+            Charged = charges > 0;
+            Button.interactable = interactive && charges != 0;
+            var icon = Icon.color; icon.a = charges == 0 ? .4f : 1; Icon.color = icon;
+            if (halo != null) halo.enabled = Charged;
+            if (badgeHalo != null) badgeHalo.enabled = Charged;
+            if (badge != null) badge.color = Charged ? Color.white : new Color(64 / 255f, 84 / 255f, 96 / 255f);
+            if (Count != null) { Count.text = (charges ?? 0).ToString(); Count.color = Charged ? onBadge : onDim; }
         }
     }
 }

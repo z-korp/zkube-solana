@@ -329,9 +329,7 @@ namespace ZKube.Editor
             foreach (var pair in fonts)
             {
                 if (pair.Value == symbols || pair.Value == math) continue;
-                pair.Value.fallbackFontAssetTable = pair.Key == "LilitaOne-Regular"
-                    ? new List<TMP_FontAsset> { fonts["Fredoka-SemiBold"], symbols, math }
-                    : new List<TMP_FontAsset> { symbols, math };
+                pair.Value.fallbackFontAssetTable = new List<TMP_FontAsset> { symbols, math };
                 const string required = "zKube Campaign Arcade Score Theme Kredit 0123456789★☆✓◇×←→↑↓…–—‘’“”•≤≥";
                 if (!pair.Value.HasCharacters(required, out uint[] missing, true, true))
                     throw new InvalidOperationException(EntryMessage(pair.Key, missing));

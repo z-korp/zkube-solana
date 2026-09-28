@@ -28,17 +28,22 @@ class PortraitImports(unittest.TestCase):
                         for name in ('star', 'constraint-complete', 'victory', 'over'))
         for realm in range(1, 11):
             expected.update(f'assets/theme-{realm}/{name}.png' for name in
-                            ('background', 'boss/idle', 'boss/celebrate', 'boss/defeated'))
+                            ['background'] + [f'boss/{frame}' for frame in
+                             ('idle', 'blink', 'talk-mid', 'talk-open', 'greeting', 'satisfied', 'surprised',
+                              'celebrate', 'defeated', 'portrait', 'paws')])
             expected.update(f'assets/skins/{skin}/realm-{realm}/{name}' for skin in skins for name in
                             ('background.jpg', 'hud-background.jpg', 'map.jpg', 'ledge.png',
                              'block-1.png', 'block-2.png', 'block-3.png', 'block-4.png'))
             expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
         expected.update(f'assets/skins/{skin}/ui/{name}.png' for skin in skins for name in skin_slots())
         self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
+        frames = [entry for entry in catalog['assets'] if '/boss/' in entry['source'] and entry['scope'] != 'portraits']
+        self.assertTrue(frames and all(entry['maxTextureSize'] == imports.GUARDIAN_TEXTURE for entry in frames),
+                        'Guardian frames import at their device size')
         self.assertEqual({font['name'] for font in catalog['fonts']},
-                         {'LilitaOne-Regular', 'Fredoka-SemiBold', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular',
+                         {'NotoSansSymbols2-Regular', 'NotoSansMath-Regular',
                           'Fraunces-650', 'Nunito-700', 'Nunito-800', 'Nunito-900', 'Nunito-1000'})
-        body = next(font for font in catalog['fonts'] if font['name'] == 'Fredoka-SemiBold')
+        body = next(font for font in catalog['fonts'] if font['name'] == 'Nunito-700')
         settings = (imports.PROJECT / 'Assets/TextMesh Pro/Resources/TMP Settings.asset').read_text()
         self.assertIn('m_defaultFontAsset: {fileID: 1, guid: ' + body['fontAssetGuid'], settings)
 

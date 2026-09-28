@@ -117,6 +117,7 @@ FONTS = PROJECT / "tools/font_sources"
 ART = PROJECT / "Assets/ZKube/Art"
 GENERATED = ART / "Generated"
 RESOURCE = "Resources/ZKube"
+GUARDIAN_TEXTURE = 768
 GUID_NAMESPACE = uuid.UUID("d72898c9-d549-58e7-aace-58e1d6058843")
 
 
@@ -163,6 +164,10 @@ def asset_plan():
                 destination = GENERATED / "Sprites" / scope / f"{name}.png"
                 entry.update(kind="sprite", width=width, height=height,
                              atlas=f"ZKube/Atlases/{scope}", sprite=name)
+                # Guardian frames are painted at 1536 px; the largest drawing
+                # (about 180 dp on the talk rail) needs half of that on device.
+                if local.parts[0] == "boss":
+                    entry["maxTextureSize"] = GUARDIAN_TEXTURE
             else:
                 destination = GENERATED / RESOURCE / "Audio" / scope / f"{name}.mp3"
                 entry.update(kind="audio", resource=f"ZKube/Audio/{scope}/{name}",

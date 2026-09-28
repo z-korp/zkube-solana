@@ -31,15 +31,18 @@ namespace ZKube.Presentation
         private readonly Dictionary<string, Color> tokens = new Dictionary<string, Color>();
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<string, Color> colors = new Dictionary<string, Color>();
-        public TMP_FontAsset Display { get; private set; }
-        public TMP_FontAsset Body { get; private set; }
+        private readonly Dictionary<SkinUi.Type, TMP_FontAsset> fonts = new Dictionary<SkinUi.Type, TMP_FontAsset>();
+        public TMP_FontAsset Font(SkinUi.Type type) => fonts.TryGetValue(type, out var font) ? font
+            : throw new InvalidOperationException("Load the realm before using its fonts");
         public byte RealmId { get; private set; }
         public string ThemeId { get; private set; }
         public string GuardianName { get; private set; }
+        // The guardian's rail line, a fraction of its canvas from the top.
+        public float GuardianRailY { get; private set; }
         public string LevelMusicResource { get; private set; }
         private bool disposed;
         public string Title(BoardSession session) => !string.IsNullOrEmpty(session?.Title) ? session.Title :
-            GuardianName + (session == null ? "" : session.Daily ? " · DAILY" : " · CAMPAIGN");
+            GuardianName + (session == null ? "" : session.Daily ? " · Daily" : " · Campaign");
         public IEnumerator Load(byte realmId)
         {
             if (disposed) throw new ObjectDisposedException(nameof(BoardArt));
@@ -52,7 +55,10 @@ namespace ZKube.Presentation
                 throw new InvalidOperationException("Imported realm identity is incomplete");
             var music = theme.audio?.SingleOrDefault(value => value.context == "level")
                 ?? throw new InvalidOperationException("Imported realm level music is missing");
+            if (theme.guardian == null || !(theme.guardian.railY > 0 && theme.guardian.railY < 1))
+                throw new InvalidOperationException("Imported guardian has no rail line");
             RealmId = realmId; ThemeId = theme.id; GuardianName = theme.guardianName; LevelMusicResource = music.resource;
+            GuardianRailY = theme.guardian.railY;
             foreach (var swatch in theme.rgba)
                 colors[swatch.name] = new Color(swatch.value[0], swatch.value[1], swatch.value[2], swatch.value[3]);
             var selected = realmLoad = AcquireAtlas("ZKube/Atlases/" + ThemeId);
@@ -77,9 +83,10 @@ namespace ZKube.Presentation
             skinRealm = realmSkin.Request.asset as SpriteAtlas;
             skinUi = skinUiLoad.Request.asset as SpriteAtlas;
             if (skinRealm == null || skinUi == null) throw new InvalidOperationException("Prepare the bundled skin atlases before opening the page");
-            if (Display == null) Display = Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular");
-            if (Body == null) Body = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold");
-            if (atlas == null || common == null || Display == null || Body == null)
+            foreach (global::ZKube.Presentation.SkinUi.Type type in Enum.GetValues(typeof(global::ZKube.Presentation.SkinUi.Type)))
+                if (!fonts.ContainsKey(type) && Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + global::ZKube.Presentation.SkinUi.FontName(type)) is TMP_FontAsset font)
+                    fonts.Add(type, font);
+            if (atlas == null || common == null || fonts.Count != Enum.GetValues(typeof(global::ZKube.Presentation.SkinUi.Type)).Length)
                 throw new InvalidOperationException("Prepare the bundled realm atlas and TMP fonts before opening the board");
 
         }

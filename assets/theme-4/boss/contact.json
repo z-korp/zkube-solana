@@ -1,0 +1,62 @@
+{
+  "canvas_px": [
+    1536,
+    1536
+  ],
+  "frame_names": [
+    "idle",
+    "blink",
+    "talk-mid",
+    "talk-open",
+    "greeting",
+    "satisfied",
+    "surprised",
+    "celebrate",
+    "defeated",
+    "portrait"
+  ],
+  "representation": "full-frame-behind-rail",
+  "body": "body.png",
+  "paws": "paws.png",
+  "rail_y_px": 1280,
+  "rail_front_y_px": 1330,
+  "paw_anchor_rects": [
+    {
+      "side": "left",
+      "rect_px": [
+        143,
+        1240,
+        555,
+        160
+      ]
+    },
+    {
+      "side": "right",
+      "rect_px": [
+        839,
+        1240,
+        554,
+        160
+      ]
+    }
+  ],
+  "draw_order": [
+    "selected full frame (except portrait)",
+    "rail or board frame",
+    "contact shadow from paws alpha",
+    "paws.png"
+  ],
+  "frame_overrides": {},
+  "portrait": {
+    "file": "portrait.png",
+    "opening_to_canvas_ratio": 0.725,
+    "opening_center_px": [
+      768,
+      768
+    ],
+    "opening_diameter_px": 1114
+  },
+  "hud_width_dp": 168,
+  "dialogue_width_dp": 180,
+  "body_motion": "none; only pixels inside the recorded face mask change"
+}

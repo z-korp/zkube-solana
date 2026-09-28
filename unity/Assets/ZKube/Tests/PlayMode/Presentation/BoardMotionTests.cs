@@ -53,7 +53,7 @@ namespace ZKube.Presentation.Tests
             !(step.operation == ZKube.Core.Generated.NativeOperation.Finish && step.reason != 3));
         private Dictionary<int, SpriteRenderer> Blocks() => (Dictionary<int, SpriteRenderer>)typeof(BoardView)
             .GetField("blocks", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board.View);
-        private Image Guardian() => board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Calm realm guardian");
+        private SpriteRenderer Guardian() => board.View.GetComponentsInChildren<SpriteRenderer>().Single(sprite => sprite.name == "Calm realm guardian");
 
         // Every visible block rests exactly on its native cell, at its full size and colour.
         private void AssertResting()
@@ -64,8 +64,8 @@ namespace ZKube.Presentation.Tests
             foreach (var pair in Blocks())
             {
                 var size = pair.Value.bounds.size;
-                Assert.AreEqual(grid[pair.Key] * cell - 2, size.x, .05f, pair.Value.name + " keeps no squash");
-                Assert.AreEqual(cell - 2, size.y, .05f, pair.Value.name + " keeps no squash");
+                Assert.AreEqual(grid[pair.Key] * cell - .06f * cell, size.x, .05f, pair.Value.name + " keeps no squash");
+                Assert.AreEqual(.94f * cell, size.y, .05f, pair.Value.name + " keeps no squash");
                 Assert.AreEqual(Color.white, pair.Value.color, pair.Value.name + " is fully drawn");
             }
         }
@@ -106,12 +106,14 @@ namespace ZKube.Presentation.Tests
         [UnityTest] public IEnumerator ReducedMotionThrowsNoParticlesKeepsTheGuardianStillAndSettles()
         {
             yield return Load("balam-combo-2", true);
+            var guardianScale = Guardian().transform.localScale; var guardianPosition = Guardian().transform.position;
             for (int i = 0; i < Inputs(); i++)
             {
                 yield return evidence.PlayNextInput();
                 yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 AssertResting();
-                Assert.AreEqual(Vector3.one, Guardian().rectTransform.localScale, "Reduced motion does not breathe or bounce");
+                Assert.AreEqual(guardianScale, Guardian().transform.localScale, "Reduced motion does not breathe or bounce");
+                Assert.AreEqual(guardianPosition, Guardian().transform.position, "The guardian's body never moves");
             }
             Assert.AreEqual(0, board.View.Effects.Created, "Reduced motion throws no particles");
         }
@@ -181,9 +183,12 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-campaign", false);
             var star = board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Star 0 glyph");
             var origin = star.rectTransform.anchoredPosition;
+            var position = Guardian().transform.position; var scale = Guardian().transform.localScale;
             board.View.Celebrate(0, 1, 0, false);
-            yield return Seconds(.15f);
-            Assert.Greater(star.rectTransform.localScale.x, 1.05f, "A newly earned star pops");
+            yield return Seconds(.1f);
+            Assert.Less(star.rectTransform.localScale.x, .7f, "The star waits for the trail of light from its counter");
+            yield return Seconds(.4f);
+            Assert.Greater(star.rectTransform.localScale.x, 1.05f, "A newly earned star ignites");
             Assert.AreEqual("boss__celebrate", Guardian().sprite.name.Replace("(Clone)", ""));
             yield return Seconds(1);
             Assert.AreEqual(Vector3.one, star.rectTransform.localScale);
@@ -194,7 +199,8 @@ namespace ZKube.Presentation.Tests
             board.View.Celebrate(0, 2, 0, false);
             yield return Seconds(.15f);
             Assert.AreEqual(Vector3.one, board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Star 1 glyph").rectTransform.localScale);
-            Assert.AreEqual(Vector3.one, Guardian().rectTransform.localScale);
+            Assert.AreEqual(position, Guardian().transform.position, "Reduced motion changes the face, never moves the body");
+            Assert.AreEqual(scale, Guardian().transform.localScale);
         }
     }
 }

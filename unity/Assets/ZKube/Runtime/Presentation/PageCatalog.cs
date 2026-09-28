@@ -46,7 +46,10 @@ namespace ZKube.Presentation
             public AudioEntry[] audio;
             public Point[] campaignPath;
             public PathStyle map;
+            public GuardianContact guardian;
         }
+        // Where the guardian's paws rest, as fractions of its square canvas from the top.
+        [Serializable] public sealed class GuardianContact { public float railY, railFrontY; }
         public static PageCatalog Load()
         {
             if (cached != null) return cached;

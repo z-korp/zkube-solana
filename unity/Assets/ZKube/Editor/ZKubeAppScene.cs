@@ -30,8 +30,8 @@ namespace ZKube.Editor
             }
             else throw new ArgumentException("Unknown application identity", nameof(identity));
             startup.Configuration = new AppStartupConfiguration { Identity = product,
-                DisplayFont = Load<TMP_FontAsset>("Assets/ZKube/Art/Generated/Resources/ZKube/Fonts/LilitaOne-Regular.asset"),
-                BodyFont = Load<TMP_FontAsset>("Assets/ZKube/Art/Generated/Resources/ZKube/Fonts/Fredoka-SemiBold.asset") };
+                DisplayFont = Load<TMP_FontAsset>("Assets/ZKube/Art/Generated/Resources/ZKube/Fonts/" + SkinUi.FontName(SkinUi.Type.Number) + ".asset"),
+                BodyFont = Load<TMP_FontAsset>("Assets/ZKube/Art/Generated/Resources/ZKube/Fonts/" + SkinUi.FontName(SkinUi.Type.Body) + ".asset") };
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path));
             if (!EditorSceneManager.SaveScene(scene, Path)) throw new IOException("Could not save the application scene");
         }

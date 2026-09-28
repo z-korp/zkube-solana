@@ -68,6 +68,29 @@ namespace ZKube.Presentation
             }
         }
 
+        // A completed line: a band of light across the row that swells and fades
+        // in 280 ms, before its blocks break. columns is the row's length in cells.
+        public void LineSweep(Vector2 center, float cell, int columns, Color tint)
+        {
+            float now = Time.unscaledTime;
+            Spawn(SkinSlots.FxGlow, center, Vector2.zero, 0, cell, tint, now, .28f, 1.1f, 1.6f, .85f, 0, .25f, 0, 0, (columns + .6f) / 1.1f);
+        }
+
+        // A block a power removed: its light lets go as one slow soft puff and two
+        // motes drifting up, with nothing thrown and nothing burst.
+        public void Release(Vector2 center, int width, float cell, Color tint, int seed)
+        {
+            if (PoolSize - CelebrationReserve - live.Count < 3) return;
+            float now = Time.unscaledTime;
+            Spawn(SkinSlots.FxGlow, center, Vector2.zero, 0, cell, tint, now, .5f, .9f, 1.35f, .45f, 0, .2f, 0, 0, width * .9f);
+            for (int i = 0; i < 2; i++)
+            {
+                var origin = center + Vector2.right * ((Jitter(seed + 3 * i) - .5f) * (width - .3f) * cell);
+                Spawn(SkinSlots.FxSpark, origin, new Vector2((Jitter(seed + i) - .5f) * .3f, .9f + .4f * Jitter(seed + 5 + i)), 0, cell, tint,
+                    now + .05f * i, .7f, .22f, .1f, .8f, 0, .3f, 0, 0, 1);
+            }
+        }
+
         // A celebration: a large glow and ring with shards and sparks all around, for
         // combos and perfect clears. scale grows the whole burst.
         public void Celebrate(Vector2 center, float cell, Color tint, int pieces, float scale)

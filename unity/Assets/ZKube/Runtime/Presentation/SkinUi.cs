@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -25,6 +26,16 @@ namespace ZKube.Presentation
         }
 
         // borderScale draws a sliced piece's ends smaller than authored.
+        // The type roles: Fraunces for titles, Nunito for everything else, by weight.
+        public enum Type { Title, Number, Label, Caption, Body }
+        public static string FontName(Type type) => type switch
+        {
+            Type.Title => "Fraunces-650", Type.Number => "Nunito-1000", Type.Label => "Nunito-900",
+            Type.Caption => "Nunito-800", _ => "Nunito-700",
+        };
+        // Callers that only distinguish display text get numbers and plain text.
+        private static Type Role(bool display) => display ? Type.Number : Type.Body;
+
         public Image Piece(string name, string slot, Rect rect, Transform parent, float borderScale = 1)
         {
             var image = Rect<Image>(name, rect, parent);
@@ -35,39 +46,80 @@ namespace ZKube.Presentation
         }
 
         public TMP_Text Label(string name, string value, Rect rect, float sizeDp, string token, Transform parent, bool display = false,
+            TextAlignmentOptions alignment = TextAlignmentOptions.Center) =>
+            Label(name, value, rect, sizeDp, token, parent, Role(display), alignment);
+        public TMP_Text Label(string name, string value, Rect rect, float sizeDp, string token, Transform parent, Type type,
             TextAlignmentOptions alignment = TextAlignmentOptions.Center)
         {
             var text = Rect<TextMeshProUGUI>(name, rect, parent);
-            text.font = display ? Art.Display : Art.Body; text.fontSharedMaterial = Styled(text.font, display);
+            text.font = Art.Font(type); text.fontSharedMaterial = Styled(text.font);
             text.text = value; text.fontSize = sizeDp * Density * Scale;
             text.color = Art.Token(token); text.alignment = alignment; text.raycastTarget = false;
             text.enableWordWrapping = true; text.enableAutoSizing = false; text.overflowMode = TextOverflowModes.Overflow;
             return text;
         }
 
-        // An icon button: pressed art swaps on press, the icon sits centred and an
-        // optional count badge sits on the upper right corner.
-        public Button IconButton(string name, Rect rect, string icon, Action action, Transform parent, bool withCount,
-            out Image glyph, out TMP_Text count)
+        // A tablet: the glass square of a power, reroll or utility. Its face swaps
+        // to the pressed art on press; the icon, drawn in light, sits centred.
+        // A counted tablet (a power) wears a charge badge on its upper right and
+        // lights up while charged; an empty one stays visible, unlit, badge 0.
+        public SkinTablet Tablet(string name, Rect rect, string icon, Action action, Transform parent, bool counted)
         {
-            var face = Piece(name, SkinSlots.ButtonIcon, rect, parent); face.raycastTarget = true;
+            var face = Rect<Image>(name, rect, parent);
+            face.sprite = Art.SkinUi(SkinSlots.ButtonIcon); face.raycastTarget = true;
             var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
             face.gameObject.AddComponent<PressSquash>();
             button.transition = Selectable.Transition.SpriteSwap;
             button.spriteState = new SpriteState { pressedSprite = Art.SkinUi(SkinSlots.ButtonIconPressed), disabledSprite = face.sprite };
             button.onClick.AddListener(() => action());
-            float inset = rect.width * .2f;
-            glyph = Piece(name + " icon", icon, new Rect(rect.x + inset, rect.y + inset, rect.width - 2 * inset, rect.height - 2 * inset), face.transform);
-            count = null;
-            if (!withCount) return button;
-            float badge = Mathf.Max(24 * Density, rect.width * .4f);
-            var pipRect = new Rect(rect.xMax - badge * .78f, rect.yMax - badge * .78f, badge, badge);
-            Piece(name + " badge", SkinSlots.Badge, pipRect, face.transform);
-            count = Label(name + " label", "", pipRect, 12, SkinTokens.TextOnPrimary, face.transform, true);
-            return button;
+            float size = rect.width;
+            Image halo = null, badgeHalo = null, badge = null;
+            TMP_Text count = null;
+            if (counted)
+            {
+                halo = Glow(name + " light", new Rect(rect.x + 4 * Density, rect.y + 4 * Density, size - 8 * Density, size - 8 * Density),
+                    WithAlpha(Art.Token(SkinTokens.LightKey), .65f), face.transform, SkinTablet.BreathSeconds);
+            }
+            var glyph = Piece(name + " icon", icon, new Rect(rect.x + size * .24f, rect.y + size * .24f, size * .52f, size * .52f), face.transform);
+            glyph.color = Art.Token(SkinTokens.Text);
+            if (counted)
+            {
+                // The badge is 26 dp, 6 dp above the tablet and 2 dp past its right edge.
+                float pip = 26 * Density;
+                var badgeRect = new Rect(rect.xMax - 24 * Density, rect.yMax + 6 * Density - pip, pip, pip);
+                badgeHalo = Glow(name + " badge light", new Rect(rect.xMax - 28 * Density, rect.yMax + 12 * Density - 38 * Density, 38 * Density, 38 * Density),
+                    WithAlpha(Art.Token(SkinTokens.Accent), .35f), face.transform);
+                badge = Piece(name + " badge", SkinSlots.Badge, badgeRect, face.transform);
+                count = Label(name + " label", "", badgeRect, 14, SkinTokens.TextOnPrimary, face.transform, Type.Number);
+            }
+            var tablet = face.gameObject.AddComponent<SkinTablet>();
+            tablet.Bind(button, glyph, halo, badgeHalo, badge, count, Art.Token(SkinTokens.TextOnPrimary), Art.Token(SkinTokens.Text));
+            return tablet;
+        }
+        public static Color WithAlpha(Color color, float alpha) { color.a = alpha; return color;
+        }
+        public Button IconButton(string name, Rect rect, string icon, Action action, Transform parent, bool withCount,
+            out Image glyph, out TMP_Text count)
+        {
+            var tablet = Tablet(name, rect, icon, action, parent, withCount);
+            glyph = tablet.Icon; count = tablet.Count;
+            return tablet.Button;
         }
 
-        public Button TextButton(string name, Rect rect, string label, Action action, bool primary, Transform parent, out TMP_Text text)
+        // A soft dark patch behind small text laid over the painting, so it reads
+        // without a glowing label. rect is the text's own extent.
+        public Image Underpaint(string name, Rect rect, Transform parent)
+        {
+            float pad = 12 * Density;
+            var patch = Rect<Image>(name, new Rect(rect.x - pad, rect.y - pad * .75f, rect.width + 2 * pad, rect.height + 1.5f * pad), parent);
+            patch.sprite = SoftPatch(); patch.type = Image.Type.Sliced; patch.pixelsPerUnitMultiplier = 24 / (10 * Density);
+            patch.color = new Color(6 / 255f, 17 / 255f, 31 / 255f, .92f); patch.raycastTarget = false;
+            return patch;
+        }
+
+        // A pill: an action with a word, and optionally a leading 24 dp icon.
+        public Button TextButton(string name, Rect rect, string label, Action action, bool primary, Transform parent, out TMP_Text text,
+            string icon = null)
         {
             var face = Piece(name, primary ? SkinSlots.ButtonPrimary : SkinSlots.ButtonSecondary, rect, parent); face.raycastTarget = true;
             var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
@@ -79,21 +131,52 @@ namespace ZKube.Presentation
                 disabledSprite = face.sprite,
             };
             button.onClick.AddListener(() => action());
-            float pad = 10 * Density;
-            text = Label(name + " label", label, new Rect(rect.x + pad, rect.y, rect.width - 2 * pad, rect.height), 15,
-                primary ? SkinTokens.TextOnPrimary : SkinTokens.TextOnSecondary, face.transform, true);
+            float pad = 10 * Density, lead = 0;
+            string ink = primary ? SkinTokens.TextOnPrimary : SkinTokens.TextOnSecondary;
+            if (icon != null)
+            {
+                float size = 24 * Density;
+                Piece(name + " icon", icon, new Rect(rect.x + 22 * Density, rect.center.y - size / 2, size, size), face.transform).color = Art.Token(ink);
+                lead = 24 * Density;
+            }
+            text = Label(name + " label", label, new Rect(rect.x + pad + lead, rect.y, rect.width - 2 * pad - lead, rect.height), ButtonDp,
+                ink, face.transform, Type.Number);
             return button;
         }
 
-        // A round portrait framed by the skin's guardian ring. The portrait is
-        // clipped to the ring's opening, a centred circle 232/320 of the frame.
+        // Every pill label is Nunito Black at 19 dp.
+        public const float ButtonDp = 19;
+
+        // Lights placed by code. Only live, pressable or earned things glow, so
+        // a screen holds at most MaxGlows at once and at most MaxBreathing breathe.
+        public const int MaxGlows = 8, MaxBreathing = 3;
+        private readonly System.Collections.Generic.List<SkinGlow> glows = new System.Collections.Generic.List<SkinGlow>();
+        public int LiveGlows => glows.Count;
+        // tint's alpha is the glow's strength; breathSeconds 0 holds it steady.
+        public Image Glow(string name, Rect rect, Color tint, Transform parent, float breathSeconds = 0)
+        {
+            glows.RemoveAll(glow => glow == null);
+            if (glows.Count >= MaxGlows) throw new InvalidOperationException("A screen shows at most " + MaxGlows + " glows");
+            if (breathSeconds > 0 && glows.Count(glow => glow.Breathing) >= MaxBreathing)
+                throw new InvalidOperationException("At most " + MaxBreathing + " glows breathe on a screen");
+            var image = Rect<Image>(name, rect, parent);
+            image.sprite = Art.SkinUi(SkinSlots.FxGlow); image.raycastTarget = false;
+            var glow = image.gameObject.AddComponent<SkinGlow>();
+            glow.Registry = glows; glows.Add(glow);
+            glow.Bind(image, tint, breathSeconds);
+            return image;
+        }
+
+        // A round portrait framed by the skin's guardian ring. The guardian's
+        // portrait master is painted for the ring's opening, a centred circle
+        // 232/320 of the frame, so it is drawn at the ring's size and clipped there.
         public Image Medallion(string name, Rect rect, Sprite portrait, Transform parent)
         {
             float opening = rect.width * 232f / 320f;
             var clip = Rect<Image>(name + " clip", new Rect(rect.center.x - opening / 2, rect.center.y - opening / 2, opening, opening), parent);
             clip.sprite = Circle(); clip.raycastTarget = false;
             clip.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            var image = Rect<Image>(name, ScreenRect(clip.rectTransform), clip.transform);
+            var image = Rect<Image>(name, rect, clip.transform);
             image.sprite = portrait; image.preserveAspect = true; image.raycastTarget = false;
             Piece(name + " frame", SkinSlots.GuardianFrame, rect, parent);
             return image;
@@ -206,6 +289,7 @@ namespace ZKube.Presentation
             var cells = new Rect[tabs.Length];
             for (int i = 0; i < tabs.Length; i++) cells[i] = new Rect(rect.x + pad + i * width, rect.y + 6 * Density, width, rect.height - 12 * Density);
             var plate = Piece(name + " selected", SkinSlots.TabSelected, cells[0], bar.transform);
+            var icons = new Image[tabs.Length]; var labels = new TMP_Text[tabs.Length];
             for (int i = 0; i < tabs.Length; i++)
             {
                 var (icon, label, action) = tabs[i];
@@ -213,12 +297,12 @@ namespace ZKube.Presentation
                 var hit = Rect<Image>(name + " " + label, cell, bar.transform); hit.color = Color.clear; hit.raycastTarget = true;
                 hit.gameObject.AddComponent<Button>().onClick.AddListener(() => action());
                 float size = cell.height * .45f;
-                Piece(name + " " + label + " icon", icon, new Rect(cell.center.x - size / 2, cell.yMax - 4 * Density - size, size, size), hit.transform);
-                Label(name + " " + label + " label", label, new Rect(cell.x, cell.y, cell.width, cell.height - size - 4 * Density), 12, SkinTokens.Text,
-                    hit.transform, true);
+                icons[i] = Piece(name + " " + label + " icon", icon, new Rect(cell.center.x - size / 2, cell.yMax - 4 * Density - size, size, size), hit.transform);
+                labels[i] = Label(name + " " + label + " label", label, new Rect(cell.x, cell.y, cell.width, cell.height - size - 4 * Density), 11, SkinTokens.Text,
+                    hit.transform, Type.Label);
             }
             var tabBar = bar.gameObject.AddComponent<SkinTabBar>();
-            tabBar.Bind(cells, plate.rectTransform, selected);
+            tabBar.Bind(cells, plate.rectTransform, selected, icons, labels, Art.Token(SkinTokens.TextOnPrimary), Art.Token(SkinTokens.Text));
             return tabBar;
         }
 
@@ -230,45 +314,83 @@ namespace ZKube.Presentation
             return go.GetComponent<T>();
         }
 
-        public float TextHeight(string value, float width, float sizeDp, bool display)
+        public float TextHeight(string value, float width, float sizeDp, bool display) => TextHeight(value, width, sizeDp, Role(display));
+        public float TextHeight(string value, float width, float sizeDp, Type type)
         {
-            var probe = Probe(display, sizeDp);
+            var probe = Probe(type, sizeDp);
             try { return Mathf.Ceil(probe.GetPreferredValues(value, width, float.PositiveInfinity).y) + 2 * Density; }
             finally { UnityEngine.Object.Destroy(probe.gameObject); }
         }
-        public float TextWidth(string value, float sizeDp, bool display)
+        public float TextWidth(string value, float sizeDp, bool display) => TextWidth(value, sizeDp, Role(display));
+        public float TextWidth(string value, float sizeDp, Type type)
         {
-            var probe = Probe(display, sizeDp);
+            var probe = Probe(type, sizeDp);
             try { return Mathf.Ceil(probe.GetPreferredValues(value, float.PositiveInfinity, float.PositiveInfinity).x) + 2 * Density; }
             finally { UnityEngine.Object.Destroy(probe.gameObject); }
         }
-        private TextMeshProUGUI Probe(bool display, float sizeDp)
+        // How many lines value wraps to at width.
+        public int Lines(string value, float width, float sizeDp, Type type)
+        {
+            // Preferred height is one line box plus one line advance per extra line.
+            var probe = Probe(type, sizeDp);
+            try
+            {
+                var face = probe.font.faceInfo;
+                float em = probe.fontSize / face.pointSize, first = (face.ascentLine - face.descentLine) * em, advance = face.lineHeight * em;
+                float height = probe.GetPreferredValues(value, width, float.PositiveInfinity).y;
+                return Mathf.Max(1, 1 + Mathf.RoundToInt((height - first) / advance));
+            }
+            finally { UnityEngine.Object.Destroy(probe.gameObject); }
+        }
+        // The extra spacing that makes a line advance leading em, in TMP's units.
+        public static float LineSpacing(TMP_FontAsset font, float leading) =>
+            (leading - font.faceInfo.lineHeight / font.faceInfo.pointSize) * 100;
+        private TextMeshProUGUI Probe(Type type, float sizeDp)
         {
             var go = new GameObject("Temporary TMP layout measurement", typeof(RectTransform), typeof(TextMeshProUGUI));
             go.hideFlags = HideFlags.HideAndDontSave;
             var text = go.GetComponent<TextMeshProUGUI>();
             text.enableAutoSizing = false; text.enableWordWrapping = true;
-            text.font = display ? Art.Display : Art.Body; text.fontSize = sizeDp * Density * Scale;
+            text.font = Art.Font(type); text.fontSize = sizeDp * Density * Scale;
             return text;
         }
 
-        // Game text: display type gets a dark outline and a drop shadow, body type a
-        // soft shadow. One shared material per font keeps text batched.
+        // Game text gets a soft shadow, never an outline or a glow. One shared
+        // material per font keeps text batched.
         private readonly System.Collections.Generic.Dictionary<TMP_FontAsset, Material> styles =
             new System.Collections.Generic.Dictionary<TMP_FontAsset, Material>();
-        private Material Styled(TMP_FontAsset font, bool display)
+        private Material Styled(TMP_FontAsset font)
         {
             if (styles.TryGetValue(font, out var material)) return material;
             material = new Material(font.material) { name = font.name + " game style" };
-            material.SetFloat(ShaderUtilities.ID_OutlineWidth, display ? .22f : 0);
-            material.SetColor(ShaderUtilities.ID_OutlineColor, new Color(.05f, .07f, .06f, .85f));
+            material.SetFloat(ShaderUtilities.ID_OutlineWidth, 0);
             material.EnableKeyword(ShaderUtilities.Keyword_Underlay);
-            material.SetColor(ShaderUtilities.ID_UnderlayColor, new Color(0, 0, 0, display ? .6f : .45f));
-            material.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, display ? -.9f : -.6f);
-            material.SetFloat(ShaderUtilities.ID_UnderlaySoftness, .2f);
-            material.SetFloat(ShaderUtilities.ID_UnderlayDilate, display ? .25f : 0);
+            material.SetColor(ShaderUtilities.ID_UnderlayColor, new Color(0, .02f, .05f, .55f));
+            material.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, -.6f);
+            material.SetFloat(ShaderUtilities.ID_UnderlaySoftness, .35f);
+            material.SetFloat(ShaderUtilities.ID_UnderlayDilate, .1f);
             styles.Add(font, material);
             return material;
+        }
+
+        private Sprite softPatch;
+        private Texture2D softPatchTexture;
+        // A rounded patch whose edge fades over its outer 24 of 64 pixels.
+        private Sprite SoftPatch()
+        {
+            if (softPatch != null) return softPatch;
+            const int size = 64, edge = 24;
+            softPatchTexture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Max(0, Mathf.Abs(x + .5f - size / 2f) - (size / 2f - edge));
+                float dy = Mathf.Max(0, Mathf.Abs(y + .5f - size / 2f) - (size / 2f - edge));
+                float t = Mathf.Clamp01(1 - Mathf.Sqrt(dx * dx + dy * dy) / edge);
+                softPatchTexture.SetPixel(x, y, new Color(1, 1, 1, t * t * (3 - 2 * t)));
+            }
+            softPatchTexture.Apply();
+            return softPatch = Sprite.Create(softPatchTexture, new Rect(0, 0, size, size), Vector2.one / 2, 100, 0, SpriteMeshType.FullRect,
+                new Vector4(edge, edge, edge, edge));
         }
 
         private Sprite Circle()
@@ -291,6 +413,8 @@ namespace ZKube.Presentation
             styles.Clear();
             if (circle != null) UnityEngine.Object.Destroy(circle);
             if (circleTexture != null) UnityEngine.Object.Destroy(circleTexture);
+            if (softPatch != null) UnityEngine.Object.Destroy(softPatch);
+            if (softPatchTexture != null) UnityEngine.Object.Destroy(softPatchTexture);
         }
 
         public static void Place(RectTransform target, Rect screen, Transform parent)

@@ -77,10 +77,13 @@ namespace ZKube.Presentation.Tests
                 evidence.Load("realm-" + theme.realmId + "-daily"); yield return Ready();
                 Assert.AreEqual(theme.realmId, board.Session.RealmId); Assert.AreEqual(theme.realmId, ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId);
                 Assert.AreEqual(theme.id, ZKube.Tests.Presentation.BoardTestState.Art(board).ThemeId);
-                var guardian = board.View.GetComponentsInChildren<Image>().Single(value => value.name == "Calm realm guardian");
-                Assert.IsNotNull(guardian.sprite); Assert.AreEqual("boss__idle", guardian.sprite.name.Replace("(Clone)", ""));
+                var guardian = board.View.GetComponentsInChildren<SpriteRenderer>().Single(value => value.name == "Calm realm guardian");
+                Assert.IsNotNull(guardian.sprite); StringAssert.IsMatch("^boss__(idle|blink)$", guardian.sprite.name.Replace("(Clone)", ""));
+                var paws = board.View.GetComponentsInChildren<SpriteRenderer>().Single(value => value.name == "Guardian paws");
+                Assert.AreEqual("boss__paws", paws.sprite.name.Replace("(Clone)", ""));
+                Assert.AreEqual(guardian.bounds, paws.bounds, "The paws layer shares the guardian's canvas");
                 var label = board.View.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Run title");
-                Assert.AreEqual((theme.guardianName + " · DAILY").ToUpperInvariant(), label.text);
+                Assert.AreEqual(theme.guardianName + " · Daily", label.text);
                 if (font == null) font = label.font; else Assert.AreSame(font, label.font, "Shared font survives realm switches");
                 var music = root.GetComponents<AudioSource>().Single(value => value.loop);
                 var expected = Resources.Load<AudioClip>("ZKube/Audio/" + theme.id + "/sounds__musics__level");
@@ -126,7 +129,7 @@ namespace ZKube.Presentation.Tests
             yield return boardArt.Load(8); var sharedAtlas = request.asset;
             string realmPath = "ZKube/Atlases/" + boardArt.ThemeId;
             Assert.AreEqual(2, AtlasOwners(realmPath), "Only page + board own the test atlas");
-            var font = boardArt.Body;
+            var font = boardArt.Font(SkinUi.Type.Body);
             yield return pageArt.Load(2); yield return null;
             Assert.AreEqual(1, AtlasOwners(realmPath), "The board retains the sole old-realm lease after page navigation");
             Assert.IsTrue(sharedAtlas != null, "The board still owns Balam's atlas");
@@ -137,7 +140,7 @@ namespace ZKube.Presentation.Tests
             var uncached = common.GetSprite("bonus__tiki");
             Assert.IsNotNull(uncached, "Common atlas ownership survives a fresh sprite lookup too");
             UnityEngine.Object.Destroy(uncached);
-            Assert.AreSame(font, boardArt.Body);
+            Assert.AreSame(font, boardArt.Font(SkinUi.Type.Body));
             Assert.AreNotEqual(IntPtr.Zero, NativeAtlasPointer(sharedAtlas), "The final owner still holds a loaded native atlas");
             boardArt.Dispose();
             Assert.AreEqual(0, AtlasOwners(realmPath), "Last release removes the shared lease");

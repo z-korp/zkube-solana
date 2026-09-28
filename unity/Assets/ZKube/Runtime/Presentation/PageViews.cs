@@ -215,7 +215,7 @@ namespace ZKube.Presentation
         {
             var realm = catalog.Realm(value.Realm);
             var card = column.Card("Daily card", "TODAY'S DAILY");
-            card.Medallion("Daily guardian", ui.Art.Sprite("boss__idle"), 84, 6);
+            card.Medallion("Daily guardian", ui.Art.Sprite("boss__portrait"), 84, 6);
             card.Text("Daily guardian name", realm.guardianName, 26, SkinTokens.Text, true, 4);
             card.Text("Daily objective", Sentence(catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).description), 17, SkinTokens.Text, false, 6);
             if (value.ClosesAt > 0 && value.Now != null)
@@ -334,7 +334,7 @@ namespace ZKube.Presentation
             var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
             if (guardian)
             {
-                var portrait = ui.Medallion(name + " guardian", rect, ui.Art.Sprite("boss__idle"), hit.transform);
+                var portrait = ui.Medallion(name + " guardian", rect, ui.Art.Sprite("boss__portrait"), hit.transform);
                 if (!open && !done)
                 {
                     portrait.color = new Color(.45f, .45f, .45f, 1);
@@ -412,12 +412,11 @@ namespace ZKube.Presentation
             float bottom = centred ? Mathf.Max(floor + 8 * d, (headerBottom + floor) / 2 - height / 2) : floor + 10 * d;
             holder.anchoredPosition += new Vector2(0, bottom - outer.Top);
         }
-        private static string Number(byte realm, byte level) =>
-            ((realm - 1) * Protocol.CampaignTargets.Length + level).ToString(CultureInfo.InvariantCulture);
+        private static string Number(byte realm, byte level) => HudLayout.LevelNumber(realm, level);
 
         private void Profile(ProfilePageView value)
         {
-            column.Medallion("Worn emblem", ui.Art.Sprite("boss__idle"), 96, 8);
+            column.Medallion("Worn emblem", ui.Art.Sprite("boss__portrait"), 96, 8);
             float d = ui.Density;
             if (value.ChangeName == null) column.Text("Player name", value.Name, 26, SkinTokens.Text, true, 10);
             else
@@ -534,7 +533,7 @@ namespace ZKube.Presentation
             }
             var realm = catalog.Realm(value.Realm);
             var card = column.Card("Result card");
-            card.Medallion("Result guardian", ui.Art.Sprite("boss__idle"), 88, 6);
+            card.Medallion("Result guardian", ui.Art.Sprite("boss__portrait"), 88, 6);
             card.Text("Result guardian name", realm.guardianName, 24, SkinTokens.Text, true, 10);
             card.Text("Score caption", "SCORE", 15, SkinTokens.Text, false, 0);
             card.Text("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), 44, SkinTokens.Score, true, 12);

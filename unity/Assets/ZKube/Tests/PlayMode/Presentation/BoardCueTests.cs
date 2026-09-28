@@ -167,8 +167,8 @@ namespace ZKube.Presentation.Tests
                     {
                         var min = cue.rectTransform.TransformPoint(character.bottomLeft);
                         var max = cue.rectTransform.TransformPoint(character.topRight);
-                        Assert.IsTrue(Bounds(cue).Contains((Vector2)min), "Measured allowance contains each visible glyph");
-                        Assert.IsTrue(Bounds(cue).Contains((Vector2)max), "Long native-width amount must not overflow");
+                        Assert.IsTrue(Bounds(cue).Contains((Vector2)min), "Measured allowance contains each visible glyph: " + cue.name + " '" + character.character + "' " + min + " in " + Bounds(cue));
+                        Assert.IsTrue(Bounds(cue).Contains((Vector2)max), "Long native-width amount must not overflow: " + cue.name + " '" + character.character + "' " + max + " in " + Bounds(cue));
                     }
                 }
                 while (cues.Any(t => t != null))
