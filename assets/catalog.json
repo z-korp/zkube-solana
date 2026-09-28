@@ -483,17 +483,17 @@
       "guardianName": "Balam",
       "guardianTitle": "The Jungle Jaguar",
       "guardianLines": {
-        "greeting": "Three heads, one hunt. Feed us whole rows, not scraps.",
-        "dailyGreeting": "The jungle offers its three gifts to all today. Use them wisely, others won't hesitate.",
+        "greeting": "One hunt, one breath. Feed the jungle whole rows, not scraps.",
+        "dailyGreeting": "The jungle offers the same gifts to all today. Use them wisely, others won't hesitate.",
         "encouragement": "The ritual demands everything. Give it all.",
-        "trialIntro": "Three eyes open. Three powers converge. Survive the jaguar's gaze.",
+        "trialIntro": "The third eye opens. The jungle's powers converge. Survive the jaguar's gaze.",
         "respectLine": "The jungle accepts you as one of its own. Walk unseen.",
         "oneStar": "The ritual was... adequate. The jungle expects more.",
         "twoStar": "The spirits stir. Your offering pleases them.",
         "threeStar": "A perfect ritual. The jungle sings your name.",
         "incomplete": "The ritual failed. The spirits turn away. Begin anew.",
-        "defeatLine": "Three eyes close... the jungle sleeps for you.",
-        "newBestLine": "...Three eyes widen. The jungle will remember this."
+        "defeatLine": "The jaguar's eyes close... the jungle sleeps for you.",
+        "newBestLine": "...The jaguar's eyes widen. The jungle will remember this."
       },
       "background": "#0A1A0A",
       "accent": "#4CAF50",
