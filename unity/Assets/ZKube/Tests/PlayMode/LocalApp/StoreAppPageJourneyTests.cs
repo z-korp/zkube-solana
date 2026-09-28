@@ -31,8 +31,9 @@ namespace ZKube.Tests
             public event Action<string, bool> PurchaseConfirmed;
             public event Action<string> QueryFailed;
             public event Action Disconnected;
+            public string Failure;
             public Task Connect() => Task.CompletedTask;
-            public void FetchProduct() => ProductFetched?.Invoke("€4.99");
+            public void FetchProduct() { if (Failure != null) QueryFailed?.Invoke(Failure); else ProductFetched?.Invoke("€4.99"); }
             public void FetchPurchases() => PurchasesFetched?.Invoke(Array.Empty<CampaignOrder>());
             public void Purchase() => Assert.Fail("This UI journey must never invoke a purchase");
             public void Confirm(CampaignOrder _) => Assert.Fail("This UI journey must never acknowledge a purchase");
@@ -188,8 +189,36 @@ namespace ZKube.Tests
             Assert.That(board.gameObject.activeSelf, Is.False); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
             Assert.That(app.Flow.LastCampaign, Is.Null);
             Click(app, "Daily"); yield return Page(StorePage.Daily);
-            Assert.That(FindButton(app, "View result").interactable, Is.True);
+            // A used Daily says when the next one opens where Play was, never a
+            // greyed-out Play; the result stays one tap away as the secondary.
+            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Play today")), Is.False);
+            Assert.That(Texts(), Does.Contain("Next Daily in 24:00:00"));
+            var result = FindButton(app, "View result");
+            Assert.That(result.interactable, Is.True);
+            Assert.That(result.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonSecondary));
         }
+        // A store that cannot be reached at startup does not greet the player on
+        // the Daily; its notice appears where purchase and restore are.
+        [UnityTest] public IEnumerator StartupStoreFailureStaysOffTheDailyAndShowsWithRestore()
+        {
+            UnityEngine.Object.Destroy(app.gameObject); yield return null; billing.Dispose();
+            billing = new CampaignBilling(new Driver { Failure = "Purchases are unavailable" },
+                () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
+            var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
+            app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board);
+            yield return Wait(() => app.Flow.BillingNotice == "Purchases are unavailable" && !billing.Busy, "Startup store query did not fail");
+            yield return Page(StorePage.Daily);
+            Assert.That(app.Flow.Error, Is.Null);
+            Assert.That(Texts(), Does.Not.Contain("Purchases are unavailable"));
+            Assert.That(FindButton(app, "Play today").interactable, Is.True);
+            Click(app, "Profile"); yield return Page(StorePage.Profile);
+            Click(app, "Restore purchases");
+            yield return Wait(() => app.Flow.BillingNotice == "Purchases are unavailable" && !billing.Busy, "Restore did not report the store failure");
+            yield return Page(StorePage.Profile);
+            Assert.That(Texts(), Does.Contain("Purchases are unavailable"));
+        }
+        private Button[] Buttons() => app.GetComponentsInChildren<Button>().Where(value => value.gameObject.activeInHierarchy).ToArray();
+        private string[] Texts() => app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy).Select(text => text.text).ToArray();
         [UnityTest] public IEnumerator CampaignPageHasAuthoredNodesAndRealPreviewHandler()
         {
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
@@ -248,9 +277,28 @@ namespace ZKube.Tests
             var summary = app.CampaignSummary();
             Assert.That(summary.Realm, Is.EqualTo(3)); Assert.That(summary.Stars, Is.Zero);
             yield return Page(StorePage.Daily);
-            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "REALM 3 / 10"), Is.True);
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Realm 3 / 10"), Is.True);
+            Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite.name, Does.StartWith("brand__realms"));
             Click(app, "Explore map"); yield return Page(StorePage.Campaign);
             Assert.That(app.Flow.Realm, Is.EqualTo(3));
+        }
+        // A page change fades the old page out without taking input, raises the
+        // new one within the spec's budget, and leaves the tab bar where it was.
+        [UnityTest] public IEnumerator PageChangeLeavesWithoutInputEntersInBudgetAndKeepsTheTabBarStill()
+        {
+            typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
+            var shell = app.GetComponent<PageShell>();
+            var stage = shell.Overlay.parent.GetComponent<CanvasGroup>();
+            var bar = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
+            Assert.That(shell.Chrome.IsChildOf(stage.transform), Is.False);
+            Click(app, "Profile"); yield return null;
+            Assert.That(stage.blocksRaycasts, Is.False);
+            yield return null; Assert.That(stage.alpha, Is.LessThan(1));
+            float start = Time.unscaledTime;
+            yield return Page(StorePage.Profile);
+            yield return Wait(() => stage.alpha == 1 && stage.blocksRaycasts && ((RectTransform)stage.transform).anchoredPosition.y == 0, "The page did not settle");
+            Assert.That(Time.unscaledTime - start, Is.LessThan(PageShell.LeaveSeconds + PageShell.GlowSeconds + .2f));
+            Assert.That(SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform), Is.EqualTo(bar));
         }
         private Button[] Nodes() => app.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Trial ")).ToArray();
         // Each node shows its level number on one line, inside the node's touch

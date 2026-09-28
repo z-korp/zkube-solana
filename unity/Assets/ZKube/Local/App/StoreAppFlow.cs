@@ -172,7 +172,9 @@ namespace ZKube.Local.App
             }
             catch (OperationCanceledException)
             { if (Current(request)) BillingNotice = Billing.Busy ? "The store operation is still in progress." : "Purchase cancelled"; }
-            catch (Exception error) { if (Current(request)) { Error = error.Message; BillingNotice = null; } }
+            // A store failure is a billing notice: it shows where purchase and
+            // restore are, never on the Daily the app opens on.
+            catch (Exception error) { if (Current(request)) BillingNotice = error.Message; }
             finally { if (Current(request)) Changed?.Invoke(); }
         }
         public void Report(Exception error) { if (!disposed) { Error = error.Message; Changed?.Invoke(); } }

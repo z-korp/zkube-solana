@@ -251,7 +251,12 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
             objective(theme)).collect::<Vec<_>>(),
         "effects": effects,
-        "commonImages": {"mark": "/assets/common/mark.png"},
+        // The product wordmarks; each identity's pages draw their own.
+        "commonImages": {
+            "mark": "/assets/common/mark.png",
+            "wordmark-realms": "/assets/common/brand/realms.png",
+            "wordmark-arena": "/assets/common/brand/arena.png",
+        },
         "skins": super::skins::render(root, &authored, realms.len())?,
     });
     serde_json::to_string_pretty(&output)

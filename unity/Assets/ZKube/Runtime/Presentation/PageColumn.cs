@@ -45,6 +45,7 @@ namespace ZKube.Presentation
     {
         public const float ButtonDp = 56, RowDp = 52;
         public readonly SkinUi Ui;
+        public readonly PageType Type;
         public readonly Transform Parent;
         public readonly PageActions Actions;
         public readonly float Left, Width;
@@ -52,28 +53,32 @@ namespace ZKube.Presentation
         private PageColumn outer;
         private string name, heading;
         private int sibling;
+        private float bottomInset;
         private float D => Ui.Density;
 
-        public PageColumn(SkinUi ui, Transform parent, PageActions actions, float left, float width, float top)
-        { Ui = ui; Parent = parent; Actions = actions; Left = left; Width = width; Top = top; }
+        public PageColumn(SkinUi ui, PageType type, Transform parent, PageActions actions, float left, float width, float top)
+        { Ui = ui; Type = type; Parent = parent; Actions = actions; Left = left; Width = width; Top = top; }
 
         public Rect Take(float height, float gapDp = 10)
         { var rect = new Rect(Left, Top - height, Width, height); Top -= height + gapDp * D; return rect; }
         public void Gap(float dp) => Top -= dp * D;
 
         public TMP_Text Text(string name, string value, float sizeDp, string token, bool display = false, float gapDp = 6,
+            TextAlignmentOptions alignment = TextAlignmentOptions.Center) =>
+            Typed(name, value, display ? TypeRole.Title : TypeRole.Body, sizeDp, token, gapDp, alignment);
+        public TMP_Text Typed(string name, string value, TypeRole role, float sizeDp, string token, float gapDp = 6,
             TextAlignmentOptions alignment = TextAlignmentOptions.Center)
         {
-            float height = Ui.TextHeight(value, Width, sizeDp, display);
-            return Ui.Label(name, value, Take(height, gapDp), sizeDp, token, Parent, display, alignment);
+            float height = Type.Height(value, Width, role, sizeDp);
+            return Type.Label(name, value, Take(height, gapDp), role, sizeDp, token, Parent, alignment);
         }
 
-        public Button Button(PageAction action, bool primary, float gapDp = 12, float sizeDp = 18)
+        public Button Button(PageAction action, bool primary, float gapDp = 12, float sizeDp = 19)
         {
             if (action == null) return null;
-            float height = Mathf.Max(ButtonDp * D, Ui.TextHeight(action.Label, Width - 20 * D, sizeDp, true) + 24 * D);
+            float height = Mathf.Max(ButtonDp * D, Type.Height(action.Label, Width - 20 * D, TypeRole.Button, sizeDp) + 24 * D);
             var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), action.Label, Actions.Click(action), primary, Parent, out var text);
-            text.fontSize = sizeDp * D * Ui.Scale;
+            Type.Apply(text, TypeRole.Button); text.fontSize = sizeDp * D * Ui.Scale;
             return Actions.Bind(button, action);
         }
 
@@ -82,12 +87,12 @@ namespace ZKube.Presentation
         {
             if (left == null || right == null) { Button(left ?? right, false, gapDp); return; }
             float gap = 10 * D, half = (Width - gap) / 2;
-            float height = Mathf.Max(ButtonDp * D, Mathf.Max(Ui.TextHeight(left.Label, half - 20 * D, 17, true), Ui.TextHeight(right.Label, half - 20 * D, 17, true)) + 24 * D);
+            float height = Mathf.Max(ButtonDp * D, Mathf.Max(Type.Height(left.Label, half - 20 * D, TypeRole.Button, 17), Type.Height(right.Label, half - 20 * D, TypeRole.Button, 17)) + 24 * D);
             var rect = Take(height, gapDp);
             foreach (var (action, x) in new[] { (left, rect.x), (right, rect.x + half + gap) })
             {
                 var button = Ui.TextButton(action.Name ?? action.Label, new Rect(x, rect.y, half, height), action.Label, Actions.Click(action), false, Parent, out var text);
-                text.fontSize = 17 * D * Ui.Scale; Actions.Bind(button, action);
+                Type.Apply(text, TypeRole.Button); text.fontSize = 17 * D * Ui.Scale; Actions.Bind(button, action);
             }
         }
 
@@ -120,18 +125,21 @@ namespace ZKube.Presentation
         }
 
         // A kit card around a padded inner column. End draws the card behind what
-        // was stacked inside it, sized to fit, with its optional heading.
-        public PageColumn Card(string name, string heading = null)
+        // was stacked inside it, sized to fit, with its optional heading. The
+        // insets default to the kit's; a page can set its own sides, top and bottom.
+        public PageColumn Card(string name, string heading = null, float? sideDp = null, float? topDp = null, float? bottomDp = null)
         {
-            float inset = Ui.CardInset, headingHeight = heading == null ? 0 : Ui.TextHeight(heading, Width - 2 * inset, 17, true) + 8 * D;
-            var inner = new PageColumn(Ui, Parent, Actions, Left + inset, Width - 2 * inset, Top - inset - headingHeight)
-            { outer = this, name = name, heading = heading, sibling = Parent.childCount };
+            float side = sideDp.HasValue ? sideDp.Value * D : Ui.CardInset, top = topDp.HasValue ? topDp.Value * D : Ui.CardInset;
+            float headingHeight = heading == null ? 0 : Ui.TextHeight(heading, Width - 2 * side, 17, true) + 8 * D;
+            var inner = new PageColumn(Ui, Type, Parent, Actions, Left + side, Width - 2 * side, Top - top - headingHeight)
+            { outer = this, name = name, heading = heading, sibling = Parent.childCount,
+              bottomInset = bottomDp.HasValue ? bottomDp.Value * D : Ui.CardInset * .6f };
             return inner;
         }
         public PageColumn End(float gapDp = 18)
         {
             if (outer == null) throw new InvalidOperationException("Only a card column can end");
-            float bottom = Top - Ui.CardInset * .6f;
+            float bottom = Top - bottomInset;
             var card = Ui.Card(name, new Rect(outer.Left, bottom, outer.Width, outer.Top - bottom), heading, Parent, out _);
             card.transform.SetSiblingIndex(sibling);
             outer.Top = bottom - gapDp * D;

@@ -1,6 +1,8 @@
 {
   "commonImages": {
-    "mark": "/assets/common/mark.png"
+    "mark": "/assets/common/mark.png",
+    "wordmark-arena": "/assets/common/brand/arena.png",
+    "wordmark-realms": "/assets/common/brand/realms.png"
   },
   "constraintCaptions": [
     {

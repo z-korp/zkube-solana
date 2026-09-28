@@ -16,16 +16,17 @@ namespace ZKube.Presentation
     // through IAppPageSource; the identity adapter adds its own notices.
     public sealed class PageViews : MonoBehaviour
     {
-        public const float GutterDp = 16, ColumnDp = 480, IconDp = 48;
+        public const float GutterDp = 18, ColumnDp = 480, IconDp = 48;
         private static readonly AppPage[] tabs = { AppPage.Campaign, AppPage.Daily, AppPage.Profile };
         private IAppPageSource source;
         private PageShell shell;
         private PageCatalog catalog;
-        private string dailyTab;
+        private string dailyTab, brand;
         private float textScale;
         private Func<float> density;
         private PageActions actions;
         private SkinUi ui;
+        private PageType type;
         private PageColumn column;
         private BoardArt portraits;
         private long epoch;
@@ -35,7 +36,7 @@ namespace ZKube.Presentation
         private float headerBottom;
         private int selectedTab;
         private float? reveal;
-        private TMP_Text countdown;
+        private TMP_Text countdown, nextDaily;
         private DailyPageView countdownView;
         private long countdownSecond = -1;
         private double lastMusic = AudioPolicy.ToggleOnLevel, lastEffects = AudioPolicy.ToggleOnLevel;
@@ -43,11 +44,14 @@ namespace ZKube.Presentation
         private AppPage lastTab = AppPage.Daily;
         public AppPage? Shown { get; private set; }
 
-        public void Initialize(IAppPageSource pageSource, PageShell pageShell, string dailyTabName, float scale, Func<float> displayDensity = null)
+        // brandName names the product's wordmark: "realms" or "arena".
+        public void Initialize(IAppPageSource pageSource, PageShell pageShell, string dailyTabName, string brandName, float scale,
+            Func<float> displayDensity = null)
         {
             source = pageSource ?? throw new ArgumentNullException(nameof(pageSource));
             shell = pageShell ?? throw new ArgumentNullException(nameof(pageShell));
-            dailyTab = dailyTabName; textScale = BoardController.SupportedTextScale(scale);
+            dailyTab = dailyTabName; brand = brandName ?? throw new ArgumentNullException(nameof(brandName));
+            textScale = BoardController.SupportedTextScale(scale);
             density = displayDensity ?? BoardController.ReadDisplayDensity;
             if (actions == null) actions = new PageActions(source.Report);
             if (catalog == null) catalog = PageCatalog.Load();
@@ -57,20 +61,20 @@ namespace ZKube.Presentation
         {
             if (shell.Artwork == null) throw new InvalidOperationException("Load the page realm before drawing it");
             Retire();
-            int from = Shown.HasValue ? TabIndex(Shown.Value) : -1, to = TabIndex(page);
+            int to = TabIndex(page);
             bool entering = Shown != page;
             if (page == AppPage.Settings && entering) { lastMusic = AudioPolicy.ToggleOnLevel; lastEffects = AudioPolicy.ToggleOnLevel; }
             if (page != AppPage.Profile) { editedName = null; savedName = null; }
             Shown = page;
             if (to >= 0) lastTab = tabs[to];
-            ui?.Dispose(); ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
+            type?.Dispose(); ui?.Dispose(); ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale); type = new PageType(ui);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
             switch (page)
             {
                 case AppPage.Daily:
-                    var daily = source.DailyPage(); var brand = Brand();
-                    Frame(1, brand[0], brand[1], null, null, Settings(), messages); Daily(daily); break;
+                    var daily = source.DailyPage();
+                    Frame(1, null, null, null, null, Settings(), messages); Home(daily); break;
                 case AppPage.Campaign:
                     var campaign = source.CampaignView(); var realm = catalog.Realm(campaign.Realm);
                     Frame(0, realm.realmName, "REALM " + campaign.Realm + " / " + Protocol.Realms.Length,
@@ -104,8 +108,11 @@ namespace ZKube.Presentation
             shell.Finish(column.Top - 16 * ui.Density);
             if (kept >= 0) shell.Offset = kept;
             else if (reveal.HasValue) shell.Reveal(reveal.Value);
-            if (entering) shell.Enter(from < 0 || to < 0 || from == to ? 0 : Math.Sign(to - from), source.SettingsPage().ReducedMotion, ui.Density);
+            if (entering) shell.Enter(source.SettingsPage().ReducedMotion, ui.Density);
         }
+
+        // Removes the drawn page, so the next page enters without a page to leave.
+        public void Hide() { Retire(); Shown = null; shell.Clear(Screen.safeArea); }
 
         // A page that could not load its realm art has no skin kit to draw with.
         public void Unavailable(string title, string message, PageAction retry)
@@ -136,33 +143,30 @@ namespace ZKube.Presentation
             shell.Finish(y - 56 * d);
         }
 
-        private string[] Brand()
-        {
-            var parts = Application.productName.Split(new[] { ": " }, 2, StringSplitOptions.None);
-            return parts.Length == 2 ? new[] { parts[0], parts[1].ToUpperInvariant() } : new[] { Application.productName, null };
-        }
         private PageAction Settings() => new PageAction { Label = "Settings", Name = "Settings",
             CanInvoke = () => source.CanNavigate(AppPage.Settings), Invoke = () => source.Navigate(AppPage.Settings) };
 
         // Header, body frame and tab bar for one page. The tab bar sits inside the
         // side gutters and above the bottom safe inset; the body scrolls between the
         // header and the top of the tab bar. A full-bleed page (the map) scrolls
-        // under both instead.
+        // under both instead. A page without a title (Home) draws its own header
+        // in the body and keeps only its utility tablet fixed at the top.
         private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, PageAction settings, string[] notices,
             bool fullBleed = false)
         {
             var safe = Screen.safeArea; float d = ui.Density;
             reveal = null; selectedTab = tab;
             float icon = IconDp * d, titleWidth = safe.width - 2 * (icon + 24 * d);
-            float titleHeight = ui.TextHeight(title, titleWidth, 24, true), subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 13, true);
-            float header = Mathf.Max(icon + 20 * d, titleHeight + subtitleHeight + 18 * d);
+            float titleHeight = title == null ? 0 : type.Height(title, titleWidth, TypeRole.Title, 24);
+            float subtitleHeight = subtitle == null ? 0 : type.Height(subtitle, titleWidth, TypeRole.Label, 13);
+            float header = title == null ? 0 : Mathf.Max(icon + 20 * d, titleHeight + subtitleHeight + 18 * d);
             tabBar = ui.TabBarRect(safe);
             float bottom = tab >= 0 ? tabBar.yMax : safe.y;
             headerBottom = safe.yMax - header;
             var body = fullBleed ? new Rect(0, 0, Screen.width, Screen.height) : new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
             shell.Clear(body);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
-            var chrome = shell.Chrome;
+            var chrome = shell.Overlay;
             if (fullBleed)
             {
                 // The map scrolls under the header; a band keeps the title readable.
@@ -171,23 +175,28 @@ namespace ZKube.Presentation
             }
             float top = safe.yMax - 8 * d;
             float textTop = top - (header - 8 * d - titleHeight - subtitleHeight) / 2 + 2 * d;
-            ui.Label("Page title", title, new Rect(safe.center.x - titleWidth / 2, textTop - titleHeight, titleWidth, titleHeight), 24, SkinTokens.Text, chrome, true);
+            if (title != null)
+                type.Label("Page title", title, new Rect(safe.center.x - titleWidth / 2, textTop - titleHeight, titleWidth, titleHeight), TypeRole.Title, 24,
+                    SkinTokens.Text, chrome);
             if (subtitle != null)
-                ui.Label("Page subtitle", subtitle, new Rect(safe.center.x - titleWidth / 2, textTop - titleHeight - subtitleHeight, titleWidth, subtitleHeight),
-                    13, SkinTokens.Accent, chrome, true);
-            float iconY = top - (header - 8 * d) / 2 - icon / 2;
+                type.Label("Page subtitle", subtitle, new Rect(safe.center.x - titleWidth / 2, textTop - titleHeight - subtitleHeight, titleWidth, subtitleHeight),
+                    TypeRole.Label, 13, SkinTokens.Accent, chrome);
+            // Without a title the tablet sits 34 dp below the top of the screen, as
+            // drawn, and clear of the status bar.
+            float iconY = title == null ? Mathf.Min(Screen.height - 34 * d, safe.yMax - 6 * d) - icon : top - (header - 8 * d) / 2 - icon / 2;
+            float iconRight = title == null ? safe.xMax - 17 * d : safe.xMax - 12 * d;
             back = left;
             if (left != null) HeaderButton(left, new Rect(safe.x + 12 * d, iconY, icon, icon), SkinSlots.IconBack, false);
             if (right != null) HeaderButton(right, new Rect(safe.xMax - 12 * d - icon, iconY, icon, icon), SkinSlots.IconBack, true);
-            else if (settings != null) HeaderButton(settings, new Rect(safe.xMax - 12 * d - icon, iconY, icon, icon), SkinSlots.IconSettings, false);
+            else if (settings != null) HeaderButton(settings, new Rect(iconRight - icon, iconY, icon, icon), SkinSlots.IconSettings, false);
             if (tab >= 0) TabBar(safe, tab);
             float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
-            column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);
+            column = new PageColumn(ui, type, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);
             foreach (var notice in notices) column.Note("Notice", notice);
         }
         private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored, Transform parent = null)
         {
-            var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), parent ?? shell.Chrome, false, out var glyph, out _);
+            var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), parent ?? shell.Overlay, false, out var glyph, out _);
             if (mirrored)
             {
                 var glyphRect = glyph.rectTransform;
@@ -206,46 +215,121 @@ namespace ZKube.Presentation
             var bar = ui.TabBar("Tab bar", safe, bound.Select((action, i) => (icons[i], action.Label, actions.Click(action))).ToArray(), selected, shell.Chrome);
             var buttons = bar.GetComponentsInChildren<Button>();
             for (int i = 0; i < buttons.Length; i++) actions.Bind(buttons[i], bound[i], fade: false);
+            // The selected tab carries a dark icon and label on its gold tablet; the
+            // others are pale at 72%, in the label type.
+            for (int i = 0; i < bound.Length; i++)
+            {
+                var ink = ui.Art.Token(i == selected ? SkinTokens.TextOnPrimary : SkinTokens.Text);
+                if (i != selected) ink.a = .72f;
+                foreach (var glyph in buttons[i].GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))) glyph.color = ink;
+                foreach (var label in buttons[i].GetComponentsInChildren<TMP_Text>())
+                { type.Apply(label, TypeRole.Label); label.fontSize = 11 * ui.Density * ui.Scale; label.color = ink; }
+            }
         }
         private static int TabIndex(AppPage page) =>
             page == AppPage.Campaign || page == AppPage.Level ? 0 : page == AppPage.Daily || page == AppPage.Result ? 1 : page == AppPage.Profile ? 2 : -1;
 
-        // Home: today's Daily, then the Campaign realm in progress.
-        private void Daily(DailyPageView value)
+        // Home, as drawn at 400 dp: the product's painted wordmark, today's Daily
+        // and the Campaign realm in progress. Spacing follows the composite; text
+        // grows its row when it wraps or the text size is larger.
+        private void Home(DailyPageView value)
         {
+            float d = ui.Density;
+            var mark = ui.Art.Sprite("common/brand__" + brand);
+            float markWidth = Mathf.Min(220 * d, Screen.safeArea.width - 2 * (IconDp + 22) * d), markHeight = markWidth * mark.rect.height / mark.rect.width;
+            var markRect = column.Take(markHeight, 7);
+            var wordmark = ui.Rect<Image>("Wordmark", new Rect(column.Left + (column.Width - markWidth) / 2, markRect.y, markWidth, markHeight), shell.Page);
+            wordmark.sprite = mark; wordmark.preserveAspect = true; wordmark.raycastTarget = false;
+
             var realm = catalog.Realm(value.Realm);
-            var card = column.Card("Daily card", "TODAY'S DAILY");
-            card.Medallion("Daily guardian", ui.Art.Sprite("boss__portrait"), 84, 6);
-            card.Text("Daily guardian name", realm.guardianName, 26, SkinTokens.Text, true, 4);
-            card.Text("Daily objective", Sentence(catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).description), 17, SkinTokens.Text, false, 6);
-            if (value.ClosesAt > 0 && value.Now != null)
+            var card = column.Card("Daily card", null, 26, 13.5f, 7);
+            card.Typed("Daily heading", "Today’s Daily", TypeRole.Label, 11, SkinTokens.Accent, 21.5f);
+            card.Medallion("Daily guardian", ui.Art.Sprite("boss__portrait"), 108, 8.5f);
+            card.Typed("Daily guardian name", realm.guardianName, TypeRole.Title, 28, SkinTokens.Text, 1.5f);
+            card.Typed("Daily objective", Sentence(catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).description), TypeRole.Body, 17,
+                SkinTokens.Text, 2.5f);
+            // Once today's play is used, its reason takes the primary's place and
+            // counts to the next Daily; nothing is shown greyed out.
+            bool used = value.NextOpensAt > 0 && value.Now != null;
+            if (value.Now != null && (used || value.ClosesAt > 0)) { countdownView = value; countdownSecond = value.Now(); }
+            if (!used && value.ClosesAt > 0 && value.Now != null)
+                countdown = card.Typed("Daily countdown", Remaining(value.ClosesAt - countdownSecond), TypeRole.Caption, 17, SkinTokens.Accent, 2.5f);
+            if (!string.IsNullOrEmpty(value.Status)) card.Typed("Daily status", value.Status, TypeRole.Body, 15, SkinTokens.Text, 2.5f);
+            foreach (var fact in value.Facts) card.Typed("Daily fact", fact, TypeRole.Caption, 12, SkinTokens.TextMuted, 2.5f);
+            card.Gap(13);
+            if (used)
             {
-                countdownView = value; countdownSecond = value.Now();
-                countdown = card.Text("Daily countdown", Remaining(value.ClosesAt - countdownSecond), 17, SkinTokens.Accent, true, 6);
+                var slot = card.Take(PageColumn.ButtonDp * d, value.Actions.Length == 0 ? 0 : 12);
+                nextDaily = type.Label("Next Daily", NextDaily(value.NextOpensAt - countdownSecond), slot, TypeRole.Button, 19, SkinTokens.Accent, card.Parent);
             }
-            if (!string.IsNullOrEmpty(value.Status)) card.Text("Daily status", value.Status, 15, SkinTokens.Text, false, 6);
-            foreach (var fact in value.Facts) card.Text("Daily fact", fact, 14, SkinTokens.TextMuted, false, 6);
-            card.Gap(10);
-            for (int i = 0; i < value.Actions.Length; i++) card.Button(value.Actions[i], i == 0);
-            column = card.End();
+            for (int i = 0; i < value.Actions.Length; i++)
+                Pill(card, value.Actions[i], !used && i == 0, !used && i == 0 ? SkinSlots.IconDaily : null, i == value.Actions.Length - 1 ? 0 : 12);
+            column = card.End(24);
+
             var summary = source.CampaignSummary();
             if (summary == null) return;
-            card = column.Card("Campaign card", "CAMPAIGN");
-            card.Text("Campaign realm", catalog.Realm(summary.Realm).realmName, 24, SkinTokens.Text, true, 2);
-            card.Text("Campaign realm number", "REALM " + summary.Realm + " / " + Protocol.Realms.Length, 13, SkinTokens.Accent, true, 8);
-            card.Text("Campaign levels", summary.Cleared + " / " + summary.Levels + " levels complete", 17, SkinTokens.Text, false, 6);
-            StarCount(card, summary.Stars + " / " + summary.Levels * 3 + " stars");
-            card.Gap(10);
-            card.Button(summary.Open, false);
-            column = card.End();
+            card = column.Card("Campaign card", null, 26, 13.5f, 18.5f);
+            card.Typed("Campaign heading", "Campaign", TypeRole.Label, 11, SkinTokens.TextMuted, 3);
+            card.Typed("Campaign realm", catalog.Realm(summary.Realm).realmName, TypeRole.Title, 28, SkinTokens.Text, 3);
+            card.Typed("Campaign realm number", "Realm " + summary.Realm + " / " + Protocol.Realms.Length, TypeRole.Body, 13, SkinTokens.TextMuted, 13);
+            Stat(card, "Campaign levels", null, "Levels", summary.Cleared + " / " + summary.Levels, 7.5f);
+            Progress(card, "Campaign progress", summary.Levels == 0 ? 0 : summary.Cleared / (float)summary.Levels, 11);
+            Stat(card, "Campaign stars", SkinSlots.StarOn, "Stars", summary.Stars + " / " + summary.Levels * 3, 21);
+            Pill(card, summary.Open, false, SkinSlots.IconCampaign, 0);
+            column = card.End(24);
         }
-        private void StarCount(PageColumn card, string text)
+        // A card row: an optional star, the label on the left and its value, the
+        // biggest text in the row, on the right.
+        private void Stat(PageColumn card, string name, string icon, string label, string value, float gapDp)
         {
-            float d = ui.Density, star = 26 * d, width = ui.TextWidth(text, 17, false);
-            var rect = card.Take(Mathf.Max(star, ui.TextHeight(text, card.Width, 17, false)), 6);
-            float x = card.Left + (card.Width - star - 8 * d - width) / 2;
-            ui.Star("Campaign star", new Rect(x, rect.center.y - star / 2, star, star), true, card.Parent);
-            ui.Label("Campaign stars", text, new Rect(x + star + 8 * d, rect.y, width, rect.height), 17, SkinTokens.Text, card.Parent, false, TextAlignmentOptions.Left);
+            float d = ui.Density, right = 17 * d, iconSize = 18 * d, indent = icon == null ? 0 : 31 * d;
+            float valueWidth = type.Width(value, TypeRole.Number, 20);
+            float height = Mathf.Max(type.Height(value, valueWidth, TypeRole.Number, 20),
+                type.Height(label, card.Width - right - valueWidth - indent, TypeRole.Body, 17));
+            var rect = card.Take(height, gapDp);
+            if (icon != null) ui.Star(name + " star", new Rect(rect.x + 2.5f * d, rect.center.y - iconSize / 2, iconSize, iconSize), true, card.Parent);
+            type.Label(name + " label", label, new Rect(rect.x + indent, rect.y, rect.width - indent - right - valueWidth, rect.height), TypeRole.Body, 17,
+                SkinTokens.Text, card.Parent, TextAlignmentOptions.Left);
+            type.Label(name, value, new Rect(rect.xMax - right - valueWidth, rect.y, valueWidth, rect.height), TypeRole.Number, 20, SkinTokens.Score,
+                card.Parent, TextAlignmentOptions.Right);
+        }
+        // A 4 dp progress line: the groove and a warm fill.
+        private void Progress(PageColumn card, string name, float fraction, float gapDp)
+        {
+            float d = ui.Density;
+            var rect = card.Take(4 * d, gapDp);
+            var track = new Rect(rect.x + 4 * d, rect.y, rect.width - 8 * d, rect.height);
+            ui.Piece(name + " track", SkinSlots.SliderTrack, track, card.Parent, .5f);
+            if (fraction > 0)
+                ui.Piece(name, SkinSlots.SliderFill, new Rect(track.x, track.y, Mathf.Max(track.height * 2, track.width * Mathf.Clamp01(fraction)), track.height),
+                    card.Parent, .5f);
+        }
+        // A kit pill in the Lumen button type. An icon leads the label; the
+        // screen's one primary action carries the breathing halo behind it.
+        private Button Pill(PageColumn card, PageAction action, bool primary, string icon, float gapDp)
+        {
+            var button = card.Button(action, primary, gapDp);
+            if (button == null) return null;
+            float d = ui.Density;
+            var rect = SkinUi.ScreenRect((RectTransform)button.transform);
+            if (icon != null)
+            {
+                float size = 22 * d;
+                var glyph = ui.Piece(button.name + " icon", icon, new Rect(rect.x + 29 * d - size / 2, rect.center.y - size / 2, size, size), button.transform);
+                glyph.color = ui.Art.Token(primary ? SkinTokens.TextOnPrimary : SkinTokens.TextOnSecondary);
+                var label = button.GetComponentInChildren<TMP_Text>();
+                SkinUi.Place(label.rectTransform, new Rect(rect.x + 52 * d, rect.y, rect.width - 80 * d, rect.height), button.transform);
+            }
+            if (primary)
+            {
+                var halo = ui.Rect<Image>(button.name + " halo", new Rect(rect.center.x - rect.width * .65f, rect.center.y - rect.height * .65f,
+                    rect.width * 1.3f, rect.height * 1.3f), button.transform.parent);
+                halo.sprite = ui.Art.SkinUi(SkinSlots.FxGlow); halo.raycastTarget = false;
+                var color = ui.Art.Token(SkinTokens.Accent); color.a = .4f; halo.color = color;
+                halo.transform.SetSiblingIndex(button.transform.GetSiblingIndex());
+                halo.gameObject.AddComponent<Breathe>().Bind(halo);
+            }
+            return button;
         }
 
         // The realm map: the skin's map art scrolls under the header and tab bar,
@@ -272,7 +356,7 @@ namespace ZKube.Presentation
             float height = Mathf.Max(width * art.rect.height / art.rect.width, Screen.height);
             var map = new Rect(0, Screen.height - height, width, height);
             var image = ui.Rect<Image>("Realm map", map, shell.Page); image.sprite = art; image.raycastTarget = false;
-            column = new PageColumn(ui, shell.Page, actions, 0, width, map.y + 16 * d);
+            column = new PageColumn(ui, type, shell.Page, actions, 0, width, map.y + 16 * d);
             int count = value.Trials.Length;
             // The path spans the map between the header and the tab bar, so every
             // node can scroll clear of both.
@@ -401,7 +485,7 @@ namespace ZKube.Presentation
             float d = ui.Density; var safe = Screen.safeArea;
             var holder = Holder(name, new Rect(0, 0, Screen.width, Screen.height), shell.Chrome);
             float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d), left = safe.center.x - width / 2;
-            var outer = new PageColumn(ui, holder, actions, left, width, Screen.height);
+            var outer = new PageColumn(ui, type, holder, actions, left, width, Screen.height);
             var card = outer.Card(name + " card");
             if (close != null) card.Gap(14);
             fill(card);
@@ -615,18 +699,25 @@ namespace ZKube.Presentation
         private void Update()
         {
             actions?.Refresh();
-            if (countdown != null && countdownView?.Now != null)
+            if (countdownView?.Now != null)
             {
                 long now = countdownView.Now();
-                if (now != countdownSecond) { countdownSecond = now; countdown.text = Remaining(countdownView.ClosesAt - now); }
+                if (now != countdownSecond)
+                {
+                    countdownSecond = now;
+                    if (countdown != null) countdown.text = Remaining(countdownView.ClosesAt - now);
+                    if (nextDaily != null) nextDaily.text = NextDaily(countdownView.NextOpensAt - now);
+                }
             }
             if (back != null && Input.GetKeyDown(KeyCode.Escape) && back.Available) actions.Run(back.Invoke);
         }
 
-        private static string Remaining(long seconds)
+        private static string Remaining(long seconds) => Clock(seconds) + " left";
+        private static string NextDaily(long seconds) => "Next Daily in " + Clock(seconds);
+        private static string Clock(long seconds)
         {
             seconds = Math.Max(0, seconds);
-            return string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00} left", seconds / 3600, seconds / 60 % 60, seconds % 60);
+            return string.Format(CultureInfo.InvariantCulture, "{0:00}:{1:00}:{2:00}", seconds / 3600, seconds / 60 % 60, seconds % 60);
         }
         private static string Sentence(string value) => string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value.Substring(1);
         private static string Day(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400)
@@ -641,10 +732,10 @@ namespace ZKube.Presentation
         public void Retire()
         {
             epoch++; sharing.Cancel(); sharing.Dispose(); sharing = new CancellationTokenSource();
-            actions?.Clear(); back = null; countdown = null; countdownView = null;
+            actions?.Clear(); back = null; countdown = null; nextDaily = null; countdownView = null;
             if (shell != null && shell.Page != null) foreach (var image in shell.Page.GetComponentsInChildren<Image>(true)) image.sprite = null;
             portraits?.Dispose(); portraits = null;
         }
-        private void OnDestroy() { Retire(); ui?.Dispose(); sharing.Cancel(); sharing.Dispose(); }
+        private void OnDestroy() { Retire(); type?.Dispose(); ui?.Dispose(); sharing.Cancel(); sharing.Dispose(); }
     }
 }

@@ -44,7 +44,7 @@ namespace ZKube.Local.App
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");
             shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
             pageRoot = shell.Root;
-            views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Daily", TextScale);
+            views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Daily", "realms", TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
             board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected, Terminal = Terminal };
             board.gameObject.SetActive(false);
@@ -97,6 +97,12 @@ namespace ZKube.Local.App
         private IEnumerator Render()
         {
             loading = true; dirty = false;
+            if (views.Shown.HasValue && views.Shown.Value.ToString() != Flow.Page.ToString())
+            {
+                yield return shell.Leave(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()));
+                if (this == null || Flow == null) yield break;
+                dirty = false;
+            }
             byte realm = PageRealm; StorePage page = Flow.Page;
             if (!shell.RealmReady(realm))
             {
@@ -121,7 +127,7 @@ namespace ZKube.Local.App
         private void Draw()
         {
             if (pages == null) pages = PageCatalog.Load();
-            views.Initialize(this, shell, "Daily", TextScale);
+            views.Initialize(this, shell, "Daily", "realms", TextScale);
             views.Render((AppPage)Enum.Parse(typeof(AppPage), Flow.Page.ToString()), Notices());
         }
         private IEnumerable<string> Notices()
@@ -176,9 +182,12 @@ namespace ZKube.Local.App
         public DailyPageView DailyPage()
         {
             var today = Flow.Today;
+            bool used = Flow.AttemptedToday && Flow.TodayRun == null;
+            // The local Daily closes as the next one opens.
             return new DailyPageView { Day = today.DayId, Realm = today.Realm, ClosesAt = today.FreezesAt, Now = Flow.Runs.Now,
+                NextOpensAt = used ? today.FreezesAt : 0,
                 ObjectiveKind = today.ObjectiveKind, ObjectiveValue = today.ObjectiveValue,
-                Facts = new[] { "One attempt today. Play it while the app stays open." },
+                Facts = used ? Array.Empty<string>() : new[] { "One attempt today. Play it while the app stays open." },
                 Actions = new[] { Action(Flow.DailyAction, Flow.PlayDaily) } };
         }
         public ProfilePageView ProfilePage()
@@ -222,7 +231,11 @@ namespace ZKube.Local.App
         public IReadOnlyList<PageAction> IdentityNavigation => Array.Empty<PageAction>();
         public void Report(Exception error) => Flow.Report(error);
         private void OpenBoard(LocalBoardActionProvider provider)
-        { board.gameObject.SetActive(true); board.Bind(provider.Bind(provider.Title)); if (pageRoot != null) pageRoot.SetActive(false); }
+        {
+            board.gameObject.SetActive(true); board.Bind(provider.Bind(provider.Title)); if (pageRoot != null) pageRoot.SetActive(false);
+            // The page that opened the board is not shown again on the way back.
+            views.Hide();
+        }
         private void ExitBoard() { StopOutcome(); board.gameObject.SetActive(false); Flow.LeaveBoard(); }
         // A finished run stays on the board for a moment, then opens its result page.
         private void Terminal(BoardController source)
