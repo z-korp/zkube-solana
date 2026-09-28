@@ -141,13 +141,13 @@ namespace ZKube.Presentation.Tests
             }
         }
 
-        [UnityTest] public IEnumerator LongGainsAt320WithLargerTextHaveMeasuredNonoverlappingBoardBounds()
+        [UnityTest] public IEnumerator LongGainsAt360WithLargerTextHaveMeasuredNonoverlappingBoardBounds()
         {
             yield return Load("realm-8-daily", false);
             var art = (BoardArt)typeof(BoardController).GetField("art", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(board);
-            var plan = BoardTypography.Build(art, board.State, board.Session, new Rect(0, 0, 320, 568), 1, 1.3f);
+            var ui = new SkinUi(art, 1, 1.3f); var plan = HudLayout.Build(ui, board.State, board.Session, new Rect(0, 0, 360, 640), 1);
             var child = new GameObject("Narrow cue measurement"); child.transform.SetParent(root.transform);
-            var view = child.AddComponent<BoardView>(); view.Create(board, art, plan.Layout, plan);
+            var view = child.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
             view.Summary(board.State, board.Session, false);
             foreach (bool reduced in new[] { false, true })
             {
@@ -181,11 +181,11 @@ namespace ZKube.Presentation.Tests
             UnityEngine.Object.Destroy(child);
         }
 
-        [UnityTest] public IEnumerator SimultaneousGainsComboAndNativePerfectClearUseSeparateMeasuredRowsAt320()
+        [UnityTest] public IEnumerator SimultaneousGainsComboAndNativePerfectClearUseSeparateMeasuredRowsAt360()
         {
             yield return Load("realm-8-daily", false);
             var art = (BoardArt)typeof(BoardController).GetField("art", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(board);
-            var plan = BoardTypography.Build(art, board.State, board.Session, new Rect(0, 0, 320, 568), 1, 1.3f);
+            var ui = new SkinUi(art, 1, 1.3f); var plan = HudLayout.Build(ui, board.State, board.Session, new Rect(0, 0, 360, 640), 1);
             var source = BoardHarness.Fixtures.Single(f => f.name == "Hammer-perfect-clear-continuation");
             var token = new CoreRunToken(BoardHarness.Hex(source.configHex), BoardHarness.Hex(source.initialStateHex));
             var fact = NativeEngine.ApplyBonus(token, NativeEngine.Summary(token).ActionCounter, 1, 0).Events
@@ -193,7 +193,7 @@ namespace ZKube.Presentation.Tests
             foreach (bool reduced in new[] { false, true })
             {
                 var child = new GameObject("Simultaneous cue measurement"); child.transform.SetParent(root.transform);
-                var view = child.AddComponent<BoardView>(); view.Create(board, art, plan.Layout, plan);
+                var view = child.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
                 view.Summary(board.State, board.Session, false);
                 // Component layout combination: a real native perfect-clear
                 // fact plus nonzero gain/combination display inputs. This does
@@ -215,7 +215,7 @@ namespace ZKube.Presentation.Tests
                             cue.rectTransform.rect.height);
                     }
                     for (int i = 0; i < visible.Length; i++) for (int j = i + 1; j < visible.Length; j++)
-                        Assert.IsFalse(Bounds(visible[i]).Overlaps(Bounds(visible[j])), visible[i].name + " covers " + visible[j].name);
+                        Assert.IsFalse(Bounds(visible[i]).Overlaps(Bounds(visible[j])), visible[i].name + " " + Bounds(visible[i]) + " covers " + visible[j].name + " " + Bounds(visible[j]) + " in board " + view.Layout.Board);
                     yield return null;
                 } while (cues.Any(t => t != null));
                 UnityEngine.Object.Destroy(child); yield return null;

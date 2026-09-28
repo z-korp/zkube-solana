@@ -1,0 +1,107 @@
+{
+  "name": "Jelly Sanctuary",
+  "tokens": {
+    "text": "#FFF4D8",
+    "text-muted": "#BACFBE",
+    "text-on-primary": "#173C2B",
+    "text-on-secondary": "#FFF4D8",
+    "accent": "#FFD25A",
+    "positive": "#76DA93",
+    "negative": "#F87772",
+    "score": "#FFF4D8",
+    "objective": "#FFE28C",
+    "scrim": "#031711CC"
+  },
+  "borders": {
+    "panel": [
+      82,
+      82,
+      82,
+      82
+    ],
+    "plate": [
+      68,
+      48,
+      68,
+      48
+    ],
+    "dialog": [
+      164,
+      164,
+      164,
+      164
+    ],
+    "button-primary": [
+      88,
+      104,
+      88,
+      40
+    ],
+    "button-primary-pressed": [
+      88,
+      104,
+      88,
+      40
+    ],
+    "button-secondary": [
+      88,
+      104,
+      88,
+      40
+    ],
+    "button-secondary-pressed": [
+      88,
+      104,
+      88,
+      40
+    ],
+    "button-icon": [
+      64,
+      64,
+      64,
+      64
+    ],
+    "button-icon-pressed": [
+      64,
+      64,
+      64,
+      64
+    ],
+    "tab-bar": [
+      140,
+      130,
+      140,
+      50
+    ],
+    "tab-selected": [
+      66,
+      104,
+      66,
+      40
+    ],
+    "title-ribbon": [
+      106,
+      90,
+      106,
+      35
+    ],
+    "board-frame": [
+      92,
+      96,
+      92,
+      96
+    ],
+    "grid-well": [
+      40,
+      40,
+      40,
+      40
+    ],
+    "preview-tray": [
+      92,
+      56,
+      92,
+      56
+    ]
+  }
+}

@@ -27,8 +27,9 @@ pub const UI_STRETCH_SLOTS: [&str; 15] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 17] = [
+pub const UI_FIXED_SLOTS: [&str; 18] = [
     "grid-cell",
+    "guardian-frame",
     "badge",
     "map-node-locked",
     "map-node-open",
@@ -47,8 +48,8 @@ pub const UI_FIXED_SLOTS: [&str; 17] = [
     "icon-kredit",
 ];
 
+/// Blocks are coloured by width, so each realm draws one block per width.
 pub const BLOCK_WIDTHS: u8 = 4;
-pub const BLOCK_VARIANTS: u8 = 4;
 
 pub const TOKENS: [&str; 10] = [
     "text",
@@ -65,11 +66,7 @@ pub const TOKENS: [&str; 10] = [
 
 pub fn realm_slots() -> Vec<String> {
     let mut slots = vec!["background".to_owned(), "map".to_owned()];
-    for width in 1..=BLOCK_WIDTHS {
-        for variant in 1..=BLOCK_VARIANTS {
-            slots.push(format!("block-{width}-{variant}"));
-        }
-    }
+    slots.extend((1..=BLOCK_WIDTHS).map(|width| format!("block-{width}")));
     slots
 }
 
@@ -226,8 +223,8 @@ pub fn csharp() -> String {
     let _ = write!(
         out,
         "        public const string Background = \"background\";\n        public const string Map = \"map\";\n\
-         \x20       public const int BlockWidths = {BLOCK_WIDTHS};\n        public const int BlockVariants = {BLOCK_VARIANTS};\n\
-         \x20       public static string Block(int width, int variant) => \"block-\" + width + \"-\" + variant;\n    }}\n\n\
+         \x20       public const int BlockWidths = {BLOCK_WIDTHS};\n\
+         \x20       public static string Block(int width) => \"block-\" + width;\n    }}\n\n\
          \x20   public static class SkinTokens\n    {{\n"
     );
     for token in TOKENS {
@@ -287,11 +284,11 @@ mod tests {
             UI_STRETCH_SLOTS.len() + UI_FIXED_SLOTS.len()
         );
 
-        fs::remove_file(root.join("assets/skins/test/realm-2/block-4-3.png")).unwrap();
+        fs::remove_file(root.join("assets/skins/test/realm-2/block-3.png")).unwrap();
         let error = render(&root, &json!({"skins": ["test"]}), 2).unwrap_err();
-        assert!(error.contains("missing slot block-4-3"), "{error}");
+        assert!(error.contains("missing slot block-3"), "{error}");
 
-        fs::write(root.join("assets/skins/test/realm-2/block-4-3.png"), b"png").unwrap();
+        fs::write(root.join("assets/skins/test/realm-2/block-3.png"), b"png").unwrap();
         fs::write(root.join("assets/skins/test/ui/unused.png"), b"png").unwrap();
         let error = render(&root, &json!({"skins": ["test"]}), 2).unwrap_err();
         assert!(error.contains("unknown slot unused"), "{error}");

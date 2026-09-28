@@ -19,6 +19,7 @@ namespace ZKube.Core.Generated
         public const string GridWell = "grid-well";
         public const string PreviewTray = "preview-tray";
         public const string GridCell = "grid-cell";
+        public const string GuardianFrame = "guardian-frame";
         public const string Badge = "badge";
         public const string MapNodeLocked = "map-node-locked";
         public const string MapNodeOpen = "map-node-open";
@@ -38,8 +39,7 @@ namespace ZKube.Core.Generated
         public const string Background = "background";
         public const string Map = "map";
         public const int BlockWidths = 4;
-        public const int BlockVariants = 4;
-        public static string Block(int width, int variant) => "block-" + width + "-" + variant;
+        public static string Block(int width) => "block-" + width;
     }
 
     public static class SkinTokens

@@ -270,15 +270,14 @@ namespace ZKube.Presentation.Tests
                 string printable = new string(label.text.Where(c => !char.IsControl(c)).ToArray());
                 Assert.IsTrue(label.font.HasCharacters(printable, out uint[] missing, true, true), label.name + " missing " + string.Join(",", missing ?? Array.Empty<uint>()));
             }
-            var icons = board.View.GetComponentsInChildren<BoardActionIcon>();
-            CollectionAssert.AreEquivalent(new[] { BoardActionIcon.Symbol.Totem, BoardActionIcon.Symbol.Reroll, BoardActionIcon.Symbol.Pause }, icons.Select(i => i.Shape));
+            var icons = board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Where(i => i.name.EndsWith(" icon", StringComparison.Ordinal)).ToArray();
+            CollectionAssert.AreEquivalent(new[] { "Guardian action icon", "Reroll action icon", "Pause icon" }, icons.Select(i => i.name));
+            CollectionAssert.AreEquivalent(new[] { "icon-totem", "icon-reroll", "icon-pause" }, icons.Select(i => i.sprite.name.Replace("(Clone)", "")));
             foreach (var icon in icons)
             {
                 Assert.IsFalse(icon.raycastTarget, icon.name + " must use its enclosing button hit target");
                 Assert.IsNotNull(icon.GetComponentInParent<UnityEngine.UI.Button>());
-                var mesh = icon.canvasRenderer.GetMesh();
-                Assert.IsNotNull(mesh, icon.name + " must have rendered geometry");
-                Assert.Greater(mesh.vertexCount, 0, icon.name + " must have rendered geometry");
+                Assert.IsTrue(icon.isActiveAndEnabled, icon.name + " must be drawn");
             }
             Assert.IsNull(board.View.GetComponentInChildren<Camera>().GetComponent<AudioListener>(), "Camera/view recreation must not duplicate the session listener");
         }

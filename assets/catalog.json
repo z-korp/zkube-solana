@@ -552,5 +552,7 @@
       "lockedStrokeWidth": 1.8
     }
   ],
-  "skins": []
+  "skins": [
+    "jelly"
+  ]
 }

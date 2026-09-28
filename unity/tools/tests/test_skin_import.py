@@ -37,6 +37,13 @@ class SkinImports(unittest.TestCase):
             self.assertEqual({build.GENERATED / "Sprites/skin-jelly-ui/panel.png",
                               build.GENERATED / "Sprites/skin-jelly-theme-1/block-2-1.png"}, set(files))
 
+            (base / "ui/panel.png").write_bytes(png(256, 256))
+            policy = {"atlasMaxSize": 4096, "atlasPadding": 4}
+            oversized = [dict(entries[1], width=1440, height=4096)]
+            with self.assertRaisesRegex(RuntimeError, "must fit 4088 px"):
+                build.check_atlas_fit(oversized, [], policy)
+            build.check_atlas_fit([dict(entries[1], width=1440, height=4088)], [], policy)
+
             (base / "ui/panel.png").write_bytes(b"not a png")
             with patch.object(build, "ROOT", root), patch.object(build, "SOURCE", root / "assets"):
                 with self.assertRaisesRegex(RuntimeError, "Not a PNG"):

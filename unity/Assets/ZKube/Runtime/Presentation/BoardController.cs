@@ -180,8 +180,8 @@ namespace ZKube.Presentation
             var root = new GameObject("Realm " + art.RealmId + " board presentation"); root.transform.SetParent(transform, false);
             View = root.AddComponent<BoardView>();
             float density = ReadDisplayDensity();
-            var typography = BoardTypography.Build(art, State, Session, lastSafe, density, TextScale);
-            View.Create(this, art, typography.Layout, typography);
+            var ui = new SkinUi(art, Mathf.Max(.5f, density), TextScale);
+            View.Create(this, art, HudLayout.Build(ui, State, Session, lastSafe, density), ui);
         }
         private void Update()
         {
@@ -204,7 +204,7 @@ namespace ZKube.Presentation
             State = NativeEngine.Summary(Session.Accepted);
             View.SetBoard(State.Grid); View.SetPreview(State.HasNextRow, State.NextRow);
             View.Summary(State, Session, HostInputEnabled && !busy && !paused && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
-            View.Status(BoardNotices.Ready(Session.Daily, State.CurrentTier));
+            View.Status("");
         }
 
         public void BeginDrag(int pointer, Vector2 position)
@@ -378,7 +378,7 @@ namespace ZKube.Presentation
         {
             busy = false;
             View.Summary(State, Session, HostInputEnabled && !paused && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
-            View.Status(failure ?? BoardNotices.Ready(Session.Daily, State.CurrentTier));
+            View.Status(failure ?? "");
             if (recoveryRequired)
             {
                 queued = null; queuedGrid = null; CancelDrag(); ShowRecovery(); return;

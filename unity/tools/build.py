@@ -211,6 +211,7 @@ def asset_plan():
                       "atlasPadding": 4, "allowRotation": False, "tightPacking": False,
                       "includeAtlasInBuild": False,
                       "loading": "Explicit Resources.LoadAsync<SpriteAtlas> per realm; GetSprite by catalog name. Release old realm references before unloading. Audio is separate and music streams locally."})
+    check_atlas_fit(entries, catalog["atlases"], catalog["importPolicy"])
     # Resolve every live function's asset path against copied bytes; fail missing files.
     for theme in catalog["themes"]:
         theme["sprites"] = [{"name": key, "atlas": by_source[value]["atlas"], "sprite": by_source[value]["sprite"]}
@@ -222,6 +223,20 @@ def asset_plan():
     catalog_path = GENERATED / RESOURCE / "Catalog.json"
     files[catalog_path] = encoded(catalog)
     return files, catalog
+
+
+def check_atlas_fit(entries, atlases, policy):
+    """The packer needs each imported sprite plus its padding on both sides inside its atlas."""
+    limits = {atlas["scope"]: atlas["maxTextureSize"] for atlas in atlases}
+    for entry in entries:
+        if entry.get("kind") != "sprite":
+            continue
+        size = max(entry["width"], entry["height"])
+        if entry.get("maxTextureSize"):
+            size = min(size, entry["maxTextureSize"])
+        limit = limits.get(entry["scope"], policy["atlasMaxSize"]) - 2 * policy["atlasPadding"]
+        if size > limit:
+            raise RuntimeError(f"{entry['source']} is {entry['width']}x{entry['height']}; atlas sprites must fit {limit} px")
 
 
 def skin_imports(catalog, entries, files):

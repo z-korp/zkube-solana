@@ -28,11 +28,9 @@ namespace ZKube.Presentation
                 default: throw new ArgumentOutOfRangeException(nameof(notice));
             }
         }
-        public static string Ready(bool daily, byte pressure) => daily ? "PRESSURE " + pressure : "";
         public static IEnumerable<string> All()
         {
             foreach (BoardNotice notice in Enum.GetValues(typeof(BoardNotice))) yield return Text(notice);
-            yield return Ready(true, byte.MaxValue);
         }
     }
 }

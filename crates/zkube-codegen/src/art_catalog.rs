@@ -50,12 +50,7 @@ fn theme(source: &Value) -> Value {
     }
     let mut images = serde_json::Map::new();
     for (name, file) in [
-        ("block1", "block-1"),
-        ("block2", "block-2"),
-        ("block3", "block-3"),
-        ("block4", "block-4"),
         ("background", "background"),
-        ("gridBg", "grid-bg"),
         ("guardianIdle", "boss/idle"),
         ("guardianCelebrate", "boss/celebrate"),
         ("guardianDefeated", "boss/defeated"),

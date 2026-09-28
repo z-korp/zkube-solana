@@ -11,6 +11,13 @@ from cli import run_main
 import build as imports
 
 
+def skin_slots():
+    source = (ROOT / 'crates/zkube-codegen/src/skins.rs').read_text()
+    import re
+    lists = re.findall(r'UI_(?:STRETCH|FIXED)_SLOTS: \[&str; \d+\] = \[(.*?)\];', source, re.S)
+    return [name for block in lists for name in re.findall(r'"([a-z-]+)"', block)]
+
+
 class PortraitImports(unittest.TestCase):
     def test_imports_only_the_assets_loaded_by_the_game(self):
         _, catalog = imports.asset_plan()
@@ -19,9 +26,11 @@ class PortraitImports(unittest.TestCase):
                         for name in ('star', 'constraint-complete', 'victory', 'over'))
         for realm in range(1, 11):
             expected.update(f'assets/theme-{realm}/{name}.png' for name in
-                            ('background', 'grid-bg', 'block-1', 'block-2', 'block-3', 'block-4',
-                             'boss/idle', 'boss/celebrate', 'boss/defeated'))
+                            ('background', 'boss/idle', 'boss/celebrate', 'boss/defeated'))
+            expected.update(f'assets/skins/jelly/realm-{realm}/{name}.png' for name in
+                            ('background', 'map', 'block-1', 'block-2', 'block-3', 'block-4'))
             expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
+        expected.update(f'assets/skins/jelly/ui/{name}.png' for name in skin_slots())
         self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
         self.assertEqual({font['name'] for font in catalog['fonts']},
                          {'LilitaOne-Regular', 'Outfit-Regular', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular'})

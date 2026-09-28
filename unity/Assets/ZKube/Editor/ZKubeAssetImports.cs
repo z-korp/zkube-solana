@@ -190,6 +190,13 @@ namespace ZKube.Editor
                 var definition = catalog.atlases.Single(e => e.scope == group.Key);
                 string path = definition.asset;
                 var atlas = AssetDatabase.LoadAssetAtPath<SpriteAtlas>(path);
+                // A retired import leaves a missing packable that Remove cannot
+                // clear; recreate that atlas under its stable GUID instead.
+                if (atlas != null && atlas.GetPackables().Any(packable => packable == null))
+                {
+                    AssetDatabase.DeleteAsset(path);
+                    atlas = null;
+                }
                 if (atlas == null)
                 {
                     atlas = new SpriteAtlas { name = group.Key };
@@ -212,8 +219,8 @@ namespace ZKube.Editor
                 texture.filterMode = (FilterMode)Enum.Parse(typeof(FilterMode), catalog.importPolicy.filter);
                 atlas.SetTextureSettings(texture);
                 int maximum = definition.maxTextureSize > 0 ? definition.maxTextureSize : catalog.importPolicy.atlasMaxSize;
-                if (definition.singleTexture)
-                    atlas.SetPlatformSettings(new TextureImporterPlatformSettings { name = "DefaultTexturePlatform", maxTextureSize = maximum });
+                // Without an explicit default the Editor packs desktop targets at 2048.
+                atlas.SetPlatformSettings(new TextureImporterPlatformSettings { name = "DefaultTexturePlatform", maxTextureSize = maximum });
                 atlas.SetPlatformSettings(AndroidSettings(catalog.importPolicy, maximum));
                 atlas.SetIncludeInBuild(catalog.importPolicy.includeAtlasInBuild);
                 EditorUtility.SetDirty(atlas);
