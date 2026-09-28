@@ -12,6 +12,7 @@ namespace ZKube.Local.App
         public StoreRunClient(LocalProductStore store, Func<long> utcNow, Func<byte[]> campaignSeed = null)
             : base(store, StoreCampaignPolicy.PurchaseGate(store), campaignSeed)
         { now = utcNow ?? throw new ArgumentNullException(nameof(utcNow)); }
+        public long Now() => now();
         public LocalDaily Today()
         {
             long time = now();

@@ -191,8 +191,7 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator CampaignPageHasAuthoredNodesAndRealPreviewHandler()
         {
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
-            var graphic = app.GetComponentInChildren<CampaignPathGraphic>(); Assert.That(graphic, Is.Not.Null);
-            var nodes = graphic.GetComponentsInChildren<Button>(); Assert.That(nodes.Length, Is.EqualTo(10));
+            var nodes = Nodes(); Assert.That(nodes.Length, Is.EqualTo(10));
             AssertNodeCaptions(nodes);
             // Dragging empty map space must reach the ScrollRect as dragging a
             // button does. A decorative backdrop outside it cannot provide this.
@@ -203,29 +202,33 @@ namespace ZKube.Tests
             var hits = new List<RaycastResult>(); EventSystem.current.RaycastAll(pointer, hits);
             Assert.That(hits.Count, Is.GreaterThan(0));
             Assert.That(ExecuteEvents.GetEventHandler<IDragHandler>(hits[0].gameObject), Is.EqualTo(scroll.gameObject));
+            // The Campaign header holds the realm arrows; settings open from the other tabs.
+            Click(app, "Daily"); yield return Page(StorePage.Daily);
             Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Text size: standard"); yield return Page(StorePage.Settings);
+            // Settings has no tab bar; its back button returns to the tab it was opened from.
+            Click(app, "Back"); yield return Page(StorePage.Daily);
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
-            nodes = app.GetComponentInChildren<CampaignPathGraphic>().GetComponentsInChildren<Button>();
+            nodes = Nodes();
             AssertNodeCaptions(nodes);
             var first = nodes.Single(button => button.name == "Trial 1"); Assert.That(first.interactable, Is.True);
             Assert.That(nodes.Single(button => button.name == "Trial 2").interactable, Is.False);
             first.onClick.Invoke(); yield return Page(StorePage.Level);
             Click(app, "Play"); yield return BoardReady(); Assert.That(board.Session.RealmId, Is.EqualTo(1));
         }
+        private Button[] Nodes() => app.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Trial ")).ToArray();
+        // Each node shows its level number on one line, inside the caption's own
+        // rectangle, at both text sizes.
         private static void AssertNodeCaptions(Button[] nodes)
         {
             foreach (var node in nodes)
             {
                 var caption = node.GetComponentInChildren<TMP_Text>(); caption.ForceMeshUpdate();
-                Assert.That(caption.textInfo.lineCount, Is.EqualTo(2), node.name);
-                var bounds = ((RectTransform)node.transform).rect;
+                Assert.That(caption.textInfo.lineCount, Is.EqualTo(1), node.name);
+                var bounds = caption.rectTransform.rect;
                 foreach (var character in caption.textInfo.characterInfo.Take(caption.textInfo.characterCount).Where(value => value.isVisible))
                     foreach (var corner in new[] { character.bottomLeft, character.topRight })
-                    {
-                        var local = node.transform.InverseTransformPoint(caption.transform.TransformPoint(corner));
-                        Assert.That(bounds.Contains(local), Is.True, node.name + " caption exceeds its tile");
-                    }
+                        Assert.That(bounds.Contains(corner), Is.True, node.name + " caption exceeds its label");
             }
         }
         [UnityTest] public IEnumerator RealmPagesAndEmblemDisposalPreserveTheInactiveBoardsAtlas()
@@ -244,7 +247,7 @@ namespace ZKube.Tests
             var added = leases.Keys.Cast<string>().Where(key => key.Contains("/theme-") && !before.Contains(key)).ToArray();
             Assert.That(added.All(key => key == "ZKube/Atlases/theme-1"), Is.True, "Only the worn profile background may acquire a new realm atlas");
             Assert.That(leases.Contains("ZKube/Atlases/portraits"), Is.True);
-            var portraitOwner = (BoardArt)typeof(AppPages).GetField("portraits", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app.GetComponent<AppPages>());
+            var portraitOwner = (BoardArt)typeof(PageViews).GetField("portraits", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app.GetComponent<PageViews>());
             var portraitAtlas = (UnityEngine.Object)typeof(BoardArt).GetField("atlas", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(portraitOwner);
             var nativePointer = typeof(UnityEngine.Object).GetField("m_CachedPtr", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That((IntPtr)nativePointer.GetValue(portraitAtlas), Is.Not.EqualTo(IntPtr.Zero));
@@ -266,7 +269,7 @@ namespace ZKube.Tests
             // Same public navigation command that page buttons dispatch, while
             // the old page's renderer is deliberately retired during loading.
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
-            Assert.That(app.GetComponentInChildren<CampaignPathGraphic>(), Is.Null);
+            Assert.That(Nodes(), Is.Empty);
             app.Flow.SelectRealm(3); yield return null;
             UnityEngine.Object.Destroy(app.gameObject); yield return null; yield return null;
             Assert.That(app == null, Is.True); Assert.That(root.GetComponentsInChildren<StoreAppAdapter>().Length, Is.Zero);
@@ -296,7 +299,7 @@ namespace ZKube.Tests
             Assert.That(audio[AudioPolicy.MusicKey], Is.EqualTo(.73f));
             Assert.That(audio[AudioPolicy.EffectsKey], Is.EqualTo(.27f)); Assert.That(board.Muted, Is.True);
             app.GetComponentsInChildren<Slider>().Single(value => value.name == "Music slider").value = 0;
-            Click(app, "Profile"); yield return Page(StorePage.Profile); Click(app, "Settings"); yield return Page(StorePage.Settings);
+            Click(app, "Back"); yield return Page(StorePage.Daily); Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Music: off"); yield return Page(StorePage.Settings); Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));
         }
     }

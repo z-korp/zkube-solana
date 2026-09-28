@@ -20,11 +20,9 @@ namespace ZKube.Local.App
     {
         public StoreAppFlow Flow { get; private set; }
         private BoardController board;
-        private AppShell shell;
-        private AppPages shared;
-        private BoardArt art => shell.Artwork;
+        private PageShell shell;
+        private PageViews views;
         private GameObject pageRoot, warningRoot;
-        private RectTransform content;
         private TMP_Text warning;
         private bool loading, dirty, lastBusy, lastUnsaved;
         private uint lastDay;
@@ -42,11 +40,9 @@ namespace ZKube.Local.App
             Flow = new StoreAppFlow(product, runs, billing);
             if (EventSystem.current == null || EventSystem.current.transform.IsChildOf(board.transform))
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");
-            shell = gameObject.AddComponent<AppShell>(); shell.Initialize(Application.productName);
-            pageRoot = shell.Root; content = shell.Content;
-            shared = gameObject.AddComponent<AppPages>();
-            var font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold");
-            shared.Initialize(this, font, font, TextScale);
+            shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
+            pageRoot = shell.Root;
+            views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Daily", TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
             board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected };
             board.gameObject.SetActive(false);
@@ -54,7 +50,10 @@ namespace ZKube.Local.App
             var banner = Rect("Save warning", warningRoot.transform);
             banner.anchorMin = new Vector2(0, 1); banner.anchorMax = Vector2.one; banner.pivot = new Vector2(.5f, 1);
             banner.sizeDelta = new Vector2(0, 76); banner.gameObject.AddComponent<Image>().color = new Color(.35f, .12f, .03f, .98f);
-            warning = Label(banner, "Progress is not saved. Keep the app open; closing it may lose this result.", 18, 68);
+            warning = Rect("Save warning text", banner).gameObject.AddComponent<TextMeshProUGUI>();
+            warning.font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold"); warning.fontSize = 18; warning.color = Color.white;
+            warning.alignment = TextAlignmentOptions.Center; warning.raycastTarget = false;
+            warning.text = "Progress is not saved. Keep the app open; closing it may lose this result.";
             Stretch(warning.rectTransform, 14);
             warningRoot.SetActive(false); Refresh();
             _ = Flow.RefreshBilling();
@@ -114,21 +113,19 @@ namespace ZKube.Local.App
             // exception-driven per-frame load loop.
             dirty = false;
             RetirePage();
-            Text("This page could not be opened.", 28, true); Text(error.Message, 18);
-            Button(content, "Try again", () => { shell.ReleaseArtwork(); Refresh(); });
+            views.Unavailable("This page could not be opened.", error.Message, Action("Try again", () => { shell.ReleaseArtwork(); Refresh(); }));
         }
         private void Draw()
         {
             if (pages == null) pages = PageCatalog.Load();
-            RetirePage();
-            shared.Initialize(this, art.Display, art.Body, TextScale);
-            shell.Background.sprite = art.Sprite("background"); shell.Background.color = new Color(.4f, .4f, .4f);
-            shared.Render((AppPage)Enum.Parse(typeof(AppPage), Flow.Page.ToString()), content);
-            if (!string.IsNullOrEmpty(Flow.Error)) Text(Flow.Error, 19);
-            if (Flow.Billing.Busy) Text("A store operation is still in progress.", 18);
-            else if (!string.IsNullOrEmpty(Flow.BillingNotice)) Text(Flow.BillingNotice, 18);
-            if (Flow.Billing.LastFulfillmentError != null) Text("Store confirmation needs attention. Restore purchases to retry.", 18);
-            shared.Navigation(content);
+            views.Initialize(this, shell, "Daily", TextScale);
+            views.Render((AppPage)Enum.Parse(typeof(AppPage), Flow.Page.ToString()), Notices());
+        }
+        private IEnumerable<string> Notices()
+        {
+            yield return Flow.Error;
+            yield return Flow.Billing.Busy ? "A store operation is still in progress." : Flow.BillingNotice;
+            if (Flow.Billing.LastFulfillmentError != null) yield return "Store confirmation needs attention. Restore purchases to retry.";
         }
         private static PageAction Action(string label, Action invoke, bool enabled = true) =>
             new PageAction { Label = label, Invoke = invoke, Enabled = enabled };
@@ -167,7 +164,7 @@ namespace ZKube.Local.App
         public DailyPageView DailyPage()
         {
             var today = Flow.Today;
-            return new DailyPageView { Day = today.DayId, Realm = today.Realm,
+            return new DailyPageView { Day = today.DayId, Realm = today.Realm, ClosesAt = today.FreezesAt, Now = Flow.Runs.Now,
                 ObjectiveKind = today.ObjectiveKind, ObjectiveValue = today.ObjectiveValue,
                 Facts = new[] { "One attempt today. Play it while the app stays open." },
                 Actions = new[] { Action(Flow.DailyAction, Flow.PlayDaily) } };
@@ -203,10 +200,6 @@ namespace ZKube.Local.App
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));
         public IReadOnlyList<PageAction> IdentityNavigation => Array.Empty<PageAction>();
         public void Report(Exception error) => Flow.Report(error);
-        private TMP_Text Text(string value, float size = 22, bool display = false) => Label(content, value, size, 0, display);
-        private TMP_Text Label(Transform parent, string value, float size, float height, bool display = false)
-        { var label = shared.Label(parent, value, size, display); if (height > 0) label.GetComponent<LayoutElement>().minHeight = height; return label; }
-        private Button Button(Transform parent, string label, Action action, bool enabled = true) => shared.Button(parent, Action(label, action, enabled));
         private void OpenBoard(LocalBoardActionProvider provider)
         { board.gameObject.SetActive(true); board.Bind(provider.Bind(null)); if (pageRoot != null) pageRoot.SetActive(false); }
         private void ExitBoard() { board.gameObject.SetActive(false); Flow.LeaveBoard(); }
@@ -217,12 +210,10 @@ namespace ZKube.Local.App
         { var value = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>(); value.SetParent(parent, false); return value; }
         private static void Stretch(RectTransform rect, float inset = 0)
         { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = Vector2.one * inset; rect.offsetMax = -Vector2.one * inset; }
-        private static void Height(RectTransform rect, float height)
-        { var layout = rect.gameObject.AddComponent<LayoutElement>(); layout.minHeight = layout.preferredHeight = height; layout.flexibleWidth = 1; }
         private GameObject CanvasRoot(string name, int order) => AppShell.CanvasRoot(name, transform, order);
         private void RetirePage()
         {
-            shared.Retire(); shell.Background.sprite = null; shell.Clear();
+            views.Retire(); shell.Backdrop(null, 1);
         }
         private void OnDestroy()
         {

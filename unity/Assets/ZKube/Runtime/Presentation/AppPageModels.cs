@@ -46,6 +46,9 @@ namespace ZKube.Presentation
     {
         public uint Day;
         public byte Realm, ObjectiveKind, ObjectiveValue;
+        // Unix seconds when entries close; zero when the identity has no close to show.
+        public long ClosesAt;
+        public Func<long> Now;
         public string Status;
         public string[] Facts = Array.Empty<string>();
         public PageAction[] Actions = Array.Empty<PageAction>();

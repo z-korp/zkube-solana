@@ -95,13 +95,17 @@ namespace ZKube.Tests.MoneyOverview
 
         private static IEnumerator Rendered(Component source, AppPage page)
         {
+            // The store identity draws on the page shell; the money identity still uses the column pages.
+            var views = source.GetComponent<PageViews>();
             var pages = source.GetComponent<AppPages>();
             var field = typeof(AppPages).GetField("previousPage", BindingFlags.Instance | BindingFlags.NonPublic);
+            Func<object> shown = () => views != null ? views.Shown : field.GetValue(pages);
+            Func<bool> loading = () => views != null ? source.GetComponent<PageShell>().Loading : source.GetComponent<AppShell>().Loading;
             float until = Time.realtimeSinceStartup + 15;
-            while ((!Equals(field.GetValue(pages), page) || source.GetComponent<AppShell>().Loading) && Time.realtimeSinceStartup < until)
+            while ((!Equals(shown(), page) || loading()) && Time.realtimeSinceStartup < until)
                 yield return null;
-            Assert.That(field.GetValue(pages), Is.EqualTo(page));
-            Assert.That(source.GetComponent<AppShell>().ArtworkError, Is.Null);
+            Assert.That(shown(), Is.EqualTo(page));
+            Assert.That(views != null ? source.GetComponent<PageShell>().ArtworkError : source.GetComponent<AppShell>().ArtworkError, Is.Null);
             Assert.That(source.GetComponentsInChildren<TMP_Text>().Any(text => !string.IsNullOrEmpty(text.text)), Is.True);
             yield return null;
         }
