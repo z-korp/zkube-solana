@@ -56,7 +56,9 @@ namespace ZKube.Core.Generated
         public const string FxGlow = "fx-glow";
         public const string FxRing = "fx-ring";
         public const string Background = "background";
+        public const string HudBackground = "hud-background";
         public const string Map = "map";
+        public const string Ledge = "ledge";
         public const int BlockWidths = 4;
         public static string Block(int width) => "block-" + width;
     }
@@ -77,6 +79,8 @@ namespace ZKube.Core.Generated
         public const string BlockTint2 = "block-tint-2";
         public const string BlockTint3 = "block-tint-3";
         public const string BlockTint4 = "block-tint-4";
+        public const string LightKey = "light-key";
+        public const string LightGlow = "light-glow";
         public static string BlockTint(int width) => "block-tint-" + width;
     }
 }

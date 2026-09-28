@@ -135,6 +135,21 @@ namespace ZKube.Presentation.Tests
             finally { AppPreferences.SetReducedMotion(reduced); }
         }
 
+        [UnityTest] public IEnumerator EachRealmServesItsOwnTokensBesideTheSkinTokens()
+        {
+            var skin = PageCatalog.Load().DefaultSkin;
+            foreach (var realm in skin.realms)
+            {
+                yield return art.Load(realm.realmId);
+                foreach (var token in realm.tokens.Concat(skin.tokens))
+                    Assert.AreEqual(new Color(token.value[0], token.value[1], token.value[2], token.value[3]), art.Token(token.name),
+                        "Realm " + realm.realmId + " " + token.name);
+                for (int width = 1; width <= SkinSlots.BlockWidths; width++) art.Token(SkinTokens.BlockTint(width));
+                art.Token(SkinTokens.LightKey); art.Token(SkinTokens.LightGlow);
+            }
+            Assert.Throws<System.InvalidOperationException>(() => art.Token(SkinTokens.BlockTint(SkinSlots.BlockWidths + 1)));
+        }
+
         [Test] public void EarnedStarsAreNeverDrawnLargerThanTheirSource()
         {
             string Name(bool earned, float pixels) => ui.StarSprite(earned, pixels).name.Replace("(Clone)", "");

@@ -27,9 +27,8 @@ namespace ZKube.Presentation
         private static readonly Dictionary<string, AtlasLoad> atlasLoads = new Dictionary<string, AtlasLoad>();
         private AtlasLoad realmLoad, commonLoad, skinUiLoad, skinRealmLoad;
         private SpriteAtlas skinUi, skinRealm;
+        // The skin's tokens and the loaded realm's own tokens, in one lookup.
         private readonly Dictionary<string, Color> tokens = new Dictionary<string, Color>();
-        // Null until a skin is listed in the catalog; pages keep their current look without one.
-        public string SkinId { get; private set; }
         private readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
         private readonly Dictionary<string, Color> colors = new Dictionary<string, Color>();
         public TMP_FontAsset Display { get; private set; }
@@ -68,20 +67,16 @@ namespace ZKube.Presentation
                 common = commonLoad.Request.asset as SpriteAtlas;
             }
             var skin = data.DefaultSkin;
-            if (skin != null)
-            {
-                SkinId = skin.id;
-                foreach (var token in skin.tokens)
-                    tokens[token.name] = new Color(token.value[0], token.value[1], token.value[2], token.value[3]);
-                var realmSkin = skinRealmLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-theme-" + realmId);
-                if (skinUiLoad == null) skinUiLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-ui");
-                yield return realmSkin.Request;
-                yield return skinUiLoad.Request;
-                if (disposed || realmLoad != selected) yield break;
-                skinRealm = realmSkin.Request.asset as SpriteAtlas;
-                skinUi = skinUiLoad.Request.asset as SpriteAtlas;
-                if (skinRealm == null || skinUi == null) throw new InvalidOperationException("Prepare the bundled skin atlases before opening the page");
-            }
+            foreach (var token in skin.tokens.Concat(skin.realms.Single(value => value.realmId == realmId).tokens))
+                tokens.Add(token.name, new Color(token.value[0], token.value[1], token.value[2], token.value[3]));
+            var realmSkin = skinRealmLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-theme-" + realmId);
+            if (skinUiLoad == null) skinUiLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-ui");
+            yield return realmSkin.Request;
+            yield return skinUiLoad.Request;
+            if (disposed || realmLoad != selected) yield break;
+            skinRealm = realmSkin.Request.asset as SpriteAtlas;
+            skinUi = skinUiLoad.Request.asset as SpriteAtlas;
+            if (skinRealm == null || skinUi == null) throw new InvalidOperationException("Prepare the bundled skin atlases before opening the page");
             if (Display == null) Display = Resources.Load<TMP_FontAsset>("ZKube/Fonts/LilitaOne-Regular");
             if (Body == null) Body = Resources.Load<TMP_FontAsset>("ZKube/Fonts/Fredoka-SemiBold");
             if (atlas == null || common == null || Display == null || Body == null)
@@ -159,7 +154,7 @@ namespace ZKube.Presentation
                                                              !key.StartsWith("skin/ui/", StringComparison.Ordinal)).ToArray())
             { UnityEngine.Object.Destroy(sprites[key]); sprites.Remove(key); }
             ReleaseAtlas(ref realmLoad); ReleaseAtlas(ref skinRealmLoad);
-            atlas = null; skinRealm = null; colors.Clear(); tokens.Clear(); SkinId = null;
+            atlas = null; skinRealm = null; colors.Clear(); tokens.Clear();
             RealmId = 0; ThemeId = null; GuardianName = null; LevelMusicResource = null;
         }
         public void Dispose()

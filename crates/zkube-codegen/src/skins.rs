@@ -1,6 +1,6 @@
 //! Skin contract: every skin supplies every slot for the UI and for each realm,
 //! so a skin can never ship with a missing piece. Art lives in
-//! `assets/skins/<id>/{skin.json, ui/<slot>.png, realm-<n>/<slot>.png}`.
+//! `assets/skins/<id>/{skin.json, ui/<slot>.png, realm-<n>/{<slot>.png, tokens.json}}`.
 
 use std::{collections::BTreeSet, fmt::Write as _, fs, path::Path};
 
@@ -71,7 +71,7 @@ pub const UI_FIXED_SLOTS: [&str; 33] = [
 /// Blocks are coloured by width, so each realm draws one block per width.
 pub const BLOCK_WIDTHS: u8 = 4;
 
-pub const TOKENS: [&str; 14] = [
+pub const TOKENS: [&str; 10] = [
     "text",
     "text-muted",
     "text-on-primary",
@@ -82,25 +82,63 @@ pub const TOKENS: [&str; 14] = [
     "score",
     "objective",
     "scrim",
+];
+
+/// Each realm's own colours, from its `tokens.json`.
+pub const REALM_TOKENS: [&str; 6] = [
     // Effects for a cleared block take the colour of its width.
     "block-tint-1",
     "block-tint-2",
     "block-tint-3",
     "block-tint-4",
+    // The realm's key light and the colour of the glows placed in it.
+    "light-key",
+    "light-glow",
 ];
 
+/// Opaque realm paintings, stored as JPEG; the build re-encodes them anyway.
+pub const REALM_PAINTINGS: [&str; 3] = ["background", "hud-background", "map"];
+
+/// Realm pieces drawn stretched; their borders are skin-wide in skin.json.
+pub const REALM_STRETCH_SLOTS: [&str; 1] = ["ledge"];
+
 pub fn realm_slots() -> Vec<String> {
-    let mut slots = vec!["background".to_owned(), "map".to_owned()];
+    let mut slots: Vec<String> = ["background", "hud-background", "map"]
+        .into_iter()
+        .chain(REALM_STRETCH_SLOTS)
+        .map(str::to_owned)
+        .collect();
     slots.extend((1..=BLOCK_WIDTHS).map(|width| format!("block-{width}")));
     slots
 }
+
+type Colours = std::collections::BTreeMap<String, String>;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SkinSource {
     name: String,
-    tokens: std::collections::BTreeMap<String, String>,
+    tokens: Colours,
     borders: std::collections::BTreeMap<String, [u16; 4]>,
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
+    serde_json::from_str(
+        &fs::read_to_string(path)
+            .map_err(|error| format!("cannot read {}: {error}", path.display()))?,
+    )
+    .map_err(|error| format!("invalid {}: {error}", path.display()))
+}
+
+fn colours(source: &Colours, names: &[&str], owner: &str) -> Result<Vec<Value>, String> {
+    let present: BTreeSet<&str> = source.keys().map(String::as_str).collect();
+    if present != names.iter().copied().collect() {
+        return Err(format!("{owner} must define exactly the tokens {names:?}"));
+    }
+    names
+        .iter()
+        .map(|name| Ok(json!({"name": name, "value": rgba(&source[*name])?})))
+        .collect()
 }
 
 fn rgba(hex: &str) -> Result<Value, String> {
@@ -118,51 +156,60 @@ fn rgba(hex: &str) -> Result<Value, String> {
     Ok(json!([channel(0)?, channel(2)?, channel(4)?, alpha]))
 }
 
-fn png_files(dir: &Path) -> Result<BTreeSet<String>, String> {
-    let entries =
-        fs::read_dir(dir).map_err(|error| format!("cannot read {}: {error}", dir.display()))?;
-    let mut names = BTreeSet::new();
-    for entry in entries {
-        let name = entry.map_err(|error| error.to_string())?.file_name();
-        let name = name.to_string_lossy();
-        let stem = name
-            .strip_suffix(".png")
-            .ok_or_else(|| format!("{} holds a non-PNG file: {name}", dir.display()))?;
-        names.insert(stem.to_owned());
-    }
-    Ok(names)
+/// A slot's file: opaque paintings are JPEG, everything else is PNG with alpha.
+pub fn slot_file(slot: &str) -> String {
+    let extension = if REALM_PAINTINGS.contains(&slot) {
+        "jpg"
+    } else {
+        "png"
+    };
+    format!("{slot}.{extension}")
 }
 
-fn exact_slots(dir: &Path, expected: &BTreeSet<String>) -> Result<(), String> {
-    let present = png_files(dir)?;
-    if let Some(missing) = expected.difference(&present).next() {
-        return Err(format!("{} is missing slot {missing}", dir.display()));
+/// dir holds exactly the files of slots, plus the one data file if named.
+fn exact_slots<'a>(
+    dir: &Path,
+    slots: impl IntoIterator<Item = &'a str>,
+    data: Option<&str>,
+) -> Result<(), String> {
+    let entries =
+        fs::read_dir(dir).map_err(|error| format!("cannot read {}: {error}", dir.display()))?;
+    let mut present = BTreeSet::new();
+    for entry in entries {
+        present.insert(
+            entry
+                .map_err(|error| error.to_string())?
+                .file_name()
+                .to_string_lossy()
+                .into_owned(),
+        );
     }
-    if let Some(extra) = present.difference(expected).next() {
-        return Err(format!("{} holds unknown slot {extra}", dir.display()));
+    let mut expected: BTreeSet<String> = data.into_iter().map(str::to_owned).collect();
+    for slot in slots {
+        let file = slot_file(slot);
+        if !present.contains(&file) {
+            return Err(format!("{} is missing slot {slot} ({file})", dir.display()));
+        }
+        expected.insert(file);
+    }
+    if let Some(extra) = present.difference(&expected).next() {
+        return Err(format!("{} holds unknown file {extra}", dir.display()));
     }
     Ok(())
 }
 
 fn skin(root: &Path, id: &str, realm_count: usize) -> Result<Value, String> {
     let base = root.join("assets/skins").join(id);
-    let path = base.join("skin.json");
-    let source: SkinSource = serde_json::from_str(
-        &fs::read_to_string(&path)
-            .map_err(|error| format!("cannot read {}: {error}", path.display()))?,
-    )
-    .map_err(|error| format!("invalid {}: {error}", path.display()))?;
-
-    let token_names: BTreeSet<&str> = source.tokens.keys().map(String::as_str).collect();
-    if token_names != TOKENS.into_iter().collect() {
-        return Err(format!(
-            "skin {id} must define exactly the tokens {TOKENS:?}"
-        ));
-    }
+    let source: SkinSource = read_json(&base.join("skin.json"))?;
+    let tokens = colours(&source.tokens, &TOKENS, &format!("skin {id}"))?;
+    let stretched: BTreeSet<&str> = UI_STRETCH_SLOTS
+        .into_iter()
+        .chain(REALM_STRETCH_SLOTS)
+        .collect();
     let border_names: BTreeSet<&str> = source.borders.keys().map(String::as_str).collect();
-    if border_names != UI_STRETCH_SLOTS.into_iter().collect() {
+    if border_names != stretched {
         return Err(format!(
-            "skin {id} must give a border for exactly the stretched slots {UI_STRETCH_SLOTS:?}"
+            "skin {id} must give a border for exactly the stretched slots {stretched:?}"
         ));
     }
     let ui: BTreeSet<String> = UI_STRETCH_SLOTS
@@ -170,24 +217,39 @@ fn skin(root: &Path, id: &str, realm_count: usize) -> Result<Value, String> {
         .chain(&UI_FIXED_SLOTS)
         .map(|s| (*s).to_owned())
         .collect();
-    exact_slots(&base.join("ui"), &ui)?;
-    let realm: BTreeSet<String> = realm_slots().into_iter().collect();
+    exact_slots(&base.join("ui"), ui.iter().map(String::as_str), None)?;
     let mut realms = vec![];
     for realm_id in 1..=realm_count {
-        exact_slots(&base.join(format!("realm-{realm_id}")), &realm)?;
+        let dir = base.join(format!("realm-{realm_id}"));
+        exact_slots(
+            &dir,
+            realm_slots().iter().map(String::as_str),
+            Some("tokens.json"),
+        )?;
+        let realm_tokens = colours(
+            &read_json(&dir.join("tokens.json"))?,
+            &REALM_TOKENS,
+            &dir.join("tokens.json").display().to_string(),
+        )?;
         let images: Map<String, Value> = realm_slots()
             .into_iter()
             .map(|slot| {
-                let file = json!(format!("/assets/skins/{id}/realm-{realm_id}/{slot}.png"));
+                let file = json!(format!(
+                    "/assets/skins/{id}/realm-{realm_id}/{}",
+                    slot_file(&slot)
+                ));
                 (slot, file)
             })
             .collect();
-        realms.push(json!({"realmId": realm_id, "images": images}));
+        let borders: Map<String, Value> = REALM_STRETCH_SLOTS
+            .iter()
+            .map(|slot| ((*slot).to_owned(), json!(source.borders[*slot])))
+            .collect();
+        realms.push(
+            json!({"realmId": realm_id, "images": images, "borders": borders,
+            "tokens": realm_tokens}),
+        );
     }
-    let tokens = TOKENS
-        .iter()
-        .map(|name| Ok(json!({"name": name, "value": rgba(&source.tokens[*name])?})))
-        .collect::<Result<Vec<_>, String>>()?;
     let ui_slots: Vec<Value> = UI_STRETCH_SLOTS
         .iter()
         .chain(&UI_FIXED_SLOTS)
@@ -218,6 +280,9 @@ pub fn render(root: &Path, authored: &Value, realm_count: usize) -> Result<Value
         }
         skins.push(skin(root, id, realm_count)?);
     }
+    if skins.is_empty() {
+        return Err("assets/catalog.json must list at least one skin".into());
+    }
     Ok(Value::Array(skins))
 }
 
@@ -245,14 +310,23 @@ pub fn csharp() -> String {
             pascal(slot)
         );
     }
+    for slot in realm_slots()
+        .iter()
+        .filter(|slot| !slot.starts_with("block-"))
+    {
+        let _ = writeln!(
+            out,
+            "        public const string {} = \"{slot}\";",
+            pascal(slot)
+        );
+    }
     let _ = write!(
         out,
-        "        public const string Background = \"background\";\n        public const string Map = \"map\";\n\
-         \x20       public const int BlockWidths = {BLOCK_WIDTHS};\n\
+        "        public const int BlockWidths = {BLOCK_WIDTHS};\n\
          \x20       public static string Block(int width) => \"block-\" + width;\n    }}\n\n\
          \x20   public static class SkinTokens\n    {{\n"
     );
-    for token in TOKENS {
+    for token in TOKENS.iter().chain(&REALM_TOKENS) {
         let _ = writeln!(
             out,
             "        public const string {} = \"{token}\";",
@@ -274,15 +348,21 @@ mod tests {
         let base = root.join("assets/skins/test");
         let write = |dir: &Path, slot: &str| {
             fs::create_dir_all(dir).unwrap();
-            fs::write(dir.join(format!("{slot}.png")), b"png").unwrap();
+            fs::write(dir.join(slot_file(slot)), b"image").unwrap();
         };
         for slot in UI_STRETCH_SLOTS.iter().chain(&UI_FIXED_SLOTS) {
             write(&base.join("ui"), slot);
         }
         for realm in 1..=2 {
+            let dir = base.join(format!("realm-{realm}"));
             for slot in realm_slots() {
-                write(&base.join(format!("realm-{realm}")), &slot);
+                write(&dir, &slot);
             }
+            let tokens: Map<String, Value> = REALM_TOKENS
+                .iter()
+                .map(|t| ((*t).to_owned(), json!(format!("#0{realm}0000"))))
+                .collect();
+            fs::write(dir.join("tokens.json"), Value::Object(tokens).to_string()).unwrap();
         }
         let tokens: Map<String, Value> = TOKENS
             .iter()
@@ -290,6 +370,7 @@ mod tests {
             .collect();
         let borders: Map<String, Value> = UI_STRETCH_SLOTS
             .iter()
+            .chain(&REALM_STRETCH_SLOTS)
             .map(|s| ((*s).to_owned(), json!([8, 8, 8, 8])))
             .collect();
         fs::write(
@@ -300,24 +381,107 @@ mod tests {
         root
     }
 
+    fn listed() -> Value {
+        json!({"skins": ["test"]})
+    }
+
     #[test]
     fn every_skin_fills_every_ui_and_realm_slot() {
         let root = fixture("complete");
-        let skins = render(&root, &json!({"skins": ["test"]}), 2).unwrap();
+        let skins = render(&root, &listed(), 2).unwrap();
         assert_eq!(skins[0]["realms"].as_array().unwrap().len(), 2);
         assert_eq!(
             skins[0]["ui"].as_array().unwrap().len(),
             UI_STRETCH_SLOTS.len() + UI_FIXED_SLOTS.len()
         );
+        let realm = &skins[0]["realms"][1];
+        assert_eq!(
+            realm["images"]["ledge"],
+            "/assets/skins/test/realm-2/ledge.png"
+        );
+        assert_eq!(realm["borders"]["ledge"], json!([8, 8, 8, 8]));
 
-        fs::remove_file(root.join("assets/skins/test/realm-2/block-3.png")).unwrap();
-        let error = render(&root, &json!({"skins": ["test"]}), 2).unwrap_err();
-        assert!(error.contains("missing slot block-3"), "{error}");
-
-        fs::write(root.join("assets/skins/test/realm-2/block-3.png"), b"png").unwrap();
+        assert_eq!(realm["images"]["map"], "/assets/skins/test/realm-2/map.jpg");
+        for slot in ["block-3", "hud-background", "ledge"] {
+            let path = root.join("assets/skins/test/realm-2").join(slot_file(slot));
+            fs::remove_file(&path).unwrap();
+            let error = render(&root, &listed(), 2).unwrap_err();
+            assert!(error.contains(&format!("missing slot {slot}")), "{error}");
+            fs::write(&path, b"image").unwrap();
+        }
         fs::write(root.join("assets/skins/test/ui/unused.png"), b"png").unwrap();
-        let error = render(&root, &json!({"skins": ["test"]}), 2).unwrap_err();
-        assert!(error.contains("unknown slot unused"), "{error}");
+        let error = render(&root, &listed(), 2).unwrap_err();
+        assert!(error.contains("unknown file unused.png"), "{error}");
+        fs::remove_file(root.join("assets/skins/test/ui/unused.png")).unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn paintings_are_jpeg_and_everything_with_alpha_is_png() {
+        for slot in REALM_PAINTINGS {
+            assert_eq!(slot_file(slot), format!("{slot}.jpg"));
+        }
+        for slot in realm_slots()
+            .iter()
+            .map(String::as_str)
+            .filter(|slot| !REALM_PAINTINGS.contains(slot))
+            .chain(UI_STRETCH_SLOTS)
+            .chain(UI_FIXED_SLOTS)
+        {
+            assert_eq!(slot_file(slot), format!("{slot}.png"));
+        }
+        let root = fixture("extensions");
+        let realm = root.join("assets/skins/test/realm-1");
+        fs::rename(realm.join("map.jpg"), realm.join("map.png")).unwrap();
+        let error = render(&root, &listed(), 2).unwrap_err();
+        assert!(error.contains("missing slot map (map.jpg)"), "{error}");
+        fs::rename(realm.join("map.png"), realm.join("map.jpg")).unwrap();
+        fs::rename(realm.join("ledge.png"), realm.join("ledge.jpg")).unwrap();
+        let error = render(&root, &listed(), 2).unwrap_err();
+        assert!(error.contains("missing slot ledge (ledge.png)"), "{error}");
+        let error = render(&root, &json!({"skins": []}), 2).unwrap_err();
+        assert!(error.contains("at least one skin"), "{error}");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn every_realm_declares_its_own_block_tints_and_light() {
+        let root = fixture("realm-tokens");
+        let skins = render(&root, &listed(), 2).unwrap();
+        let tokens = |realm: usize| skins[0]["realms"][realm]["tokens"].clone();
+        let first = tokens(0);
+        let names: Vec<&str> = first
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|token| token["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, REALM_TOKENS);
+        assert_ne!(tokens(0), tokens(1), "Realm tokens are each realm's own");
+        assert!(
+            skins[0]["tokens"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|token| !REALM_TOKENS.contains(&token["name"].as_str().unwrap())),
+            "Realm tokens are not skin-wide"
+        );
+
+        let path = root.join("assets/skins/test/realm-2/tokens.json");
+        let mut source: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        source.as_object_mut().unwrap().remove("light-glow");
+        fs::write(&path, source.to_string()).unwrap();
+        let error = render(&root, &listed(), 2).unwrap_err();
+        assert!(
+            error.contains("realm-2") && error.contains("exactly the tokens"),
+            "{error}"
+        );
+        fs::remove_file(&path).unwrap();
+        let error = render(&root, &listed(), 2).unwrap_err();
+        assert!(
+            error.contains("cannot read") && error.contains("tokens.json"),
+            "{error}"
+        );
         let _ = fs::remove_dir_all(root);
     }
 
@@ -328,14 +492,22 @@ mod tests {
             .iter()
             .chain(&UI_FIXED_SLOTS)
             .chain(&TOKENS)
+            .chain(&REALM_TOKENS)
         {
             assert!(source.contains(&format!("= \"{name}\";")), "{name}");
         }
+        for slot in realm_slots()
+            .iter()
+            .filter(|slot| !slot.starts_with("block-"))
+        {
+            assert!(source.contains(&format!("= \"{slot}\";")), "{slot}");
+        }
         assert!(source.contains("ButtonPrimaryPressed = \"button-primary-pressed\""));
         assert!(source.contains("TextOnPrimary = \"text-on-primary\""));
+        assert!(source.contains("HudBackground = \"hud-background\""));
         for width in 1..=BLOCK_WIDTHS {
             assert!(
-                TOKENS.contains(&format!("block-tint-{width}").as_str()),
+                REALM_TOKENS.contains(&format!("block-tint-{width}").as_str()),
                 "{width}"
             );
         }
@@ -349,19 +521,40 @@ mod tests {
         source["tokens"].as_object_mut().unwrap().remove("scrim");
         fs::write(&path, source.to_string()).unwrap();
         assert!(
-            render(&root, &json!({"skins": ["test"]}), 2)
+            render(&root, &listed(), 2)
                 .unwrap_err()
                 .contains("exactly the tokens")
         );
 
         source["tokens"]["scrim"] = json!("#00000080");
-        source["borders"]["grid-cell"] = json!([1, 1, 1, 1]);
+        source["tokens"]["block-tint-1"] = json!("#00000080");
         fs::write(&path, source.to_string()).unwrap();
         assert!(
-            render(&root, &json!({"skins": ["test"]}), 2)
+            render(&root, &listed(), 2)
                 .unwrap_err()
-                .contains("stretched slots")
+                .contains("exactly the tokens"),
+            "Block tints belong to realms"
         );
+
+        source["tokens"]
+            .as_object_mut()
+            .unwrap()
+            .remove("block-tint-1");
+        for (slot, border) in [("grid-cell", json!([1, 1, 1, 1])), ("ledge", Value::Null)] {
+            let mut changed = source.clone();
+            if border.is_null() {
+                changed["borders"].as_object_mut().unwrap().remove(slot);
+            } else {
+                changed["borders"][slot] = border;
+            }
+            fs::write(&path, changed.to_string()).unwrap();
+            assert!(
+                render(&root, &listed(), 2)
+                    .unwrap_err()
+                    .contains("stretched slots"),
+                "{slot}"
+            );
+        }
         let _ = fs::remove_dir_all(root);
     }
 }

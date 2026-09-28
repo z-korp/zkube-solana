@@ -372,8 +372,9 @@ are shared across settings and board controls, checked by
 
 Skins live in assets/skins/<id>/ and are listed in assets/catalog.json; the first is the default. The codegen
 owns the slot and token list, emits it to C# and rejects a missing or unknown slot for the UI or any realm;
-build.py gives each skin UI kit and skin realm its own atlas with the authored stretch borders.
-`every_skin_fills_every_ui_and_realm_slot`, `EverySkinMustCoverEveryRealm` and
+each realm owns its block tints and light. build.py gives each skin UI kit and skin realm its own atlas with
+the authored stretch borders. `every_skin_fills_every_ui_and_realm_slot`,
+`every_realm_declares_its_own_block_tints_and_light`, `EverySkinMustCoverEveryRealm` and
 `test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders` guard the contract.
 
 Store saves derive Daily content from day and keep numeric metrics; money saves carry Campaign only.

@@ -10,11 +10,7 @@
     "negative": "#F87772",
     "score": "#FFF4D8",
     "objective": "#FFE28C",
-    "scrim": "#031711CC",
-    "block-tint-1": "#F74B54",
-    "block-tint-2": "#FFE452",
-    "block-tint-3": "#54E574",
-    "block-tint-4": "#4775FF"
+    "scrim": "#031711CC"
   },
   "borders": {
     "panel": [
@@ -130,6 +126,12 @@
       40,
       44,
       40
+    ],
+    "ledge": [
+      160,
+      0,
+      160,
+      0
     ]
   }
 }

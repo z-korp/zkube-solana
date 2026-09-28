@@ -152,8 +152,6 @@ namespace ZKube.Presentation
                     { ArtworkError = error; Loading = false; Artwork.Dispose(); Artwork = null; yield break; }
                     if (!more) break; yield return request.Current;
                 }
-                if (realm == requestedRealm && Artwork.SkinId == null)
-                { ArtworkError = new InvalidOperationException("The catalog lists no skin for the pages"); Loading = false; yield break; }
             }
             Loading = false;
         }

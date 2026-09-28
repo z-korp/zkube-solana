@@ -239,14 +239,32 @@ def check_atlas_fit(entries, atlases, policy):
             raise RuntimeError(f"{entry['source']} is {entry['width']}x{entry['height']}; atlas sprites must fit {limit} px")
 
 
+def image_size(source, data):
+    """Width and height of a PNG, or of a baseline or progressive JPEG."""
+    if source.suffix == ".png":
+        if data[:8] != b"\x89PNG\r\n\x1a\n":
+            raise RuntimeError(f"Not a PNG: {source}")
+        return struct.unpack(">II", data[16:24])
+    if source.suffix != ".jpg" or data[:2] != b"\xff\xd8":
+        raise RuntimeError(f"Not a PNG or JPEG: {source}")
+    at = 2
+    while at + 9 < len(data) and data[at] == 0xFF:
+        marker, length = data[at + 1], struct.unpack(">H", data[at + 2:at + 4])[0]
+        if marker in (0xC0, 0xC1, 0xC2):
+            height, width = struct.unpack(">HH", data[at + 5:at + 9])
+            return width, height
+        at += 2 + length
+    raise RuntimeError(f"JPEG has no frame header: {source}")
+
+
 def skin_imports(catalog, entries, files):
-    """One atlas for each skin's UI kit and one per skin realm. Stretched UI
-    slots carry their authored 9-slice border into the sprite importer."""
+    """One atlas for each skin's UI kit and one per skin realm. Stretched UI and
+    realm slots carry their authored 9-slice border into the sprite importer."""
     scopes = []
     for skin in catalog["skins"]:
         groups = [(f"skin-{skin['id']}-ui", [(u["slot"], u["image"], u["border"]) for u in skin["ui"]])]
         groups += [(f"skin-{skin['id']}-theme-{realm['realmId']}",
-                    [(slot, image, [0, 0, 0, 0]) for slot, image in realm["images"].items()])
+                    [(slot, image, realm["borders"].get(slot, [0, 0, 0, 0])) for slot, image in realm["images"].items()])
                    for realm in skin["realms"]]
         for scope, slots in groups:
             scopes.append(scope)
@@ -255,10 +273,8 @@ def skin_imports(catalog, entries, files):
                 if source.is_symlink() or not source.is_file():
                     raise RuntimeError(f"Expected regular source asset: {source}")
                 data = source.read_bytes()
-                if data[:8] != b"\x89PNG\r\n\x1a\n":
-                    raise RuntimeError(f"Not a PNG: {source}")
-                width, height = struct.unpack(">II", data[16:24])
-                destination = GENERATED / "Sprites" / scope / f"{name}.png"
+                width, height = image_size(source, data)
+                destination = GENERATED / "Sprites" / scope / f"{name}{source.suffix}"
                 entries.append({"source": source.relative_to(ROOT).as_posix(), "sha256": digest(data),
                                 "bytes": len(data), "scope": scope, "name": name, "kind": "sprite",
                                 "width": width, "height": height, "atlas": f"ZKube/Atlases/{scope}",

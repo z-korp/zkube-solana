@@ -477,114 +477,774 @@
       "name": "Jelly Sanctuary",
       "realms": [
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-1/background.png",
+            "background": "/assets/skins/jelly/realm-1/background.jpg",
             "block-1": "/assets/skins/jelly/realm-1/block-1.png",
             "block-2": "/assets/skins/jelly/realm-1/block-2.png",
             "block-3": "/assets/skins/jelly/realm-1/block-3.png",
             "block-4": "/assets/skins/jelly/realm-1/block-4.png",
-            "map": "/assets/skins/jelly/realm-1/map.png"
+            "hud-background": "/assets/skins/jelly/realm-1/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-1/ledge.png",
+            "map": "/assets/skins/jelly/realm-1/map.jpg"
           },
-          "realmId": 1
+          "realmId": 1,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-2/background.png",
+            "background": "/assets/skins/jelly/realm-2/background.jpg",
             "block-1": "/assets/skins/jelly/realm-2/block-1.png",
             "block-2": "/assets/skins/jelly/realm-2/block-2.png",
             "block-3": "/assets/skins/jelly/realm-2/block-3.png",
             "block-4": "/assets/skins/jelly/realm-2/block-4.png",
-            "map": "/assets/skins/jelly/realm-2/map.png"
+            "hud-background": "/assets/skins/jelly/realm-2/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-2/ledge.png",
+            "map": "/assets/skins/jelly/realm-2/map.jpg"
           },
-          "realmId": 2
+          "realmId": 2,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-3/background.png",
+            "background": "/assets/skins/jelly/realm-3/background.jpg",
             "block-1": "/assets/skins/jelly/realm-3/block-1.png",
             "block-2": "/assets/skins/jelly/realm-3/block-2.png",
             "block-3": "/assets/skins/jelly/realm-3/block-3.png",
             "block-4": "/assets/skins/jelly/realm-3/block-4.png",
-            "map": "/assets/skins/jelly/realm-3/map.png"
+            "hud-background": "/assets/skins/jelly/realm-3/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-3/ledge.png",
+            "map": "/assets/skins/jelly/realm-3/map.jpg"
           },
-          "realmId": 3
+          "realmId": 3,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-4/background.png",
+            "background": "/assets/skins/jelly/realm-4/background.jpg",
             "block-1": "/assets/skins/jelly/realm-4/block-1.png",
             "block-2": "/assets/skins/jelly/realm-4/block-2.png",
             "block-3": "/assets/skins/jelly/realm-4/block-3.png",
             "block-4": "/assets/skins/jelly/realm-4/block-4.png",
-            "map": "/assets/skins/jelly/realm-4/map.png"
+            "hud-background": "/assets/skins/jelly/realm-4/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-4/ledge.png",
+            "map": "/assets/skins/jelly/realm-4/map.jpg"
           },
-          "realmId": 4
+          "realmId": 4,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-5/background.png",
+            "background": "/assets/skins/jelly/realm-5/background.jpg",
             "block-1": "/assets/skins/jelly/realm-5/block-1.png",
             "block-2": "/assets/skins/jelly/realm-5/block-2.png",
             "block-3": "/assets/skins/jelly/realm-5/block-3.png",
             "block-4": "/assets/skins/jelly/realm-5/block-4.png",
-            "map": "/assets/skins/jelly/realm-5/map.png"
+            "hud-background": "/assets/skins/jelly/realm-5/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-5/ledge.png",
+            "map": "/assets/skins/jelly/realm-5/map.jpg"
           },
-          "realmId": 5
+          "realmId": 5,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-6/background.png",
+            "background": "/assets/skins/jelly/realm-6/background.jpg",
             "block-1": "/assets/skins/jelly/realm-6/block-1.png",
             "block-2": "/assets/skins/jelly/realm-6/block-2.png",
             "block-3": "/assets/skins/jelly/realm-6/block-3.png",
             "block-4": "/assets/skins/jelly/realm-6/block-4.png",
-            "map": "/assets/skins/jelly/realm-6/map.png"
+            "hud-background": "/assets/skins/jelly/realm-6/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-6/ledge.png",
+            "map": "/assets/skins/jelly/realm-6/map.jpg"
           },
-          "realmId": 6
+          "realmId": 6,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-7/background.png",
+            "background": "/assets/skins/jelly/realm-7/background.jpg",
             "block-1": "/assets/skins/jelly/realm-7/block-1.png",
             "block-2": "/assets/skins/jelly/realm-7/block-2.png",
             "block-3": "/assets/skins/jelly/realm-7/block-3.png",
             "block-4": "/assets/skins/jelly/realm-7/block-4.png",
-            "map": "/assets/skins/jelly/realm-7/map.png"
+            "hud-background": "/assets/skins/jelly/realm-7/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-7/ledge.png",
+            "map": "/assets/skins/jelly/realm-7/map.jpg"
           },
-          "realmId": 7
+          "realmId": 7,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-8/background.png",
+            "background": "/assets/skins/jelly/realm-8/background.jpg",
             "block-1": "/assets/skins/jelly/realm-8/block-1.png",
             "block-2": "/assets/skins/jelly/realm-8/block-2.png",
             "block-3": "/assets/skins/jelly/realm-8/block-3.png",
             "block-4": "/assets/skins/jelly/realm-8/block-4.png",
-            "map": "/assets/skins/jelly/realm-8/map.png"
+            "hud-background": "/assets/skins/jelly/realm-8/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-8/ledge.png",
+            "map": "/assets/skins/jelly/realm-8/map.jpg"
           },
-          "realmId": 8
+          "realmId": 8,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-9/background.png",
+            "background": "/assets/skins/jelly/realm-9/background.jpg",
             "block-1": "/assets/skins/jelly/realm-9/block-1.png",
             "block-2": "/assets/skins/jelly/realm-9/block-2.png",
             "block-3": "/assets/skins/jelly/realm-9/block-3.png",
             "block-4": "/assets/skins/jelly/realm-9/block-4.png",
-            "map": "/assets/skins/jelly/realm-9/map.png"
+            "hud-background": "/assets/skins/jelly/realm-9/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-9/ledge.png",
+            "map": "/assets/skins/jelly/realm-9/map.jpg"
           },
-          "realmId": 9
+          "realmId": 9,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         },
         {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
           "images": {
-            "background": "/assets/skins/jelly/realm-10/background.png",
+            "background": "/assets/skins/jelly/realm-10/background.jpg",
             "block-1": "/assets/skins/jelly/realm-10/block-1.png",
             "block-2": "/assets/skins/jelly/realm-10/block-2.png",
             "block-3": "/assets/skins/jelly/realm-10/block-3.png",
             "block-4": "/assets/skins/jelly/realm-10/block-4.png",
-            "map": "/assets/skins/jelly/realm-10/map.png"
+            "hud-background": "/assets/skins/jelly/realm-10/hud-background.jpg",
+            "ledge": "/assets/skins/jelly/realm-10/ledge.png",
+            "map": "/assets/skins/jelly/realm-10/map.jpg"
           },
-          "realmId": 10
+          "realmId": 10,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.9686274509803922,
+                0.29411764705882354,
+                0.32941176470588235,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                1.0,
+                0.8941176470588236,
+                0.3215686274509804,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.32941176470588235,
+                0.8980392156862745,
+                0.4549019607843137,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.2784313725490196,
+                0.4588235294117647,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          ]
         }
       ],
       "tokens": [
@@ -676,42 +1336,6 @@
             0.09019607843137255,
             0.06666666666666667,
             0.8
-          ]
-        },
-        {
-          "name": "block-tint-1",
-          "value": [
-            0.9686274509803922,
-            0.29411764705882354,
-            0.32941176470588235,
-            1.0
-          ]
-        },
-        {
-          "name": "block-tint-2",
-          "value": [
-            1.0,
-            0.8941176470588236,
-            0.3215686274509804,
-            1.0
-          ]
-        },
-        {
-          "name": "block-tint-3",
-          "value": [
-            0.32941176470588235,
-            0.8980392156862745,
-            0.4549019607843137,
-            1.0
-          ]
-        },
-        {
-          "name": "block-tint-4",
-          "value": [
-            0.2784313725490196,
-            0.4588235294117647,
-            1.0,
-            1.0
           ]
         }
       ],

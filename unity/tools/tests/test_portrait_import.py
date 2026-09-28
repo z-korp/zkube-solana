@@ -27,13 +27,15 @@ class PortraitImports(unittest.TestCase):
         for realm in range(1, 11):
             expected.update(f'assets/theme-{realm}/{name}.png' for name in
                             ('background', 'boss/idle', 'boss/celebrate', 'boss/defeated'))
-            expected.update(f'assets/skins/jelly/realm-{realm}/{name}.png' for name in
-                            ('background', 'map', 'block-1', 'block-2', 'block-3', 'block-4'))
+            expected.update(f'assets/skins/jelly/realm-{realm}/{name}' for name in
+                            ('background.jpg', 'hud-background.jpg', 'map.jpg', 'ledge.png',
+                             'block-1.png', 'block-2.png', 'block-3.png', 'block-4.png'))
             expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
         expected.update(f'assets/skins/jelly/ui/{name}.png' for name in skin_slots())
         self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
         self.assertEqual({font['name'] for font in catalog['fonts']},
-                         {'LilitaOne-Regular', 'Fredoka-SemiBold', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular'})
+                         {'LilitaOne-Regular', 'Fredoka-SemiBold', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular',
+                          'Fraunces-650', 'Nunito-700', 'Nunito-800', 'Nunito-900', 'Nunito-1000'})
         body = next(font for font in catalog['fonts'] if font['name'] == 'Fredoka-SemiBold')
         settings = (imports.PROJECT / 'Assets/TextMesh Pro/Resources/TMP Settings.asset').read_text()
         self.assertIn('m_defaultFontAsset: {fileID: 1, guid: ' + body['fontAssetGuid'], settings)
