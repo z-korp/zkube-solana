@@ -123,7 +123,7 @@ namespace ZKube.Presentation.Tests
                 }
                 var gold = Label("Accepted score chip"); var cyan = Label("Accepted theme chip");
                 Assert.IsNotNull(gold); Assert.IsNotNull(cyan);
-                Assert.AreEqual("+1", gold.text); Assert.AreEqual("+1 THEME", cyan.text);
+                Assert.AreEqual("+1", gold.text); Assert.AreEqual("+1 " + HudLayout.PrimaryCaptionText(board.Session), cyan.text);
                 Assert.IsFalse(gold.raycastTarget); Assert.IsFalse(cyan.raycastTarget);
                 InsideBoard(board.View, gold); InsideBoard(board.View, cyan);
                 var left = gold.rectTransform.anchoredPosition; var right = cyan.rectTransform.anchoredPosition;

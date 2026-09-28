@@ -46,6 +46,12 @@ namespace ZKube.Presentation
         private readonly Image[] starRings = new Image[3];
         private readonly HashSet<RectTransform> popping = new HashSet<RectTransform>();
         private const float GuardianCheer = .9f;
+        // A wait for the network shows only after this delay, so immediate local
+        // play never shows it.
+        public const float AwaitDelay = .45f;
+        private float awaitingSince = -1;
+        private SpriteRenderer shimmer;
+        public bool AwaitingShown => shimmer != null && shimmer.gameObject.activeSelf;
         public BoardLayout Layout { get; private set; }
         public bool HasRuntimeGraph => art != null && canvas != null && boardCamera != null && guardian != null &&
             score != null && objective != null && status != null && Pointer != null &&
@@ -212,7 +218,8 @@ namespace ZKube.Presentation
             float y = Layout.Board.yMax - Layout.Cell;
             float width = Layout.Board.width - 8 * d, lane = (width - 4 * d) / 2;
             var scoreChip = scoreGain > 0 ? CueText("Accepted score chip", "+" + scoreGain, SkinTokens.Score, 26) : null;
-            var themeChip = themeGain > 0 ? CueText("Accepted theme chip", "+" + themeGain + " THEME", SkinTokens.Objective, 16) : null;
+            // The objective's gain names the day's goal in the goal card's own words.
+            var themeChip = themeGain > 0 ? CueText("Accepted theme chip", "+" + themeGain + " " + HudLayout.PrimaryCaptionText(owner.Session), SkinTokens.Objective, 16) : null;
             // Long accepted amounts get measured full-width rows, preserving
             // the requested font size instead of spilling into another cue.
             bool stacked = new[] { scoreChip, themeChip }.Any(t => t != null &&
@@ -409,7 +416,8 @@ namespace ZKube.Presentation
                 else if (item.Kind == PresentationKind.PerfectClear)
                 {
                     PerfectClear(item.Payload[0] == 1, reducedMotion);
-                    if (!reducedMotion) Effects.Celebrate(Layout.Board.center, Layout.Cell, art.Token(SkinTokens.Accent), 24, 2);
+                    // The perfect clear is the biggest burst on the board.
+                    if (!reducedMotion) Effects.Celebrate(Layout.Board.center, Layout.Cell, art.Token(SkinTokens.Accent), 36, PerfectClearScale);
                 }
                 else if (item.Kind != PresentationKind.Terminal)
                     throw new InvalidOperationException("Unsupported presentation event " + item.Kind);
@@ -453,21 +461,25 @@ namespace ZKube.Presentation
             }
             foreach (var pair in targets) { pair.Key.transform.position = pair.Value; pair.Key.transform.localScale = scales[pair.Key]; }
         }
-        // The Jelly block-clear: each block swells to 106%, shrinks to 94% and fades
-        // by 130 ms while its burst starts; a second or later clear in one action adds
-        // a combo burst. Reduced motion only fades the blocks, over 120 ms.
+        // Each cleared block swells to 106%, shrinks to 94% and fades by 130 ms while
+        // it breaks; each later clear in one action breaks harder and adds a combo
+        // burst, below the perfect clear. Reduced motion only fades the blocks, over 120 ms.
+        public const float PerfectClearScale = 2.6f;
+        public static float ComboStrength(int clears) => Mathf.Min(1 + .3f * (clears - 1), PerfectClearScale - .6f);
         private IEnumerator Clear(KeyValuePair<int, SpriteRenderer>[] removed, int clears, bool reducedMotion)
         {
             if (removed.Length == 0) yield break;
             if (!reducedMotion)
             {
-                int particles = Effects.ParticlesPerBlock(removed.Length);
+                int shards = Effects.ShardsPerBlock(removed.Length);
+                float strength = ComboStrength(clears);
                 foreach (var pair in removed)
-                    Effects.BlockClear(pair.Value.transform.position, Layout.Cell, art.Token(SkinTokens.BlockTint(DisplayGrid[pair.Key])), particles);
+                    Effects.BlockClear(pair.Value.transform.position, DisplayGrid[pair.Key], Layout.Cell, art.Token(SkinTokens.BlockTint(DisplayGrid[pair.Key])),
+                        shards, strength, pair.Key);
                 if (clears >= 2)
                 {
                     var center = removed.Aggregate(Vector3.zero, (sum, pair) => sum + pair.Value.transform.position) / removed.Length;
-                    Effects.Celebrate(center, Layout.Cell, art.Token(SkinTokens.Accent), Mathf.Min(8 + 4 * clears, 24), 1 + .2f * clears);
+                    Effects.Celebrate(center, Layout.Cell, art.Token(SkinTokens.Accent), Mathf.Min(10 + 6 * clears, 28), strength + .3f);
                 }
             }
             var scales = removed.ToDictionary(pair => pair.Value, pair => pair.Value.transform.localScale);
@@ -662,10 +674,34 @@ namespace ZKube.Presentation
             popping.Remove(target);
         }
 
+        public void Awaiting(bool waiting)
+        {
+            if (waiting) { if (awaitingSince < 0) awaitingSince = Time.unscaledTime; return; }
+            awaitingSince = -1;
+            if (shimmer != null) shimmer.gameObject.SetActive(false);
+        }
+        // Light sweeps across the next-row tray while a slow result is on its way;
+        // reduced motion holds a still, dim glow instead. No words.
+        private void ShowAwaiting(float now)
+        {
+            if (awaitingSince < 0 || now - awaitingSince < AwaitDelay) return;
+            if (shimmer == null) { shimmer = NewSprite("Waiting shimmer", art.SkinUi(SkinSlots.FxGlow), 3); shimmer.color = Color.clear; }
+            shimmer.gameObject.SetActive(true);
+            float phase = ((now - awaitingSince - AwaitDelay) / 1.4f) % 1, height = Layout.Cell * 1.4f;
+            var tint = art.Token(SkinTokens.Accent);
+            if (owner.ReducedMotion) { phase = .5f; tint.a = .2f; }
+            else tint.a = .4f * Mathf.Sin(Mathf.PI * phase);
+            float bounds = shimmer.sprite.bounds.size.x;
+            shimmer.transform.position = new Vector3(Layout.Preview.x + Layout.Preview.width * phase, Layout.Preview.center.y, 0);
+            shimmer.transform.localScale = new Vector3(height * 1.8f / bounds, height / bounds, 1);
+            shimmer.color = tint;
+        }
+
         // The guardian breathes while idle and bounces when it cheers; it returns
         // to its calm face afterwards unless the run has ended.
         private void Update()
         {
+            ShowAwaiting(Time.unscaledTime);
             if (guardian == null) return;
             float now = Time.unscaledTime, left = guardianCheerUntil - now, size = 1;
             if (!owner.ReducedMotion)

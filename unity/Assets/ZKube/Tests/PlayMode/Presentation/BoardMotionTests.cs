@@ -116,21 +116,42 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(0, board.View.Effects.Created, "Reduced motion throws no particles");
         }
 
-        [UnityTest] public IEnumerator AClearStormDrawsFewerParticlesInsteadOfGrowingThePool()
+        [UnityTest] public IEnumerator AClearStormDrawsFewerPiecesInsteadOfGrowingThePool()
         {
             var fx = board.View.Effects;
-            int per = fx.ParticlesPerBlock(80);
-            Assert.Less(per, 12, "Eighty blocks at once share the pool");
-            for (int i = 0; i < 80; i++) fx.BlockClear(board.View.Layout.Board.center, board.View.Layout.Cell, Color.white, per);
+            var center = (Vector2)board.View.Layout.Board.center; float cell = board.View.Layout.Cell;
+            int per = fx.ShardsPerBlock(80);
+            Assert.Less(per, 6, "Eighty blocks at once share the pool");
+            for (int i = 0; i < 80; i++) fx.BlockClear(center, 1, cell, Color.white, per, 1, i);
             // Even more blocks than the pool can draw leave the reserve untouched.
-            for (int i = 0; i < 40; i++) fx.BlockClear(board.View.Layout.Board.center, board.View.Layout.Cell, Color.white, 12);
+            for (int i = 0; i < 40; i++) fx.BlockClear(center, 1, cell, Color.white, BoardFx.MaxShards, 1, i);
             Assert.LessOrEqual(fx.Live, BoardFx.PoolSize - BoardFx.CelebrationReserve, "Clears leave the celebration reserve");
             int beforeBurst = fx.Live;
-            fx.Celebrate(board.View.Layout.Board.center, board.View.Layout.Cell, Color.white, 24, 2);
-            Assert.AreEqual(beforeBurst + 26, fx.Live, "A perfect-clear burst still gets its ring, glow and sparks");
-            yield return Seconds(.8f);
+            fx.Celebrate(center, cell, Color.white, 36, BoardView.PerfectClearScale);
+            Assert.AreEqual(beforeBurst + 38, fx.Live, "A perfect-clear burst still gets its glow, ring and pieces");
+            yield return Seconds(1.2f);
             Assert.AreEqual(0, fx.Live);
-            Assert.AreEqual(12, fx.ParticlesPerBlock(1), "An empty pool gives one block the full burst");
+            Assert.AreEqual(8, fx.ShardsPerBlock(1), "An empty pool gives one block its full break");
+        }
+
+        [UnityTest] public IEnumerator ShardsReadAtArmsLengthAndCombosBreakHarderBelowThePerfectClear()
+        {
+            var fx = board.View.Effects;
+            var center = (Vector2)board.View.Layout.Board.center; float cell = board.View.Layout.Cell;
+            fx.BlockClear(center, 1, cell, Color.red, 8, 1, 0);
+            yield return Seconds(.06f);
+            var shards = board.View.GetComponentsInChildren<SpriteRenderer>().Where(r => r.name == "Board effect" && r.sprite.name.Replace("(Clone)", "") == "fx-shard").ToArray();
+            Assert.AreEqual(8, shards.Length, "A single cleared block throws eight shards");
+            foreach (var shard in shards)
+            {
+                // The drawn sprite's own size, whatever its spin.
+                float size = shard.transform.localScale.y * shard.sprite.bounds.size.y / cell;
+                Assert.That(size, Is.InRange(.28f, .5f), "A shard is about a third of a cell");
+                Assert.AreEqual(Color.red.r, shard.color.r, .01f, "Shards take the block's colour");
+            }
+            for (int clears = 1; clears < 6; clears++) Assert.Less(BoardView.ComboStrength(clears), BoardView.ComboStrength(clears + 1) + 1e-4f);
+            Assert.Greater(BoardView.ComboStrength(2), BoardView.ComboStrength(1), "A combo breaks harder than a single clear");
+            Assert.Less(BoardView.ComboStrength(99) + .3f, BoardView.PerfectClearScale, "The perfect clear stays the biggest burst");
         }
 
         [UnityTest] public IEnumerator ScoreCountsUpToTheAcceptedValueAndNeverPastIt()

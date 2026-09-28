@@ -283,10 +283,11 @@ namespace ZKube.Presentation
             if (!HostInputEnabled || !PresentationInitialized || Session == null || busy || recoveryRequired || IsTerminal()) return;
             busy = true; guardianSelected = false; queued = null;
             failure = null;
-            View.Summary(State, Session, false); View.Status(BoardNotices.Text(BoardNotice.Pending));
+            View.Summary(State, Session, false); View.Status(""); View.Awaiting(true);
             try
             {
                 var transition = await Session.Actions.Submit(Session.Accepted, action, lifetime.Token);
+                View.Awaiting(false);
                 await PresentAccepted(transition);
                 await ResolveRandomness();
             }
@@ -298,8 +299,9 @@ namespace ZKube.Presentation
         {
             while (State.Phase == (byte)CorePhase.AwaitingVrf)
             {
-                View.Summary(State, Session, false); View.Status(BoardNotices.Text(BoardNotice.WaitingRow));
+                View.Summary(State, Session, false); View.Awaiting(true);
                 var transition = await Session.Actions.ResolveVrf(Session.Accepted, lifetime.Token);
+                View.Awaiting(false);
                 await PresentAccepted(transition);
             }
         }
@@ -341,7 +343,6 @@ namespace ZKube.Presentation
             {
                 View.SetBoard(State.Grid); View.SetPreview(State.HasNextRow, State.NextRow);
                 View.Summary(State, Session, false);
-                View.Status(BoardNotices.Text(BoardNotice.Accepted));
                 return;
             }
             // A repeated accepted token carries no new action to celebrate.
@@ -356,7 +357,6 @@ namespace ZKube.Presentation
             View.ShowGains(acceptedScore > previousScore ? acceptedScore - previousScore : 0,
                 Session.Daily && State.ObjectiveTotal > previousTheme ? State.ObjectiveTotal - previousTheme : 0,
                 State.ComboCounter, ReducedMotion);
-            View.Status(BoardNotices.Text(BoardNotice.Accepted));
             var completion = new TaskCompletionSource<bool>();
             StartCoroutine(Animate(transition, completion));
             using (lifetime.Token.Register(() => completion.TrySetCanceled())) await completion.Task;
@@ -382,7 +382,7 @@ namespace ZKube.Presentation
         }
         private void CompleteInteraction()
         {
-            busy = false;
+            busy = false; View.Awaiting(false);
             View.Summary(State, Session, HostInputEnabled && !paused && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
             View.Status(failure ?? "");
             if (recoveryRequired)

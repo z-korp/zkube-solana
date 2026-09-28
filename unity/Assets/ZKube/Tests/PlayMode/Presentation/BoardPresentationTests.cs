@@ -67,7 +67,8 @@ namespace ZKube.Presentation.Tests
             evidence.Click("Reroll action");
             Assert.IsTrue(board.Busy);
             Assert.AreEqual(before, board.State.ActionCounter, "A clicked intent has not yet been accepted");
-            StringAssert.Contains("Pending", board.View.StatusText);
+            Assert.AreEqual("", board.View.StatusText, "A pending action shows no protocol words");
+            Assert.IsFalse(board.View.AwaitingShown, "An immediate result shows no waiting indicator");
             Assert.IsFalse(board.View.RerollEnabled);
             yield return Wait(() => !board.Busy);
             Assert.AreEqual(before + 1, board.State.ActionCounter);
@@ -268,6 +269,21 @@ namespace ZKube.Presentation.Tests
             yield return Wait(() => !board.Busy);
             Assert.AreEqual(1, recording.Submitted.Count);
             Assert.AreEqual(stop, recording.Submitted[0].Destination, "The drop lands in the last free cell before the neighbour");
+        }
+        [UnityTest] public IEnumerator ASlowResultShowsTheWordlessIndicatorOnlyAfterItsDelay()
+        {
+            yield return Load("realm-8-daily");
+            var held = new HeldAction(board.Session.Actions);
+            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, "Balam Daily", board.Session.RealmId));
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            evidence.Click("Reroll action"); Assert.IsTrue(board.Busy);
+            for (float end = Time.realtimeSinceStartup + BoardView.AwaitDelay * .5f; Time.realtimeSinceStartup < end;) yield return null;
+            Assert.IsFalse(board.View.AwaitingShown, "A short wait shows nothing");
+            for (float end = Time.realtimeSinceStartup + BoardView.AwaitDelay; Time.realtimeSinceStartup < end;) yield return null;
+            Assert.IsTrue(board.View.AwaitingShown, "A long wait shows the quiet indicator");
+            Assert.AreEqual("", board.View.StatusText, "The indicator has no words");
+            held.Release.SetResult(true); yield return Wait(() => !board.Busy);
+            Assert.IsFalse(board.View.AwaitingShown);
         }
         [UnityTest] public IEnumerator ChangedBoardDiscardsTheDragQueuedBeforeAcceptance()
         {
