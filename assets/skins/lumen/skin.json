@@ -1,0 +1,137 @@
+{
+  "name": "Lumen",
+  "tokens": {
+    "text": "#F3F0E6",
+    "text-muted": "#A9BCC4",
+    "text-on-primary": "#3B2206",
+    "text-on-secondary": "#F4FBFF",
+    "accent": "#FFD27A",
+    "positive": "#9BF0BE",
+    "negative": "#FF9A84",
+    "score": "#FFFFFF",
+    "objective": "#BFEFFF",
+    "scrim": "#02070ECC"
+  },
+  "borders": {
+    "button-primary": [
+      64,
+      72,
+      64,
+      52
+    ],
+    "button-primary-pressed": [
+      64,
+      72,
+      64,
+      52
+    ],
+    "button-secondary": [
+      64,
+      72,
+      64,
+      52
+    ],
+    "button-secondary-pressed": [
+      64,
+      72,
+      64,
+      52
+    ],
+    "button-icon": [
+      56,
+      64,
+      56,
+      52
+    ],
+    "button-icon-pressed": [
+      56,
+      64,
+      56,
+      52
+    ],
+    "plate": [
+      36,
+      36,
+      36,
+      36
+    ],
+    "panel": [
+      60,
+      60,
+      60,
+      60
+    ],
+    "dialog": [
+      72,
+      72,
+      72,
+      72
+    ],
+    "title-ribbon": [
+      120,
+      0,
+      120,
+      0
+    ],
+    "list-row": [
+      40,
+      40,
+      40,
+      40
+    ],
+    "board-frame": [
+      40,
+      40,
+      40,
+      40
+    ],
+    "grid-well": [
+      48,
+      48,
+      48,
+      48
+    ],
+    "preview-tray": [
+      48,
+      40,
+      48,
+      40
+    ],
+    "tab-bar": [
+      60,
+      40,
+      60,
+      40
+    ],
+    "tab-selected": [
+      40,
+      40,
+      40,
+      40
+    ],
+    "slider-track": [
+      16,
+      8,
+      16,
+      8
+    ],
+    "slider-fill": [
+      16,
+      8,
+      16,
+      8
+    ],
+    "toggle-track": [
+      32,
+      32,
+      32,
+      32
+    ],
+    "ledge": [
+      160,
+      0,
+      160,
+      0
+    ]
+  }
+}

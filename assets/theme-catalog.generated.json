@@ -473,6 +473,1396 @@
   "schema": 1,
   "skins": [
     {
+      "id": "lumen",
+      "name": "Lumen",
+      "realms": [
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-1/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-1/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-1/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-1/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-1/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-1/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-1/ledge.png",
+            "map": "/assets/skins/lumen/realm-1/map.jpg"
+          },
+          "realmId": 1,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.7058823529411765,
+                0.9686274509803922,
+                0.9411764705882353,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.25882352941176473,
+                0.7176470588235294,
+                0.8235294117647058,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.8,
+                0.4549019607843137,
+                0.30196078431372547,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.25882352941176473,
+                0.43529411764705883,
+                0.611764705882353,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                0.8117647058823529,
+                0.9647058823529412,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.43529411764705883,
+                0.8901960784313725,
+                0.8549019607843137,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-2/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-2/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-2/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-2/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-2/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-2/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-2/ledge.png",
+            "map": "/assets/skins/lumen/realm-2/map.jpg"
+          },
+          "realmId": 2,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8666666666666667,
+                0.8745098039215686,
+                0.8509803921568627,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.8823529411764706,
+                0.6078431372549019,
+                0.5137254901960784,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.2549019607843137,
+                0.5686274509803921,
+                0.5803921568627451,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.49411764705882355,
+                0.3215686274509804,
+                0.20784313725490197,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                0.9058823529411765,
+                0.6588235294117647,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.9411764705882353,
+                0.7686274509803922,
+                0.41568627450980394,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-3/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-3/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-3/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-3/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-3/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-3/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-3/ledge.png",
+            "map": "/assets/skins/lumen/realm-3/map.jpg"
+          },
+          "realmId": 3,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8470588235294118,
+                0.8274509803921568,
+                0.8862745098039215,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.47843137254901963,
+                0.7490196078431373,
+                0.5568627450980392,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.5725490196078431,
+                0.48627450980392156,
+                0.7333333333333333,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.3843137254901961,
+                0.37254901960784315,
+                0.35294117647058826,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                0.9098039215686274,
+                0.9568627450980393,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.5607843137254902,
+                0.8901960784313725,
+                0.7607843137254902,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-4/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-4/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-4/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-4/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-4/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-4/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-4/ledge.png",
+            "map": "/assets/skins/lumen/realm-4/map.jpg"
+          },
+          "realmId": 4,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8117647058823529,
+                0.8470588235294118,
+                0.8941176470588236,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.8509803921568627,
+                0.6352941176470588,
+                0.5098039215686274,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.3764705882352941,
+                0.5411764705882353,
+                0.7294117647058823,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.4980392156862745,
+                0.35294117647058826,
+                0.4196078431372549,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                0.8509803921568627,
+                0.8941176470588236,
+                0.9607843137254902,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.7490196078431373,
+                0.8352941176470589,
+                0.9098039215686274,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-5/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-5/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-5/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-5/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-5/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-5/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-5/ledge.png",
+            "map": "/assets/skins/lumen/realm-5/map.jpg"
+          },
+          "realmId": 5,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8431372549019608,
+                0.8509803921568627,
+                0.7372549019607844,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.3176470588235294,
+                0.7529411764705882,
+                0.7764705882352941,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.7843137254901961,
+                0.43137254901960786,
+                0.45098039215686275,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.28627450980392155,
+                0.36470588235294116,
+                0.19215686274509805,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                0.9490196078431372,
+                0.9019607843137255,
+                0.7843137254901961,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.4980392156862745,
+                0.8784313725490196,
+                0.6588235294117647,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-6/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-6/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-6/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-6/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-6/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-6/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-6/ledge.png",
+            "map": "/assets/skins/lumen/realm-6/map.jpg"
+          },
+          "realmId": 6,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8901960784313725,
+                0.8705882352941177,
+                0.8745098039215686,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.2980392156862745,
+                0.7215686274509804,
+                0.8274509803921568,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.6588235294117647,
+                0.5137254901960784,
+                0.41568627450980394,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.35294117647058826,
+                0.34901960784313724,
+                0.6745098039215687,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                0.9176470588235294,
+                0.9411764705882353,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.37254901960784315,
+                0.8156862745098039,
+                0.8784313725490196,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-7/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-7/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-7/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-7/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-7/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-7/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-7/ledge.png",
+            "map": "/assets/skins/lumen/realm-7/map.jpg"
+          },
+          "realmId": 7,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.807843137254902,
+                0.8156862745098039,
+                0.8980392156862745,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.8431372549019608,
+                0.6392156862745098,
+                0.5803921568627451,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.8392156862745098,
+                0.3764705882352941,
+                0.2901960784313726,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.4117647058823529,
+                0.35294117647058826,
+                0.6039215686274509,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                0.6235294117647059,
+                0.8470588235294118,
+                1.0,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.9686274509803922,
+                0.7176470588235294,
+                0.7843137254901961,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-8/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-8/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-8/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-8/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-8/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-8/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-8/ledge.png",
+            "map": "/assets/skins/lumen/realm-8/map.jpg"
+          },
+          "realmId": 8,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8901960784313725,
+                1.0,
+                0.6901960784313725,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.3137254901960784,
+                0.7490196078431373,
+                0.6823529411764706,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.6666666666666666,
+                0.5254901960784314,
+                0.3137254901960784,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.21568627450980393,
+                0.4549019607843137,
+                0.403921568627451,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                0.9019607843137255,
+                0.9686274509803922,
+                0.6588235294117647,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.2980392156862745,
+                0.8784313725490196,
+                0.5411764705882353,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-9/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-9/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-9/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-9/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-9/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-9/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-9/ledge.png",
+            "map": "/assets/skins/lumen/realm-9/map.jpg"
+          },
+          "realmId": 9,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8901960784313725,
+                0.8431372549019608,
+                0.7333333333333333,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.37254901960784315,
+                0.7254901960784313,
+                0.7294117647058823,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.7490196078431373,
+                0.47058823529411764,
+                0.3333333333333333,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.4470588235294118,
+                0.34901960784313724,
+                0.3137254901960784,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                0.8784313725490196,
+                0.6901960784313725,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.9490196078431372,
+                0.6274509803921569,
+                0.3764705882352941,
+                1.0
+              ]
+            }
+          ]
+        },
+        {
+          "borders": {
+            "ledge": [
+              160,
+              0,
+              160,
+              0
+            ]
+          },
+          "images": {
+            "background": "/assets/skins/lumen/realm-10/background.jpg",
+            "block-1": "/assets/skins/lumen/realm-10/block-1.png",
+            "block-2": "/assets/skins/lumen/realm-10/block-2.png",
+            "block-3": "/assets/skins/lumen/realm-10/block-3.png",
+            "block-4": "/assets/skins/lumen/realm-10/block-4.png",
+            "hud-background": "/assets/skins/lumen/realm-10/hud-background.jpg",
+            "ledge": "/assets/skins/lumen/realm-10/ledge.png",
+            "map": "/assets/skins/lumen/realm-10/map.jpg"
+          },
+          "realmId": 10,
+          "tokens": [
+            {
+              "name": "block-tint-1",
+              "value": [
+                0.8549019607843137,
+                0.8745098039215686,
+                0.8627450980392157,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-2",
+              "value": [
+                0.8901960784313725,
+                0.592156862745098,
+                0.5764705882352941,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-3",
+              "value": [
+                0.4823529411764706,
+                0.5333333333333333,
+                0.7058823529411765,
+                1.0
+              ]
+            },
+            {
+              "name": "block-tint-4",
+              "value": [
+                0.5686274509803921,
+                0.3137254901960784,
+                0.24705882352941178,
+                1.0
+              ]
+            },
+            {
+              "name": "light-key",
+              "value": [
+                1.0,
+                0.9529411764705882,
+                0.8627450980392157,
+                1.0
+              ]
+            },
+            {
+              "name": "light-glow",
+              "value": [
+                0.9607843137254902,
+                0.7764705882352941,
+                0.41568627450980394,
+                1.0
+              ]
+            }
+          ]
+        }
+      ],
+      "tokens": [
+        {
+          "name": "text",
+          "value": [
+            0.9529411764705882,
+            0.9411764705882353,
+            0.9019607843137255,
+            1.0
+          ]
+        },
+        {
+          "name": "text-muted",
+          "value": [
+            0.6627450980392157,
+            0.7372549019607844,
+            0.7686274509803922,
+            1.0
+          ]
+        },
+        {
+          "name": "text-on-primary",
+          "value": [
+            0.23137254901960785,
+            0.13333333333333333,
+            0.023529411764705882,
+            1.0
+          ]
+        },
+        {
+          "name": "text-on-secondary",
+          "value": [
+            0.9568627450980393,
+            0.984313725490196,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "accent",
+          "value": [
+            1.0,
+            0.8235294117647058,
+            0.47843137254901963,
+            1.0
+          ]
+        },
+        {
+          "name": "positive",
+          "value": [
+            0.6078431372549019,
+            0.9411764705882353,
+            0.7450980392156863,
+            1.0
+          ]
+        },
+        {
+          "name": "negative",
+          "value": [
+            1.0,
+            0.6039215686274509,
+            0.5176470588235295,
+            1.0
+          ]
+        },
+        {
+          "name": "score",
+          "value": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "objective",
+          "value": [
+            0.7490196078431373,
+            0.9372549019607843,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "name": "scrim",
+          "value": [
+            0.00784313725490196,
+            0.027450980392156862,
+            0.054901960784313725,
+            0.8
+          ]
+        }
+      ],
+      "ui": [
+        {
+          "border": [
+            60,
+            60,
+            60,
+            60
+          ],
+          "image": "/assets/skins/lumen/ui/panel.png",
+          "slot": "panel"
+        },
+        {
+          "border": [
+            36,
+            36,
+            36,
+            36
+          ],
+          "image": "/assets/skins/lumen/ui/plate.png",
+          "slot": "plate"
+        },
+        {
+          "border": [
+            72,
+            72,
+            72,
+            72
+          ],
+          "image": "/assets/skins/lumen/ui/dialog.png",
+          "slot": "dialog"
+        },
+        {
+          "border": [
+            64,
+            72,
+            64,
+            52
+          ],
+          "image": "/assets/skins/lumen/ui/button-primary.png",
+          "slot": "button-primary"
+        },
+        {
+          "border": [
+            64,
+            72,
+            64,
+            52
+          ],
+          "image": "/assets/skins/lumen/ui/button-primary-pressed.png",
+          "slot": "button-primary-pressed"
+        },
+        {
+          "border": [
+            64,
+            72,
+            64,
+            52
+          ],
+          "image": "/assets/skins/lumen/ui/button-secondary.png",
+          "slot": "button-secondary"
+        },
+        {
+          "border": [
+            64,
+            72,
+            64,
+            52
+          ],
+          "image": "/assets/skins/lumen/ui/button-secondary-pressed.png",
+          "slot": "button-secondary-pressed"
+        },
+        {
+          "border": [
+            56,
+            64,
+            56,
+            52
+          ],
+          "image": "/assets/skins/lumen/ui/button-icon.png",
+          "slot": "button-icon"
+        },
+        {
+          "border": [
+            56,
+            64,
+            56,
+            52
+          ],
+          "image": "/assets/skins/lumen/ui/button-icon-pressed.png",
+          "slot": "button-icon-pressed"
+        },
+        {
+          "border": [
+            60,
+            40,
+            60,
+            40
+          ],
+          "image": "/assets/skins/lumen/ui/tab-bar.png",
+          "slot": "tab-bar"
+        },
+        {
+          "border": [
+            40,
+            40,
+            40,
+            40
+          ],
+          "image": "/assets/skins/lumen/ui/tab-selected.png",
+          "slot": "tab-selected"
+        },
+        {
+          "border": [
+            120,
+            0,
+            120,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/title-ribbon.png",
+          "slot": "title-ribbon"
+        },
+        {
+          "border": [
+            40,
+            40,
+            40,
+            40
+          ],
+          "image": "/assets/skins/lumen/ui/board-frame.png",
+          "slot": "board-frame"
+        },
+        {
+          "border": [
+            48,
+            48,
+            48,
+            48
+          ],
+          "image": "/assets/skins/lumen/ui/grid-well.png",
+          "slot": "grid-well"
+        },
+        {
+          "border": [
+            48,
+            40,
+            48,
+            40
+          ],
+          "image": "/assets/skins/lumen/ui/preview-tray.png",
+          "slot": "preview-tray"
+        },
+        {
+          "border": [
+            16,
+            8,
+            16,
+            8
+          ],
+          "image": "/assets/skins/lumen/ui/slider-track.png",
+          "slot": "slider-track"
+        },
+        {
+          "border": [
+            16,
+            8,
+            16,
+            8
+          ],
+          "image": "/assets/skins/lumen/ui/slider-fill.png",
+          "slot": "slider-fill"
+        },
+        {
+          "border": [
+            40,
+            40,
+            40,
+            40
+          ],
+          "image": "/assets/skins/lumen/ui/list-row.png",
+          "slot": "list-row"
+        },
+        {
+          "border": [
+            32,
+            32,
+            32,
+            32
+          ],
+          "image": "/assets/skins/lumen/ui/toggle-track.png",
+          "slot": "toggle-track"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/grid-cell.png",
+          "slot": "grid-cell"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/guardian-frame.png",
+          "slot": "guardian-frame"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/badge.png",
+          "slot": "badge"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/map-node-locked.png",
+          "slot": "map-node-locked"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/map-node-open.png",
+          "slot": "map-node-open"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/map-node-done.png",
+          "slot": "map-node-done"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/map-node-guardian.png",
+          "slot": "map-node-guardian"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/star-on.png",
+          "slot": "star-on"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/star-off.png",
+          "slot": "star-off"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/star-big.png",
+          "slot": "star-big"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/slider-knob.png",
+          "slot": "slider-knob"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/toggle-knob.png",
+          "slot": "toggle-knob"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-hammer.png",
+          "slot": "icon-hammer"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-totem.png",
+          "slot": "icon-totem"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-wave.png",
+          "slot": "icon-wave"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-reroll.png",
+          "slot": "icon-reroll"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-pause.png",
+          "slot": "icon-pause"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-back.png",
+          "slot": "icon-back"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-settings.png",
+          "slot": "icon-settings"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-close.png",
+          "slot": "icon-close"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-kredit.png",
+          "slot": "icon-kredit"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-campaign.png",
+          "slot": "icon-campaign"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-daily.png",
+          "slot": "icon-daily"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-profile.png",
+          "slot": "icon-profile"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-share.png",
+          "slot": "icon-share"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-music.png",
+          "slot": "icon-music"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-sound.png",
+          "slot": "icon-sound"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-lock.png",
+          "slot": "icon-lock"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-trophy.png",
+          "slot": "icon-trophy"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-spark.png",
+          "slot": "fx-spark"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-shard.png",
+          "slot": "fx-shard"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-glow.png",
+          "slot": "fx-glow"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-ring.png",
+          "slot": "fx-ring"
+        }
+      ]
+    },
+    {
       "id": "jelly",
       "name": "Jelly Sanctuary",
       "realms": [

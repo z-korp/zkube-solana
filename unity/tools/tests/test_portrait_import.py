@@ -1,6 +1,7 @@
 """Read-only import-plan tests; original guardian PNG bytes stay unchanged."""
 from pathlib import Path
 import hashlib
+import json
 import importlib.util
 import sys
 import unittest
@@ -21,17 +22,18 @@ def skin_slots():
 class PortraitImports(unittest.TestCase):
     def test_imports_only_the_assets_loaded_by_the_game(self):
         _, catalog = imports.asset_plan()
+        skins = json.loads((ROOT / 'assets/catalog.json').read_text())['skins']
         expected = {'assets/common/bonus/tiki.png'}
         expected.update(f'assets/common/sounds/effects/{name}.mp3'
                         for name in ('star', 'constraint-complete', 'victory', 'over'))
         for realm in range(1, 11):
             expected.update(f'assets/theme-{realm}/{name}.png' for name in
                             ('background', 'boss/idle', 'boss/celebrate', 'boss/defeated'))
-            expected.update(f'assets/skins/jelly/realm-{realm}/{name}' for name in
+            expected.update(f'assets/skins/{skin}/realm-{realm}/{name}' for skin in skins for name in
                             ('background.jpg', 'hud-background.jpg', 'map.jpg', 'ledge.png',
                              'block-1.png', 'block-2.png', 'block-3.png', 'block-4.png'))
             expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
-        expected.update(f'assets/skins/jelly/ui/{name}.png' for name in skin_slots())
+        expected.update(f'assets/skins/{skin}/ui/{name}.png' for skin in skins for name in skin_slots())
         self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
         self.assertEqual({font['name'] for font in catalog['fonts']},
                          {'LilitaOne-Regular', 'Fredoka-SemiBold', 'NotoSansSymbols2-Regular', 'NotoSansMath-Regular',
