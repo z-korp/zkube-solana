@@ -45,7 +45,6 @@ namespace ZKube.Presentation
     {
         public const float ButtonDp = 56, RowDp = 52;
         public readonly SkinUi Ui;
-        public readonly PageType Type;
         public readonly Transform Parent;
         public readonly PageActions Actions;
         public readonly float Left, Width;
@@ -56,8 +55,8 @@ namespace ZKube.Presentation
         private float bottomInset;
         private float D => Ui.Density;
 
-        public PageColumn(SkinUi ui, PageType type, Transform parent, PageActions actions, float left, float width, float top)
-        { Ui = ui; Type = type; Parent = parent; Actions = actions; Left = left; Width = width; Top = top; }
+        public PageColumn(SkinUi ui, Transform parent, PageActions actions, float left, float width, float top)
+        { Ui = ui; Parent = parent; Actions = actions; Left = left; Width = width; Top = top; }
 
         public Rect Take(float height, float gapDp = 10)
         { var rect = new Rect(Left, Top - height, Width, height); Top -= height + gapDp * D; return rect; }
@@ -65,35 +64,22 @@ namespace ZKube.Presentation
 
         public TMP_Text Text(string name, string value, float sizeDp, string token, bool display = false, float gapDp = 6,
             TextAlignmentOptions alignment = TextAlignmentOptions.Center) =>
-            Typed(name, value, display ? TypeRole.Title : TypeRole.Body, sizeDp, token, gapDp, alignment);
-        public TMP_Text Typed(string name, string value, TypeRole role, float sizeDp, string token, float gapDp = 6,
+            Typed(name, value, display ? SkinUi.Type.Title : SkinUi.Type.Body, sizeDp, token, gapDp, alignment);
+        public TMP_Text Typed(string name, string value, SkinUi.Type role, float sizeDp, string token, float gapDp = 6,
             TextAlignmentOptions alignment = TextAlignmentOptions.Center)
         {
-            float height = Type.Height(value, Width, role, sizeDp);
-            return Type.Label(name, value, Take(height, gapDp), role, sizeDp, token, Parent, alignment);
+            float height = Ui.TextHeight(value, Width, sizeDp, role);
+            return Ui.Label(name, value, Take(height, gapDp), sizeDp, token, Parent, role, alignment);
         }
 
-        public Button Button(PageAction action, bool primary, float gapDp = 12, float sizeDp = 19)
+        // A kit pill, grown to fit its label; icon leads the label.
+        public Button Button(PageAction action, bool primary, float gapDp = 12, string icon = null)
         {
             if (action == null) return null;
-            float height = Mathf.Max(ButtonDp * D, Type.Height(action.Label, Width - 20 * D, TypeRole.Button, sizeDp) + 24 * D);
-            var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), action.Label, Actions.Click(action), primary, Parent, out var text);
-            Type.Apply(text, TypeRole.Button); text.fontSize = sizeDp * D * Ui.Scale;
+            float lead = icon == null ? 0 : 24 * D;
+            float height = Mathf.Max(ButtonDp * D, Ui.TextHeight(action.Label, Width - 20 * D - lead, SkinUi.ButtonDp, SkinUi.Type.Number) + 24 * D);
+            var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), action.Label, Actions.Click(action), primary, Parent, out _, icon);
             return Actions.Bind(button, action);
-        }
-
-        // Two buttons side by side; a missing one leaves the other at full width.
-        public void Pair(PageAction left, PageAction right, float gapDp = 12)
-        {
-            if (left == null || right == null) { Button(left ?? right, false, gapDp); return; }
-            float gap = 10 * D, half = (Width - gap) / 2;
-            float height = Mathf.Max(ButtonDp * D, Mathf.Max(Type.Height(left.Label, half - 20 * D, TypeRole.Button, 17), Type.Height(right.Label, half - 20 * D, TypeRole.Button, 17)) + 24 * D);
-            var rect = Take(height, gapDp);
-            foreach (var (action, x) in new[] { (left, rect.x), (right, rect.x + half + gap) })
-            {
-                var button = Ui.TextButton(action.Name ?? action.Label, new Rect(x, rect.y, half, height), action.Label, Actions.Click(action), false, Parent, out var text);
-                Type.Apply(text, TypeRole.Button); text.fontSize = 17 * D * Ui.Scale; Actions.Bind(button, action);
-            }
         }
 
         // A kit list row, grown to fit its label: an optional icon, the label and
@@ -131,7 +117,7 @@ namespace ZKube.Presentation
         {
             float side = sideDp.HasValue ? sideDp.Value * D : Ui.CardInset, top = topDp.HasValue ? topDp.Value * D : Ui.CardInset;
             float headingHeight = heading == null ? 0 : Ui.TextHeight(heading, Width - 2 * side, 17, true) + 8 * D;
-            var inner = new PageColumn(Ui, Type, Parent, Actions, Left + side, Width - 2 * side, Top - top - headingHeight)
+            var inner = new PageColumn(Ui, Parent, Actions, Left + side, Width - 2 * side, Top - top - headingHeight)
             { outer = this, name = name, heading = heading, sibling = Parent.childCount,
               bottomInset = bottomDp.HasValue ? bottomDp.Value * D : Ui.CardInset * .6f };
             return inner;

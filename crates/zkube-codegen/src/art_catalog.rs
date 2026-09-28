@@ -215,8 +215,17 @@ fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
         ),
         _ => unreachable!("validated guardian"),
     };
-    json!({"bonus": bonus, "trigger": trigger, "threshold": threshold,
-        "description": description, "sentence": format!("{condition} a {name}.")})
+    // What the bonus does, in the words shown beside its rule. A bonus removes
+    // blocks without scoring; only the lines the drop completes score.
+    let effect = match name.as_str() {
+        "Hammer" => "The Hammer breaks the block you pick.",
+        "Totem" => "The Totem removes every block the size of the one you pick.",
+        "Wave" => "The Wave clears the row you pick.",
+        _ => unreachable!("validated bonus"),
+    };
+    json!({"bonus": bonus, "trigger": trigger, "threshold": threshold, "name": name,
+        "description": description, "sentence": format!("{condition} a {name}."),
+        "effect": format!("{effect} What it removes scores nothing; only lines completed as the blocks drop score.")})
 }
 
 // A Daily objective's words come from the one caption owner.

@@ -38,6 +38,8 @@ namespace ZKube.Local.App
         public LocalBoardActionProvider Provider { get; private set; }
         public string Error { get; private set; }
         public string BillingNotice { get; private set; }
+        // The last store query failed; it stays set until one succeeds.
+        public bool StoreUnavailable { get; private set; }
         // Set when the result page shows a Campaign run; null for the Daily result.
         public CampaignOutcome LastCampaign { get; private set; }
         private byte startingStars;
@@ -166,6 +168,7 @@ namespace ZKube.Local.App
             {
                 var answer = purchase ? await Billing.Purchase(cancellation) : await Billing.Query(cancellation);
                 if (!Current(request)) return;
+                StoreUnavailable = false;
                 BillingNotice = answer.Status == CampaignBillingStatus.PaymentPending ? "Payment is pending. Campaign unlocks after payment completes."
                     : answer.Status == CampaignBillingStatus.ConfirmationPending ? "Campaign unlocked. Store confirmation is pending; restore purchases to check again."
                     : answer.Owned ? "Full Campaign unlocked" : null;
@@ -174,7 +177,7 @@ namespace ZKube.Local.App
             { if (Current(request)) BillingNotice = Billing.Busy ? "The store operation is still in progress." : "Purchase cancelled"; }
             // A store failure is a billing notice: it shows where purchase and
             // restore are, never on the Daily the app opens on.
-            catch (Exception error) { if (Current(request)) BillingNotice = error.Message; }
+            catch (Exception error) { if (Current(request)) { BillingNotice = error.Message; StoreUnavailable = true; } }
             finally { if (Current(request)) Changed?.Invoke(); }
         }
         public void Report(Exception error) { if (!disposed) { Error = error.Message; Changed?.Invoke(); } }

@@ -404,6 +404,8 @@
     {
       "bonus": 3,
       "description": "Clear 2+ lines in a move",
+      "effect": "The Wave clears the row you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Wave",
       "sentence": "Clear 2 or more lines in one move to earn a Wave.",
       "threshold": 2,
       "trigger": 1
@@ -411,6 +413,8 @@
     {
       "bonus": 1,
       "description": "Clear exactly 2 lines in a move",
+      "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Hammer",
       "sentence": "Clear exactly 2 lines in one move to earn a Hammer.",
       "threshold": 2,
       "trigger": 4
@@ -418,6 +422,8 @@
     {
       "bonus": 2,
       "description": "Break 10+ blocks in one move",
+      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Totem",
       "sentence": "Break 10 or more blocks in one move to earn a Totem.",
       "threshold": 10,
       "trigger": 8
@@ -425,6 +431,8 @@
     {
       "bonus": 1,
       "description": "Clear a line 3 moves in a row",
+      "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Hammer",
       "sentence": "Clear lines on 3 moves in a row to earn a Hammer.",
       "threshold": 3,
       "trigger": 9
@@ -432,6 +440,8 @@
     {
       "bonus": 3,
       "description": "Every 7 lines cleared by moves",
+      "effect": "The Wave clears the row you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Wave",
       "sentence": "Every 7 lines cleared by moves earns a Wave.",
       "threshold": 7,
       "trigger": 2
@@ -439,6 +449,8 @@
     {
       "bonus": 2,
       "description": "Break every size in one move",
+      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Totem",
       "sentence": "Break every block size in one move to earn a Totem.",
       "threshold": 0,
       "trigger": 6
@@ -446,6 +458,8 @@
     {
       "bonus": 1,
       "description": "Clear exactly 3 lines in a move",
+      "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Hammer",
       "sentence": "Clear exactly 3 lines in one move to earn a Hammer.",
       "threshold": 3,
       "trigger": 4
@@ -453,6 +467,8 @@
     {
       "bonus": 2,
       "description": "Clear 3+ lines in a move",
+      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Totem",
       "sentence": "Clear 3 or more lines in one move to earn a Totem.",
       "threshold": 3,
       "trigger": 1
@@ -460,6 +476,8 @@
     {
       "bonus": 2,
       "description": "Every 2 combos",
+      "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Totem",
       "sentence": "Every 2 combos earns a Totem.",
       "threshold": 2,
       "trigger": 7
@@ -467,6 +485,8 @@
     {
       "bonus": 1,
       "description": "Clear exactly 4 lines in a move",
+      "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
+      "name": "Hammer",
       "sentence": "Clear exactly 4 lines in one move to earn a Hammer.",
       "threshold": 4,
       "trigger": 4

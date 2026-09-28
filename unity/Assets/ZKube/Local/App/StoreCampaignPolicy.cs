@@ -4,8 +4,9 @@ namespace ZKube.Local.App
 {
     public static class StoreCampaignPolicy
     {
+        public const byte FirstPurchasedRealm = 4;
         public static Func<byte, bool> PurchaseGate(LocalProductStore product) =>
-            realm => realm >= 4 && !product.Read.CampaignOwned;
+            realm => realm >= FirstPurchasedRealm && !product.Read.CampaignOwned;
     }
 
     public sealed class LocalDaily

@@ -27,7 +27,7 @@ namespace ZKube.Presentation
         {
             public byte bonus, trigger;
             public ushort threshold;
-            public string description, sentence;
+            public string name, description, sentence, effect;
         }
         [Serializable] public sealed class AudioEntry { public string context, resource; }
         [Serializable] public sealed class Swatch { public string name; public float[] value; }
@@ -83,6 +83,12 @@ namespace ZKube.Presentation
         public SkinEntry DefaultSkin => skins[0];
         public PortraitEntry Portrait(byte id) => portraits.Single(value => value.realmId == id);
         public DailyTheme Objective(byte kind, byte value) => dailyThemes.Single(theme => theme.kind == kind && theme.value == value);
+        // A realm's guardian rule, from the protocol's bonus, trigger and threshold.
+        public GuardianRule Rule(byte realm)
+        {
+            var rules = ZKube.Core.Generated.Protocol.Realms.Single(value => value.MapId == realm).GuardianAndHeight;
+            return guardianRules.Single(rule => rule.bonus == rules[0] && rule.trigger == rules[1] && rule.threshold == rules[2]);
+        }
         public void Validate()
         {
             if (themes == null || themes.Length != 10 || themes.Select(value => value.realmId).Distinct().Count() != 10)
@@ -113,7 +119,9 @@ namespace ZKube.Presentation
                 constraintCaptions.Select(value => (value.kind, value.value, value.count)).Distinct().Count() != constraintCaptions.Length ||
                 dailyThemes.Any(value => !constraintCaptions.Any(name => name.kind == value.kind && name.value == value.value && name.count == 0)))
                 throw new FormatException("Generated constraint names are incomplete");
-            if (guardianRules == null) throw new FormatException("Generated guardian descriptions are missing");
+            if (guardianRules == null || guardianRules.Any(rule => string.IsNullOrEmpty(rule.name) || string.IsNullOrEmpty(rule.effect)))
+                throw new FormatException("Generated guardian descriptions are missing");
+            foreach (var realm in themes) Rule(realm.realmId);
             if (skins == null || skins.Length == 0) throw new FormatException("Regenerate the catalog with its skin list");
             foreach (var skin in skins)
                 if (string.IsNullOrEmpty(skin.id) || skin.tokens == null || skin.ui == null || skin.realms == null ||

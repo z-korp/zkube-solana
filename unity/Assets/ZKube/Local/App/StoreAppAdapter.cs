@@ -135,7 +135,9 @@ namespace ZKube.Local.App
             yield return Flow.Error;
             // Store status belongs where its purchase and restore actions are.
             if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Profile) yield break;
-            yield return Flow.Billing.Busy ? "A store operation is still in progress." : Flow.BillingNotice;
+            // The Campaign page states an unreachable store in place of its purchase.
+            yield return Flow.Billing.Busy ? "A store operation is still in progress." :
+                Flow.Page == StorePage.Campaign && Flow.StoreUnavailable ? null : Flow.BillingNotice;
             if (Flow.Billing.LastFulfillmentError != null) yield return "Store confirmation needs attention. Restore purchases to retry.";
         }
         private static PageAction Action(string label, Action invoke, bool enabled = true) =>
@@ -143,14 +145,20 @@ namespace ZKube.Local.App
         public CampaignPageView CampaignView()
         {
             var active = Flow.Runs.Active("campaign"); string locked = Flow.Runs.CampaignLock(Flow.Realm);
+            if (pages == null) pages = PageCatalog.Load();
+            var here = pages.Realm(Flow.Realm); var before = Flow.Realm > 1 ? pages.Realm((byte)(Flow.Realm - 1)) : null;
+            bool purchase = locked == "purchase", offline = purchase && Flow.StoreUnavailable;
             return new CampaignPageView {
                 Realm = Flow.Realm, Stars = Flow.Stars(Flow.Realm),
                 Previous = Action("Previous", () => Flow.SelectRealm((byte)(Flow.Realm - 1)), Flow.Realm > 1),
                 Next = Action("Next", () => Flow.SelectRealm((byte)(Flow.Realm + 1)), Flow.Realm < Protocol.Realms.Length),
-                Notice = locked == "stars" ? "Clear the previous realm's final trial to unlock this path." : null,
-                Purchase = locked == "purchase" ? Action("Unlock the full Campaign" +
-                    (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice),
-                    () => _ = Flow.RefreshBilling(purchase: true), !Flow.Billing.Busy) : null,
+                Locked = locked == "stars" ? "Clear " + before.guardianName + "’s final trial in " + before.realmName + " to open " + here.realmName + "." :
+                    purchase ? "Realms " + StoreCampaignPolicy.FirstPurchasedRealm + "–" + Protocol.Realms.Length + " open with the full Campaign purchase." : null,
+                StoreProblem = offline ? "Store purchase unavailable" : null,
+                Purchase = !purchase ? null : offline ? Action("Try again", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) :
+                    Action("Unlock full Campaign" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice),
+                        () => _ = Flow.RefreshBilling(purchase: true), !Flow.Billing.Busy),
+                Restore = purchase && !offline ? Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) : null,
                 Trials = Enumerable.Range(1, Protocol.CampaignTargets.Length).Select(index => {
                     byte level = (byte)index;
                     return new CampaignTrialView { Level = level,
@@ -223,7 +231,7 @@ namespace ZKube.Local.App
                 Streak = Flow.Product.Read.Streak,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
                 NativeSharing = ResultSharing.NativeAvailable, Share = ResultSharing.Open,
-                Done = Action("Done", () => Flow.Show(StorePage.Daily)) };
+                Done = Action("Back to Daily", () => Flow.Show(StorePage.Daily)) };
         }
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));

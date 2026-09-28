@@ -46,6 +46,7 @@ namespace ZKube.Tests
         private LocalProductStore product;
         private StoreRunClient runs;
         private bool failSave;
+        private int greeted;
         private readonly Dictionary<string, float> audio = new Dictionary<string, float>();
 
         [UnitySetUp] public IEnumerator SetUp()
@@ -70,6 +71,8 @@ namespace ZKube.Tests
             billing = new CampaignBilling(new Driver(), () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
             app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board);
+            // Every guardian has greeted unless a test asks for the first visit.
+            greeted = ~0; Greet(app);
             yield return Page(StorePage.Daily);
         }
         [UnityTearDown] public IEnumerator TearDown()
@@ -78,6 +81,8 @@ namespace ZKube.Tests
             yield return null; billing?.Dispose(); billing = null;
             LogAssert.NoUnexpectedReceived();
         }
+        private void Greet(StoreAppAdapter target) =>
+            target.GetComponent<PageViews>().Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
         private static Button FindButton(Component parent, string name)
         {
             var choices = parent.GetComponentsInChildren<Button>().Where(value => value.gameObject.activeInHierarchy);
@@ -207,7 +212,7 @@ namespace ZKube.Tests
             billing = new CampaignBilling(new Driver { Failure = "Purchases are unavailable" },
                 () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
-            app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board);
+            app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board); Greet(app);
             yield return Wait(() => app.Flow.BillingNotice == "Purchases are unavailable" && !billing.Busy, "Startup store query did not fail");
             yield return Page(StorePage.Daily);
             Assert.That(app.Flow.Error, Is.Null);
@@ -253,20 +258,27 @@ namespace ZKube.Tests
         {
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Trial 1"); yield return Page(StorePage.Level);
+            // The preview words every goal from its constraint and shows its target
+            // (there is no progress yet), with the guardian's rule and what its bonus
+            // does; no internal source names.
+            var level = Protocol.Realms[0].Levels[0]; var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
+            var texts = Texts();
+            Assert.That(texts, Does.Contain("Score").And.Contain(Protocol.CampaignTargets[0].ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
+            Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain(level.Primary[2].ToString()));
+            Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])));
+            Assert.That(texts, Does.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description).And.Contain(rule.effect));
+            Assert.That(texts.Any(text => text.StartsWith("0 / ")), Is.False);
+            Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
             Click(app, "Play"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
             var outcome = app.Flow.LastCampaign;
             Assert.That(outcome, Is.Not.Null); Assert.That(outcome.Realm, Is.EqualTo(1)); Assert.That(outcome.Level, Is.EqualTo(1));
             Assert.That(outcome.EndReason, Is.EqualTo(3));
-            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "RUN ENDED"), Is.True);
-            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "LEVEL 1"), Is.True);
-            // Every goal is worded from its constraint with its progress; no internal source names.
-            var level = Protocol.Realms[0].Levels[0]; var catalog = PageCatalog.Load();
-            var texts = app.GetComponentsInChildren<TMP_Text>().Select(text => text.text).ToArray();
-            Assert.That(texts, Does.Contain("Score").And.Contain("0 / " + Protocol.CampaignTargets[0]));
-            Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain("0 / " + level.Primary[2]));
-            Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])).And.Contain("0 / 1"));
-            Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
+            // The guardian says how it went; an ended run lights no star.
+            Assert.That(Texts(), Does.Contain("Run ended").And.Contain("An ended run keeps no stars · try again"));
+            var sockets = app.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Result star ")).ToArray();
+            Assert.That(sockets.Length, Is.EqualTo(3));
+            Assert.That(sockets.All(image => image.sprite.name.StartsWith(SkinSlots.StarOff)), Is.True);
             Click(app, "Retry"); yield return BoardReady();
             Assert.That(board.Session.RealmId, Is.EqualTo(1)); Assert.That(runs.Active("campaign").Level, Is.EqualTo(1));
             yield return EndRun(); yield return Page(StorePage.Result);
@@ -317,6 +329,118 @@ namespace ZKube.Tests
                 Inside(FindButton(app, "Explore map"));
             }
             finally { shell.Frame = null; }
+        }
+        // The first visit to a realm's map greets once: the guardian's line, then
+        // its rule and what the bonus does. A tap continues, and it does not return.
+        [UnityTest] public IEnumerator FirstVisitToARealmGreetsOnceWithTheLineAndTheRule()
+        {
+            greeted = 0; yield return NamePlayer();
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
+            Assert.That(Texts(), Does.Contain(catalog.Realm(1).guardianGreeting).And.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.effect));
+            Click(app, "Continue"); yield return null;
+            Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianGreeting));
+            Assert.That(new GuardianGreetings(() => greeted, _ => { }).Greeted(1), Is.True);
+            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianGreeting));
+        }
+        // The map repeats the current level's action as its primary; realm 1 has no
+        // realm before it, so its back arrow is not drawn.
+        [UnityTest] public IEnumerator MapPrimaryPlaysTheCurrentLevelAndUnavailableArrowsAreNotDrawn()
+        {
+            product.Write(state => { state.Stars[0] = 3; state.Stars[1] = 2; return state; });
+            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Assert.That(Buttons().Any(button => button.name == "Previous"), Is.False);
+            Assert.That(FindButton(app, "Next").interactable, Is.True);
+            Click(app, "Play · Level 3"); yield return Page(StorePage.Level);
+            Assert.That(app.Flow.Level, Is.EqualTo(3));
+            Assert.That(Texts(), Does.Contain("Level 3"));
+        }
+        // Another realm is another page: on a phone where the map scrolls, it opens
+        // on its own current level, never at the scroll the last realm was left at.
+        [UnityTest] public IEnumerator SwitchingRealmsOpensTheNewMapAtItsCurrentLevel()
+        {
+            product.Write(state => { state.Stars[9] = 1; return state; });
+            var shell = app.GetComponent<PageShell>();
+            shell.Frame = new Rect(0, 0, 360, 640);
+            try
+            {
+                yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+                Click(app, "Next"); yield return Page(StorePage.Campaign);
+                Assert.That(app.Flow.Realm, Is.EqualTo(2));
+                float opened = shell.Offset;
+                Assert.That(opened, Is.GreaterThan(0), "The current level sits low on a scrolling map");
+                Click(app, "Previous"); yield return Page(StorePage.Campaign);
+                shell.Offset = 0;
+                Click(app, "Next"); yield return Page(StorePage.Campaign);
+                Assert.That(shell.Offset, Is.EqualTo(opened).Within(1));
+            }
+            finally { shell.Frame = null; }
+        }
+        // A realm the progression has not opened says why and leads back; a realm
+        // behind the store's purchase offers it and restore, and says so when the
+        // store cannot be reached, with a retry in its place.
+        [UnityTest] public IEnumerator LockedRealmsSayWhyAndOfferTheWayForward()
+        {
+            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Next"); yield return Page(StorePage.Campaign);
+            Assert.That(app.Flow.Realm, Is.EqualTo(2));
+            Assert.That(Nodes(), Is.Empty);
+            Assert.That(Texts(), Does.Contain("The path is waiting").And.Contain("Clear Mako’s final trial in Tiki to open Egypt."));
+            Click(app, "Return to Tiki"); yield return Page(StorePage.Campaign);
+            Assert.That(app.Flow.Realm, Is.EqualTo(1));
+            product.Write(state => { state.Stars[9] = 1; state.Stars[19] = 1; state.Stars[29] = 1; return state; });
+            app.Flow.SelectRealm(4); yield return Page(StorePage.Campaign);
+            Assert.That(Texts(), Does.Contain("Realms 4–10 open with the full Campaign purchase."));
+            Assert.That(FindButton(app, "Restore purchases").interactable, Is.True);
+            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock full Campaign"))), Is.True);
+            var failing = new CampaignBilling(new Driver { Failure = "Purchases are unavailable" },
+                () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
+            UnityEngine.Object.Destroy(app.gameObject); yield return null; billing.Dispose(); billing = failing;
+            var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
+            app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board); Greet(app);
+            yield return Wait(() => app.Flow.StoreUnavailable && !billing.Busy, "The store query did not fail");
+            app.Flow.SelectRealm(4); yield return Page(StorePage.Campaign);
+            Assert.That(Texts(), Does.Contain("Store purchase unavailable").And.Contain("Check your connection and try again."));
+            Assert.That(FindButton(app, "Try again").interactable, Is.True);
+            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock full Campaign"))), Is.False);
+            Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Restore purchases")), Is.False);
+        }
+        // A result arrives in beats and a tap anywhere skips to its end: until then
+        // its actions wait; after, the score is final and the actions are live.
+        // Reduced motion shows the end state at once.
+        [UnityTest] public IEnumerator ResultEntranceIsSkippableAndReducedMotionShowsTheEndState()
+        {
+            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Trial 1"); yield return Page(StorePage.Level);
+            Click(app, "Play"); yield return BoardReady();
+            typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
+            yield return EndRun(); yield return Page(StorePage.Result);
+            var retry = FindButton(app, "Retry");
+            Assert.That(retry.IsInteractable(), Is.False, "Actions arrive last");
+            FindButton(app, "Skip").onClick.Invoke(); yield return null;
+            Assert.That(retry.IsInteractable(), Is.True);
+            Assert.That(Buttons().Any(button => button.name == "Skip"), Is.False);
+            Assert.That(Texts(), Does.Contain(app.Flow.LastCampaign.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
+            typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, true);
+            Click(app, "Retry"); yield return BoardReady();
+            yield return EndRun(); yield return Page(StorePage.Result);
+            Assert.That(FindButton(app, "Retry").IsInteractable(), Is.True);
+            Assert.That(Buttons().Any(button => button.name == "Skip"), Is.False);
+        }
+        // The Daily result: the guardian's line, the score, the day's objective
+        // count and the streak, with sharing as the primary.
+        [UnityTest] public IEnumerator DailyResultShowsTheScoreObjectiveAndStreakWithSharing()
+        {
+            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
+            yield return EndRun(); yield return Page(StorePage.Result);
+            var today = runs.Today(); var catalog = PageCatalog.Load();
+            var texts = Texts();
+            Assert.That(texts, Does.Contain("Daily complete").And.Contain(catalog.Realm(today.Realm).guardianGreeting).And.Contain("SCORE").And.Contain("DAILY STREAK"));
+            if (today.ObjectiveKind != 0) Assert.That(texts, Does.Contain(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue)));
+            var share = FindButton(app, ResultSharing.NativeAvailable ? "Share result" : "Copy result");
+            Assert.That(share.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
         }
         // A page change fades the old page out without taking input, raises the
         // new one within the spec's budget, and leaves the tab bar where it was.

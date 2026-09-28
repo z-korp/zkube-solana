@@ -30,8 +30,13 @@ namespace ZKube.Presentation
         public byte Realm;
         public int Stars;
         public string Notice, SavedRun;
+        // Set when the realm is not open yet, in player words. The page then shows
+        // the realm waiting instead of its map, with Previous as the way back or
+        // Purchase and Restore as the way in. StoreProblem is set when the store
+        // cannot be reached; Purchase then retries it.
+        public string Locked, StoreProblem;
         public CampaignTrialView[] Trials = Array.Empty<CampaignTrialView>();
-        public PageAction Previous, Next, Resume, Purchase, Result;
+        public PageAction Previous, Next, Resume, Purchase, Restore, Result;
     }
 
     // A level's three star goals as rules; the pages word each goal from its
