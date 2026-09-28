@@ -189,13 +189,15 @@ namespace ZKube.Tests
             Assert.That(board.gameObject.activeSelf, Is.False); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
             Assert.That(app.Flow.LastCampaign, Is.Null);
             Click(app, "Daily"); yield return Page(StorePage.Daily);
-            // A used Daily says when the next one opens where Play was, never a
-            // greyed-out Play; the result stays one tap away as the secondary.
+            // A used Daily gives its reason where Play was, never a greyed-out
+            // Play, counts to the next Daily and shows the run; the result is the
+            // action left to take, so it is the primary.
             Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Play today")), Is.False);
-            Assert.That(Texts(), Does.Contain("Next Daily in 24:00:00"));
+            Assert.That(Texts(), Does.Contain("Today’s attempt is used").And.Contain("Next Daily in 24:00:00"));
+            Assert.That(Texts(), Does.Contain("Score").And.Contain(product.Read.DailyAttempt.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             var result = FindButton(app, "View result");
             Assert.That(result.interactable, Is.True);
-            Assert.That(result.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonSecondary));
+            Assert.That(result.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
         }
         // A store that cannot be reached at startup does not greet the player on
         // the Daily; its notice appears where purchase and restore are.
@@ -281,6 +283,40 @@ namespace ZKube.Tests
             Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite.name, Does.StartWith("brand__realms"));
             Click(app, "Explore map"); yield return Page(StorePage.Campaign);
             Assert.That(app.Flow.Realm, Is.EqualTo(3));
+        }
+        // At the larger text size on a 360 x 640 phone, Home is taller than the
+        // space between the wordmark's top and the tab bar; it scrolls, and every
+        // panel and action comes fully into view above the tab bar.
+        [UnityTest] public IEnumerator LargeTextHomeScrollsFullyIntoViewOnACompactPhone()
+        {
+            var shell = app.GetComponent<PageShell>();
+            shell.Frame = new Rect(0, 0, 360, 640);
+            try
+            {
+                typeof(BoardController).GetProperty("TextScale").SetValue(board, 1.3f);
+                Click(app, "Profile"); yield return Page(StorePage.Profile);
+                Click(app, "Daily"); yield return Page(StorePage.Daily);
+                var viewport = SkinUi.ScreenRect(shell.Viewport);
+                var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
+                Assert.That(viewport.yMin, Is.GreaterThanOrEqualTo(tabs.yMax - .5f));
+                Assert.That(viewport.yMax, Is.LessThanOrEqualTo(640.5f));
+                Assert.That(shell.Scroll.content.rect.height, Is.GreaterThan(viewport.height), "Home should scroll at this size");
+                Rect Of(Component value) => SkinUi.ScreenRect((RectTransform)value.transform);
+                void Inside(Component value)
+                {
+                    var rect = Of(value);
+                    Assert.That(rect.yMin, Is.GreaterThanOrEqualTo(viewport.yMin - .5f), value.name + " stays under the tab bar");
+                    Assert.That(rect.yMax, Is.LessThanOrEqualTo(viewport.yMax + .5f), value.name + " runs above the page");
+                    Assert.That(rect.xMin, Is.GreaterThanOrEqualTo(-.5f), value.name); Assert.That(rect.xMax, Is.LessThanOrEqualTo(360.5f), value.name);
+                }
+                var images = app.GetComponentsInChildren<Image>();
+                Inside(images.Single(image => image.name == "Wordmark"));
+                Inside(images.Single(image => image.name == "Daily card"));
+                shell.Scroll.verticalNormalizedPosition = 0; Canvas.ForceUpdateCanvases(); yield return null;
+                Inside(images.Single(image => image.name == "Campaign card"));
+                Inside(FindButton(app, "Explore map"));
+            }
+            finally { shell.Frame = null; }
         }
         // A page change fades the old page out without taking input, raises the
         // new one within the spec's budget, and leaves the tab bar where it was.

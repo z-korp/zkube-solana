@@ -63,6 +63,13 @@ namespace ZKube.Presentation
 
         public void Show(bool visible) { Root.SetActive(visible); backdrop.enabled = visible; }
 
+        // The screen the pages lay out in, from the bottom-left of the real one. A
+        // test sets a smaller phone's frame inside the Game view; otherwise it is
+        // the whole screen and its safe area.
+        public Rect? Frame { get; set; }
+        public Rect ScreenArea => Frame ?? new Rect(0, 0, Screen.width, Screen.height);
+        public Rect SafeArea => Frame ?? Screen.safeArea;
+
         // Retires the previous page and places an empty body between the header and
         // the tab bar. Page pieces are laid out from the top of Page, in screen pixels.
         public void Clear(Rect body)
@@ -70,7 +77,7 @@ namespace ZKube.Presentation
             StopTransition();
             foreach (var layer in new[] { Chrome, Overlay, Page })
                 foreach (Transform child in layer) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
-            var screen = new Rect(0, 0, Screen.width, Screen.height);
+            var screen = ScreenArea;
             SkinUi.Place(stage, screen, Root.transform);
             SkinUi.Place(Overlay, screen, stage);
             SkinUi.Place(Chrome, screen, Root.transform);
@@ -186,9 +193,10 @@ namespace ZKube.Presentation
         {
             Background.sprite = sprite; Background.color = sprite == null ? Color.clear : new Color(brightness, brightness, brightness, 1);
             if (sprite == null) return;
-            float scale = Mathf.Max(Screen.width / sprite.rect.width, Screen.height / sprite.rect.height);
+            var area = ScreenArea;
+            float scale = Mathf.Max(area.width / sprite.rect.width, area.height / sprite.rect.height);
             var size = sprite.rect.size * scale;
-            SkinUi.Place(Background.rectTransform, new Rect((Screen.width - size.x) / 2, (Screen.height - size.y) / 2, size.x, size.y), Root.transform);
+            SkinUi.Place(Background.rectTransform, new Rect(area.center.x - size.x / 2, area.center.y - size.y / 2, size.x, size.y), Root.transform);
         }
 
         public bool RealmReady(byte realm) => !Loading && ArtworkError == null && Artwork?.RealmId == realm;

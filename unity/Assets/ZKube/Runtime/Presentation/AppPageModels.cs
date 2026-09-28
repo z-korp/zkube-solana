@@ -65,9 +65,11 @@ namespace ZKube.Presentation
         public byte Realm, ObjectiveKind, ObjectiveValue;
         // Unix seconds when entries close; zero when the identity has no close to show.
         public long ClosesAt;
-        // Set once today's play is used: Unix seconds when the next Daily opens.
-        // The page then shows that reason in place of the play action.
+        // Set once today's play is used: Unix seconds when the next Daily opens,
+        // with that run's score and objective count. The page then shows the
+        // reason in place of the play action.
         public long NextOpensAt;
+        public ulong Score, ObjectiveTotal;
         public Func<long> Now;
         public string Status;
         public string[] Facts = Array.Empty<string>();

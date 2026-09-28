@@ -16,7 +16,7 @@ namespace ZKube.Presentation
     // through IAppPageSource; the identity adapter adds its own notices.
     public sealed class PageViews : MonoBehaviour
     {
-        public const float GutterDp = 18, ColumnDp = 480, IconDp = 48;
+        public const float GutterDp = 16, ColumnDp = 480, IconDp = 48;
         private static readonly AppPage[] tabs = { AppPage.Campaign, AppPage.Daily, AppPage.Profile };
         private IAppPageSource source;
         private PageShell shell;
@@ -112,14 +112,14 @@ namespace ZKube.Presentation
         }
 
         // Removes the drawn page, so the next page enters without a page to leave.
-        public void Hide() { Retire(); Shown = null; shell.Clear(Screen.safeArea); }
+        public void Hide() { Retire(); Shown = null; shell.Clear(shell.SafeArea); }
 
         // A page that could not load its realm art has no skin kit to draw with.
         public void Unavailable(string title, string message, PageAction retry)
         {
             Retire(); Shown = null;
             float d = Mathf.Max(.5f, density());
-            var safe = Screen.safeArea;
+            var safe = shell.SafeArea;
             shell.Clear(safe); shell.Backdrop(null, 1);
             var font = TMP_Settings.defaultFontAsset;
             float y = safe.yMax - 40 * d;
@@ -154,7 +154,7 @@ namespace ZKube.Presentation
         private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, PageAction settings, string[] notices,
             bool fullBleed = false)
         {
-            var safe = Screen.safeArea; float d = ui.Density;
+            var safe = shell.SafeArea; float d = ui.Density;
             reveal = null; selectedTab = tab;
             float icon = IconDp * d, titleWidth = safe.width - 2 * (icon + 24 * d);
             float titleHeight = title == null ? 0 : type.Height(title, titleWidth, TypeRole.Title, 24);
@@ -163,14 +163,14 @@ namespace ZKube.Presentation
             tabBar = ui.TabBarRect(safe);
             float bottom = tab >= 0 ? tabBar.yMax : safe.y;
             headerBottom = safe.yMax - header;
-            var body = fullBleed ? new Rect(0, 0, Screen.width, Screen.height) : new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
+            var body = fullBleed ? shell.ScreenArea : new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
             shell.Clear(body);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
             var chrome = shell.Overlay;
             if (fullBleed)
             {
                 // The map scrolls under the header; a band keeps the title readable.
-                var band = ui.Rect<Image>("Header band", Rect.MinMaxRect(0, headerBottom - 6 * d, Screen.width, Screen.height), chrome);
+                var band = ui.Rect<Image>("Header band", Rect.MinMaxRect(0, headerBottom - 6 * d, shell.ScreenArea.width, shell.ScreenArea.height), chrome);
                 var shade = ui.Art.Token(SkinTokens.Scrim); shade.a *= .75f; band.color = shade; band.raycastTarget = false;
             }
             float top = safe.yMax - 8 * d;
@@ -181,10 +181,10 @@ namespace ZKube.Presentation
             if (subtitle != null)
                 type.Label("Page subtitle", subtitle, new Rect(safe.center.x - titleWidth / 2, textTop - titleHeight - subtitleHeight, titleWidth, subtitleHeight),
                     TypeRole.Label, 13, SkinTokens.Accent, chrome);
-            // Without a title the tablet sits 34 dp below the top of the screen, as
-            // drawn, and clear of the status bar.
-            float iconY = title == null ? Mathf.Min(Screen.height - 34 * d, safe.yMax - 6 * d) - icon : top - (header - 8 * d) / 2 - icon / 2;
-            float iconRight = title == null ? safe.xMax - 17 * d : safe.xMax - 12 * d;
+            // Without a title the tablet sits 4 dp inside the top safe inset and on
+            // the page gutter, as drawn.
+            float iconY = title == null ? safe.yMax - 4 * d - icon : top - (header - 8 * d) / 2 - icon / 2;
+            float iconRight = title == null ? safe.xMax - GutterDp * d : safe.xMax - 12 * d;
             back = left;
             if (left != null) HeaderButton(left, new Rect(safe.x + 12 * d, iconY, icon, icon), SkinSlots.IconBack, false);
             if (right != null) HeaderButton(right, new Rect(safe.xMax - 12 * d - icon, iconY, icon, icon), SkinSlots.IconBack, true);
@@ -229,54 +229,83 @@ namespace ZKube.Presentation
         private static int TabIndex(AppPage page) =>
             page == AppPage.Campaign || page == AppPage.Level ? 0 : page == AppPage.Daily || page == AppPage.Result ? 1 : page == AppPage.Profile ? 2 : -1;
 
-        // Home, as drawn at 400 dp: the product's painted wordmark, today's Daily
-        // and the Campaign realm in progress. Spacing follows the composite; text
-        // grows its row when it wraps or the text size is larger.
+        // Home, as drawn at 400 dp: the product's painted wordmark lockup, today's
+        // Daily and the Campaign realm in progress. Spacing follows the composites
+        // (tiki-home, and realms-daily-used once today's play is used); text grows
+        // its row when it wraps or the text size is larger.
         private void Home(DailyPageView value)
         {
             float d = ui.Density;
             var mark = ui.Art.Sprite("common/brand__" + brand);
-            float markWidth = Mathf.Min(220 * d, Screen.safeArea.width - 2 * (IconDp + 22) * d), markHeight = markWidth * mark.rect.height / mark.rect.width;
-            var markRect = column.Take(markHeight, 7);
+            float markWidth = 180 * d, markHeight = markWidth * mark.rect.height / mark.rect.width;
+            var markRect = column.Take(markHeight, 8);
             var wordmark = ui.Rect<Image>("Wordmark", new Rect(column.Left + (column.Width - markWidth) / 2, markRect.y, markWidth, markHeight), shell.Page);
             wordmark.sprite = mark; wordmark.preserveAspect = true; wordmark.raycastTarget = false;
-
             var realm = catalog.Realm(value.Realm);
-            var card = column.Card("Daily card", null, 26, 13.5f, 7);
-            card.Typed("Daily heading", "Today’s Daily", TypeRole.Label, 11, SkinTokens.Accent, 21.5f);
-            card.Medallion("Daily guardian", ui.Art.Sprite("boss__portrait"), 108, 8.5f);
-            card.Typed("Daily guardian name", realm.guardianName, TypeRole.Title, 28, SkinTokens.Text, 1.5f);
-            card.Typed("Daily objective", Sentence(catalog.Objective(value.ObjectiveKind, value.ObjectiveValue).description), TypeRole.Body, 17,
-                SkinTokens.Text, 2.5f);
-            // Once today's play is used, its reason takes the primary's place and
-            // counts to the next Daily; nothing is shown greyed out.
-            bool used = value.NextOpensAt > 0 && value.Now != null;
-            if (value.Now != null && (used || value.ClosesAt > 0)) { countdownView = value; countdownSecond = value.Now(); }
-            if (!used && value.ClosesAt > 0 && value.Now != null)
-                countdown = card.Typed("Daily countdown", Remaining(value.ClosesAt - countdownSecond), TypeRole.Caption, 17, SkinTokens.Accent, 2.5f);
-            if (!string.IsNullOrEmpty(value.Status)) card.Typed("Daily status", value.Status, TypeRole.Body, 15, SkinTokens.Text, 2.5f);
-            foreach (var fact in value.Facts) card.Typed("Daily fact", fact, TypeRole.Caption, 12, SkinTokens.TextMuted, 2.5f);
-            card.Gap(13);
-            if (used)
+            string objective = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
+            if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
+            if (value.NextOpensAt > 0 && value.Now != null) UsedDaily(value, realm, objective);
+            else
             {
-                var slot = card.Take(PageColumn.ButtonDp * d, value.Actions.Length == 0 ? 0 : 12);
-                nextDaily = type.Label("Next Daily", NextDaily(value.NextOpensAt - countdownSecond), slot, TypeRole.Button, 19, SkinTokens.Accent, card.Parent);
+                var card = column.Card("Daily card", null, 24, 13.5f, 16);
+                card.Typed("Daily heading", "Today’s Daily", TypeRole.Label, 11, SkinTokens.Accent, 21.5f);
+                card.Medallion("Daily guardian", ui.Art.Sprite("boss__portrait"), 122, 8.5f);
+                card.Typed("Daily guardian name", realm.guardianName, TypeRole.Title, 28, SkinTokens.Text, 1.5f);
+                card.Typed("Daily objective", objective, TypeRole.Body, 17, SkinTokens.Text, 2.5f);
+                if (value.ClosesAt > 0 && value.Now != null)
+                    countdown = card.Typed("Daily countdown", Remaining(value.ClosesAt - countdownSecond), TypeRole.Caption, 17, SkinTokens.Accent, 2.5f);
+                if (!string.IsNullOrEmpty(value.Status)) card.Typed("Daily status", value.Status, TypeRole.Body, 15, SkinTokens.Text, 2.5f);
+                foreach (var fact in value.Facts) card.Typed("Daily fact", fact, TypeRole.Caption, 12, SkinTokens.TextMuted, 2.5f);
+                card.Gap(13);
+                for (int i = 0; i < value.Actions.Length; i++)
+                    Pill(card, value.Actions[i], i == 0, i == 0 ? SkinSlots.IconDaily : null, i == value.Actions.Length - 1 ? 0 : 12);
+                column = card.End(24);
             }
-            for (int i = 0; i < value.Actions.Length; i++)
-                Pill(card, value.Actions[i], !used && i == 0, !used && i == 0 ? SkinSlots.IconDaily : null, i == value.Actions.Length - 1 ? 0 : 12);
-            column = card.End(24);
 
             var summary = source.CampaignSummary();
             if (summary == null) return;
-            card = column.Card("Campaign card", null, 26, 13.5f, 18.5f);
-            card.Typed("Campaign heading", "Campaign", TypeRole.Label, 11, SkinTokens.TextMuted, 3);
-            card.Typed("Campaign realm", catalog.Realm(summary.Realm).realmName, TypeRole.Title, 28, SkinTokens.Text, 3);
-            card.Typed("Campaign realm number", "Realm " + summary.Realm + " / " + Protocol.Realms.Length, TypeRole.Body, 13, SkinTokens.TextMuted, 13);
-            Stat(card, "Campaign levels", null, "Levels", summary.Cleared + " / " + summary.Levels, 7.5f);
-            Progress(card, "Campaign progress", summary.Levels == 0 ? 0 : summary.Cleared / (float)summary.Levels, 11);
-            Stat(card, "Campaign stars", SkinSlots.StarOn, "Stars", summary.Stars + " / " + summary.Levels * 3, 21);
-            Pill(card, summary.Open, false, SkinSlots.IconCampaign, 0);
+            var campaign = column.Card("Campaign card", null, 24, 13.5f, 18.5f);
+            campaign.Typed("Campaign heading", "Campaign", TypeRole.Label, 11, SkinTokens.TextMuted, 3);
+            campaign.Typed("Campaign realm", catalog.Realm(summary.Realm).realmName, TypeRole.Title, 28, SkinTokens.Text, 3);
+            campaign.Typed("Campaign realm number", "Realm " + summary.Realm + " / " + Protocol.Realms.Length, TypeRole.Body, 13, SkinTokens.TextMuted, 13);
+            Stat(campaign, "Campaign levels", null, "Levels", summary.Cleared + " / " + summary.Levels, 7.5f);
+            Progress(campaign, "Campaign progress", summary.Levels == 0 ? 0 : summary.Cleared / (float)summary.Levels, 11);
+            Stat(campaign, "Campaign stars", SkinSlots.StarOn, "Stars", summary.Stars + " / " + summary.Levels * 3, 21);
+            Pill(campaign, summary.Open, false, SkinSlots.IconCampaign, 0);
+            column = campaign.End(24);
+        }
+        // Today's play is used: its reason replaces Play and counts to the next
+        // Daily, the run's score and objective count follow, and the action left
+        // to take (the result) becomes the primary.
+        private void UsedDaily(DailyPageView value, PageCatalog.RealmPage realm, string objective)
+        {
+            float d = ui.Density;
+            var card = column.Card("Daily card", null, 24, 39, 16);
+            card.Medallion("Daily guardian", ui.Art.Sprite("boss__portrait"), 122, 11.5f);
+            card.Typed("Daily guardian name", realm.realmName + " · " + realm.guardianName, TypeRole.Title, 27, SkinTokens.Text, 14);
+            card.Typed("Daily objective", objective, TypeRole.Caption, 18, SkinTokens.Objective, 25.5f);
+            card.Typed("Daily used", "Today’s attempt is used", TypeRole.Caption, 20, SkinTokens.Text, 9.5f);
+            nextDaily = card.Typed("Next Daily", NextDaily(value.NextOpensAt - countdownSecond), TypeRole.Caption, 14, SkinTokens.TextMuted, 20);
+            var rows = new PageColumn(ui, type, card.Parent, actions, card.Left - 8 * d, card.Width + 16 * d, card.Top);
+            ResultRow(rows, "Daily score", "Score", value.Score, SkinTokens.Score, 12);
+            if (value.ObjectiveKind != 0) ResultRow(rows, "Daily objective count", objective, value.ObjectiveTotal, SkinTokens.Objective, 12);
+            card.Top = rows.Top - 8 * d;
+            for (int i = 0; i < value.Actions.Length; i++) Pill(card, value.Actions[i], i == 0, null, i == value.Actions.Length - 1 ? 0 : 12);
             column = card.End(24);
+        }
+        // A 52 dp kit list row: the label on the left and its number on the right.
+        private void ResultRow(PageColumn rows, string name, string label, ulong value, string token, float gapDp)
+        {
+            float d = ui.Density;
+            string number = value.ToString("N0", CultureInfo.InvariantCulture);
+            float numberWidth = type.Width(number, TypeRole.Number, 18);
+            float height = Mathf.Max(PageColumn.RowDp * d, type.Height(label, rows.Width - 44 * d - numberWidth, TypeRole.Caption, 15) + 16 * d);
+            var rect = rows.Take(height, gapDp);
+            ui.Piece(name + " row", SkinSlots.ListRow, rect, rows.Parent);
+            type.Label(name + " label", label, new Rect(rect.x + 14 * d, rect.y, rect.width - 36 * d - numberWidth, rect.height), TypeRole.Caption, 15,
+                SkinTokens.Text, rows.Parent, TextAlignmentOptions.Left);
+            type.Label(name, number, new Rect(rect.xMax - 15 * d - numberWidth, rect.y, numberWidth, rect.height), TypeRole.Number, 18, token,
+                rows.Parent, TextAlignmentOptions.Right);
         }
         // A card row: an optional star, the label on the left and its value, the
         // biggest text in the row, on the right.
@@ -351,16 +380,16 @@ namespace ZKube.Presentation
         private void Map(CampaignPageView value, byte focusLevel)
         {
             var realm = catalog.Realm(value.Realm);
-            float d = ui.Density, width = Screen.width;
+            float d = ui.Density, width = shell.ScreenArea.width;
             var art = ui.Art.SkinRealm(SkinSlots.Map);
-            float height = Mathf.Max(width * art.rect.height / art.rect.width, Screen.height);
-            var map = new Rect(0, Screen.height - height, width, height);
+            float height = Mathf.Max(width * art.rect.height / art.rect.width, shell.ScreenArea.height);
+            var map = new Rect(0, shell.ScreenArea.height - height, width, height);
             var image = ui.Rect<Image>("Realm map", map, shell.Page); image.sprite = art; image.raycastTarget = false;
             column = new PageColumn(ui, type, shell.Page, actions, 0, width, map.y + 16 * d);
             int count = value.Trials.Length;
             // The path spans the map between the header and the tab bar, so every
             // node can scroll clear of both.
-            var path = Rect.MinMaxRect(map.xMin, map.yMin + tabBar.yMax + 24 * d, map.xMax, map.yMax - (Screen.height - headerBottom) - 24 * d);
+            var path = Rect.MinMaxRect(map.xMin, map.yMin + tabBar.yMax + 24 * d, map.xMax, map.yMax - (shell.ScreenArea.height - headerBottom) - 24 * d);
             Vector2 At(int index)
             {
                 var point = realm.campaignPath[index];
@@ -452,7 +481,7 @@ namespace ZKube.Presentation
         private void Level(LevelPageView value, CampaignPageView map, string[] notices)
         {
             Map(map, value.Level);
-            var scrim = ui.Rect<Image>("Level scrim", new Rect(0, 0, Screen.width, Screen.height), shell.Chrome);
+            var scrim = ui.Rect<Image>("Level scrim", shell.ScreenArea, shell.Chrome);
             scrim.color = ui.Art.Token(SkinTokens.Scrim); scrim.raycastTarget = true;
             var realm = catalog.Realm(value.Realm);
             Float("Level", true, value.Back, card => {
@@ -482,17 +511,17 @@ namespace ZKube.Presentation
         // the screen, then moved into place once its height is known.
         private void Float(string name, bool centred, PageAction close, Action<PageColumn> fill)
         {
-            float d = ui.Density; var safe = Screen.safeArea;
-            var holder = Holder(name, new Rect(0, 0, Screen.width, Screen.height), shell.Chrome);
+            float d = ui.Density; var safe = shell.SafeArea;
+            var holder = Holder(name, shell.ScreenArea, shell.Chrome);
             float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d), left = safe.center.x - width / 2;
-            var outer = new PageColumn(ui, type, holder, actions, left, width, Screen.height);
+            var outer = new PageColumn(ui, type, holder, actions, left, width, shell.ScreenArea.height);
             var card = outer.Card(name + " card");
             if (close != null) card.Gap(14);
             fill(card);
             card.End(0);
             if (close != null)
-                HeaderButton(close, new Rect(left + width - 56 * d, Screen.height - 58 * d, 48 * d, 48 * d), SkinSlots.IconClose, false, holder);
-            float height = Screen.height - outer.Top, floor = selectedTab >= 0 ? tabBar.yMax : safe.y;
+                HeaderButton(close, new Rect(left + width - 56 * d, shell.ScreenArea.height - 58 * d, 48 * d, 48 * d), SkinSlots.IconClose, false, holder);
+            float height = shell.ScreenArea.height - outer.Top, floor = selectedTab >= 0 ? tabBar.yMax : safe.y;
             float bottom = centred ? Mathf.Max(floor + 8 * d, (headerBottom + floor) / 2 - height / 2) : floor + 10 * d;
             holder.anchoredPosition += new Vector2(0, bottom - outer.Top);
         }

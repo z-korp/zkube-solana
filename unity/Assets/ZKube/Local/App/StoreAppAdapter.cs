@@ -182,12 +182,11 @@ namespace ZKube.Local.App
         public DailyPageView DailyPage()
         {
             var today = Flow.Today;
-            bool used = Flow.AttemptedToday && Flow.TodayRun == null;
+            var attempt = Flow.AttemptedToday && Flow.TodayRun == null ? Flow.Product.Read.DailyAttempt : null;
             // The local Daily closes as the next one opens.
             return new DailyPageView { Day = today.DayId, Realm = today.Realm, ClosesAt = today.FreezesAt, Now = Flow.Runs.Now,
-                NextOpensAt = used ? today.FreezesAt : 0,
+                NextOpensAt = attempt == null ? 0 : today.FreezesAt, Score = attempt?.DailyScore ?? 0, ObjectiveTotal = attempt?.ObjectiveTotal ?? 0,
                 ObjectiveKind = today.ObjectiveKind, ObjectiveValue = today.ObjectiveValue,
-                Facts = used ? Array.Empty<string>() : new[] { "One attempt today. Play it while the app stays open." },
                 Actions = new[] { Action(Flow.DailyAction, Flow.PlayDaily) } };
         }
         public ProfilePageView ProfilePage()
