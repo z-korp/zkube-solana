@@ -6,6 +6,7 @@ using UnityEngine.TestTools;
 using UnityEngine.UI;
 using ZKube.Integration.App;
 using ZKube.Integration.Execution;
+using ZKube.Integration.Presentation;
 using ZKube.Presentation;
 
 namespace ZKube.Tests.MoneyOverview
@@ -28,12 +29,13 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator CollectReward(string kind, string variant, int points)
         {
             yield return PrepareClaimPage("claim-" + kind + "-" + variant, 1.3f);
-            string name = kind == "score" ? "Score" : "Theme", peer = kind == "score" ? "Theme" : "Score";
+            // The boards' names in general contexts: Score and Objective.
+            string name = kind == "score" ? "Score" : "Objective", peer = kind == "score" ? "Objective" : "Score";
             yield return SessionClick("Collect " + name); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
-            StringAssert.Contains(name + " reward received · " + (environment.ClaimAmount / 1_000_000_000m).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " SOL", SessionText());
+            StringAssert.Contains(name + " reward received · " + MoneyText.Sol(environment.ClaimAmount), SessionText());
             StringAssert.Contains("+" + points + " ladder points", SessionText());
             StringAssert.Contains("Ladder · " + (200 + points) + " points", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect " + name), Is.False);
@@ -55,7 +57,7 @@ namespace ZKube.Tests.MoneyOverview
             var score = host.GetComponentsInChildren<Button>().SingleOrDefault(button => button.name == "Collect Score");
             Assert.That(score == null || !score.interactable, Is.True);
             // Without a device session the claim is replaced by its reason.
-            var theme = host.GetComponentsInChildren<Button>().SingleOrDefault(button => button.name == "Collect Theme");
+            var theme = host.GetComponentsInChildren<Button>().SingleOrDefault(button => button.name == "Collect Objective");
             if (variant == "missing-session") Assert.That(theme == null || !theme.interactable, Is.True);
             else Assert.That(theme.interactable, Is.True);
             yield return Wait(host.GetComponent<MoneyIdentity>().Controller.CollectReward("score"));
@@ -67,7 +69,7 @@ namespace ZKube.Tests.MoneyOverview
             environment.AdvanceClock(1); yield return null; yield return Idle();
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect Score" && button.interactable), Is.False);
             StringAssert.Contains("Claim window closed", SessionText());
-            Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Theme").interactable, Is.True);
+            Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Objective").interactable, Is.True);
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ResultDayNavigationNeverSignsAndOtherPagesCloseResults()

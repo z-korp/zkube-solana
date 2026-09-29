@@ -68,6 +68,14 @@ namespace ZKube.Presentation
         public TMP_Text Typed(string name, string value, SkinUi.Type role, float sizeDp, string token, float gapDp = 6,
             TextAlignmentOptions alignment = TextAlignmentOptions.Center)
         {
+            // A number stays on one line, fitted to the column.
+            if (role == SkinUi.Type.Number)
+            {
+                var (shown, size) = NumberFit.Fit(Ui, value, Width, sizeDp);
+                var text = Ui.Label(name, shown, Take(Ui.TextHeight(shown, float.PositiveInfinity, size, role), gapDp), size, token, Parent, role, alignment);
+                text.textWrappingMode = TextWrappingModes.NoWrap;
+                return text;
+            }
             float height = Ui.TextHeight(value, Width, sizeDp, role);
             return Ui.Label(name, value, Take(height, gapDp), sizeDp, token, Parent, role, alignment);
         }

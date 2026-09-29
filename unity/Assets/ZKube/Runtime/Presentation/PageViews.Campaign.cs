@@ -311,7 +311,7 @@ namespace ZKube.Presentation
         {
             float d = ui.Density;
             var rows = new PageColumn(ui, card.Parent, actions, card.Left - 10 * d, card.Width + 20 * d, card.Top);
-            float numberWidth = number == null ? 0 : ui.TextWidth(number, 18, SkinUi.Type.Number);
+            float numberWidth = number == null ? 0 : NumberSlot(number, 18, rows.Width / 2);
             float height = Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(label, rows.Width - 64 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
             var rect = rows.Take(height, 8);
             ui.Piece(name + " row", SkinSlots.ListRow, rect, card.Parent);
@@ -319,8 +319,8 @@ namespace ZKube.Presentation
             ui.Label(name + " label", label, new Rect(rect.x + 44 * d, rect.y, rect.width - 60 * d - numberWidth, rect.height), 15,
                 SkinTokens.Text, card.Parent, SkinUi.Type.Caption, TextAlignmentOptions.Left);
             if (number != null)
-                ui.Label(name, number, new Rect(rect.xMax - 13 * d - numberWidth, rect.y, numberWidth, rect.height), 18,
-                    met ? SkinTokens.Positive : SkinTokens.Score, card.Parent, SkinUi.Type.Number, TextAlignmentOptions.Right);
+                FittedNumber(name, number, new Rect(rect.xMax - 13 * d - numberWidth, rect.y, numberWidth, rect.height), 18,
+                    met ? SkinTokens.Positive : SkinTokens.Score, card.Parent, TextAlignmentOptions.Right);
             card.Top = rows.Top;
         }
         // A dialog title in Fraunces over its light stroke.

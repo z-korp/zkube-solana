@@ -79,14 +79,9 @@ namespace ZKube.Integration.Presentation
                 rewardRead.Value.Session.Funding == "ready" && board?.ClaimStatus == "claimable" && board.Yours != null &&
                 board.ExpiresAt.HasValue && now() <= board.ExpiresAt.Value;
         }
-        // The Score board, and the Theme board by the day's objective.
-        private string RewardName(string kind)
-        {
-            if (kind == "score") return "Score";
-            var daily = NativeEngine.Daily(rewardDay);
-            return daily.Kind == 0 ? "Theme" : Sentence(catalog.ObjectiveName(daily.Kind, daily.Value));
-        }
-        private static string ClaimLabel(string kind) => kind == "score" ? "Claim Score reward" : "Claim Theme reward";
+        // A board by its name on this day.
+        private string RewardName(string kind) => MoneyText.Board(kind, catalog, rewardDay);
+        private string ClaimLabel(string kind) => "Claim " + MoneyText.Board(kind, catalog) + " reward";
 
         private PageAction DayAction(string label, int step) =>
             PageAction(label, () => _ = OpenRewards((uint)(rewardDay + step)), () => PageAvailable() && !Busy);
@@ -166,7 +161,7 @@ namespace ZKube.Integration.Presentation
                     if (board.ExpiresAt.HasValue) lines.Add(PanelBlock.Text(name + " deadline", "Claim by " + Utc(board.ExpiresAt.Value), 13, SkinTokens.TextMuted, gap: 12));
                     if (state.Pending == null && state.Session.Current && state.Session.Funding == "ready")
                         lines.Add(PanelBlock.Button(PageAction(ClaimLabel(board.Kind), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind),
-                            "Collect " + (board.Kind == "score" ? "Score" : "Theme")), true, 12));
+                            "Collect " + MoneyText.Board(board.Kind, catalog)), true, 12));
                     break;
                 case "claimed": lines.Add(PanelBlock.Text(name + " state", "Reward collected", 18, SkinTokens.Positive, gap: 12)); break;
                 case "expired":
@@ -197,7 +192,6 @@ namespace ZKube.Integration.Presentation
             var back = PageAction("Back", () => { boardKind = null; Present(); }, () => PageAvailable() && !Busy, "Back to rewards");
             var page = new PanelPageView { Key = "Rewards " + rewardDay + " " + boardKind, Title = name + " board", Subtitle = Day(rewardDay) + " · Sealed",
                 Back = back, Tab = 1 };
-            var other = boardKind == "score" ? "theme" : "score";
             // The two boards as a pair; the one shown is the primary.
             var toggle = PanelBlock.Pair(PageAction("Score", () => { boardKind = "score"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
                 PageAction(RewardName("theme"), () => { boardKind = "theme"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
@@ -244,7 +238,7 @@ namespace ZKube.Integration.Presentation
                 state.Profile.LadderPoints - payment.PreviousPoints < payment.Points) return null;
             // The confirmed claim instruction awards this native-computed amount.
             // The total above is always the subsequently validated profile value.
-            return (payment.Kind == "score" ? "Score" : "Theme") + " reward received · " + Sol(payment.Amount) + "\n+" + payment.Points + " ladder points";
+            return MoneyText.Board(payment.Kind, catalog) + " reward received · " + Sol(payment.Amount) + "\n+" + payment.Points + " ladder points";
         }
         public Task CollectReward(string kind)
         {

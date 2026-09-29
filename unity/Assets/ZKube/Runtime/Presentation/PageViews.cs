@@ -330,30 +330,35 @@ namespace ZKube.Presentation
         private Image ResultRow(PageColumn rows, string name, string label, string number, string token, float gapDp)
         {
             float d = ui.Density;
-            float numberWidth = ui.TextWidth(number, 18, SkinUi.Type.Number);
+            float numberWidth = NumberSlot(number, 18, rows.Width / 2);
             float height = Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(label, rows.Width - 44 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
             var rect = rows.Take(height, gapDp);
             var row = ui.Piece(name + " row", SkinSlots.ListRow, rect, rows.Parent);
             ui.Label(name + " label", label, new Rect(rect.x + 14 * d, rect.y, rect.width - 36 * d - numberWidth, rect.height), 15,
                 SkinTokens.Text, rows.Parent, SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            ui.Label(name, number, new Rect(rect.xMax - 15 * d - numberWidth, rect.y, numberWidth, rect.height), 18, token,
-                rows.Parent, SkinUi.Type.Number, TextAlignmentOptions.Right);
+            FittedNumber(name, number, new Rect(rect.xMax - 15 * d - numberWidth, rect.y, numberWidth, rect.height), 18, token, rows.Parent,
+                TextAlignmentOptions.Right);
             return row;
         }
+        // A number's slot: its width, at most the room it is given.
+        private float NumberSlot(string number, float sizeDp, float room) => Mathf.Min(ui.TextWidth(number, sizeDp, SkinUi.Type.Number), room);
+        // A number drawn on one line, fitted to its rect.
+        private TMP_Text FittedNumber(string name, string number, Rect rect, float sizeDp, string token, Transform parent, TextAlignmentOptions alignment) =>
+            NumberFit.Apply(ui, ui.Label(name, number, rect, sizeDp, token, parent, SkinUi.Type.Number, alignment), rect.width, sizeDp);
         // A card row: an optional star, the label on the left and its value, the
         // biggest text in the row, on the right.
         private void Stat(PageColumn card, string name, string icon, string label, string value, float gapDp)
         {
             float d = ui.Density, right = 17 * d, iconSize = 18 * d, indent = icon == null ? 0 : 31 * d;
-            float valueWidth = ui.TextWidth(value, 20, SkinUi.Type.Number);
-            float height = Mathf.Max(ui.TextHeight(value, valueWidth, 20, SkinUi.Type.Number),
+            float valueWidth = NumberSlot(value, 20, card.Width / 2);
+            float height = Mathf.Max(ui.TextHeight("0", valueWidth, 20, SkinUi.Type.Number),
                 ui.TextHeight(label, card.Width - right - valueWidth - indent, 17, SkinUi.Type.Body));
             var rect = card.Take(height, gapDp);
             if (icon != null) ui.Star(name + " star", new Rect(rect.x + 2.5f * d, rect.center.y - iconSize / 2, iconSize, iconSize), true, card.Parent);
             ui.Label(name + " label", label, new Rect(rect.x + indent, rect.y, rect.width - indent - right - valueWidth, rect.height), 17,
                 SkinTokens.Text, card.Parent, SkinUi.Type.Body, TextAlignmentOptions.Left);
-            ui.Label(name, value, new Rect(rect.xMax - right - valueWidth, rect.y, valueWidth, rect.height), 20, SkinTokens.Score,
-                card.Parent, SkinUi.Type.Number, TextAlignmentOptions.Right);
+            FittedNumber(name, value, new Rect(rect.xMax - right - valueWidth, rect.y, valueWidth, rect.height), 20, SkinTokens.Score, card.Parent,
+                TextAlignmentOptions.Right);
         }
         // A 4 dp progress line: the groove and a warm fill.
         private void Progress(PageColumn card, string name, float fraction, float gapDp)

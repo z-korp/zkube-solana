@@ -24,7 +24,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Text("Kredit balance"), Is.EqualTo("25"));
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
             var offers = host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Buy ")).Select(button => button.name).ToArray();
-            Assert.That(offers, Is.EquivalentTo(new[] { "Buy 1 Kredit · 0.01 SOL", "Buy 10 Kredits · 0.1 SOL", "Buy 25 Kredits · 0.25 SOL" }));
+            Assert.That(offers, Is.EquivalentTo(new[] { "Buy 1 Kredit · 0.01 SOL", "Buy 10 Kredits · 0.10 SOL", "Buy 25 Kredits · 0.25 SOL" }));
             Canvas.ForceUpdateCanvases();
             foreach (var button in host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Buy ")))
             {

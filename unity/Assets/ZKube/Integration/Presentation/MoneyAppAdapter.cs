@@ -289,7 +289,7 @@ namespace ZKube.Integration.Presentation
         }
         private void RetireArtwork() => shell.ReleaseArtwork();
 
-        private static string Sol(ulong lamports) => (lamports / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL";
+        private static string Sol(ulong lamports) => MoneyText.Sol(lamports);
         private static string Short(string address) => address == null || address.Length <= 10 ? address :
             address.Substring(0, 4) + "…" + address.Substring(address.Length - 4);
         private static string Day(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime

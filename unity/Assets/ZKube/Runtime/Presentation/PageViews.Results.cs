@@ -174,12 +174,12 @@ namespace ZKube.Presentation
             if (value.Streak.HasValue)
             {
                 string days = Days(value.Streak.Value);
-                float width = ui.TextWidth(days, 20, SkinUi.Type.Number);
-                var rect = card.Take(ui.TextHeight(days, width, 20, SkinUi.Type.Number), 0);
+                float width = NumberSlot(days, 20, card.Width / 2);
+                var rect = card.Take(ui.TextHeight("0", width, 20, SkinUi.Type.Number), 0);
                 ui.Label("Streak label", "DAILY STREAK", new Rect(rect.x, rect.y, rect.width - width, rect.height), 12, SkinTokens.TextMuted,
                     card.Parent, SkinUi.Type.Label, TextAlignmentOptions.Left);
-                ui.Label("Streak", days, new Rect(rect.xMax - 17 * d - width, rect.y, width, rect.height), 20, SkinTokens.Score,
-                    card.Parent, SkinUi.Type.Number, TextAlignmentOptions.Right);
+                FittedNumber("Streak", days, new Rect(rect.xMax - 17 * d - width, rect.y, width, rect.height), 20, SkinTokens.Score, card.Parent,
+                    TextAlignmentOptions.Right);
             }
             if (!string.IsNullOrEmpty(value.Notice)) card.Typed("Result notice", value.Notice, SkinUi.Type.Body, 15, SkinTokens.Text, 0);
             column = card.End(30);

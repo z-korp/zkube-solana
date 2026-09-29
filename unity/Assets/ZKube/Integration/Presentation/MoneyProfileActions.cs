@@ -220,7 +220,7 @@ namespace ZKube.Integration.Presentation
             {
                 var record = fields?[kind + "_record"]; uint rank = (uint?)record?["best_prize_rank"] ?? 0; uint wins = (uint?)record?["wins"] ?? 0;
                 ulong rewards = (ulong?)record?["rewards_lamports"] ?? 0;
-                string name = kind == "score" ? "Score" : "Theme";
+                string name = MoneyText.Board(kind, catalog);
                 blocks.Add(PanelBlock.Card(name + " record card", PanelBlock.Title(name + " boards", 24, gap: 18),
                     PanelBlock.Row(name + " best", "Best paid place", rank == 0 ? "—" : "#" + rank, gap: 18),
                     PanelBlock.Text(name + " wins", wins + (wins == 1 ? " win" : " wins") + " · " + Sol(rewards) + " received", 14, SkinTokens.TextMuted, gap: 0)));

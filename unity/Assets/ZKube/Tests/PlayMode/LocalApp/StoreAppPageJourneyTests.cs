@@ -477,6 +477,7 @@ namespace ZKube.Tests
         // count and the streak, with sharing as the primary.
         [UnityTest] public IEnumerator DailyResultShowsTheScoreObjectiveAndStreakWithSharing()
         {
+            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
             var today = runs.Today(); var catalog = PageCatalog.Load();
@@ -613,6 +614,30 @@ namespace ZKube.Tests
                 Assert.That(rect.yMin, Is.GreaterThanOrEqualTo(floor - .5f), page + ": " + piece.name + " stays under the tab bar");
             }
         }
+        // Every Realms page, in each of its states, speaks the player's words: no
+        // retired board or star-source names on screen.
+        [UnityTest] public IEnumerator EveryRealmsPageSpeaksThePlayersWords()
+        {
+            IEnumerator Words(StorePage page, string state)
+            { yield return Page(page); ZKube.Tests.Presentation.PageText.AssertPlayerWords(app, state); }
+            yield return Words(StorePage.Daily, "Home");
+            greeted = 0; app.Flow.Show(StorePage.Campaign); yield return Words(StorePage.Campaign, "Map with its greeting");
+            app.Flow.Preview(1); yield return Words(StorePage.Level, "Level preview");
+            app.Flow.SelectRealm(2); yield return Words(StorePage.Campaign, "Realm closed by stars");
+            app.Flow.SelectRealm(4); yield return Words(StorePage.Campaign, "Realm closed by the purchase");
+            app.Flow.Show(StorePage.Profile); yield return Words(StorePage.Profile, "Profile");
+            Click(app, "Edit name"); yield return null; ZKube.Tests.Presentation.PageText.AssertPlayerWords(app, "Name editing");
+            app.Flow.Show(StorePage.Settings); yield return Words(StorePage.Settings, "Settings");
+            var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
+            app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 168, StarSources = 7, EndReason = 1, Goals = goals });
+            yield return Words(StorePage.Result, "Level won");
+            app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = 1, EndReason = 2, Goals = goals });
+            yield return Words(StorePage.Result, "Level lost");
+            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
+            yield return EndRun(); yield return Words(StorePage.Result, "Daily result");
+            app.Flow.Show(StorePage.Daily); yield return Words(StorePage.Daily, "Home after today's run");
+        }
         private void AssertEveryVisiblePieceHasArt(string step)
         {
             foreach (var image in app.GetComponentsInChildren<Image>())
@@ -652,6 +677,7 @@ namespace ZKube.Tests
         }
         [UnityTest] public IEnumerator RealmPagesAndEmblemDisposalPreserveTheInactiveBoardsAtlas()
         {
+            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
             var retainedArt = (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
             yield return EndRun(); yield return Page(StorePage.Result);
@@ -696,6 +722,7 @@ namespace ZKube.Tests
         }
         [UnityTest] public IEnumerator AcceptedSaveFailureIsVisibleAcrossRecoveryAndResultExit()
         {
+            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady(); failSave = true;
             Click(board.View, "Pause"); Click(board.View, "End run"); yield return null; Click(board.View, "End run");
             yield return Wait(() => board.RecoveryRequired && !board.Busy, "Expected recovery after accepted save failure");

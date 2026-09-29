@@ -49,7 +49,7 @@ namespace ZKube.Integration.Presentation
             !paused && !detached && isActiveAndEnabled && kreditRead != null && kreditRead.IsCurrent && kreditRead.Value.Pending == null;
 
         public static string KreditPurchaseLabel(uint pack) => "Buy " + pack + (pack == 1 ? " Kredit" : " Kredits") + " · " + Price(pack);
-        private static string Price(uint pack) => (pack * (decimal)Protocol.EntryLamports / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL";
+        private static string Price(uint pack) => MoneyText.Sol(checked(pack * (ulong)Protocol.EntryLamports));
         public Task PurchaseKredits(uint pack)
         {
             if (!CanBuyKredits() || !SessionViewPolicy.KreditPacks.Contains(pack)) return Task.CompletedTask;

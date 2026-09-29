@@ -162,8 +162,11 @@ namespace ZKube.Presentation
         {
             float d = ui.Density, icon = block.Sprite == null ? 0 : 56 * d, indent = block.Sprite == null ? 0 : icon + 28 * d;
             float captionHeight = block.Caption == null ? 0 : ui.TextHeight(block.Caption, at.Width - indent, 12, SkinUi.Type.Label);
-            float valueWidth = ui.TextWidth(block.Value, block.Size, SkinUi.Type.Number);
-            float valueHeight = ui.TextHeight(block.Value, valueWidth, block.Size, SkinUi.Type.Number);
+            // The number takes what the unit leaves, on one line.
+            float unit = block.Copy == null ? 0 : ui.TextWidth(block.Copy, 18, SkinUi.Type.Caption) + 12 * d;
+            var (shown, size) = NumberFit.Fit(ui, block.Value, at.Width - indent - unit, block.Size);
+            float valueWidth = ui.TextWidth(shown, size, SkinUi.Type.Number);
+            float valueHeight = ui.TextHeight(shown, float.PositiveInfinity, size, SkinUi.Type.Number);
             float height = Mathf.Max(icon, captionHeight + (block.Caption == null ? 0 : 12 * d) + valueHeight);
             var rect = at.Take(height, block.Gap ?? 14);
             if (block.Sprite != null)
@@ -173,7 +176,8 @@ namespace ZKube.Presentation
                 ui.Label(block.Name + " caption", block.Caption, new Rect(x, top - captionHeight, rect.xMax - x, captionHeight), 12, SkinTokens.TextMuted,
                     at.Parent, SkinUi.Type.Label, TextAlignmentOptions.Left);
             var value = new Rect(x, rect.y, valueWidth, valueHeight);
-            ui.Label(block.Name, block.Value, value, block.Size, SkinTokens.Score, at.Parent, SkinUi.Type.Number, TextAlignmentOptions.BottomLeft);
+            ui.Label(block.Name, shown, value, size, SkinTokens.Score, at.Parent, SkinUi.Type.Number, TextAlignmentOptions.BottomLeft)
+                .textWrappingMode = TextWrappingModes.NoWrap;
             if (block.Copy != null)
                 ui.Label(block.Name + " unit", block.Copy, new Rect(value.xMax + 12 * d, rect.y + 4 * d, rect.xMax - value.xMax - 12 * d, valueHeight), 18,
                     SkinTokens.Text, at.Parent, SkinUi.Type.Caption, TextAlignmentOptions.BottomLeft);
@@ -183,29 +187,29 @@ namespace ZKube.Presentation
         // payout, or a tier's badge and name.
         private void Split(PageColumn at, PanelBlock block)
         {
-            // The second value starts 136 dp across, or further when the first is wider.
+            // The second value starts 136 dp across, or further when the first is
+            // wider; each number stays on one line in its part.
             float d = ui.Density, across = Mathf.Clamp(ui.TextWidth(block.Value, block.Size, SkinUi.Type.Number) + 16 * d, 136 * d, at.Width - 150 * d);
             float captionHeight = block.Caption == null ? 0 : ui.TextHeight(block.Caption, across, 11, SkinUi.Type.Label);
-            float valueHeight = ui.TextHeight(block.Value, across, block.Size, SkinUi.Type.Number);
+            float valueHeight = ui.TextHeight("0", float.PositiveInfinity, block.Size, SkinUi.Type.Number);
             var rect = at.Take(captionHeight + (block.Caption == null ? 0 : 10 * d) + valueHeight, block.Gap ?? 14);
             if (block.Caption != null)
                 ui.Label(block.Name + " caption", block.Caption, new Rect(rect.x, rect.yMax - captionHeight, rect.width, captionHeight), 11,
                     SkinTokens.TextMuted, at.Parent, SkinUi.Type.Label, TextAlignmentOptions.Left);
             var line = new Rect(rect.x, rect.y, rect.width, valueHeight);
-            ui.Label(block.Name, block.Value, new Rect(line.x, line.y, across, line.height), block.Size, SkinTokens.Score, at.Parent, SkinUi.Type.Number,
+            FittedNumber(block.Name, block.Value, new Rect(line.x, line.y, across - 12 * d, line.height), block.Size, SkinTokens.Score, at.Parent,
                 TextAlignmentOptions.Left);
             if (block.Badge == null && across + ui.TextWidth(block.Copy, block.Size - 2, SkinUi.Type.Number) > line.width)
             {
                 // Too wide for one row (larger text on a small phone): the second value goes under the first.
-                float sideHeight = ui.TextHeight(block.Copy, line.width, block.Size - 2, SkinUi.Type.Number);
-                var under = at.Take(sideHeight, block.Gap ?? 14);
-                ui.Label(block.Name + " side", block.Copy, under, block.Size - 2, SkinTokens.Score, at.Parent, SkinUi.Type.Number, TextAlignmentOptions.Left);
+                var under = at.Take(ui.TextHeight("0", float.PositiveInfinity, block.Size - 2, SkinUi.Type.Number), block.Gap ?? 14);
+                FittedNumber(block.Name + " side", block.Copy, under, block.Size - 2, SkinTokens.Score, at.Parent, TextAlignmentOptions.Left);
                 return;
             }
             if (block.Badge == null)
             {
-                ui.Label(block.Name + " side", block.Copy, new Rect(line.x + across, line.y, line.width - across, line.height), block.Size - 2,
-                    SkinTokens.Score, at.Parent, SkinUi.Type.Number, TextAlignmentOptions.Left);
+                FittedNumber(block.Name + " side", block.Copy, new Rect(line.x + across, line.y, line.width - across, line.height), block.Size - 2,
+                    SkinTokens.Score, at.Parent, TextAlignmentOptions.Left);
                 return;
             }
             float badge = 40 * d, x = line.x + Mathf.Max(168 * d, across + 16 * d);
@@ -283,7 +287,8 @@ namespace ZKube.Presentation
 
             // The clock on the left, the prize pool from 229 dp across, or as far
             // right as its widest line lets it sit.
-            float pool = arcade.Pot == null ? 0 : Mathf.Max(ui.TextWidth(arcade.Pot, 18, SkinUi.Type.Number), ui.TextWidth("PRIZE POOL", 11, SkinUi.Type.Label)) + 4 * d;
+            float pool = arcade.Pot == null ? 0 : Mathf.Min(card.Width * .45f,
+                Mathf.Max(ui.TextWidth(arcade.Pot, 18, SkinUi.Type.Number), ui.TextWidth("PRIZE POOL", 11, SkinUi.Type.Label)) + 4 * d);
             float across = Mathf.Min(229 * d, card.Width - pool);
             var clock = new PageColumn(ui, card.Parent, actions, card.Left, across - 8 * d, card.Top);
             string headline = arcade.Headline ?? (value.ClosesAt > 0 && value.Now != null ? Remaining(value.ClosesAt - countdownSecond) : null);
