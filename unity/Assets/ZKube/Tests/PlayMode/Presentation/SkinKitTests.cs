@@ -85,6 +85,34 @@ namespace ZKube.Presentation.Tests
             }
         }
 
+        [Test] public void TabCapitalsFitInsideTheirChipAtBothWidths()
+        {
+            foreach (var (safe, density) in new[] { (new Rect(0, 0, 360, 640), 1f), (new Rect(0, 0, 1200, 2670), 3f) })
+            {
+                var sized = new SkinUi(art, density, 1);
+                var bar = sized.TabBar("Fit " + density, safe, new (string, string, System.Action)[]
+                {
+                    (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }), (SkinSlots.IconProfile, "Profile", () => { }),
+                }, 0, root.transform);
+                foreach (var tab in new[] { "Campaign", "Daily", "Profile" })
+                {
+                    var chip = SkinUi.ScreenRect((RectTransform)Part(bar, "Fit " + density + " " + tab).transform);
+                    var label = bar.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Fit " + density + " " + tab + " label");
+                    label.ForceMeshUpdate();
+                    float room = sized.TabLabelRoom(chip.width), words = label.textBounds.size.x;
+                    string at = tab + " at " + safe.width + "px";
+                    Assert.AreEqual(chip.width - 40 * density, room, .01f, "The chip's round ends are 20 dp each");
+                    Assert.LessOrEqual(words, room + .5f, at + " stays clear of its chip's round ends");
+                    Assert.GreaterOrEqual(label.fontSize, SkinUi.TabLabelMinimumDp * density - .01f, at);
+                    var text = SkinUi.ScreenRect(label.rectTransform);
+                    Assert.AreEqual(chip.yMax - SkinUi.TabLabelLine * chip.height, text.center.y, .5f, at + " sits on the chip's label line");
+                    Assert.IsTrue(text.xMin >= chip.xMin && text.xMax <= chip.xMax && text.yMin >= chip.yMin, at + " stays inside its chip");
+                }
+                if (density == 3) Assert.AreEqual(SkinUi.TabLabelDp * 3, bar.GetComponentsInChildren<TMP_Text>().First().fontSize, .01f, "The drawn width keeps 11 dp");
+                sized.Dispose();
+            }
+        }
+
         [Test] public void TabBarTabsRunTheirActionAndSelectMovesThePlate()
         {
             var opened = new List<string>();

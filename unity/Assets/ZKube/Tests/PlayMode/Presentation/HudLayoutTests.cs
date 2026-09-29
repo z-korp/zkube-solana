@@ -154,6 +154,26 @@ namespace ZKube.Presentation.Tests
                 Assert.GreaterOrEqual(rect.width, 48); Assert.GreaterOrEqual(rect.height, 48);
             }
         }
+        // Each glyph's ink from its metrics, without the quad's sampling padding.
+        private static System.Collections.Generic.IEnumerable<Rect> Glyphs(TMP_Text text)
+        {
+            var info = text.textInfo;
+            for (int i = 0; i < info.characterCount; i++)
+            {
+                var c = info.characterInfo[i];
+                if (!c.isVisible) continue;
+                var metrics = c.textElement.glyph.metrics; float scale = c.scale;
+                float left = c.origin + metrics.horizontalBearingX * scale, top = c.baseLine + metrics.horizontalBearingY * scale;
+                var low = text.transform.TransformPoint(new Vector3(left, top - metrics.height * scale));
+                var high = text.transform.TransformPoint(new Vector3(left + metrics.width * scale, top));
+                yield return Rect.MinMaxRect(low.x, low.y, high.x, high.y);
+            }
+        }
+        private static Rect Ink(TMP_Text text)
+        {
+            var glyphs = Glyphs(text).ToArray();
+            return Rect.MinMaxRect(glyphs.Min(g => g.xMin), glyphs.Min(g => g.yMin), glyphs.Max(g => g.xMax), glyphs.Max(g => g.yMax));
+        }
         private void Fits(TMP_Text text)
         {
             text.ForceMeshUpdate();
@@ -161,6 +181,61 @@ namespace ZKube.Presentation.Tests
             Assert.IsFalse(text.isTextTruncated, text.name + " must not hide text with ellipsis");
             Assert.LessOrEqual(text.GetPreferredValues(text.text, text.rectTransform.rect.width, float.PositiveInfinity).y,
                 text.rectTransform.rect.height + .5f, text.name + " must have enough height at its real width");
+        }
+        [UnityTest] public IEnumerator EveryCatalogCaptionFitsItsPlateClearOfItsValueAtBothWidths()
+        {
+            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var art = Art(); var rules = board.Session.Rules;
+            var captions = PageCatalog.Load().constraintCaptions;
+            var saved = (rules.PrimaryKind, rules.PrimaryValue, rules.PrimaryCount, rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount);
+            board.View.gameObject.SetActive(false);
+            try
+            {
+                // The smallest mainstream phone, and the Seeker's drawn width.
+                foreach (var (screen, density) in new[] { (new Rect(0, 0, 360, 640), 1f), (new Rect(0, 0, 1200, 2670), 3f) })
+                    for (int i = 0; i < captions.Length; i += 2)
+                    {
+                        var first = captions[i]; var second = captions[Math.Min(i + 1, captions.Length - 1)];
+                        rules.PrimaryKind = first.kind; rules.PrimaryValue = first.value; rules.PrimaryCount = first.count;
+                        rules.SecondaryKind = second.kind; rules.SecondaryValue = second.value; rules.SecondaryCount = second.count;
+                        var host = new GameObject("Caption view"); host.transform.SetParent(root.transform);
+                        try
+                        {
+                            var ui = new SkinUi(art, density, 1);
+                            var plan = HudLayout.Build(ui, board.State, board.Session, screen, density);
+                            var view = host.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
+                            view.Summary(board.State, board.Session, true);
+                            Canvas.ForceUpdateCanvases();
+                            Assert.GreaterOrEqual(plan.CaptionPt, HudLayout.CaptionMinimumPt);
+                            TMP_Text In(string name) => view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == name);
+                            foreach (var (caption, value, plate) in new[] { ("Theme label", "Theme", plan.PrimaryPlate), ("Secondary label", "Secondary", plan.SecondaryPlate) })
+                            {
+                                var label = In(caption); var number = In(value);
+                                string at = $"'{label.text}' at {screen.width}px";
+                                Fits(label);
+                                // The drawn width keeps the spec's two lines; the narrowest phone may take a third.
+                                Assert.LessOrEqual(label.textInfo.lineCount, density == 3 ? 2 : 3, at + " wraps as little as it can");
+                                number.ForceMeshUpdate();
+                                var text = Ink(label); var digits = Ink(number);
+                                foreach (var glyph in Glyphs(label))
+                                    Assert.IsFalse(Glyphs(number).Any(digit => digit.Overlaps(glyph)), at + " keeps its value on its own line: " +
+                                        glyph + " meets " + string.Join(", ", Glyphs(number).Where(digit => digit.Overlaps(glyph))) +
+                                        $"; plate {plate}, caption {plan.CaptionPt} dp, caption rect {SkinUi.ScreenRect(label.rectTransform)}, value rect {SkinUi.ScreenRect(number.rectTransform)}");
+                                Assert.Greater(text.center.y, digits.center.y, at + " sits above its value");
+                                Assert.GreaterOrEqual(digits.yMin + .01f, plate.yMin, at + " keeps its value inside the plate");
+                                Assert.LessOrEqual(text.yMax, plate.yMax + .01f, at + " starts inside the plate");
+                                Assert.LessOrEqual(text.xMax, plate.xMax + .01f, at + " stays inside the plate");
+                            }
+                        }
+                        finally { UnityEngine.Object.Destroy(host); }
+                        yield return null;
+                    }
+            }
+            finally
+            {
+                (rules.PrimaryKind, rules.PrimaryValue, rules.PrimaryCount, rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount) = saved;
+                board.View.gameObject.SetActive(true);
+            }
         }
         [UnityTest] public IEnumerator NativePartialLatchRendersAllThreeClearSocketsInNarrowGeometry()
         {

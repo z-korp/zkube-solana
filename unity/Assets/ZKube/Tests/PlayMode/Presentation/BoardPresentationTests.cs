@@ -115,6 +115,34 @@ namespace ZKube.Presentation.Tests
             }
         }
 
+        [UnityTest] public IEnumerator EndingARunSaysOnlyWhatIsTrueAndEndRunLooksDestructive()
+        {
+            yield return Load("realm-8-campaign");
+            TMP_Text Text(string name) => board.View.GetComponentsInChildren<TMP_Text>().SingleOrDefault(t => t.name == name);
+            var negative = ZKube.Tests.Presentation.BoardTestState.Art(board).Token(SkinTokens.Negative);
+            Assert.AreEqual(0, board.State.ActionCounter);
+            evidence.Click("Pause"); yield return null;
+            var end = Text("Dialog End run label");
+            Assert.AreEqual(negative, end.color, "End run wears the negative ink");
+            foreach (string row in new[] { "Sound: on", "Reduced motion: off", "Text size: standard" })
+            {
+                var label = Text("Dialog " + row + " label");
+                if (label == null) continue;
+                Assert.AreNotEqual(negative, label.color, row + " stays a settings row");
+                Assert.GreaterOrEqual(SkinUi.ScreenRect((RectTransform)label.transform.parent).yMin - SkinUi.ScreenRect((RectTransform)end.transform.parent).yMax,
+                    BoardView.DestructiveGapDp * board.View.Layout.Density, "End run is set apart");
+            }
+            evidence.Click("Dialog End run"); yield return null;
+            Assert.IsNull(Text("Dialog details"), "A run without actions just ends");
+            Assert.AreEqual(negative, Text("Dialog End run label").color);
+            evidence.Click("Dialog Keep playing"); yield return null;
+            yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            Assert.Greater(board.State.ActionCounter, 0);
+            evidence.Click("Pause"); yield return null; evidence.Click("Dialog End run"); yield return null;
+            Assert.AreEqual("Your accepted actions remain part of this run.", Text("Dialog details").text);
+            evidence.Click("Dialog Keep playing");
+        }
+
         [UnityTest] public IEnumerator PauseControlsPreserveAcceptedState()
         {
             yield return Load("realm-8-campaign");

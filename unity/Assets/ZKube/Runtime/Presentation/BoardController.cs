@@ -437,15 +437,19 @@ namespace ZKube.Presentation
             if (PresentationInitialized && Session != null && recoveryRequired) { ShowRecovery(); return; }
             if (!PresentationInitialized || Session == null || IsTerminal()) return;
             paused = true; queued = null; CancelDrag(); music.Pause();
-            View.OpenModal("PAUSED", art.Title(Session),
+            View.OpenModal("PAUSED", art.Title(Session), EndRun,
                 ("Resume", Resume),
                 (Muted ? "Sound: off" : "Sound: on", () => { SetMuted(!Muted); Pause(); }),
                 (ReducedMotion ? "Reduced motion: on" : "Reduced motion: off", () => { SetReducedMotion(!ReducedMotion); Pause(); }),
                 (Haptics ? "Haptics: on" : "Haptics: off", () => { SetHaptics(!Haptics); Pause(); }),
                 (TextScale > 1 ? "Text size: larger" : "Text size: standard", () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); }),
-                ("End run", () => View.OpenModal("END THIS RUN?", "Your accepted actions remain part of this run.",
-                    ("Keep playing", Resume), ("End run", () => { paused = false; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); }))));
+                (EndRun, () => View.OpenModal("END THIS RUN?", EndRunDetail(State), EndRun,
+                    ("Keep playing", Resume), (EndRun, () => { paused = false; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); }))));
         }
+        public const string EndRun = "End run";
+        // Only a run with accepted actions keeps anything when it ends.
+        public static string EndRunDetail(RunSummary state) =>
+            state.ActionCounter > 0 ? "Your accepted actions remain part of this run." : null;
         public void Resume()
         {
             if (!HostInputEnabled) return;

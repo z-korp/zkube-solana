@@ -86,6 +86,24 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(0, board.View.Lighting.Motes); Assert.AreEqual(0, board.View.Lighting.Shafts);
         }
 
+        [UnityTest] public IEnumerator MotesAndShaftsStayUnderTheDialogScrim()
+        {
+            board.View.OpenModal("Paused", "Scrim test", ("Resume", () => { }));
+            yield return null;
+            var shield = board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Single(i => i.name == "Modal input shield");
+            var canvas = shield.canvas.rootCanvas;
+            // An overlay canvas draws after every camera, so the scrim covers every world sprite.
+            Assert.AreEqual(RenderMode.ScreenSpaceOverlay, canvas.renderMode);
+            Assert.AreEqual(ZKube.Tests.Presentation.BoardTestState.Art(board).Token(SkinTokens.Scrim), shield.color);
+            var covered = SkinUi.ScreenRect(shield.rectTransform);
+            Assert.IsTrue(covered.Contains(Vector2.zero) && covered.Contains(new Vector2(Screen.width - 1, Screen.height - 1)), "The scrim covers the screen");
+            var light = board.View.Lighting.MoteRenderers.Concat(board.View.GetComponentsInChildren<SpriteRenderer>().Where(r => r.name == "Realm light shaft"));
+            Assert.IsNotEmpty(light);
+            foreach (var sprite in light)
+                Assert.IsNull(sprite.GetComponentInParent<Canvas>(), sprite.name + " is a world sprite, drawn before the overlay");
+            board.View.CloseModal();
+        }
+
         [UnityTest] public IEnumerator OnlyRealmsWithAPaintedSourceThrowShafts()
         {
             Assert.AreEqual(1, board.View.Lighting.Shafts, "The Mayan canopy throws one shaft");

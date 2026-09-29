@@ -24,6 +24,10 @@ namespace ZKube.Presentation
         public float TitlePt, LabelPt, CaptionPt, NumberPt, GoalPt, PointsPt, TargetPt, RuleHeadingPt, RulePt, StatusPt;
         // A caption line advances 13 dp at 12 dp, as drawn.
         public const float CaptionLeading = 13f / 12;
+        // The Caption role's floor, below its 12 dp (11 dp compact) plate size.
+        public const float CaptionMinimumPt = 10;
+        // Space between a caption's ink and its value's digits.
+        public const float ValueClearanceDp = 2;
         public const float StarDp = 20;
         public float Density => Layout.Density;
 
@@ -123,10 +127,23 @@ namespace ZKube.Presentation
             float CaptionBlock(string value, SkinUi.Type type, float size) =>
                 ui.Lines(value, inner, size, type) * S(size) * CaptionLeading;
             float labelBlock = CaptionBlock(scoreLabel, SkinUi.Type.Label, result.LabelPt);
-            float goalBlock = Mathf.Max(CaptionBlock(primaryCaption, SkinUi.Type.Caption, result.CaptionPt),
-                CaptionBlock(secondaryCaption, SkinUi.Type.Caption, result.CaptionPt));
+            // A goal caption keeps its role size on one line; a longer one shrinks
+            // toward the role's floor before it wraps, and both goals share the
+            // size. The value then sits on its own line, clear of the caption.
+            float Fit(string value)
+            {
+                float size = result.CaptionPt;
+                while (size > CaptionMinimumPt && ui.Lines(value, inner, size, SkinUi.Type.Caption) > 1) size -= .5f;
+                return size;
+            }
+            result.CaptionPt = Mathf.Min(Fit(primaryCaption), Fit(secondaryCaption));
+            // The caption's ink ends at its last line's descent, measured as it is
+            // drawn: from its rect's top, lines 13/12 apart.
+            float CaptionBottom(string value) => 6 - DigitTop * S(result.CaptionPt) +
+                (ui.TextHeight(value, inner, result.CaptionPt, SkinUi.Type.Caption, CaptionLeading) - 2 * d) / d;
+            float captionBottom = Mathf.Max(CaptionBottom(primaryCaption), CaptionBottom(secondaryCaption));
             float numberTop = 6 + Mathf.Max(compact ? 17 : 21, labelBlock);
-            float goalTop = 6 + Mathf.Max(compact ? 19 : 24, goalBlock - 2);
+            float goalTop = Mathf.Max(6 + (compact ? 19 : 24), captionBottom + ValueClearanceDp);
             float Height(float valueTop, float valueSize) => valueTop + S(valueSize) * .74f + 4;
             float plate = Mathf.Max(compact ? MinimumPlateDp(true) : 52,
                 Mathf.Max(Height(numberTop, result.NumberPt), Height(goalTop, Mathf.Max(result.GoalPt, result.PointsPt))));

@@ -643,7 +643,12 @@ namespace ZKube.Presentation
         }
         public void ClearGhost() { if (ghost != null) ghost.gameObject.SetActive(false); }
 
-        public void OpenModal(string title, string body, params (string label, Action action)[] actions)
+        public void OpenModal(string title, string body, params (string label, Action action)[] actions) =>
+            OpenModal(title, body, null, actions);
+        // A destructive action is the kit's secondary pill in the negative ink,
+        // set apart from the rows above it.
+        public const float DestructiveGapDp = 16;
+        public void OpenModal(string title, string body, string destructive, params (string label, Action action)[] actions)
         {
             CloseModal();
             modalShield.color = art.Token(SkinTokens.Scrim); modalShield.raycastTarget = true;
@@ -652,9 +657,10 @@ namespace ZKube.Presentation
             SkinUi.Place(modal.GetComponent<RectTransform>(), new Rect(0, 0, Screen.width, Screen.height), modalShield.transform);
             float d = Layout.Density, width = Layout.Frame.width - 32 * d, inner = width - 48 * d;
             float titleHeight = ui.TextHeight(title, inner, 22, true) + 4 * d;
-            float bodyHeight = ui.TextHeight(body, inner, 14, false) + 4 * d;
+            float bodyHeight = string.IsNullOrEmpty(body) ? -8 * d : ui.TextHeight(body, inner, 14, false) + 4 * d;
             var buttonHeights = actions.Select(action => Mathf.Max(52 * d, ui.TextHeight(action.label, inner - 20 * d, SkinUi.ButtonDp, SkinUi.Type.Number) + 24 * d)).ToArray();
-            float contentHeight = 28 * d + titleHeight + 8 * d + bodyHeight + 16 * d + buttonHeights.Sum() + actions.Length * 8 * d + 20 * d;
+            float gap = actions.Any(action => action.label == destructive) ? DestructiveGapDp * d : 0;
+            float contentHeight = 28 * d + titleHeight + 8 * d + bodyHeight + 16 * d + buttonHeights.Sum() + actions.Length * 8 * d + gap + 20 * d;
             float height = Mathf.Min(Layout.Frame.height - 24 * d, contentHeight);
             var rect = new Rect(Layout.Frame.center.x - width / 2, Layout.Frame.center.y - height / 2, width, height);
             var panel = ui.Piece("Stone dialog", SkinSlots.Dialog, rect, modal.transform);
@@ -678,13 +684,17 @@ namespace ZKube.Presentation
             float cursor = contentRect.yMax - 28 * d;
             ui.Label("Dialog title", title, new Rect(rect.x + 24 * d, cursor - titleHeight, inner, titleHeight), 22, SkinTokens.Accent, content, true);
             cursor -= titleHeight + 8 * d;
-            ui.Label("Dialog details", body, new Rect(rect.x + 24 * d, cursor - bodyHeight, inner, bodyHeight), 14, SkinTokens.Text, content);
+            if (!string.IsNullOrEmpty(body))
+                ui.Label("Dialog details", body, new Rect(rect.x + 24 * d, cursor - bodyHeight, inner, bodyHeight), 14, SkinTokens.Text, content);
             cursor -= bodyHeight + 16 * d;
             for (int i = 0; i < actions.Length; i++)
             {
+                bool destroys = actions[i].label == destructive;
+                if (destroys && i > 0) cursor -= gap;
                 cursor -= buttonHeights[i];
                 ui.TextButton("Dialog " + actions[i].label, new Rect(rect.x + 24 * d, cursor, inner, buttonHeights[i]), actions[i].label,
-                    actions[i].action, i == 0, content, out _);
+                    actions[i].action, i == 0 && !destroys, content, out var label);
+                if (destroys) label.color = art.Token(SkinTokens.Negative);
                 cursor -= 8 * d;
             }
         }
