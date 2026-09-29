@@ -312,82 +312,82 @@
   ],
   "dailyThemes": [
     {
-      "description": "No Theme today — the whole pot pays Score",
+      "description": "Classic",
       "kind": 0,
       "value": 0
     },
     {
-      "description": "2+-line combo moves",
+      "description": "Moves clearing 2+ lines",
       "kind": 1,
       "value": 2
     },
     {
-      "description": "3+-line combo moves",
+      "description": "Moves clearing 3+ lines",
       "kind": 1,
       "value": 3
     },
     {
-      "description": "exact 2-line clears",
+      "description": "Moves clearing exactly 2 lines",
       "kind": 4,
       "value": 2
     },
     {
-      "description": "exact 3-line clears",
+      "description": "Moves clearing exactly 3 lines",
       "kind": 4,
       "value": 3
     },
     {
-      "description": "width-1 blocks broken",
+      "description": "Clear size-1 blocks",
       "kind": 2,
       "value": 1
     },
     {
-      "description": "width-2 blocks broken",
+      "description": "Clear size-2 blocks",
       "kind": 2,
       "value": 2
     },
     {
-      "description": "width-3 blocks broken",
+      "description": "Clear size-3 blocks",
       "kind": 2,
       "value": 3
     },
     {
-      "description": "width-4 blocks broken",
+      "description": "Clear size-4 blocks",
       "kind": 2,
       "value": 4
     },
     {
-      "description": "the realm trigger fired",
+      "description": "Trigger the guardian",
       "kind": 6,
       "value": 0
     },
     {
-      "description": "lines cleared with a bonus",
+      "description": "Clear lines with a bonus",
       "kind": 7,
       "value": 0
     },
     {
-      "description": "blocks broken with a bonus",
+      "description": "Clear blocks with a bonus",
       "kind": 8,
       "value": 0
     },
     {
-      "description": "clears started at height 7+",
+      "description": "Clears with the stack at least 7 rows high",
       "kind": 17,
       "value": 7
     },
     {
-      "description": "clears started at height 8+",
+      "description": "Clears with the stack at least 8 rows high",
       "kind": 17,
       "value": 8
     },
     {
-      "description": "clears ending at height 3 or lower",
+      "description": "Clears leaving 3 rows or fewer",
       "kind": 18,
       "value": 3
     },
     {
-      "description": "clears ending at height 4 or lower",
+      "description": "Clears leaving 4 rows or fewer",
       "kind": 18,
       "value": 4
     }

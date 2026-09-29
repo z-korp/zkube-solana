@@ -219,20 +219,10 @@ fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
         "description": description, "sentence": format!("{condition} a {name}.")})
 }
 
-fn objective(kind: u8, value: u8) -> Value {
-    let description = match kind {
-        0 => "No Theme today — the whole pot pays Score".into(),
-        1 => format!("{value}+-line combo moves"),
-        2 => format!("width-{value} blocks broken"),
-        4 => format!("exact {value}-line clears"),
-        6 => "the realm trigger fired".into(),
-        7 => "lines cleared with a bonus".into(),
-        8 => "blocks broken with a bonus".into(),
-        17 => format!("clears started at height {value}+"),
-        18 => format!("clears ending at height {value} or lower"),
-        _ => unreachable!("protocol objective"),
-    };
-    json!({"kind": kind, "value": value, "description": description})
+// A Daily objective's words come from the one caption owner.
+fn objective(theme: &zkube_core::DailyTheme) -> Value {
+    json!({"kind": theme.kind.tag(), "value": theme.value,
+        "description": super::captions::caption(theme.kind, theme.value, 0)})
 }
 
 pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<String, String> {
@@ -259,7 +249,7 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
         "constraintCaptions": super::captions::render(catalog)?,
         "guardianRules": catalog.maps.iter().map(|map| guardian(map.rules)).collect::<Vec<_>>(),
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
-            objective(theme.kind.tag(), theme.value)).collect::<Vec<_>>(),
+            objective(theme)).collect::<Vec<_>>(),
         "effects": effects,
         "commonImages": {"mark": "/assets/common/mark.png"},
         "skins": super::skins::render(root, &authored, realms.len())?,
@@ -303,6 +293,28 @@ mod tests {
         );
         realm["guardianTitle"] = json!("");
         assert!(guardian_lines(&realm).unwrap_err().contains("title"));
+    }
+
+    #[test]
+    fn every_daily_objective_uses_its_constraint_caption() {
+        let catalog: Value =
+            serde_json::from_str(include_str!("../../../assets/theme-catalog.generated.json"))
+                .unwrap();
+        let themes = catalog["dailyThemes"].as_array().unwrap();
+        assert_eq!(themes.len(), zkube_core::DAILY_THEMES.len());
+        for theme in themes {
+            let caption = catalog["constraintCaptions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|entry| {
+                    entry["kind"] == theme["kind"]
+                        && entry["value"] == theme["value"]
+                        && entry["count"] == 0
+                })
+                .unwrap();
+            assert_eq!(theme["description"], caption["text"], "{theme}");
+        }
     }
 
     #[test]

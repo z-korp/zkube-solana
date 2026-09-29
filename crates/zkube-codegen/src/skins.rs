@@ -636,7 +636,11 @@ mod tests {
             assert!(source.contains(&format!("= \"{name}\";")), "{name}");
         }
         assert!(source.contains(&format!("LadderTiers = {};", ladder_tiers())));
-        assert_eq!(ladder_tiers(), 5, "The ladder has five tiers of border and badge");
+        assert_eq!(
+            ladder_tiers(),
+            5,
+            "The ladder has five tiers of border and badge"
+        );
         for slot in realm_slots()
             .iter()
             .filter(|slot| !slot.starts_with("block-"))
