@@ -29,7 +29,7 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator Compact(string scenario)
         {
             yield return PrepareScenario(scenario, 1.3f);
-            host.GetComponent<PageShell>().Frame = new Rect(0, 0, 360, 640);
+            Phones.Compact(host.GetComponent<PageShell>());
             yield return Wait(Adapter.RefreshOverview()); yield return Idle();
         }
         private void Set(string field, object value) =>

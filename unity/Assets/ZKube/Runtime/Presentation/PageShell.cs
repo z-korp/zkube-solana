@@ -86,12 +86,21 @@ namespace ZKube.Presentation
         }
         private Action current;
 
-        // The screen the pages lay out in, from the bottom-left of the real one. A
-        // test sets a smaller phone's frame inside the Game view; otherwise it is
-        // the whole screen and its safe area.
-        public Rect? Frame { get; set; }
+        // The screen the pages lay out in, from the bottom-left of the real one,
+        // and its safe area. A test simulates a phone inside the Game view with
+        // the safe area that phone's device reports, so a layout that passes
+        // there passes on the device; otherwise they are the real screen's.
+        public Rect? Frame { get; private set; }
+        public Rect? Safe { get; private set; }
+        public void Simulate(Rect screen, Rect safe)
+        {
+            if (!screen.Contains(safe.min) || !screen.Contains(safe.max - new Vector2(.001f, .001f)))
+                throw new ArgumentException("A phone's safe area lies inside its screen");
+            Frame = screen; Safe = safe;
+        }
+        public void EndSimulation() { Frame = null; Safe = null; }
         public Rect ScreenArea => Frame ?? new Rect(0, 0, Screen.width, Screen.height);
-        public Rect SafeArea => Frame ?? Screen.safeArea;
+        public Rect SafeArea => Safe ?? Screen.safeArea;
 
         // Retires the previous page and places an empty body between the header and
         // the tab bar. Page pieces are laid out from the top of Page, in screen pixels.

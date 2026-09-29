@@ -103,7 +103,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator ProductNavigationRetiresThePreviousPagesScrollOffsetAndInertia()
         {
             yield return PrepareScenario("owner-overview");
-            var shell = host.GetComponent<PageShell>(); shell.Frame = new Rect(0, 0, 360, 520);
+            var shell = host.GetComponent<PageShell>(); ZKube.Tests.Presentation.Phones.Compact(shell);
             yield return SessionClick("Connect"); yield return Idle();
             // The map opens at the current level, so it is not among them.
             foreach (string control in new[] { "Kredits", "Arcade", "Rewards", "Arcade", "Profile", "Arcade" })

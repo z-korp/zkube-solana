@@ -339,13 +339,14 @@ namespace ZKube.Tests
             Click(app, "Explore map"); yield return Page(StorePage.Campaign);
             Assert.That(app.Flow.Realm, Is.EqualTo(3));
         }
-        // At the larger text size on a 360 x 640 phone, Home is taller than the
-        // space between the wordmark's top and the tab bar; it scrolls, and every
-        // panel and action comes fully into view above the tab bar.
+        // At the larger text size on a 360 x 640 phone (its safe area as the
+        // device reports it), Home is taller than the space between the
+        // wordmark's top and the tab bar; it scrolls, and every panel and action
+        // comes fully into view above the tab bar.
         [UnityTest] public IEnumerator LargeTextHomeScrollsFullyIntoViewOnACompactPhone()
         {
             var shell = app.GetComponent<PageShell>();
-            shell.Frame = new Rect(0, 0, 360, 640);
+            ZKube.Tests.Presentation.Phones.Compact(shell);
             try
             {
                 typeof(BoardController).GetProperty("TextScale").SetValue(board, 1.3f);
@@ -364,14 +365,25 @@ namespace ZKube.Tests
                     Assert.That(rect.yMax, Is.LessThanOrEqualTo(viewport.yMax + .5f), value.name + " runs above the page");
                     Assert.That(rect.xMin, Is.GreaterThanOrEqualTo(-.5f), value.name); Assert.That(rect.xMax, Is.LessThanOrEqualTo(360.5f), value.name);
                 }
+                // Each piece scrolls fully into view: the page is scrolled until the
+                // piece's bottom clears the tab bar, then the piece lies inside.
+                IEnumerator Reveal(Component value)
+                {
+                    var rect = Of(value);
+                    if (rect.yMin < viewport.yMin) shell.Offset += viewport.yMin - rect.yMin;
+                    else if (rect.yMax > viewport.yMax) shell.Offset -= rect.yMax - viewport.yMax;
+                    Canvas.ForceUpdateCanvases(); yield return null;
+                    Inside(value);
+                }
                 var images = app.GetComponentsInChildren<Image>();
                 Inside(images.Single(image => image.name == "Wordmark"));
-                Inside(images.Single(image => image.name == "Daily card"));
+                yield return Reveal(images.Single(image => image.name == "Daily card"));
+                yield return Reveal(FindButton(app, "Play today"));
                 shell.Scroll.verticalNormalizedPosition = 0; Canvas.ForceUpdateCanvases(); yield return null;
                 Inside(images.Single(image => image.name == "Campaign card"));
                 Inside(FindButton(app, "Explore map"));
             }
-            finally { shell.Frame = null; }
+            finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
         // The first visit to a realm's map greets once: the guardian's line, then
         // its rule and what the bonus does. A tap continues, and it does not return.
@@ -407,7 +419,7 @@ namespace ZKube.Tests
         {
             product.Write(state => { state.Stars[9] = 1; return state; });
             var shell = app.GetComponent<PageShell>();
-            shell.Frame = new Rect(0, 0, 360, 640);
+            ZKube.Tests.Presentation.Phones.Compact(shell);
             try
             {
                 yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
@@ -420,7 +432,7 @@ namespace ZKube.Tests
                 Click(app, "Next"); yield return Page(StorePage.Campaign);
                 Assert.That(shell.Offset, Is.EqualTo(opened).Within(1));
             }
-            finally { shell.Frame = null; }
+            finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
         // A realm the progression has not opened says why and leads back; a realm
         // behind the store's purchase offers it and restore, and says so when the
@@ -556,9 +568,9 @@ namespace ZKube.Tests
                 return state;
             });
             var shell = app.GetComponent<PageShell>();
-            foreach (var frame in new[] { new Rect(0, 0, 360, 640), new Rect(0, 0, 400, 890) })
+            foreach (var phone in new System.Action<PageShell>[] { shell1 => ZKube.Tests.Presentation.Phones.Compact(shell1), shell1 => ZKube.Tests.Presentation.Phones.Seeker(shell1) })
             {
-                shell.Frame = frame;
+                phone(shell); var frame = shell.SafeArea;
                 for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
                 {
                     app.Flow.SelectRealm(realm); yield return Page(StorePage.Campaign);
@@ -578,14 +590,14 @@ namespace ZKube.Tests
                         }
                 }
             }
-            shell.Frame = null;
+            ZKube.Tests.Presentation.Phones.Clear(shell);
         }
         // On a compact phone every page's last piece scrolls fully above the tab
         // bar (or the screen's bottom where there is no tab bar).
         [UnityTest] public IEnumerator EveryPagesLastPieceScrollsAboveTheTabBarOnACompactPhone()
         {
             var shell = app.GetComponent<PageShell>();
-            shell.Frame = new Rect(0, 0, 360, 640);
+            ZKube.Tests.Presentation.Phones.Compact(shell);
             product.Write(state => { state.Stars[0] = 3; state.Stars[9] = 1; return state; });
             foreach (var textScale in new[] { 1f, 1.3f })
             {
@@ -602,7 +614,7 @@ namespace ZKube.Tests
                 app.Flow.SelectRealm(4); yield return Page(StorePage.Campaign);
                 AssertLastPieceClearsTheBar(shell, "Closed realm at " + textScale);
             }
-            shell.Frame = null;
+            ZKube.Tests.Presentation.Phones.Clear(shell);
         }
         private void AssertLastPieceClearsTheBar(PageShell shell, string page)
         {
@@ -625,7 +637,7 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator EveryRealmsPageSpeaksThePlayersWords()
         {
             // On a compact phone at larger text, where words are tightest.
-            app.GetComponent<PageShell>().Frame = new Rect(0, 0, 360, 640);
+            ZKube.Tests.Presentation.Phones.Compact(app.GetComponent<PageShell>());
             typeof(BoardController).GetProperty("TextScale").SetValue(board, 1.3f);
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile); app.Flow.Show(StorePage.Daily);
             IEnumerator Words(StorePage page, string state)
@@ -677,17 +689,16 @@ namespace ZKube.Tests
         // core keeps for its end reason, and leaves "try again" to the guardian.
         [UnityTest] public IEnumerator PreviewAndResultsKeepTheirActionsOnACompactPhone()
         {
-            // A 360 x 640 phone, and the same phone less its status and camera insets
-            // as the device reports them (a 568 dp safe area).
-            foreach (var frame in new[] { new Rect(0, 0, 360, 640), new Rect(0, 0, 360, 568) })
+            // The compact phone and the Seeker, each with the safe area its device reports.
+            foreach (var phone in new System.Action<PageShell>[] { shell1 => ZKube.Tests.Presentation.Phones.Compact(shell1), shell1 => ZKube.Tests.Presentation.Phones.Seeker(shell1) })
             {
                 app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
-                yield return ActionsOnScreen(frame);
+                yield return ActionsOnScreen(phone);
             }
         }
-        private IEnumerator ActionsOnScreen(Rect frame)
+        private IEnumerator ActionsOnScreen(System.Action<PageShell> phone)
         {
-            var shell = app.GetComponent<PageShell>(); shell.Frame = frame;
+            var shell = app.GetComponent<PageShell>(); phone(shell);
             void OnScreen(string button, string page)
             {
                 var rect = SkinUi.ScreenRect((RectTransform)FindButton(app, button).transform);

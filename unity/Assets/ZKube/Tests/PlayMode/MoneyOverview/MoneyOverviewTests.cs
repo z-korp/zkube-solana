@@ -170,7 +170,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()
         {
             yield return PrepareScenario("owner-overview", 1.3f);
-            host.GetComponent<PageShell>().Frame = new Rect(0, 0, 360, 640);
+            ZKube.Tests.Presentation.Phones.Compact(host.GetComponent<PageShell>());
             Click("Connect"); yield return Idle();
             var shell = host.GetComponent<PageShell>(); var scroll = shell.Scroll;
             Canvas.ForceUpdateCanvases();
@@ -227,7 +227,7 @@ namespace ZKube.Tests.MoneyOverview
             var controller = host.GetComponent<MoneyIdentity>().Controller; var shell = host.GetComponent<PageShell>();
             foreach (float logicalWidth in new[] { 280f, 320f })
             {
-                shell.Frame = new Rect(0, 0, logicalWidth * density, 640 * density);
+                ZKube.Tests.Presentation.Phones.CompactOfWidth(shell, logicalWidth, density);
                 if (environment.Services.Identity.Owner == null) { Click("Connect"); yield return Idle(); }
                 else { yield return Wait(controller.RefreshOverview()); yield return Idle(); }
                 foreach (var button in host.GetComponentsInChildren<Button>())

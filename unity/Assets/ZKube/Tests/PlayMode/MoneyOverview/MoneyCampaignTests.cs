@@ -87,7 +87,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             const float density = 2.75f;
             yield return PrepareScenario("owner-overview", 1.3f, density);
-            host.GetComponent<PageShell>().Frame = new Rect(0, 0, 280 * density, 640 * density);
+            ZKube.Tests.Presentation.Phones.CompactOfWidth(host.GetComponent<PageShell>(), 280, density);
             Click("Connect"); yield return Idle();
             Click("Campaign"); yield return Idle(); yield return null; Canvas.ForceUpdateCanvases();
             var nodes = host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Trial ")).ToArray();

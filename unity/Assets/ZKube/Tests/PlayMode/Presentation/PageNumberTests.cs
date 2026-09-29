@@ -52,7 +52,7 @@ namespace ZKube.Tests.Presentation
             root = new GameObject("Largest numbers");
             if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
             var shell = root.AddComponent<PageShell>(); shell.Initialize("Largest numbers");
-            shell.Frame = new Rect(0, 0, 360, 640);
+            Phones.Compact(shell);
             shell.RequestRealm(1);
             while (shell.Loading) yield return null;
             Assert.That(shell.ArtworkError, Is.Null);
