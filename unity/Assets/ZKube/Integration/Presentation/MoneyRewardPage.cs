@@ -125,8 +125,8 @@ namespace ZKube.Integration.Presentation
                 blocks.Add(PanelBlock.Title("No rewards yet", 27, gap: 50));
                 blocks.Add(PanelBlock.Button(PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy), true));
                 foreach (var board in boards.Where(board => board.Rows.Count != 0))
-                    blocks.Add(PanelBlock.Button(PageAction("View " + RewardName(board.Kind) + " board", () => OpenBoard(board.Kind),
-                        () => PageAvailable() && !Busy), false));
+                    blocks.Add(PanelBlock.Button(Shorter(PageAction("View " + RewardName(board.Kind) + " board", () => OpenBoard(board.Kind),
+                        () => PageAvailable() && !Busy), "View " + MoneyText.Board(board.Kind, catalog) + " board"), false));
                 blocks.Add(Ladder(state)); blocks.Add(Days());
                 page.Blocks = blocks.ToArray();
                 return page;
@@ -179,6 +179,8 @@ namespace ZKube.Integration.Presentation
             else lines[lines.Count - 1].Gap = 0;
             return PanelBlock.Card(name + " card", lines.ToArray());
         }
+        // A board's own name where it fits a pill, its general name where not.
+        private static PageAction Shorter(PageAction action, string words) { action.Short = words; return action; }
         private void OpenBoard(string kind)
         {
             if (Busy || rewardRead == null || !rewardRead.IsCurrent) return;
@@ -194,7 +196,8 @@ namespace ZKube.Integration.Presentation
                 Back = back, Tab = 1 };
             // The two boards as a pair; the one shown is the primary.
             var toggle = PanelBlock.Pair(PageAction("Score", () => { boardKind = "score"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
-                PageAction(RewardName("theme"), () => { boardKind = "theme"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
+                Shorter(PageAction(RewardName("theme"), () => { boardKind = "theme"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
+                    MoneyText.Board("theme", catalog)),
                 boardKind == "score" ? 0 : 1, 22);
             if (board.Rows.Count == 0)
             {

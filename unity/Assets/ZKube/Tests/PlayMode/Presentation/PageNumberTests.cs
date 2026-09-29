@@ -15,7 +15,8 @@ namespace ZKube.Tests.Presentation
 {
     // Every numeric field at its largest (u64, u32 and int maximums) stays on
     // one line in its plate or card, on a compact phone at larger text: it
-    // shrinks, then abbreviates, never wraps.
+    // shrinks, then abbreviates, never wraps. Every pill label stays on one
+    // line too: it shrinks, then takes its shorter words.
     public sealed class PageNumberTests
     {
         private sealed class Largest : IAppPageSource
@@ -67,6 +68,7 @@ namespace ZKube.Tests.Presentation
                 foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
                 yield return null;
                 PageText.AssertNumbersOnOneLine(root.transform, numbers, page);
+                PageText.AssertPillLabelsOnOneLine(root.transform, page);
             }
             source.Daily = new DailyPageView { Day = 20705, Realm = 1, ObjectiveKind = daily.Kind, ObjectiveValue = daily.Value, Now = () => now,
                 ClosesAt = now + 3600, NextOpensAt = now + 3600, Score = ulong.MaxValue, ObjectiveTotal = ulong.MaxValue,
@@ -92,7 +94,14 @@ namespace ZKube.Tests.Presentation
                 PanelBlock.Card("Balance", PanelBlock.Figure("Balance", "Confirmed balance", Max, 48, "Kredits", SkinSlots.IconKredit)),
                 PanelBlock.Card("Position", PanelBlock.Split("Position", "Your position", "#" + uint.MaxValue.ToString("N0", CultureInfo.InvariantCulture), 33, MaxSol)),
                 PanelBlock.Card("Ladder", PanelBlock.Split("Ladder", null, Max, 36, "Prism", SkinSlots.LadderBadge(4))),
-                PanelBlock.Card("Rows", PanelBlock.Row("Fee allowance", "Fee allowance", MaxSol), PanelBlock.Row("Best", "Best paid place", "#" + uint.MaxValue)) } }));
+                PanelBlock.Card("Rows", PanelBlock.Row("Fee allowance", "Fee allowance", MaxSol), PanelBlock.Row("Best", "Best paid place", "#" + uint.MaxValue)),
+                PanelBlock.Pair(new PageAction { Label = "Score" }, new PageAction { Label = "Clears leaving 3 rows or fewer", Short = "Objective" }, 0),
+                PanelBlock.Card("Device", new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = "Session active", Size = 18,
+                    Token = SkinTokens.Positive, Action = new PageAction { Label = "Manage" } }),
+                PanelBlock.Button(new PageAction { Label = "Wear the automatic emblem" }, false),
+                PanelBlock.Button(new PageAction { Label = "Buy 25 Kredits · 0.25 SOL" }, true),
+                PanelBlock.Button(new PageAction { Label = "Try connecting again" }, false) } }));
+            Assert.That(PageText.Visible(root.transform).Select(text => text.text), Has.Member("Objective"), "A pill too narrow for its words takes its shorter ones");
         }
 
         [Test] public void LargeFiguresAbbreviateOnTheShortScale()

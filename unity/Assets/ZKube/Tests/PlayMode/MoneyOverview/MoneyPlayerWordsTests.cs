@@ -13,12 +13,25 @@ using ZKube.Tests.Presentation;
 namespace ZKube.Tests.MoneyOverview
 {
     // Every Arena page, in every state the scenarios reach, speaks the
-    // player's words: no retired board or star-source names on screen, and the
-    // two boards named by their one owner.
+    // player's words: no retired board or star-source names on screen, the two
+    // boards named by their one owner, and every pill's label on one line on a
+    // compact phone at larger text.
     public sealed partial class MoneyOverviewTests
     {
         private MoneyAppAdapter Adapter => host.GetComponent<MoneyIdentity>().Controller;
-        private IEnumerator Words(string page) { yield return Idle(); PageText.AssertPlayerWords(host.transform, page); }
+        private IEnumerator Words(string page)
+        {
+            yield return Idle();
+            PageText.AssertPlayerWords(host.transform, page);
+            PageText.AssertPillLabelsOnOneLine(host.transform, page);
+        }
+        // The walk is on a compact phone at larger text, where words are tightest.
+        private IEnumerator Compact(string scenario)
+        {
+            yield return PrepareScenario(scenario, 1.3f);
+            host.GetComponent<PageShell>().Frame = new Rect(0, 0, 360, 640);
+            yield return Wait(Adapter.RefreshOverview()); yield return Idle();
+        }
         private void Set(string field, object value) =>
             typeof(MoneyAppAdapter).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(Adapter, value);
         // States no scenario reaches (a failed read, a cancelled wallet, a run's
@@ -27,11 +40,11 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator EveryArenaPageSpeaksThePlayersWords()
         {
-            yield return PrepareScenario("public-disconnected"); yield return Words("Connect");
+            yield return Compact("public-disconnected"); yield return Words("Connect");
             Set("failure", "The wallet request was not completed."); Set("walletFailure", true); Redraw(); yield return Words("Connect cancelled");
             yield return EndScenario();
 
-            yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Words("Arcade with a saved run");
+            yield return Compact("owner-overview"); Click("Connect"); yield return Words("Arcade with a saved run");
             Click("Settings"); yield return Words("Settings");
             Click("Manage"); yield return Words("This device");
             Click("Back"); yield return Idle(); Click("Last operation"); yield return Words("No operation yet");
@@ -49,7 +62,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Words("Entries closed");
             yield return EndScenario();
 
-            yield return PrepareScenario("daily-playable"); Click("Connect"); yield return Words("Arcade");
+            yield return Compact("daily-playable"); Click("Connect"); yield return Words("Arcade");
             Click("Enter · 1 Kredit"); yield return Words("Entry confirmation");
             Set("confirmingDaily", false);
             var lobby = ((MoneyRead<MoneyDailyState>)typeof(MoneyAppAdapter).GetField("dailyRead", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -60,7 +73,7 @@ namespace ZKube.Tests.MoneyOverview
             Adapter.Navigate(AppPage.Result); yield return Words("Daily result");
             yield return EndScenario();
 
-            yield return PrepareScenario("kredit-pending-success"); Click("Connect"); yield return Idle();
+            yield return Compact("kredit-pending-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
             yield return Wait(Adapter.PurchaseKredits(environment.KreditPack)); yield return Words("Purchase pending");
             Click("View operation"); yield return Words("Transaction pending");
@@ -68,7 +81,7 @@ namespace ZKube.Tests.MoneyOverview
             Set("failure", "The wallet request was not completed."); Set("walletFailure", true); Redraw(); yield return Words("Purchase unavailable");
             yield return EndScenario();
 
-            yield return PrepareScenario("claim-theme-sealed"); Click("Connect"); yield return Idle();
+            yield return Compact("claim-theme-sealed"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenRewards(environment.ClaimDay)); yield return Words("Rewards");
             Assert.That(host.GetComponentsInChildren<UnityEngine.UI.Button>(), Has.Some.Property("name").EqualTo("Collect Objective"));
             yield return Wait(Adapter.CollectReward("theme")); yield return Words("Objective reward claimed");
@@ -78,32 +91,32 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(Adapter.OpenRewards(environment.ClaimDay - 1)); yield return Words("No rewards yet");
             yield return EndScenario();
 
-            yield return PrepareScenario("claim-score-expired"); Click("Connect"); yield return Idle();
+            yield return Compact("claim-score-expired"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenRewards(environment.ClaimDay)); yield return Words("Reward expired");
             yield return EndScenario();
 
-            yield return PrepareScenario("session-enable-success"); Click("Connect"); yield return Idle();
+            yield return Compact("session-enable-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Words("Device setup");
             yield return Wait(Adapter.EnsureDeviceSession()); yield return Words("Device active");
             Click("Disable this device"); yield return Words("Revoke confirmation");
             yield return EndScenario();
 
-            yield return PrepareScenario("session-refill-success"); Click("Connect"); yield return Idle();
+            yield return Compact("session-refill-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Words("Device fund");
             yield return EndScenario();
 
-            yield return PrepareScenario("session-disable-zero"); Click("Connect"); yield return Idle();
+            yield return Compact("session-disable-zero"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Idle();
             yield return Wait(Adapter.DisableDeviceSession()); yield return Words("Device disabled");
             yield return EndScenario();
 
-            yield return PrepareScenario("kredit-buy-10"); Click("Connect"); yield return Idle();
+            yield return Compact("kredit-buy-10"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
             environment.FailFirstReadAfterJournalClear();
             yield return Wait(Adapter.PurchaseKredits(10)); yield return Words("Balance unavailable");
             yield return EndScenario();
 
-            yield return PrepareScenario("profile-success"); Click("Connect"); yield return Idle();
+            yield return Compact("profile-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenProfile()); yield return Idle();
             Click("Emblem 8"); yield return Words("Wear selection");
             Assert.That(environment.ForbiddenCalls, Is.Zero);

@@ -614,12 +614,21 @@ namespace ZKube.Tests
                 Assert.That(rect.yMin, Is.GreaterThanOrEqualTo(floor - .5f), page + ": " + piece.name + " stays under the tab bar");
             }
         }
-        // Every Realms page, in each of its states, speaks the player's words: no
-        // retired board or star-source names on screen.
+        // Every Realms page, in each of its states, speaks the player's words (no
+        // retired board or star-source names on screen) and keeps every pill's
+        // label on one line on a compact phone at larger text.
         [UnityTest] public IEnumerator EveryRealmsPageSpeaksThePlayersWords()
         {
+            // On a compact phone at larger text, where words are tightest.
+            app.GetComponent<PageShell>().Frame = new Rect(0, 0, 360, 640);
+            typeof(BoardController).GetProperty("TextScale").SetValue(board, 1.3f);
+            app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile); app.Flow.Show(StorePage.Daily);
             IEnumerator Words(StorePage page, string state)
-            { yield return Page(page); ZKube.Tests.Presentation.PageText.AssertPlayerWords(app, state); }
+            {
+                yield return Page(page);
+                ZKube.Tests.Presentation.PageText.AssertPlayerWords(app, state);
+                ZKube.Tests.Presentation.PageText.AssertPillLabelsOnOneLine(app, state);
+            }
             yield return Words(StorePage.Daily, "Home");
             greeted = 0; app.Flow.Show(StorePage.Campaign); yield return Words(StorePage.Campaign, "Map with its greeting");
             app.Flow.Preview(1); yield return Words(StorePage.Level, "Level preview");

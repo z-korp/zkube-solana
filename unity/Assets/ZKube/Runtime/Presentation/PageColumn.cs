@@ -13,28 +13,39 @@ namespace ZKube.Presentation
     public sealed class PageActions
     {
         private readonly Dictionary<Button, PageAction> bound = new Dictionary<Button, PageAction>();
+        // A label that is fitted to its pill is fitted again when its words change.
+        private readonly Dictionary<Button, (string shown, Action<string> relabel)> labels = new Dictionary<Button, (string, Action<string>)>();
         private readonly Action<Exception> report;
         public PageActions(Action<Exception> report) { this.report = report ?? throw new ArgumentNullException(nameof(report)); }
         public Action Click(PageAction action) => () => { if (action.Available) Run(action.Invoke); };
         public void Run(Action action) { try { action?.Invoke(); } catch (Exception error) { report(error); } }
         // Unavailable buttons dim unless their art already shows the state (map nodes, emblems).
-        public Button Bind(Button button, PageAction action, bool fade = true)
+        public Button Bind(Button button, PageAction action, bool fade = true, Action<string> relabel = null)
         {
             if (fade) button.gameObject.AddComponent<CanvasGroup>();
-            bound[button] = action; Apply(button, action); return button;
+            bound[button] = action;
+            if (relabel != null) labels[button] = (action.Label, relabel);
+            Apply(button, action); return button;
         }
         public Button Wire(Button button, PageAction action, bool fade = true)
         { var click = Click(action); button.onClick.AddListener(() => click()); return Bind(button, action, fade); }
         public void Refresh() { foreach (var pair in bound.ToArray()) if (pair.Key != null) Apply(pair.Key, pair.Value); }
-        public void Clear() => bound.Clear();
-        private static void Apply(Button button, PageAction action)
+        public void Clear() { bound.Clear(); labels.Clear(); }
+        private void Apply(Button button, PageAction action)
         {
             bool available = action.Available;
             button.interactable = available;
             var group = button.GetComponent<CanvasGroup>();
             if (group != null) group.alpha = available ? 1 : .5f;
+            if (action.Label == null) return;
+            if (labels.TryGetValue(button, out var fitted))
+            {
+                if (fitted.shown == action.Label) return;
+                labels[button] = (action.Label, fitted.relabel); fitted.relabel(action.Label);
+                return;
+            }
             var label = button.GetComponentInChildren<TMP_Text>();
-            if (label != null && action.Label != null && label.text != action.Label) label.text = action.Label;
+            if (label != null && label.text != action.Label) label.text = action.Label;
         }
     }
 
@@ -80,14 +91,38 @@ namespace ZKube.Presentation
             return Ui.Label(name, value, Take(height, gapDp), sizeDp, token, Parent, role, alignment);
         }
 
-        // A kit pill, grown to fit its label; icon leads the label.
+        // A kit pill with its label on one line; icon leads the label.
         public Button Button(PageAction action, bool primary, float gapDp = 12, string icon = null)
         {
             if (action == null) return null;
-            float lead = icon == null ? 0 : 24 * D;
-            float height = Mathf.Max(ButtonDp * D, Ui.TextHeight(action.Label, Width - 20 * D - lead, SkinUi.ButtonDp, SkinUi.Type.Number) + 24 * D);
-            var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), action.Label, Actions.Click(action), primary, Parent, out _, icon);
-            return Actions.Bind(button, action);
+            float lead = icon == null ? 0 : 24 * D, room = Width - 20 * D - lead;
+            var (label, size) = PillLabel(Ui, action.Label, action.Short, room);
+            float height = Mathf.Max(ButtonDp * D, Ui.TextHeight(label, float.PositiveInfinity, size, SkinUi.Type.Number) + 24 * D);
+            var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), label, Actions.Click(action), primary, Parent, out var text, icon);
+            Style(Ui, text, size);
+            return Actions.Bind(button, action, relabel: value => {
+                var (shown, fitted) = PillLabel(Ui, value, action.Short, room);
+                text.text = shown; Style(Ui, text, fitted);
+            });
+        }
+
+        // A pill label stays on one line: it shrinks toward the button floor (the
+        // badge size in the type table, as drawn, so larger text may come back
+        // down to it), and when even that is too wide the action's shorter words
+        // are used.
+        public const float ButtonMinimumDp = 14;
+        public static (string Label, float Size) PillLabel(SkinUi ui, string label, string shorter, float room)
+        {
+            float width = ui.TextWidth(label, SkinUi.ButtonDp, SkinUi.Type.Number), floor = ButtonMinimumDp / ui.Scale;
+            if (width <= room) return (label, SkinUi.ButtonDp);
+            float size = Mathf.Floor(SkinUi.ButtonDp * room / width * 10) / 10;
+            if (size >= floor) return (label, size);
+            return shorter != null && shorter != label ? PillLabel(ui, shorter, null, room) : (label, floor);
+        }
+        public static void Style(SkinUi ui, TMP_Text text, float sizeDp)
+        {
+            text.fontSize = sizeDp * ui.Density * ui.Scale;
+            text.textWrappingMode = TextWrappingModes.NoWrap; text.overflowMode = TextOverflowModes.Overflow;
         }
 
         // A kit list row, grown to fit its label: an optional icon, the label and

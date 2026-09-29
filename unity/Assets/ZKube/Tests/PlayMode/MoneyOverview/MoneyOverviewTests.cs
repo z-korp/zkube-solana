@@ -189,13 +189,11 @@ namespace ZKube.Tests.MoneyOverview
             ExecuteEvents.Execute(drag, pointer, ExecuteEvents.dragHandler);
             ExecuteEvents.Execute(drag, pointer, ExecuteEvents.endDragHandler);
             Assert.That(scroll.content.anchoredPosition.y, Is.GreaterThan(start));
+            // Every touch target keeps 48 dp; every pill's label stays on one line
+            // (the kit's tab bar fits its own labels and has its own test).
             foreach (var button in host.GetComponentsInChildren<Button>())
-            {
-                var text = button.GetComponentInChildren<TMP_Text>(); if (text == null) continue; text.ForceMeshUpdate();
                 Assert.That(((RectTransform)button.transform).rect.height, Is.GreaterThanOrEqualTo(48), button.name);
-                Assert.That(text.preferredHeight, Is.LessThanOrEqualTo(text.rectTransform.rect.height + 1), button.name);
-                Assert.That(text.preferredWidth, Is.LessThanOrEqualTo(text.rectTransform.rect.width + 1), button.name);
-            }
+            ZKube.Tests.Presentation.PageText.AssertPillLabelsOnOneLine(host.transform, "Arcade at larger text");
             yield return Wait(host.GetComponent<MoneyIdentity>().Controller.RefreshOverview()); yield return Idle();
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

@@ -26,6 +26,19 @@ namespace ZKube.Tests.Presentation
                 Assert.That(jargon.IsMatch(text.text), Is.False, page + ": \"" + text.text + "\" on " + text.name);
         }
 
+        // Every pill's label sits on one line inside the pill.
+        public static void AssertPillLabelsOnOneLine(Component root, string page)
+        {
+            foreach (var button in root.GetComponentsInChildren<Button>().Where(button => button.GetComponent<Image>()?.sprite is Sprite face &&
+                (face.name.StartsWith("button-primary") || face.name.StartsWith("button-secondary"))))
+                foreach (var text in Visible(button))
+                {
+                    text.ForceMeshUpdate();
+                    Assert.That(text.textInfo.lineCount, Is.LessThanOrEqualTo(1), page + ": the " + button.name + " label wraps \"" + text.text + "\"");
+                    Assert.That(text.preferredWidth, Is.LessThanOrEqualTo(text.rectTransform.rect.width + 1), page + ": the " + button.name + " label overflows");
+                }
+        }
+
         // Every number the page draws (outside a button's label) sits on one line inside its rect.
         public static void AssertNumbersOnOneLine(Component root, TMP_FontAsset numbers, string page)
         {

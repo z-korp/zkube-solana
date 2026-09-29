@@ -83,9 +83,10 @@ namespace ZKube.Presentation
                 });
             }
             float counted = starts + Mathf.Max(0, lit.Length - 1) * apart + .2f;
-            string final = total.ToString("N0", CultureInfo.InvariantCulture);
-            sequence.Add(counted, .6f * pace, t => score.text = t >= 1 ? final :
-                ((ulong)Mathf.Round(total * PageSequence.EaseOut(t))).ToString("N0", CultureInfo.InvariantCulture));
+            // The count keeps the fitted score's size, abbreviating as the fitted score does.
+            string final = score.text; float width = score.rectTransform.rect.width, size = score.fontSize / (ui.Density * ui.Scale);
+            sequence.Add(counted, .6f * pace, t => score.text = t >= 1 ? final : NumberFit.Within(ui,
+                ((ulong)Mathf.Round(total * PageSequence.EaseOut(t))).ToString("N0", CultureInfo.InvariantCulture), width, size));
             float stamp = counted + .6f * pace;
             if (chip != null)
             {

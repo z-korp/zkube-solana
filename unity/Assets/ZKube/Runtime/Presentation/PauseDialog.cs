@@ -65,7 +65,8 @@ namespace ZKube.Presentation
             var resumeRect = new Rect(left + 26 * d, y - 56 * d, inner, 56 * d);
             ui.Glow("Dialog Resume halo", new Rect(resumeRect.center.x - resumeRect.width * .65f, resumeRect.center.y - resumeRect.height * .65f,
                 resumeRect.width * 1.3f, resumeRect.height * 1.3f), SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .4f), root, PageViews.HaloSeconds);
-            ui.TextButton("Dialog Resume", resumeRect, "Resume", resume, true, root, out _);
+            ui.TextButton("Dialog Resume", resumeRect, "Resume", resume, true, root, out var resumeLabel);
+            PageColumn.Style(ui, resumeLabel, PageColumn.PillLabel(ui, "Resume", null, inner - 20 * d).Size);
             y -= 56 * d + 27 * d * k;
             foreach (var row in rows)
             {
@@ -89,6 +90,7 @@ namespace ZKube.Presentation
             ui.TextButton("Dialog " + BoardController.EndRun, new Rect(left + 26 * d, y - 56 * d, inner, 56 * d), BoardController.EndRun, end, false, root,
                 out var endLabel, SkinSlots.IconClose);
             endLabel.color = ui.Art.Token(SkinTokens.Negative);
+            PageColumn.Style(ui, endLabel, PageColumn.PillLabel(ui, BoardController.EndRun, null, inner - 44 * d).Size);
         }
 
         public void Close()

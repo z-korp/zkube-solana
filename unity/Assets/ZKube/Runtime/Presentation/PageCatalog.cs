@@ -82,7 +82,6 @@ namespace ZKube.Presentation
         // The first listed skin is the default; the generator guarantees every slot exists.
         public SkinEntry DefaultSkin => skins[0];
         public PortraitEntry Portrait(byte id) => portraits.Single(value => value.realmId == id);
-        public DailyTheme Objective(byte kind, byte value) => dailyThemes.Single(theme => theme.kind == kind && theme.value == value);
         // A realm's guardian rule, from the protocol's bonus, trigger and threshold.
         public GuardianRule Rule(byte realm)
         {

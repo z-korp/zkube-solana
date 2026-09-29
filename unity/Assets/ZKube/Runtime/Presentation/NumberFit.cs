@@ -26,6 +26,10 @@ namespace ZKube.Presentation
         }
         private static float Shrunk(float sizeDp, float width, float measured) => Mathf.Floor(sizeDp * width / measured * 10) / 10;
 
+        // A number at a size already fitted: as it is, or abbreviated when wider.
+        public static string Within(SkinUi ui, string value, float width, float sizeDp) =>
+            ui.TextWidth(value, sizeDp, SkinUi.Type.Number) <= width ? value : Abbreviate(value);
+
         // Sets a drawn number to its fitted text and size, on one line.
         public static TMP_Text Apply(SkinUi ui, TMP_Text text, float width, float sizeDp, bool abbreviate = true)
         {

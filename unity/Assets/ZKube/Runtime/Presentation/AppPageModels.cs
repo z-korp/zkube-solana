@@ -11,6 +11,8 @@ namespace ZKube.Presentation
     public sealed class PageAction
     {
         public string Label;
+        // The shorter words a pill uses when Label does not fit it on one line.
+        public string Short;
         public string Name;
         public bool Enabled = true;
         public Func<bool> CanInvoke;
