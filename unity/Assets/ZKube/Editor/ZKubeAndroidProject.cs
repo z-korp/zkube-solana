@@ -14,6 +14,7 @@ namespace ZKube.Editor
         [Serializable] private sealed class Dependencies { public string[] runtime; }
         public int callbackOrder => 100;
         public const string LaunchTheme = "ZKubeLaunchTheme";
+        public const string LaunchWindowClass = "com.zkorp.zkube.launch.LaunchWindow";
 
         public void OnPostGenerateGradleAndroidProject(string path)
         {
@@ -95,6 +96,18 @@ namespace ZKube.Editor
                 .SingleOrDefault(node => (string)node.Attribute(android + "name") == "com.unity3d.player.UnityPlayerGameActivity")
                 ?? throw new BuildFailedException("Generated Unity manifest has no game activity");
             activity.SetAttributeValue(android + "theme", "@style/" + LaunchTheme);
+            // The launch window keeps the splash over Unity's surface until
+            // startup releases it after the first frame (LaunchWindow.java).
+            var launchProvider = libraryManifest.Root.Element("application").Elements("provider")
+                .SingleOrDefault(node => (string)node.Attribute(android + "name") == LaunchWindowClass);
+            if (launchProvider == null)
+            {
+                launchProvider = new XElement("provider");
+                libraryManifest.Root.Element("application").Add(launchProvider);
+            }
+            launchProvider.SetAttributeValue(android + "name", LaunchWindowClass);
+            launchProvider.SetAttributeValue(android + "authorities", "${applicationId}.zkubelaunch");
+            launchProvider.SetAttributeValue(android + "exported", "false");
             libraryManifest.Save(libraryManifestPath);
             var resources = Path.Combine(path, "src/main/res");
             Directory.CreateDirectory(Path.Combine(resources, "drawable-xxhdpi"));

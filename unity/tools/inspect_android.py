@@ -23,6 +23,8 @@ from build import identity, abis
 PROJECT = Path(__file__).resolve().parents[1]
 ANDROID = '{http://schemas.android.com/apk/res/android}'
 MONEY_ASSEMBLIES = tuple(identity(json.loads((PROJECT / 'toolchain.json').read_text()), 'store')['excludedAssemblies'])
+# Keeps the splash over Unity's surface until its first frame (LaunchWindow.java).
+LAUNCH_WINDOW = 'com.zkorp.zkube.launch.LaunchWindow'
 MONEY_DEX = (b'Lcom/solana/', b'Lcom/solanamobile/', b'Lcom/zkorp/zkube/unitywallet/')
 
 
@@ -218,6 +220,9 @@ def manifest_check(root, profile, toolchain):
     splash = [node for node in app.findall('meta-data') if node.get(ANDROID + 'name') == 'unity.splash-enable']
     if len(splash) != 1 or splash[0].get(ANDROID + 'value') != 'false':
         raise RuntimeError('Android artifact still enables the Unity splash screen')
+    launch = [node for node in app.findall('provider') if node.get(ANDROID + 'name') == LAUNCH_WINDOW]
+    if len(launch) != 1 or launch[0].get(ANDROID + 'exported') != 'false':
+        raise RuntimeError('The launch window provider must be registered once and not exported')
     permissions = [node.get(ANDROID + 'name') for node in root.findall('uses-permission')]
     if 'android.permission.INTERNET' not in permissions:
         raise RuntimeError('Android artifact lacks internet permission')

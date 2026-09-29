@@ -42,12 +42,17 @@ class StaticTests(unittest.TestCase):
                    '<uses-permission android:name="android.permission.INTERNET"/>'
                    f'<application android:label="{profile["productName"]}" android:allowBackup="false">'
                    '<meta-data android:name="unity.splash-enable" android:value="false"/>'
+                   '<provider android:name="com.zkorp.zkube.launch.LaunchWindow" android:exported="false"/>'
                    + activity + '</application></manifest>')
             report = manifest_check(ET.fromstring(xml), profile, self.toolchain)
             self.assertEqual(profile['productName'], report['displayName'])
             self.assertEqual(7, report['versionCode'])
             with self.assertRaisesRegex(RuntimeError, 'display name'):
                 manifest_check(ET.fromstring(xml.replace(profile['productName'], 'wrong')), profile, self.toolchain)
+            provider = '<provider android:name="com.zkorp.zkube.launch.LaunchWindow" android:exported="false"/>'
+            for wrong in ('', provider.replace('"false"', '"true"'), provider + provider):
+                with self.assertRaisesRegex(RuntimeError, 'launch window provider'):
+                    manifest_check(ET.fromstring(xml.replace(provider, wrong)), profile, self.toolchain)
 
     def test_production_packages_require_explicit_version_and_non_debug_signing(self):
         for identity_name in ('money', 'store'):
@@ -252,7 +257,7 @@ class StaticTests(unittest.TestCase):
         closure('ZKube.Store', set())
 
     def test_store_manifest_rejects_wallet_and_wrong_identity(self):
-        xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-permission android:name="android.permission.INTERNET"/><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false" android:label="zKube: Realms"><meta-data android:name="unity.splash-enable" android:value="false"/></application></manifest>'''
+        xml = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.zkorp.zkube.store" android:versionCode="1" android:versionName="1.0"><uses-permission android:name="android.permission.INTERNET"/><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/><application android:allowBackup="false" android:label="zKube: Realms"><meta-data android:name="unity.splash-enable" android:value="false"/><provider android:name="com.zkorp.zkube.launch.LaunchWindow" android:exported="false"/></application></manifest>'''
         profile = identity(self.toolchain, 'store')
         self.assertEqual('com.zkorp.zkube.store', manifest_check(ET.fromstring(xml), profile, self.toolchain)['package'])
         with self.assertRaises(RuntimeError): manifest_check(ET.fromstring(xml.replace('zKube: Realms', 'zKube')), profile, self.toolchain)

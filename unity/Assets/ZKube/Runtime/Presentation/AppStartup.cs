@@ -72,27 +72,19 @@ namespace ZKube.Presentation
                 Debug.LogWarning("Application unavailable: " + error.GetType().Name);
             }
         }
-        // The Android launch window draws the splash until Unity's first frame
-        // (see ZKubeAndroidProject). Once frames are up it is hidden behind
-        // them, so a plain colour replaces it and the decoded splash is freed.
+        // The Android launch window, and its overlay over Unity's surface, draw
+        // the splash until Unity's first frame (ZKubeAndroidProject,
+        // LaunchWindow.java). Once the launch screen has drawn the same picture,
+        // both go and the decoded splash is freed.
         public bool LaunchWindowReleased { get; private set; }
         private System.Collections.IEnumerator ReleaseLaunchWindow()
         {
             yield return null; yield return new WaitForEndOfFrame(); yield return null;
 #if UNITY_ANDROID && !UNITY_EDITOR
-            static AndroidJavaObject Activity()
-            {
-                using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                return player.GetStatic<AndroidJavaObject>("currentActivity");
-            }
-            using (var activity = Activity())
-                activity.Call("runOnUiThread", new AndroidJavaRunnable(() =>
-                {
-                    using var owner = Activity();
-                    using var window = owner.Call<AndroidJavaObject>("getWindow");
-                    using var black = new AndroidJavaObject("android.graphics.drawable.ColorDrawable", unchecked((int)0xFF000000));
-                    window.Call("setBackgroundDrawable", black);
-                }));
+            using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (var window = new AndroidJavaClass("com.zkorp.zkube.launch.LaunchWindow"))
+                window.CallStatic("release", activity);
 #endif
             LaunchWindowReleased = true;
         }

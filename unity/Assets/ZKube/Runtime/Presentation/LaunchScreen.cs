@@ -10,20 +10,35 @@ namespace ZKube.Presentation
     // The first frame: the product's splash painting, its lockup painted in,
     // with the loading line under it as drawn on the 400 x 890 dp loading
     // screen. The splash is staged per product by build.py, so each package
-    // shows its own. It fades out once the first page has drawn.
+    // shows its own. The painting sits exactly where the Android launch window
+    // draws it, so the handover shows one picture. Once the first page has
+    // drawn, a dark veil closes over the splash and opens on the page, so the
+    // two are never blended.
     public sealed class LaunchScreen : MonoBehaviour
     {
         public const string Opening = "Opening the realms…", Preparing = "Preparing your saved progress";
-        public const float FadeSeconds = .22f, SweepSeconds = 1.2f;
+        public const float VeilCloseSeconds = .14f, VeilOpenSeconds = .18f, SweepSeconds = 1.2f;
         // The loading screen's canvas, and where its line sits on it.
         private const float CanvasDp = 890, WidthDp = 400, OpeningDp = 650, BarDp = 704, ShadeDp = 724, PreparingDp = 740;
-        public const float PixelsPerDp = 3;
         private const float BarWidthDp = 256, BarHeightDp = 8, SegmentDp = 92;
         private Func<bool> ready;
         private CanvasGroup group;
         private RectTransform segment;
-        private float density, fadeStart = -1;
+        private float density, leaving = -1;
         public Image Painting { get; private set; }
+        public Image Veil { get; private set; }
+        public bool Leaving => leaving >= 0;
+
+        // Where Android draws the launch drawable (ZKubeAndroidProject): the
+        // bitmap from drawable-xxhdpi, scaled to the screen's density and
+        // centred with integer arithmetic, in Unity's bottom-up pixels.
+        public static Rect WindowRect(Vector2 source, int densityDpi, int width, int height)
+        {
+            const int Xxhdpi = 480;
+            int w = ((int)source.x * densityDpi + Xxhdpi / 2) / Xxhdpi, h = ((int)source.y * densityDpi + Xxhdpi / 2) / Xxhdpi;
+            int left = (width - w) / 2, top = (height - h) / 2;
+            return new Rect(left, height - top - h, w, h);
+        }
 
         public static LaunchScreen Create(Transform parent, Func<bool> firstPageDrawn, float density)
         {
@@ -41,12 +56,10 @@ namespace ZKube.Presentation
 
         private void Draw(Sprite splash)
         {
-            // The painting is drawn at 3 px per dp, centred, as the Android
-            // launch window shows it, and grows only to cover a larger screen.
-            // The line keeps its place on it.
-            float scale = Mathf.Max(density / PixelsPerDp, Screen.width / splash.rect.width, Screen.height / splash.rect.height);
-            var painting = new Rect((Screen.width - splash.rect.width * scale) / 2, (Screen.height - splash.rect.height * scale) / 2,
-                splash.rect.width * scale, splash.rect.height * scale);
+            // Black around the painting, as the launch window's layer list is;
+            // the line keeps its place on the painting.
+            Picture("Launch backdrop", new Rect(0, 0, Screen.width, Screen.height), null, Color.black);
+            var painting = WindowRect(splash.rect.size, Mathf.RoundToInt(density * 160), Screen.width, Screen.height);
             Painting = Picture("Launch splash", painting, splash, Color.white);
             float Y(float dp) => painting.yMax - dp / CanvasDp * painting.height;
             float d = density;
@@ -75,6 +88,7 @@ namespace ZKube.Presentation
             Picture("Launch caption shade", new Rect(centre - 110 * d, Y(ShadeDp) - 45 * d, 220 * d, 45 * d),
                 Kit(SkinSlots.FxGlow), SkinUi.WithAlpha(Token(SkinTokens.Scrim), .97f));
             Text("Launch preparing", Preparing, new Rect(centre - WidthDp / 2 * d, Y(PreparingDp) - 18 * d, WidthDp * d, 18 * d), 13 * d, Token(SkinTokens.TextMuted), caption);
+            Veil = Picture("Launch veil", new Rect(0, 0, Screen.width, Screen.height), null, Color.clear);
             Update();
         }
 
@@ -106,10 +120,16 @@ namespace ZKube.Presentation
             float travel = (BarWidthDp - SegmentDp) * density;
             float t = AppPreferences.ReducedMotion ? 0 : Mathf.PingPong(Time.unscaledTime / SweepSeconds, 1);
             segment.anchoredPosition = new Vector2(travel * Mathf.SmoothStep(0, 1, t), 0);
-            if (fadeStart < 0 && ready != null && ready()) fadeStart = Time.unscaledTime;
-            if (fadeStart < 0) return;
-            group.alpha = AppPreferences.ReducedMotion ? 0 : 1 - Mathf.Clamp01((Time.unscaledTime - fadeStart) / FadeSeconds);
-            if (group.alpha <= 0) Destroy(gameObject);
+            if (leaving < 0 && ready != null && ready()) leaving = Time.unscaledTime;
+            if (leaving < 0) return;
+            if (AppPreferences.ReducedMotion) { Destroy(gameObject); return; }
+            float since = Time.unscaledTime - leaving;
+            if (since < VeilCloseSeconds) { Veil.color = new Color(0, 0, 0, since / VeilCloseSeconds); return; }
+            // Closed: the splash goes and the veil opens on the page.
+            foreach (Transform child in transform) if (child != Veil.transform) child.gameObject.SetActive(false);
+            float open = Mathf.Clamp01((since - VeilCloseSeconds) / VeilOpenSeconds);
+            Veil.color = new Color(0, 0, 0, 1 - open);
+            if (open >= 1) Destroy(gameObject);
         }
     }
 }

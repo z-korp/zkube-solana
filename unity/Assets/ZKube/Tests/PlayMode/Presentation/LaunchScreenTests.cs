@@ -24,14 +24,14 @@ namespace ZKube.Presentation.Tests
         private LaunchScreen Launch() => LaunchScreen.Create(root.transform, () => drawn, 1);
         private T Named<T>(string name) where T : Component => root.GetComponentsInChildren<T>(true).Single(c => c.name == name);
 
-        [Test] public void TheSplashCoversTheScreenWithTheLoadingLineUnderItsLockup()
+        [Test] public void TheSplashSitsWhereTheLaunchWindowDrawsItWithTheLoadingLineUnderItsLockup()
         {
             var launch = Launch();
             var painting = SkinUi.ScreenRect(launch.Painting.rectTransform);
             Assert.AreEqual(new Vector2(1200, 2670), launch.Painting.sprite.rect.size, "The staged product splash");
-            Assert.LessOrEqual(painting.xMin, 0.01f); Assert.GreaterOrEqual(painting.xMax, Screen.width - .01f);
-            Assert.LessOrEqual(painting.yMin, 0.01f); Assert.GreaterOrEqual(painting.yMax, Screen.height - .01f);
-            Assert.AreEqual(painting.width / painting.height, 1200f / 2670, .001f, "The painting keeps its aspect");
+            Assert.AreEqual(LaunchScreen.WindowRect(new Vector2(1200, 2670), 160, Screen.width, Screen.height), painting, "Where the window draws it");
+            var backdrop = SkinUi.ScreenRect(Named<Image>("Launch backdrop").rectTransform);
+            Assert.AreEqual(new Rect(0, 0, Screen.width, Screen.height), backdrop); Assert.AreEqual(Color.black, Named<Image>("Launch backdrop").color);
             var opening = Named<TMP_Text>("Launch opening"); var preparing = Named<TMP_Text>("Launch preparing");
             Assert.AreEqual(LaunchScreen.Opening, opening.text); Assert.AreEqual(LaunchScreen.Preparing, preparing.text);
             float Top(Component c) => SkinUi.ScreenRect((RectTransform)c.transform).yMax;
@@ -44,17 +44,17 @@ namespace ZKube.Presentation.Tests
             Assert.IsFalse(root.GetComponentsInChildren<Graphic>().Any(g => g.raycastTarget), "It never takes input");
         }
 
-        [Test] public void ThePaintingMatchesTheLaunchWindowAtThreePixelsPerDp()
+        [Test] public void TheWindowGeometryIsAndroidsDensityScaledIntegerCentring()
         {
-            // The Android launch window draws the splash from drawable-xxhdpi, centred.
-            float density = Mathf.Max(3, 3 * Screen.height / 2670f, 3 * Screen.width / 1200f);
-            var launch = LaunchScreen.Create(root.transform, () => drawn, density);
-            var painting = SkinUi.ScreenRect(launch.Painting.rectTransform);
-            Assert.AreEqual(1200 * density / LaunchScreen.PixelsPerDp, painting.width, .01f);
-            Assert.AreEqual(new Vector2(Screen.width / 2f, Screen.height / 2f), painting.center, "Centred, as the window shows it");
+            // BitmapDrawable scales from xxhdpi with rounding; Gravity.CENTER truncates toward zero.
+            Assert.AreEqual(new Rect(0, 0, 1200, 2670), LaunchScreen.WindowRect(new Vector2(1200, 2670), 480, 1200, 2670));
+            Assert.AreEqual(new Rect(-10, -4, 1100, 2448), LaunchScreen.WindowRect(new Vector2(1200, 2670), 440, 1080, 2440), "Seeker-class 440 dpi");
+            var small = LaunchScreen.WindowRect(new Vector2(1200, 2670), 480, 1080, 1920);
+            Assert.AreEqual(new Rect(-60, -375, 1200, 2670), small, "360 x 640 dp crops the painting's edges");
+            Assert.AreEqual(new Rect(60, 0, 1200, 2670), LaunchScreen.WindowRect(new Vector2(1200, 2670), 480, 1320, 2670), "A wider screen shows black sides");
         }
 
-        [UnityTest] public IEnumerator TheSegmentSweepsUntilTheFirstPageThenTheScreenFades()
+        [UnityTest] public IEnumerator TheSegmentSweepsUntilTheFirstPageThenAVeilClosesAndOpensOnThePage()
         {
             var launch = Launch();
             var segment = Named<Image>("Launch progress").rectTransform;
@@ -63,11 +63,23 @@ namespace ZKube.Presentation.Tests
             for (float end = Time.realtimeSinceStartup + .3f; Time.realtimeSinceStartup < end;) yield return null;
             Assert.AreNotEqual(first, segment.anchoredPosition.x, "The segment sweeps");
             Assert.LessOrEqual(SkinUi.ScreenRect(segment).xMax, track.xMax + .01f, "It stays on the track");
-            for (float end = Time.realtimeSinceStartup + .3f; Time.realtimeSinceStartup < end;) yield return null;
-            Assert.IsTrue(launch != null, "It waits for the first page");
+            Assert.IsTrue(launch != null && !launch.Leaving, "It waits for the first page");
             drawn = true;
-            for (float end = Time.realtimeSinceStartup + LaunchScreen.FadeSeconds + .2f; Time.realtimeSinceStartup < end;) yield return null;
-            Assert.IsTrue(launch == null, "It fades out and goes");
+            bool closed = false;
+            for (float end = Time.realtimeSinceStartup + LaunchScreen.VeilCloseSeconds + LaunchScreen.VeilOpenSeconds + .5f;
+                 launch != null && Time.realtimeSinceStartup < end;)
+            {
+                yield return null;
+                if (launch == null) break;
+                bool splash = launch.Painting.gameObject.activeInHierarchy;
+                // Never two pictures at once: the splash stays whole under the closing veil, and is gone before it opens.
+                Assert.AreEqual(1, launch.Painting.color.a); Assert.AreEqual(1, launch.GetComponent<CanvasGroup>().alpha);
+                if (!splash) closed = true;
+                if (splash) Assert.IsFalse(closed, "The splash never returns");
+                if (closed) Assert.IsFalse(splash);
+            }
+            Assert.IsTrue(closed, "The veil closed over the splash before opening");
+            Assert.IsTrue(launch == null, "It opens on the page and goes");
         }
 
         [UnityTest] public IEnumerator ReducedMotionHoldsTheSegmentAndCuts()
