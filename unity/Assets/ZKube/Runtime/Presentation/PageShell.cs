@@ -205,15 +205,18 @@ namespace ZKube.Presentation
                 var screen = new Rect(-Screen.width * .25f, -Screen.height * .25f, Screen.width * 1.5f, Screen.height * 1.5f);
                 SkinUi.Place(vignette.rectTransform, screen, Root.transform);
             }
+            // The realm's scrim and glow, read once for the whole rise.
+            var scrim = Artwork != null ? Artwork.Token(SkinTokens.Scrim) : Color.clear;
+            var glow = Artwork != null ? Artwork.Token(SkinTokens.LightGlow) : Color.clear;
             float size = 160 * density;
             yield return Tween(reducedMotion ? ReducedSeconds : Mathf.Max(EnterSeconds, GlowSeconds), t => {
                 float page = Mathf.Clamp01(t * (reducedMotion ? 1 : Mathf.Max(EnterSeconds, GlowSeconds) / EnterSeconds));
                 float eased = 1 - (1 - page) * (1 - page);
                 fade.alpha = eased; stage.anchoredPosition = anchor - new Vector2(0, rise * (1 - eased));
-                if (vignette != null && !reducedMotion) vignette.color = SkinUi.WithAlpha(Artwork.Token(SkinTokens.Scrim), .42f * Mathf.Sin(Mathf.PI * page));
+                if (vignette != null && !reducedMotion) vignette.color = SkinUi.WithAlpha(scrim, .42f * Mathf.Sin(Mathf.PI * page));
                 if (paintingHidden) { var shown = Background.color; shown.a = eased; Background.color = shown; }
                 if (!swell.enabled) return;
-                var color = Artwork.Token(SkinTokens.LightGlow); color.a = .5f * (1 - t);
+                var color = glow; color.a = .5f * (1 - t);
                 swell.color = color;
                 float grown = size * (.6f + t);
                 SkinUi.Place(swell.rectTransform, new Rect(origin.Value.x - grown / 2, origin.Value.y - grown / 2, grown, grown), Root.transform);

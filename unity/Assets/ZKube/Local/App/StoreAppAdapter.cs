@@ -214,7 +214,7 @@ namespace ZKube.Local.App
         public SettingsPageView SettingsPage()
         {
             var view = AppPreferences.Read(Refresh, board);
-            view.Actions = new[] { Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) };
+            view.Identity = new[] { PanelBlock.Button(Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy), false, 12) };
             return view;
         }
         public ResultPageView ResultPage()
@@ -242,7 +242,6 @@ namespace ZKube.Local.App
         }
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));
-        public IReadOnlyList<PageAction> IdentityNavigation => Array.Empty<PageAction>();
         public void Report(Exception error) => Flow.Report(error);
         private void OpenBoard(LocalBoardActionProvider provider)
         {

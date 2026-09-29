@@ -68,7 +68,7 @@ namespace ZKube.Presentation
             reducedMotion = source.SettingsPage().ReducedMotion;
             if (page == AppPage.Settings && entering) { lastMusic = AudioPolicy.ToggleOnLevel; lastEffects = AudioPolicy.ToggleOnLevel; }
             if (page != AppPage.Profile) { editedName = null; savedName = null; editingName = false; }
-            Shown = page;
+            Shown = page; shownPanel = null;
             if (to >= 0) lastTab = tabs[to];
             // The previous kit stays with the page drawn from it; the shell releases it.
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
@@ -96,7 +96,7 @@ namespace ZKube.Presentation
                     Level(level, map, messages); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(2, "Profile", null, null, null, Settings(), messages); Profile(profile); break;
+                    Frame(2, "Profile", null, profile.Records, null, Settings(), messages, leftIcon: SkinSlots.IconTrophy); Profile(profile); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
                     Frame(-1, "Settings", brand, new PageAction { Label = "Back", Name = "Back",
@@ -123,15 +123,19 @@ namespace ZKube.Presentation
 
         private string[] shownNotices;
         // Draws the shown page again in place, for a change only the page holds.
-        private void Redraw() { if (Shown.HasValue) Render(Shown.Value, shownNotices); }
+        private void Redraw()
+        {
+            if (Shown.HasValue) Render(Shown.Value, shownNotices);
+            else if (shownPanel != null) RenderPanel(shownPanel, shownNotices);
+        }
 
         // Removes the drawn page, so the next page enters without a page to leave.
-        public void Hide() { Retire(); Shown = null; shell.Clear(shell.SafeArea); }
+        public void Hide() { Retire(); Shown = null; shownPanel = null; shell.Clear(shell.SafeArea); }
 
         // A page that could not load its realm art has no skin kit to draw with.
         public void Unavailable(string title, string message, PageAction retry)
         {
-            Retire(); Shown = null;
+            Retire(); Shown = null; shownPanel = null;
             float d = Mathf.Max(.5f, density());
             var safe = shell.SafeArea;
             shell.Clear(safe); shell.Backdrop(null, 1);
@@ -165,8 +169,10 @@ namespace ZKube.Presentation
         // header and the top of the tab bar. A full-bleed page (the map) scrolls
         // under both instead. A page without a title (Home) draws its own header
         // in the body and keeps only its utility tablet fixed at the top.
+        // A page with a subtitle and no title carries the product mark in the
+        // title's place. The left tablet is Back unless the page names its icon.
         private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, PageAction settings, string[] notices,
-            bool fullBleed = false)
+            bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
         {
             var safe = shell.SafeArea; float d = ui.Density;
             reveal = null; selectedTab = tab;
@@ -175,7 +181,7 @@ namespace ZKube.Presentation
             float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 12, SkinUi.Type.Label);
             // The inner-page header: the title 5 dp under the safe inset, its light
             // stroke at 46 dp and the subtitle at 59 dp.
-            float header = title == null ? 0 : Mathf.Max((subtitle == null ? 70 : 84) * d, 59 * d + subtitleHeight + 8 * d);
+            float header = title == null && subtitle == null ? 0 : Mathf.Max((subtitle == null ? 70 : 84) * d, 59 * d + subtitleHeight + 8 * d);
             tabBar = ui.TabBarRect(safe);
             float bottom = tab >= 0 ? tabBar.yMax : safe.y;
             headerBottom = safe.yMax - header;
@@ -190,6 +196,15 @@ namespace ZKube.Presentation
                 ui.Label("Page title", title, rect, 25, SkinTokens.Text, chrome, SkinUi.Type.Title);
                 ui.Piece("Page title stroke", SkinSlots.TitleRibbon, new Rect(safe.center.x - 75 * d, safe.yMax - 53 * d, 150 * d, 7 * d), chrome);
             }
+            else if (subtitle != null)
+            {
+                // The wordmark's mark, 48 dp wide, in the title's band.
+                var mark = ui.Art.Sprite(BoardArt.Mark);
+                float markWidth = IconDp * d, markHeight = markWidth * mark.rect.height / mark.rect.width;
+                var image = ui.Rect<Image>("Page mark", new Rect(safe.center.x - markWidth / 2, safe.yMax - 12 * d - markHeight, markWidth, markHeight), chrome);
+                image.sprite = mark; image.preserveAspect = true; image.raycastTarget = false;
+                ui.Piece("Page title stroke", SkinSlots.TitleRibbon, new Rect(safe.center.x - 75 * d, safe.yMax - 53 * d, 150 * d, 7 * d), chrome);
+            }
             if (subtitle != null)
             {
                 var rect = new Rect(safe.center.x - titleWidth / 2, safe.yMax - 59 * d - subtitleHeight, titleWidth, subtitleHeight);
@@ -200,7 +215,7 @@ namespace ZKube.Presentation
             // An action that cannot be taken is not drawn.
             float iconY = safe.yMax - 4 * d - icon;
             back = left;
-            if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + GutterDp * d, iconY, icon, icon), SkinSlots.IconBack, false);
+            if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + GutterDp * d, iconY, icon, icon), leftIcon, false);
             if (right != null) { if (right.Enabled) HeaderButton(right, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconBack, true); }
             else if (settings != null) HeaderButton(settings, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconSettings, false);
             if (tab >= 0) TabBar(safe, tab);
@@ -248,7 +263,8 @@ namespace ZKube.Presentation
             var realm = catalog.Realm(value.Realm);
             string objective = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
-            if (value.NextOpensAt > 0 && value.Now != null) UsedDaily(value, realm, objective);
+            if (value.Arcade != null) Arcade(value, realm, objective);
+            else if (value.NextOpensAt > 0 && value.Now != null) UsedDaily(value, realm, objective);
             else
             {
                 var card = column.Card("Daily card", null, 24, 13.5f, 16);
@@ -266,6 +282,7 @@ namespace ZKube.Presentation
                 column = card.End(24);
             }
 
+            Blocks(value.Blocks);
             var summary = source.CampaignSummary();
             if (summary == null) return;
             var campaign = column.Card("Campaign card", null, 24, 13.5f, 18.5f);
@@ -299,17 +316,18 @@ namespace ZKube.Presentation
             column = card.End(24);
         }
         // A 52 dp kit list row: the label on the left and its number on the right.
-        private void ResultRow(PageColumn rows, string name, string label, string number, string token, float gapDp)
+        private Image ResultRow(PageColumn rows, string name, string label, string number, string token, float gapDp)
         {
             float d = ui.Density;
             float numberWidth = ui.TextWidth(number, 18, SkinUi.Type.Number);
             float height = Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(label, rows.Width - 44 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
             var rect = rows.Take(height, gapDp);
-            ui.Piece(name + " row", SkinSlots.ListRow, rect, rows.Parent);
+            var row = ui.Piece(name + " row", SkinSlots.ListRow, rect, rows.Parent);
             ui.Label(name + " label", label, new Rect(rect.x + 14 * d, rect.y, rect.width - 36 * d - numberWidth, rect.height), 15,
                 SkinTokens.Text, rows.Parent, SkinUi.Type.Caption, TextAlignmentOptions.Left);
             ui.Label(name, number, new Rect(rect.xMax - 15 * d - numberWidth, rect.y, numberWidth, rect.height), 18, token,
                 rows.Parent, SkinUi.Type.Number, TextAlignmentOptions.Right);
+            return row;
         }
         // A card row: an optional star, the label on the left and its value, the
         // biggest text in the row, on the right.

@@ -7,6 +7,7 @@ using UnityEngine.TestTools;
 using UnityEngine.UI;
 using ZKube.Integration.App;
 using ZKube.Integration.Presentation;
+using ZKube.Presentation;
 
 namespace ZKube.Tests.MoneyOverview
 {
@@ -17,14 +18,13 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario(scenario);
             yield return SessionClick("Connect"); yield return Idle();
-            yield return SessionClick("Daily"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingDaily, Is.True);
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingDaily, Is.True, "Connect opens the Arcade");
         }
 
         [UnityTest] public IEnumerator DailyNavigationReadsThePublicChallengeAndOffersOnlySavedRunResume()
         {
             yield return OpenDailyPage();
-            StringAssert.Contains("Prize pot", DailyText());
+            StringAssert.Contains("PRIZE POOL", DailyText());
             StringAssert.Contains("23:59 UTC", DailyText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit" || button.name == "Confirm 1 Kredit"), Is.False);
@@ -65,7 +65,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareScenario("pending-confirmed-failure");
             yield return SessionClick("Connect"); yield return Idle();
             int checks = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
-            yield return SessionClick("Daily"); yield return Idle();
+            yield return SessionClick("Arcade"); yield return Idle();
             StringAssert.Contains("pending transaction", DailyText());
             Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Check transaction"), Is.True);
@@ -78,7 +78,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return OpenDailyPage();
             long now = environment.Clock(); environment.AdvanceClock((now / 86400 + 1) * 86400 - 60 - now);
             yield return null; yield return Idle(); yield return null;
-            StringAssert.Contains("Entries are closed", DailyText());
+            StringAssert.Contains("Entries closed", DailyText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -91,29 +91,28 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Campaign"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.BrowsingDaily, Is.False); Assert.That(controller.BrowsingCampaign, Is.True);
-            yield return SessionClick("Overview"); yield return Idle();
-            yield return SessionClick("Daily"); yield return Idle();
-            yield return SessionClick("This device"); yield return Idle();
+            yield return SessionClick("Arcade"); yield return Idle();
+            yield return OpenDevice();
             Assert.That(controller.BrowsingDaily, Is.False); Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // On a short phone every page scrolls; moving to another page drops the
+        // previous page's offset and its momentum.
         [UnityTest] public IEnumerator ProductNavigationRetiresThePreviousPagesScrollOffsetAndInertia()
         {
-            yield return OpenDailyPage();
-            var scroll = host.GetComponentInChildren<ScrollRect>();
-            // Constrain the viewport to reproduce a scrolled tablet page
-            // regardless of the test runner's Game view dimensions.
-            scroll.viewport.offsetMin = new Vector2(0, scroll.viewport.rect.height - 260);
-            foreach (string control in new[] { "This device", "Overview", "Campaign", "Overview", "Daily" })
+            yield return PrepareScenario("owner-overview");
+            var shell = host.GetComponent<PageShell>(); shell.Frame = new Rect(0, 0, 360, 520);
+            yield return SessionClick("Connect"); yield return Idle();
+            // The map opens at the current level, so it is not among them.
+            foreach (string control in new[] { "Kredits", "Arcade", "Rewards", "Arcade", "Profile", "Arcade" })
             {
-                Canvas.ForceUpdateCanvases();
-                Assert.That(scroll.content.rect.height, Is.GreaterThan(scroll.viewport.rect.height));
-                scroll.verticalNormalizedPosition = 0;
-                scroll.velocity = new Vector2(0, 120);
+                var scroll = shell.Scroll; Canvas.ForceUpdateCanvases();
+                if (scroll.content.rect.height > scroll.viewport.rect.height)
+                { scroll.verticalNormalizedPosition = 0; scroll.velocity = new Vector2(0, 120); }
                 yield return SessionClick(control); yield return Idle(); yield return null;
-                Canvas.ForceUpdateCanvases();
+                scroll = shell.Scroll; Canvas.ForceUpdateCanvases();
                 Assert.That(scroll.content.anchoredPosition.y, Is.EqualTo(0).Within(.1f), control);
                 Assert.That(scroll.velocity.sqrMagnitude, Is.LessThan(.01f), control);
             }
@@ -132,8 +131,8 @@ namespace ZKube.Tests.MoneyOverview
                 controller.enabled = false; yield return null;
                 controller.enabled = true; yield return Idle();
                 Assert.That(controller.SessionActionPending, Is.True);
-                yield return SessionClick("Overview"); yield return Idle();
-                yield return SessionClick("Daily"); yield return Idle();
+                yield return SessionClick("Back"); yield return Idle();
+                yield return SessionClick("Back"); yield return Idle();
                 var resume = host.GetComponentsInChildren<Button>().Single(button => button.name == "Resume Daily");
                 Assert.That(resume.interactable, Is.False);
                 int before = environment.Calls.Count;

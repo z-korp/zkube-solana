@@ -48,8 +48,7 @@ namespace ZKube.Integration.App
             }
             flow = new MoneyAppFlow(services);
             Controller = gameObject.AddComponent<MoneyAppAdapter>();
-            Controller.Initialize(flow, services.Identity, startup.Configuration.DisplayFont, startup.Configuration.BodyFont,
-                clock, startup.TextScale, startup.DisplayDensity);
+            Controller.Initialize(flow, services.Identity, clock, startup.TextScale, startup.DisplayDensity);
             Controller.AttachRunHost(gameObject.AddComponent<MoneyBoardHost>());
         }
         public override string UnavailableMessage(Exception error) => error is MoneyConfigurationException ?

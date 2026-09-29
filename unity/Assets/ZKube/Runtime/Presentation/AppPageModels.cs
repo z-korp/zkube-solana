@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
@@ -79,6 +80,27 @@ namespace ZKube.Presentation
         public string Status;
         public string[] Facts = Array.Empty<string>();
         public PageAction[] Actions = Array.Empty<PageAction>();
+        // Set by an identity whose Daily is entered on its own terms (the Arena
+        // Arcade); the page then draws the Arcade panel instead of the Daily one.
+        public ArcadeView Arcade;
+        // The identity's own blocks under the Daily panel.
+        public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
+    }
+
+    // The Arcade's Daily panel: the prize pool beside the entry clock, and the
+    // reason an entry cannot be made, which replaces the entry action.
+    public sealed class ArcadeView
+    {
+        // The prize pool, or null when the Daily has none to show.
+        public string Pot;
+        // Under the headline: when entries close ("Closes 23:59 UTC").
+        public string Closes;
+        // In place of the countdown when entries are not open ("Entries closed").
+        public string Headline;
+        // Why no entry can be made now, and what still can be done; in the
+        // negative ink when Warning is set.
+        public string Reason, Detail;
+        public bool Warning;
     }
 
     public sealed class ProfileChoiceView
@@ -96,6 +118,11 @@ namespace ZKube.Presentation
         public Action<string> ChangeName;
         // The realm behind the page, and the worn emblem (0 when none is worn).
         public byte Realm, Emblem;
+        // The worn ladder tier, whose border rings the medallion and whose badge
+        // leads the standing line under the name; absent where there is no ladder.
+        public byte? Tier;
+        public string Standing;
+        public PageAction Records, ChooseBorder;
         public int Stars;
         public ulong Streak, BestDailyScore;
         public string[] Facts = Array.Empty<string>();
@@ -111,8 +138,8 @@ namespace ZKube.Presentation
         public bool Muted, ReducedMotion, Haptics, LargeText;
         public Action<double> SetMusic, SetEffects;
         public Action Unmute, ToggleMotion, ToggleHaptics, ToggleText;
-        // The identity's own settings actions, such as restoring purchases.
-        public PageAction[] Actions = Array.Empty<PageAction>();
+        // The identity's own settings, such as restoring purchases.
+        public PanelBlock[] Identity = Array.Empty<PanelBlock>();
     }
 
     public sealed class ResultPageView
@@ -133,6 +160,89 @@ namespace ZKube.Presentation
         public PageAction Done, Retry;
     }
 
+    // An identity's own page, drawn from the kit by the shared page views: the
+    // header, then blocks top-down. A page keeps its key while it redraws in
+    // place; a new key is a new page and enters with the page motion.
+    public sealed class PanelPageView
+    {
+        public string Key;
+        // The tab the page belongs to (0 Campaign, 1 Daily, 2 Profile), or -1.
+        public int Tab = -1;
+        // Without a title the header is the product mark over the subtitle.
+        public string Title, Subtitle;
+        // The left tablet: Back, or on a tab page an action with its own icon.
+        public PageAction Back, Corner;
+        public string CornerIcon;
+        public bool Settings;
+        public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
+    }
+
+    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Card }
+
+    // One piece of an identity page. Sizes are in dp; a block's lead is the space
+    // above it and its gap the space under it. Text is left-aligned inside a
+    // card and centred outside one.
+    public sealed class PanelBlock
+    {
+        public PanelKind Kind;
+        // Sprite and Badge are kit slots; a portrait shows Emblem in its Ring.
+        public string Name, Copy, Value, Caption, Token, Tag, TagToken, Sprite, Badge, Ring, Mood;
+        public byte Emblem;
+        public float Size, Lead;
+        public float? Gap;
+        public bool? Centered;
+        public bool Dim;
+        public int Primary = -1;
+        public PageAction Action;
+        public PageAction[] Actions = Array.Empty<PageAction>();
+        public PanelBlock[] Lines = Array.Empty<PanelBlock>();
+
+        // The page realm's guardian says a line on its rail; lead is the space above.
+        public static PanelBlock Talk(string line, string mood, float lead = 209) =>
+            new PanelBlock { Kind = PanelKind.Talk, Name = "Talk", Copy = line, Mood = mood, Lead = lead };
+        // A title, with an optional tag on the right of its line.
+        public static PanelBlock Title(string text, float size = 25, string token = SkinTokens.Text, float? gap = null, bool? centered = null,
+            string tag = null, string tagToken = SkinTokens.Positive, string name = null) =>
+            new PanelBlock { Kind = PanelKind.Title, Name = name ?? text, Copy = text, Size = size, Token = token, Gap = gap, Centered = centered,
+                Tag = tag, TagToken = tagToken };
+        public static PanelBlock Text(string name, string text, float size = 16, string token = SkinTokens.Text, float? gap = null, bool? centered = null,
+            float lead = 0) =>
+            new PanelBlock { Kind = PanelKind.Text, Name = name, Copy = text, Size = size, Token = token, Gap = gap, Centered = centered, Lead = lead };
+        // Small capitals over a section, with an optional tag on the right.
+        public static PanelBlock Eyebrow(string text, string token = SkinTokens.Accent, string tag = null, string tagToken = SkinTokens.Positive,
+            float? gap = null) =>
+            new PanelBlock { Kind = PanelKind.Eyebrow, Name = text, Copy = text, Token = token, Tag = tag, TagToken = tagToken, Gap = gap };
+        // A big number with its caption above and unit after, and an optional
+        // sprite on its left.
+        public static PanelBlock Figure(string name, string caption, string value, float size, string unit = null, string sprite = null,
+            string token = SkinTokens.Accent, float? gap = null) =>
+            new PanelBlock { Kind = PanelKind.Figure, Name = name, Caption = caption, Value = value, Size = size, Copy = unit, Sprite = sprite,
+                Token = token, Gap = gap };
+        // A captioned big number on the left and a second value on the right, a
+        // title beside its badge when one is given.
+        public static PanelBlock Split(string name, string caption, string value, float size, string side, string badge = null, float? gap = null) =>
+            new PanelBlock { Kind = PanelKind.Split, Name = name, Caption = caption, Value = value, Size = size, Copy = side, Badge = badge, Gap = gap };
+        // A kit list row, one button when it has an action. With a sprite it is a
+        // choice row: the sprite (a border) and its badge lead the label.
+        public static PanelBlock Row(string name, string label, string value, string token = SkinTokens.Score, PageAction action = null,
+            string sprite = null, string badge = null, bool dim = false, float? gap = null) =>
+            new PanelBlock { Kind = PanelKind.Row, Name = name, Copy = label, Value = value, Token = token, Action = action, Sprite = sprite,
+                Badge = badge, Dim = dim, Gap = gap };
+        public static PanelBlock Icon(string slot, float size, string token, float? gap = null) =>
+            new PanelBlock { Kind = PanelKind.Icon, Name = slot, Sprite = slot, Size = size, Token = token, Gap = gap };
+        // A medallion: an emblem (a guardian's is the page realm's portrait) in
+        // the guardian ring, or in a worn ladder border.
+        public static PanelBlock Portrait(byte emblem, float size, string ring = SkinSlots.GuardianFrame, float? gap = null, float lead = 0) =>
+            new PanelBlock { Kind = PanelKind.Portrait, Name = "Portrait", Emblem = emblem, Ring = ring, Size = size, Gap = gap, Lead = lead };
+        public static PanelBlock Button(PageAction action, bool primary, float? gap = null, float lead = 0) =>
+            new PanelBlock { Kind = PanelKind.Button, Action = action, Primary = primary ? 0 : -1, Gap = gap, Lead = lead };
+        // Two half-width pills side by side; primary names the one with the halo.
+        public static PanelBlock Pair(PageAction left, PageAction right, int primary = -1, float? gap = null) =>
+            new PanelBlock { Kind = PanelKind.Pair, Actions = new[] { left, right }, Primary = primary, Gap = gap };
+        public static PanelBlock Card(string name, params PanelBlock[] lines) =>
+            new PanelBlock { Kind = PanelKind.Card, Name = name, Lines = lines };
+    }
+
     public interface IAppPageSource
     {
         CampaignPageView CampaignView();
@@ -144,7 +254,6 @@ namespace ZKube.Presentation
         ResultPageView ResultPage();
         bool CanNavigate(AppPage page);
         void Navigate(AppPage page);
-        IReadOnlyList<PageAction> IdentityNavigation { get; }
         void Report(Exception error);
     }
 }

@@ -2,6 +2,8 @@ using ZKube.Integration.Execution;
 
 namespace ZKube.Integration.Presentation
 {
+    // The player's words for an operation's result: its outcome, what it was,
+    // what to do next and its receipt line.
     public static class MoneyReceiptText
     {
         public static string Describe(ExecutionResult result, bool fullSignature = false)
@@ -22,5 +24,35 @@ namespace ZKube.Integration.Presentation
                 result.Signature.Substring(0, 6) + "…" + result.Signature.Substring(result.Signature.Length - 6);
             return text + "\nReceipt: " + reference;
         }
+
+        public static string Title(ExecutionResult result) => result.Outcome switch {
+            ExecutionOutcome.Pending => "Transaction pending",
+            ExecutionOutcome.ConfirmedFailure => "Transaction failed",
+            ExecutionOutcome.ConfirmedSuccess => Intent(result) + " confirmed",
+            ExecutionOutcome.ExpiredReconciled => "Transaction expired",
+            ExecutionOutcome.FeeShortage => "Not enough for the fee",
+            ExecutionOutcome.CompletedLocally => "Nothing to send",
+            _ => "Request not sent"
+        };
+
+        public static string Intent(ExecutionResult result) => result.Intent switch {
+            "purchase-kredits" => "Purchase",
+            "session-renew" or "session-ensure" => "Device setup",
+            "session-refill" => "Allowance refill",
+            "session-revoke" => "Device disabling",
+            "claim-daily" => "Reward claim",
+            "set-featured-identity" => "New look",
+            _ => "Operation"
+        };
+
+        public static string Next(ExecutionResult result) => result.Outcome switch {
+            ExecutionOutcome.Pending => "The outcome is not confirmed yet. Check this transaction before starting another.",
+            ExecutionOutcome.ConfirmedFailure => "The operation did not complete. Refresh before trying again.",
+            ExecutionOutcome.ConfirmedSuccess => "The operation is confirmed.",
+            ExecutionOutcome.ExpiredReconciled => "Refresh before starting a new operation.",
+            ExecutionOutcome.FeeShortage => "Refill this device’s fee allowance or fund your wallet before retrying.",
+            ExecutionOutcome.CompletedLocally => "Nothing needed to be sent.",
+            _ => "Nothing was sent. Refresh before trying again."
+        };
     }
 }

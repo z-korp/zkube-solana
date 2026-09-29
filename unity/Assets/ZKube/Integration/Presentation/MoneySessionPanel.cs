@@ -1,51 +1,45 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
-using UnityEngine.UI;
+using ZKube.Core.Generated;
 using ZKube.Integration.App;
 using ZKube.Integration.Client;
 using ZKube.Integration.Execution;
 using ZKube.Integration.Planning;
+using ZKube.Presentation;
 
 namespace ZKube.Integration.Presentation
 {
     public sealed partial class MoneyAppAdapter
     {
-        private RectTransform sessionPanel;
         private MoneyRead<MoneySessionState> sessionRead;
-        private bool browsingSession, sessionActionPending, sessionReadbackNeeded;
+        private bool browsingSession, sessionActionPending, sessionReadbackNeeded, revokeConfirming, sessionFromSettings;
         public bool BrowsingSession => browsingSession;
         public bool SessionActionPending => sessionActionPending;
 
-        public Task OpenSession() => Run(async (epoch, token) => {
+        public Task OpenSession() => OpenSession(false);
+        private Task OpenSession(bool fromSettings) => Run(async (epoch, token) => {
             if (identity.Owner == null) return;
-            CloseProductViews(); browsingSession = true; overviewPanel.gameObject.SetActive(false);
+            CloseProductViews(); browsingSession = true; sessionFromSettings = fromSettings;
             await RefreshSessionPage(epoch, token);
         });
 
-        private void CloseSessionView()
-        {
-            ClearSessionObservation(); browsingSession = false;
-            if (overviewPanel != null) overviewPanel.gameObject.SetActive(true);
-        }
-        private void ClearSessionObservation()
-        {
-            sessionRead = null;
-            if (sessionPanel != null) { sessionPanel.gameObject.SetActive(false); Destroy(sessionPanel.gameObject); sessionPanel = null; }
-        }
+        private void CloseSessionView() { ClearSessionObservation(); browsingSession = false; revokeConfirming = false; }
+        private void ClearSessionObservation() { sessionRead = null; pageNotice = null; Present(); }
         private async Task RefreshSessionPage(long epoch, CancellationToken token)
         {
             ClearSessionObservation();
-            if (identity.Owner == null) { CloseSessionView(); owner.text = "Connect your wallet to manage this device."; return; }
-            DrawSessionNotice("Checking this device…"); status.text = "Checking device session…";
+            if (identity.Owner == null) { CloseSessionView(); return; }
+            Notice("Checking this device…"); Status = "Checking device session…";
             var result = await Flow.RefreshSession(token);
             if (!Current(epoch) || !browsingSession) return;
-            sessionRead = result; sessionReadbackNeeded = false; DrawSession();
+            sessionRead = result; sessionReadbackNeeded = false; pageNotice = null; Present();
             var state = result.Value;
             if (state.PreviousOperation != null) ShowReceipt(state.PreviousOperation, state.Owner);
-            status.text = state.RecoveredOperation ? "Checked the existing transaction. No new device setup was requested." : "Device session updated";
+            Status = state.RecoveredOperation ? "Checked the existing transaction. No new device setup was requested." : "Device session updated";
+            if (state.RecoveredOperation) Inform(Status);
         }
         private void RefreshSessionIdentity()
         {
@@ -61,58 +55,93 @@ namespace ZKube.Integration.Presentation
                 { _ = RefreshOverview(); return; }
             }
             if (!browsingSession || sessionRead == null || sessionRead.IsCurrent) return;
-            ClearSessionObservation(); DrawSessionNotice("Device information changed. Refresh to check it again.");
-            status.text = "Device session needs refreshing";
+            ClearSessionObservation(); Notice("Device information changed. Refresh to check it again.");
+            Status = "Device session needs refreshing";
         }
-        private void BeginSessionPanel()
+
+        // How this device stands, in a title for its page and a short state for
+        // Settings. A device whose last confirmed operation disabled it says so.
+        private (string Title, string Short, string Token, string Guide) DeviceState(SessionAssessment session)
         {
-            ReplacePagePanel(ref sessionPanel, "Device session panel");
-            Label(sessionPanel, "This device", 32, true);
+            if (session == null) return ("This device", "Checking…", SkinTokens.TextMuted, null);
+            if (session.Status == "none")
+                return LastReceipt?.Intent == "session-revoke" && LastReceipt.Outcome == ExecutionOutcome.ConfirmedSuccess ?
+                    ("Device disabled", "Disabled", SkinTokens.Text,
+                        "This device can no longer spend Kredits or sign game actions. You can enable it again when ready.") :
+                    ("Set up this device", "Not set up", SkinTokens.Text,
+                        "Your wallet funds a " + Sol(PlanningConstants.DeviceAllowanceLamports) +
+                        " fee allowance, plus setup rent and fees. This device can then spend your prepaid Kredits on Daily entries. Campaign needs no device session.");
+            if (!session.Current)
+                return ("Renew authorization", "Renewal needed", SkinTokens.Text, session.TokenMayClose ?
+                    "The authorization has ended. Renew before playing; your wallet will revoke the old authorization and create a new one for this device." :
+                    "Renew before playing. The current authorization has not expired yet; your wallet will revoke it and create a new one for this device.");
+            if (session.Funding != "ready")
+                return ("Fee allowance low", "Allowance low", SkinTokens.Text,
+                    "Refill the fee allowance to continue. Your wallet funds the " + Sol(PlanningConstants.DeviceAllowanceLamports) + " target and shows any fees.");
+            return (session.Status == "expiring" ? "Session expires soon" : "Session active", session.Status == "expiring" ? "Expires soon" : "Session active",
+                SkinTokens.Positive, "This device signs game actions and can spend your prepaid Kredits on Daily entries. Your wallet approves purchases and device changes.");
         }
-        private void SessionNavigation()
+
+        private PanelPageView DevicePage()
         {
-            Button(sessionPanel, "Refresh session", () => _ = RefreshOverview());
-            shared.Navigation(sessionPanel);
-        }
-        private void DrawSessionNotice(string message)
-        { BeginSessionPanel(); Label(sessionPanel, message, 20, false); SessionNavigation(); }
-        private void DrawSession()
-        {
-            var state = sessionRead.Value; var session = state.Session;
-            BeginSessionPanel();
-            Label(sessionPanel, state.Owner, 18, false);
-            Label(sessionPanel, SessionText(session), 23, true);
-            Label(sessionPanel, "A device session signs game actions. Your wallet approves setup and funds a recyclable fee-and-rent allowance.", 19, false);
-            Label(sessionPanel, "This device can spend your prepaid Kredits on Daily entries. Buying Kredits still requires your wallet.", 19, false);
-            Label(sessionPanel, "Allowance target: " + (PlanningConstants.DeviceAllowanceLamports / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) +
-                " SOL. Setup also needs account rent and transaction fees; your wallet shows the request.", 19, false);
+            var back = sessionFromSettings ? PageAction("Back", () => OpenSharedPage(AppPage.Settings), () => PageAvailable() && !Busy) :
+                PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            if (sessionRead == null) { var waiting = Waiting("Device", "This device", "arena · device session", -1, pageNotice); waiting.Back = back; return waiting; }
+            if (revokeConfirming) return RevokePage();
+            var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
+            var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "arena · device session", Back = back };
+            var lines = new List<PanelBlock> {
+                PanelBlock.Text("Device owner", Short(state.Owner), 16, SkinTokens.TextMuted, gap: 14),
+                PanelBlock.Title(look.Title, 25, look.Token, 22, name: "Device state"),
+                PanelBlock.Row("Fee allowance", "Fee allowance", session.ValidUntil > 0 ? Sol(session.Balance) : "—", gap: 0) };
+            var blocks = new List<PanelBlock> { PanelBlock.Card("Device card", lines.ToArray()) };
+            var receipt = ReceiptRow("Device");
+            if (receipt != null) blocks.Add(receipt);
             if (session.ValidUntil > 0)
-            {
-                Label(sessionPanel, "Fee allowance: " + (session.Balance / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL", 20, false);
-                Label(sessionPanel, session.ValidUntil <= DateTimeOffset.MaxValue.ToUnixTimeSeconds() ?
-                    "Authorization expires " + DateTimeOffset.FromUnixTimeSeconds(session.ValidUntil).ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture) + " UTC." :
-                    "Authorization expiry is outside this calendar's display range.", 18, false);
-                if (!session.Current && !session.TokenMayClose)
-                    Label(sessionPanel, "Renew before playing. The current authorization has not expired yet.", 18, false);
-            }
+                blocks.Add(PanelBlock.Text("Device expiry", "Authorization ends " + Utc(session.ValidUntil), 14, SkinTokens.TextMuted, gap: 20, centered: false));
             if (sessionActionPending)
-                Label(sessionPanel, "A device request is still finishing. Returning to this page does not cancel a wallet request.", 19, false);
+            {
+                blocks.Add(PanelBlock.Text("Device guide", "A device request is still finishing. Returning to this page does not cancel a wallet request.", 16, gap: 40, centered: false));
+                blocks.Add(DisconnectButton());
+            }
             else if (state.Pending != null)
             {
-                Label(sessionPanel, "An existing transaction needs checking before this device can change. Checking it will not start a new setup.", 19, false);
-                Button(sessionPanel, "Check transaction", () => _ = CheckTransaction());
+                blocks.Add(PanelBlock.Text("Device guide", "An existing transaction needs checking before this device can change. Checking it will not start a new setup.", 16,
+                    gap: 40, centered: false));
+                blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
             }
             else
             {
-                if (!session.Current) Button(sessionPanel, session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession());
-                else if (session.Funding != "ready") Button(sessionPanel, "Refill allowance", () => _ = RefillDeviceSession());
+                blocks.Add(PanelBlock.Text("Device guide", look.Guide, 16, gap: 40, centered: false));
+                bool changeable = PageAvailable() && !Busy;
+                if (!session.Current)
+                    blocks.Add(PanelBlock.Button(PageAction(session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession(),
+                        () => changeable && DeviceChangeable()), true));
+                else if (session.Funding != "ready")
+                    blocks.Add(PanelBlock.Button(PageAction("Refill allowance", () => _ = RefillDeviceSession(), DeviceChangeable), true));
                 if (session.ValidUntil > 0)
                 {
-                    Label(sessionPanel, "Disable this device revokes its authorization and returns the remaining fee allowance to your wallet. Its install key stays on this device for later reauthorization.", 18, false);
-                    Button(sessionPanel, "Disable this device", () => _ = DisableDeviceSession());
+                    blocks.Add(PanelBlock.Button(PageAction("Disable this device", () => { revokeConfirming = true; Present(); }, DeviceChangeable), false, 8));
+                    blocks.Add(PanelBlock.Text("Disable guide", "Revokes authorization and returns the remaining fee allowance to your wallet.", 14, SkinTokens.TextMuted,
+                        gap: 0, centered: false));
                 }
+                else blocks.Add(PanelBlock.Button(PageAction("Back to Campaign", () => _ = OpenCampaign(), () => PageAvailable()), false));
             }
-            SessionNavigation();
+            page.Blocks = blocks.ToArray();
+            return page;
+        }
+        private bool DeviceChangeable() => PageAvailable() && !Busy && !sessionActionPending && !economyActionPending && sessionRead != null && sessionRead.IsCurrent;
+
+        // Disabling asks first: what stops, and what the wallet gets back.
+        private PanelPageView RevokePage()
+        {
+            var keep = PageAction("Keep enabled", () => { revokeConfirming = false; Present(); }, () => PageAvailable());
+            return new PanelPageView { Key = "Revoke", Title = "Disable this device", Subtitle = "arena", Back = keep, Blocks = new[] {
+                PanelBlock.Card("Revoke card", PanelBlock.Title("Revoke device access?", 26, gap: 30, centered: true),
+                    PanelBlock.Text("Revoke effect", "This device will stop signing game actions and spending your prepaid Kredits.", 17, gap: 30),
+                    PanelBlock.Text("Revoke return", "The remaining fee allowance returns to your wallet. Your Kredits remain in your balance, and this device keeps its install key for later reauthorization.", 16, gap: 0)),
+                PanelBlock.Button(keep, true, lead: 36),
+                PanelBlock.Button(PageAction("Disable in wallet", () => { revokeConfirming = false; _ = DisableDeviceSession(); }, DeviceChangeable), false) } };
         }
 
         public Task EnsureDeviceSession() => ChangeDeviceSession(true, false);
@@ -127,7 +156,7 @@ namespace ZKube.Integration.Presentation
             if (ensure ? assessment.Current : disable ? assessment.ValidUntil <= 0 : !assessment.Current || assessment.Funding == "ready")
                 return Task.CompletedTask;
             return Run(async (epoch, token) => {
-                sessionActionPending = true; Controls();
+                sessionActionPending = true; Present();
                 try
                 {
                     ExecutionResult result; bool recovered = false;
@@ -140,23 +169,15 @@ namespace ZKube.Integration.Presentation
                     if (!Current(epoch)) return;
                     ShowReceipt(result, identity.Owner); // Preserve the exact result before read-back can fail.
                     await RefreshSessionPage(epoch, token);
-                    if (Current(epoch) && recovered) status.text = "Checked the existing transaction. No new device setup was requested.";
+                    if (Current(epoch) && recovered) Inform("Checked the existing transaction. No new device setup was requested.");
                 }
                 finally
                 {
                     sessionActionPending = false;
-                    if (Current(epoch)) { if (sessionRead != null && sessionRead.IsCurrent) DrawSession(); Controls(); }
+                    if (Current(epoch)) Present();
                     else sessionReadbackNeeded = true;
                 }
             });
-        }
-        private void SessionControls(bool available)
-        {
-            if (sessionPanel == null) return;
-            foreach (var button in sessionPanel.GetComponentsInChildren<Button>(true))
-                button.interactable = available && (button.name == "Disconnect" || (!Busy &&
-                    (button.name == "Overview" || button.name == "Refresh session" ||
-                    (!sessionActionPending && !economyActionPending && sessionRead != null && sessionRead.IsCurrent))));
         }
     }
 }

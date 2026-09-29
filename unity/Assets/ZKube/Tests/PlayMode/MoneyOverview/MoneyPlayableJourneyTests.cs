@@ -34,7 +34,7 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce()
         {
-            yield return PrepareDeviceScenario("daily-playable", page: "Daily");
+            yield return PrepareDeviceScenario("daily-playable", page: "Arcade");
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(environment.SentSignature, Is.Null);
             yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
@@ -70,7 +70,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.ResultPage().HasResult, Is.True);
             Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));
             Assert.That(controller.ResultPage().ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
-            yield return SessionClick("Copy result"); yield return null;
+            yield return SessionClick("Share"); yield return null;
             StringAssert.StartsWith(Application.productName + " · Daily", GUIUtility.systemCopyBuffer);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

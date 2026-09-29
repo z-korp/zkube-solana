@@ -25,36 +25,45 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator TheAutomaticPortraitCanBeChosenAsAnExplicitEmblem() => WearProfile("profile-explicit-auto-target", 12, 0);
         [UnityTest] public IEnumerator ANewerConfirmedProfileChoiceIsDisplayed() => WearProfile("profile-superseded", 8, 3, 10, 4);
 
+        // Choosing an emblem, then a border, previews the change; only Wear
+        // selection writes it, once, and the profile then shows the confirmed look.
         private IEnumerator WearProfile(string scenario, byte emblem, byte border, byte? latestEmblem = null, byte? latestBorder = null)
         {
             yield return PrepareProfilePage(scenario, 1.3f);
-            yield return SessionClick("Emblem " + emblem);
-            yield return SessionClick("Border " + border);
             var controller = host.GetComponent<MoneyIdentity>().Controller;
+            if (controller.SelectedEmblem != emblem) { yield return SessionClick("Emblem " + emblem); yield return Idle(); }
+            if (controller.SelectedBorder != border)
+            {
+                // The preview keeps the choice when it goes back for a border.
+                if (host.GetComponent<PageViews>().ShownPanel == "Profile Selection") { yield return SessionClick("Back"); yield return Idle(); }
+                yield return SessionClick("Choose a border"); yield return Idle();
+                yield return SessionClick("Border " + border); yield return Idle();
+            }
             Assert.That(controller.SelectedEmblem, Is.EqualTo(emblem));
             Assert.That(controller.SelectedBorder, Is.EqualTo(border));
             Assert.That(environment.SentSignature, Is.Null);
+            foreach (var button in host.GetComponentsInChildren<Button>())
+            {
+                var label = button.GetComponentInChildren<TMP_Text>(); if (label == null) continue;
+                Assert.That(label.preferredHeight, Is.LessThanOrEqualTo(label.rectTransform.rect.height + 2), button.name);
+            }
             yield return SessionClick("Wear selection"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             Assert.That(controller.SelectedEmblem, Is.EqualTo(latestEmblem ?? emblem));
             Assert.That(controller.SelectedBorder, Is.EqualTo(latestBorder ?? border));
-            StringAssert.Contains("Wearing · " + ProfileEmblems.All.Single(value => value.Id == (latestEmblem ?? emblem)).Name, SessionText());
-            Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Wear selection").interactable, Is.False);
+            var worn = ProfileEmblems.All.Single(value => value.Id == (latestEmblem ?? emblem));
+            StringAssert.Contains(worn.Id == 0 ? "(automatic)" : worn.Name, Text("Standing line"));
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Wear selection" && button.interactable), Is.False);
             yield return Wait(controller.WearProfileSelection());
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
             Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
-            foreach (var button in host.GetComponentsInChildren<Button>())
-            {
-                var label = button.GetComponentInChildren<TMP_Text>();
-                Assert.That(label.preferredHeight, Is.LessThanOrEqualTo(label.rectTransform.rect.height + 2), button.name);
-            }
         }
         [UnityTest] public IEnumerator FreshProfileDoesNotOfferOpenedButUnearnedGuardians()
         {
             yield return PrepareProfilePage("profile-fresh");
-            StringAssert.Contains("Campaign · 0 / 300 stars", SessionText());
+            Assert.That(Text("Campaign stars"), Is.EqualTo("0 / 300"));
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             foreach (var button in host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Emblem ") && button.name != "Emblem 0"))
                 Assert.That(button.interactable, Is.False, button.name);
@@ -66,7 +75,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareProfilePage("profile-missing-session");
             StringAssert.Contains("Set up this device to change your emblem or border.", SessionText());
-            Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Wear selection").interactable, Is.False);
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Wear selection" && button.interactable), Is.False);
             Assert.That(environment.SentSignature, Is.Null);
         }
     }

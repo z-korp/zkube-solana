@@ -4,9 +4,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using ZKube.Core;
 using ZKube.Integration.App;
 using ZKube.Integration.Client;
 using ZKube.Integration.Execution;
@@ -15,88 +14,67 @@ using ZKube.Presentation;
 namespace ZKube.Integration.Presentation
 {
     // Money pages coordinate explicit operations; accepted launches bind the shared board host.
+    // Every page draws on the Lumen page shell: the shared pages through
+    // IAppPageSource, the Arena's own pages as panel pages.
     public sealed partial class MoneyAppAdapter : MonoBehaviour, IAppPageSource
     {
         public MoneyAppFlow Flow { get; private set; }
         public bool Busy { get; private set; }
-        public string Status => status == null ? null : status.text;
+        public string Status { get; private set; }
+        // A page is waiting to be drawn, or its art is loading.
+        public bool Drawing => shell != null && shell.Root.activeSelf && !PlayingRun && (dirty || presenting || shell.Loading);
         public ExecutionResult LastReceipt => identity != null && identity.IsCurrent(receiptLease) ? lastReceipt : null;
         private ExecutionResult lastReceipt;
         private ClientIdentity identity;
         private Func<long> now;
-        private TMP_FontAsset heading, body;
         private float textScale;
         private float? injectedDensity;
-        private float lastCanvasScale, lastDensity;
-        private TMP_Text status, owner, receipt;
-        private RectTransform publicDailyPanel;
-        private Button connect, disconnect, refresh, check;
-        private Button receiptDetails;
         private bool fullReceipt;
-        private GameObject root;
-        private AppShell shell;
-        private AppPages shared;
-        private RectTransform safe;
-        private Image background;
+        private string receiptNotice, receiptOwner, receiptFamily;
+        private IdentityLease receiptLease;
+        private PageShell shell;
+        private PageViews views;
         private PageCatalog catalog;
         private CancellationTokenSource reads;
         private MoneyRead<PublicDaily> publicRead;
         private MoneyRead<MoneyOwnerState> ownerRead;
-        private bool paused, detached, initialized;
+        private bool paused, detached, initialized, dirty, presenting;
         private long generation, observedDay, freezeAttempt = -1;
-        private string receiptOwner;
-        private IdentityLease receiptLease;
-        private Rect lastSafe;
-        private Vector2Int lastSize;
-        private readonly Color ink = new Color(.045f, .065f, .105f, 1);
+        // The player's words for the last failure, shown on the page it happened on.
+        private string failure;
+        private bool walletFailure;
+        private string shownKey;
 
-        public void Initialize(MoneyAppFlow flow, ClientIdentity clientIdentity, TMP_FontAsset displayFont,
-            TMP_FontAsset bodyFont, Func<long> clock = null, float scale = 1, float? displayDensity = null)
+        public void Initialize(MoneyAppFlow flow, ClientIdentity clientIdentity, Func<long> clock = null, float scale = 1, float? displayDensity = null)
         {
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
             Flow = flow ?? throw new ArgumentNullException(nameof(flow));
             identity = clientIdentity ?? throw new ArgumentNullException(nameof(clientIdentity));
             now = clock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            injectedDensity = displayDensity; InitializeView(displayFont, bodyFont, scale);
+            injectedDensity = displayDensity; textScale = BoardController.SupportedTextScale(scale);
+            catalog = PageCatalog.Load();
+            shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
+            views = gameObject.AddComponent<PageViews>(); InitializeViews();
+            initialized = true;
             observedDay = now() / 86400;
             _ = RefreshOverview();
         }
-
-        private void InitializeView(TMP_FontAsset displayFont, TMP_FontAsset bodyFont, float scale)
-        {
-            textScale = BoardController.SupportedTextScale(scale);
-            heading = displayFont ?? throw new ArgumentNullException(nameof(displayFont));
-            body = bodyFont ?? throw new ArgumentNullException(nameof(bodyFont)); initialized = true;
-            shell = gameObject.AddComponent<AppShell>(); shell.Initialize(Application.productName);
-            root = shell.Root; safe = shell.Safe; background = shell.Background;
-            var content = shell.Content;
-            shared = gameObject.AddComponent<AppPages>();
-            shared.Initialize(this, heading, body, textScale, () => injectedDensity ?? BoardController.ReadDisplayDensity());
-            Label(content, Application.productName, 36, true);
-            status = Label(content, "Loading Daily…", 19, false); status.name = "Overview status";
-            pageContent = content;
-            overviewPanel = Rect("Overview panel", content);
-            Stack(overviewPanel);
-            var overview = overviewPanel;
-            publicDailyPanel = Rect("Daily facts", overview); Stack(publicDailyPanel);
-            owner = Label(overview, "Connect your wallet to view your profile and runs.", 20, false); owner.name = "Owner facts";
-            receipt = Label(content, "", 18, false); receipt.name = "Transaction receipt";
-            receiptDetails = Button(content, "Receipt details", ToggleReceiptDetails);
-            receiptDetails.GetComponentInChildren<TMP_Text>().text = "Show receipt";
-            connect = Button(overview, "Connect", () => _ = Connect());
-            disconnect = Button(overview, "Disconnect", () => _ = Disconnect());
-            refresh = Button(overview, "Refresh", () => _ = RefreshOverview());
-            check = Button(overview, "Check transaction", () => _ = CheckTransaction());
-            shared.Navigation(overview);
-            Controls();
-        }
+        private void InitializeViews() => views.Initialize(this, shell, "Arcade", "arena", textScale, Density);
+        private float Density() => injectedDensity ?? BoardController.ReadDisplayDensity();
 
         public Task RefreshOverview() => Run(RefreshVisiblePage);
         private Task RefreshVisiblePage(long epoch, CancellationToken token) =>
             browsingProfile ? RefreshProfilePage(epoch, token) : browsingRewards ? RefreshRewardPage(epoch, token) : browsingKredits ? RefreshKreditPage(epoch, token) : browsingDaily ? RefreshDailyPage(epoch, token) : browsingSession ? RefreshSessionPage(epoch, token) :
-            browsingCampaign ? RefreshCampaignPage(epoch, token) : sharedPage.HasValue ? RefreshSharedPage() : Refresh(epoch, token);
+            browsingCampaign ? RefreshCampaignPage(epoch, token) : sharedPage.HasValue ? RefreshSharedPage(epoch, token) : Refresh(epoch, token);
+        // Connecting reads the owner (its last operation's receipt with it),
+        // then opens the Arcade.
         public Task Connect() => Run(async (epoch, token) => {
-            await Flow.Connect(); if (Current(epoch)) await Refresh(epoch, token);
+            await Flow.Connect();
+            if (!Current(epoch)) return;
+            await RefreshOwner(epoch, token);
+            if (!Current(epoch)) return;
+            CloseProductViews(); browsingDaily = true;
+            await RefreshDailyPage(epoch, token);
         });
         public Task CheckTransaction() => Run(async (epoch, token) => {
             var result = await Flow.ResumePending(token);
@@ -109,11 +87,11 @@ namespace ZKube.Integration.Presentation
             if (detached || !isActiveAndEnabled || Flow == null || paused) return;
             if (PlayingRun) boardHost.Board.SetHostInputEnabled(false);
             // Disconnect is available even during a wallet/read callback.
-            CloseProductViews(); RetireRead(); ownerRead = null; owner.text = "Disconnected"; receipt.text = ""; receiptOwner = null; receiptLease = null; lastReceipt = null;
-            Busy = true; Controls(); long epoch = generation;
-            try { await Flow.Disconnect(); if (Current(epoch)) status.text = "Disconnected"; }
+            CloseProductViews(); RetireRead(); ownerRead = null; ForgetReceipt(); failure = null;
+            Busy = true; Status = "Disconnected"; Present(); long epoch = generation;
+            try { await Flow.Disconnect(); if (Current(epoch)) Status = "Disconnected"; }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { Busy = false; Controls(); } }
+            finally { if (Current(epoch)) { Busy = false; Present(); } }
         }
         private async Task RunCampaign(Func<long, CancellationToken, Task> operation)
         {
@@ -121,42 +99,38 @@ namespace ZKube.Integration.Presentation
             long epoch = generation;
             try { await operation(epoch, CancellationToken.None); }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { Controls(); } }
+            finally { if (Current(epoch)) Present(); }
         }
-        private static string RunText(ZKube.Local.LocalRunView state) =>
-            state == null ? "No saved run" : "Saved on this device";
 
         private async Task Run(Func<long, CancellationToken, Task> operation)
         {
             if (detached || !isActiveAndEnabled || paused || Flow == null || Busy || PlayingRun) return;
             RetireRead(); reads = new CancellationTokenSource(); long epoch = generation;
-            Busy = true; Controls();
+            Busy = true; failure = null; walletFailure = false; info = null; Present();
             try { await operation(epoch, reads.Token); }
-            catch (OperationCanceledException) { if (Current(epoch)) status.text = "Refresh was cancelled. Refresh to try again."; }
+            catch (OperationCanceledException) { if (Current(epoch)) Fail("Refresh was cancelled. Refresh to try again."); }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) { Busy = false; Controls(); } }
+            finally { if (Current(epoch)) { Busy = false; Present(); } }
         }
+        // Without an owner the Arcade's public Daily is read for the connect page;
+        // with one and no page open, the Arcade opens.
         private async Task Refresh(long epoch, CancellationToken token)
         {
+            if (identity.Owner != null) { CloseProductViews(); browsingDaily = true; await RefreshDailyPage(epoch, token); return; }
             var publication = await Flow.RefreshPublic(token);
-            if (!Current(epoch) || !overviewPanel.gameObject.activeSelf) return;
+            if (!Current(epoch)) return;
             var value = publication.Value; publicRead = publication;
             if (value.FreezesAt.HasValue && value.ObservedAt >= value.FreezesAt.Value) freezeAttempt = value.FreezesAt.Value;
-            if (catalog == null) catalog = PageCatalog.Load();
-            foreach (Transform child in publicDailyPanel) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
-            publicDailyPanel.gameObject.SetActive(true); shared.Render(AppPage.Daily, publicDailyPanel);
-            status.text = "Daily updated";
-            if (identity.Owner == null) { owner.text = "Connect your wallet to view your profile and runs."; return; }
+            Status = "Daily updated"; Present();
+        }
+        // The settings page shows this device's session from the owner read.
+        private async Task RefreshOwner(long epoch, CancellationToken token)
+        {
             var privateRead = await Flow.RefreshOwner(token);
             if (!Current(epoch)) return;
-            var state = privateRead.Value; ownerRead = privateRead;
-            owner.text = state.Owner + "\n" + (state.Profile == null ? "Your profile will refresh after the transaction is checked." :
-                !state.Profile.Exists ? "No player profile yet." : "Kredits: " + state.Profile.Kredits + "\nLadder points: " + state.Profile.LadderPoints +
-                " · Tier " + state.Profile.CurrentTier + " · Highest " + state.Profile.HighestTier) +
-                "\n" + SessionText(state.Session) +
-                "\nCampaign: " + RunText(state.Campaign) + "\nDaily: " + RunText(state.Daily) +
-                (state.Pending == null ? "" : "\nA transaction still needs checking.");
-            if (state.PreviousOperation != null) ShowReceipt(state.PreviousOperation, state.Owner);
+            ownerRead = privateRead;
+            if (privateRead.Value.PreviousOperation != null) ShowReceipt(privateRead.Value.PreviousOperation, privateRead.Value.Owner);
+            Present();
         }
         private static string PublicStatus(string value) => value switch {
             "missing-config" => "Daily service unavailable", "missing-daily" => "Today's Daily is not available",
@@ -172,83 +146,89 @@ namespace ZKube.Integration.Presentation
             if (value.Funding != "ready") return "Device session needs a fee refill";
             return value.Status == "expiring" ? "Device session expires soon" : "Device session ready";
         }
-        private static string RunText(ZKube.Integration.Client.Runs.RunClientState state)
-        {
-            if (state == null) return "Not checked yet";
-            return state.Phase switch {
-                "none" => "No saved run", "base" => "Run saved", "delegated" => "Run saved",
-                "resolving" => "Loading saved run", "settleable" => "Result awaiting settlement", "consumed" => "Result settled",
-                "identity-changed" => "Reconnect to check this run", "other-action-pending" => "Check the pending transaction first",
-                _ => "Saved run unavailable. Refresh to check again."
-            };
-        }
         private void ShowReceipt(ExecutionResult result, string address)
         {
             if (result.Code == "no-pending-transaction")
             {
                 // This observation is not a transaction receipt. Preserve an
                 // actual receipt, but acknowledge an empty check when none exists.
-                if (LastReceipt == null) receipt.text = "There is no transaction waiting to be checked.";
+                if (LastReceipt == null) { receiptNotice = "There is no transaction waiting to be checked."; receiptFamily = Family(); }
                 return;
             }
             if (lastReceipt?.Signature != result.Signature) fullReceipt = false;
-            receiptOwner = address; receiptLease = identity.Lease(); lastReceipt = result;
-            RenderReceipt();
+            receiptOwner = address; receiptLease = identity.Lease(); lastReceipt = result; receiptNotice = null; receiptFamily = Family();
+            Present();
         }
+        private void ForgetReceipt() { lastReceipt = null; receiptOwner = null; receiptLease = null; receiptNotice = null; receiptFamily = null; fullReceipt = false; }
         private void ToggleReceiptDetails()
         {
             if (Busy || detached || paused || !isActiveAndEnabled || string.IsNullOrEmpty(LastReceipt?.Signature)) return;
-            fullReceipt = !fullReceipt; RenderReceipt();
-        }
-        private void RenderReceipt()
-        {
-            receipt.text = MoneyReceiptText.Describe(LastReceipt, fullReceipt);
-            receiptDetails.GetComponentInChildren<TMP_Text>().text = fullReceipt ? "Hide receipt" : "Show receipt";
+            fullReceipt = !fullReceipt; Present();
         }
         private void ShowError(Exception error)
-        { status.text = error is MoneyConfigurationException ? "Network configuration is unavailable." :
-            error is WalletRequestException wallet ? wallet.Code == "wallet-busy" ? "A wallet request is already open." :
-                wallet.Code == "account-changed" ? "The wallet account changed. Connect again." : "The wallet request was not completed." :
-            "Could not refresh. Try again."; }
-        private bool Current(long epoch) => this != null && isActiveAndEnabled && !detached && !paused && epoch == generation;
-        private void Controls()
         {
-            if (connect == null) return;
-            bool available = Flow != null && !detached && !paused;
-            connect.gameObject.SetActive(identity?.Owner == null); disconnect.gameObject.SetActive(identity?.Owner != null);
-            connect.interactable = refresh.interactable = available && !Busy;
-            disconnect.interactable = available; check.interactable = available && !Busy && identity.Owner != null;
-            receiptDetails.gameObject.SetActive(!string.IsNullOrEmpty(LastReceipt?.Signature));
-            receiptDetails.interactable = available && !Busy;
-            SessionControls(available); KreditControls(available); RewardControls(available);
+            walletFailure = error is WalletRequestException;
+            Fail(error is MoneyConfigurationException ? "Network configuration is unavailable." :
+                error is WalletRequestException wallet ? wallet.Code == "wallet-busy" ? "A wallet request is already open." :
+                    wallet.Code == "account-changed" ? "The wallet account changed. Connect again." : "The wallet request was not completed." :
+                "Could not refresh. Try again.");
         }
+        private void Fail(string message) { failure = message; Status = message; Present(); }
+        // What the player should know about the last operation, shown on its page.
+        private void Inform(string message) { info = message; Status = message; Present(); }
+        private string info;
+        private bool Current(long epoch) => this != null && isActiveAndEnabled && !detached && !paused && epoch == generation;
+        // Redraws the visible page once this frame's changes are in.
+        private void Present() => dirty = true;
+
         private void Update()
         {
             if (!initialized || detached) return;
             if (PlayingRun) return;
-            if (lastSafe != Screen.safeArea || lastSize != new Vector2Int(Screen.width, Screen.height)) { PlaceSafe(); RefreshCampaignLayout(); }
             if (Flow == null || paused) return;
-            if (shell.ArtworkError != null) status.text = "Realm artwork unavailable. Refresh to try again.";
-            if (ownerRead != null && !ownerRead.IsCurrent) { ownerRead = null; owner.text = "Owner information changed. Refresh to update."; }
-            if (receiptOwner != null && !identity.IsCurrent(receiptLease)) { receipt.text = ""; receiptOwner = null; receiptLease = null; lastReceipt = null; }
+            if (ownerRead != null && !ownerRead.IsCurrent) { ownerRead = null; Present(); }
+            if (receiptOwner != null && !identity.IsCurrent(receiptLease)) { ForgetReceipt(); Present(); }
             RefreshCampaignIdentity(); RefreshSessionIdentity(); RefreshDailyIdentity(); RefreshKreditIdentity(); RefreshRewardIdentity(); RefreshProfileIdentity();
-            Controls();
-            if (Busy || browsingCampaign || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || sharedPage.HasValue) return;
+            if (dirty && !presenting && shell.Root.activeSelf) StartCoroutine(Render());
+            if (Busy || browsingCampaign || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
+                sharedPage.HasValue) return;
             long timestamp = now(), day = timestamp / 86400;
             long? freeze = publicRead != null && publicRead.IsCurrent ? publicRead.Value.FreezesAt : null;
             if (day != observedDay || (freeze.HasValue && timestamp >= freeze.Value && freezeAttempt != freeze.Value))
             { observedDay = day; if (freeze.HasValue && timestamp >= freeze.Value) freezeAttempt = freeze.Value; _ = RefreshOverview(); }
         }
-        private void LateUpdate()
+
+        // A new page, or the same page in another realm, sends the drawn page
+        // leaving while the next one loads its art and draws.
+        private IEnumerator Render()
         {
-            if (root == null || detached || !root.activeInHierarchy) return;
-            float scale = root.GetComponent<Canvas>().scaleFactor, density = injectedDensity ?? BoardController.ReadDisplayDensity();
-            if (scale == lastCanvasScale && density == lastDensity) return;
-            lastCanvasScale = scale; lastDensity = density;
-            foreach (var button in root.GetComponentsInChildren<Button>(true))
-                button.GetComponent<LayoutElement>().minHeight = BoardLayout.CanvasTouchSize(52, density, scale);
-            RefreshCampaignLayout();
+            presenting = true; dirty = false;
+            string key = PageKey(); byte realm = PageRealm();
+            bool load = !shell.RealmReady(realm);
+            if (load || key != shownKey)
+                shell.Depart(AppPreferences.ReducedMotion, Mathf.Max(.5f, Density()), load);
+            if (load)
+            {
+                shell.RequestRealm(realm);
+                while (shell.Loading) yield return null;
+                if (shell.ArtworkError != null)
+                {
+                    presenting = false; shownKey = null;
+                    views.Unavailable("This page could not be opened.", "Realm artwork unavailable. Refresh to try again.",
+                        PageAction("Try again", () => { shell.ReleaseArtwork(); _ = RefreshOverview(); }));
+                    yield break;
+                }
+            }
+            presenting = false;
+            if (dirty || PageKey() != key || PageRealm() != realm) yield break;
+            try { Draw(); shownKey = key; }
+            catch (Exception error)
+            {
+                Debug.LogException(error); shownKey = null;
+                views.Unavailable("This page could not be opened.", error.Message, PageAction("Try again", () => _ = RefreshOverview()));
+            }
         }
+
         private void OnApplicationPause(bool value)
         {
             if (detached || paused == value) return;
@@ -257,29 +237,30 @@ namespace ZKube.Integration.Presentation
             if (value)
             {
                 RetireRead(); Busy = false; publicRead = null; ownerRead = null;
-                if (owner != null) owner.text = "Refresh to view your profile and runs.";
-                if (publicDailyPanel != null) publicDailyPanel.gameObject.SetActive(false);
-                ClearProductObservations();
-                if (root != null) root.SetActive(false);
+                ClearProductObservations(); HidePages();
             }
             else if (isActiveAndEnabled)
-            { if (root != null) root.SetActive(true); if (Flow != null) _ = RefreshOverview(); }
+            { shell.Show(true); if (Flow != null) _ = RefreshOverview(); }
         }
         private void OnDisable()
         {
             if (!initialized || detached) return;
             if (PlayingRun) boardHost.Close();
             RetireRead(); Busy = false; ownerRead = null; publicRead = null;
-            if (root != null) root.SetActive(false);
-            owner.text = "Refresh to view your profile and runs.";
-            ClearProductObservations();
+            ClearProductObservations(); HidePages();
             RetireArtwork();
         }
         private void OnEnable()
         {
             if (!initialized || detached || paused) return;
-            if (root != null) root.SetActive(true);
+            shell.Show(true);
             if (Flow != null) _ = RefreshOverview();
+        }
+        // Nothing an earlier identity or read drew survives a hidden page.
+        private void HidePages()
+        {
+            StopAllCoroutines(); presenting = false; dirty = false; shownKey = null;
+            views.Hide(); shell.Show(false);
         }
         private void RetireRead()
         {
@@ -292,32 +273,31 @@ namespace ZKube.Integration.Presentation
         {
             if (detached) return; detached = true; RetireRead();
             if (PlayingRun) boardHost.Close();
-            RetireArtwork(); publicRead = null; ownerRead = null; ClearProductObservations();
-            if (root != null) root.SetActive(false); Controls();
+            publicRead = null; ownerRead = null; ClearProductObservations();
+            if (shell != null) { HidePages(); RetireArtwork(); }
         }
         private void OnDestroy() => Detach();
         private void CloseProductViews()
         {
             CloseSharedView(); CloseSessionView(); CloseCampaignView(); CloseDailyView(); CloseKreditView(); CloseRewardView(); CloseProfileView();
+            browsingOperation = false; Present();
         }
         private void ClearProductObservations()
         {
+            settingsRead = null;
             ClearCampaignObservation(); ClearSessionObservation(); ClearDailyObservation(); ClearKreditObservation(); ClearRewardObservation(); ClearProfileObservation();
         }
         private void RetireArtwork() => shell.ReleaseArtwork();
-        private void PlaceSafe()
-        { shell.PlaceSafe(); lastSafe = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height); }
-        private void ResetPageScroll() => shell.ResetScroll();
-        private void ReplacePagePanel(ref RectTransform panel, string name)
-        {
-            if (panel != null) { panel.gameObject.SetActive(false); Destroy(panel.gameObject); }
-            panel = Rect(name, pageContent); Stack(panel); ResetPageScroll();
-        }
-        private TMP_Text Label(Transform parent, string text, float size, bool title) => shared.Label(parent, text, size, title);
-        private Button Button(Transform parent, string title, UnityEngine.Events.UnityAction action) =>
-            shared.Button(parent, new PageAction { Label = title, Invoke = () => action() }, observe: false);
-        private static RectTransform Rect(string name, Transform parent)
-        { var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>(); rect.SetParent(parent, false); return rect; }
-        private static void Stretch(RectTransform rect) { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = rect.offsetMax = Vector2.zero; }
+
+        private static string Sol(ulong lamports) => (lamports / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL";
+        private static string Short(string address) => address == null || address.Length <= 10 ? address :
+            address.Substring(0, 4) + "…" + address.Substring(address.Length - 4);
+        private static string Day(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime
+            .ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        private static string Utc(long seconds) => seconds > DateTimeOffset.MaxValue.ToUnixTimeSeconds() ? "a date outside the calendar" :
+            DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("d MMM · HH:mm", CultureInfo.InvariantCulture) + " UTC";
+        private uint Today => checked((uint)(now() / 86400));
+        private byte TodayRealm => dailyRead != null && dailyRead.IsCurrent ? dailyRead.Value.Lobby.Realm :
+            publicRead != null && publicRead.IsCurrent ? publicRead.Value.Realm : NativeEngine.Daily(Today).Realm;
     }
 }

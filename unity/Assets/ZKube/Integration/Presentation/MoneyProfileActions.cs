@@ -1,14 +1,11 @@
 using System;
 using ZKube.Integration.Client;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TMPro;
-using UnityEngine;
-using UnityEngine.UI;
+using ZKube.Core.Generated;
 using ZKube.Integration.App;
 using ZKube.Presentation;
 
@@ -16,9 +13,10 @@ namespace ZKube.Integration.Presentation
 {
     public sealed partial class MoneyAppAdapter
     {
-        private RectTransform profilePanel;
+        private enum ProfileView { Main, Records, Borders, Selection }
         private MoneyRead<MoneyProfileState> profileRead;
         private bool browsingProfile;
+        private ProfileView profileView;
         private byte selectedEmblem, selectedBorder;
         public bool BrowsingProfile => browsingProfile;
         public byte SelectedEmblem => selectedEmblem;
@@ -26,39 +24,31 @@ namespace ZKube.Integration.Presentation
 
         public Task OpenProfile() => Run(async (epoch, token) => {
             if (identity.Owner == null) return;
-            CloseProductViews(); browsingProfile = true;
-            overviewPanel.gameObject.SetActive(false);
+            CloseProductViews(); browsingProfile = true; profileView = ProfileView.Main;
             await RefreshProfilePage(epoch, token);
         });
-        private void CloseProfileView()
-        {
-            ClearProfileObservation(); browsingProfile = false;
-            if (overviewPanel != null) overviewPanel.gameObject.SetActive(true);
-        }
-        private void ClearProfileObservation()
-        {
-            profileRead = null; shared.Retire();
-            if (profilePanel != null) { profilePanel.gameObject.SetActive(false); Destroy(profilePanel.gameObject); profilePanel = null; }
-        }
+        private void CloseProfileView() { ClearProfileObservation(); browsingProfile = false; profileView = ProfileView.Main; }
+        private void ClearProfileObservation() { profileRead = null; pageNotice = null; Present(); }
         private async Task RefreshProfilePage(long epoch, CancellationToken token)
         {
             ClearProfileObservation();
             if (identity.Owner == null) { CloseProfileView(); return; }
-            DrawProfileNotice("Checking your profile…"); status.text = "Checking profile…";
+            Notice("Checking your profile…"); Status = "Checking profile…";
             var read = await Flow.RefreshProfile(token);
             if (!Current(epoch) || !browsingProfile) return;
-            profileRead = read; economyReadbackNeeded = false;
+            profileRead = read; economyReadbackNeeded = false; pageNotice = null;
             selectedEmblem = read.Value.Identity.StoredEmblem; selectedBorder = read.Value.Profile.WornTier;
+            if (profileView == ProfileView.Selection) profileView = ProfileView.Main;
             if (read.Value.PreviousOperation != null) ShowReceipt(read.Value.PreviousOperation, identity.Owner);
-            DrawProfile(); status.text = "Profile updated";
+            Present(); Status = "Profile updated";
         }
         private void RefreshProfileIdentity()
         {
             if (economyReadbackNeeded && browsingProfile && !Busy && !paused)
             { economyReadbackNeeded = false; _ = RefreshOverview(); return; }
             if (!browsingProfile || profileRead == null || profileRead.IsCurrent) return;
-            ClearProfileObservation(); DrawProfileNotice("Your profile changed. Refresh before choosing what to wear.");
-            status.text = "Profile needs refreshing";
+            ClearProfileObservation(); Notice("Your profile changed. Refresh before choosing what to wear.");
+            Status = "Profile needs refreshing";
         }
         private bool ProfileEditable() => browsingProfile && !Busy && !sessionActionPending && !economyActionPending &&
             !paused && !detached && isActiveAndEnabled && profileRead != null && profileRead.IsCurrent &&
@@ -67,59 +57,49 @@ namespace ZKube.Integration.Presentation
             (selectedEmblem != profileRead.Value.Identity.StoredEmblem || selectedBorder != profileRead.Value.Profile.WornTier);
         private static ProfileEmblemDefinition EmblemDefinition(byte id) => ProfileEmblems.All.Single(value => value.Id == id);
         private static ProfileTierDefinition TierDefinition(byte id) => ProfileIdentityCatalog.Tiers.Single(value => value.Id == id);
-        private void BeginProfilePanel() => ReplacePagePanel(ref profilePanel, "Player profile");
-        private void ProfileNavigation()
-        {
-            Button(profilePanel, "Refresh profile", () => _ = RefreshOverview()); shared.Navigation(profilePanel);
-        }
-        private void DrawProfileNotice(string message)
-        { BeginProfilePanel(); Label(profilePanel, message, 20, false); ProfileNavigation(); }
-        private void DrawProfile()
-        {
-            BeginProfilePanel(); shared.Render(AppPage.Profile, profilePanel); ProfileNavigation(); Controls();
-        }
+        // Automatic wears the strongest emblem the Campaign has earned.
+        private byte Shown(byte emblem) => emblem == 0 ? profileRead.Value.Campaign.StrongestEmblem : emblem;
+        private static byte EmblemRealm(byte emblem) => Math.Max((byte)1, EmblemDefinition(emblem).Realm);
+        private byte ProfileRealm() => EmblemRealm(profileView == ProfileView.Selection ? Shown(selectedEmblem) : profileRead.Value.Identity.DisplayedEmblem);
+        private void ShowProfile(ProfileView view) { if (profileRead == null || !profileRead.IsCurrent) return; profileView = view; Present(); }
+
+        // The profile: the worn emblem in the worn ladder border, the standing,
+        // the records and the emblems; choosing an emblem or a border previews it.
         public ProfilePageView ProfilePage()
         {
             var state = profileRead.Value; var player = state.Profile; var worn = state.Identity; var fields = player.Fields;
-            var facts = new List<string> {
-                "Ladder · " + player.LadderPoints.ToString("N0") + " points",
-                TierDefinition(player.CurrentTier).Name + (player.HighestTier > player.CurrentTier ? " · Best ever " + TierDefinition(player.HighestTier).Name : "")
-            };
-            if (player.NextTierFloor.HasValue)
-                facts.Add((player.NextTierFloor.Value > player.LadderPoints ? player.NextTierFloor.Value - player.LadderPoints : 0).ToString("N0") + " to " + TierDefinition((byte)(player.CurrentTier + 1)).Name);
-            else facts.Add("Top tier");
-            foreach (string kind in new[] { "score", "theme" })
+            var notices = new List<string>(); var actions = new List<PageAction>();
+            if (!player.Exists) notices.Add("Set up this device to create your player profile.");
+            if (!worn.ProgressAvailable) notices.Add("Campaign progress is unavailable. Refresh to check earned emblems.");
+            if (state.Pending != null)
             {
-                var record = fields?[kind + "_record"]; uint rank = (uint?)record?["best_prize_rank"] ?? 0;
-                facts.Add((kind == "score" ? "Score" : "Theme") + " · Best paid place " + (rank == 0 ? "—" : "#" + rank) + " · " + ((uint?)record?["wins"] ?? 0) + " wins");
-                facts.Add("Rewards · " + (((ulong?)record?["rewards_lamports"] ?? 0) / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL");
+                notices.Add("Check your pending transaction before changing your profile.");
+                actions.Add(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy));
             }
-            if (!player.Exists) facts.Add("Set up this device to create your player profile.");
-            if (!worn.ProgressAvailable) facts.Add("Campaign progress is unavailable. Refresh to check earned emblems.");
-            if (state.Pending != null) facts.Add("Check your pending transaction before changing your profile.");
-            else if (!state.Session.Current || state.Session.Funding != "ready") facts.Add("Set up this device to change your emblem or border.");
+            else if (!state.Session.Current || state.Session.Funding != "ready")
+            {
+                notices.Add("Set up this device to change your emblem or border.");
+                actions.Add(PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy));
+            }
+            if (worn.StoredEmblem != 0 && state.Pending == null)
+                actions.Add(PageAction("Wear the automatic emblem", () => SelectProfileEmblem(0),
+                    () => ProfileEditable() && worn.CanWear(0, selectedBorder), "Emblem 0"));
             return new ProfilePageView {
-                Name = player.Owner, Worn = "Wearing · " + EmblemDefinition(worn.StoredEmblem).Name + " · " + TierDefinition(player.WornTier).Name + " border",
-                Realm = Math.Max((byte)1, EmblemDefinition(worn.DisplayedEmblem).Realm), Stars = state.Campaign.TotalStars ?? 0,
+                Name = Short(player.Owner), Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
+                Standing = EmblemDefinition(worn.DisplayedEmblem).Name + (worn.StoredEmblem == 0 && worn.DisplayedEmblem != 0 ? " (automatic)" : "") + " · " +
+                    TierDefinition(player.WornTier).Name + " · " + player.LadderPoints.ToString("N0", CultureInfo.InvariantCulture) + " ladder points",
+                Records = PageAction("Your records", () => ShowProfile(ProfileView.Records), () => PageAvailable() && !Busy),
+                ChooseBorder = PageAction("Choose a border", () => ShowProfile(ProfileView.Borders), () => PageAvailable() && !Busy),
+                Stars = state.Campaign.TotalStars ?? 0,
                 Streak = (uint?)fields?["entry_streak_days"] ?? 0, BestDailyScore = (uint?)fields?["best_daily_score"] ?? 0,
-                Facts = facts.ToArray(), Notice = "Selection · " + EmblemDefinition(selectedEmblem).Name + " · " + TierDefinition(selectedBorder).Name,
-                Actions = state.Pending == null ? Array.Empty<PageAction>() :
-                    new[] { PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy) },
-                Emblems = worn.Emblems.Select(choice => {
+                Notice = notices.Count == 0 ? null : string.Join(" ", notices), Actions = actions.ToArray(),
+                Emblems = worn.Emblems.Where(choice => choice.Definition.Id != 0).Select(choice => {
                     byte id = choice.Definition.Id;
                     return new ProfileChoiceView { Id = id, Realm = choice.Definition.Kind == ProfileEmblemKind.Guardian ? choice.Definition.Realm : (byte)0,
-                        Name = choice.Definition.Name, Detail = !choice.Earned ? "Locked" : id == selectedEmblem ? "Selected" : choice.Gold ? "Perfected" : "Earned",
+                        Name = choice.Definition.Name, Detail = id == worn.StoredEmblem ? "Worn" : null,
                         Available = choice.Earned, CanSelect = () => ProfileEditable() && profileRead.Value.Identity.CanWear(id, selectedBorder),
                         Select = () => SelectProfileEmblem(id) };
-                }).ToArray(),
-                Borders = ProfileIdentityCatalog.Tiers.Select(tier => {
-                    byte id = tier.Id;
-                    return new ProfileChoiceView { Id = id, Name = tier.Name, Available = id <= player.HighestTier,
-                        Detail = id > player.HighestTier ? "Locked" : id == selectedBorder ? "Selected" : null,
-                        CanSelect = () => ProfileEditable() && profileRead.Value.Identity.CanWear(selectedEmblem, id), Select = () => SelectProfileBorder(id) };
-                }).ToArray(),
-                Save = PageAction("Wear selection", () => _ = WearProfileSelection(), () => ProfileEditable() && ProfileSelectionChanged())
-            };
+                }).ToArray() };
         }
         public void SelectProfileEmblem(byte emblem)
         {
@@ -131,14 +111,24 @@ namespace ZKube.Integration.Presentation
             if (!ProfileEditable() || !profileRead.Value.Identity.CanWear(selectedEmblem, border)) return;
             selectedBorder = border; UpdateProfileSelection();
         }
+        // A changed choice is previewed until it is worn or put back.
         private void UpdateProfileSelection()
-        { if (profileRead != null && profileRead.IsCurrent) DrawProfile(); }
+        {
+            if (profileRead == null || !profileRead.IsCurrent) return;
+            profileView = ProfileSelectionChanged() ? ProfileView.Selection : ProfileView.Main; Present();
+        }
+        private void KeepProfileLook()
+        {
+            if (profileRead == null || !profileRead.IsCurrent) return;
+            selectedEmblem = profileRead.Value.Identity.StoredEmblem; selectedBorder = profileRead.Value.Profile.WornTier;
+            profileView = ProfileView.Main; Present();
+        }
         public Task WearProfileSelection()
         {
             if (!ProfileEditable() || !ProfileSelectionChanged() || !profileRead.Value.Identity.CanWear(selectedEmblem, selectedBorder)) return Task.CompletedTask;
             byte emblem = selectedEmblem, border = selectedBorder;
             return Run(async (epoch, token) => {
-                economyActionPending = true; status.text = "Saving selection…"; Controls();
+                economyActionPending = true; Status = "Saving selection…"; Present();
                 try
                 {
                     var result = await Flow.SetFeaturedIdentity(emblem, border, token);
@@ -148,9 +138,95 @@ namespace ZKube.Integration.Presentation
                 finally
                 {
                     economyActionPending = false;
-                    if (Current(epoch)) Controls(); else economyReadbackNeeded = true;
+                    if (Current(epoch)) Present(); else economyReadbackNeeded = true;
                 }
             });
+        }
+
+        private PanelPageView ProfilePanel()
+        {
+            var state = profileRead.Value; var player = state.Profile;
+            var back = PageAction("Back", () => ShowProfile(ProfileView.Main), () => PageAvailable() && !Busy);
+            switch (profileView)
+            {
+                case ProfileView.Records: return Records(state, back);
+                case ProfileView.Borders:
+                {
+                    var rows = new List<PanelBlock> {
+                        PanelBlock.Portrait(Shown(selectedEmblem), 114, SkinSlots.LadderBorder(selectedBorder), 26, 3),
+                        PanelBlock.Eyebrow("Choose a border", gap: 20) };
+                    foreach (var tier in ProfileIdentityCatalog.Tiers)
+                    {
+                        byte id = tier.Id; bool earned = id <= player.HighestTier;
+                        string value = !earned ? "Locked" : id == player.WornTier ? "Worn" : id == selectedBorder ? "Selected" : "Wear";
+                        rows.Add(PanelBlock.Row("Border " + id, tier.Name, value, SkinTokens.Accent,
+                            earned ? PageAction(tier.Name, () => SelectProfileBorder(id),
+                                () => ProfileEditable() && profileRead.Value.Identity.CanWear(selectedEmblem, id), "Border " + id) : null,
+                            SkinSlots.LadderBorder(id), SkinSlots.LadderBadge(id), !earned));
+                    }
+                    rows.Add(PanelBlock.Text("Border rule", "Earned borders stay available. Ladder points are permanent and pay no rewards.", 14,
+                        SkinTokens.TextMuted, gap: 0, lead: 6));
+                    return new PanelPageView { Key = "Profile Borders", Title = "Borders", Subtitle = Short(player.Owner), Back = back, Tab = 2,
+                        Blocks = rows.ToArray() };
+                }
+                default:
+                {
+                    // The preview of a changed choice, to wear or put back.
+                    var name = EmblemDefinition(Shown(selectedEmblem)).Name + " · " + TierDefinition(selectedBorder).Name;
+                    var blocks = new List<PanelBlock> {
+                        PanelBlock.Portrait(Shown(selectedEmblem), 152, SkinSlots.LadderBorder(selectedBorder), 43, 33),
+                        PanelBlock.Card("Selection card", PanelBlock.Title(name, 28, gap: 24, centered: true, name: "Selection"),
+                            PanelBlock.Text("Selection rule", "Your current emblem and border stay worn until this change is confirmed.", 16, gap: 0)) };
+                    var receipt = ReceiptRow("Profile");
+                    if (receipt != null) blocks.Add(receipt);
+                    if (economyActionPending || sessionActionPending)
+                    {
+                        blocks.Add(PanelBlock.Text("Selection notice", "Your wallet request is still finishing.", 16, gap: 20, lead: 20));
+                        blocks.Add(DisconnectButton());
+                    }
+                    else if (state.Pending != null)
+                    {
+                        blocks.Add(PanelBlock.Text("Selection notice", "Check your pending transaction before changing your profile.", 16, gap: 20, lead: 20));
+                        blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
+                    }
+                    else if (!state.Session.Current || state.Session.Funding != "ready")
+                    {
+                        blocks.Add(PanelBlock.Text("Selection notice", "Set up this device to change your emblem or border.", 16, gap: 20, lead: 20));
+                        blocks.Add(PanelBlock.Button(PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy), true));
+                    }
+                    else blocks.Add(PanelBlock.Button(PageAction("Wear selection", () => _ = WearProfileSelection(),
+                        () => ProfileEditable() && ProfileSelectionChanged()), true, lead: 36));
+                    blocks.Add(PanelBlock.Button(PageAction("Keep current look", KeepProfileLook, () => PageAvailable() && !Busy), false));
+                    // Back keeps the choice for more changes; Keep current look puts it back.
+                    return new PanelPageView { Key = "Profile Selection", Title = "Wear selection", Back = back, Blocks = blocks.ToArray() };
+                }
+            }
+        }
+
+        // The ladder and both boards' paid records.
+        private PanelPageView Records(MoneyProfileState state, PageAction back)
+        {
+            var player = state.Profile; var fields = player.Fields;
+            var ladder = new List<PanelBlock> { PanelBlock.Eyebrow("Ladder", gap: 16),
+                PanelBlock.Split("Ladder", null, player.LadderPoints.ToString("N0", CultureInfo.InvariantCulture), 36, TierDefinition(player.CurrentTier).Name,
+                    SkinSlots.LadderBadge(player.CurrentTier), 18) };
+            ladder.Add(PanelBlock.Text("Ladder next", player.NextTierFloor.HasValue ?
+                (player.NextTierFloor.Value > player.LadderPoints ? player.NextTierFloor.Value - player.LadderPoints : 0).ToString("N0", CultureInfo.InvariantCulture) +
+                " points to " + TierDefinition((byte)(player.CurrentTier + 1)).Name : "Top tier", 14, SkinTokens.TextMuted, gap: 0));
+            if (player.HighestTier > player.CurrentTier)
+                ladder.Add(PanelBlock.Text("Ladder best", "Best ever · " + TierDefinition(player.HighestTier).Name, 14, SkinTokens.TextMuted, gap: 0, lead: 8));
+            var blocks = new List<PanelBlock> { PanelBlock.Card("Ladder card", ladder.ToArray()) };
+            foreach (string kind in new[] { "score", "theme" })
+            {
+                var record = fields?[kind + "_record"]; uint rank = (uint?)record?["best_prize_rank"] ?? 0; uint wins = (uint?)record?["wins"] ?? 0;
+                ulong rewards = (ulong?)record?["rewards_lamports"] ?? 0;
+                string name = kind == "score" ? "Score" : "Theme";
+                blocks.Add(PanelBlock.Card(name + " record card", PanelBlock.Title(name + " boards", 24, gap: 18),
+                    PanelBlock.Row(name + " best", "Best paid place", rank == 0 ? "—" : "#" + rank, gap: 18),
+                    PanelBlock.Text(name + " wins", wins + (wins == 1 ? " win" : " wins") + " · " + Sol(rewards) + " received", 14, SkinTokens.TextMuted, gap: 0)));
+            }
+            blocks.Add(PanelBlock.Button(PageAction("Back to Profile", back.Invoke, back.CanInvoke), false, lead: 16));
+            return new PanelPageView { Key = "Profile Records", Title = "Your records", Subtitle = Short(player.Owner), Back = back, Blocks = blocks.ToArray() };
         }
     }
 }

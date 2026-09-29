@@ -22,8 +22,8 @@ namespace ZKube.Presentation
             float d = ui.Density;
             column.Gap(-1);
             var medallion = column.Take(114 * d, 11);
-            ui.Medallion("Worn emblem", new Rect(medallion.center.x - 57 * d, medallion.y, 114 * d, 114 * d),
-                value.Emblem > Protocol.Realms.Length ? ui.Art.SkinUi(ProfileEmblems.Painting(value.Emblem)) : ui.Art.Sprite("boss__portrait"), shell.Page);
+            ui.Medallion("Worn emblem", new Rect(medallion.center.x - 57 * d, medallion.y, 114 * d, 114 * d), EmblemArt(value.Emblem), shell.Page,
+                value.Tier.HasValue ? SkinSlots.LadderBorder(value.Tier.Value) : SkinSlots.GuardianFrame);
             if (value.ChangeName == null) editingName = false;
             if (savedName != value.Name) { savedName = value.Name; editedName = value.Name; }
             NameRow(value);
@@ -33,6 +33,7 @@ namespace ZKube.Presentation
                 Shade(SkinUi.ScreenRect(worn.rectTransform), ui.TextWidth(value.Worn, 13, SkinUi.Type.Caption), shell.Page);
                 worn.transform.SetAsLastSibling();
             }
+            if (value.Standing != null) Standing(value);
             if (editingName) { NameEditor(value); return; }
             var rows = new PageColumn(ui, shell.Page, actions, column.Left + 16 * d, column.Width - 32 * d, column.Top);
             ResultRow(rows, "Best Daily", "Best Daily", value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture), SkinTokens.Score, 6);
@@ -56,6 +57,12 @@ namespace ZKube.Presentation
         private void NameRow(ProfilePageView value)
         {
             float d = ui.Density;
+            if (value.ChangeName == null)
+            {
+                var plain = column.Typed("Name text", value.Name, SkinUi.Type.Number, 22, SkinTokens.Text, 12);
+                plain.textWrappingMode = TextWrappingModes.NoWrap; plain.overflowMode = TextOverflowModes.Ellipsis;
+                return;
+            }
             var rect = column.Take(48 * d, 3);
             rect = new Rect(rect.x + 8 * d, rect.y, rect.width - 16 * d, rect.height);
             var row = ui.Piece("Player name", SkinSlots.ListRow, rect, shell.Page);
@@ -86,6 +93,27 @@ namespace ZKube.Presentation
             nameField = field;
         }
         private TMP_InputField nameField;
+
+        // The ladder standing under the name: the worn tier's badge, then what is
+        // worn and the ladder points; a tap chooses the border.
+        private void Standing(ProfilePageView value)
+        {
+            float d = ui.Density, badge = 32 * d;
+            float width = Mathf.Min(column.Width - 48 * d, ui.TextWidth(value.Standing, 13, SkinUi.Type.Caption) + 8 * d);
+            var rect = column.Take(Mathf.Max(badge, ui.TextHeight(value.Standing, width, 13, SkinUi.Type.Caption)), 14);
+            float left = rect.center.x - (badge + 8 * d + width) / 2;
+            var hit = ui.Rect<Image>("Standing", new Rect(left - 8 * d, rect.center.y - 24 * d, badge + width + 24 * d, 48 * d), shell.Page);
+            hit.color = Color.clear;
+            var icon = ui.Rect<Image>("Standing badge", new Rect(left, rect.center.y - badge / 2, badge, badge), shell.Page);
+            icon.sprite = ui.Art.SkinUi(SkinSlots.LadderBadge(value.Tier ?? 0)); icon.preserveAspect = true; icon.raycastTarget = false;
+            var line = new Rect(left + badge + 8 * d, rect.y, width, rect.height);
+            Shade(line, width, shell.Page);
+            ui.Label("Standing line", value.Standing, line, 13, SkinTokens.TextMuted, shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left);
+            if (value.ChooseBorder == null) return;
+            hit.raycastTarget = true; hit.name = value.ChooseBorder.Name ?? value.ChooseBorder.Label;
+            var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
+            actions.Wire(button, value.ChooseBorder, fade: false);
+        }
 
         // Editing: Save appears once the name differs from the saved one, then
         // what the name is for, and a preview of it as a shared result shows it.
@@ -195,11 +223,14 @@ namespace ZKube.Presentation
             var sizeButton = sizeRow.gameObject.AddComponent<Button>(); sizeButton.transition = Selectable.Transition.None;
             sizeRow.gameObject.AddComponent<PressSquash>();
             actions.Wire(sizeButton, new PageAction { Invoke = value.ToggleText }, fade: false);
-            column.Top = rows.Top;
-            var buttons = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top - 54 * d);
+            // Pills sit 54 dp under the rows, clear of their halos; a panel 32 dp.
+            bool panel = !value.Muted && value.Identity.Length != 0 && value.Identity[0].Kind == PanelKind.Card;
+            column.Top = rows.Top - (panel ? 32 : 54) * d;
+            var buttons = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top);
             if (value.Muted) Pill(buttons, new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, false, SkinSlots.IconSound, 12);
-            foreach (var action in value.Actions) Pill(buttons, action, false, null, 12);
-            column.Top = buttons.Top - 11 * d;
+            column.Top = buttons.Top;
+            Blocks(value.Identity);
+            column.Top -= 11 * d;
             var saved = column.Typed("Settings saved", "Local preferences save automatically.", SkinUi.Type.Caption, 13, SkinTokens.TextMuted, 0);
             Shade(SkinUi.ScreenRect(saved.rectTransform), ui.TextWidth(saved.text, 13, SkinUi.Type.Caption), shell.Page);
             saved.transform.SetAsLastSibling();

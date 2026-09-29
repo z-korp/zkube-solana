@@ -21,7 +21,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("kredit-buy-" + pack, 1.3f, "Kredits");
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.BrowsingKredits, Is.True);
-            StringAssert.Contains("Balance · 25", SessionText());
+            Assert.That(Text("Kredit balance"), Is.EqualTo("25"));
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
             var offers = host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Buy ")).Select(button => button.name).ToArray();
             Assert.That(offers, Is.EquivalentTo(new[] { "Buy 1 Kredit · 0.01 SOL", "Buy 10 Kredits · 0.1 SOL", "Buy 25 Kredits · 0.25 SOL" }));
@@ -35,11 +35,16 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
+            Assert.That(Text("Kredit balance"), Is.EqualTo((25 + pack).ToString()));
+            // The last operation shows the whole signature on request.
+            yield return SessionClick("View operation"); yield return Idle();
+            StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
             yield return SessionClick("Receipt details"); yield return Idle();
             StringAssert.Contains(environment.SentSignature, Text("Transaction receipt"));
             yield return SessionClick("Receipt details"); yield return Idle();
             StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
-            StringAssert.Contains("Balance · " + (25 + pack), SessionText());
+            yield return SessionClick("Back"); yield return Idle();
+            Assert.That(Text("Kredit balance"), Is.EqualTo((25 + pack).ToString()));
             var exact = controller.LastReceipt;
             controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
@@ -55,7 +60,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario(scenario, page: "Kredits");
             yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(environment.KreditPack)); yield return Idle();
             Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(expected));
-            StringAssert.Contains("Balance · 25", SessionText());
+            Assert.That(Text("Kredit balance"), Is.EqualTo("25"));
             Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.EqualTo(signatures));
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -70,10 +75,10 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(pack)); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller; string signature = controller.LastReceipt.Signature;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            StringAssert.Contains("Balance · 25", SessionText());
+            Assert.That(Text("Kredit balance"), Is.EqualTo("25"));
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Buy ")), Is.False);
             int checks = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
-            yield return SessionClick("Refresh Kredits"); yield return Idle();
+            yield return Wait(controller.RefreshOverview()); yield return Idle();
             Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
             yield return Wait(controller.PurchaseKredits(pack));
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
@@ -81,7 +86,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Check transaction"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(failure ? ExecutionOutcome.ConfirmedFailure : ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
-            StringAssert.Contains("Balance · " + (failure ? 25 : 25 + pack), SessionText());
+            Assert.That(Text("Kredit balance"), Is.EqualTo((failure ? 25 : 25 + pack).ToString()));
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
@@ -98,7 +103,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.Contains("Transaction confirmed", Text("Transaction receipt"));
             yield return SessionClick("Refresh Kredits"); yield return Idle();
-            StringAssert.Contains("Balance · 35", SessionText());
+            Assert.That(Text("Kredit balance"), Is.EqualTo("35"));
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

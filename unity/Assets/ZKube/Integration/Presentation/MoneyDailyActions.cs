@@ -4,9 +4,8 @@ using System.Globalization;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
-using UnityEngine.UI;
 using ZKube.Core;
+using ZKube.Core.Generated;
 using ZKube.Integration.App;
 using ZKube.Presentation;
 
@@ -14,7 +13,6 @@ namespace ZKube.Integration.Presentation
 {
     public sealed partial class MoneyAppAdapter
     {
-        private RectTransform dailyPanel;
         private MoneyRead<MoneyDailyState> dailyRead;
         private bool browsingDaily, confirmingDaily;
         private long dailyRefreshAt = long.MaxValue;
@@ -24,29 +22,22 @@ namespace ZKube.Integration.Presentation
         public Task OpenDaily() => Run(async (epoch, token) => {
             if (identity.Owner == null) return;
             CloseProductViews(); browsingDaily = true;
-            overviewPanel.gameObject.SetActive(false);
             await RefreshDailyPage(epoch, token);
         });
 
-        private void CloseDailyView()
-        {
-            ClearDailyObservation(); browsingDaily = false;
-            if (overviewPanel != null) overviewPanel.gameObject.SetActive(true);
-        }
+        private void CloseDailyView() { ClearDailyObservation(); browsingDaily = false; }
         private void ClearDailyObservation()
         {
-            dailyRead = null; confirmingDaily = false; dailyRefreshAt = long.MaxValue;
-            if (browsingDaily) RetireArtwork();
-            if (dailyPanel != null) { dailyPanel.gameObject.SetActive(false); Destroy(dailyPanel.gameObject); dailyPanel = null; }
+            dailyRead = null; confirmingDaily = false; dailyRefreshAt = long.MaxValue; pageNotice = null; Present();
         }
         private async Task RefreshDailyPage(long epoch, CancellationToken token)
         {
             ClearDailyObservation();
             if (identity.Owner == null) { CloseDailyView(); return; }
-            status.text = "Checking Daily…"; DrawDailyNotice("Checking today's challenge and your saved run.");
+            Status = "Checking Daily…"; Notice("Checking today's challenge and your saved run.");
             var result = await Flow.RefreshDaily(token);
             if (!Current(epoch) || !browsingDaily) return;
-            dailyRead = result;
+            dailyRead = result; pageNotice = null;
             if (ResultAvailable("Daily") && lastResult.Day == result.Value.Lobby.DayId)
                 lastResult.Streak = (uint?)result.Value.Lobby.Profile.Fields?["entry_streak_days"];
             var value = result.Value.Lobby; long timestamp = now();
@@ -58,15 +49,15 @@ namespace ZKube.Integration.Presentation
                 if (opens > timestamp) dailyRefreshAt = Math.Min(dailyRefreshAt, opens);
                 if (freezes > timestamp) dailyRefreshAt = Math.Min(dailyRefreshAt, freezes);
             }
-            DrawDaily(); status.text = "Daily updated";
+            Present(); Status = "Daily updated";
         }
         private void RefreshDailyIdentity()
         {
             if (!browsingDaily || dailyRead == null) return;
             if (!dailyRead.IsCurrent)
             {
-                ClearDailyObservation(); DrawDailyNotice("Daily information changed. Refresh before continuing.");
-                status.text = "Daily needs refreshing"; return;
+                ClearDailyObservation(); Notice("Daily information changed. Refresh before continuing.");
+                Status = "Daily needs refreshing"; return;
             }
             if (!Busy && now() >= dailyRefreshAt) { confirmingDaily = false; _ = RefreshOverview(); }
         }
@@ -77,7 +68,7 @@ namespace ZKube.Integration.Presentation
         public void AskDailyEntry()
         {
             if (!CanEnterDaily()) return;
-            confirmingDaily = true; DrawDaily();
+            confirmingDaily = true; Present();
         }
         public Task ConfirmDailyEntry()
         {
@@ -88,73 +79,110 @@ namespace ZKube.Integration.Presentation
         public Task ResumeDailyRun() => !CanUseDaily() || boardHost == null ? Task.CompletedTask :
             OpenRun(() => Flow.OpenSavedRun(), "Daily");
 
-        private void BeginDailyPanel()
-        {
-            ReplacePagePanel(ref dailyPanel, "Daily lobby");
-        }
-        private void DailyNavigation()
-        {
-            Button(dailyPanel, "Refresh Daily", () => _ = RefreshOverview());
-            shared.Navigation(dailyPanel);
-        }
-        private void DrawDailyNotice(string message)
-        { BeginDailyPanel(); Label(dailyPanel, "Daily", 32, true); Label(dailyPanel, message, 20, false); DailyNavigation(); }
-        private void DrawDaily()
-        {
-            BeginDailyPanel(); shared.Render(AppPage.Daily, dailyPanel);
-            DailyNavigation(); Controls();
-        }
+        // The Arcade: today's Daily with its prize pool and entry clock, the one
+        // entry action or the reason there is none, then the Kredits and rewards.
         public DailyPageView DailyPage()
         {
-            if (dailyRead == null)
-            {
-                var value = publicRead.Value;
-                return new DailyPageView { Day = value.DayId, Realm = value.Realm,
-                    ObjectiveKind = value.ObjectiveKind, ObjectiveValue = value.ObjectiveValue,
-                    Status = PublicStatus(value.Status), Facts = value.PotLamports.HasValue ?
-                        new[] { "Prize pot · " + (value.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL" } : Array.Empty<string>() };
-            }
             var state = dailyRead.Value; var lobby = state.Lobby;
-            var facts = new List<string>(); var actions = new List<PageAction>();
+            var actions = new List<PageAction>();
+            var arcade = new ArcadeView { Pot = lobby.PotLamports.HasValue ? Sol(lobby.PotLamports.Value) : null };
+            long freezes = (long)NativeEngine.Daily(lobby.DayId).FreezesAt;
+            string closes = DateTimeOffset.FromUnixTimeSeconds(freezes).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC";
+            arcade.Closes = lobby.PotLamports.HasValue ? "Closes " + closes : null;
+            bool noKredits = false;
+            // The day's state heads the clock; the entry's own state gives the reason.
+            switch (lobby.Status)
+            {
+                case "frozen": case "finalized": arcade.Headline = "Entries closed"; arcade.Closes = "Closed " + closes; break;
+                case "suspended": arcade.Headline = "Entries paused"; arcade.Closes = "Until further notice"; arcade.Warning = true; break;
+                case "paused": arcade.Headline = "Play paused"; arcade.Warning = true; break;
+                case "not-open": arcade.Headline = "Opens later today"; break;
+            }
             if (ResultAvailable("Daily")) actions.Add(PageAction("View result", () => OpenSharedPage(AppPage.Result), CanUseDaily));
-            if (lobby.PotLamports.HasValue)
+            if (sessionActionPending) Reason(arcade, "Your device request is still finishing.", "Wait before opening a run.");
+            switch (state.Entry.Status)
             {
-                facts.Add("Entries close " + DateTimeOffset.FromUnixTimeSeconds((long)NativeEngine.Daily(lobby.DayId).FreezesAt).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC");
-                facts.Add("Prize pot · " + (lobby.PotLamports.Value / 1000000000m).ToString("0.#########", CultureInfo.InvariantCulture) + " SOL");
+                case "pending-transaction":
+                    Reason(arcade, "Check your pending transaction before continuing.", null);
+                    actions.Add(PageAction("Check transaction", () => _ = CheckTransaction(), CanUseDaily));
+                    break;
+                case "resume": break;
+                case "ready": break;
+                case "needs-kredits": noKredits = true; Reason(arcade, "No Kredits available", "Buy a pack to enter today."); break;
+                case "needs-session": case "missing-player":
+                    Reason(arcade, state.Entry.Status == "missing-player" ? "Set up your player before entering." : "Set up this device before entering.", null);
+                    actions.Add(PageAction("Set up device", () => _ = OpenSession(), CanUseDaily)); break;
+                case "needs-refill":
+                    Reason(arcade, "Refill this device's fee allowance before entering.", null);
+                    actions.Add(PageAction("Manage device", () => _ = OpenSession(), CanUseDaily)); break;
+                case "suspended":
+                    arcade.Headline = "Entries paused"; arcade.Closes = "Until further notice"; arcade.Warning = true;
+                    Reason(arcade, "Daily entries are paused", "Campaign is still available."); break;
+                case "paused":
+                    arcade.Headline = "Play paused"; arcade.Warning = true;
+                    Reason(arcade, "Daily play is paused", "Campaign is still available."); break;
+                case "frozen": case "closed":
+                    arcade.Headline = "Entries closed"; arcade.Closes = "Closed " + closes;
+                    Reason(arcade, "Entries closed at " + closes, "Today’s results are being finalized."); break;
+                case "not-open": arcade.Headline = "Opens later today"; Reason(arcade, "Today’s Daily has not opened yet.", null); break;
+                case "changed":
+                    Reason(arcade, "Your entry information changed. Refresh to check it.", null);
+                    actions.Add(PageAction("Refresh", () => _ = RefreshOverview(), CanUseDaily)); break;
+                case "run-address-occupied": Reason(arcade, "A saved run needs checking before another entry.", null); break;
+                default:
+                    Reason(arcade, "Daily entry is unavailable. Refresh to check again.", null);
+                    actions.Add(PageAction("Refresh", () => _ = RefreshOverview(), CanUseDaily)); break;
             }
-            facts.Add(lobby.ObjectiveKind == 0 ? "Classic pays the prize pot to Score." : "One run competes on Score and Theme.");
-            facts.Add("Kredits · " + lobby.Profile.Kredits);
-            if (sessionActionPending) facts.Add("Your device request is still finishing. Wait before opening a run.");
-            facts.Add(DailyEntryNotice(state.Entry.Status));
-            if (state.Entry.Status == "pending-transaction")
-                actions.Add(PageAction("Check transaction", () => _ = CheckTransaction(), CanUseDaily));
-            else if (state.Entry.Status == "resume" || state.Run.Phase != "none")
-                actions.Add(PageAction("Resume Daily", () => _ = ResumeDailyRun(), () => CanUseDaily() && boardHost != null));
-            else if (state.Entry.Ready)
+            if (state.Entry.Status != "pending-transaction")
             {
-                if (confirmingDaily)
-                {
-                    facts.Add("Spend 1 Kredit?");
-                    facts.Add("This enters today's Daily. Your entry funds the following paid Daily, including across a suspension.");
-                    actions.Add(PageAction("Confirm 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null));
-                    actions.Add(PageAction("Cancel entry", () => { confirmingDaily = false; DrawDaily(); }, CanUseDaily));
-                }
-                else actions.Add(PageAction("Enter · 1 Kredit", AskDailyEntry, () => CanEnterDaily() && boardHost != null));
+                if (state.Entry.Status == "resume" || state.Run.Phase != "none")
+                    actions.Insert(0, PageAction("Resume Daily", () => _ = ResumeDailyRun(), () => CanUseDaily() && boardHost != null));
+                else if (state.Entry.Ready)
+                    actions.Insert(0, PageAction("Enter · 1 Kredit", AskDailyEntry, () => CanEnterDaily() && boardHost != null));
             }
-            return new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm,
-                ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue,
-                Status = PublicStatus(lobby.Status), Facts = facts.ToArray(), Actions = actions.ToArray() };
+            var blocks = new List<PanelBlock>();
+            if (ResultAvailable("Daily") && lastResult.Day == lobby.DayId)
+            {
+                string objective = catalog.ObjectiveName(lobby.ObjectiveKind, lobby.ObjectiveValue);
+                var rows = new List<PanelBlock> { PanelBlock.Eyebrow("Your last run today", SkinTokens.TextMuted, gap: 18),
+                    PanelBlock.Row("Last run score", "Score", lastResult.Score.ToString("N0", CultureInfo.InvariantCulture), gap: 3) };
+                if (lobby.ObjectiveKind != 0)
+                    rows.Add(PanelBlock.Row("Last run objective", Sentence(objective), lastResult.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture), gap: 0));
+                blocks.Add(PanelBlock.Card("Last run card", rows.ToArray()));
+            }
+            blocks.Add(PanelBlock.Text("Kredit balance", lobby.Profile.Kredits + " confirmed Kredits", 14, SkinTokens.TextMuted, gap: 14, lead: -4));
+            blocks.Add(PanelBlock.Pair(PageAction("Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy),
+                PageAction("Rewards", () => _ = OpenRewards(), () => PageAvailable() && !Busy), noKredits ? 0 : -1, 16));
+            blocks.Add(PanelBlock.Text("Arcade rule", lobby.ObjectiveKind == 0 ? "Classic pays the whole prize pool to Score." :
+                "Your best run on each board counts.", 13, SkinTokens.TextMuted, gap: 0));
+            var receipt = ReceiptRow("Daily");
+            if (receipt != null) { receipt.Lead = 24; blocks.Add(receipt); }
+            return new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm, ClosesAt = freezes, Now = now,
+                ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Status = PublicStatus(lobby.Status),
+                Arcade = arcade, Actions = actions.ToArray(), Blocks = blocks.ToArray() };
         }
-        private static string DailyEntryNotice(string status) => status switch {
-            "ready" => "One prepaid Kredit per entry.", "resume" => "Your saved Daily is ready to check.",
-            "pending-transaction" => "Check your pending transaction before continuing.",
-            "needs-kredits" => "You need a Kredit to enter.", "needs-session" => "Set up this device before entering.",
-            "needs-refill" => "Refill this device's fee allowance before entering.",
-            "missing-player" => "Set up your player before entering.", "suspended" => "Daily entries are suspended.",
-            "paused" => "Daily play is paused.", "frozen" or "closed" => "Entries are closed.",
-            "not-open" => "Today's Daily has not opened yet.", "changed" => "Your entry information changed. Refresh to check it.",
-            "run-address-occupied" => "A saved run needs checking before another entry.",
-            _ => "Daily entry is unavailable. Refresh to check again."
-        };
+        private static void Reason(ArcadeView arcade, string reason, string detail)
+        { if (arcade.Reason != null) return; arcade.Reason = reason; arcade.Detail = detail; }
+        private static string Sentence(string value) => string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value.Substring(1);
+
+        // The entry choice: what one entry costs against the confirmed balance,
+        // and that it cannot be refunded.
+        private PanelPageView EntryPage()
+        {
+            var lobby = dailyRead.Value.Lobby; var realm = catalog.Realm(lobby.Realm);
+            Action close = () => { confirmingDaily = false; Present(); };
+            var cancel = PageAction("Not now", close, CanUseDaily, "Cancel entry");
+            return new PanelPageView { Key = "Entry", Title = "Enter today’s Daily", Subtitle = realm.realmName + " · " + Day(lobby.DayId),
+                Back = PageAction("Back", close, CanUseDaily),
+                Blocks = new[] {
+                    PanelBlock.Talk(realm.guardianLines.dailyGreeting, "greeting", 184),
+                    PanelBlock.Card("Entry card",
+                        PanelBlock.Row("Entry cost", "Entry", "1 Kredit", gap: 12),
+                        PanelBlock.Row("Entry balance", "Confirmed balance", lobby.Profile.Kredits.ToString(CultureInfo.InvariantCulture), gap: 22),
+                        PanelBlock.Text("Entry terms", "This entry is paid and cannot be refunded. It funds the following paid Daily, including across a suspension.", 15, gap: 6),
+                        PanelBlock.Text("Entry rule", "Each new entry uses one Kredit.", 15, gap: 0)),
+                    PanelBlock.Button(PageAction("Confirm · 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null, "Confirm 1 Kredit"), true),
+                    PanelBlock.Button(cancel, false) } };
+        }
     }
 }

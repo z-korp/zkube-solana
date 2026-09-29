@@ -6,6 +6,7 @@ using UnityEngine.TestTools;
 using UnityEngine.UI;
 using ZKube.Integration.App;
 using ZKube.Integration.Execution;
+using ZKube.Presentation;
 
 namespace ZKube.Tests.MoneyOverview
 {
@@ -13,7 +14,7 @@ namespace ZKube.Tests.MoneyOverview
     {
         private IEnumerator PrepareClaimPage(string scenario, float textScale = 1)
         {
-            yield return PrepareDeviceScenario(scenario, textScale, "Results");
+            yield return PrepareDeviceScenario(scenario, textScale, "Rewards");
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             yield return Wait(controller.OpenRewards(environment.ClaimDay)); yield return Idle();
             Assert.That(controller.BrowsingRewards, Is.True);
@@ -43,7 +44,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
-        [UnityTest] public IEnumerator ExpiredScoreLeavesThemeAvailable() => UnavailableReward("expired", "The claim window has closed.");
+        [UnityTest] public IEnumerator ExpiredScoreLeavesThemeAvailable() => UnavailableReward("expired", "Claim window closed");
         [UnityTest] public IEnumerator UnsealedScoreDoesNotOfferAClaim() => UnavailableReward("unsealed", "Results are being finalized.");
         [UnityTest] public IEnumerator ClaimedScoreDoesNotOfferASecondPayment() => UnavailableReward("claimed", "Reward collected");
         [UnityTest] public IEnumerator MissingSessionDisablesBothCollections() => UnavailableReward("missing-session", "Set up this device to collect rewards.");
@@ -53,8 +54,10 @@ namespace ZKube.Tests.MoneyOverview
             StringAssert.Contains(message, SessionText());
             var score = host.GetComponentsInChildren<Button>().SingleOrDefault(button => button.name == "Collect Score");
             Assert.That(score == null || !score.interactable, Is.True);
-            var theme = host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Theme");
-            Assert.That(theme.interactable, Is.EqualTo(variant != "missing-session"));
+            // Without a device session the claim is replaced by its reason.
+            var theme = host.GetComponentsInChildren<Button>().SingleOrDefault(button => button.name == "Collect Theme");
+            if (variant == "missing-session") Assert.That(theme == null || !theme.interactable, Is.True);
+            else Assert.That(theme.interactable, Is.True);
             yield return Wait(host.GetComponent<MoneyIdentity>().Controller.CollectReward("score"));
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
@@ -63,20 +66,22 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareClaimPage("claim-score-deadline");
             environment.AdvanceClock(1); yield return null; yield return Idle();
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect Score" && button.interactable), Is.False);
-            StringAssert.Contains("The claim window has closed.", SessionText());
+            StringAssert.Contains("Claim window closed", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Theme").interactable, Is.True);
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ResultDayNavigationNeverSignsAndOtherPagesCloseResults()
         {
             yield return PrepareClaimPage("claim-score-sealed"); var controller = host.GetComponent<MoneyIdentity>().Controller;
-            yield return SessionClick("Previous day"); yield return Idle();
+            yield return SessionClick("Earlier day"); yield return Idle();
             Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay - 1));
-            yield return SessionClick("Next day"); yield return Idle();
+            yield return SessionClick("Later day"); yield return Idle();
             Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay));
-            yield return SessionClick("Daily"); yield return Idle();
+            yield return SessionClick("View Score board"); yield return Idle();
+            Assert.That(controller.BoardKind, Is.EqualTo("score"));
+            yield return SessionClick("Arcade"); yield return Idle();
             Assert.That(controller.BrowsingRewards, Is.False); Assert.That(controller.BrowsingDaily, Is.True);
-            Assert.That(host.GetComponentsInChildren<Transform>().Any(value => value.name == "Daily results"), Is.False);
+            Assert.That(host.GetComponent<PageViews>().ShownPanel, Is.Null);
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
     }

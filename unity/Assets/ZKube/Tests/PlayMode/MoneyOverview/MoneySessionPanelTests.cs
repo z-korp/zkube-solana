@@ -9,6 +9,7 @@ using UnityEngine.TestTools;
 using UnityEngine.UI;
 using ZKube.Integration.App;
 using ZKube.Integration.Presentation;
+using ZKube.Presentation;
 
 namespace ZKube.Tests.MoneyOverview
 {
@@ -20,7 +21,7 @@ namespace ZKube.Tests.MoneyOverview
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             var exact = controller.LastReceipt;
             int before = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
-            yield return SessionClick("This device"); yield return Idle();
+            yield return OpenDevice();
             Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(controller.BrowsingCampaign, Is.False);
             StringAssert.Contains("An existing transaction needs checking", SessionText());
@@ -41,28 +42,35 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator DeviceAndCampaignNavigationKeepOneVisiblePanel()
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
-            yield return SessionClick("This device"); yield return Idle();
-            var controller = host.GetComponent<MoneyIdentity>().Controller;
-            Assert.That(host.GetComponentsInChildren<RectTransform>().Count(rect => rect.name == "Device session panel"), Is.EqualTo(1));
-            yield return SessionClick("Overview"); yield return Idle();
+            yield return OpenDevice();
+            var controller = host.GetComponent<MoneyIdentity>().Controller; var views = host.GetComponent<PageViews>();
+            Assert.That(views.ShownPanel, Is.EqualTo("Device"));
+            yield return SessionClick("Back"); yield return Idle();
+            yield return SessionClick("Back"); yield return Idle();
             yield return SessionClick("Campaign"); yield return Idle();
             Assert.That(controller.BrowsingSession, Is.False);
-            Assert.That(host.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == "Device session panel"), Is.False);
-            yield return SessionClick("Overview"); yield return Idle();
-            yield return SessionClick("This device"); yield return Idle();
-            Assert.That(controller.BrowsingSession, Is.True);
-            Assert.That(host.GetComponentsInChildren<RectTransform>().Any(rect => rect.name == "Campaign browser"), Is.False);
+            Assert.That(views.ShownPanel, Is.Null); Assert.That(views.Shown, Is.EqualTo(AppPage.Campaign));
+            yield return SessionClick("Arcade"); yield return Idle();
+            yield return OpenDevice();
+            Assert.That(controller.BrowsingSession, Is.True); Assert.That(controller.BrowsingCampaign, Is.False);
+            Assert.That(views.ShownPanel, Is.EqualTo("Device")); Assert.That(views.Shown, Is.Null);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
         private string SessionText() => string.Join("\n", host.GetComponentsInChildren<TMP_Text>().Select(value => value.text));
+        // This device is managed from Settings.
+        private IEnumerator OpenDevice()
+        {
+            yield return SessionClick("Settings"); yield return Idle();
+            yield return SessionClick("Manage"); yield return Idle();
+        }
         // Real first-hit EventSystem input. Scroll positioning is fixture setup,
         // not a claim of operating-system touch or swipe coverage.
         private IEnumerator SessionClick(string name)
         {
-            var button = host.GetComponentsInChildren<Button>().Single(value => value.name == name);
+            var button = Find(name);
             Assert.That(button.interactable, Is.True, name);
-            var scroll = host.GetComponentInChildren<ScrollRect>(); Canvas.ForceUpdateCanvases();
+            var scroll = host.GetComponent<PageShell>().Scroll; Canvas.ForceUpdateCanvases();
             var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(scroll.viewport, button.transform);
             float range = scroll.content.rect.height - scroll.viewport.rect.height;
             if (range > 0) scroll.verticalNormalizedPosition = 1 - Mathf.Clamp01((scroll.content.anchoredPosition.y + scroll.viewport.rect.center.y - bounds.center.y) / range);

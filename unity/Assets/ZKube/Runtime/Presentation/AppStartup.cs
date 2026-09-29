@@ -37,8 +37,6 @@ namespace ZKube.Presentation
             if (unavailable != null) return true;
             foreach (var shell in FindObjectsByType<PageShell>(FindObjectsSortMode.None))
                 if (!shell.Loading && shell.Page != null && shell.Page.childCount > 0) return true;
-            foreach (var shell in FindObjectsByType<AppShell>(FindObjectsSortMode.None))
-                if (!shell.Loading && shell.Content != null && shell.Content.childCount > 0) return true;
             return false;
         }
         public float TextScale => Configuration.TextScale == 0 ? AppPreferences.TextScale :
@@ -67,7 +65,7 @@ namespace ZKube.Presentation
                 UnavailableText = Configuration.Identity == null ? "The application could not start." : Configuration.Identity.UnavailableMessage(error);
                 var root = new GameObject("Application unavailable"); root.transform.SetParent(transform, false);
                 unavailable = root.AddComponent<AppShell>(); unavailable.Initialize(Application.productName);
-                var label = AppPages.Rect("Unavailable status", unavailable.Content).gameObject.AddComponent<TextMeshProUGUI>();
+                var label = AppShell.Rect("Unavailable status", unavailable.Content).gameObject.AddComponent<TextMeshProUGUI>();
                 label.font = Configuration.BodyFont ?? TMP_Settings.defaultFontAsset;
                 label.fontSize = 24 * TextScale; label.text = UnavailableText; label.color = Color.white;
                 label.gameObject.AddComponent<LayoutElement>().preferredHeight = 160 * TextScale;

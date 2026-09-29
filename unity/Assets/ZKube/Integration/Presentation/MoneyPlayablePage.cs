@@ -43,11 +43,11 @@ namespace ZKube.Integration.Presentation
             var result = await action();
             if (!Current(epoch) || !result.IsCurrent) return;
             boardHost.Open(result, title, textScale);
-            RetireArtwork(); root.SetActive(false);
+            HidePages(); RetireArtwork();
         });
 
         private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action, string title) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
-            status.text = "Opening your accepted run…";
+            Status = "Opening your accepted run…";
             var result = await action();
             if (!Current(epoch) || !result.IsCurrent) return;
             foreach (var receipt in result.Value.Operation.Receipts)
@@ -55,17 +55,17 @@ namespace ZKube.Integration.Presentation
             if (!result.Value.CanBind)
             {
                 await RefreshVisiblePage(epoch, token);
-                if (Current(epoch)) status.text = "Your run is not ready to open. Check its saved state before continuing.";
+                if (Current(epoch)) Inform("Your run is not ready to open. Check its saved state before continuing.");
                 return;
             }
             boardHost.Open(result.Value, title, textScale);
-            RetireArtwork(); root.SetActive(false);
+            HidePages(); RetireArtwork();
         });
 
         private void ReturnFromRun()
         {
             if (detached || paused || !isActiveAndEnabled) return;
-            root.SetActive(true);
+            shell.Show(true);
             if (identity.Owner == null) { CloseProductViews(); }
             _ = RefreshOverview();
         }
