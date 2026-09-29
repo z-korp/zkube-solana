@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
@@ -33,7 +35,8 @@ namespace ZKube.Presentation
             new ProfileEmblemDefinition(12, ProfileEmblemKind.World, 0, "World Perfect")
         });
         public static byte Last => All.Max(emblem => emblem.Id);
-        // The painting an achievement emblem wears; guardians wear their portrait.
-        public static string Painting(byte id) => "common/emblems__emblem-" + id;
+        // The kit slot an achievement emblem's painting is in; guardians wear their portrait.
+        public static string Painting(byte id) => id == 11 ? SkinSlots.Emblem11 : id == 12 ? SkinSlots.Emblem12 :
+            throw new ArgumentOutOfRangeException(nameof(id), "Only the achievement emblems have their own painting");
     }
 }

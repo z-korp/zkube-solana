@@ -23,7 +23,7 @@ namespace ZKube.Presentation
             column.Gap(-1);
             var medallion = column.Take(114 * d, 11);
             ui.Medallion("Worn emblem", new Rect(medallion.center.x - 57 * d, medallion.y, 114 * d, 114 * d),
-                value.Emblem > Protocol.Realms.Length ? ui.Art.Sprite(ProfileEmblems.Painting(value.Emblem)) : ui.Art.Sprite("boss__portrait"), shell.Page);
+                value.Emblem > Protocol.Realms.Length ? ui.Art.SkinUi(ProfileEmblems.Painting(value.Emblem)) : ui.Art.Sprite("boss__portrait"), shell.Page);
             if (value.ChangeName == null) editingName = false;
             if (savedName != value.Name) { savedName = value.Name; editedName = value.Name; }
             NameRow(value);
@@ -150,7 +150,7 @@ namespace ZKube.Presentation
                     var faceGroup = Holder("Emblem " + choice.Id + " face", shell.ScreenArea, hit.transform);
                     faceGroup.gameObject.AddComponent<CanvasGroup>().alpha = choice.Available ? 1 : .32f;
                     var image = ui.Medallion(choice.Realm != 0 ? "Guardian portrait" : "Achievement emblem", face,
-                        choice.Realm != 0 ? null : ui.Art.Sprite(ProfileEmblems.Painting(choice.Id)), faceGroup);
+                        choice.Realm != 0 ? null : ui.Art.SkinUi(ProfileEmblems.Painting(choice.Id)), faceGroup);
                     if (choice.Realm != 0) { image.enabled = false; portraits.Add(new KeyValuePair<byte, Image>(choice.Realm, image)); }
                     var nameRect = new Rect(x + cell / 2 - pitch / 2 + 4 * d, line.y, pitch - 8 * d, labelHeight);
                     if (!choice.Available) Shade(nameRect, ui.TextWidth(choice.Name, 11, SkinUi.Type.Caption), hit.transform);
