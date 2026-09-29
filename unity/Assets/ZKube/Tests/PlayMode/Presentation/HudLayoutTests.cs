@@ -42,116 +42,17 @@ namespace ZKube.Presentation.Tests
             }
         }
         private TMP_Text Label(string name) => board.View.GetComponentsInChildren<TMP_Text>().Single(t => t.name == name);
-        [UnityTest] public IEnumerator NormalNarrowBoardsKeepPlayableAreaWithActualFontsAtBothTextSizes()
-        {
-            // The smallest mainstream Android phone is 360x640 dp. An earlier
-            // regression shrank cells to 20px standard and 13px larger-text. Require at least 30px / 26px cells and 75% / 65%
-            // board width, measured with the actual loaded fonts and the native
-            // fixture HUD rather than hard-coded rail heights.
-            var art = Art();
-            foreach (string fixture in new[] { "realm-8-campaign", "display-long-campaign-constraint", "realm-8-daily" })
-            {
-                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-                foreach (float scale in new[] { 1f, 1.3f })
-                {
-                    var plan = HudLayout.Build(new SkinUi(art, 1, scale), board.State, board.Session, new Rect(0, 0, 360, 640), 1);
-                    string detail = $" at {scale} (header {plan.Layout.Header}, footer {plan.Layout.Footer}, cell {plan.Layout.Cell}, title {plan.Title}," +
-                        $" guardian {plan.Guardian}, score {plan.ScorePlate}, moves {plan.MovesPlate}, primary {plan.PrimaryPlate}," +
-                        $" secondary {plan.SecondaryPlate})";
-                    Assert.GreaterOrEqual(plan.Layout.Cell, scale == 1 ? 30 : 26, fixture + " must retain usable narrow-board size" + detail);
-                    Assert.GreaterOrEqual(plan.Layout.Board.width / plan.Layout.Frame.width, scale == 1 ? .75f : .65f, fixture + " board width" + detail);
-                    var plates = new[] { plan.ScorePlate, plan.MovesPlate, plan.PrimaryPlate, plan.SecondaryPlate };
-                    foreach (var plate in plates) Assert.AreEqual(plan.ScorePlate.size, plate.size, "The four plates are one size" + detail);
-                    Assert.AreEqual(plan.ScorePlate.x, plan.MovesPlate.x); Assert.AreEqual(plan.PrimaryPlate.x, plan.SecondaryPlate.x);
-                    Assert.AreEqual(plan.ScorePlate.y, plan.PrimaryPlate.y, "Score and the first goal share a row");
-                    Assert.Less(plan.ScorePlate.xMax, plan.PrimaryPlate.xMin, "Score and moves on the left, goals on the right");
-                    Assert.AreEqual(plan.Layout.Rim.center.x, plan.Guardian.center.x, .01f, "The guardian is centred");
-                    var pieces = new System.Collections.Generic.List<Rect> { plan.Title }; pieces.AddRange(plates);
-                    for (int a = 0; a < pieces.Count; a++) for (int b = a + 1; b < pieces.Count; b++)
-                        Assert.IsFalse(pieces[a].Overlaps(pieces[b]), fixture + " HUD pieces " + a + " and " + b + " overlap at " + scale);
-                    foreach (var piece in pieces) Assert.GreaterOrEqual(piece.yMin, plan.Layout.Rim.yMax, "The HUD stays above the board");
-                    if (!board.Session.Daily)
-                    {
-                        for (int star = 0; star < 3; star++)
-                        {
-                            var touch = plan.Plate(star); var glyph = plan.Star(star);
-                            Assert.GreaterOrEqual(touch.width, 48); Assert.GreaterOrEqual(touch.height, 48, "A star opens from its whole plate");
-                            Assert.IsTrue(touch.Contains(glyph.min) && touch.Contains(glyph.max), "Each star sits inside the plate of its source");
-                            Assert.AreEqual(HudLayout.StarDp, glyph.width, .01f);
-                        }
-                    }
-                    Assert.IsFalse(plan.Layout.GuardianButton.Overlaps(plan.Layout.RerollButton));
-                    Assert.IsFalse(plan.Layout.RerollButton.Overlaps(plan.Layout.PauseButton));
-                    Assert.GreaterOrEqual(plan.Layout.PauseButton.width, 48);
-                    Assert.GreaterOrEqual(plan.Layout.GuardianButton.width, 48);
-                }
-            }
-        }
-        [UnityTest] public IEnumerator TheSeekerHeaderHasItsApprovedGeometry()
-        {
-            // production/hud/header-geometry.json, drawn at 400 x 890 dp and 3 px/dp.
-            foreach (string fixture in new[] { "realm-8-campaign", "realm-8-daily" })
-            {
-                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-                var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, new Rect(0, 0, 1200, 2670), 3);
-                Rect Dp(Rect r) => new Rect(r.x / 3, (2670 - r.yMax) / 3, r.width / 3, r.height / 3);
-                void Near(Rect expected, Rect actual, string what)
-                {
-                    Assert.AreEqual(expected.x, actual.x, .6f, what + " x " + actual); Assert.AreEqual(expected.y, actual.y, .6f, what + " y " + actual);
-                    Assert.AreEqual(expected.width, actual.width, .6f, what + " width " + actual); Assert.AreEqual(expected.height, actual.height, .6f, what + " height " + actual);
-                }
-                Near(new Rect(8, 60, 120, 52), Dp(plan.ScorePlate), "score plate");
-                Near(new Rect(8, 118, 120, 52), Dp(plan.MovesPlate), "moves plate");
-                Near(new Rect(272, 60, 120, 52), Dp(plan.PrimaryPlate), "first goal plate");
-                Near(new Rect(272, 118, 120, 52), Dp(plan.SecondaryPlate), "second goal plate");
-                Near(new Rect(116, 35, 168, 168), Dp(plan.Guardian), "guardian");
-                Near(new Rect(125, 45, 150, 8), Dp(plan.Ribbon), "title stroke");
-                Near(new Rect(8, 174, 384, 478), Dp(plan.Layout.Rim), "board frame");
-                if (!board.Session.Daily)
-                    for (int star = 0; star < 3; star++)
-                    {
-                        var plate = Dp(plan.Plate(star));
-                        Near(new Rect(plate.x + 8, plate.y + 28, 20, 20), Dp(plan.Star(star)), "star " + star);
-                    }
-                Assert.AreEqual(684, (2670 - plan.NextLabel.yMax) / 3 + HudLayout.DigitTop * 11, 1, "NEXT ROW glyph top");
-            }
-        }
-        [UnityTest] public IEnumerator TheHeaderIsDrawnFromTheScreenTopAndOnlyTheTitleEntersTheInset()
-        {
-            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            var screen = new Rect(0, 0, 1200, 2670);
-            float Dp(float y) => (2670 - y) / 3;
-            // A 40 dp top inset, as a status bar or camera band leaves.
-            var safe = new Rect(0, 0, 1200, 2670 - 120);
-            var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, safe, 3, screen);
-            Assert.AreEqual(174, Dp(plan.Layout.Rim.yMax), .6f, "The board top keeps its drawn 174 dp from the screen's top");
-            Assert.AreEqual(60, Dp(plan.ScorePlate.yMax), .6f, "The plates keep their drawn rows");
-            Assert.LessOrEqual(plan.ScorePlate.yMax, safe.yMax, "The plates stay inside the safe area");
-            Assert.AreEqual(25, Dp(plan.Title.yMax) + HudLayout.DigitTop * 16, 1, "The title sits in the inset, as drawn");
-            // A deeper inset moves the drawing down only as far as the plates need.
-            var deep = new Rect(0, 0, 1200, 2670 - 3 * 70);
-            var lowered = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, deep, 3, screen);
-            Assert.AreEqual(72, Dp(lowered.ScorePlate.yMax), .6f);
-            Assert.AreEqual(186, Dp(lowered.Layout.Rim.yMax), .6f);
-            // A centred camera cutout pushes the title below it.
-            var cutout = new Rect(560, 2670 - 3 * 36, 80, 3 * 36);
-            var clear = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, safe, 3, screen, new[] { cutout });
-            Assert.LessOrEqual(clear.Title.yMax, cutout.yMin, "The title clears the camera");
-        }
         private BoardArt Art() => (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
         private static string SpriteName(Image image) => image.sprite.name.Replace("(Clone)", "");
         private void AssertStars(BoardView view)
         {
-            var sockets = view.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Star ", StringComparison.Ordinal)).ToArray();
-            Assert.AreEqual(3, sockets.Length);
+            var plates = view.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("Goal plate ", StringComparison.Ordinal)).ToArray();
+            Assert.AreEqual(3, plates.Length, "Each star's goal has its plate");
             for (int i = 0; i < 3; i++)
             {
-                var socket = sockets.Single(b => b.name == "Star " + i);
-                var glyph = socket.GetComponentsInChildren<Image>().Single(image => image.name == "Star " + i + " glyph");
+                var glyph = view.GetComponentsInChildren<Image>().Single(image => image.name == "Star " + i + " glyph");
                 bool earned = (board.State.LatchedStarSources & (1 << i)) != 0;
-                Assert.AreEqual(!earned ? "star-off" : glyph.rectTransform.rect.height > 96 ? "star-big" : "star-on", SpriteName(glyph));
-                var rect = WorldRect(socket.GetComponent<RectTransform>());
-                Assert.GreaterOrEqual(rect.width, 48); Assert.GreaterOrEqual(rect.height, 48);
+                Assert.AreEqual(earned ? SkinSlots.StarLit : SkinSlots.StarSocket, SpriteName(glyph));
             }
         }
         // Each glyph's ink from its metrics, without the quad's sampling padding.
@@ -182,77 +83,90 @@ namespace ZKube.Presentation.Tests
             Assert.LessOrEqual(text.GetPreferredValues(text.text, text.rectTransform.rect.width, float.PositiveInfinity).y,
                 text.rectTransform.rect.height + .5f, text.name + " must have enough height at its real width");
         }
-        [UnityTest] public IEnumerator TheScoreTargetKeepsItsGapAfterEveryScoresDigits()
+
+        // Every piece of the header and the thumb row, in screen pixels.
+        private static Rect[] Header(HudLayout plan) =>
+            new[] { plan.Crown, plan.Moves }.Concat(plan.Plates).Concat(plan.Medal.width > 0 ? new[] { plan.Medal } : new Rect[0]).ToArray();
+        private static void Apart(Rect[] pieces, string what)
         {
-            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            var view = board.View;
-            var show = typeof(BoardView).GetMethod("ShowScore", BindingFlags.Instance | BindingFlags.NonPublic);
-            var score = Label("Score"); var target = Label("Score target");
-            float gap = BoardView.TargetGapDp * view.Layout.Density;
-            foreach (uint value in new uint[] { 0, 1, 4, 6, 7, 8, 9, 10, 11, 88, 100, 999 })
-            {
-                show.Invoke(view, new object[] { value });
-                score.ForceMeshUpdate(); target.ForceMeshUpdate();
-                float digits = Glyphs(score).Max(g => g.xMax), slash = Glyphs(target).Min(g => g.xMin);
-                Assert.AreEqual(value.ToString(), score.text);
-                Assert.GreaterOrEqual(slash - digits, gap - .5f, value + " keeps its target clear of its digits");
-                Assert.LessOrEqual(slash - digits, gap + 3 * view.Layout.Density, value + " keeps its target beside its digits");
-            }
-            yield return null;
+            for (int a = 0; a < pieces.Length; a++) for (int b = a + 1; b < pieces.Length; b++)
+                Assert.IsFalse(pieces[a].Overlaps(pieces[b]), what + ": pieces " + a + " " + pieces[a] + " and " + b + " " + pieces[b] + " overlap");
         }
-        [UnityTest] public IEnumerator EveryCatalogCaptionFitsItsPlateClearOfItsValueAtBothWidths()
+        private static bool Inside(Rect outer, Rect inner, float slack = .5f) =>
+            inner.xMin >= outer.xMin - slack && inner.xMax <= outer.xMax + slack && inner.yMin >= outer.yMin - slack && inner.yMax <= outer.yMax + slack;
+        // The Seeker and the smallest mainstream phone, each in its measured safe area.
+        private static (string name, Rect screen, Rect safe, float density)[] Screens(float density = 1)
+        {
+            var seeker = ZKube.Tests.Presentation.Phones.SeekerScreen; var compact = ZKube.Tests.Presentation.Phones.CompactScreen;
+            Rect Scaled(Rect r) => new Rect(r.x * density, r.y * density, r.width * density, r.height * density);
+            Rect Safe(Rect r, float inset) => new Rect(r.x, r.y, r.width, r.height - inset * density);
+            return new[] {
+                ("Seeker", Scaled(seeker), Safe(Scaled(seeker), ZKube.Tests.Presentation.Phones.SeekerTopInsetDp), density),
+                ("360 x 640", Scaled(compact), Safe(Scaled(compact), ZKube.Tests.Presentation.Phones.CompactTopInsetDp), density) };
+        }
+        [UnityTest] public IEnumerator EveryCatalogGoalFitsTheCampaignHudOnTheSeekerAndA360x640Phone()
         {
             evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var art = Art(); var rules = board.Session.Rules;
-            var captions = PageCatalog.Load().constraintCaptions;
+            var captions = PageCatalog.Load().constraintCaptions.Where(goal => goal.kind != 0).ToArray();
             var saved = (rules.PrimaryKind, rules.PrimaryValue, rules.PrimaryCount, rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount);
             board.View.gameObject.SetActive(false);
             try
             {
-                // The smallest mainstream phone, and the Seeker's drawn width.
-                foreach (var (screen, density) in new[] { (new Rect(0, 0, 360, 640), 1f), (new Rect(0, 0, 1200, 2670), 3f) })
-                    for (int i = 0; i < captions.Length; i += 2)
-                    {
-                        var first = captions[i]; var second = captions[Math.Min(i + 1, captions.Length - 1)];
-                        rules.PrimaryKind = first.kind; rules.PrimaryValue = first.value; rules.PrimaryCount = first.count;
-                        rules.SecondaryKind = second.kind; rules.SecondaryValue = second.value; rules.SecondaryCount = second.count;
-                        var host = new GameObject("Caption view"); host.transform.SetParent(root.transform);
-                        try
+                foreach (var (name, screen, safe, density) in Screens())
+                    foreach (float scale in new[] { 1f, 1.3f })
+                        for (int i = 0; i < captions.Length; i += 2)
                         {
-                            var ui = new SkinUi(art, density, 1);
-                            var plan = HudLayout.Build(ui, board.State, board.Session, screen, density);
-                            var view = host.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
-                            view.Summary(board.State, board.Session, true);
-                            Canvas.ForceUpdateCanvases();
-                            Assert.GreaterOrEqual(Mathf.Min(plan.PrimaryCaptionPt, plan.SecondaryCaptionPt), HudLayout.CaptionMinimumPt);
-                            // Each plate fits its own caption: one that fits its role size keeps it.
-                            float role = plan.Layout.Compact ? 11 : 12;
-                            foreach (var (text, size) in new[] { (first.text, plan.PrimaryCaptionPt), (second.text, plan.SecondaryCaptionPt) })
-                                if (ui.Lines(text, plan.PrimaryPlate.width - 16 * density, role, SkinUi.Type.Caption) == 1)
-                                    Assert.AreEqual(role, size, $"'{text}' keeps its role size beside its neighbour");
-                            TMP_Text In(string name) => view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == name);
-                            foreach (var (caption, value, plate) in new[] { ("Theme label", "Theme", plan.PrimaryPlate), ("Secondary label", "Secondary", plan.SecondaryPlate) })
+                            var first = captions[i]; var second = captions[Math.Min(i + 1, captions.Length - 1)];
+                            rules.PrimaryKind = first.kind; rules.PrimaryValue = first.value; rules.PrimaryCount = first.count;
+                            rules.SecondaryKind = second.kind; rules.SecondaryValue = second.value; rules.SecondaryCount = second.count;
+                            var host = new GameObject("Goal view"); host.transform.SetParent(root.transform);
+                            try
                             {
-                                var label = In(caption); var number = In(value);
-                                string at = $"'{label.text}' at {screen.width}px";
-                                Fits(label);
-                                // The drawn width keeps the spec's two lines; the narrowest phone may take a third.
-                                Assert.LessOrEqual(label.textInfo.lineCount, density == 3 ? 2 : 3, at + " wraps as little as it can");
-                                number.ForceMeshUpdate();
-                                var text = Ink(label); var digits = Ink(number);
-                                foreach (var glyph in Glyphs(label))
-                                    Assert.IsFalse(Glyphs(number).Any(digit => digit.Overlaps(glyph)), at + " keeps its value on its own line: " +
-                                        glyph + " meets " + string.Join(", ", Glyphs(number).Where(digit => digit.Overlaps(glyph))) +
-                                        $"; plate {plate}, captions {plan.PrimaryCaptionPt}/{plan.SecondaryCaptionPt} dp, caption rect {SkinUi.ScreenRect(label.rectTransform)}, value rect {SkinUi.ScreenRect(number.rectTransform)}");
-                                Assert.Greater(text.center.y, digits.center.y, at + " sits above its value");
-                                Assert.GreaterOrEqual(digits.yMin + .01f, plate.yMin, at + " keeps its value inside the plate");
-                                Assert.LessOrEqual(text.yMax, plate.yMax + .01f, at + " starts inside the plate");
-                                Assert.LessOrEqual(text.xMax, plate.xMax + .01f, at + " stays inside the plate");
+                                var ui = new SkinUi(art, density, scale);
+                                var plan = HudLayout.Build(ui, board.State, board.Session, safe, density, screen);
+                                var view = host.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
+                                view.Summary(board.State, board.Session, true);
+                                Canvas.ForceUpdateCanvases();
+                                var layout = plan.Layout; float d = layout.Density;
+                                string at = $"{name} at {scale}, goals {first.kind}/{first.value} and {second.kind}/{second.value}: cell {layout.Cell / d} dp";
+                                Assert.GreaterOrEqual(layout.Cell / d, name == "Seeker" ? scale == 1 ? 46 : 44 : scale == 1 ? 26 : 24, at + " keeps a playable board");
+                                // The header sits in the safe area over the frame, its pieces apart.
+                                Apart(Header(plan), at);
+                                foreach (var piece in Header(plan))
+                                {
+                                    Assert.IsTrue(Inside(safe, piece), at + " keeps " + piece + " inside the safe area " + safe);
+                                    Assert.GreaterOrEqual(piece.yMin, layout.Rim.yMax - .5f, at + " keeps " + piece + " above the frame");
+                                }
+                                foreach (var socket in plan.Sockets) Assert.IsTrue(Inside(plan.Crown, socket), at + " keeps its sockets on the pill");
+                                // Each plate holds its pictogram, chip and counter.
+                                for (int plate = 0; plate < 3; plate++)
+                                    foreach (var image in view.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Goal plate " + plate + " ", StringComparison.Ordinal)))
+                                        Assert.IsTrue(Inside(plan.Plates[plate], WorldRect(image.rectTransform)), at + " keeps " + image.name + " on its plate");
+                                foreach (var label in view.GetComponentsInChildren<TMP_Text>().Where(t => t.name == "Score" || t.name == "Theme" || t.name == "Secondary" ||
+                                    t.name == "Moves remaining" || t.name == "Earn caption" || t.name.EndsWith(" chip label", StringComparison.Ordinal)))
+                                {
+                                    Fits(label);
+                                    label.ForceMeshUpdate();
+                                    var ink = Ink(label); var owner = label.name == "Moves remaining" ? plan.Moves : label.name.StartsWith("Earn ", StringComparison.Ordinal) ? layout.EarnPanel
+                                        : plan.Plates[label.name == "Score" || label.name.StartsWith("Goal plate 0", StringComparison.Ordinal) ? 0 : label.name == "Theme" || label.name.StartsWith("Goal plate 1", StringComparison.Ordinal) ? 1 : 2];
+                                    Assert.IsTrue(Inside(owner, ink, 1), at + " keeps " + label.name + " '" + label.text + "' " + ink + " inside " + owner);
+                                }
+                                // The thumb row: apart, under the tray, inside the safe area, 48 dp to touch.
+                                var row = new[] { layout.PauseButton, layout.EarnPanel, layout.GuardianButton, layout.RerollButton };
+                                Apart(row, at + " thumb row");
+                                foreach (var piece in row)
+                                {
+                                    Assert.IsTrue(Inside(safe, piece), at + " keeps " + piece + " inside the safe area");
+                                    Assert.LessOrEqual(piece.yMax, layout.Tray.yMin, at + " keeps " + piece + " under the tray");
+                                }
+                                foreach (var touch in new[] { layout.PauseButton, layout.GuardianButton, layout.RerollButton })
+                                    Assert.GreaterOrEqual(touch.width / d, 48 - .01f, at + " keeps 48 dp touch targets");
+                                Assert.IsTrue(plan.NextLabel.yMax <= layout.Rim.yMin + .5f && plan.NextLabel.yMin >= layout.Tray.yMax - .5f, at + " keeps NEXT ROW between the frame and the tray");
                             }
+                            finally { UnityEngine.Object.Destroy(host); }
+                            yield return null;
                         }
-                        finally { UnityEngine.Object.Destroy(host); }
-                        yield return null;
-                    }
             }
             finally
             {
@@ -260,6 +174,134 @@ namespace ZKube.Presentation.Tests
                 board.View.gameObject.SetActive(true);
             }
         }
+        [UnityTest] public IEnumerator TheCampaignHudHasItsWireframeGeometry()
+        {
+            // ux/src/index.src.html section 1, drawn at 400 x 890 dp and 3 px/dp.
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, new Rect(0, 0, 1200, 2670), 3);
+            Rect Dp(Rect r) => new Rect(r.x / 3, (2670 - r.yMax) / 3, r.width / 3, r.height / 3);
+            void Near(Rect expected, Rect actual, string what)
+            {
+                var dp = Dp(actual);
+                Assert.AreEqual(expected.x, dp.x, .6f, what + " x " + dp); Assert.AreEqual(expected.y, dp.y, .6f, what + " y " + dp);
+                Assert.AreEqual(expected.width, dp.width, .6f, what + " width " + dp); Assert.AreEqual(expected.height, dp.height, .6f, what + " height " + dp);
+            }
+            Assert.AreEqual(222, Dp(plan.Layout.Rim).y, .6f, "The frame's top");
+            for (int i = 0; i < 3; i++) Near(new Rect(288, 72 + 52 * i, 104, 46), plan.Plates[i], "plate " + i);
+            Near(new Rect(8, 92, 104, 112), plan.Moves, "moves tablet");
+            Near(new Rect(16, 30, 46, 46), plan.Medal, "level medal");
+            // 44 dp sockets 12.32 dp apart, the side ones 6.16 dp lower.
+            Near(new Rect(121.68f, 34.16f, 44, 44), plan.Sockets[0], "first socket");
+            Near(new Rect(178, 28, 44, 44), plan.Sockets[1], "middle socket");
+            Near(new Rect(234.32f, 34.16f, 44, 44), plan.Sockets[2], "last socket");
+            Assert.AreEqual(186, Dp(plan.Guardian).width, .6f, "The guardian is drawn 186 dp");
+            Assert.AreEqual(plan.Layout.Rim.center.x, plan.Guardian.center.x, .5f, "The guardian is centred on the frame");
+            // The thumb row: 14 dp under the tray, pause, the Earn panel and the two tablets.
+            float rowTop = Dp(plan.Layout.Tray).yMax + 14;
+            Near(new Rect(10, rowTop + 3, 44, 44), plan.Layout.PauseFace, "pause");
+            Assert.AreEqual(rowTop, Dp(plan.Layout.EarnPanel).y, .6f, "The Earn panel starts the row");
+            Assert.AreEqual(170, Dp(plan.Layout.EarnPanel).width, .6f);
+            Assert.AreEqual(60, Dp(plan.Layout.GuardianButton).width, .6f); Assert.AreEqual(rowTop - 5, Dp(plan.Layout.GuardianButton).y, .6f);
+            Assert.AreEqual(72, Dp(plan.Layout.RerollButton).x - Dp(plan.Layout.GuardianButton).x, .6f, "The tablets are 72 dp apart");
+        }
+        [UnityTest] public IEnumerator NothingEntersTheTopInset()
+        {
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var screen = new Rect(0, 0, 1200, 2670);
+            float Dp(float y) => (2670 - y) / 3;
+            foreach (float inset in new[] { 0f, 20f, 47f, 70f })
+            {
+                var safe = new Rect(0, 0, 1200, 2670 - 3 * inset);
+                var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, safe, 3, screen);
+                foreach (var piece in Header(plan).Concat(plan.Sockets))
+                    Assert.GreaterOrEqual(Dp(piece.yMax), inset, "A " + inset + " dp inset leaves " + piece + " clear");
+                // The drawing moves down only as far as the inset needs.
+                Assert.AreEqual(Mathf.Max(222, inset + 2 + 222 - (28 - 4.4f)), Dp(plan.Layout.Rim.yMax), .6f, "The frame at a " + inset + " dp inset");
+            }
+        }
+        [UnityTest] public IEnumerator APlateOpensItsCaptionAndProgressAndTheNextTouchClosesIt()
+        {
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var rules = board.Session.Rules; var view = board.View;
+            evidence.Click("Goal plate 2"); yield return null;
+            Assert.IsTrue(view.BubbleOpen);
+            Assert.AreEqual(BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount), Label("Bubble caption").text);
+            Assert.AreEqual("0 / " + Math.Max((byte)1, rules.SecondaryCount), Label("Bubble progress").text);
+            Fits(Label("Bubble caption")); Fits(Label("Bubble progress"));
+            var bubble = WorldRect(view.GetComponentsInChildren<Image>().Single(image => image.name == "Bubble").rectTransform);
+            var plate = board.View.GetComponentsInChildren<Button>().Single(b => b.name == "Goal plate 2");
+            Assert.LessOrEqual(bubble.xMax, WorldRect(plate.GetComponent<RectTransform>()).xMin, "The bubble opens beside its plate");
+            Assert.IsTrue(Inside(view.Layout.Frame, bubble), "The bubble stays on screen");
+            // The next touch anywhere closes it, and does not reach the board.
+            uint actions = board.State.ActionCounter;
+            evidence.Tap(view.Layout.Board.center);
+            Assert.IsFalse(view.BubbleOpen);
+            Assert.AreEqual(actions, board.State.ActionCounter);
+            // A long press opens it too; letting go leaves it open.
+            var e = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current);
+            UnityEngine.EventSystems.ExecuteEvents.Execute(plate.gameObject, e, UnityEngine.EventSystems.ExecuteEvents.pointerDownHandler);
+            yield return new WaitForSecondsRealtime(LongPress.HoldSeconds + .1f);
+            Assert.IsTrue(view.BubbleOpen, "A long press opens the bubble"); yield return null;
+            Assert.AreEqual(BoardView.ObjectiveName(rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount), Label("Bubble caption").text);
+            UnityEngine.EventSystems.ExecuteEvents.Execute(plate.gameObject, e, UnityEngine.EventSystems.ExecuteEvents.pointerUpHandler);
+            Assert.IsTrue(view.BubbleOpen);
+            evidence.Tap(view.Layout.Board.center);
+            Assert.IsFalse(view.BubbleOpen);
+            // The score plate names the score and its target.
+            evidence.Click("Goal plate 0"); yield return null;
+            Assert.AreEqual("Score", Label("Bubble caption").text);
+            Assert.AreEqual(Math.Min(board.State.Score, rules.PointsRequired) + " / " + rules.PointsRequired, Label("Bubble progress").text);
+            view.CloseBubble();
+        }
+        [UnityTest] public IEnumerator TheMovesTabletWarmsAtFiveAndTurnsEmberAtThreeAndUnearnedSocketsBreathe()
+        {
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            board.SetReducedMotion(false);
+            var view = board.View; var art = Art();
+            var tablet = view.GetComponentsInChildren<Image>().Single(image => image.name == "Moves tablet");
+            var glow = view.GetComponentsInChildren<Image>().Single(image => image.name == "Moves glow");
+            var state = board.State; ushort max = board.Session.Rules.MaxMoves, played = state.Moves;
+            try
+            {
+                foreach (var (left, slot, token) in new[] { (6, SkinSlots.MovesCalm, SkinTokens.Score), (5, SkinSlots.MovesWarm, SkinTokens.Accent),
+                    (4, SkinSlots.MovesWarm, SkinTokens.Accent), (3, SkinSlots.MovesEmber, SkinTokens.Negative), (1, SkinSlots.MovesEmber, SkinTokens.Negative) })
+                {
+                    state.Moves = (ushort)(max - left); view.Summary(state, board.Session, true);
+                    Assert.AreEqual(slot, SpriteName(tablet), left + " moves left");
+                    Assert.AreEqual(art.Token(token), Label("Moves remaining").color, left + " moves left");
+                    Assert.AreEqual(slot != SkinSlots.MovesCalm, glow.enabled);
+                    // Unearned sockets breathe only in the last three moves.
+                    float lowest = 1;
+                    for (float t = 0; t < 1.3f; t += Time.unscaledDeltaTime) { lowest = Mathf.Min(lowest, Stars(view).Min(star => star.color.a)); yield return null; }
+                    if (left <= 3) Assert.Less(lowest, .7f, left + " moves left: unearned sockets breathe");
+                    else Assert.AreEqual(1, lowest, .001f, left + " moves left: the sockets hold still");
+                }
+                board.SetReducedMotion(true); yield return null; yield return null;
+                Assert.IsTrue(Stars(view).All(star => Mathf.Approximately(star.color.a, 1)), "Reduced motion holds the sockets still");
+            }
+            finally { state.Moves = played; view.Summary(state, board.Session, true); board.SetReducedMotion(true); }
+        }
+        private static Image[] Stars(BoardView view) => view.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" glyph", StringComparison.Ordinal) && image.name.StartsWith("Star ", StringComparison.Ordinal)).ToArray();
+        [UnityTest] public IEnumerator EachGoalPlateShowsItsPictogramChipAndCounter()
+        {
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var rules = board.Session.Rules; var catalog = PageCatalog.Load();
+            Image Named(string name) => board.View.GetComponentsInChildren<Image>(true).Single(image => image.name == name);
+            Assert.AreEqual(SkinSlots.GoalScore, SpriteName(Named("Goal plate 0 pictogram")));
+            var primary = catalog.Goal(rules.PrimaryKind, rules.PrimaryValue, rules.PrimaryCount);
+            var secondary = catalog.Goal(rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount);
+            Assert.AreEqual(primary.Pictogram(rules.BonusType), SpriteName(Named("Goal plate 1 pictogram")));
+            Assert.AreEqual(secondary.Pictogram(rules.BonusType), SpriteName(Named("Goal plate 2 pictogram")));
+            Assert.AreEqual(secondary.chip, Label("Goal plate 2 chip label").text);
+            Assert.AreEqual(Math.Min(board.State.Score, rules.PointsRequired) + "/" + rules.PointsRequired, StripTags(Label("Score").text));
+            Assert.AreEqual(board.State.PrimaryProgress + "/" + rules.PrimaryCount, StripTags(Label("Theme").text));
+            Assert.AreEqual("ring", secondary.counter);
+            Assert.IsTrue(Named("Secondary ring").enabled); Assert.IsFalse(Named("Secondary tick").enabled);
+            Assert.AreEqual(board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Earn trigger").sprite.name.Replace("(Clone)", ""),
+                PageCatalog.Load().guardianRules.Single(rule => rule.bonus == rules.BonusType && rule.trigger == rules.Trigger && rule.threshold == rules.TriggerThreshold).pictogram);
+            Fits(Label("Earn caption"));
+        }
+        private static string StripTags(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
         [UnityTest] public IEnumerator NativePartialLatchRendersAllThreeClearSocketsInNarrowGeometry()
         {
             evidence.Load("shape-latch"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
@@ -282,7 +324,6 @@ namespace ZKube.Presentation.Tests
                         view.Summary(board.State, board.Session, true);
                         Canvas.ForceUpdateCanvases(); yield return null;
                         var guardian = view.GetComponentsInChildren<SpriteRenderer>().Single(i => i.name == "Calm realm guardian");
-                        var title = view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Run title"); Fits(title);
                         AssertLeansOnTheRim(view, guardian);
                         AssertStars(view);
                     }
@@ -304,14 +345,13 @@ namespace ZKube.Presentation.Tests
                 yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 Assert.Greater(board.State.LatchedStarSources, 0);
                 var guardian = board.View.GetComponentsInChildren<SpriteRenderer>().Single(i => i.name == "Calm realm guardian");
-                Fits(board.View.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Run title"));
                 AssertLeansOnTheRim(board.View, guardian);
                 AssertStars(board.View);
                 var campaign = board.View;
                 evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 Assert.AreNotSame(campaign, board.View);
-                Assert.IsFalse(board.View.GetComponentsInChildren<Button>().Any(b => b.name.StartsWith("Star ", StringComparison.Ordinal)),
-                    "Daily must hide Campaign socket controls after rebinding");
+                Assert.IsFalse(board.View.GetComponentsInChildren<Image>().Any(image => image.name.StartsWith("Star ", StringComparison.Ordinal)),
+                    "Daily must hide the Campaign's star crown after rebinding");
             }
         }
         // The guardian's rail line, from its catalog contact, sits 1 dp below the rim's top.
@@ -337,8 +377,7 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(standardSize * 1.3f, Label("Score").fontSize, .01f);
             Assert.AreEqual(board.State.DailyScore.ToString(), Label("Score").text);
             Assert.AreEqual(board.State.ObjectiveTotal.ToString(), Label("Theme").text);
-            Assert.AreEqual(BoardView.ObjectiveName(board.Session.Rules.ObjectiveKind, board.Session.Rules.ObjectiveValue), Label("Theme label").text);
-            foreach (string name in new[] { "Score", "Score label", "Theme", "Theme label", "Guardian earning label", "Guardian earning rule" }) Fits(Label(name));
+            foreach (string name in new[] { "Score", "Theme", "Earn caption", "Moves remaining" }) Fits(Label(name));
             Assert.Greater(board.View.Layout.Cell, 0);
             var layout = board.View.Layout;
             Assert.GreaterOrEqual(layout.GuardianButton.width / layout.Density, 48);
@@ -349,7 +388,6 @@ namespace ZKube.Presentation.Tests
         [UnityTest] public IEnumerator PressureUsesThePlayersWordsNotInternalNames()
         {
             evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            Assert.AreEqual("POINTS", Label("Pressure label").text);
             Assert.AreEqual("×" + (Protocol.PressureMultiplierPercent(board.State.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
                 Label("Pressure").text);
             Assert.AreEqual("×1", HudLayout.PressureValue(new RunSummary { CurrentTier = 0 }));
@@ -359,11 +397,11 @@ namespace ZKube.Presentation.Tests
         {
             evidence.Load("display-long-campaign-constraint"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             board.SetTextScale(1.3f); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            evidence.Click("Star 2"); yield return null;
-            StringAssert.Contains("moves in a row", Label("Dialog title").text.ToLowerInvariant());
-            Assert.AreEqual("Not earned yet", Label("Dialog details").text);
-            Fits(Label("Dialog title")); Fits(Label("Dialog details"));
-            evidence.Click("Dialog Back to the board"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            evidence.Click("Goal plate 2"); yield return null;
+            StringAssert.Contains("moves in a row", Label("Bubble caption").text.ToLowerInvariant());
+            Fits(Label("Bubble caption")); Fits(Label("Bubble progress"));
+            Assert.IsTrue(Inside(board.View.Layout.Frame, WorldRect(board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Bubble").rectTransform)));
+            evidence.Tap(board.View.Layout.Board.center); Assert.IsFalse(board.View.BubbleOpen);
             evidence.Click("Pause"); yield return null;
             Fits(Label("Dialog Text size: larger label"));
             evidence.Click("Dialog Text size: larger"); yield return null; yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
@@ -378,7 +416,7 @@ namespace ZKube.Presentation.Tests
             board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions,
                 "Balam daily board presentation with a deliberately long descriptive title", session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            Fits(Label("Run title")); Fits(Label("Moves remaining"));
+            Fits(Label("Moves remaining"));
             var view = board.View;
             foreach (string notice in BoardNotices.All())
             {

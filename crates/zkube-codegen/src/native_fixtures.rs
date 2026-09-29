@@ -368,6 +368,7 @@ impl Trajectory {
             }
         }
         request.put("MaxCombo", &[run.engine.max_combo]);
+        request.put("Streak", &[run.engine.streak]);
         request.put("ChargesEarned", &[run.engine.charges_earned]);
         request.put(
             "LevelLinesCleared",

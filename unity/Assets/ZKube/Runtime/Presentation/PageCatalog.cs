@@ -38,6 +38,8 @@ namespace ZKube.Presentation
             public byte bonus, trigger;
             public ushort threshold;
             public string name, description, sentence, effect;
+            // The Earn panel draws the trigger as this goal pictogram and chip.
+            public string pictogram, chip;
         }
         [Serializable] public sealed class AudioEntry { public string context, resource; }
         [Serializable] public sealed class Swatch { public string name; public float[] value; }

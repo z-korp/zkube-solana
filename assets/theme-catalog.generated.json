@@ -756,90 +756,110 @@
   "guardianRules": [
     {
       "bonus": 3,
+      "chip": "2+",
       "description": "Clear 2+ lines in a move",
       "effect": "The Wave clears the row you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Wave",
+      "pictogram": "goal-burst-lines-2",
       "sentence": "Clear 2 or more lines in one move to earn a Wave.",
       "threshold": 2,
       "trigger": 1
     },
     {
       "bonus": 1,
+      "chip": "=2",
       "description": "Clear exactly 2 lines in a move",
       "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Hammer",
+      "pictogram": "goal-burst-lines-2",
       "sentence": "Clear exactly 2 lines in one move to earn a Hammer.",
       "threshold": 2,
       "trigger": 4
     },
     {
       "bonus": 2,
+      "chip": "×10",
       "description": "Break 10+ blocks in one move",
       "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Totem",
+      "pictogram": "goal-burst-break-any",
       "sentence": "Break 10 or more blocks in one move to earn a Totem.",
       "threshold": 10,
       "trigger": 8
     },
     {
       "bonus": 1,
+      "chip": "×3",
       "description": "Clear a line 3 moves in a row",
       "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Hammer",
+      "pictogram": "goal-streak",
       "sentence": "Clear lines on 3 moves in a row to earn a Hammer.",
       "threshold": 3,
       "trigger": 9
     },
     {
       "bonus": 3,
+      "chip": "",
       "description": "Every 7 lines cleared by moves",
       "effect": "The Wave clears the row you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Wave",
+      "pictogram": "goal-lines",
       "sentence": "Every 7 lines cleared by moves earns a Wave.",
       "threshold": 7,
       "trigger": 2
     },
     {
       "bonus": 2,
+      "chip": "",
       "description": "Break every size in one move",
       "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Totem",
+      "pictogram": "goal-all-widths",
       "sentence": "Break every block size in one move to earn a Totem.",
       "threshold": 0,
       "trigger": 6
     },
     {
       "bonus": 1,
+      "chip": "=3",
       "description": "Clear exactly 3 lines in a move",
       "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Hammer",
+      "pictogram": "goal-burst-lines-3",
       "sentence": "Clear exactly 3 lines in one move to earn a Hammer.",
       "threshold": 3,
       "trigger": 4
     },
     {
       "bonus": 2,
+      "chip": "3+",
       "description": "Clear 3+ lines in a move",
       "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Totem",
+      "pictogram": "goal-burst-lines-3",
       "sentence": "Clear 3 or more lines in one move to earn a Totem.",
       "threshold": 3,
       "trigger": 1
     },
     {
       "bonus": 2,
+      "chip": "2+",
       "description": "Every 2 combos",
       "effect": "The Totem removes every block the size of the one you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Totem",
+      "pictogram": "goal-burst-lines-2",
       "sentence": "Every 2 combos earns a Totem.",
       "threshold": 2,
       "trigger": 7
     },
     {
       "bonus": 1,
+      "chip": "=4",
       "description": "Clear exactly 4 lines in a move",
       "effect": "The Hammer breaks the block you pick. What it removes scores nothing; only lines completed as the blocks drop score.",
       "name": "Hammer",
+      "pictogram": "goal-burst-lines-3",
       "sentence": "Clear exactly 4 lines in one move to earn a Hammer.",
       "threshold": 4,
       "trigger": 4
@@ -2007,33 +2027,103 @@
         },
         {
           "border": [
-            17,
-            17,
-            17,
-            17
+            6,
+            6,
+            6,
+            6
           ],
           "image": "/assets/skins/lumen/ui/counter-track.png",
           "slot": "counter-track"
         },
         {
           "border": [
-            8,
-            8,
-            8,
-            8
+            6,
+            6,
+            6,
+            6
           ],
           "image": "/assets/skins/lumen/ui/counter-fill.png",
           "slot": "counter-fill"
         },
         {
           "border": [
-            8,
-            8,
-            8,
-            8
+            6,
+            6,
+            6,
+            6
           ],
           "image": "/assets/skins/lumen/ui/counter-fill-done.png",
           "slot": "counter-fill-done"
+        },
+        {
+          "border": [
+            32,
+            32,
+            32,
+            32
+          ],
+          "image": "/assets/skins/lumen/ui/goal-plate.png",
+          "slot": "goal-plate"
+        },
+        {
+          "border": [
+            32,
+            32,
+            32,
+            32
+          ],
+          "image": "/assets/skins/lumen/ui/moves-calm.png",
+          "slot": "moves-calm"
+        },
+        {
+          "border": [
+            32,
+            32,
+            32,
+            32
+          ],
+          "image": "/assets/skins/lumen/ui/moves-warm.png",
+          "slot": "moves-warm"
+        },
+        {
+          "border": [
+            32,
+            32,
+            32,
+            32
+          ],
+          "image": "/assets/skins/lumen/ui/moves-ember.png",
+          "slot": "moves-ember"
+        },
+        {
+          "border": [
+            32,
+            32,
+            32,
+            32
+          ],
+          "image": "/assets/skins/lumen/ui/earn-panel.png",
+          "slot": "earn-panel"
+        },
+        {
+          "border": [
+            36,
+            36,
+            36,
+            36
+          ],
+          "image": "/assets/skins/lumen/ui/tap-bubble.png",
+          "slot": "tap-bubble"
+        },
+        {
+          "border": [
+            12,
+            12,
+            12,
+            12
+          ],
+          "image": "/assets/skins/lumen/ui/chip.png",
+          "slot": "chip"
         },
         {
           "border": [
@@ -2602,8 +2692,8 @@
             0,
             0
           ],
-          "image": "/assets/skins/lumen/ui/chip.png",
-          "slot": "chip"
+          "image": "/assets/skins/lumen/ui/goal-score.png",
+          "slot": "goal-score"
         },
         {
           "border": [
@@ -2612,8 +2702,48 @@
             0,
             0
           ],
-          "image": "/assets/skins/lumen/ui/chip-wide.png",
-          "slot": "chip-wide"
+          "image": "/assets/skins/lumen/ui/star-socket.png",
+          "slot": "star-socket"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/star-lit.png",
+          "slot": "star-lit"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/tap-bubble-tail.png",
+          "slot": "tap-bubble-tail"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/moves-warm-glow.png",
+          "slot": "moves-warm-glow"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/moves-ember-glow.png",
+          "slot": "moves-ember-glow"
         },
         {
           "border": [

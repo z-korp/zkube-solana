@@ -436,7 +436,7 @@ namespace ZKube.Core.Generated
         public byte ComboCounter { get; set; }
         public byte PrimaryProgress { get; set; }
         public byte LatchedStarSources { get; set; }
-        public byte Streak { get; set; }
+        public byte SecondaryProgress { get; set; }
         public byte CurrentTier { get; set; }
         public ushort Moves { get; set; }
         public uint ActionCounter { get; set; }
@@ -463,7 +463,7 @@ namespace ZKube.Core.Generated
                 ComboCounter = bytes[6],
                 PrimaryProgress = bytes[7],
                 LatchedStarSources = bytes[8],
-                Streak = bytes[9],
+                SecondaryProgress = bytes[9],
                 CurrentTier = bytes[10],
                 Moves = (ushort)NativeWire.Read(bytes, 11, 2),
                 ActionCounter = (uint)NativeWire.Read(bytes, 13, 4),

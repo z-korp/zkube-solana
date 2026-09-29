@@ -237,7 +237,10 @@ namespace ZKube.Editor
                 atlas.SetTextureSettings(texture);
                 int maximum = definition.maxTextureSize > 0 ? definition.maxTextureSize : catalog.importPolicy.atlasMaxSize;
                 // Without an explicit default the Editor packs desktop targets at 2048.
-                atlas.SetPlatformSettings(new TextureImporterPlatformSettings { name = "DefaultTexturePlatform", maxTextureSize = maximum });
+                // Desktop only inspects the art, so it keeps it uncompressed: block
+                // codecs would put packing-dependent noise on slice lines and edges.
+                atlas.SetPlatformSettings(new TextureImporterPlatformSettings { name = "DefaultTexturePlatform", maxTextureSize = maximum,
+                    textureCompression = TextureImporterCompression.Uncompressed });
                 atlas.SetPlatformSettings(AndroidSettings(catalog.importPolicy, maximum));
                 atlas.SetIncludeInBuild(catalog.importPolicy.includeAtlasInBuild);
                 EditorUtility.SetDirty(atlas);

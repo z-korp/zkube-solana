@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 /// UI pieces drawn stretched; each declares its stretch border in skin.json.
-pub const UI_STRETCH_SLOTS: [&str; 22] = [
+pub const UI_STRETCH_SLOTS: [&str; 29] = [
     "panel",
     "plate",
     "dialog",
@@ -32,10 +32,19 @@ pub const UI_STRETCH_SLOTS: [&str; 22] = [
     "counter-track",
     "counter-fill",
     "counter-fill-done",
+    // The board HUD: the opaque goal plate, the moves tablet calm, warm and
+    // ember, the Earn panel, a goal's tap bubble and a pictogram's value chip.
+    "goal-plate",
+    "moves-calm",
+    "moves-warm",
+    "moves-ember",
+    "earn-panel",
+    "tap-bubble",
+    "chip",
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 62] = [
+pub const UI_FIXED_SLOTS: [&str; 66] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -104,9 +113,14 @@ pub const UI_FIXED_SLOTS: [&str; 62] = [
     // perfect world; drawn in the ring's opening like a portrait.
     "emblem-11",
     "emblem-12",
-    // A goal pictogram's value chip, short and wide, under client-drawn text.
-    "chip",
-    "chip-wide",
+    // The score's pictogram, a crown socket and its earned star, the bubble's
+    // tail, and the glows behind a warm and an ember moves tablet.
+    "goal-score",
+    "star-socket",
+    "star-lit",
+    "tap-bubble-tail",
+    "moves-warm-glow",
+    "moves-ember-glow",
     // A one-move goal's ring, the pips of moves in a row, and the tick of a
     // met goal (also the ring once earned).
     "counter-ring",

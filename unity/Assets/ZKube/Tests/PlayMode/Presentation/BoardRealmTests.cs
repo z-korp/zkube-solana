@@ -122,8 +122,7 @@ namespace ZKube.Presentation.Tests
                 var paws = board.View.GetComponentsInChildren<SpriteRenderer>().Single(value => value.name == "Guardian paws");
                 Assert.AreEqual("boss__paws", paws.sprite.name.Replace("(Clone)", ""));
                 Assert.AreEqual(guardian.bounds, paws.bounds, "The paws layer shares the guardian's canvas");
-                var label = board.View.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Run title");
-                Assert.AreEqual(theme.guardianName + " · Daily", label.text);
+                var label = board.View.GetComponentsInChildren<TMP_Text>().Single(value => value.name == "Moves remaining");
                 if (font == null) font = label.font; else Assert.AreSame(font, label.font, "Shared font survives realm switches");
                 var music = root.GetComponents<AudioSource>().Single(value => value.loop);
                 var expected = Resources.Load<AudioClip>("ZKube/Audio/" + theme.id + "/sounds__musics__level");
@@ -139,7 +138,7 @@ namespace ZKube.Presentation.Tests
             Assert.IsTrue(!board.PresentationInitialized); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board)); Assert.IsFalse(retired.gameObject.activeSelf);
             evidence.Load("realm-10-daily");
             uint actions = board.State.ActionCounter;
-            board.Reroll(); board.SelectGuardian(); board.ShowStar(0);
+            board.Reroll(); board.SelectGuardian();
             Assert.AreEqual(actions, board.State.ActionCounter, "No input mutates a run during its asset load");
             yield return Ready(); Assert.AreEqual(10, ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId); Assert.IsTrue(retired == null);
             Assert.AreEqual(1, root.GetComponentsInChildren<BoardView>(true).Length);

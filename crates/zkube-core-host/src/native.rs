@@ -80,7 +80,7 @@ pub const SNAPSHOT_FIELDS: &[Field] = fields![
 pub const SUMMARY_FIELDS: &[Field] = fields![
     Phase: U8, EndReason: U8, ScoreEligible: U8, BonusType: U8, BonusCharges: U8,
     RerollCharges: U8, ComboCounter: U8, PrimaryProgress: U8,
-    LatchedStarSources: U8, Streak: U8,
+    LatchedStarSources: U8, SecondaryProgress: U8,
     CurrentTier: U8, Moves: U16, ActionCounter: U32,
     LastVrfCounter: U32, Score: U32, DailyScore: U32, ObjectiveTotal: U64,
     Grid: Bytes(80), HasNextRow: U8, NextRow: Bytes(8),
@@ -830,7 +830,7 @@ pub fn encode_summary(run: Run) -> Vec<u8> {
     scalar!("ComboCounter", run.engine.combo_counter);
     scalar!("PrimaryProgress", run.engine.primary_progress);
     scalar!("LatchedStarSources", run.engine.latched_star_sources);
-    scalar!("Streak", run.engine.streak);
+    scalar!("SecondaryProgress", run.engine.secondary_progress);
     scalar!("CurrentTier", run.current_tier);
     scalar!("Moves", run.engine.moves);
     scalar!("ActionCounter", run.action_counter);

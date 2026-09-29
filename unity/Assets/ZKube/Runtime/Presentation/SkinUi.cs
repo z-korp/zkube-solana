@@ -16,7 +16,7 @@ namespace ZKube.Presentation
         public readonly BoardArt Art;
         public readonly float Density, Scale;
         public float Ui => Density / 2;
-        private Sprite circle;
+        private Sprite circle, pill;
         private Texture2D circleTexture;
 
         public SkinUi(BoardArt art, float density, float textScale)
@@ -494,6 +494,17 @@ namespace ZKube.Presentation
                 new Vector4(edge, edge, edge, edge));
         }
 
+        // The dark pill behind the HUD's star crown, rounded at half its height.
+        // A code stand-in until the kit paints the crown pill.
+        public Image Pill(string name, Rect rect, Transform parent)
+        {
+            var image = Rect<Image>(name, rect, parent);
+            Circle();
+            if (pill == null) pill = Sprite.Create(circleTexture, new Rect(0, 0, 128, 128), Vector2.one / 2, 100, 0, SpriteMeshType.FullRect, Vector4.one * 63);
+            image.sprite = pill; image.type = Image.Type.Sliced; image.pixelsPerUnitMultiplier = 128 / rect.height;
+            image.color = new Color(6 / 255f, 18 / 255f, 27 / 255f, .72f); image.raycastTarget = false;
+            return image;
+        }
         private Sprite Circle()
         {
             if (circle != null) return circle;
@@ -513,6 +524,7 @@ namespace ZKube.Presentation
             foreach (var material in styles.Values) UnityEngine.Object.Destroy(material);
             styles.Clear();
             if (circle != null) UnityEngine.Object.Destroy(circle);
+            if (pill != null) UnityEngine.Object.Destroy(pill);
             if (circleTexture != null) UnityEngine.Object.Destroy(circleTexture);
             if (softPatch != null) UnityEngine.Object.Destroy(softPatch);
             if (softPatchTexture != null) UnityEngine.Object.Destroy(softPatchTexture);

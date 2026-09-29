@@ -181,7 +181,7 @@ namespace ZKube.Presentation
             View = root.AddComponent<BoardView>();
             float density = ReadDisplayDensity();
             var ui = new SkinUi(art, Mathf.Max(.5f, density), TextScale);
-            View.Create(this, art, HudLayout.Build(ui, State, Session, lastSafe, density, new Rect(0, 0, Screen.width, Screen.height), Screen.cutouts), ui);
+            View.Create(this, art, HudLayout.Build(ui, State, Session, lastSafe, density, new Rect(0, 0, Screen.width, Screen.height)), ui);
         }
         private void Update()
         {
@@ -463,19 +463,6 @@ namespace ZKube.Presentation
             paused = false; View.CloseModal(); pauseDialog?.Close(); pauseDialog = null;
             if (!Muted) music.UnPause();
             View.Summary(State, Session, !busy && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
-        }
-        private static string ScoreGoal(BuildConfigRequest rules) => "Reach " + rules.PointsRequired + " points";
-        public void ShowStar(int source)
-        {
-            if (!PresentationInitialized || Session == null || Session.Daily || paused || recoveryRequired || IsTerminal()) return;
-            paused = true;
-            var rules = Session.Rules;
-            // The dialog names the goal in its own words, never the internal source name.
-            string title = source == 0 ? "SCORE" : source == 1 ? HudLayout.PrimaryCaptionText(Session) : HudLayout.SecondaryCaptionText(Session);
-            bool earned = (State.LatchedStarSources & (1 << source)) != 0;
-            string detail = source == 0 ? ScoreGoal(rules)
-                : source == 1 ? State.PrimaryProgress + " / " + rules.PrimaryCount : earned ? "Earned" : "Not earned yet";
-            View.OpenModal(title, detail, ("Back to the board", Resume));
         }
         // Android may kill the process without a quit callback. A settings action
         // must finish its save while the app is still running.

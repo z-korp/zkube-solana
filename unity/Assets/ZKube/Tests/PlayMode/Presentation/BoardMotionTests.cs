@@ -7,6 +7,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using ZKube.Core.Generated;
 using ZKube.Core;
 
 namespace ZKube.Presentation.Tests
@@ -244,9 +245,13 @@ namespace ZKube.Presentation.Tests
             var position = Guardian().transform.position; var scale = Guardian().transform.localScale;
             board.View.Celebrate(0, 1, 0, false);
             yield return Seconds(.1f);
-            Assert.Less(star.rectTransform.localScale.x, .7f, "The star waits for the trail of light from its counter");
-            yield return Seconds(.4f);
-            Assert.Greater(star.rectTransform.localScale.x, 1.05f, "A newly earned star ignites");
+            var flight = board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Star 0 flight");
+            Assert.AreEqual(SkinSlots.StarSocket, star.sprite.name.Replace("(Clone)", ""), "The socket waits for the star flying from its plate");
+            Assert.AreEqual(SkinSlots.StarLit, flight.sprite.name.Replace("(Clone)", ""));
+            yield return Seconds(BoardView.FlightSeconds + .1f);
+            Assert.IsTrue(flight == null, "The star has landed");
+            Assert.AreEqual(SkinSlots.StarLit, star.sprite.name.Replace("(Clone)", ""));
+            Assert.Greater(star.rectTransform.localScale.x, 1.05f, "A newly earned star ignites in its socket");
             Assert.AreEqual("boss__celebrate", Guardian().sprite.name.Replace("(Clone)", ""));
             yield return Seconds(1);
             Assert.AreEqual(Vector3.one, star.rectTransform.localScale);

@@ -357,9 +357,11 @@ namespace ZKube.Presentation.Tests
                 string printable = new string(label.text.Where(c => !char.IsControl(c)).ToArray());
                 Assert.IsTrue(label.font.HasCharacters(printable, out uint[] missing, true, true), label.name + " missing " + string.Join(",", missing ?? Array.Empty<uint>()));
             }
-            var icons = board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Where(i => i.name.EndsWith(" icon", StringComparison.Ordinal)).ToArray();
+            // The tapped glyphs; the moves tablet's hourglass only marks its count.
+            var icons = board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Where(i => i.name.EndsWith(" icon", StringComparison.Ordinal) && i.name != "Moves icon").ToArray();
             CollectionAssert.AreEquivalent(new[] { "Guardian action icon", "Reroll action icon", "Pause icon" }, icons.Select(i => i.name));
-            CollectionAssert.AreEquivalent(new[] { "icon-totem", "icon-reroll", "icon-pause" }, icons.Select(i => i.sprite.name.Replace("(Clone)", "")));
+            Assert.AreEqual(0, board.State.BonusCharges); Assert.AreEqual(1, board.State.RerollCharges);
+            CollectionAssert.AreEquivalent(new[] { SkinSlots.IconTotemEmpty, SkinSlots.IconReroll, SkinSlots.IconPause }, icons.Select(i => i.sprite.name.Replace("(Clone)", "")));
             foreach (var icon in icons)
             {
                 Assert.IsFalse(icon.raycastTarget, icon.name + " must use its enclosing button hit target");

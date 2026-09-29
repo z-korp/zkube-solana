@@ -223,7 +223,14 @@ fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
         "Wave" => "The Wave clears the row you pick.",
         _ => unreachable!("validated bonus"),
     };
+    // The Earn panel draws the trigger as a goal pictogram with its chip.
+    let bonus_kind = zkube_core::Bonus::from_tag(u8::try_from(bonus).unwrap()).unwrap();
+    let goal = super::pictograms::trigger_goal(u8::try_from(trigger).unwrap(), threshold)
+        .expect("validated guardian");
+    let pictogram = super::pictograms::pictogram(goal.kind, goal.value, bonus_kind);
+    let chip = super::pictograms::chip(goal.kind, goal.value, goal.required_count);
     json!({"bonus": bonus, "trigger": trigger, "threshold": threshold, "name": name,
+        "pictogram": pictogram, "chip": chip,
         "description": description, "sentence": format!("{condition} a {name}."),
         "effect": format!("{effect} What it removes scores nothing; only lines completed as the blocks drop score.")})
 }

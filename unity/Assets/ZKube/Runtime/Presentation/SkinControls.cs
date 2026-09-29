@@ -235,16 +235,44 @@ namespace ZKube.Presentation
             Show(halo == null ? (int?)null : 0, true);
         }
 
+        private Sprite chargedIcon, emptyIcon;
+        // A tablet with its own empty art shows it at zero charges instead of dimming.
+        public void Icons(Sprite charged, Sprite empty) { chargedIcon = charged; emptyIcon = empty; }
         // charges is null for an uncounted utility; interactive says whether a tap acts now.
         public void Show(int? charges, bool interactive)
         {
             Charged = charges > 0;
             Button.interactable = interactive && charges != 0;
-            var icon = Icon.color; icon.a = charges == 0 ? .4f : 1; Icon.color = icon;
+            if (emptyIcon != null) Icon.sprite = charges == 0 ? emptyIcon : chargedIcon;
+            var icon = Icon.color; icon.a = charges == 0 && emptyIcon == null ? .4f : 1; Icon.color = icon;
             if (halo != null) halo.enabled = Charged;
             if (badgeHalo != null) badgeHalo.enabled = Charged;
             if (badge != null) badge.color = Charged ? Color.white : new Color(64 / 255f, 84 / 255f, 96 / 255f);
             if (Count != null) { Count.text = (charges ?? 0).ToString(); Count.color = Charged ? onBadge : onDim; }
         }
+    }
+
+    // Holding a press opens what a tap would, after HoldSeconds.
+    public sealed class LongPress : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+    {
+        public const float HoldSeconds = .45f;
+        private Action held;
+        private float since = -1;
+        internal void Bind(Action action) => held = action;
+        public void OnPointerDown(PointerEventData eventData) => since = Time.unscaledTime;
+        public void OnPointerUp(PointerEventData eventData) => since = -1;
+        public void OnPointerExit(PointerEventData eventData) => since = -1;
+        private void Update()
+        {
+            if (since < 0 || Time.unscaledTime - since < HoldSeconds) return;
+            since = -1; held?.Invoke();
+        }
+    }
+
+    // A transparent surface that takes the next touch anywhere and reports it.
+    public sealed class TouchAnywhere : MonoBehaviour, IPointerDownHandler
+    {
+        public Action Touched;
+        public void OnPointerDown(PointerEventData eventData) => Touched?.Invoke();
     }
 }

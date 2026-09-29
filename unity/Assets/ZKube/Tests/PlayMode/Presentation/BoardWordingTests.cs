@@ -76,8 +76,8 @@ namespace ZKube.Presentation.Tests
                 if (board.Session.Daily) continue;
                 for (int star = 0; star < 3; star++)
                 {
-                    Click("Star " + star); yield return null; AssertPlainWords(fixture + " star " + star);
-                    Click("Dialog Back to the board"); yield return Wait(() => !board.Paused);
+                    Click("Goal plate " + star); yield return null; AssertPlainWords(fixture + " goal " + star);
+                    board.View.CloseBubble();
                 }
             }
         }

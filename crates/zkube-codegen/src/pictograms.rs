@@ -91,6 +91,30 @@ pub fn counter(kind: ConstraintKind) -> &'static str {
     }
 }
 
+/// The goal a guardian trigger is drawn as on the Earn panel: its one-move
+/// triggers are the one-move goals the core treats as the trigger itself, and
+/// the every-N triggers are drawn as the fact they count.
+#[must_use]
+pub fn trigger_goal(trigger: u8, threshold: u16) -> Option<Constraint> {
+    let threshold = u8::try_from(threshold).ok()?;
+    let (kind, value, required_count) = match trigger {
+        1 => (ConstraintKind::ComboOfAtLeast, threshold, 1),
+        2 => (ConstraintKind::ClearLines, 0, threshold),
+        4 => (ConstraintKind::ComboOfExactly, threshold, 1),
+        6 => (ConstraintKind::AllWidthsInMove, 0, 1),
+        7 => (ConstraintKind::CombosOfAtLeast, 2, threshold),
+        8 => (ConstraintKind::BreakInMove, 0, threshold),
+        9 => (ConstraintKind::Streak, 1, threshold),
+        _ => return None,
+    };
+    let goal = Constraint {
+        kind,
+        value,
+        required_count,
+    };
+    goal.has_valid_shape().then_some(goal)
+}
+
 /// Every picture a valid goal can ask for, in a stable order.
 pub fn slots() -> Vec<String> {
     let mut slots = BTreeSet::new();
@@ -155,6 +179,39 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn every_realm_trigger_is_drawn_as_the_goal_the_core_counts_as_it() {
+        let source = include_str!("../../../fixtures/campaign-catalog.json");
+        let catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
+        for map in &catalog.maps {
+            let [_, trigger, threshold, _] = map.rules;
+            let trigger = u8::try_from(trigger).unwrap();
+            let goal = trigger_goal(trigger, threshold).unwrap();
+            assert!(
+                pictogram(goal.kind, goal.value, Bonus::Wave).is_some(),
+                "trigger {trigger}"
+            );
+            // A one-move trigger is the very fact the core refuses as a second
+            // goal beside Trigger the guardian.
+            if goal.kind.class() == Some(ConstraintClass::Moment) {
+                let beside = zkube_core::StarRules {
+                    points_required: 1,
+                    primary: Constraint {
+                        kind: ConstraintKind::TriggerFired,
+                        value: 0,
+                        required_count: 2,
+                    },
+                    secondary: goal,
+                };
+                assert!(
+                    !beside.has_distinct_constraint_facts(trigger, threshold),
+                    "trigger {trigger} {threshold} is drawn as {goal:?}"
+                );
+            }
+        }
+        assert_eq!(trigger_goal(3, 1), None);
     }
 
     #[test]

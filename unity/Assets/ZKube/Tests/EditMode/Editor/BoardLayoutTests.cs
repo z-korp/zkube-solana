@@ -7,36 +7,47 @@ namespace ZKube.Editor.Tests
     public sealed class BoardLayoutTests
     {
         [TestCase(320, 568, 1)] [TestCase(430, 932, 1)] [TestCase(1536, 2048, 2)]
-        public void TallerTextRailsKeepSeparateActionsInsideTheSafeFrame(float width, float height, float density)
+        public void ATallHeaderAndEarnPanelKeepSeparateActionsInsideTheSafeFrame(float width, float height, float density)
         {
-            // The font-backed tests above validate the content; this isolates
-            // safe-area/control geometry with the additional measured rails.
+            // The font-backed tests validate the content; this isolates safe-area
+            // and control geometry under a tall header and a three-line Earn panel.
             var safe = new Rect(0, 34 * density, width, height - 78 * density);
-            var layout = new BoardLayout(safe, density, 280 * density, 120 * density);
+            var layout = new BoardLayout(safe, density, 280 * density, 90 * density);
             foreach (var button in new[] { layout.GuardianButton, layout.RerollButton, layout.PauseButton })
             {
                 Assert.GreaterOrEqual(button.width / density, 48); Assert.GreaterOrEqual(button.height / density, 48);
                 Assert.IsTrue(safe.Contains(button.min)); Assert.IsTrue(safe.Contains(button.max));
             }
+            Assert.AreEqual(90 * density, layout.EarnPanel.height, .01f);
+            Assert.IsTrue(safe.Contains(layout.EarnPanel.min));
+            Assert.IsFalse(layout.PauseButton.Overlaps(layout.EarnPanel)); Assert.IsFalse(layout.EarnPanel.Overlaps(layout.GuardianButton));
             Assert.IsFalse(layout.GuardianButton.Overlaps(layout.RerollButton));
-            Assert.IsFalse(layout.RerollButton.Overlaps(layout.PauseButton));
-            Assert.GreaterOrEqual(layout.Tray.yMin, safe.yMin + layout.Footer);
+            Assert.GreaterOrEqual(layout.Tray.yMin, safe.yMin + layout.Footer - .01f);
             Assert.LessOrEqual(layout.Rim.yMax, safe.yMax - layout.Header);
         }
         [Test] public void TheSeekerDrawingHasItsApprovedGeometry()
         {
-            // The approved HUD is drawn at 400 x 890 dp: 47 dp cells, the frame
-            // at 8, 174 (384 x 478), the tray at 700 (59 dp) and the tablets at 778.
+            // The v2 HUD is drawn at 400 x 890 dp: 47 dp cells, the frame at 8, 222
+            // (384 x 478), the tray 26 dp under it (59 dp) and the thumb row 14 dp
+            // under the tray, spread over the frame's 384 dp.
             var layout = new BoardLayout(new Rect(0, 0, 1200, 2670), 3);
             float Top(float y) => (2670 - y) / 3;
+            Rect Dp(Rect r) => new Rect(r.x / 3, Top(r.yMax), r.width / 3, r.height / 3);
+            void Near(Rect expected, Rect actual)
+            {
+                Assert.AreEqual(expected.x, actual.x, .05f, "x " + actual); Assert.AreEqual(expected.y, actual.y, .05f, "y " + actual);
+                Assert.AreEqual(expected.width, actual.width, .05f, "width " + actual); Assert.AreEqual(expected.height, actual.height, .05f, "height " + actual);
+            }
+            float X(float dp) => 8 + dp * 384 / BoardLayout.RowDp;
             Assert.IsFalse(layout.Compact);
             Assert.AreEqual(47, layout.Cell / 3, .001f);
-            Assert.AreEqual(new Rect(8, 174, 384, 478), new Rect(layout.Rim.x / 3, Top(layout.Rim.yMax), layout.Rim.width / 3, layout.Rim.height / 3));
-            Assert.AreEqual(700, Top(layout.Tray.yMax), .001f); Assert.AreEqual(59, layout.Tray.height / 3, .001f);
-            Assert.AreEqual(new Rect(170, 778, 64, 64), new Rect(layout.GuardianButton.x / 3, Top(layout.GuardianButton.yMax), 64, layout.GuardianButton.height / 3));
-            Assert.AreEqual(252, layout.RerollButton.x / 3, .001f); Assert.AreEqual(new Vector2(336, 786),
-                new Vector2(layout.PauseButton.x / 3, Top(layout.PauseButton.yMax)));
-            Assert.AreEqual(new Rect(12, 178, 376, 470), new Rect(layout.Board.x / 3, Top(layout.Board.yMax), layout.Board.width / 3, layout.Board.height / 3));
+            Near(new Rect(8, 222, 384, 478), Dp(layout.Rim));
+            Near(new Rect(8, 726, 384, 59), Dp(layout.Tray));
+            Near(new Rect(X(2), 802, 44, 44), Dp(layout.PauseFace));
+            Near(new Rect(X(54), 799, 170, 50), Dp(layout.EarnPanel));
+            Near(new Rect(X(234), 794, 60, 60), Dp(layout.GuardianButton));
+            Near(new Rect(X(306), 794, 60, 60), Dp(layout.RerollButton));
+            Near(new Rect(12, 226, 376, 470), Dp(layout.Board));
         }
         [TestCase(320, 568, 1)] [TestCase(430, 854, 1)] [TestCase(1080, 2262, 3)] [TestCase(1024, 768, 1)]
         public void LayoutFitsSafeAreaAndSeparates48DpControls(int width, int height, float density)
