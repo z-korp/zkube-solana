@@ -13,7 +13,6 @@ namespace ZKube.Presentation
     // they share with the results.
     public sealed partial class PageViews
     {
-        public const float TalkBustDp = 180, TalkMinimumDp = 116, TalkWidthDp = 368;
         private static readonly float[] NodeSizes = { 52, 56, 70, 88 };
         public GuardianGreetings Greetings { get; set; } = GuardianGreetings.Device();
 
@@ -265,9 +264,11 @@ namespace ZKube.Presentation
             var realm = catalog.Realm(value.Realm);
             float mapBottom = column.Top;
             Dialog("Level", value.Back, (card, rail) => {
-                // The guardian's own level has its trial line; the others its encouragement.
-                var talk = Talk(card.Parent, new Rect(card.Left - 24 * ui.Density, 0, card.Width + 48 * ui.Density, 0), rail, "boss__idle", realm,
-                    value.Level == Protocol.CampaignTargets.Length ? realm.guardianLines.trialIntro : realm.guardianLines.encouragement, catalog.Rule(value.Realm));
+                // The guardian's own level has its trial line; the others its
+                // greeting. Either way the rule and its bonus follow.
+                var page = TalkPage.For(realm.guardianLines, value.Level == Protocol.CampaignTargets.Length ? TalkMoment.TrialIntro : TalkMoment.Greeting);
+                var talk = Speak("Level talk", card.Parent, card.Left - 24 * ui.Density, rail, card.Width + 48 * ui.Density, realm,
+                    new[] { Explained(page, value.Realm) }, null, false);
                 card.Top = talk.y - 45 * ui.Density;
                 foreach (var notice in notices) card.Note("Notice", notice);
                 Title(card, "Level " + Number(value.Realm, value.Level), 30);
@@ -325,7 +326,7 @@ namespace ZKube.Presentation
             float d = ui.Density; var safe = shell.SafeArea;
             var holder = Holder(name, shell.ScreenArea, shell.Page);
             float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d) - 8 * d, left = safe.center.x - width / 2;
-            float rail = shell.ScreenArea.yMax - (TalkBustDp - 30) * d;
+            float rail = shell.ScreenArea.yMax;
             var outer = new PageColumn(ui, holder, actions, left, width, rail);
             var card = outer.Card(name + " dialog", null, 24, 0, 12);
             fill(card, rail);
@@ -334,12 +335,14 @@ namespace ZKube.Presentation
             var dialog = holder.GetComponentsInChildren<Image>().First(image => image.name == name + " dialog");
             dialog.sprite = ui.Art.SkinUi(SkinSlots.Dialog);
             dialog.transform.SetSiblingIndex(0);
-            holder.Find("Talk bust")?.SetSiblingIndex(0);
+            var guardian = Guardian(holder);
+            guardian?.transform.SetSiblingIndex(0);
             if (close != null)
                 HeaderButton(close, new Rect(left + width - IconDp * d, rail + 9 * d, IconDp * d, IconDp * d), SkinSlots.IconClose, false, holder);
-            float height = (TalkBustDp - 30) * d + rail - outer.Top, room = safe.height - 16 * d;
+            float rise = guardian == null ? 0 : SkinUi.ScreenRect(guardian.rectTransform).yMax - rail;
+            float height = rise + rail - outer.Top, room = safe.height - 16 * d;
             float top = height < room ? safe.yMax - 8 * d - (room - height) / 2 : safe.yMax - 8 * d;
-            float shift = top - (rail + (TalkBustDp - 30) * d);
+            float shift = top - (rail + rise);
             holder.anchoredPosition += new Vector2(0, shift);
             column = new PageColumn(ui, shell.Page, actions, left, width, outer.Top + shift);
             if (reducedMotion) return null;
@@ -353,10 +356,9 @@ namespace ZKube.Presentation
                 spark.rectTransform.anchoredPosition = sparkAt + new Vector2((frame.width - 18 * d) * PageSequence.EaseOut(t), 0);
                 spark.color = SkinUi.WithAlpha(Color.white, Mathf.Sin(t * Mathf.PI));
             });
-            foreach (var piece in new[] { holder.Find("Talk bust"), holder.Find("Talk paws") })
+            foreach (var image in holder.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" guardian") || image.name.EndsWith(" paws")))
             {
-                if (piece == null) continue;
-                var rect = (RectTransform)piece; var image = rect.GetComponent<Image>(); var at = rect.anchoredPosition;
+                var rect = image.rectTransform; var at = rect.anchoredPosition;
                 sequence.Add(.24f, .3f, t => {
                     rect.anchoredPosition = at - new Vector2(0, 24 * d * (1 - PageSequence.EaseOut(t)));
                     image.color = SkinUi.WithAlpha(image.color, PageSequence.EaseOut(t));
@@ -374,68 +376,58 @@ namespace ZKube.Presentation
             var scrim = ui.Rect<Image>("Greeting scrim", shell.ScreenArea, root);
             scrim.color = ui.Art.Token(SkinTokens.Scrim); scrim.raycastTarget = true;
             float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d) - 8 * d, left = safe.center.x - width / 2;
-            var box = Talk(root, new Rect(left, 0, width, 0), safe.center.y + 15 * d, "boss__greeting", realm, realm.guardianLines.greeting, catalog.Rule(realmId));
+            // The passage line first on a realm opened by beating the guardian
+            // before it, then the greeting with the rule and what its bonus does.
+            var pages = TalkPage.MapGreeting(realm, catalog.Rule(realmId), realmId > 1);
+            Explained(pages[pages.Length - 1], realmId);
+            GuardianTalk talk = null;
+            var box = Speak("Guardian greeting talk", root, left, safe.center.y + 15 * d, width, realm, pages,
+                () => { Greetings.Greet(realmId); if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); } }, true);
+            talk = root.GetComponentInChildren<GuardianTalk>();
             // A long greeting lifts so it and its prompt stay above the tab bar, and
             // the guardian stays under the top of the safe area.
             float lift = Mathf.Min(Mathf.Max(0, ui.TabBarRect(safe).yMax + 16 * d - (box.y - 60 * d)),
-                safe.yMax - (box.yMax + (TalkBustDp - 30) * d));
+                safe.yMax - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
             if (lift > 0) { foreach (Transform piece in root) if (piece != scrim.transform) ((RectTransform)piece).anchoredPosition += new Vector2(0, lift); box.y += lift; }
-            ui.Label("Greeting continue", "Tap to continue", Measured("Tap to continue", SkinUi.Type.Caption, 13, safe.center.x, box.y - 42 * d), 13, SkinTokens.TextMuted, root,
-                SkinUi.Type.Caption);
             if (!reducedMotion)
             {
                 // The scrim fades in, then the guardian rises onto the rail.
                 var group = root.gameObject.AddComponent<CanvasGroup>();
                 var sequence = root.gameObject.AddComponent<PageSequence>();
                 sequence.Add(0, .15f, t => group.alpha = t);
-                foreach (var piece in new[] { root.Find("Talk bust"), root.Find("Talk paws") })
+                foreach (var image in root.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" guardian") || image.name.EndsWith(" paws")))
                 {
-                    var rect = (RectTransform)piece; var at = rect.anchoredPosition;
+                    var rect = image.rectTransform; var at = rect.anchoredPosition;
                     sequence.Add(.1f, .3f, t => rect.anchoredPosition = at - new Vector2(0, 24 * d * (1 - PageSequence.EaseOut(t))));
                 }
             }
             var tap = scrim.gameObject.AddComponent<Button>(); tap.transition = Selectable.Transition.None;
-            tap.onClick.AddListener(() => { Greetings.Greet(realmId); if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); } });
+            // A tap anywhere is a tap on the talk: it completes the line, turns the
+            // page, and on the last page continues.
+            tap.onClick.AddListener(() => talk.Tap());
             scrim.name = "Continue";
         }
 
-        // The guardian's talk scene: the guardian leaning on the dialogue box's
-        // rail (its body behind the box, its paws in front of the rail, placed by
-        // the guardian's own rail line), the name and line, and optionally the
-        // guardian's rule with what its bonus does. This is the footprint the talk
-        // scene component fills; until it lands a still frame holds its place.
-        // area gives the box's x and width; the rail is the box's top. Returns the
-        // box.
-        private Rect Talk(Transform parent, Rect area, float rail, string frame, PageCatalog.RealmPage realm, string line, PageCatalog.GuardianRule rule)
+        // The guardian's talk scene for this page, over its box's top at rail.
+        // Inside a dialog the page's own actions continue, so the talk's tap hint
+        // is not shown. Returns the box.
+        private Rect Speak(string name, Transform parent, float x, float rail, float width, PageCatalog.RealmPage realm, TalkPage[] pages,
+            Action finished, bool hint)
         {
-            float d = ui.Density, size = TalkBustDp * d;
-            var bust = new Rect(area.center.x - size / 2, rail - (1 - ui.Art.GuardianRailY) * size, size, size);
-            var figure = ui.Rect<Image>("Talk bust", bust, parent);
-            figure.sprite = ui.Art.Sprite(frame); figure.preserveAspect = true; figure.raycastTarget = false;
-            var text = new PageColumn(ui, parent, actions, area.x + 20 * d, area.width - 40 * d, rail - 19 * d);
-            int first = parent.childCount;
-            text.Typed("Talk name", realm.guardianName, SkinUi.Type.Title, 17, SkinTokens.Accent, 0, TextAlignmentOptions.Left);
-            text.Typed("Talk title", realm.guardianTitle, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, line == null ? 14 : 8, TextAlignmentOptions.Left);
-            if (line != null) text.Typed("Talk line", line, SkinUi.Type.Caption, 16, SkinTokens.Text, rule == null ? 0 : 22, TextAlignmentOptions.Left);
-            if (rule != null)
-            {
-                text.Typed("Talk rule heading", "EARN " + rule.name.ToUpperInvariant(), SkinUi.Type.Label, 11, SkinTokens.Accent, 3, TextAlignmentOptions.Left);
-                text.Typed("Talk rule", rule.description, SkinUi.Type.Caption, 13, SkinTokens.Text, 2, TextAlignmentOptions.Left);
-                text.Typed("Talk bonus", rule.effect, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, 0, TextAlignmentOptions.Left);
-            }
-            float bottom = Mathf.Min(rail - TalkMinimumDp * d, text.Top - 16 * d);
-            var box = new Rect(area.x, bottom, area.width, rail - bottom);
-            var dialog = ui.Piece("Talk box", SkinSlots.Dialog, box, parent);
-            dialog.transform.SetSiblingIndex(first);
-            var ledge = ui.Rect<Image>("Talk rail", new Rect(area.x - 2 * d, rail - 14 * d, area.width + 4 * d, 14 * d), parent);
-            ledge.sprite = ui.Art.SkinRealm(SkinSlots.Ledge); ledge.raycastTarget = false;
-            if (ledge.sprite.border != Vector4.zero) { ledge.type = Image.Type.Sliced; ledge.pixelsPerUnitMultiplier = 1 / ui.Ui; }
-            ledge.transform.SetSiblingIndex(first + 1);
-            var paws = ui.Rect<Image>("Talk paws", bust, parent);
-            paws.sprite = ui.Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;
-            paws.transform.SetSiblingIndex(first + 2);
-            return box;
+            var talk = ui.Talk(name, x, rail, width, realm, pages, finished, parent);
+            if (!hint) parent.Find(name + " hint")?.gameObject.SetActive(false);
+            return SkinUi.ScreenRect((RectTransform)talk.transform);
         }
+        // The page shows the realm's rule once its line is done, with what the
+        // bonus does: it removes blocks without scoring.
+        private TalkPage Explained(TalkPage page, byte realm)
+        {
+            var rule = catalog.Rule(realm);
+            page.RuleHeading = HudLayout.GuardianCaption(rule.bonus); page.Rule = rule.description + "\n" + rule.effect;
+            return page;
+        }
+        private static Image Guardian(Transform parent) =>
+            parent.GetComponentsInChildren<Image>().FirstOrDefault(image => image.name.EndsWith(" guardian"));
 
         // A card in the overlay just above a height, for notices on the map.
         private void Float(string name, float bottom, Action<PageColumn> fill)

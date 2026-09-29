@@ -101,7 +101,7 @@ namespace ZKube.Local.App
             loading = true; dirty = false;
             if (views.Shown.HasValue && views.Shown.Value.ToString() != Flow.Page.ToString())
             {
-                yield return shell.Leave(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()));
+                yield return shell.Leave(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()), !shell.RealmReady(PageRealm));
                 if (this == null || Flow == null) yield break;
                 dirty = false;
             }

@@ -302,12 +302,13 @@ namespace ZKube.Tests
             // (there is no progress yet), with the guardian's rule and what its bonus
             // does; no internal source names.
             var level = Protocol.Realms[0].Levels[0]; var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
+            app.GetComponentInChildren<GuardianTalk>().Complete();
             var texts = Texts();
             Assert.That(texts, Does.Contain("Score").And.Contain(Protocol.CampaignTargets[0].ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain(level.Primary[2].ToString()));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])));
-            Assert.That(texts, Does.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description).And.Contain(rule.effect)
-                .And.Contain(catalog.Realm(1).guardianLines.encouragement).And.Contain(catalog.Realm(1).guardianTitle));
+            Assert.That(texts, Does.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description + "\n" + rule.effect)
+                .And.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain(catalog.Realm(1).guardianTitle.ToUpperInvariant()));
             Assert.That(texts.Any(text => text.StartsWith("0 / ")), Is.False);
             Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
             Click(app, "Play"); yield return BoardReady();
@@ -379,7 +380,8 @@ namespace ZKube.Tests
             greeted = 0; yield return NamePlayer();
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
-            Assert.That(Texts(), Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.effect));
+            app.GetComponentInChildren<GuardianTalk>().Complete();
+            Assert.That(Texts(), Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description + "\n" + rule.effect));
             Click(app, "Continue"); yield return null;
             Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianLines.greeting));
             Assert.That(new GuardianGreetings(() => greeted, _ => { }).Greeted(1), Is.True);

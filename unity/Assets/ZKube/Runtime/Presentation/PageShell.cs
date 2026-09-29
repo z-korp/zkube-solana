@@ -112,13 +112,19 @@ namespace ZKube.Presentation
         // input, then the new page is drawn and rises 12 dp as it fades in, with a
         // soft glow swelling from where the player tapped. The tab bar stays still.
         // Reduced motion keeps a short cross-fade and no movement.
-        public IEnumerator Leave(bool reducedMotion, float density)
+        // When the next page is in another realm its painting cannot stay while
+        // that realm loads, so the painting fades with the page and the new one
+        // rises with the next page.
+        public IEnumerator Leave(bool reducedMotion, float density, bool painting = false)
         {
             if (!Root.activeInHierarchy || !fade.blocksRaycasts || Page.childCount == 0 && Overlay.childCount == 0) yield break;
             StopTransition();
             fade.interactable = fade.blocksRaycasts = false;
+            paintingHidden = painting;
+            var shown = Background.color;
             yield return Tween(reducedMotion ? ReducedSeconds : LeaveSeconds, t => {
                 fade.alpha = 1 - t;
+                if (painting) Background.color = new Color(shown.r, shown.g, shown.b, shown.a * (1 - t));
                 stage.anchoredPosition = new Vector2(stage.anchoredPosition.x, 0) - new Vector2(0, reducedMotion ? 0 : 8 * density * t * t);
             });
         }
@@ -153,14 +159,16 @@ namespace ZKube.Presentation
                 float eased = 1 - (1 - page) * (1 - page);
                 fade.alpha = eased; stage.anchoredPosition = anchor - new Vector2(0, rise * (1 - eased));
                 if (vignette != null && !reducedMotion) vignette.color = SkinUi.WithAlpha(Artwork.Token(SkinTokens.Scrim), .42f * Mathf.Sin(Mathf.PI * page));
+                if (paintingHidden) { var shown = Background.color; shown.a = eased; Background.color = shown; }
                 if (!swell.enabled) return;
                 var color = Artwork.Token(SkinTokens.LightGlow); color.a = .5f * (1 - t);
                 swell.color = color;
                 float grown = size * (.6f + t);
                 SkinUi.Place(swell.rectTransform, new Rect(origin.Value.x - grown / 2, origin.Value.y - grown / 2, grown, grown), Root.transform);
             });
-            swell.enabled = false; transition = null;
+            swell.enabled = false; transition = null; paintingHidden = false;
         }
+        private bool paintingHidden;
         private static IEnumerator Tween(float seconds, Action<float> step)
         {
             float start = Time.unscaledTime;

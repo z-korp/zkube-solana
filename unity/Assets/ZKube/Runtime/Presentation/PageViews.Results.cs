@@ -38,9 +38,9 @@ namespace ZKube.Presentation
                 // A win says the stars kept, or the guardian's defeat on its own
                 // level; any other end, that the run is not over for good.
                 var lines = realm.guardianLines;
-                string line = !cleared ? lines.incomplete : value.Level == Protocol.CampaignTargets.Length ? lines.defeatLine : lines.Stars(stars);
-                var talk = Talk(card.Parent, new Rect(card.Left - 24 * d, 0, card.Width + 48 * d, 0), rail, cleared ? "boss__celebrate" : "boss__defeated",
-                    realm, line, null);
+                var page = TalkPage.For(lines, !cleared ? TalkMoment.Ended : value.Level == Protocol.CampaignTargets.Length ? TalkMoment.GuardianDefeated
+                    : TalkMoment.Win, stars);
+                var talk = Speak("Result talk", card.Parent, card.Left - 24 * d, rail, card.Width + 48 * d, realm, new[] { page }, null, false);
                 card.Top = talk.y - 43 * d;
                 Title(card, title, 30);
                 stroke = (RectTransform)card.Parent.GetChild(card.Parent.childCount - 1);
@@ -161,7 +161,8 @@ namespace ZKube.Presentation
             float d = ui.Density;
             var realm = catalog.Realm(value.Realm);
             column.Gap(177 - 4);
-            var talk = Talk(shell.Page, new Rect(column.Left, 0, column.Width, 0), column.Top, "boss__satisfied", realm, realm.guardianLines.dailyGreeting, null);
+            var talk = Speak("Result talk", shell.Page, column.Left, column.Top, column.Width, realm, new[] { TalkPage.For(realm.guardianLines, TalkMoment.Daily) },
+                null, false);
             column.Top = talk.y - 19 * d;
             var card = column.Card("Result card", null, 24, 20, 20);
             card.Typed("Score caption", "SCORE", SkinUi.Type.Label, 12, SkinTokens.TextMuted, -2);
@@ -199,8 +200,8 @@ namespace ZKube.Presentation
             float d = ui.Density;
             var realm = catalog.Realm(value.Realm);
             column.Gap(213 - 4);
-            var talk = Talk(shell.Page, new Rect(column.Left, 0, column.Width, 0), column.Top, "boss__idle", realm,
-                "Play today’s Daily to see your score and the day’s objective count here.", null);
+            var talk = Speak("Result talk", shell.Page, column.Left, column.Top, column.Width, realm,
+                new[] { new TalkPage("Play today’s Daily to see your score and the day’s objective count here.", "idle") }, null, false);
             column.Top = talk.y - 30 * d;
             column.Typed("No result", "No result yet", SkinUi.Type.Title, 27, SkinTokens.Text, 50);
             var buttons = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top);
