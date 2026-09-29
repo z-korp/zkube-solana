@@ -25,32 +25,32 @@ class SkinImports(unittest.TestCase):
     def test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders(self):
         with tempfile.TemporaryDirectory(dir=TOOLS.parents[1] / "build") as temporary:
             root = Path(temporary)
-            base = root / "assets/skins/jelly"
+            base = root / "assets/skins/lumen"
             (base / "ui").mkdir(parents=True)
             (base / "realm-1").mkdir()
             (base / "ui/panel.png").write_bytes(png(256, 256))
             (base / "realm-1/block-2-1.png").write_bytes(png(384, 192))
             (base / "realm-1/ledge.png").write_bytes(png(1200, 48))
             (base / "realm-1/map.jpg").write_bytes(jpeg(1440, 4080))
-            catalog = {"skins": [{"id": "jelly",
-                "ui": [{"slot": "panel", "image": "/assets/skins/jelly/ui/panel.png", "border": [48, 40, 48, 40]}],
+            catalog = {"skins": [{"id": "lumen",
+                "ui": [{"slot": "panel", "image": "/assets/skins/lumen/ui/panel.png", "border": [48, 40, 48, 40]}],
                 "realms": [{"realmId": 1, "borders": {"ledge": [160, 0, 160, 0]},
-                            "images": {"block-2-1": "/assets/skins/jelly/realm-1/block-2-1.png",
-                                       "ledge": "/assets/skins/jelly/realm-1/ledge.png",
-                                       "map": "/assets/skins/jelly/realm-1/map.jpg"}}]}]}
+                            "images": {"block-2-1": "/assets/skins/lumen/realm-1/block-2-1.png",
+                                       "ledge": "/assets/skins/lumen/realm-1/ledge.png",
+                                       "map": "/assets/skins/lumen/realm-1/map.jpg"}}]}]}
             entries, files = [], {}
             with patch.object(build, "ROOT", root), patch.object(build, "SOURCE", root / "assets"):
                 scopes = build.skin_imports(catalog, entries, files)
-            self.assertEqual(["skin-jelly-ui", "skin-jelly-theme-1"], scopes)
+            self.assertEqual(["skin-lumen-ui", "skin-lumen-theme-1"], scopes)
             panel, block, ledge, painting = entries
-            self.assertEqual(([48, 40, 48, 40], "ZKube/Atlases/skin-jelly-ui"), (panel["border"], panel["atlas"]))
+            self.assertEqual(([48, 40, 48, 40], "ZKube/Atlases/skin-lumen-ui"), (panel["border"], panel["atlas"]))
             self.assertEqual(([0, 0, 0, 0], 384, 192), (block["border"], block["width"], block["height"]))
-            self.assertEqual(([160, 0, 160, 0], "ZKube/Atlases/skin-jelly-theme-1"), (ledge["border"], ledge["atlas"]))
+            self.assertEqual(([160, 0, 160, 0], "ZKube/Atlases/skin-lumen-theme-1"), (ledge["border"], ledge["atlas"]))
             self.assertEqual(([0, 0, 0, 0], 1440, 4080), (painting["border"], painting["width"], painting["height"]))
-            self.assertEqual({build.GENERATED / "Sprites/skin-jelly-ui/panel.png",
-                              build.GENERATED / "Sprites/skin-jelly-theme-1/block-2-1.png",
-                              build.GENERATED / "Sprites/skin-jelly-theme-1/ledge.png",
-                              build.GENERATED / "Sprites/skin-jelly-theme-1/map.jpg"}, set(files))
+            self.assertEqual({build.GENERATED / "Sprites/skin-lumen-ui/panel.png",
+                              build.GENERATED / "Sprites/skin-lumen-theme-1/block-2-1.png",
+                              build.GENERATED / "Sprites/skin-lumen-theme-1/ledge.png",
+                              build.GENERATED / "Sprites/skin-lumen-theme-1/map.jpg"}, set(files))
 
             (base / "ui/panel.png").write_bytes(png(256, 256))
             policy = {"atlasMaxSize": 4096, "atlasPadding": 4}
