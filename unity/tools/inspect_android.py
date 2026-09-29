@@ -68,6 +68,18 @@ def open_archive(path):
     return archive
 
 
+def launch_splash_check(archive, prefix, profile, toolchain):
+    """The launch window's splash is this product's own, not the other's."""
+    own = (PROJECT.parent / profile['brand'] / 'splash.jpg').read_bytes()
+    others = {(PROJECT.parent / item['brand'] / 'splash.jpg').read_bytes()
+              for item in toolchain['androidIdentities'] if item['name'] != profile['name']}
+    packaged = [archive.read(name) for name in archive.namelist() if name.startswith(prefix + 'res/')]
+    if own not in packaged:
+        raise RuntimeError('The launch window does not carry this product\'s splash')
+    if others & set(packaged):
+        raise RuntimeError('The launch window carries another product\'s splash')
+
+
 def common_metadata_check(data):
     if any(token + b"\x00" in data for token in
            (b"BoardHarness", b"TestBoardPointer", b"BoardEvidenceHarness", b"BoardEvidenceData",
@@ -246,6 +258,7 @@ def inspect_money(apk, android_tools):
     libraries = payload(apk, '', profile_abis, hashes, profile)
     with open_archive(apk) as archive:
         product_name_check(read_member(archive, 'assets/bin/Data/globalgamemanagers'), display_name)
+        launch_splash_check(archive, '', profile, toolchain)
     subprocess.run([str(android_tools / "zipalign"), "-c", "-P", "16", "4", str(apk)], check=True)
     report = {**manifest, "apk": apk.name, "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
               "allowBackup": False, "walletActivityExported": False, "unitySplashEnabled": False,
@@ -315,6 +328,7 @@ def inspect(artifact, android_tools, name, production_version_code=None):
         libraries = payload(artifact, 'base/', selected, hashes, profile)
         with open_archive(artifact) as archive:
             product_name_check(read_member(archive, 'base/assets/bin/Data/globalgamemanagers'), profile['productName'])
+            launch_splash_check(archive, 'base/', profile, toolchain)
         # Never implicitly read/write ~/.android/debug.keystore. This disposable
         # key signs only the retained local inspection APK; delete the key here.
         keystore = temp / 'inspection.p12'

@@ -17,6 +17,7 @@ namespace ZKube.Presentation
         public const float FadeSeconds = .22f, SweepSeconds = 1.2f;
         // The loading screen's canvas, and where its line sits on it.
         private const float CanvasDp = 890, WidthDp = 400, OpeningDp = 650, BarDp = 704, ShadeDp = 724, PreparingDp = 740;
+        public const float PixelsPerDp = 3;
         private const float BarWidthDp = 256, BarHeightDp = 8, SegmentDp = 92;
         private Func<bool> ready;
         private CanvasGroup group;
@@ -40,8 +41,10 @@ namespace ZKube.Presentation
 
         private void Draw(Sprite splash)
         {
-            // The painting covers the screen; the line keeps its place on it.
-            float scale = Mathf.Max(Screen.width / splash.rect.width, Screen.height / splash.rect.height);
+            // The painting is drawn at 3 px per dp, centred, as the Android
+            // launch window shows it, and grows only to cover a larger screen.
+            // The line keeps its place on it.
+            float scale = Mathf.Max(density / PixelsPerDp, Screen.width / splash.rect.width, Screen.height / splash.rect.height);
             var painting = new Rect((Screen.width - splash.rect.width * scale) / 2, (Screen.height - splash.rect.height * scale) / 2,
                 splash.rect.width * scale, splash.rect.height * scale);
             Painting = Picture("Launch splash", painting, splash, Color.white);

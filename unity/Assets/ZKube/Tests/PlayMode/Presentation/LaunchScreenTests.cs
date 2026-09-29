@@ -44,6 +44,16 @@ namespace ZKube.Presentation.Tests
             Assert.IsFalse(root.GetComponentsInChildren<Graphic>().Any(g => g.raycastTarget), "It never takes input");
         }
 
+        [Test] public void ThePaintingMatchesTheLaunchWindowAtThreePixelsPerDp()
+        {
+            // The Android launch window draws the splash from drawable-xxhdpi, centred.
+            float density = Mathf.Max(3, 3 * Screen.height / 2670f, 3 * Screen.width / 1200f);
+            var launch = LaunchScreen.Create(root.transform, () => drawn, density);
+            var painting = SkinUi.ScreenRect(launch.Painting.rectTransform);
+            Assert.AreEqual(1200 * density / LaunchScreen.PixelsPerDp, painting.width, .01f);
+            Assert.AreEqual(new Vector2(Screen.width / 2f, Screen.height / 2f), painting.center, "Centred, as the window shows it");
+        }
+
         [UnityTest] public IEnumerator TheSegmentSweepsUntilTheFirstPageThenTheScreenFades()
         {
             var launch = Launch();

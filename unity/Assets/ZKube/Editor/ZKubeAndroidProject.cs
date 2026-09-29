@@ -13,6 +13,7 @@ namespace ZKube.Editor
     {
         [Serializable] private sealed class Dependencies { public string[] runtime; }
         public int callbackOrder => 100;
+        public const string LaunchTheme = "ZKubeLaunchTheme";
 
         public void OnPostGenerateGradleAndroidProject(string path)
         {
@@ -86,7 +87,26 @@ namespace ZKube.Editor
                 .SingleOrDefault(node => (string)node.Attribute(android + "name") == "unity.splash-enable");
             if (splash == null) throw new BuildFailedException("Generated Unity manifest has no splash setting");
             splash.SetAttributeValue(android + "value", UnityEditor.PlayerSettings.SplashScreen.show ? "true" : "false");
+
+            // The launch window shows the product's staged splash until the
+            // first frame instead of a black window: drawn at 3 px per dp and
+            // centred, exactly as the launch screen draws it.
+            var activity = libraryManifest.Root.Element("application")?.Elements("activity")
+                .SingleOrDefault(node => (string)node.Attribute(android + "name") == "com.unity3d.player.UnityPlayerGameActivity")
+                ?? throw new BuildFailedException("Generated Unity manifest has no game activity");
+            activity.SetAttributeValue(android + "theme", "@style/" + LaunchTheme);
             libraryManifest.Save(libraryManifestPath);
+            var resources = Path.Combine(path, "src/main/res");
+            Directory.CreateDirectory(Path.Combine(resources, "drawable-xxhdpi"));
+            File.Copy(ZKubeBuild.Brand + "Resources/ZKube/Splash.jpg", Path.Combine(resources, "drawable-xxhdpi/zkube_splash.jpg"), true);
+            Directory.CreateDirectory(Path.Combine(resources, "drawable"));
+            File.WriteAllText(Path.Combine(resources, "drawable/zkube_launch.xml"),
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<layer-list xmlns:android=\"http://schemas.android.com/apk/res/android\">\n" +
+                "  <item android:drawable=\"@android:color/black\"/>\n" +
+                "  <item><bitmap android:gravity=\"center\" android:src=\"@drawable/zkube_splash\"/></item>\n</layer-list>\n");
+            File.WriteAllText(Path.Combine(resources, "values/zkube_launch.xml"),
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n  <style name=\"" + LaunchTheme + "\" parent=\"BaseUnityGameActivityTheme\">\n" +
+                "    <item name=\"android:windowBackground\">@drawable/zkube_launch</item>\n  </style>\n</resources>\n");
         }
     }
 }

@@ -141,6 +141,9 @@ namespace ZKube.Tests.MoneyOverview
             environment = build.GetAwaiter().GetResult(); ((MoneyIdentity)startup.Configuration.Identity).Configuration = new MoneyConfiguration {
                 SolanaSchema = solana, SessionSchema = session, Services = environment.Services, Clock = environment.Clock };
             host.SetActive(true); yield return null; yield return Idle();
+            // A prepared app has drawn its first page and let its launch screen go.
+            for (float end = Time.realtimeSinceStartup + 5; startup.Launch != null && Time.realtimeSinceStartup < end;) yield return null;
+            Assert.That(startup.Launch == null, "The launch screen leaves once the first page is drawn");
         }
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()
         {

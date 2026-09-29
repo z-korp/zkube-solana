@@ -17,7 +17,7 @@ from build import identity, abis, stage_brand, BRAND_FILES
 import tempfile
 from inspect_android import elf, metadata_check, payload, manifest_check, MONEY_ASSEMBLIES
 from inspect_android import open_archive, read_member, display_name_check, product_name_check
-from inspect_android import production_check, debug_certificate
+from inspect_android import production_check, debug_certificate, launch_splash_check
 
 
 def native(machine=183, alignment=16384):
@@ -99,6 +99,24 @@ class StaticTests(unittest.TestCase):
         self.assertFalse((ROOT / 'assets/pwa-512x512.png').exists())
         self.toolchain['androidIdentities'][1]['brand'] = 'assets/skins'
         with self.assertRaisesRegex(RuntimeError, 'assets/brand'): identity(self.toolchain, 'store')
+
+    def test_each_package_launch_window_carries_its_own_splash(self):
+        for name, other in (('money', 'store'), ('store', 'money')):
+            profile, foreign = identity(self.toolchain, name), identity(self.toolchain, other)
+            own = (ROOT / profile['brand'] / 'splash.jpg').read_bytes()
+            wrong = (ROOT / foreign['brand'] / 'splash.jpg').read_bytes()
+            for prefix in ('', 'base/'):
+                def archive(*members):
+                    data = io.BytesIO()
+                    with zipfile.ZipFile(data, 'w') as out:
+                        for index, member in enumerate(members):
+                            out.writestr(f'{prefix}res/{index}.jpg', member)
+                    return zipfile.ZipFile(data)
+                launch_splash_check(archive(own), prefix, profile, self.toolchain)
+                with self.assertRaisesRegex(RuntimeError, "this product's splash"):
+                    launch_splash_check(archive(b'not a splash'), prefix, profile, self.toolchain)
+                with self.assertRaisesRegex(RuntimeError, "another product's splash"):
+                    launch_splash_check(archive(own, wrong), prefix, profile, self.toolchain)
 
     def test_profile_rejects_unknown_and_duplicate_identities(self):
         with self.assertRaises(RuntimeError): identity(self.toolchain, 'ios')
