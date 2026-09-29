@@ -2,7 +2,8 @@
   "name": "ZKube.Editor.Tests",
   "references": [
     "ZKube.Editor",
-    "ZKube.Presentation"
+    "ZKube.Presentation",
+    "Unity.TextMeshPro"
   ],
   "autoReferenced": false,
   "optionalUnityReferences": [

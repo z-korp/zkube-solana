@@ -17,6 +17,23 @@ namespace ZKube.Editor
     // by build.py. Never edit a copied PNG/MP3 to change the artwork.
     public sealed class ZKubeAssetImports : AssetPostprocessor
     {
+        // The pinned font engine leaves each kerning pair's lookup flags
+        // uninitialised. A stray IgnoreSpacingAdjustments bit drops the Label
+        // tracking for that pair, so text widths differed per generation. No
+        // pair of ours ignores anything; the lookup is rebuilt from the list.
+        public static void ClearKerningFlags(TMP_FontAsset font)
+        {
+            var records = font.fontFeatureTable.glyphPairAdjustmentRecords;
+            for (int i = 0; i < records.Count; i++)
+            {
+                var record = records[i];
+                if (record.featureLookupFlags == UnityEngine.TextCore.LowLevel.FontFeatureLookupFlags.None) continue;
+                record.featureLookupFlags = UnityEngine.TextCore.LowLevel.FontFeatureLookupFlags.None;
+                records[i] = record;
+            }
+            font.ReadFontAssetDefinition();
+        }
+
         public const string Generated = "Assets/ZKube/Art/Generated/";
         private const string ResourceRoot = Generated + "Resources/ZKube/";
         private const string CatalogPath = ResourceRoot + "Catalog.json";
@@ -320,6 +337,7 @@ namespace ZKube.Editor
                 clearOnBuild.boolValue = false;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 font.TryAddCharacters(seed.ToString(), out string _, true);
+                ClearKerningFlags(font);
                 fonts.Add(entry.name, font);
             }
             var symbols = fonts["NotoSansSymbols2-Regular"];
