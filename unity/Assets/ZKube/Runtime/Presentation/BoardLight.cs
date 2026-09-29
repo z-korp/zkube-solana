@@ -14,12 +14,14 @@ namespace ZKube.Presentation
     // backlight. Reduced motion keeps the light and drops the motes and breaths.
     public sealed class BoardLight : MonoBehaviour
     {
-        public const float BloomThreshold = .9f, BloomIntensity = .5f, BloomScatter = .6f, KeyIntensity = .45f;
+        public const float BloomThreshold = .9f, BloomIntensity = .5f, BloomScatter = .6f, KeyIntensity = .2f;
         public const int MoteCount = 18;
         private static Material unlit;
-        // The pipeline's lit sprite material, for the painting and the guardian.
-        public static Material Lit => GraphicsSettings.currentRenderPipeline?.default2DMaterial
-            ?? throw new System.InvalidOperationException("The 2D renderer has no lit sprite material");
+        // The 2D renderer's lit sprite material, for the painting and the guardian.
+        // A copy lives in Resources so player builds keep its shader.
+        private static Material lit;
+        public static Material Lit => lit != null ? lit : lit = Resources.Load<Material>("ZKube/SpriteLit")
+            ?? throw new System.InvalidOperationException("The lit sprite material is missing");
         // Sprites untouched by the 2D lights.
         public static Material Unlit => unlit != null ? unlit : unlit = new Material(Resources.Load<Shader>("ZKube/SpriteUnlit")
             ?? throw new System.InvalidOperationException("The unlit sprite shader is missing")) { name = "Unlit sprite" };

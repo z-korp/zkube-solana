@@ -33,9 +33,12 @@ namespace ZKube.Presentation
             BoardController.SupportedTextScale(Configuration.TextScale);
         public float? DisplayDensity => Configuration.DisplayDensity == 0 ? (float?)null : Configuration.DisplayDensity;
 
+        // The motion spec is drawn for 60 fps; Android otherwise runs at 30.
+        public const int FrameRate = 60;
         private void Start()
         {
             if (stopping) return;
+            Application.targetFrameRate = FrameRate;
             try
             {
                 if (EventSystem.current == null)
