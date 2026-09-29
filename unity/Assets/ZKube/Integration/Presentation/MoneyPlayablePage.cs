@@ -58,7 +58,8 @@ namespace ZKube.Integration.Presentation
                 if (Current(epoch)) Inform("Your run is not ready to open. Check its saved state before continuing.");
                 return;
             }
-            boardHost.Open(result.Value, title, textScale);
+            ulong best = profileRead != null && profileRead.IsCurrent ? (ulong)((uint?)profileRead.Value.Profile.Fields?["best_daily_score"] ?? 0) : 0;
+            boardHost.Open(result.Value, title, textScale, best);
             HidePages(); RetireArtwork();
         });
 

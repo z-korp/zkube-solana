@@ -37,7 +37,10 @@ namespace ZKube.Local
             var observed = BoundObservation();
             if (observed == null || !Same(observed.Token, delivered)) throw new InvalidOperationException("The initial local board is stale");
         }
-        public BoardSession Bind(string title) { lock (gate) return new BoardSession(new CoreRunToken(delivered.Config, delivered.State), initial.Rules, this, title, initial.Realm); }
+        public BoardSession Bind(string title, DailyContext daily = null)
+        {
+            lock (gate) return new BoardSession(new CoreRunToken(delivered.Config, delivered.State), initial.Rules, this, title, initial.Realm, daily);
+        }
 
         public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
         {

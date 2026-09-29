@@ -20,7 +20,10 @@ namespace ZKube.Presentation
         // The plates' scale: 1, or 0.8 on a compact screen.
         public float K;
         // Crown is the dark pill behind the sockets, or the Daily score plate.
-        public Rect Guardian, Crown, Medal, Moves, NextLabel, Status;
+        // Best is the Daily's best-score badge over the score plate's top right.
+        public Rect Guardian, Crown, Medal, Best, Moves, NextLabel, Status;
+        // The Daily's badge rises BestAboveDp over its score plate.
+        public const float BestAboveDp = 10, BestDp = 20;
         public readonly Rect[] Sockets = new Rect[3], Plates = new Rect[3];
         // Type sizes in dp for this layout, at the player's text size.
         public float CountPt, MovesPt, LevelPt, ScorePt, ChipPt, EarnPt, LabelPt, StatusPt, BubblePt, BubbleCountPt;
@@ -57,6 +60,14 @@ namespace ZKube.Presentation
         // Daily pressure, as what it does for the player: the points multiplier.
         public static string PressureValue(RunSummary state) =>
             "×" + (Protocol.PressureMultiplierPercent(state.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        // How far the pressure score has run toward the next multiplier.
+        public static float PressureProgress(RunSummary state) => state.PressureScore % Protocol.PressureStep / (float)Protocol.PressureStep;
+        // Time left as hours and minutes, h:mm; the last minute reads 0:00.
+        public static string TimeLeft(long seconds)
+        {
+            long minutes = Math.Max(0, seconds) / 60;
+            return (minutes / 60).ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + (minutes % 60).ToString("00", System.Globalization.CultureInfo.InvariantCulture);
+        }
         public static string PowerName(byte bonus) => bonus == 1 ? "HAMMER" : bonus == 3 ? "WAVE" : "TOTEM";
         public static string GuardianCaption(byte bonus) => "EARN " + PowerName(bonus);
         public static string BonusIcon(byte bonus, bool charged) => bonus == 1
@@ -100,7 +111,7 @@ namespace ZKube.Presentation
             {
                 float header = safe.height / d - new BoardLayout(safe, density, 1, earn * d, label * d).BelowHeader / d - 11 * MinCompactCellDp - 2;
                 k = Mathf.Clamp((header - 2 * 4) / (3 * 46), .6f, .8f);
-                crownDp = result.Campaign ? 1.34f * 44 * k : 58 * k;
+                crownDp = result.Campaign ? 1.34f * 44 * k : (58 + BestAboveDp) * k;
                 guardianDp = Mathf.Clamp((header - crownDp) / (ui.Art.GuardianRailY - CrownOverGuardian), 72, CompactGuardianDp);
             }
             result.K = k;
@@ -111,14 +122,20 @@ namespace ZKube.Presentation
 
             // Plates: one width for the three, wide enough for the widest count.
             // Counts stop at their targets, so the widest is the larger target over itself.
+            // A Daily plate holds a running count or the time left, never a target.
             uint target = session == null ? 99 : Math.Max(session.Daily ? 0 : session.Rules.PointsRequired, session.Rules.PrimaryCount);
-            float countWidth = W(target + "/" + target, result.CountPt, SkinUi.Type.Display) + 2;
+            float countWidth = W(result.Campaign ? target + "/" + target : "88:88", result.CountPt, SkinUi.Type.Display) + 2;
             float plateWidth = Mathf.Max(104 * k, 44 * k + countWidth + 6 * k);
             float countHeight = H("0/0", plateWidth * d, result.CountPt, SkinUi.Type.Display);
             result.BarDp = compact ? 4 : 6;
             float plate = Mathf.Max(46 * k, 6 * k + countHeight + 2 * k + result.BarDp + 4 * k), gap = compact ? 4 : 6;
             float stack = 3 * plate + 2 * gap;
-            float moves = Mathf.Max(112 * k, MovesIconDp * k + H("88", 104 * k * d, result.MovesPt, SkinUi.Type.Display) + 2 * k);
+            // The numeral steps down only where the run's whole move budget would
+            // not fit the drawn tablet (a Daily's 100 at larger text).
+            string budget = session == null ? "88" : session.Rules.MaxMoves.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            float movesWidth = 104 * k;
+            result.MovesPt *= Mathf.Min(1, (movesWidth - 12 * k) / W(budget, result.MovesPt, SkinUi.Type.Display));
+            float moves = Mathf.Max(112 * k, MovesIconDp * k + H(budget, movesWidth * d, result.MovesPt, SkinUi.Type.Display) + 2 * k);
             float movesBelow = compact ? 28 * k : 18;
 
             // The crown and the medal sit as drawn from the drawing's top, lower only
@@ -126,7 +143,7 @@ namespace ZKube.Presentation
             float starRef = compact ? CompactStarTop : StarTop, star = 44 * k;
             bool medal = !compact && result.Campaign;
             float score = Mathf.Max(58 * k, 8 * k + H("0", 126 * k * d, result.ScorePt, SkinUi.Type.Display));
-            float crownTop = result.Campaign ? starRef - .1f * star : starRef - 6 * k, crownHeight = result.Campaign ? 1.34f * star : score;
+            float crownTop = result.Campaign ? starRef - .1f * star : starRef - 6 * k - BestAboveDp * k, crownHeight = result.Campaign ? 1.34f * star : BestAboveDp * k + score;
             float crownHalf = result.Campaign ? 1.5f * star + .28f * star + .18f * star : 94 * k, medalTop = 30;
             float room = inset + 2, shift = Mathf.Max(0, room - (medal ? Mathf.Min(crownTop, medalTop) : crownTop));
             // Compact: the crown, then the guardian's head under it, then the frame.
@@ -162,10 +179,20 @@ namespace ZKube.Presentation
                 }
                 if (medal) result.Medal = new Rect(safe.x + 16 * d, Y(medalTop + 46), 46 * d, 46 * d);
             }
-            else result.Crown = new Rect(cx - crownHalf * d, Y(crownTop + crownHeight), 2 * crownHalf * d, crownHeight * d);
+            else
+            {
+                // The score plate, with the best badge rising over its top right.
+                result.Crown = new Rect(cx - crownHalf * d, Y(crownTop + crownHeight), 2 * crownHalf * d, score * d);
+                // Wide enough for the best, or a score one digit past it.
+                ulong best = session?.DailyFacts?.Best ?? 0;
+                string widest = (best * 10 + 9).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+                float badge = Mathf.Max(BestDp * k, H("0", 100 * d, result.ChipPt + 2, SkinUi.Type.Display));
+                float width = badge - 4 + W(widest, result.ChipPt + 2, SkinUi.Type.Display) + 12;
+                result.Best = new Rect(result.Crown.xMax - (8 * k + width) * d, Y(crownTop + badge), width * d, badge * d);
+            }
             for (int i = 0; i < 3; i++)
                 result.Plates[i] = new Rect(plateRight - plateWidth * d, Y(rim - stack + i * (plate + gap) + plate), plateWidth * d, plate * d);
-            result.Moves = new Rect(safe.x + 8 * d, Y(rim - movesBelow), 104 * k * d, moves * d);
+            result.Moves = new Rect(safe.x + 8 * d, Y(rim - movesBelow), movesWidth * d, moves * d);
 
             // NEXT ROW, centred in the gap between the frame and the tray.
             float labelHeight = label * d, gapBelow = layout.Rim.y - layout.Tray.yMax;

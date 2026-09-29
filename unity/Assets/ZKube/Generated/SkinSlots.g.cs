@@ -67,6 +67,7 @@ namespace ZKube.Core.Generated
         public const string IconRerollEmpty = "icon-reroll-empty";
         public const string IconHourglass = "icon-hourglass";
         public const string IconCrown = "icon-crown";
+        public const string IconClock = "icon-clock";
         public const string FxGlow = "fx-glow";
         public const string FxShard1 = "fx-shard-1";
         public const string FxShard2 = "fx-shard-2";
@@ -94,6 +95,8 @@ namespace ZKube.Core.Generated
         public const string TapBubbleTail = "tap-bubble-tail";
         public const string MovesWarmGlow = "moves-warm-glow";
         public const string MovesEmberGlow = "moves-ember-glow";
+        public const string MultiplierRing = "multiplier-ring";
+        public const string MultiplierRingFill = "multiplier-ring-fill";
         public const string CounterRing = "counter-ring";
         public const string CounterPip = "counter-pip";
         public const string CounterPipFilled = "counter-pip-filled";

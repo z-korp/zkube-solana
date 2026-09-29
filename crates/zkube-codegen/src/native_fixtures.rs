@@ -374,7 +374,6 @@ impl Trajectory {
             "LevelLinesCleared",
             &run.engine.level_lines_cleared.to_le_bytes(),
         );
-        request.put("PressureScore", &run.pressure_score.to_le_bytes());
         let pending = if run.engine.phase == RunPhase::AwaitingVrf {
             run.last_vrf_counter + 1
         } else {

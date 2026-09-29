@@ -82,7 +82,7 @@ pub const SUMMARY_FIELDS: &[Field] = fields![
     RerollCharges: U8, ComboCounter: U8, PrimaryProgress: U8,
     LatchedStarSources: U8, SecondaryProgress: U8,
     CurrentTier: U8, Moves: U16, ActionCounter: U32,
-    LastVrfCounter: U32, Score: U32, DailyScore: U32, ObjectiveTotal: U64,
+    LastVrfCounter: U32, Score: U32, DailyScore: U32, ObjectiveTotal: U64, PressureScore: U32,
     Grid: Bytes(80), HasNextRow: U8, NextRow: Bytes(8),
     ReplayHash: Bytes(32), RulesHash: Bytes(32),
 ];
@@ -838,6 +838,7 @@ pub fn encode_summary(run: Run) -> Vec<u8> {
     scalar!("Score", run.engine.score);
     scalar!("DailyScore", run.daily_score);
     scalar!("ObjectiveTotal", run.objective_total);
+    scalar!("PressureScore", run.pressure_score);
     scalar!("HasNextRow", u8::from(run.engine.next_row.is_some()));
     put("Grid", run.engine.grid.cells());
     put("NextRow", &run.engine.next_row.unwrap_or([0; 8]));

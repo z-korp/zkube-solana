@@ -426,7 +426,7 @@ namespace ZKube.Core.Generated
 
     public sealed class RunSummary
     {
-        public const int ByteLength = 190;
+        public const int ByteLength = 194;
         public byte Phase { get; set; }
         public byte EndReason { get; set; }
         public byte ScoreEligible { get; set; }
@@ -444,6 +444,7 @@ namespace ZKube.Core.Generated
         public uint Score { get; set; }
         public uint DailyScore { get; set; }
         public ulong ObjectiveTotal { get; set; }
+        public uint PressureScore { get; set; }
         public byte[] Grid { get; set; } = new byte[80];
         public byte HasNextRow { get; set; }
         public byte[] NextRow { get; set; } = new byte[8];
@@ -471,11 +472,12 @@ namespace ZKube.Core.Generated
                 Score = (uint)NativeWire.Read(bytes, 21, 4),
                 DailyScore = (uint)NativeWire.Read(bytes, 25, 4),
                 ObjectiveTotal = (ulong)NativeWire.Read(bytes, 29, 8),
-                Grid = NativeWire.Bytes(bytes, 37, 80),
-                HasNextRow = bytes[117],
-                NextRow = NativeWire.Bytes(bytes, 118, 8),
-                ReplayHash = NativeWire.Bytes(bytes, 126, 32),
-                RulesHash = NativeWire.Bytes(bytes, 158, 32),
+                PressureScore = (uint)NativeWire.Read(bytes, 37, 4),
+                Grid = NativeWire.Bytes(bytes, 41, 80),
+                HasNextRow = bytes[121],
+                NextRow = NativeWire.Bytes(bytes, 122, 8),
+                ReplayHash = NativeWire.Bytes(bytes, 130, 32),
+                RulesHash = NativeWire.Bytes(bytes, 162, 32),
             };
         }
     }

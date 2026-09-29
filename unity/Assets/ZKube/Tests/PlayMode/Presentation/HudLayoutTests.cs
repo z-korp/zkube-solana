@@ -367,6 +367,88 @@ namespace ZKube.Presentation.Tests
                 Assert.AreEqual(SkinUi.FontName(SkinUi.Type.Label), Label("Next row label").font.name);
             }
         }
+        // A Daily bound with the player's best and its close, as both products bind it.
+        private IEnumerator BindDaily(string fixture, ulong best, long closesAt, long now)
+        {
+            evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var session = board.Session;
+            board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions, "", session.RealmId,
+                new DailyContext { Best = best, ClosesAt = closesAt, Now = () => now }));
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+        }
+        [UnityTest] public IEnumerator TheDailyHudShowsItsScoreBestMultiplierObjectiveAndTimeLeftWithoutStars()
+        {
+            yield return BindDaily("realm-8-daily", 1240, 100000 + 7 * 3600 + 42 * 60 + 30, 100000);
+            var view = board.View; var state = board.State; var rules = board.Session.Rules;
+            Image Named(string name) => view.GetComponentsInChildren<Image>(true).Single(image => image.name == name);
+            Assert.IsFalse(view.GetComponentsInChildren<Image>().Any(image => image.name.StartsWith("Star ", StringComparison.Ordinal)), "The Daily has no stars");
+            Assert.IsFalse(view.GetComponentsInChildren<Image>().Any(image => image.name == "Level medal"));
+            Assert.AreEqual(state.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), Label("Score").text);
+            Assert.AreEqual("1,240", Label("Best").text, "The badge holds the best so far");
+            Assert.AreEqual(HudLayout.PressureValue(state), Label("Pressure").text);
+            Assert.AreEqual(HudLayout.PressureProgress(state), Named("Pressure fill").fillAmount, 1e-4f);
+            Assert.AreEqual("7:42", Label("Time left").text);
+            Assert.AreEqual(SkinSlots.IconClock, SpriteName(Named("Time icon")));
+            if (rules.ObjectiveKind != 0)
+            {
+                var goal = PageCatalog.Load().Goal(rules.ObjectiveKind, rules.ObjectiveValue);
+                Assert.AreEqual(goal.Pictogram(rules.BonusType), SpriteName(Named("Goal plate 1 pictogram")));
+                Assert.AreEqual(state.ObjectiveTotal.ToString(), Label("Theme").text);
+            }
+            foreach (string name in new[] { "Score", "Best", "Pressure", "Time left", "Moves remaining" }) Fits(Label(name));
+            // A run past the best lights its crown and carries the badge.
+            var plan = HudLayout.Build(new SkinUi(Art(), 1, 1), state, board.Session, view.Layout.Frame, 1);
+            Assert.IsTrue(Inside(plan.Crown, new Rect(plan.Best.x, plan.Crown.y, plan.Best.width, 1)), "The badge sits over the score plate");
+            ulong saved = state.DailyScore;
+            try
+            {
+                state.DailyScore = 2000; view.Summary(state, board.Session, true);
+                Assert.AreEqual("2,000", Label("Best").text);
+                Assert.AreEqual(1, Named("Best crown").color.a, 1e-4f, "A new best lights the crown");
+            }
+            finally { state.DailyScore = (uint)saved; view.Summary(state, board.Session, true); }
+            Assert.Less(Named("Best crown").color.a, 1, "An unbeaten best keeps its crown dim");
+        }
+        [UnityTest] public IEnumerator TheDailyHudFitsTheSeekerAndA360x640PhoneAtBothTextSizes()
+        {
+            yield return BindDaily("realm-8-daily", 88888, 1000 + 23 * 3600, 1000);
+            var art = Art();
+            board.View.gameObject.SetActive(false);
+            try
+            {
+                foreach (var (name, screen, safe, density) in Screens())
+                    foreach (float scale in new[] { 1f, 1.3f })
+                    {
+                        var host = new GameObject("Daily view"); host.transform.SetParent(root.transform);
+                        try
+                        {
+                            var ui = new SkinUi(art, density, scale);
+                            var plan = HudLayout.Build(ui, board.State, board.Session, safe, density, screen);
+                            var view = host.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
+                            view.Summary(board.State, board.Session, true);
+                            Canvas.ForceUpdateCanvases();
+                            var layout = plan.Layout; string at = name + " at " + scale;
+                            Assert.GreaterOrEqual(layout.Cell / density, name == "Seeker" ? 44 : scale == 1 ? HudLayout.MinCompactCellDp : 30, at + " keeps a playable board");
+                            Apart(new[] { plan.Crown, plan.Moves, plan.Plates[0], plan.Plates[1], plan.Plates[2] }, at);
+                            foreach (var piece in new[] { plan.Crown, plan.Best, plan.Moves }.Concat(plan.Plates))
+                            {
+                                Assert.IsTrue(Inside(safe, piece), at + " keeps " + piece + " inside the safe area");
+                                Assert.GreaterOrEqual(piece.yMin, layout.Rim.yMax - .5f, at + " keeps " + piece + " above the frame");
+                            }
+                            foreach (var label in view.GetComponentsInChildren<TMP_Text>().Where(t => new[] { "Score", "Best", "Pressure", "Theme", "Time left", "Moves remaining" }.Contains(t.name)))
+                            {
+                                Fits(label); label.ForceMeshUpdate();
+                                var owner = label.name == "Score" ? plan.Crown : label.name == "Best" ? plan.Best : label.name == "Moves remaining" ? plan.Moves
+                                    : label.name == "Pressure" ? plan.Plates[0] : label.name == "Theme" ? plan.Plates[1] : plan.Plates[board.Session.Rules.ObjectiveKind != 0 ? 2 : 1];
+                                Assert.IsTrue(Inside(owner, Ink(label), 1), at + " keeps " + label.name + " '" + label.text + "' inside " + owner);
+                            }
+                        }
+                        finally { UnityEngine.Object.Destroy(host); }
+                        yield return null;
+                    }
+            }
+            finally { board.View.gameObject.SetActive(true); }
+        }
         private static string StripTags(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
         [UnityTest] public IEnumerator NativePartialLatchRendersAllThreeClearSocketsInNarrowGeometry()
         {
@@ -441,7 +523,7 @@ namespace ZKube.Presentation.Tests
             board.SetTextScale(1.3f); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Assert.AreSame(token, board.Session.Accepted, "Text size must not alter native acceptance");
             Assert.AreEqual(standardSize * 1.3f, Label("Score").fontSize, .01f);
-            Assert.AreEqual(board.State.DailyScore.ToString(), Label("Score").text);
+            Assert.AreEqual(board.State.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), Label("Score").text);
             Assert.AreEqual(board.State.ObjectiveTotal.ToString(), Label("Theme").text);
             foreach (string name in new[] { "Score", "Theme", "Earn caption", "Moves remaining" }) Fits(Label(name));
             Assert.Greater(board.View.Layout.Cell, 0);

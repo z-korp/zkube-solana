@@ -234,7 +234,7 @@ fn protocol(catalog: &CampaignCatalog) -> String {
     use zkube_core::{
         ARENA_ENTRY_LAMPORTS, CAMPAIGN_TARGET_LADDER, DAILY_MAX_MOVES,
         DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_THEMES, PLAYER_STATE_ACCOUNT_VERSION,
-        PRESSURE_MULTIPLIER_BASE_PERCENT, PRESSURE_MULTIPLIER_STEP_PERCENT,
+        PRESSURE_MULTIPLIER_BASE_PERCENT, PRESSURE_MULTIPLIER_STEP_PERCENT, PRESSURE_STEP,
         PROTOCOL_ACCOUNT_VERSION,
     };
     let mut output = String::from(
@@ -291,7 +291,13 @@ fn protocol(catalog: &CampaignCatalog) -> String {
         .unwrap();
     }
     output.push_str("        };\n");
-    // The Daily score multiplier the core applies at a pressure tier, in percent.
+    // The Daily score multiplier the core applies at a pressure tier, in percent,
+    // and the pressure score each tier spans.
+    writeln!(
+        output,
+        "        public const uint PressureStep = {PRESSURE_STEP};"
+    )
+    .unwrap();
     writeln!(
         output,
         "        public static uint PressureMultiplierPercent(byte tier) => {PRESSURE_MULTIPLIER_BASE_PERCENT}U + {PRESSURE_MULTIPLIER_STEP_PERCENT}U * tier;"

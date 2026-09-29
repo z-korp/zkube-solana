@@ -25,8 +25,8 @@ namespace ZKube.Presentation
             this.recover = recover ?? throw new ArgumentNullException(nameof(recover));
             this.settle = settle ?? throw new ArgumentNullException(nameof(settle));
         }
-        public BoardSession Bind(RunClientState state, string title) =>
-            new BoardSession(binding.Accept(state), binding.Rules, this, title, binding.RealmId);
+        public BoardSession Bind(RunClientState state, string title, DailyContext daily = null) =>
+            new BoardSession(binding.Accept(state), binding.Rules, this, title, binding.RealmId, daily);
         // The host uses this for terminal Continue; recovery navigation only leaves the view.
         public Task<RunClientState> FinishAndSettle(CancellationToken cancellation) =>
             settle(cancellation);

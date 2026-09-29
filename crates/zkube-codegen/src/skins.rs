@@ -44,7 +44,7 @@ pub const UI_STRETCH_SLOTS: [&str; 29] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 66] = [
+pub const UI_FIXED_SLOTS: [&str; 69] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -74,14 +74,15 @@ pub const UI_FIXED_SLOTS: [&str; 66] = [
     "icon-sound",
     "icon-lock",
     "icon-trophy",
-    // A bonus or reroll tablet with no charge, the moves tablet's hourglass
-    // and the Daily best's crown.
+    // A bonus or reroll tablet with no charge, the moves tablet's hourglass,
+    // the Daily best's crown and the Daily's time left.
     "icon-hammer-empty",
     "icon-totem-empty",
     "icon-wave-empty",
     "icon-reroll-empty",
     "icon-hourglass",
     "icon-crown",
+    "icon-clock",
     // Effect sprites are white with variable alpha; the client tints them.
     // fx-glow is the light code places behind live and earned things.
     "fx-glow",
@@ -121,6 +122,9 @@ pub const UI_FIXED_SLOTS: [&str; 66] = [
     "tap-bubble-tail",
     "moves-warm-glow",
     "moves-ember-glow",
+    // The Daily's multiplier capsule and the lit fill that runs round it.
+    "multiplier-ring",
+    "multiplier-ring-fill",
     // A one-move goal's ring, the pips of moves in a row, and the tick of a
     // met goal (also the ring once earned).
     "counter-ring",

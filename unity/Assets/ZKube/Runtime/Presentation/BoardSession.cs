@@ -31,6 +31,15 @@ namespace ZKube.Presentation
         Task<BoardActionResult> Recover(CancellationToken cancellation);
     }
 
+    // What a Daily board shows beside its run: the player's best score, when
+    // entries close (Unix seconds) and the clock that counts down to it.
+    public sealed class DailyContext
+    {
+        public ulong Best;
+        public long ClosesAt;
+        public Func<long> Now;
+    }
+
     public sealed class BoardSession
     {
         public CoreRunToken Accepted { get; internal set; }
@@ -39,7 +48,10 @@ namespace ZKube.Presentation
         public readonly bool Daily;
         public readonly byte RealmId;
         public readonly string Title;
-        public BoardSession(CoreRunToken accepted, BuildConfigRequest rules, IBoardActionProvider actions, string title, byte realmId)
+        // A Daily's best and close; null for a Campaign run or a host without them.
+        public readonly DailyContext DailyFacts;
+        public BoardSession(CoreRunToken accepted, BuildConfigRequest rules, IBoardActionProvider actions, string title, byte realmId,
+            DailyContext daily = null)
         {
             Accepted = accepted ?? throw new ArgumentNullException(nameof(accepted));
             Rules = rules ?? throw new ArgumentNullException(nameof(rules));
@@ -47,7 +59,7 @@ namespace ZKube.Presentation
             Daily = rules.TierPolicy == 1;
             if (!System.Linq.Enumerable.Any(Protocol.Realms, realm => realm.MapId == realmId))
                 throw new ArgumentOutOfRangeException(nameof(realmId), "No authored realm has this identity");
-            RealmId = realmId; Title = title ?? "";
+            RealmId = realmId; Title = title ?? ""; DailyFacts = Daily ? daily : null;
             // Config comes from the authoritative boundary, including all rules
             // and replay fields. Do not pair a HUD with unrelated state/config.
             byte[] encoded = NativeEngine.BuildConfig(rules);

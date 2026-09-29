@@ -248,7 +248,8 @@ namespace ZKube.Local.App
         public void Report(Exception error) => Flow.Report(error);
         private void OpenBoard(LocalBoardActionProvider provider)
         {
-            board.gameObject.SetActive(true); board.Bind(provider.Bind(provider.Title)); if (pageRoot != null) pageRoot.SetActive(false);
+            var daily = provider.Daily ? new DailyContext { Best = Flow.Product.Read.BestDailyScore, ClosesAt = Flow.Today.FreezesAt, Now = Flow.Runs.Now } : null;
+            board.gameObject.SetActive(true); board.Bind(provider.Bind(provider.Title, daily)); if (pageRoot != null) pageRoot.SetActive(false);
             // The page that opened the board is not shown again on the way back.
             views.Hide();
         }

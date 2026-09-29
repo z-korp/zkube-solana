@@ -41,7 +41,8 @@ namespace ZKube.Integration.Presentation
             now = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
-        public void Open(MoneyRunLaunch launch, string title, float textScale)
+        // best is the owner's best Daily score as last read, zero when unknown.
+        public void Open(MoneyRunLaunch launch, string title, float textScale, ulong best = 0)
         {
             if (flow == null || HasRun || !launch.CanBind || !flow.RunIdentityCurrent(launch.Run))
                 throw new InvalidOperationException("No current accepted run can be opened");
@@ -58,7 +59,8 @@ namespace ZKube.Integration.Presentation
             var root = new GameObject("Money accepted run"); root.transform.SetParent(transform, false);
             board = root.AddComponent<BoardController>();
             board.SetTextScale(textScale); board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
-            board.Bind(provider.Bind(launch.Operation.State, title));
+            board.Bind(provider.Bind(launch.Operation.State, title,
+                new DailyContext { Best = best, ClosesAt = run.Binding.DeadlineAt, Now = now }));
             board.SetHostInputEnabled(!paused && !Frozen());
         }
 

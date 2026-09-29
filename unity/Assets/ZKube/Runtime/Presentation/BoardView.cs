@@ -33,7 +33,8 @@ namespace ZKube.Presentation
         private readonly GoalPlate[] plates = new GoalPlate[3];
         private SkinTablet guardianTablet, rerollTablet;
         private GameObject bubble;
-        private TMP_Text pressure;
+        private TMP_Text pressure, best, timeLeft;
+        private Image pressureFill, bestCrown;
         private readonly bool[] flying = new bool[3];
         private GameObject modal;
         private Image modalShield;
@@ -191,14 +192,39 @@ namespace ZKube.Presentation
                 ui.Piece("Score pictogram", SkinSlots.GoalScore, hud.In(hud.Crown, 12, 9, 40, 40), root);
                 score = Text("Score", "0", new Rect(hud.Crown.x + 54 * hud.K * d, hud.Crown.y, hud.Crown.width - 62 * hud.K * d, hud.Crown.height),
                     hud.ScorePt, SkinTokens.Score, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
-                var rules = session.Rules;
-                ui.Piece("Pressure plate", SkinSlots.GoalPlate, hud.Plates[0], root);
-                pressure = Text("Pressure", "", hud.Plates[0], hud.CountPt, SkinTokens.Accent, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
+                var facts = session.DailyFacts;
+                if (facts != null)
+                {
+                    // The best: a crown and the best score, on a badge over the plate's corner.
+                    var badge = hud.Best; float icon = badge.height - 4 * d;
+                    ui.Pill("Best badge", badge, root);
+                    bestCrown = ui.Piece("Best crown", SkinSlots.IconCrown, new Rect(badge.x + 5 * d, badge.y + 2 * d, icon, icon), root);
+                    best = Text("Best", "", new Rect(badge.x + 7 * d + icon, badge.y, badge.width - 10 * d - icon, badge.height),
+                        hud.ChipPt + 2, SkinTokens.Accent, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
+                }
+                // The right column: the multiplier, the objective (a Classic day has none) and the time left.
+                var rules = session.Rules; int slot = 0;
+                var ring = hud.Plates[slot++];
+                ui.Piece("Pressure plate", SkinSlots.GoalPlate, ring, root);
+                var capsule = hud.In(ring, 8, 5, 88, 36);
+                ui.Piece("Pressure ring", SkinSlots.MultiplierRing, capsule, root);
+                pressureFill = ui.Piece("Pressure fill", SkinSlots.MultiplierRingFill, capsule, root);
+                pressureFill.type = Image.Type.Filled; pressureFill.fillMethod = Image.FillMethod.Radial360;
+                pressureFill.fillOrigin = (int)Image.Origin360.Top; pressureFill.fillClockwise = true;
+                pressure = Text("Pressure", "", capsule, hud.CountPt, SkinTokens.Accent, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
                 if (rules.ObjectiveKind != 0)
                 {
                     var goal = catalog.Goal(rules.ObjectiveKind, rules.ObjectiveValue);
-                    plates[1] = Plate(1, goal.Pictogram(rules.BonusType), goal.chip, "count", goal.text, root);
+                    plates[1] = Plate(1, goal.Pictogram(rules.BonusType), goal.chip, "count", goal.text, root, at: slot++);
                     objective = plates[1].Count;
+                }
+                if (facts != null)
+                {
+                    var clock = hud.Plates[slot];
+                    ui.Piece("Time plate", SkinSlots.GoalPlate, clock, root);
+                    ui.Piece("Time icon", SkinSlots.IconClock, hud.In(clock, 8, 9, 28, 28), root);
+                    timeLeft = Text("Time left", "", hud.In(clock, 38, 6, clock.width / (hud.K * d) - 42, 34), hud.CountPt, SkinTokens.Score, root,
+                        SkinUi.Type.Display, TextAlignmentOptions.Center);
                 }
             }
 
@@ -240,9 +266,9 @@ namespace ZKube.Presentation
         }
         // One plate, in the wireframe's dp from its top left: the 32 dp pictogram
         // at 6, 7 with its chip on its lower right, then the counter.
-        private GoalPlate Plate(int index, string pictogram, string chip, string counter, string caption, Transform root, byte required = 0)
+        private GoalPlate Plate(int index, string pictogram, string chip, string counter, string caption, Transform root, byte required = 0, int? at = null)
         {
-            var rect = hud.Plates[index]; float d = Layout.Density, k = hud.K;
+            var rect = hud.Plates[at ?? index]; float d = Layout.Density, k = hud.K;
             var plate = new GoalPlate { Rect = rect, Counter = counter, Caption = caption };
             var touch = ui.Rect<Image>("Goal plate " + index, rect, root);
             touch.color = Color.clear; touch.raycastTarget = true;
@@ -386,6 +412,11 @@ namespace ZKube.Presentation
             patch.enabled = !string.IsNullOrEmpty(text.text) && text.gameObject.activeSelf;
         }
 
+        private void ShowTimeLeft()
+        {
+            var facts = owner.Session?.DailyFacts;
+            if (timeLeft != null && facts != null) timeLeft.text = HudLayout.TimeLeft(facts.ClosesAt - facts.Now());
+        }
         private uint movesLeft;
         private bool playing;
         public void Summary(RunSummary state, BoardSession session, bool available)
@@ -415,7 +446,18 @@ namespace ZKube.Presentation
             else
             {
                 pressure.text = HudLayout.PressureValue(state);
+                pressureFill.fillAmount = HudLayout.PressureProgress(state);
                 ShowPlate(plates[1], state.ObjectiveTotal, 0, false);
+                var facts = session.DailyFacts;
+                if (facts != null)
+                {
+                    // The badge holds the best so far; its crown lights once this run beats it.
+                    best.text = Math.Max(facts.Best, state.DailyScore).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+                    bool beaten = state.DailyScore > facts.Best;
+                    bestCrown.sprite = art.SkinUi(SkinSlots.IconCrown); bestCrown.color = SkinUi.WithAlpha(Color.white, beaten ? 1 : .55f);
+                    best.color = art.Token(beaten ? SkinTokens.Accent : SkinTokens.TextMuted);
+                }
+                ShowTimeLeft();
             }
             guardianTablet.Icons(art.SkinUi(HudLayout.BonusIcon(state.BonusType, true)), art.SkinUi(HudLayout.BonusIcon(state.BonusType, false)));
             rerollTablet.Icons(art.SkinUi(SkinSlots.IconReroll), art.SkinUi(SkinSlots.IconRerollEmpty));
@@ -795,11 +837,26 @@ namespace ZKube.Presentation
                 float k = BackOut(elapsed / duration);
                 foreach (var pair in rising) pair.Key.transform.position = pair.Value + Vector3.up * Layout.Cell * k;
                 foreach (var (sprite, from, to) in incoming) sprite.transform.position = Vector3.LerpUnclamped(from, to, k);
-                ShowNextLabel(Mathf.Clamp01(1 - 6 * Mathf.Sin(Mathf.PI * elapsed / duration)));
+                ShowNextLabel(LabelClearance(incoming.Select(item => item.sprite)));
                 yield return null;
             }
             ShowNextLabel(1);
             foreach (var (sprite, _, _) in incoming) ReturnBlock(sprite);
+        }
+        // The label fades as a rising block nears it: gone while one crosses it,
+        // whole again a cell away.
+        private float LabelClearance(IEnumerable<SpriteRenderer> sprites)
+        {
+            if (nextLabel == null) return 1;
+            var zone = SkinUi.ScreenRect(nextLabel.rectTransform);
+            float nearest = float.PositiveInfinity;
+            foreach (var sprite in sprites)
+            {
+                var b = sprite.bounds;
+                float gap = Mathf.Max(zone.yMin - b.max.y, b.min.y - zone.yMax);
+                nearest = Mathf.Min(nearest, Mathf.Max(0, gap));
+            }
+            return Mathf.Clamp01(nearest / Layout.Cell);
         }
         // Ease out with a small overshoot: about 6% past the end before settling.
         private static float BackOut(float t)
@@ -920,7 +977,7 @@ namespace ZKube.Presentation
         }
         private void ShowScoreText(uint value)
         {
-            if (!hud.Campaign) { score.text = value.ToString(); return; }
+            if (!hud.Campaign) { score.text = value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture); return; }
             // The plate counts toward the star: a met target reads full, with its tick.
             uint target = owner.Session.Rules.PointsRequired;
             ShowPlate(plates[0], Math.Min(value, target), target, value >= target);
@@ -1152,6 +1209,7 @@ namespace ZKube.Presentation
         {
             ShowAwaiting(Time.unscaledTime);
             if (owner != null && owner.State != null) Breathe(Time.unscaledTime);
+            ShowTimeLeft();
             if (guardian == null) return;
             float now = Time.unscaledTime;
             if (guardianFinal) return;

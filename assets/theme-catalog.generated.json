@@ -2482,6 +2482,16 @@
             0,
             0
           ],
+          "image": "/assets/skins/lumen/ui/icon-clock.png",
+          "slot": "icon-clock"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/lumen/ui/fx-glow.png",
           "slot": "fx-glow"
         },
@@ -2744,6 +2754,26 @@
           ],
           "image": "/assets/skins/lumen/ui/moves-ember-glow.png",
           "slot": "moves-ember-glow"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/multiplier-ring.png",
+          "slot": "multiplier-ring"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/multiplier-ring-fill.png",
+          "slot": "multiplier-ring-fill"
         },
         {
           "border": [

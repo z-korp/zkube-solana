@@ -224,15 +224,15 @@ namespace ZKube.Presentation.Tests
             for (int i = 0; i < Inputs() && board.State.DailyScore == before; i++)
             {
                 var input = evidence.PlayNextInput();
-                while (input.MoveNext()) { highest = Math.Max(highest, uint.Parse(score.text)); yield return input.Current; }
+                while (input.MoveNext()) { highest = Math.Max(highest, uint.Parse(score.text, System.Globalization.NumberStyles.AllowThousands, System.Globalization.CultureInfo.InvariantCulture)); yield return input.Current; }
             }
             Assert.Greater(board.State.DailyScore, before, "The fixture's action scores");
             for (float end = Time.realtimeSinceStartup + 1.5f; Time.realtimeSinceStartup < end;)
             {
-                highest = Math.Max(highest, uint.Parse(score.text));
+                highest = Math.Max(highest, uint.Parse(score.text, System.Globalization.NumberStyles.AllowThousands, System.Globalization.CultureInfo.InvariantCulture));
                 yield return null;
             }
-            Assert.AreEqual(board.State.DailyScore.ToString(), score.text);
+            Assert.AreEqual(board.State.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), score.text);
             Assert.LessOrEqual(highest, board.State.DailyScore);
             Assert.AreEqual(Vector3.one, score.rectTransform.localScale);
         }
