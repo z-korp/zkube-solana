@@ -45,8 +45,11 @@ runbooks or approval policy in README.md.
   non-debug signing, guarded by `test_production_packages_require_explicit_version_and_non_debug_signing`
   and `test_production_without_version_fails_before_toolchain_work`. Prerequisites are checked first by
   `test_toolchain_checks_android_targets_and_bundletool_first`. The owner signs through ZKUBE_ANDROID_KEYSTORE,
-  ZKUBE_ANDROID_KEYSTORE_PASS, ZKUBE_ANDROID_KEY_ALIAS and ZKUBE_ANDROID_KEY_PASS, applied in memory only and
-  guarded by `test_production_without_signing_fails_before_toolchain_work_naming_only_the_variable`.
+  ZKUBE_ANDROID_KEYSTORE_PASS, ZKUBE_ANDROID_KEY_ALIAS and ZKUBE_ANDROID_KEY_PASS, applied in memory for that
+  build only and never saved or echoed;
+  `test_production_without_signing_fails_before_toolchain_work_naming_only_the_variable` and
+  `SigningIsAppliedInMemoryForOneBuildAndNeverSavedOrEchoed` guard them. The store build runs on the x86_64
+  emulator; the arm64-only money APK needs a physical device.
 
 ### Validation and defect classes
 
@@ -372,12 +375,41 @@ are shared across settings and board controls, checked by
 `SettingsBeforeStartAreAppliedAndPersistAcrossControllerRecreation` and
 `SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount`.
 
-Skins live in assets/skins/<id>/ and are listed in assets/catalog.json; the first is the default. The codegen
-owns the slot and token list, emits it to C# and rejects a missing or unknown slot for the UI or any realm;
-each realm owns its block tints and light. build.py gives each skin UI kit and skin realm its own atlas with
-the authored stretch borders. `every_skin_fills_every_ui_and_realm_slot`,
-`every_realm_declares_its_own_block_tints_and_light`, `EverySkinMustCoverEveryRealm` and
-`test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders` guard the contract.
+Skins live in assets/skins/<id>/ and are listed in assets/catalog.json; Lumen is the only skin and the first is
+the default. The codegen owns the slot and token list, emits it to C# and rejects a missing or unknown slot for
+the UI or any realm. Each realm owns its block tints, light colours and ledge rail, and skin.json places its key
+light, shafts and motes; paintings are JPEG and every piece with alpha is PNG. Ladder borders and badges derive
+from the core's tier count. build.py gives each skin UI kit and skin realm its own atlas with the authored
+stretch borders. `every_skin_fills_every_ui_and_realm_slot`,
+`every_realm_declares_its_own_block_tints_and_light`, `every_realm_places_its_key_light_shafts_and_motes`,
+`paintings_are_jpeg_and_everything_with_alpha_is_png`,
+`EverySkinMustCoverEveryRealm` and `test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders`
+guard the contract. Kit art carries no seam or stray highlight;
+`NoSlicedKitPieceShowsASeamAtItsSliceLinesAtTwiceItsSize` and
+`test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
+
+Each guardian has ten full frames, a paws layer drawn over the rail it leans on, and a contact rail line; its
+title and ten lines are authored per realm in the catalog. The talk scene types those lines on the realm's
+ledge with the mouth flapping, then rests on the moment's mood; reduced motion shows the line at once.
+`guardian_contact_names_every_frame_and_a_rail_inside_its_canvas`,
+`every_guardian_says_every_line_and_none_is_empty`, `EveryMomentSpeaksItsAuthoredLine` and
+`TheGuardianLeansOnTheRailOverTheBox` guard frames, lines and placement. Daily objectives take their words
+from the constraint caption owner; `every_daily_objective_uses_its_constraint_caption` guards the pair.
+
+The player renders in gamma colour space: the approved art and its soft alpha were composed that way, and
+linear blending darkened near-transparent edges. `ThePlayerBlendsInGammaSpaceAsTheArtIsApproved` pins it.
+Preparation clears the font engine's uninitialised kerning-pair flags, which otherwise dropped Label tracking
+at random between checkouts; `EveryGeneratedFontSpacesEveryKerningPair` guards every generated font.
+Compact-phone page tests run in the measured device safe areas of Tests/PlayMode/Presentation/Phones.cs
+(360 x 572 and 417 x 882 dp), as `EveryPagesLastPieceScrollsAboveTheTabBarOnACompactPhone` does.
+
+Each product's icon layers, legacy icon and splash come from the brand directory its identity names in
+unity/toolchain.json, and build.py stages only that product's files. The launch window draws the splash until
+Unity's first frame, the launch screen continues it pixel-aligned and a veil opens on the first page; startup
+then releases the window's splash. `test_each_package_stages_only_its_own_icon_and_splash`,
+`test_each_package_launch_window_carries_its_own_splash`,
+`TheSplashSitsWhereTheLaunchWindowDrawsItWithTheLoadingLineUnderItsLockup` and
+`TheSegmentSweepsUntilTheFirstPageThenAVeilClosesAndOpensOnThePage` guard identity, geometry and handover.
 
 Store saves derive Daily content from day and keep numeric metrics; money saves carry Campaign only.
 `MoneySaveContainsOnlyCampaignDataAndDailyMetricsRemainNumbers`,
