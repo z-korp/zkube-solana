@@ -144,6 +144,7 @@ namespace ZKube.Tests.MoneyOverview
             // A prepared app has drawn its first page and let its launch screen go.
             for (float end = Time.realtimeSinceStartup + 5; startup.Launch != null && Time.realtimeSinceStartup < end;) yield return null;
             Assert.That(startup.Launch == null, "The launch screen leaves once the first page is drawn");
+            Assert.That(startup.LaunchWindowReleased, "The launch window's splash is released after the first frame");
         }
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()
         {
