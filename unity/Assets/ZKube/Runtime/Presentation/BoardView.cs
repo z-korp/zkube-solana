@@ -169,9 +169,9 @@ namespace ZKube.Presentation
                 targetText = Text("Score target", "", hud.ScoreTarget, hud.TargetPt, SkinTokens.TextMuted, root, SkinUi.Type.Caption);
             Text("Moves label", "MOVES", hud.MovesCaption, hud.LabelPt, SkinTokens.TextMuted, root, SkinUi.Type.Label);
             moves = Text("Moves remaining", "", hud.MovesValue, hud.NumberPt, SkinTokens.Score, root, SkinUi.Type.Number);
-            objectiveLabel = Text("Theme label", "", hud.PrimaryCaption, hud.CaptionPt, SkinTokens.Text, root, SkinUi.Type.Caption);
+            objectiveLabel = Text("Theme label", "", hud.PrimaryCaption, hud.PrimaryCaptionPt, SkinTokens.Text, root, SkinUi.Type.Caption);
             objective = Text("Theme", "0", hud.PrimaryValue, hud.GoalPt, SkinTokens.Objective, root, SkinUi.Type.Number);
-            secondaryLabel = Text(hud.Campaign ? "Secondary label" : "Pressure label", "", hud.SecondaryCaption, hud.CaptionPt,
+            secondaryLabel = Text(hud.Campaign ? "Secondary label" : "Pressure label", "", hud.SecondaryCaption, hud.SecondaryCaptionPt,
                 hud.Campaign ? SkinTokens.Text : SkinTokens.TextMuted, root, SkinUi.Type.Caption);
             secondary = Text(hud.Campaign ? "Secondary" : "Pressure", "", hud.SecondaryValue, hud.Campaign ? hud.GoalPt : hud.PointsPt,
                 hud.Campaign ? SkinTokens.Objective : SkinTokens.Accent, root, SkinUi.Type.Number);
@@ -192,9 +192,10 @@ namespace ZKube.Presentation
                 starRings[i].color = gold; starRings[i].enabled = false;
             }
 
-            var next = Text("Next row label", "NEXT ROW", hud.NextLabel, hud.LabelPt * 11 / 12, SkinTokens.TextMuted, root, SkinUi.Type.Label,
+            var next = nextLabel = Text("Next row label", "NEXT ROW", hud.NextLabel, hud.LabelPt * 11 / 12, SkinTokens.TextMuted, root, SkinUi.Type.Label,
                 TextAlignmentOptions.Top);
-            FitUnderpaint(ui.Underpaint("Next row shade", Rect.zero, root), next, true);
+            nextShade = ui.Underpaint("Next row shade", Rect.zero, root);
+            FitUnderpaint(nextShade, next, true);
             next.transform.SetAsLastSibling();
             headingShade = ui.Underpaint("Guardian earning shade", Rect.zero, root);
             ruleShade = ui.Underpaint("Guardian rule shade", Rect.zero, root);
@@ -221,7 +222,7 @@ namespace ZKube.Presentation
             float width = Mathf.Min(rect.width, size.x), height = Mathf.Min(rect.height, size.y);
             float x = centred ? rect.center.x - width / 2 : rect.x;
             SkinUi.Place(patch.rectTransform, new Rect(x, rect.yMax - height, width, height), patch.transform.parent);
-            float pad = 12 * Layout.Density;
+            float pad = SkinUi.UnderpaintPadDp * Layout.Density;
             patch.rectTransform.anchoredPosition -= new Vector2(pad, pad * .75f);
             patch.rectTransform.sizeDelta += new Vector2(2 * pad, 1.5f * pad);
             patch.enabled = !string.IsNullOrEmpty(text.text) && text.gameObject.activeSelf;
@@ -598,6 +599,18 @@ namespace ZKube.Presentation
         }
         // The next row lifts out of the tray while the board rises one row, both
         // overshooting slightly and settling. Reduced motion moves them at once.
+        // The next-row label sits in the incoming row's path; it steps aside
+        // while the row crosses it and returns once the row has landed.
+        private TMP_Text nextLabel;
+        private Image nextShade;
+        private float nextAlpha = -1, nextShadeAlpha;
+        private void ShowNextLabel(float visible)
+        {
+            if (nextLabel == null) return;
+            if (nextAlpha < 0) { nextAlpha = nextLabel.color.a; nextShadeAlpha = nextShade.color.a; }
+            nextLabel.color = SkinUi.WithAlpha(nextLabel.color, nextAlpha * visible);
+            nextShade.color = SkinUi.WithAlpha(nextShade.color, nextShadeAlpha * visible);
+        }
         private IEnumerator Insert(byte[] row, bool reducedMotion)
         {
             foreach (var block in preview) ReturnBlock(block); preview.Clear();
@@ -619,8 +632,10 @@ namespace ZKube.Presentation
                 float k = BackOut(elapsed / duration);
                 foreach (var pair in rising) pair.Key.transform.position = pair.Value + Vector3.up * Layout.Cell * k;
                 foreach (var (sprite, from, to) in incoming) sprite.transform.position = Vector3.LerpUnclamped(from, to, k);
+                ShowNextLabel(Mathf.Clamp01(1 - 6 * Mathf.Sin(Mathf.PI * elapsed / duration)));
                 yield return null;
             }
+            ShowNextLabel(1);
             foreach (var (sprite, _, _) in incoming) ReturnBlock(sprite);
         }
         // Ease out with a small overshoot: about 6% past the end before settling.
@@ -645,9 +660,12 @@ namespace ZKube.Presentation
 
         public void OpenModal(string title, string body, params (string label, Action action)[] actions) =>
             OpenModal(title, body, null, actions);
-        // A destructive action is the kit's secondary pill in the negative ink,
-        // set apart from the rows above it.
-        public const float DestructiveGapDp = 16;
+        // The board's dialogs share the Lumen dialog of the pause: the guardian's
+        // medallion breaking the panel's top edge, a Fraunces title over muted
+        // details, 56 dp pills with the first one lit, and a destructive action
+        // as the secondary pill in the negative ink with the close icon, set
+        // apart from the actions above it.
+        public const float DestructiveGapDp = 16, DialogTitleDp = 30, DialogDetailsDp = 14, DialogPillDp = 56;
         public void OpenModal(string title, string body, string destructive, params (string label, Action action)[] actions)
         {
             CloseModal();
@@ -655,16 +673,21 @@ namespace ZKube.Presentation
             modal = new GameObject("Modal content", typeof(RectTransform));
             modal.transform.SetParent(modalShield.transform, false);
             SkinUi.Place(modal.GetComponent<RectTransform>(), new Rect(0, 0, Screen.width, Screen.height), modalShield.transform);
-            float d = Layout.Density, width = Layout.Frame.width - 32 * d, inner = width - 48 * d;
-            float titleHeight = ui.TextHeight(title, inner, 22, true) + 4 * d;
-            float bodyHeight = string.IsNullOrEmpty(body) ? -8 * d : ui.TextHeight(body, inner, 14, false) + 4 * d;
-            var buttonHeights = actions.Select(action => Mathf.Max(52 * d, ui.TextHeight(action.label, inner - 20 * d, SkinUi.ButtonDp, SkinUi.Type.Number) + 24 * d)).ToArray();
+            float d = Layout.Density, width = Mathf.Min(356 * d, Layout.Frame.width - 44 * d), inner = width - 52 * d;
+            float titleHeight = ui.TextHeight(title, inner, DialogTitleDp, SkinUi.Type.Title);
+            float bodyHeight = string.IsNullOrEmpty(body) ? 0 : ui.TextHeight(body, inner, DialogDetailsDp, SkinUi.Type.Caption);
+            var buttonHeights = actions.Select(action => Mathf.Max(DialogPillDp * d,
+                ui.TextHeight(action.label, inner - 20 * d, SkinUi.ButtonDp, SkinUi.Type.Number) + 24 * d)).ToArray();
             float gap = actions.Any(action => action.label == destructive) ? DestructiveGapDp * d : 0;
-            float contentHeight = 28 * d + titleHeight + 8 * d + bodyHeight + 16 * d + buttonHeights.Sum() + actions.Length * 8 * d + gap + 20 * d;
-            float height = Mathf.Min(Layout.Frame.height - 24 * d, contentHeight);
-            var rect = new Rect(Layout.Frame.center.x - width / 2, Layout.Frame.center.y - height / 2, width, height);
-            var panel = ui.Piece("Stone dialog", SkinSlots.Dialog, rect, modal.transform);
+            float contentHeight = 38 * d + titleHeight + (bodyHeight > 0 ? 6 * d + bodyHeight : 0) + 22 * d
+                + buttonHeights.Sum() + Mathf.Max(0, actions.Length - 1) * 12 * d + gap + 30 * d;
+            // The medallion rises 51 dp above the panel; both stay inside the frame.
+            float room = Layout.Frame.height - 24 * d - 51 * d, height = Mathf.Min(room, contentHeight);
+            float top = Layout.Frame.center.y + height / 2 - 26 * d;
+            var rect = new Rect(Layout.Frame.center.x - width / 2, top - height, width, height);
+            var panel = ui.Piece("Dialog panel", SkinSlots.Dialog, rect, modal.transform);
             panel.raycastTarget = true;
+            ui.Medallion("Dialog guardian", new Rect(rect.center.x - 40 * d, top + 11 * d - 40 * d, 80 * d, 80 * d), art.Sprite("boss__portrait"), modal.transform);
             Transform content = modal.transform;
             var contentRect = new Rect(rect.x, rect.yMax - contentHeight, width, contentHeight);
             if (contentHeight > height)
@@ -681,21 +704,30 @@ namespace ZKube.Presentation
                 scroll.movementType = ScrollRect.MovementType.Clamped; scroll.verticalNormalizedPosition = 1;
                 content = bodyRoot.transform;
             }
-            float cursor = contentRect.yMax - 28 * d;
-            ui.Label("Dialog title", title, new Rect(rect.x + 24 * d, cursor - titleHeight, inner, titleHeight), 22, SkinTokens.Accent, content, true);
-            cursor -= titleHeight + 8 * d;
-            if (!string.IsNullOrEmpty(body))
-                ui.Label("Dialog details", body, new Rect(rect.x + 24 * d, cursor - bodyHeight, inner, bodyHeight), 14, SkinTokens.Text, content);
-            cursor -= bodyHeight + 16 * d;
+            float x = rect.x + 26 * d, cursor = contentRect.yMax - 38 * d;
+            ui.Label("Dialog title", title, new Rect(x, cursor - titleHeight, inner, titleHeight), DialogTitleDp, SkinTokens.Text, content, SkinUi.Type.Title);
+            cursor -= titleHeight;
+            if (bodyHeight > 0)
+            {
+                cursor -= 6 * d;
+                ui.Label("Dialog details", body, new Rect(x, cursor - bodyHeight, inner, bodyHeight), DialogDetailsDp, SkinTokens.TextMuted, content,
+                    SkinUi.Type.Caption);
+                cursor -= bodyHeight;
+            }
+            cursor -= 22 * d;
             for (int i = 0; i < actions.Length; i++)
             {
-                bool destroys = actions[i].label == destructive;
+                bool destroys = actions[i].label == destructive, lit = i == 0 && !destroys;
                 if (destroys && i > 0) cursor -= gap;
                 cursor -= buttonHeights[i];
-                ui.TextButton("Dialog " + actions[i].label, new Rect(rect.x + 24 * d, cursor, inner, buttonHeights[i]), actions[i].label,
-                    actions[i].action, i == 0 && !destroys, content, out var label);
+                var pill = new Rect(x, cursor, inner, buttonHeights[i]);
+                if (lit && !owner.ReducedMotion)
+                    ui.Glow("Dialog " + actions[i].label + " halo", new Rect(pill.center.x - pill.width * .65f, pill.center.y - pill.height * .65f,
+                        pill.width * 1.3f, pill.height * 1.3f), SkinUi.WithAlpha(art.Token(SkinTokens.Accent), .4f), content, PageViews.HaloSeconds);
+                ui.TextButton("Dialog " + actions[i].label, pill, actions[i].label, actions[i].action, lit, content, out var label,
+                    destroys ? SkinSlots.IconClose : null);
                 if (destroys) label.color = art.Token(SkinTokens.Negative);
-                cursor -= 8 * d;
+                cursor -= 12 * d;
             }
         }
         public void CloseModal()
@@ -723,12 +755,14 @@ namespace ZKube.Presentation
             scoreTarget = value;
             if (!countingScore) { scoreShown = value; score.text = value.ToString(); PlaceTarget(); }
         }
-        // The target follows the score's digits, 8 dp after them.
+        // The target follows the score's digits, 8 dp after their ink: round
+        // digits reach past their advance, so the advance alone crowds them.
+        public const float TargetGapDp = 8;
         private void PlaceTarget()
         {
             if (targetText == null) return;
-            var value = SkinUi.ScreenRect(score.rectTransform);
-            float x = value.x + score.GetPreferredValues(score.text).x + 8 * Layout.Density;
+            score.ForceMeshUpdate();
+            float x = score.rectTransform.TransformPoint(new Vector3(score.textBounds.max.x, 0)).x + TargetGapDp * Layout.Density;
             var rect = SkinUi.ScreenRect(targetText.rectTransform);
             SkinUi.Place(targetText.rectTransform, new Rect(x, rect.y, Mathf.Max(1, hud.ScorePlate.xMax - 4 * Layout.Density - x), rect.height),
                 targetText.transform.parent);

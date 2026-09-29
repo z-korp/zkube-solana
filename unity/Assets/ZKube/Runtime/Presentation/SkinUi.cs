@@ -108,12 +108,16 @@ namespace ZKube.Presentation
         }
 
         // A soft dark patch behind small text laid over the painting, so it reads
-        // without a glowing label. rect is the text's own extent.
+        // without a glowing label. rect is the text's own extent. The patch
+        // reaches UnderpaintPadDp past the words and fades over UnderpaintRampDp,
+        // so the fade starts under the words and no edge reads as a box.
+        public const float UnderpaintPadDp = 16, UnderpaintRampDp = 24;
         public Image Underpaint(string name, Rect rect, Transform parent)
         {
-            float pad = 12 * Density;
+            float pad = UnderpaintPadDp * Density;
             var patch = Rect<Image>(name, new Rect(rect.x - pad, rect.y - pad * .75f, rect.width + 2 * pad, rect.height + 1.5f * pad), parent);
-            patch.sprite = SoftPatch(); patch.type = Image.Type.Sliced; patch.pixelsPerUnitMultiplier = 24 / (10 * Density);
+            // The soft patch's 24 px border draws UnderpaintRampDp wide.
+            patch.sprite = SoftPatch(); patch.type = Image.Type.Sliced; patch.pixelsPerUnitMultiplier = 24 / (UnderpaintRampDp * Density);
             patch.color = new Color(6 / 255f, 17 / 255f, 31 / 255f, .92f); patch.raycastTarget = false;
             return patch;
         }
@@ -220,12 +224,11 @@ namespace ZKube.Presentation
             var rule = Label(name + " rule", "", new Rect(box.x + 20 * d, Glyph(ruleTop + 20, 12) - Mathf.Max(1, ruleHeight), inner, Mathf.Max(1, ruleHeight)),
                 12, SkinTokens.Text, parent, Type.Caption, TextAlignmentOptions.TopLeft);
             var cue = Label(name + " continue", "▼", new Rect(box.xMax - 36 * d, box.y + 8 * d, 20 * d, 20 * d), 10, SkinTokens.Text, parent, Type.Body);
+            // The hint shares the box's bottom band with the ▼, inside the box,
+            // so nothing the page draws beneath can meet it.
             if (hint)
-            {
-                float hintHeight = TextHeight(TapHint, width, 12, Type.Caption);
-                Label(name + " hint", TapHint, new Rect(box.x, box.y - 28 * d - hintHeight + HudLayout.DigitTop * 12 * Scale * d, width, hintHeight), 12,
-                    SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Top);
-            }
+                Label(name + " hint", TapHint, new Rect(box.x + 20 * d, box.y + 8 * d, box.xMax - 42 * d - (box.x + 20 * d), 20 * d), 12,
+                    SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Right);
 
             var talk = panel.gameObject.AddComponent<GuardianTalk>();
             talk.Bind(Art, guardian, text, heading, rule, cue, pages, finished);

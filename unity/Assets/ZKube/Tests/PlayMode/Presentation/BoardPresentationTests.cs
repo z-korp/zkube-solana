@@ -134,6 +134,13 @@ namespace ZKube.Presentation.Tests
             }
             evidence.Click("Dialog End run"); yield return null;
             Assert.IsNull(Text("Dialog details"), "A run without actions just ends");
+            // The confirmation is the pause's Lumen dialog: medallion, Fraunces title, the close icon on End run.
+            var art = ZKube.Tests.Presentation.BoardTestState.Art(board);
+            Assert.AreEqual(art.Font(SkinUi.Type.Title), Text("Dialog title").font);
+            Assert.AreEqual("End this run?", Text("Dialog title").text);
+            Assert.IsTrue(board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Any(i => i.name == "Dialog guardian"), "The guardian's medallion crowns it");
+            Assert.AreEqual(SkinSlots.Dialog, board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Single(i => i.name == "Dialog panel").sprite.name.Replace("(Clone)", ""));
+            Assert.IsTrue(board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Any(i => i.name == "Dialog End run icon"), "End run carries the close icon");
             Assert.AreEqual(negative, Text("Dialog End run label").color);
             evidence.Click("Dialog Keep playing"); yield return null;
             yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
@@ -203,7 +210,7 @@ namespace ZKube.Presentation.Tests
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action");
             yield return Wait(() => !board.Busy); Assert.IsTrue(board.RecoveryRequired);
             board.SetTextScale(1.3f); yield return null;
-            Assert.IsTrue(board.View.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "RECOVER RUN"));
+            Assert.IsTrue(board.View.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Recover run"));
             evidence.Click("Dialog Recover run"); board.Recover();
             Assert.AreEqual(1, provider.Recoveries); Assert.IsTrue(board.Busy); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board));
             board.Reroll(); Assert.AreEqual(1, provider.Submits);

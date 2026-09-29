@@ -1,4 +1,5 @@
 """Skin import plan: each skin UI kit and realm gets an atlas, and stretched slots keep their border."""
+import json
 from pathlib import Path
 import struct
 import sys
@@ -9,6 +10,9 @@ from unittest.mock import patch
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 import build
+from PIL import Image, ImageChops, ImageFilter
+
+ROOT = TOOLS.parents[1]
 
 
 def png(width, height):
@@ -72,3 +76,42 @@ class SkinImports(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def point_lights(path):
+    """Isolated bright spots: blobs brighter than every neighbour 7 px away."""
+    image = Image.open(path).convert('RGBA')
+    light = image.convert('L')
+    solid = image.getchannel('A').point(lambda a: 255 if a > 200 else 0)
+    around = None
+    for dx, dy in ((7, 0), (-7, 0), (0, 7), (0, -7), (5, 5), (5, -5), (-5, 5), (-5, -5)):
+        shifted = ImageChops.offset(light, dx, dy)
+        around = shifted if around is None else ImageChops.lighter(around, shifted)
+    spots = ImageChops.multiply(ImageChops.subtract(light, around).point(lambda v: 255 if v > 40 else 0), solid)
+    # A painted pin is a blob; a lone pixel is edge noise.
+    spots = spots.filter(ImageFilter.MinFilter(3))
+    width, height = image.size
+    # The rim's single top-centre glint is the kit's light stroke.
+    return [(x, y) for y in range(height) for x in range(width)
+            if spots.getpixel((x, y)) and not (abs(x - width / 2) < width * .06 and y < height * .08)]
+
+
+class KitArt(unittest.TestCase):
+    def test_no_sliced_kit_piece_carries_a_stray_point_light(self):
+        catalog = json.loads((ROOT / 'assets/theme-catalog.generated.json').read_text())
+        sliced = [entry for skin in catalog['skins'] for entry in skin['ui'] if any(entry['border'])]
+        self.assertGreater(len(sliced), 10)
+        for entry in sliced:
+            with self.subTest(slot=entry['slot']):
+                self.assertEqual([], point_lights(ROOT / entry['image'].lstrip('/'))[:5])
+
+    def test_the_detector_finds_a_painted_pin(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'build') as temporary:
+            path = Path(temporary) / 'pinned.png'
+            image = Image.new('RGBA', (96, 96), (30, 50, 70, 255))
+            for x in range(40, 46):
+                for y in range(40, 46):
+                    image.putpixel((x, y), (230, 240, 250, 255))
+            image.save(path)
+            self.assertTrue(point_lights(path))
+

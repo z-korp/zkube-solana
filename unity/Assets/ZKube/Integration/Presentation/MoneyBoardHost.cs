@@ -123,7 +123,7 @@ namespace ZKube.Integration.Presentation
                 if (!board.Busy && !observing && !frozenShown)
                 {
                     frozenShown = true;
-                    board.View.OpenModal("DAILY FROZEN", "New actions are closed. Check for your accepted result.",
+                    board.View.OpenModal("Daily frozen", "New actions are closed. Check for your accepted result.",
                         ("Check result", () => { frozenShown = false; foregroundNeeded = true; }),
                         ("Back to my runs", Close));
                 }
@@ -136,7 +136,7 @@ namespace ZKube.Integration.Presentation
         {
             if (source != board) return;
             var state = board.State;
-            terminalTitle = state.Phase == (byte)CorePhase.LevelComplete || state.EndReason == 1 ? "LEVEL COMPLETE" : "RUN ENDED";
+            terminalTitle = state.Phase == (byte)CorePhase.LevelComplete || state.EndReason == 1 ? "Level complete" : "Run ended";
             terminalBody = "Score " + (board.Session.Daily ? state.DailyScore : state.Score);
             RenderTerminal();
         }

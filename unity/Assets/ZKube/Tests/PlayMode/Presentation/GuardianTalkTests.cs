@@ -129,7 +129,16 @@ namespace ZKube.Presentation.Tests
             Object.Destroy(shortLine.gameObject);
             var ruled = Talk(null, new TalkPage("One line.", "idle", "EARN WAVE", "Clear 2+ lines in a move"));
             Assert.Greater(Box(ruled).height, twoLines, "The rule adds its block");
-            Assert.IsTrue(root.GetComponentsInChildren<TMP_Text>().Any(t => t.name == "Talk hint"));
+            var hint = root.GetComponentsInChildren<TMP_Text>().Last(t => t.name == "Talk hint");
+            // The hint sits inside the box, in its bottom band beside the ▼, clear of the rule.
+            var cue = root.GetComponentsInChildren<TMP_Text>(true).Last(t => t.name == "Talk continue");
+            var rule = root.GetComponentsInChildren<TMP_Text>(true).Last(t => t.name == "Talk rule");
+            ruled.Complete(); hint.ForceMeshUpdate(); rule.ForceMeshUpdate();
+            var box = Box(ruled); var words = SkinUi.ScreenRect(hint.rectTransform);
+            Assert.IsTrue(box.Contains(words.min) && box.Contains(words.max), "Inside the box");
+            Assert.LessOrEqual(words.xMax, SkinUi.ScreenRect(cue.rectTransform).xMin, "Beside the ▼");
+            float ruleInk = rule.transform.TransformPoint(rule.textBounds.min).y;
+            Assert.LessOrEqual(words.yMax, ruleInk, "Under the rule's words");
             var quiet = ui.Talk("Quiet", 16, 300, 368, realm, new[] { new TalkPage("Hm.", "idle") }, null, root.transform, hint: false);
             Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>().Any(t => t.name == "Quiet hint"), "A dialog with its own buttons hides the hint");
         }

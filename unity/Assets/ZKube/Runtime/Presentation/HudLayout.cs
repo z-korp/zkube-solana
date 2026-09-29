@@ -21,7 +21,7 @@ namespace ZKube.Presentation
         public Rect PrimaryPlate, PrimaryCaption, PrimaryValue, SecondaryPlate, SecondaryCaption, SecondaryValue;
         public Rect NextLabel, RuleHeading, Rule, Status;
         // Type sizes in dp for this layout, before the player's text size.
-        public float TitlePt, LabelPt, CaptionPt, NumberPt, GoalPt, PointsPt, TargetPt, RuleHeadingPt, RulePt, StatusPt;
+        public float TitlePt, LabelPt, PrimaryCaptionPt, SecondaryCaptionPt, NumberPt, GoalPt, PointsPt, TargetPt, RuleHeadingPt, RulePt, StatusPt;
         // A caption line advances 13 dp at 12 dp, as drawn.
         public const float CaptionLeading = 13f / 12;
         // The Caption role's floor, below its 12 dp (11 dp compact) plate size.
@@ -91,7 +91,7 @@ namespace ZKube.Presentation
             // The drawing moves down only as far as the inset would cover the plates.
             float shift = Mathf.Max(0, inset + 2 - (compact ? 22 : 60)), top = drawing.yMax - shift * d;
             float H(string value, float width, float size, SkinUi.Type type) => ui.TextHeight(value, width, size, type);
-            result.TitlePt = compact ? 14 : 16; result.LabelPt = compact ? 11 : 12; result.CaptionPt = compact ? 11 : 12;
+            result.TitlePt = compact ? 14 : 16; result.LabelPt = compact ? 11 : 12; float captionPt = compact ? 11 : 12;
             result.NumberPt = compact ? 24 : 28; result.GoalPt = compact ? 18 : 20; result.PointsPt = compact ? 21 : 24;
             result.TargetPt = compact ? 12 : 14; result.RuleHeadingPt = 11; result.RulePt = 12; result.StatusPt = 12;
             // A type size as drawn, in dp, at the player's text size.
@@ -127,21 +127,22 @@ namespace ZKube.Presentation
             float CaptionBlock(string value, SkinUi.Type type, float size) =>
                 ui.Lines(value, inner, size, type) * S(size) * CaptionLeading;
             float labelBlock = CaptionBlock(scoreLabel, SkinUi.Type.Label, result.LabelPt);
-            // A goal caption keeps its role size on one line; a longer one shrinks
-            // toward the role's floor before it wraps, and both goals share the
-            // size. The value then sits on its own line, clear of the caption.
+            // Each goal caption keeps its role size on one line; a longer one
+            // shrinks toward the role's floor before it wraps. The values then sit
+            // on one line across both plates, clear of either caption.
             float Fit(string value)
             {
-                float size = result.CaptionPt;
+                float size = captionPt;
                 while (size > CaptionMinimumPt && ui.Lines(value, inner, size, SkinUi.Type.Caption) > 1) size -= .5f;
                 return size;
             }
-            result.CaptionPt = Mathf.Min(Fit(primaryCaption), Fit(secondaryCaption));
-            // The caption's ink ends at its last line's descent, measured as it is
+            result.PrimaryCaptionPt = Fit(primaryCaption); result.SecondaryCaptionPt = Fit(secondaryCaption);
+            // A caption's ink ends at its last line's descent, measured as it is
             // drawn: from its rect's top, lines 13/12 apart.
-            float CaptionBottom(string value) => 6 - DigitTop * S(result.CaptionPt) +
-                (ui.TextHeight(value, inner, result.CaptionPt, SkinUi.Type.Caption, CaptionLeading) - 2 * d) / d;
-            float captionBottom = Mathf.Max(CaptionBottom(primaryCaption), CaptionBottom(secondaryCaption));
+            float CaptionBottom(string value, float size) => 6 - DigitTop * S(size) +
+                (ui.TextHeight(value, inner, size, SkinUi.Type.Caption, CaptionLeading) - 2 * d) / d;
+            float captionBottom = Mathf.Max(CaptionBottom(primaryCaption, result.PrimaryCaptionPt),
+                CaptionBottom(secondaryCaption, result.SecondaryCaptionPt));
             float numberTop = 6 + Mathf.Max(compact ? 17 : 21, labelBlock);
             float goalTop = Mathf.Max(6 + (compact ? 19 : 24), captionBottom + ValueClearanceDp);
             float Height(float valueTop, float valueSize) => valueTop + S(valueSize) * .74f + 4;
@@ -164,9 +165,9 @@ namespace ZKube.Presentation
                 SkinUi.Type.Caption);
             result.MovesCaption = Text(result.MovesPlate, 8, 6, inner, result.LabelPt, movesLabel, SkinUi.Type.Label);
             result.MovesValue = Text(result.MovesPlate, 8, numberTop, inner, result.NumberPt, "0", SkinUi.Type.Number);
-            result.PrimaryCaption = Text(result.PrimaryPlate, 8, 6, inner, result.CaptionPt, primaryCaption, SkinUi.Type.Caption);
+            result.PrimaryCaption = Text(result.PrimaryPlate, 8, 6, inner, result.PrimaryCaptionPt, primaryCaption, SkinUi.Type.Caption);
             result.PrimaryValue = Text(result.PrimaryPlate, star, goalTop, valueWidth, result.GoalPt, "0 / 0", SkinUi.Type.Number);
-            result.SecondaryCaption = Text(result.SecondaryPlate, 8, 6, inner, result.CaptionPt, secondaryCaption,
+            result.SecondaryCaption = Text(result.SecondaryPlate, 8, 6, inner, result.SecondaryCaptionPt, secondaryCaption,
                 SkinUi.Type.Caption);
             result.SecondaryValue = result.Campaign
                 ? Text(result.SecondaryPlate, star, goalTop, valueWidth, result.GoalPt, "0 / 1", SkinUi.Type.Number)

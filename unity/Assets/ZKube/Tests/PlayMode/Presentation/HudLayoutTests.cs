@@ -182,6 +182,24 @@ namespace ZKube.Presentation.Tests
             Assert.LessOrEqual(text.GetPreferredValues(text.text, text.rectTransform.rect.width, float.PositiveInfinity).y,
                 text.rectTransform.rect.height + .5f, text.name + " must have enough height at its real width");
         }
+        [UnityTest] public IEnumerator TheScoreTargetKeepsItsGapAfterEveryScoresDigits()
+        {
+            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var view = board.View;
+            var show = typeof(BoardView).GetMethod("ShowScore", BindingFlags.Instance | BindingFlags.NonPublic);
+            var score = Label("Score"); var target = Label("Score target");
+            float gap = BoardView.TargetGapDp * view.Layout.Density;
+            foreach (uint value in new uint[] { 0, 1, 4, 6, 7, 8, 9, 10, 11, 88, 100, 999 })
+            {
+                show.Invoke(view, new object[] { value });
+                score.ForceMeshUpdate(); target.ForceMeshUpdate();
+                float digits = Glyphs(score).Max(g => g.xMax), slash = Glyphs(target).Min(g => g.xMin);
+                Assert.AreEqual(value.ToString(), score.text);
+                Assert.GreaterOrEqual(slash - digits, gap - .5f, value + " keeps its target clear of its digits");
+                Assert.LessOrEqual(slash - digits, gap + 3 * view.Layout.Density, value + " keeps its target beside its digits");
+            }
+            yield return null;
+        }
         [UnityTest] public IEnumerator EveryCatalogCaptionFitsItsPlateClearOfItsValueAtBothWidths()
         {
             evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
@@ -206,7 +224,12 @@ namespace ZKube.Presentation.Tests
                             var view = host.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
                             view.Summary(board.State, board.Session, true);
                             Canvas.ForceUpdateCanvases();
-                            Assert.GreaterOrEqual(plan.CaptionPt, HudLayout.CaptionMinimumPt);
+                            Assert.GreaterOrEqual(Mathf.Min(plan.PrimaryCaptionPt, plan.SecondaryCaptionPt), HudLayout.CaptionMinimumPt);
+                            // Each plate fits its own caption: one that fits its role size keeps it.
+                            float role = plan.Layout.Compact ? 11 : 12;
+                            foreach (var (text, size) in new[] { (first.text, plan.PrimaryCaptionPt), (second.text, plan.SecondaryCaptionPt) })
+                                if (ui.Lines(text, plan.PrimaryPlate.width - 16 * density, role, SkinUi.Type.Caption) == 1)
+                                    Assert.AreEqual(role, size, $"'{text}' keeps its role size beside its neighbour");
                             TMP_Text In(string name) => view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == name);
                             foreach (var (caption, value, plate) in new[] { ("Theme label", "Theme", plan.PrimaryPlate), ("Secondary label", "Secondary", plan.SecondaryPlate) })
                             {
@@ -220,7 +243,7 @@ namespace ZKube.Presentation.Tests
                                 foreach (var glyph in Glyphs(label))
                                     Assert.IsFalse(Glyphs(number).Any(digit => digit.Overlaps(glyph)), at + " keeps its value on its own line: " +
                                         glyph + " meets " + string.Join(", ", Glyphs(number).Where(digit => digit.Overlaps(glyph))) +
-                                        $"; plate {plate}, caption {plan.CaptionPt} dp, caption rect {SkinUi.ScreenRect(label.rectTransform)}, value rect {SkinUi.ScreenRect(number.rectTransform)}");
+                                        $"; plate {plate}, captions {plan.PrimaryCaptionPt}/{plan.SecondaryCaptionPt} dp, caption rect {SkinUi.ScreenRect(label.rectTransform)}, value rect {SkinUi.ScreenRect(number.rectTransform)}");
                                 Assert.Greater(text.center.y, digits.center.y, at + " sits above its value");
                                 Assert.GreaterOrEqual(digits.yMin + .01f, plate.yMin, at + " keeps its value inside the plate");
                                 Assert.LessOrEqual(text.yMax, plate.yMax + .01f, at + " starts inside the plate");

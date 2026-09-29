@@ -310,7 +310,7 @@ namespace ZKube.Presentation
             if (busy || !recoveryRequired || recoveryUnavailable || !(Session?.Actions is IBoardRecoveryProvider provider)) return;
             busy = true; paused = false; guardianSelected = false; queued = null; queuedGrid = null;
             CancelDrag(); failure = null;
-            View.OpenModal("RECOVERING RUN", BoardNotices.Text(BoardNotice.Recovering));
+            View.OpenModal("Recovering run", BoardNotices.Text(BoardNotice.Recovering));
             View.Status(BoardNotices.Text(BoardNotice.Recovering));
             try
             {
@@ -414,12 +414,12 @@ namespace ZKube.Presentation
         {
             music.Pause();
             if (busy)
-                View.OpenModal("RECOVERING RUN", BoardNotices.Text(BoardNotice.Recovering));
+                View.OpenModal("Recovering run", BoardNotices.Text(BoardNotice.Recovering));
             else if (recoveryUnavailable || !(Session.Actions is IBoardRecoveryProvider))
-                View.OpenModal("RETURN TO YOUR RUNS", "This board cannot continue here. Return to your runs to recover the current state.",
+                View.OpenModal("Return to your runs", "This board cannot continue here. Return to your runs to recover the current state.",
                     ("Back to my runs", () => Host?.Exit?.Invoke()));
             else
-                View.OpenModal("RECOVER RUN", "The action may have been accepted. Check the run before playing again.",
+                View.OpenModal("Recover run", "The action may have been accepted. Check the run before playing again.",
                     ("Recover run", Recover), ("Back to my runs", () => Host?.Exit?.Invoke()));
         }
         private void ShowTerminalIfNeeded(bool playFeedback = true)
@@ -447,7 +447,7 @@ namespace ZKube.Presentation
                     Invoke = () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); } },
             }, () => {
                 pauseDialog?.Close(); pauseDialog = null;
-                View.OpenModal("END THIS RUN?", EndRunDetail(State), EndRun,
+                View.OpenModal("End this run?", EndRunDetail(State), EndRun,
                     ("Keep playing", Resume), (EndRun, () => { paused = false; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); }));
             });
         }

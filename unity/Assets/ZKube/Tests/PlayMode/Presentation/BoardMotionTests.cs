@@ -85,6 +85,30 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(board.State.Grid.Length, board.View.DisplayGrid.Length);
         }
 
+        [UnityTest] public IEnumerator TheIncomingRowNeverCrossesAVisibleNextRowLabel()
+        {
+            yield return Load("balam-combo-2", false);
+            var label = board.View.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Next row label");
+            float resting = label.color.a; int crossings = 0;
+            var zone = SkinUi.ScreenRect(label.rectTransform);
+            evidence.StartCoroutine(evidence.PlayNextInput());
+            for (float end = Time.realtimeSinceStartup + 3; Time.realtimeSinceStartup < end; )
+            {
+                yield return null;
+                foreach (var block in board.View.GetComponentsInChildren<SpriteRenderer>().Where(r => r.name.StartsWith("Incoming block")))
+                {
+                    var b = block.bounds;
+                    if (!new Rect(b.min.x, b.min.y, b.size.x, b.size.y).Overlaps(zone)) continue;
+                    crossings++;
+                    Assert.Less(label.color.a, .05f, "The label steps aside while the row crosses it");
+                }
+                if (ZKube.Tests.Presentation.BoardTestState.Idle(board) && crossings > 0) break;
+            }
+            Assert.Greater(crossings, 0, "The fixture's row crosses the label");
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            Assert.AreEqual(resting, label.color.a, .001f, "The label returns once the row lands");
+        }
+
         [UnityTest] public IEnumerator BlockAndEffectSpritesArePooledRatherThanRecreated()
         {
             yield return Load("realm-8-daily", false);
