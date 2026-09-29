@@ -32,7 +32,7 @@ namespace ZKube.Presentation
                 share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName,
                     realm.realmName, "Level " + Number(value.Realm, value.Level) + " stars", (ulong)stars, value.Score, null),
                     "Share");
-            float d = ui.Density; bool compact = Compact;
+            float d = ui.Density; bool compact = Compact, tight = Tight;
             // The dialog sits over the dimmed painting.
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .45f);
             Image[] lit = null; TMP_Text scoreText = null; RectTransform chip = null, stroke = null, finish = null;
@@ -44,20 +44,26 @@ namespace ZKube.Presentation
                     : TalkMoment.Win, stars);
                 var talk = Speak("Result talk", card.Parent, card.Left - 24 * d, rail, card.Width + 48 * d, realm, new[] { page }, null, false);
                 card.Top = talk.y - (compact ? 6 : 43) * d;
-                Title(card, title, compact ? 26 : 30);
+                Title(card, title, tight ? 24 : compact ? 26 : 30);
                 stroke = (RectTransform)card.Parent.GetChild(card.Parent.childCount - 1);
                 card.Gap(4.5f);
-                lit = BigStars(card, stars, compact);
+                lit = BigStars(card, stars, tight ? .5f : compact ? .6f : 1);
                 card.Typed("Score caption", "SCORE", SkinUi.Type.Label, 12, SkinTokens.TextMuted, -8);
-                scoreText = card.Typed("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), SkinUi.Type.Number, compact ? 40 : 56, SkinTokens.Score, 3);
+                scoreText = card.Typed("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), SkinUi.Type.Number, tight ? 34 : compact ? 40 : 56, SkinTokens.Score, 3);
                 if (value.NewBest) chip = Group("New best chip", card.Parent, () => NewBest(card, compact));
                 card.Gap(value.NewBest ? compact ? 6 : 24 : compact ? 2 : 12);
                 card.Typed("Result summary", summary, SkinUi.Type.Caption, 15, SkinTokens.TextMuted, 0);
                 if (!string.IsNullOrEmpty(value.Notice)) card.Typed("Result notice", value.Notice, SkinUi.Type.Body, 15, SkinTokens.Text, 0);
                 card.Gap(compact ? 8 : 21);
                 finish = Group("Result actions", card.Parent, () => {
-                    Pill(card, cleared ? value.Done : value.Retry, true, null, compact ? 8 : 16);
-                    PillPair(card, cleared ? value.Retry : value.Done, share);
+                    var first = cleared ? value.Done : value.Retry; var second = cleared ? value.Retry : value.Done;
+                    // The tightest phone puts the three actions in one row, the primary first.
+                    if (tight && share != null) Row3(card, first, second, share);
+                    else
+                    {
+                        Pill(card, first, true, null, compact ? 8 : 16);
+                        PillPair(card, second, share);
+                    }
                 });
             });
             if (sequence != null) Celebrate(sequence, cleared, lit, stroke, scoreText, value.Score, chip, finish);
@@ -118,11 +124,11 @@ namespace ZKube.Presentation
         // raised, as drawn (its light 74 dp across, the others' 58, 86 dp apart).
         // The star art keeps a margin round its light, so its rect is larger.
         // Returns the lit ones.
-        // A short phone draws them three fifths as large.
-        private Image[] BigStars(PageColumn card, int earned, bool compact = false)
+        // A short phone draws them smaller, by scale.
+        private Image[] BigStars(PageColumn card, int earned, float scale = 1)
         {
-            float d = ui.Density, scale = compact ? .6f : 1, side = 74 * d * scale, middle = 95 * d * scale, pitch = 86 * d * scale;
-            var row = card.Take(middle, compact ? 8 : 16);
+            float d = ui.Density, side = 74 * d * scale, middle = 95 * d * scale, pitch = 86 * d * scale;
+            var row = card.Take(middle, scale < 1 ? 8 : 16);
             var lit = new Image[earned];
             for (int i = 0; i < 3; i++)
             {
@@ -145,6 +151,16 @@ namespace ZKube.Presentation
             Tinted("New best icon", SkinSlots.IconTrophy, new Rect(start, chip.center.y - 11 * d, 22 * d, 22 * d), SkinTokens.Accent, card.Parent);
             ui.Label("New best label", "New best!", new Rect(start + 30 * d, chip.y, text + 4 * d, chip.height), 16, SkinTokens.Accent,
                 card.Parent, SkinUi.Type.Number, TextAlignmentOptions.Left);
+        }
+        // Three pills in one row, the primary first; the share pill says its word only.
+        private void Row3(PageColumn card, PageAction primary, PageAction second, PageAction share)
+        {
+            float d = ui.Density, gap = 8 * d, third = (card.Width + 16 * d - 2 * gap) / 3, left = card.Left - 8 * d;
+            var columns = Enumerable.Range(0, 3).Select(i => new PageColumn(ui, card.Parent, actions, left + i * (third + gap), third, card.Top)).ToArray();
+            Pill(columns[0], primary, true, null, 0);
+            Pill(columns[1], second, false, null, 0);
+            Pill(columns[2], share, false, null, 0);
+            card.Top = columns.Min(column => column.Top);
         }
         // Two secondary pills side by side; the share pill leads with its icon.
         private void PillPair(PageColumn card, PageAction left, PageAction right)

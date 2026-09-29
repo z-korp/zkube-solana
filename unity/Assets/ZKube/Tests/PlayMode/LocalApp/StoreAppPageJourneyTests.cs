@@ -677,7 +677,17 @@ namespace ZKube.Tests
         // core keeps for its end reason, and leaves "try again" to the guardian.
         [UnityTest] public IEnumerator PreviewAndResultsKeepTheirActionsOnACompactPhone()
         {
-            var shell = app.GetComponent<PageShell>(); shell.Frame = new Rect(0, 0, 360, 640);
+            // A 360 x 640 phone, and the same phone less its status and camera insets
+            // as the device reports them (a 568 dp safe area).
+            foreach (var frame in new[] { new Rect(0, 0, 360, 640), new Rect(0, 0, 360, 568) })
+            {
+                app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+                yield return ActionsOnScreen(frame);
+            }
+        }
+        private IEnumerator ActionsOnScreen(Rect frame)
+        {
+            var shell = app.GetComponent<PageShell>(); shell.Frame = frame;
             void OnScreen(string button, string page)
             {
                 var rect = SkinUi.ScreenRect((RectTransform)FindButton(app, button).transform);

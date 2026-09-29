@@ -283,20 +283,24 @@ namespace ZKube.Presentation
             var realm = catalog.Realm(value.Realm);
             float mapBottom = column.Top;
             // A short phone closes the preview up so Play stays on screen.
-            float d = ui.Density; bool compact = Compact;
+            float d = ui.Density; bool compact = Compact, tight = Tight;
             Dialog("Level", value.Back, (card, rail) => {
                 var talk = Speak("Level talk", card.Parent, card.Left - 24 * d, rail, card.Width + 48 * d, realm,
                     new[] { LevelLine(realm.guardianLines, value.Level) }, null, false);
-                card.Top = talk.y - (compact ? 22 : 38) * d;
+                card.Top = talk.y - (tight ? 6 : compact ? 22 : 38) * d;
                 foreach (var notice in notices) card.Note("Notice", notice);
-                Title(card, "Level " + Number(value.Realm, value.Level), 30);
-                card.Typed("Level realm", realm.realmName + " · " + realm.guardianName, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, compact ? 10 : 18);
+                Title(card, "Level " + Number(value.Realm, value.Level), tight ? 26 : 30);
+                // The name tag already says whose realm it is; the tightest phone leaves the line out.
+                if (!tight)
+                    card.Typed("Level realm", realm.realmName + " · " + realm.guardianName, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, compact ? 10 : 18);
+                else card.Gap(8);
                 var goals = value.Goals;
-                Goal(card, "Score goal", "Score", goals.Points.ToString("N0", CultureInfo.InvariantCulture), false, compact);
-                Goal(card, "Primary goal", catalog.ObjectiveName(goals.PrimaryKind, goals.PrimaryValue, goals.PrimaryCount), goals.PrimaryCount.ToString(CultureInfo.InvariantCulture), false, compact);
-                Goal(card, "Secondary goal", catalog.ObjectiveName(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount), null, false, compact);
+                float row = tight ? 40 : compact ? 44 : PageColumn.RowDp;
+                Goal(card, "Score goal", "Score", goals.Points.ToString("N0", CultureInfo.InvariantCulture), false, row);
+                Goal(card, "Primary goal", catalog.ObjectiveName(goals.PrimaryKind, goals.PrimaryValue, goals.PrimaryCount), goals.PrimaryCount.ToString(CultureInfo.InvariantCulture), false, row);
+                Goal(card, "Secondary goal", catalog.ObjectiveName(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount), null, false, row);
                 card.Gap(compact ? 2 : 8.5f);
-                card.Typed("Level moves", value.Moves + " moves", SkinUi.Type.Number, 20, SkinTokens.Accent, compact ? 12 : 25);
+                card.Typed("Level moves", value.Moves + " moves", SkinUi.Type.Number, tight ? 18 : 20, SkinTokens.Accent, tight ? 8 : compact ? 12 : 25);
                 if (!string.IsNullOrEmpty(value.Notice)) card.Typed("Level notice", value.Notice, SkinUi.Type.Body, 15, SkinTokens.Text, 12);
                 Pill(card, value.Play, true, null, 0);
             });
@@ -306,14 +310,14 @@ namespace ZKube.Presentation
             column = new PageColumn(ui, shell.Page, actions, column.Left, column.Width, bottom + 16 * ui.Density);
         }
         // A goal row: a star socket (lit once met), the goal in words and its value.
-        private void Goal(PageColumn card, string name, string label, string number, bool met, bool compact = false)
+        private void Goal(PageColumn card, string name, string label, string number, bool met, float rowDp = PageColumn.RowDp)
         {
             float d = ui.Density;
             var rows = new PageColumn(ui, card.Parent, actions, card.Left - 10 * d, card.Width + 20 * d, card.Top);
             float numberWidth = number == null ? 0 : NumberSlot(number, 18, rows.Width / 2);
-            // Goal rows are not touch targets, so a short phone draws them 44 dp tall.
-            float height = Mathf.Max((compact ? 44 : PageColumn.RowDp) * d, ui.TextHeight(label, rows.Width - 64 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
-            var rect = rows.Take(height, compact ? 6 : 8);
+            // Goal rows are not touch targets, so a short phone draws them shorter.
+            float height = Mathf.Max(rowDp * d, ui.TextHeight(label, rows.Width - 64 * d - numberWidth, 15, SkinUi.Type.Caption) + (rowDp < 44 ? 12 : 16) * d);
+            var rect = rows.Take(height, rowDp < PageColumn.RowDp ? rowDp < 44 ? 4 : 6 : 8);
             ui.Piece(name + " row", SkinSlots.ListRow, rect, card.Parent);
             ui.Star(name + " star", new Rect(rect.x + 10 * d, rect.center.y - 10 * d, 20 * d, 20 * d), met, card.Parent);
             ui.Label(name + " label", label, new Rect(rect.x + 44 * d, rect.y, rect.width - 60 * d - numberWidth, rect.height), 15,
@@ -437,8 +441,10 @@ namespace ZKube.Presentation
             return SkinUi.ScreenRect((RectTransform)talk.transform);
         }
         // A phone under 720 dp tall: dialogs close up their spacing so their
-        // actions stay on screen.
+        // actions stay on screen; under 600 dp (a 640 dp phone less its status
+        // and camera insets) they close up further.
         private bool Compact => shell.SafeArea.height < 720 * ui.Density;
+        private bool Tight => shell.SafeArea.height < 600 * ui.Density;
 
         // The guardian's line on a level's preview: its trial line on its own
         // level, and on the others a rotation by level that never repeats from one
