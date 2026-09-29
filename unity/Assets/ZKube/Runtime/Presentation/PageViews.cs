@@ -70,7 +70,8 @@ namespace ZKube.Presentation
             if (page != AppPage.Profile) { editedName = null; savedName = null; editingName = false; }
             Shown = page;
             if (to >= 0) lastTab = tabs[to];
-            ui?.Dispose(); ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
+            // The previous kit stays with the page drawn from it; the shell releases it.
+            ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
             switch (page)
@@ -179,7 +180,7 @@ namespace ZKube.Presentation
             float bottom = tab >= 0 ? tabBar.yMax : safe.y;
             headerBottom = safe.yMax - header;
             var body = fullBleed ? shell.ScreenArea : new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
-            shell.Clear(body);
+            shell.Clear(body); shell.Hold(ui.Dispose);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
             var chrome = shell.Overlay;
             if (title != null)
@@ -381,7 +382,8 @@ namespace ZKube.Presentation
 
         private IEnumerator LoadPortraits(List<KeyValuePair<byte, Image>> images, long expectedEpoch)
         {
-            var owned = portraits = new BoardArt(); var request = owned.LoadPortraits();
+            var owned = portraits = new BoardArt(); shell.Hold(owned.Dispose);
+            var request = owned.LoadPortraits();
             while (true)
             {
                 bool more;
@@ -431,8 +433,8 @@ namespace ZKube.Presentation
         {
             epoch++; sharing.Cancel(); sharing.Dispose(); sharing = new CancellationTokenSource();
             actions?.Clear(); back = null; countdown = null; nextDaily = null; countdownView = null;
-            if (shell != null && shell.Page != null) foreach (var image in shell.Page.GetComponentsInChildren<Image>(true)) image.sprite = null;
-            portraits?.Dispose(); portraits = null;
+            // The portraits stay with the page that shows them; the shell releases them.
+            portraits = null;
         }
         private void OnDestroy() { Retire(); ui?.Dispose(); sharing.Cancel(); sharing.Dispose(); }
     }

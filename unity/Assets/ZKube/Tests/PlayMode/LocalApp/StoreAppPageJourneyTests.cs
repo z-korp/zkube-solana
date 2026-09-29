@@ -486,23 +486,76 @@ namespace ZKube.Tests
             var share = FindButton(app, "Share result");
             Assert.That(share.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
         }
-        // A page change fades the old page out without taking input, raises the
-        // new one within the spec's budget, and leaves the tab bar where it was.
+        // A page change sends the old page leaving on its own layer, which takes
+        // no input and fades, raises the new one within the spec's budget, and
+        // leaves the tab bar where it was.
         [UnityTest] public IEnumerator PageChangeLeavesWithoutInputEntersInBudgetAndKeepsTheTabBarStill()
         {
             typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
             var shell = app.GetComponent<PageShell>();
-            var stage = shell.Overlay.parent.GetComponent<CanvasGroup>();
+            var leaving = shell.Overlay.parent.GetComponent<CanvasGroup>();
             var bar = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
-            Assert.That(shell.Chrome.IsChildOf(stage.transform), Is.False);
+            Assert.That(shell.Chrome.IsChildOf(leaving.transform), Is.False);
             Click(app, "Profile"); yield return null;
-            Assert.That(stage.blocksRaycasts, Is.False);
-            yield return null; Assert.That(stage.alpha, Is.LessThan(1));
+            Assert.That(leaving.blocksRaycasts, Is.False);
+            yield return null; Assert.That(leaving.alpha, Is.LessThan(1));
             float start = Time.unscaledTime;
             yield return Page(StorePage.Profile);
-            yield return Wait(() => stage.alpha == 1 && stage.blocksRaycasts && ((RectTransform)stage.transform).anchoredPosition.y == 0, "The page did not settle");
+            var stage = shell.Overlay.parent.GetComponent<CanvasGroup>();
+            Assert.That(stage, Is.Not.SameAs(leaving));
+            yield return Wait(() => leaving == null && stage.alpha == 1 && stage.blocksRaycasts && ((RectTransform)stage.transform).anchoredPosition.y == 0,
+                "The page did not settle");
             Assert.That(Time.unscaledTime - start, Is.LessThan(PageShell.LeaveSeconds + PageShell.GlowSeconds + .2f));
             Assert.That(SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform), Is.EqualTo(bar));
+        }
+        // No drawn piece loses its art while pages change: across every tab and
+        // realm change that loads art (another realm's painting, the portrait
+        // atlas), each visible image keeps a live sprite on every frame, the
+        // leaving page included. A piece drawn without art may only be a dark
+        // scrim; a pale block is art released under a visible page.
+        [UnityTest] public IEnumerator EveryPageAndRealmChangeKeepsEachVisiblePiecesArtOnEveryFrame()
+        {
+            typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
+            // Realm 2 is still closed, so its page is the waiting realm, drawn from its own art.
+            var steps = new[] { ("Campaign", StorePage.Campaign), ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign),
+                ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign), ("Trial 1", StorePage.Level), ("Back to map", StorePage.Campaign),
+                ("Profile", StorePage.Profile), ("Settings", StorePage.Settings), ("Back", StorePage.Profile), ("Daily", StorePage.Daily),
+                ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile), ("Daily", StorePage.Daily) };
+            var shown = app.GetComponent<PageShell>().Artwork; int swaps = 0;
+            foreach (var (control, page) in steps)
+            {
+                Click(app, control);
+                float deadline = Time.realtimeSinceStartup + 30;
+                do
+                {
+                    yield return null;
+                    AssertEveryVisiblePieceHasArt(control);
+                    if (Time.realtimeSinceStartup > deadline) Assert.Fail("Page did not settle after " + control);
+                }
+                while (app.Flow.Page != page || !PageDrawn() || app.GetComponentsInChildren<Transform>().Any(value => value.name == "Leaving page"));
+                var art = app.GetComponent<PageShell>().Artwork;
+                if (art != shown) { swaps++; shown = art; }
+            }
+            Assert.That(swaps, Is.GreaterThanOrEqualTo(4), "The walk must cross realm art loads");
+        }
+        private void AssertEveryVisiblePieceHasArt(string step)
+        {
+            foreach (var image in app.GetComponentsInChildren<Image>())
+            {
+                bool mask = image.GetComponent<Mask>() != null;
+                if (!image.enabled || (!mask && image.color.a <= .001f)) continue;
+                float alpha = 1;
+                foreach (var group in image.GetComponentsInParent<CanvasGroup>()) { alpha *= group.alpha; if (group.ignoreParentGroups) break; }
+                if (alpha <= .001f) continue;
+                if (image.sprite != null)
+                {
+                    Assert.That(image.sprite.texture != null, Is.True, step + ": " + image.name + " shows a released texture");
+                    continue;
+                }
+                var color = image.color;
+                Assert.That(!mask && .2126f * color.r + .7152f * color.g + .0722f * color.b < .5f, Is.True,
+                    step + ": " + image.name + " is drawn without its art");
+            }
         }
         private Button[] Nodes() => app.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Trial ")).ToArray();
         // Each node shows its level number on one line, inside the node's touch

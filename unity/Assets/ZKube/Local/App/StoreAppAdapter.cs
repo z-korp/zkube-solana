@@ -96,19 +96,18 @@ namespace ZKube.Local.App
                 rect.anchoredPosition = Vector2.zero;
             }
         }
+        // A new page, or the same page in another realm, sends the drawn page
+        // leaving while the next one loads its art and draws.
         private IEnumerator Render()
         {
             loading = true; dirty = false;
-            if (views.Shown.HasValue && views.Shown.Value.ToString() != Flow.Page.ToString())
-            {
-                yield return shell.Leave(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()), !shell.RealmReady(PageRealm));
-                if (this == null || Flow == null) yield break;
-                dirty = false;
-            }
             byte realm = PageRealm; StorePage page = Flow.Page;
-            if (!shell.RealmReady(realm))
+            bool load = !shell.RealmReady(realm);
+            if (load || views.Shown.HasValue && views.Shown.Value.ToString() != page.ToString())
+                shell.Depart(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()), load);
+            if (load)
             {
-                RetirePage(); shell.RequestRealm(realm);
+                shell.RequestRealm(realm);
                 while (shell.Loading) yield return null;
                 if (shell.ArtworkError != null) { loading = false; DrawLoadError(shell.ArtworkError); yield break; }
             }
