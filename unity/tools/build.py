@@ -50,7 +50,39 @@ def _identity(toolchain, name):
             raise RuntimeError('Android lock directory must stay within the Unity project')
     if not isinstance(profile['excludedAssemblies'], list):
         raise RuntimeError('Android identity requires excluded assemblies')
+    brand = PurePosixPath(profile['brand'])
+    if brand.parent != PurePosixPath('assets/brand') or not all((ROOT / brand / name).is_file() for name in BRAND_FILES):
+        raise RuntimeError('Android identity requires its own assets/brand directory with ' + ', '.join(BRAND_FILES))
     return profile
+
+
+# Each product's launcher icon (adaptive layers and the legacy icon) and splash,
+# staged for the selected identity only, so a package carries its own brand.
+BRAND_FILES = {"icon-foreground.png": "IconForeground.png", "icon-background.png": "IconBackground.png",
+               "icon.png": "Icon.png", "splash.jpg": "Resources/ZKube/Splash.jpg"}
+
+
+def stage_brand(profile, directory):
+    source = ROOT / profile["brand"]
+    staged = set()
+    for name, target in BRAND_FILES.items():
+        destination = directory / target
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        data = (source / name).read_bytes()
+        if not destination.exists() or destination.read_bytes() != data:
+            destination.write_bytes(data)
+        staged.add(destination)
+        staged.update(destination.parents)
+    for path in sorted(directory.rglob("*"), reverse=True):
+        asset = path.with_suffix("") if path.suffix == ".meta" else path
+        if asset not in staged:
+            path.unlink() if path.is_file() else path.rmdir()
+    for path in sorted(p for p in staged if p == directory.parent or directory in (p, *p.parents)):
+        meta = Path(str(path) + ".meta")
+        if not meta.exists():
+            guid = hashlib.sha256(str(path.relative_to(ROOT)).encode()).hexdigest()[:32]
+            meta.write_text("fileFormatVersion: 2\nguid: " + guid + "\n" +
+                            ("folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n" if path.is_dir() else ""))
 
 
 def abis(toolchain, profile):
@@ -494,18 +526,7 @@ def native(android, profile):
         destination = target / source.name
         if not destination.exists() or source.read_bytes() != destination.read_bytes():
             shutil.copyfile(source, destination)
-    source = ROOT / "assets/pwa-512x512.png"
-    directory = PROJECT / "Assets/ZKube/Branding/Generated"
-    directory.mkdir(parents=True, exist_ok=True)
-    destination = directory / "AppIcon.png"
-    if not destination.exists() or destination.read_bytes() != source.read_bytes():
-        shutil.copyfile(source, destination)
-    for path in (directory.parent, directory, destination):
-        meta = Path(str(path) + ".meta")
-        if not meta.exists():
-            guid = hashlib.sha256(str(path.relative_to(PROJECT)).encode()).hexdigest()[:32]
-            meta.write_text("fileFormatVersion: 2\nguid: " + guid + "\n" +
-                            ("folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n" if path.is_dir() else ""))
+    stage_brand(profile, PROJECT / "Assets/ZKube/Branding/Generated")
 
 
 def wallet_plugin():

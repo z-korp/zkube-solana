@@ -13,7 +13,8 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'unity/tools'))
 from cli import run_main
-from build import identity, abis
+from build import identity, abis, stage_brand, BRAND_FILES
+import tempfile
 from inspect_android import elf, metadata_check, payload, manifest_check, MONEY_ASSEMBLIES
 from inspect_android import open_archive, read_member, display_name_check, product_name_check
 from inspect_android import production_check, debug_certificate
@@ -76,6 +77,28 @@ class StaticTests(unittest.TestCase):
         self.assertEqual(['aarch64-linux-android', 'x86_64-linux-android'], [a['rustTarget'] for a in abis(self.toolchain, store)])
         self.assertIn('locks', money)
         self.assertNotIn('locks', store)
+
+    def test_each_package_stages_only_its_own_icon_and_splash(self):
+        staged = {}
+        for name in ('money', 'store'):
+            profile = identity(self.toolchain, name)
+            (ROOT / 'build').mkdir(exist_ok=True)
+            with tempfile.TemporaryDirectory(dir=ROOT / 'build') as temporary:
+                directory = Path(temporary) / 'Branding/Generated'
+                directory.mkdir(parents=True)
+                (directory / 'AppIcon.png').write_bytes(b'retired')
+                stage_brand(profile, directory)
+                files = {p.relative_to(directory).as_posix(): p.read_bytes()
+                         for p in directory.rglob('*') if p.is_file() and p.suffix != '.meta'}
+            self.assertEqual(set(BRAND_FILES.values()), set(files), 'Only the brand files remain; the shared icon is retired')
+            for source, target in BRAND_FILES.items():
+                self.assertEqual((ROOT / profile['brand'] / source).read_bytes(), files[target])
+            staged[name] = files
+        for target in BRAND_FILES.values():
+            self.assertNotEqual(staged['money'][target], staged['store'][target], target)
+        self.assertFalse((ROOT / 'assets/pwa-512x512.png').exists())
+        self.toolchain['androidIdentities'][1]['brand'] = 'assets/skins'
+        with self.assertRaisesRegex(RuntimeError, 'assets/brand'): identity(self.toolchain, 'store')
 
     def test_profile_rejects_unknown_and_duplicate_identities(self):
         with self.assertRaises(RuntimeError): identity(self.toolchain, 'ios')

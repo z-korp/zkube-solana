@@ -93,26 +93,19 @@ namespace ZKube.Editor
             PlayerSettings.SplashScreen.showUnityLogo = false;
             EditorSettings.serializationMode = SerializationMode.ForceText;
 
-            const string iconPath = "Assets/ZKube/Branding/Generated/AppIcon.png";
-            var iconImporter = AssetImporter.GetAtPath(iconPath) as TextureImporter;
-            if (iconImporter == null) throw new InvalidOperationException("Missing generated product icon importer");
-            iconImporter.textureType = TextureImporterType.Default;
-            iconImporter.textureShape = TextureImporterShape.Texture2D;
-            iconImporter.mipmapEnabled = false;
-            iconImporter.maxTextureSize = 512;
-            iconImporter.SaveAndReimport();
-            var appIcon = AssetDatabase.LoadAssetAtPath<Texture2D>(iconPath);
-            if (appIcon == null) throw new InvalidOperationException("Missing generated product icon");
+            // The selected product's own launcher icon, staged by build.py:
+            // adaptive background and foreground layers, and the legacy icon
+            // for the round and legacy slots.
+            ImportBrand();
+            Texture2D Icon(string name) => AssetDatabase.LoadAssetAtPath<Texture2D>(Brand + name)
+                ?? throw new InvalidOperationException("Missing staged product icon " + name);
             foreach (var kind in new[] { AndroidPlatformIconKind.Adaptive, AndroidPlatformIconKind.Round, AndroidPlatformIconKind.Legacy })
             {
                 var icons = PlayerSettings.GetPlatformIcons(NamedBuildTarget.Android, kind);
                 foreach (var icon in icons)
-                {
-                    var layers = new Texture2D[icon.maxLayerCount];
-                    layers[0] = appIcon;
-                    if (layers.Length > 1) layers[1] = appIcon;
-                    icon.SetTextures(layers);
-                }
+                    icon.SetTextures(kind == AndroidPlatformIconKind.Adaptive
+                        ? new[] { Icon("IconBackground.png"), Icon("IconForeground.png") }
+                        : new[] { Icon("Icon.png") });
                 PlayerSettings.SetPlatformIcons(NamedBuildTarget.Android, kind, icons);
             }
 
@@ -222,6 +215,27 @@ namespace ZKube.Editor
             ClearImportHandlers();
             Debug.LogException(error);
             EditorApplication.Exit(1);
+        }
+
+        public const string Brand = "Assets/ZKube/Branding/Generated/";
+        // Icons import uncompressed at their own size; the splash is a sprite
+        // the launch screen loads from Resources before any realm art.
+        private static void ImportBrand()
+        {
+            foreach (var name in new[] { "IconBackground.png", "IconForeground.png", "Icon.png", "Resources/ZKube/Splash.jpg" })
+            {
+                AssetDatabase.ImportAsset(Brand + name, ImportAssetOptions.ForceSynchronousImport);
+                var importer = AssetImporter.GetAtPath(Brand + name) as TextureImporter
+                    ?? throw new InvalidOperationException("Missing staged brand file " + name);
+                bool splash = name.EndsWith(".jpg");
+                importer.textureType = splash ? TextureImporterType.Sprite : TextureImporterType.Default;
+                importer.textureShape = TextureImporterShape.Texture2D;
+                importer.spriteImportMode = splash ? SpriteImportMode.Single : SpriteImportMode.None;
+                importer.mipmapEnabled = false; importer.alphaIsTransparency = !splash;
+                importer.maxTextureSize = splash ? 4096 : 512;
+                importer.textureCompression = splash ? TextureImporterCompression.Compressed : TextureImporterCompression.Uncompressed;
+                importer.SaveAndReimport();
+            }
         }
 
         private static void FinishPreparation()

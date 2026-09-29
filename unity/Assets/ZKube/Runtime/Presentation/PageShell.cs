@@ -105,7 +105,10 @@ namespace ZKube.Presentation
         private IEnumerator Arrive(bool reducedMotion, float density)
         {
             float seconds = reducedMotion ? ReducedTransitionSeconds : TransitionSeconds, rise = reducedMotion ? 0 : RiseDp * density;
-            if (!reducedMotion && Artwork != null && vignette == null)
+            // The realm's scrim, read once: a realm reload clears its tokens.
+            bool lit = !reducedMotion && Artwork != null && !Loading;
+            var scrim = lit ? Artwork.Token(SkinTokens.Scrim) : Color.clear;
+            if (lit && vignette == null)
             {
                 vignette = Child<Image>("Page vignette", Root.transform); vignette.raycastTarget = false;
                 vignette.sprite = Artwork.SkinUi(SkinSlots.FxVignette);
@@ -119,7 +122,7 @@ namespace ZKube.Presentation
                 float t = Mathf.Clamp01((Time.unscaledTime - start) / seconds), eased = 1 - (1 - t) * (1 - t);
                 fade.alpha = eased;
                 Page.anchoredPosition = new Vector2(0, -rise * (1 - eased));
-                if (vignette != null) vignette.color = SkinUi.WithAlpha(Artwork.Token(SkinTokens.Scrim), .42f * Mathf.Sin(Mathf.PI * t));
+                if (vignette != null) vignette.color = SkinUi.WithAlpha(scrim, lit ? .42f * Mathf.Sin(Mathf.PI * t) : 0);
                 if (t >= 1) break;
                 yield return null;
             }

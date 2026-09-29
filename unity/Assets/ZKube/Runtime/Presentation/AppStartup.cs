@@ -29,6 +29,18 @@ namespace ZKube.Presentation
         private Task cleanup, stopped;
         private bool stopping;
         public string UnavailableText { get; private set; }
+        public LaunchScreen Launch { get; private set; }
+        // The first page has drawn once a shell holds page content (an error
+        // page counts); an unavailable app shows why instead.
+        private bool FirstPageDrawn()
+        {
+            if (unavailable != null) return true;
+            foreach (var shell in FindObjectsByType<PageShell>(FindObjectsSortMode.None))
+                if (!shell.Loading && shell.Page != null && shell.Page.childCount > 0) return true;
+            foreach (var shell in FindObjectsByType<AppShell>(FindObjectsSortMode.None))
+                if (!shell.Loading && shell.Content != null && shell.Content.childCount > 0) return true;
+            return false;
+        }
         public float TextScale => Configuration.TextScale == 0 ? AppPreferences.TextScale :
             BoardController.SupportedTextScale(Configuration.TextScale);
         public float? DisplayDensity => Configuration.DisplayDensity == 0 ? (float?)null : Configuration.DisplayDensity;
@@ -45,6 +57,8 @@ namespace ZKube.Presentation
                     new GameObject("Application input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(transform, false);
                 if (Configuration.Identity == null) throw new InvalidOperationException("Application identity is missing");
                 Configuration.Identity.Open(this);
+                // Over the pages by sorting order, and after them in the hierarchy.
+                Launch = LaunchScreen.Create(transform, FirstPageDrawn, DisplayDensity ?? BoardController.ReadDisplayDensity());
             }
             catch (Exception error)
             {

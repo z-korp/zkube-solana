@@ -35,6 +35,7 @@
       ],
       "locks": "NativeAndroid/unity-locks",
       "productName": "zKube: Arena",
+      "brand": "assets/brand/arena",
       "excludedAssemblies": [
         "ZKube.Store"
       ]
@@ -48,6 +49,7 @@
         "x86_64"
       ],
       "productName": "zKube: Realms",
+      "brand": "assets/brand/realms",
       "excludedAssemblies": [
         "ZKube.Chain",
         "ZKube.Money",
