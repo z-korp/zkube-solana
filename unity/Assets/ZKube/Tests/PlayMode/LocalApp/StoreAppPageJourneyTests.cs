@@ -308,7 +308,7 @@ namespace ZKube.Tests
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain(level.Primary[2].ToString()));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])));
             Assert.That(texts, Does.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description + "\n" + rule.effect)
-                .And.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain(catalog.Realm(1).guardianTitle.ToUpperInvariant()));
+                .And.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain(catalog.Realm(1).guardianTitle));
             Assert.That(texts.Any(text => text.StartsWith("0 / ")), Is.False);
             Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
             Click(app, "Play"); yield return BoardReady();

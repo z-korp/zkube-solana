@@ -132,14 +132,14 @@ namespace ZKube.Presentation
         // in warm light, as drawn.
         private void NewBest(PageColumn card)
         {
-            float d = ui.Density, text = ui.TextWidth("New best!", 16, SkinUi.Type.Label), width = Mathf.Max(165 * d, text + 70 * d);
+            float d = ui.Density, text = ui.TextWidth("New best!", 16, SkinUi.Type.Number), width = Mathf.Max(165 * d, text + 70 * d);
             var rect = card.Take(36 * d, 0);
             var chip = new Rect(rect.center.x - width / 2, rect.y, width, rect.height);
             ui.Piece("New best", SkinSlots.Plate, chip, card.Parent, .6f);
             float start = chip.center.x - (text + 30 * d) / 2;
             Tinted("New best icon", SkinSlots.IconTrophy, new Rect(start, chip.center.y - 11 * d, 22 * d, 22 * d), SkinTokens.Accent, card.Parent);
             ui.Label("New best label", "New best!", new Rect(start + 30 * d, chip.y, text + 4 * d, chip.height), 16, SkinTokens.Accent,
-                card.Parent, SkinUi.Type.Label, TextAlignmentOptions.Left);
+                card.Parent, SkinUi.Type.Number, TextAlignmentOptions.Left);
         }
         // Two secondary pills side by side; the share pill leads with its icon.
         private void PillPair(PageColumn card, PageAction left, PageAction right)

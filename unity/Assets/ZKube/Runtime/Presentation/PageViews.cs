@@ -98,7 +98,7 @@ namespace ZKube.Presentation
                     Frame(2, "Profile", null, null, null, Settings(), messages); Profile(profile); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
-                    Frame(-1, "Settings", brand.ToUpperInvariant(), new PageAction { Label = "Back", Name = "Back",
+                    Frame(-1, "Settings", brand, new PageAction { Label = "Back", Name = "Back",
                         CanInvoke = () => source.CanNavigate(lastTab), Invoke = () => source.Navigate(lastTab) }, null, null, messages);
                     Settings(settings); break;
                 case AppPage.Result:
@@ -106,7 +106,7 @@ namespace ZKube.Presentation
                     if (result.HasResult && result.ShowStars) { Frame(-1, null, null, null, null, null, messages); back = result.Done; CampaignResult(result); }
                     else if (result.HasResult)
                     {
-                        Frame(1, result.Mode + " complete", DayLabel(result.Day) + " · " + catalog.Realm(result.Realm).realmName.ToUpperInvariant(),
+                        Frame(1, result.Mode + " complete", DayLabel(result.Day) + " · " + catalog.Realm(result.Realm).realmName,
                             null, null, null, messages);
                         Result(result);
                     }
@@ -171,7 +171,7 @@ namespace ZKube.Presentation
             reveal = null; selectedTab = tab;
             float icon = IconDp * d, titleWidth = safe.width - 2 * (icon + 24 * d);
             float titleHeight = title == null ? 0 : ui.TextHeight(title, titleWidth, 25, SkinUi.Type.Title);
-            float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 12, SkinUi.Type.Caption);
+            float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 12, SkinUi.Type.Label);
             // The inner-page header: the title 5 dp under the safe inset, its light
             // stroke at 46 dp and the subtitle at 59 dp.
             float header = title == null ? 0 : Mathf.Max((subtitle == null ? 70 : 84) * d, 59 * d + subtitleHeight + 8 * d);
@@ -192,8 +192,8 @@ namespace ZKube.Presentation
             if (subtitle != null)
             {
                 var rect = new Rect(safe.center.x - titleWidth / 2, safe.yMax - 59 * d - subtitleHeight, titleWidth, subtitleHeight);
-                Shade(rect, ui.TextWidth(subtitle, 12, SkinUi.Type.Caption), chrome);
-                ui.Label("Page subtitle", subtitle, rect, 12, SkinTokens.TextMuted, chrome, SkinUi.Type.Caption);
+                Shade(rect, ui.TextWidth(subtitle, 12, SkinUi.Type.Label), chrome);
+                ui.Label("Page subtitle", subtitle, rect, 12, SkinTokens.TextMuted, chrome, SkinUi.Type.Label);
             }
             // Utility tablets sit 4 dp inside the top safe inset, on the page gutters.
             // An action that cannot be taken is not drawn.
@@ -419,7 +419,7 @@ namespace ZKube.Presentation
         }
         private static string Sentence(string value) => string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value.Substring(1);
         private static string DayLabel(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400)
-            .UtcDateTime.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant();
+            .UtcDateTime.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
         private static RectTransform Holder(string name, Rect rect, Transform parent)
         {
             var holder = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();

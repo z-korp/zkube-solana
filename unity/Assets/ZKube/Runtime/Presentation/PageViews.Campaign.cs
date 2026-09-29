@@ -414,8 +414,7 @@ namespace ZKube.Presentation
         private Rect Speak(string name, Transform parent, float x, float rail, float width, PageCatalog.RealmPage realm, TalkPage[] pages,
             Action finished, bool hint)
         {
-            var talk = ui.Talk(name, x, rail, width, realm, pages, finished, parent);
-            if (!hint) parent.Find(name + " hint")?.gameObject.SetActive(false);
+            var talk = ui.Talk(name, x, rail, width, realm, pages, finished, parent, hint);
             return SkinUi.ScreenRect((RectTransform)talk.transform);
         }
         // The page shows the realm's rule once its line is done, with what the
