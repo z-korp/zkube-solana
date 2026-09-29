@@ -84,10 +84,9 @@ namespace ZKube.Presentation
                     // Another realm is another page: it opens at its own start.
                     if (campaign.Realm != shownRealm) kept = -1;
                     shownRealm = campaign.Realm;
-                    string place = "REALM " + campaign.Realm + " / " + Protocol.Realms.Length;
-                    if (campaign.Locked != null) Frame(0, realm.realmName, place, campaign.Previous, null, null, Array.Empty<string>());
-                    else Frame(0, realm.realmName, place + " · " + campaign.Stars + " / " + Protocol.CampaignTargets.Length * 3 + " STARS",
-                        campaign.Previous, campaign.Next, null, Array.Empty<string>(), fullBleed: true);
+                    if (campaign.Locked != null) Frame(0, realm.realmName, Place(campaign), campaign.Previous, null, null, Array.Empty<string>());
+                    else Frame(0, realm.realmName, MapSubtitle(campaign), campaign.Previous, campaign.Next, null, Array.Empty<string>(), fullBleed: true,
+                        clipped: MapScrolls(campaign));
                     Campaign(campaign, messages); break;
                 case AppPage.Level:
                     var level = source.LevelPage(); var map = source.CampaignView();
@@ -172,20 +171,22 @@ namespace ZKube.Presentation
         // A page with a subtitle and no title carries the product mark in the
         // title's place. The left tablet is Back unless the page names its icon.
         private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, PageAction settings, string[] notices,
-            bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
+            bool fullBleed = false, string leftIcon = SkinSlots.IconBack, bool clipped = false)
         {
             var safe = shell.SafeArea; float d = ui.Density;
             reveal = null; selectedTab = tab;
-            float icon = IconDp * d, titleWidth = safe.width - 2 * (icon + 24 * d);
+            float icon = IconDp * d, titleWidth = TitleWidth();
             float titleHeight = title == null ? 0 : ui.TextHeight(title, titleWidth, 25, SkinUi.Type.Title);
             float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 12, SkinUi.Type.Label);
-            // The inner-page header: the title 5 dp under the safe inset, its light
-            // stroke at 46 dp and the subtitle at 59 dp.
-            float header = title == null && subtitle == null ? 0 : Mathf.Max((subtitle == null ? 70 : 84) * d, 59 * d + subtitleHeight + 8 * d);
+            float header = Header(title, subtitle);
             tabBar = ui.TabBarRect(safe);
             float bottom = tab >= 0 ? tabBar.yMax : safe.y;
             headerBottom = safe.yMax - header;
-            var body = fullBleed ? shell.ScreenArea : new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
+            // A full-bleed page runs under the header and tab bar; a clipped one
+            // (a map that scrolls) stops at the header so nothing scrolls under it.
+            var screen = shell.ScreenArea;
+            var body = fullBleed ? clipped ? Rect.MinMaxRect(screen.xMin, screen.yMin, screen.xMax, headerBottom) : screen :
+                new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
             shell.Clear(body); shell.Hold(ui.Dispose);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
             var chrome = shell.Overlay;
@@ -222,6 +223,16 @@ namespace ZKube.Presentation
             float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
             column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);
             foreach (var notice in notices) column.Note("Notice", notice);
+        }
+        private float TitleWidth() => shell.SafeArea.width - 2 * (IconDp + 24) * ui.Density;
+        // The inner-page header's height: the title 5 dp under the safe inset, its
+        // light stroke at 46 dp and the subtitle at 59 dp.
+        private float Header(string title, string subtitle)
+        {
+            float d = ui.Density;
+            if (title == null && subtitle == null) return 0;
+            float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, TitleWidth(), 12, SkinUi.Type.Label);
+            return Mathf.Max((subtitle == null ? 70 : 84) * d, 59 * d + subtitleHeight + 8 * d);
         }
         private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored, Transform parent = null)
         {

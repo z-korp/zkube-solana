@@ -55,15 +55,13 @@ namespace ZKube.Presentation
         private int Map(CampaignPageView value, byte previewLevel)
         {
             var realm = catalog.Realm(value.Realm);
-            float d = ui.Density; var screen = shell.ScreenArea; var safe = shell.SafeArea;
+            float d = ui.Density; var screen = shell.ScreenArea;
             int count = value.Trials.Length;
-            int focus = previewLevel > 0 ? previewLevel - 1 : Array.FindIndex(value.Trials, trial => trial.Playing);
-            if (focus < 0) focus = Array.FindIndex(value.Trials, trial => trial.Available && trial.Stars == 0);
-            if (focus < 0) focus = Math.Max(0, Array.FindLastIndex(value.Trials, trial => trial.Available || trial.Stars > 0));
+            int focus = Focus(value, previewLevel);
             // The band between the header and the Play button, the same on the map
             // and under its preview.
-            float top = safe.yMax - 84 * d, floor = PlayRect().yMax + 16 * d;
-            float band = Band(realm, index => NodeSize(value.Trials[index], index == count - 1, index == focus), screen.width, top - floor);
+            float top = shell.SafeArea.yMax - MapHeader(value), floor = PlayRect().yMax + 16 * d;
+            float band = MapBand(value, focus, top - floor);
             var path = new Rect(screen.x, top - band, screen.width, band);
             var art = ui.Art.SkinRealm(SkinSlots.Map);
             float height = Mathf.Max(screen.width * art.rect.height / art.rect.width, screen.yMax - (path.y - (floor - screen.y)));
@@ -82,13 +80,34 @@ namespace ZKube.Presentation
                 Node(value, value.Trials[index], At(index), index == count - 1, index == focus);
             if (band > top - floor && previewLevel == 0)
             {
-                // The path scrolls under the header, so a band keeps the title clear.
+                // A path that scrolls stops at the header (the page is clipped
+                // there), and the header sits on a dark band over the painting.
                 reveal = At(focus).y;
-                var shade = ui.Rect<Image>("Header band", Rect.MinMaxRect(screen.x, top - 8 * d, screen.xMax, screen.yMax), shell.Overlay);
+                var shade = ui.Rect<Image>("Header band", Rect.MinMaxRect(screen.x, top, screen.xMax, screen.yMax), shell.Overlay);
                 shade.color = SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Scrim), .75f); shade.raycastTarget = false;
                 shade.transform.SetAsFirstSibling();
             }
             return focus;
+        }
+        private static int Focus(CampaignPageView value, byte previewLevel)
+        {
+            int focus = previewLevel > 0 ? previewLevel - 1 : Array.FindIndex(value.Trials, trial => trial.Playing);
+            if (focus < 0) focus = Array.FindIndex(value.Trials, trial => trial.Available && trial.Stars == 0);
+            if (focus < 0) focus = Math.Max(0, Array.FindLastIndex(value.Trials, trial => trial.Available || trial.Stars > 0));
+            return focus;
+        }
+        private float MapBand(CampaignPageView value, int focus, float room) => Band(catalog.Realm(value.Realm),
+            index => NodeSize(value.Trials[index], index == value.Trials.Length - 1, index == focus), shell.ScreenArea.width, room);
+        private static string Place(CampaignPageView value) => "REALM " + value.Realm + " / " + Protocol.Realms.Length;
+        private static string MapSubtitle(CampaignPageView value) =>
+            Place(value) + " · " + value.Stars + " / " + Protocol.CampaignTargets.Length * 3 + " STARS";
+        // The map's header: the realm's name over its place and stars.
+        private float MapHeader(CampaignPageView value) => Header(catalog.Realm(value.Realm).realmName, MapSubtitle(value));
+        // The map scrolls when its path needs more than the room under its header.
+        private bool MapScrolls(CampaignPageView value)
+        {
+            float room = shell.SafeArea.yMax - MapHeader(value) - (PlayRect().yMax + 16 * ui.Density);
+            return MapBand(value, Focus(value, 0), room) > room;
         }
         // The band height that keeps every node, with room for what it shows under
         // it, clear of the others and of the band's edges: the room between the

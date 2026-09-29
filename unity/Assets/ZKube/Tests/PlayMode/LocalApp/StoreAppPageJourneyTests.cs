@@ -538,6 +538,81 @@ namespace ZKube.Tests
             }
             Assert.That(swaps, Is.GreaterThanOrEqualTo(4), "The walk must cross realm art loads");
         }
+        // On a compact phone and at Seeker size no visible part of any map node,
+        // its label or its stars ever touches the page header, in every realm,
+        // wherever the map opens.
+        [UnityTest] public IEnumerator MapNodesNeverReachTheHeaderOnCompactOrSeekerPhones()
+        {
+            product.Write(state => {
+                state.CampaignOwned = true;
+                for (int realm = 0; realm < Protocol.Realms.Length; realm++)
+                    for (int level = 0; level < 5; level++) state.Stars[realm * 10 + level] = (byte)(level % 3 + 1);
+                for (int realm = 0; realm < Protocol.Realms.Length; realm++) state.Stars[realm * 10 + 9] = 1;
+                return state;
+            });
+            var shell = app.GetComponent<PageShell>();
+            foreach (var frame in new[] { new Rect(0, 0, 360, 640), new Rect(0, 0, 400, 890) })
+            {
+                shell.Frame = frame;
+                for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
+                {
+                    app.Flow.SelectRealm(realm); yield return Page(StorePage.Campaign);
+                    var header = Rect.MinMaxRect(frame.xMin, frame.yMax - 84, frame.xMax, frame.yMax);
+                    var viewport = SkinUi.ScreenRect(shell.Viewport);
+                    var nodes = Nodes();
+                    Assert.That(nodes.Length, Is.EqualTo(10), frame.width + " realm " + realm);
+                    foreach (var node in nodes)
+                        foreach (var piece in node.GetComponentsInChildren<Graphic>().Where(graphic => graphic.gameObject != node.gameObject &&
+                            !graphic.name.EndsWith(" glow") && graphic.color.a > 0))
+                        {
+                            var rect = SkinUi.ScreenRect(piece.rectTransform);
+                            var shown = Rect.MinMaxRect(Mathf.Max(rect.xMin, viewport.xMin), Mathf.Max(rect.yMin, viewport.yMin),
+                                Mathf.Min(rect.xMax, viewport.xMax), Mathf.Min(rect.yMax, viewport.yMax));
+                            if (shown.width <= 0 || shown.height <= 0) continue;
+                            Assert.That(shown.yMax, Is.LessThanOrEqualTo(header.yMin + .5f), frame.width + " realm " + realm + ": " + piece.name + " reaches the header");
+                        }
+                }
+            }
+            shell.Frame = null;
+        }
+        // On a compact phone every page's last piece scrolls fully above the tab
+        // bar (or the screen's bottom where there is no tab bar).
+        [UnityTest] public IEnumerator EveryPagesLastPieceScrollsAboveTheTabBarOnACompactPhone()
+        {
+            var shell = app.GetComponent<PageShell>();
+            shell.Frame = new Rect(0, 0, 360, 640);
+            product.Write(state => { state.Stars[0] = 3; state.Stars[9] = 1; return state; });
+            foreach (var textScale in new[] { 1f, 1.3f })
+            {
+                typeof(BoardController).GetProperty("TextScale").SetValue(board, textScale);
+                foreach (var (control, page) in new[] { ("Daily", StorePage.Daily), ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile),
+                    ("Settings", StorePage.Settings) })
+                {
+                    if (app.Flow.Page == page) { app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily); }
+                    if (page == StorePage.Settings && app.Flow.Page != StorePage.Profile) { Click(app, "Profile"); yield return Page(StorePage.Profile); }
+                    Click(app, control); yield return Page(page);
+                    yield return Wait(() => !app.GetComponentsInChildren<Transform>().Any(value => value.name == "Leaving page"), "The page did not settle");
+                    AssertLastPieceClearsTheBar(shell, page + " at " + textScale);
+                }
+                app.Flow.SelectRealm(4); yield return Page(StorePage.Campaign);
+                AssertLastPieceClearsTheBar(shell, "Closed realm at " + textScale);
+            }
+            shell.Frame = null;
+        }
+        private void AssertLastPieceClearsTheBar(PageShell shell, string page)
+        {
+            var scroll = shell.Scroll; scroll.verticalNormalizedPosition = 0; Canvas.ForceUpdateCanvases();
+            var bar = shell.Chrome.GetComponentInChildren<SkinTabBar>();
+            float floor = bar != null ? SkinUi.ScreenRect((RectTransform)bar.transform).yMax : shell.SafeArea.yMin;
+            var viewport = SkinUi.ScreenRect(shell.Viewport);
+            foreach (var piece in shell.Page.GetComponentsInChildren<Graphic>().Where(graphic => graphic.color.a > 0 && graphic.enabled &&
+                !graphic.name.Contains("glow") && !graphic.name.Contains("halo") && graphic.name != "Realm map"))
+            {
+                var rect = SkinUi.ScreenRect(piece.rectTransform);
+                if (rect.yMin >= viewport.yMax) continue;
+                Assert.That(rect.yMin, Is.GreaterThanOrEqualTo(floor - .5f), page + ": " + piece.name + " stays under the tab bar");
+            }
+        }
         private void AssertEveryVisiblePieceHasArt(string step)
         {
             foreach (var image in app.GetComponentsInChildren<Image>())
