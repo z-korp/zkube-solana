@@ -6,308 +6,661 @@
   },
   "constraintCaptions": [
     {
+      "chip": "",
       "count": 0,
+      "counter": "none",
       "kind": 0,
+      "pictograms": [],
       "text": "Classic",
       "value": 0
     },
     {
+      "chip": "2+",
       "count": 0,
+      "counter": "fill",
       "kind": 1,
+      "pictograms": [
+        "goal-burst-lines-2",
+        "goal-burst-lines-2",
+        "goal-burst-lines-2"
+      ],
       "text": "Moves clearing 2+ lines",
       "value": 2
     },
     {
+      "chip": "3+",
       "count": 0,
+      "counter": "fill",
       "kind": 1,
+      "pictograms": [
+        "goal-burst-lines-3",
+        "goal-burst-lines-3",
+        "goal-burst-lines-3"
+      ],
       "text": "Moves clearing 3+ lines",
       "value": 3
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 2,
+      "pictograms": [
+        "goal-break-any",
+        "goal-break-any",
+        "goal-break-any"
+      ],
       "text": "Clear blocks",
       "value": 0
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 2,
+      "pictograms": [
+        "goal-break-1",
+        "goal-break-1",
+        "goal-break-1"
+      ],
       "text": "Clear size-1 blocks",
       "value": 1
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 2,
+      "pictograms": [
+        "goal-break-2",
+        "goal-break-2",
+        "goal-break-2"
+      ],
       "text": "Clear size-2 blocks",
       "value": 2
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 2,
+      "pictograms": [
+        "goal-break-3",
+        "goal-break-3",
+        "goal-break-3"
+      ],
       "text": "Clear size-3 blocks",
       "value": 3
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 2,
+      "pictograms": [
+        "goal-break-4",
+        "goal-break-4",
+        "goal-break-4"
+      ],
       "text": "Clear size-4 blocks",
       "value": 4
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 3,
+      "pictograms": [
+        "goal-lines",
+        "goal-lines",
+        "goal-lines"
+      ],
       "text": "Clear lines",
       "value": 0
     },
     {
+      "chip": "=2",
       "count": 0,
+      "counter": "fill",
       "kind": 4,
+      "pictograms": [
+        "goal-burst-lines-2",
+        "goal-burst-lines-2",
+        "goal-burst-lines-2"
+      ],
       "text": "Moves clearing exactly 2 lines",
       "value": 2
     },
     {
+      "chip": "=3",
       "count": 0,
+      "counter": "fill",
       "kind": 4,
+      "pictograms": [
+        "goal-burst-lines-3",
+        "goal-burst-lines-3",
+        "goal-burst-lines-3"
+      ],
       "text": "Moves clearing exactly 3 lines",
       "value": 3
     },
     {
+      "chip": "10+",
       "count": 0,
+      "counter": "fill",
       "kind": 5,
+      "pictograms": [
+        "goal-burst-spark",
+        "goal-burst-spark",
+        "goal-burst-spark"
+      ],
       "text": "Moves scoring at least 10 points",
       "value": 10
     },
     {
+      "chip": "+1",
       "count": 0,
+      "counter": "fill",
       "kind": 6,
+      "pictograms": [
+        "goal-bonus-hammer",
+        "goal-bonus-totem",
+        "goal-bonus-wave"
+      ],
       "text": "Trigger the guardian",
       "value": 0
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 7,
+      "pictograms": [
+        "goal-bonus-lines-hammer",
+        "goal-bonus-lines-totem",
+        "goal-bonus-lines-wave"
+      ],
       "text": "Clear lines with a bonus",
       "value": 0
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "fill",
       "kind": 8,
+      "pictograms": [
+        "goal-bonus-breaks-hammer",
+        "goal-bonus-breaks-totem",
+        "goal-bonus-breaks-wave"
+      ],
       "text": "Clear blocks with a bonus",
       "value": 0
     },
     {
+      "chip": "2+",
       "count": 0,
+      "counter": "ring",
       "kind": 9,
+      "pictograms": [
+        "goal-burst-lines-2",
+        "goal-burst-lines-2",
+        "goal-burst-lines-2"
+      ],
       "text": "Clear 2+ lines in one move",
       "value": 2
     },
     {
+      "chip": "3+",
       "count": 0,
+      "counter": "ring",
       "kind": 9,
+      "pictograms": [
+        "goal-burst-lines-3",
+        "goal-burst-lines-3",
+        "goal-burst-lines-3"
+      ],
       "text": "Clear 3+ lines in one move",
       "value": 3
     },
     {
+      "chip": "4+",
       "count": 0,
+      "counter": "ring",
       "kind": 9,
+      "pictograms": [
+        "goal-burst-lines-3",
+        "goal-burst-lines-3",
+        "goal-burst-lines-3"
+      ],
       "text": "Clear 4+ lines in one move",
       "value": 4
     },
     {
+      "chip": "=2",
       "count": 0,
+      "counter": "ring",
       "kind": 10,
+      "pictograms": [
+        "goal-burst-lines-2",
+        "goal-burst-lines-2",
+        "goal-burst-lines-2"
+      ],
       "text": "Clear exactly 2 lines in one move",
       "value": 2
     },
     {
+      "chip": "=3",
       "count": 0,
+      "counter": "ring",
       "kind": 10,
+      "pictograms": [
+        "goal-burst-lines-3",
+        "goal-burst-lines-3",
+        "goal-burst-lines-3"
+      ],
       "text": "Clear exactly 3 lines in one move",
       "value": 3
     },
     {
+      "chip": "=4",
       "count": 0,
+      "counter": "ring",
       "kind": 10,
+      "pictograms": [
+        "goal-burst-lines-3",
+        "goal-burst-lines-3",
+        "goal-burst-lines-3"
+      ],
       "text": "Clear exactly 4 lines in one move",
       "value": 4
     },
     {
+      "chip": "×3",
       "count": 3,
+      "counter": "pips",
       "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
       "text": "Clear a line on 3 moves in a row",
       "value": 1
     },
     {
+      "chip": "×5",
       "count": 5,
+      "counter": "pips",
       "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
       "text": "Clear a line on 5 moves in a row",
       "value": 1
     },
     {
+      "chip": "2+ ×2",
       "count": 2,
+      "counter": "pips",
       "kind": 11,
+      "pictograms": [
+        "goal-streak",
+        "goal-streak",
+        "goal-streak"
+      ],
       "text": "Clear 2+ lines on 2 moves in a row",
       "value": 2
     },
     {
+      "chip": "×14",
       "count": 14,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-any",
+        "goal-burst-break-any",
+        "goal-burst-break-any"
+      ],
       "text": "Clear 14 blocks in one move",
       "value": 0
     },
     {
+      "chip": "×3",
       "count": 3,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-1",
+        "goal-burst-break-1",
+        "goal-burst-break-1"
+      ],
       "text": "Clear 3 size-1 blocks in one move",
       "value": 1
     },
     {
+      "chip": "×5",
       "count": 5,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-1",
+        "goal-burst-break-1",
+        "goal-burst-break-1"
+      ],
       "text": "Clear 5 size-1 blocks in one move",
       "value": 1
     },
     {
+      "chip": "×6",
       "count": 6,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-1",
+        "goal-burst-break-1",
+        "goal-burst-break-1"
+      ],
       "text": "Clear 6 size-1 blocks in one move",
       "value": 1
     },
     {
+      "chip": "×8",
       "count": 8,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-1",
+        "goal-burst-break-1",
+        "goal-burst-break-1"
+      ],
       "text": "Clear 8 size-1 blocks in one move",
       "value": 1
     },
     {
+      "chip": "×3",
       "count": 3,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-2",
+        "goal-burst-break-2",
+        "goal-burst-break-2"
+      ],
       "text": "Clear 3 size-2 blocks in one move",
       "value": 2
     },
     {
+      "chip": "×4",
       "count": 4,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-2",
+        "goal-burst-break-2",
+        "goal-burst-break-2"
+      ],
       "text": "Clear 4 size-2 blocks in one move",
       "value": 2
     },
     {
+      "chip": "×6",
       "count": 6,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-2",
+        "goal-burst-break-2",
+        "goal-burst-break-2"
+      ],
       "text": "Clear 6 size-2 blocks in one move",
       "value": 2
     },
     {
+      "chip": "×2",
       "count": 2,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-3",
+        "goal-burst-break-3",
+        "goal-burst-break-3"
+      ],
       "text": "Clear 2 size-3 blocks in one move",
       "value": 3
     },
     {
+      "chip": "×3",
       "count": 3,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-3",
+        "goal-burst-break-3",
+        "goal-burst-break-3"
+      ],
       "text": "Clear 3 size-3 blocks in one move",
       "value": 3
     },
     {
+      "chip": "×4",
       "count": 4,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-3",
+        "goal-burst-break-3",
+        "goal-burst-break-3"
+      ],
       "text": "Clear 4 size-3 blocks in one move",
       "value": 3
     },
     {
+      "chip": "×3",
       "count": 3,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-4",
+        "goal-burst-break-4",
+        "goal-burst-break-4"
+      ],
       "text": "Clear 3 size-4 blocks in one move",
       "value": 4
     },
     {
+      "chip": "×4",
       "count": 4,
+      "counter": "ring",
       "kind": 12,
+      "pictograms": [
+        "goal-burst-break-4",
+        "goal-burst-break-4",
+        "goal-burst-break-4"
+      ],
       "text": "Clear 4 size-4 blocks in one move",
       "value": 4
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "ring",
       "kind": 13,
+      "pictograms": [
+        "goal-all-widths",
+        "goal-all-widths",
+        "goal-all-widths"
+      ],
       "text": "Clear every block size in one move",
       "value": 0
     },
     {
+      "chip": "6+",
       "count": 0,
+      "counter": "ring",
       "kind": 14,
+      "pictograms": [
+        "goal-burst-spark",
+        "goal-burst-spark",
+        "goal-burst-spark"
+      ],
       "text": "Score at least 6 points in one move",
       "value": 6
     },
     {
+      "chip": "8+",
       "count": 0,
+      "counter": "ring",
       "kind": 14,
+      "pictograms": [
+        "goal-burst-spark",
+        "goal-burst-spark",
+        "goal-burst-spark"
+      ],
       "text": "Score at least 8 points in one move",
       "value": 8
     },
     {
+      "chip": "10+",
       "count": 0,
+      "counter": "ring",
       "kind": 14,
+      "pictograms": [
+        "goal-burst-spark",
+        "goal-burst-spark",
+        "goal-burst-spark"
+      ],
       "text": "Score at least 10 points in one move",
       "value": 10
     },
     {
+      "chip": "12+",
       "count": 0,
+      "counter": "ring",
       "kind": 14,
+      "pictograms": [
+        "goal-burst-spark",
+        "goal-burst-spark",
+        "goal-burst-spark"
+      ],
       "text": "Score at least 12 points in one move",
       "value": 12
     },
     {
+      "chip": "15+",
       "count": 0,
+      "counter": "ring",
       "kind": 14,
+      "pictograms": [
+        "goal-burst-spark",
+        "goal-burst-spark",
+        "goal-burst-spark"
+      ],
       "text": "Score at least 15 points in one move",
       "value": 15
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "ring",
       "kind": 15,
+      "pictograms": [
+        "goal-burst-bonus-lines-hammer",
+        "goal-burst-bonus-lines-totem",
+        "goal-burst-bonus-lines-wave"
+      ],
       "text": "Clear a line with one bonus",
       "value": 1
     },
     {
+      "chip": "2+",
       "count": 0,
+      "counter": "ring",
       "kind": 15,
+      "pictograms": [
+        "goal-burst-bonus-lines-hammer",
+        "goal-burst-bonus-lines-totem",
+        "goal-burst-bonus-lines-wave"
+      ],
       "text": "Clear 2+ lines with one bonus",
       "value": 2
     },
     {
+      "chip": "",
       "count": 0,
+      "counter": "ring",
       "kind": 16,
+      "pictograms": [
+        "goal-perfect-clear",
+        "goal-perfect-clear",
+        "goal-perfect-clear"
+      ],
       "text": "Empty the board",
       "value": 0
     },
     {
+      "chip": "↑6",
       "count": 0,
+      "counter": "fill",
       "kind": 17,
+      "pictograms": [
+        "goal-stack-high",
+        "goal-stack-high",
+        "goal-stack-high"
+      ],
       "text": "Clears with the stack at least 6 rows high",
       "value": 6
     },
     {
+      "chip": "↑7",
       "count": 0,
+      "counter": "fill",
       "kind": 17,
+      "pictograms": [
+        "goal-stack-high",
+        "goal-stack-high",
+        "goal-stack-high"
+      ],
       "text": "Clears with the stack at least 7 rows high",
       "value": 7
     },
     {
+      "chip": "↑8",
       "count": 0,
+      "counter": "fill",
       "kind": 17,
+      "pictograms": [
+        "goal-stack-high",
+        "goal-stack-high",
+        "goal-stack-high"
+      ],
       "text": "Clears with the stack at least 8 rows high",
       "value": 8
     },
     {
+      "chip": "↓3",
       "count": 0,
+      "counter": "fill",
       "kind": 18,
+      "pictograms": [
+        "goal-stack-low",
+        "goal-stack-low",
+        "goal-stack-low"
+      ],
       "text": "Clears leaving 3 rows or fewer",
       "value": 3
     },
     {
+      "chip": "↓4",
       "count": 0,
+      "counter": "fill",
       "kind": 18,
+      "pictograms": [
+        "goal-stack-low",
+        "goal-stack-low",
+        "goal-stack-low"
+      ],
       "text": "Clears leaving 4 rows or fewer",
       "value": 4
     }
@@ -1654,6 +2007,36 @@
         },
         {
           "border": [
+            17,
+            17,
+            17,
+            17
+          ],
+          "image": "/assets/skins/lumen/ui/counter-track.png",
+          "slot": "counter-track"
+        },
+        {
+          "border": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "image": "/assets/skins/lumen/ui/counter-fill.png",
+          "slot": "counter-fill"
+        },
+        {
+          "border": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "image": "/assets/skins/lumen/ui/counter-fill-done.png",
+          "slot": "counter-fill-done"
+        },
+        {
+          "border": [
             0,
             0,
             0,
@@ -1949,6 +2332,66 @@
             0,
             0
           ],
+          "image": "/assets/skins/lumen/ui/icon-hammer-empty.png",
+          "slot": "icon-hammer-empty"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-totem-empty.png",
+          "slot": "icon-totem-empty"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-wave-empty.png",
+          "slot": "icon-wave-empty"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-reroll-empty.png",
+          "slot": "icon-reroll-empty"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-hourglass.png",
+          "slot": "icon-hourglass"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-crown.png",
+          "slot": "icon-crown"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/lumen/ui/fx-glow.png",
           "slot": "fx-glow"
         },
@@ -2151,6 +2594,376 @@
           ],
           "image": "/assets/skins/lumen/ui/emblem-12.png",
           "slot": "emblem-12"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/chip.png",
+          "slot": "chip"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/chip-wide.png",
+          "slot": "chip-wide"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/counter-ring.png",
+          "slot": "counter-ring"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/counter-pip.png",
+          "slot": "counter-pip"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/counter-pip-filled.png",
+          "slot": "counter-pip-filled"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/tick.png",
+          "slot": "tick"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-all-widths.png",
+          "slot": "goal-all-widths"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-breaks-hammer.png",
+          "slot": "goal-bonus-breaks-hammer"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-breaks-totem.png",
+          "slot": "goal-bonus-breaks-totem"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-breaks-wave.png",
+          "slot": "goal-bonus-breaks-wave"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-hammer.png",
+          "slot": "goal-bonus-hammer"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-lines-hammer.png",
+          "slot": "goal-bonus-lines-hammer"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-lines-totem.png",
+          "slot": "goal-bonus-lines-totem"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-lines-wave.png",
+          "slot": "goal-bonus-lines-wave"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-totem.png",
+          "slot": "goal-bonus-totem"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-bonus-wave.png",
+          "slot": "goal-bonus-wave"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-break-1.png",
+          "slot": "goal-break-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-break-2.png",
+          "slot": "goal-break-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-break-3.png",
+          "slot": "goal-break-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-break-4.png",
+          "slot": "goal-break-4"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-break-any.png",
+          "slot": "goal-break-any"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-bonus-lines-hammer.png",
+          "slot": "goal-burst-bonus-lines-hammer"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-bonus-lines-totem.png",
+          "slot": "goal-burst-bonus-lines-totem"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-bonus-lines-wave.png",
+          "slot": "goal-burst-bonus-lines-wave"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-break-1.png",
+          "slot": "goal-burst-break-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-break-2.png",
+          "slot": "goal-burst-break-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-break-3.png",
+          "slot": "goal-burst-break-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-break-4.png",
+          "slot": "goal-burst-break-4"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-break-any.png",
+          "slot": "goal-burst-break-any"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-lines-2.png",
+          "slot": "goal-burst-lines-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-lines-3.png",
+          "slot": "goal-burst-lines-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-burst-spark.png",
+          "slot": "goal-burst-spark"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-lines.png",
+          "slot": "goal-lines"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-perfect-clear.png",
+          "slot": "goal-perfect-clear"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-stack-high.png",
+          "slot": "goal-stack-high"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-stack-low.png",
+          "slot": "goal-stack-low"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/goal-streak.png",
+          "slot": "goal-streak"
         },
         {
           "border": [

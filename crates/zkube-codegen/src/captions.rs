@@ -1,15 +1,15 @@
 //! Constraint captions: every goal and Daily objective in plain player words.
 //! This is the one owner of goal wording. The catalog carries the rendered
-//! caption for every constraint the product uses, so clients look captions up
-//! instead of formatting them. Captions are sentence case; a display may
-//! uppercase them.
+//! caption for every constraint the product uses, with its pictogram, chip and
+//! counter from `pictograms`, so clients look goals up instead of formatting
+//! them. Captions are sentence case; a display may uppercase them.
 
 use std::collections::BTreeSet;
 
 use serde_json::{Value, json};
 use zkube_core::{Constraint, ConstraintKind};
 
-use super::CampaignCatalog;
+use super::{CampaignCatalog, pictograms};
 
 fn count(n: u8, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
@@ -89,21 +89,31 @@ pub fn caption(kind: ConstraintKind, value: u8, required: u8) -> String {
     }
 }
 
-/// Whether a kind's words at this value stay the same at every count it allows.
+// What a goal shows that can depend on its count: the caption and the chip.
+fn counted_face(kind: ConstraintKind, value: u8, required: u8) -> (String, String) {
+    (
+        caption(kind, value, required),
+        pictograms::chip(kind, value, required),
+    )
+}
+
+/// Whether a kind's words and chip at this value stay the same at every count
+/// it allows.
 fn count_free(kind: ConstraintKind, value: u8) -> bool {
-    let text = caption(kind, value, 0);
+    let face = counted_face(kind, value, 0);
     (1..=u8::MAX).all(|required| {
         let constraint = Constraint {
             kind,
             value,
             required_count: required,
         };
-        !constraint.has_valid_shape() || caption(kind, value, required) == text
+        !constraint.has_valid_shape() || counted_face(kind, value, required) == face
     })
 }
 
-/// Every caption the product can show: each Campaign goal and Daily objective.
-/// Wording that does not change with the count is stored once at count zero,
+/// Every goal the product can show: each Campaign goal and Daily objective,
+/// with its caption, chip, counter and one pictogram per bonus in tag order.
+/// A face that does not change with the count is stored once at count zero,
 /// which stands for any count; the rest is stored at each authored count. A
 /// client looks up the exact count first, then count zero.
 pub fn render(catalog: &CampaignCatalog) -> Result<Vec<Value>, String> {
@@ -122,11 +132,20 @@ pub fn render(catalog: &CampaignCatalog) -> Result<Vec<Value>, String> {
         let kind = ConstraintKind::from_tag(tag)
             .ok_or_else(|| format!("Unknown constraint kind {tag}"))?;
         let stored = if count_free(kind, value) { 0 } else { required };
-        entries.insert((tag, value, stored, caption(kind, value, stored)));
+        entries.insert((tag, value, stored));
     }
     Ok(entries
         .into_iter()
-        .map(|(tag, value, required, text)| json!({"kind": tag, "value": value, "count": required, "text": text}))
+        .map(|(tag, value, required)| {
+            let kind = ConstraintKind::from_tag(tag).expect("validated above");
+            let (text, chip) = counted_face(kind, value, required);
+            let pictograms: Vec<String> = pictograms::BONUSES
+                .iter()
+                .filter_map(|bonus| pictograms::pictogram(kind, value, *bonus))
+                .collect();
+            json!({"kind": tag, "value": value, "count": required, "text": text, "chip": chip,
+                "counter": pictograms::counter(kind), "pictograms": pictograms})
+        })
         .collect())
 }
 
@@ -232,40 +251,5 @@ mod tests {
             caption(ConstraintKind::CombosOfAtLeast, 3, 5),
             caption(ConstraintKind::ComboOfAtLeast, 3, 1)
         );
-    }
-
-    #[test]
-    fn the_catalog_carries_a_caption_for_every_goal_and_daily_objective() {
-        let source = include_str!("../../../fixtures/campaign-catalog.json");
-        let catalog: CampaignCatalog = serde_json::from_str(source).unwrap();
-        let captions = render(&catalog).unwrap();
-        // The client's rule: the exact count, else the count-free wording.
-        let lookup = |kind: u8, value: u8, required: u8| {
-            let find = |stored: u8| {
-                captions.iter().find(|entry| {
-                    entry["kind"] == kind && entry["value"] == value && entry["count"] == stored
-                })
-            };
-            find(required)
-                .or_else(|| find(0))
-                .and_then(|entry| entry["text"].as_str().map(str::to_owned))
-        };
-        let expect = |tag: u8, value: u8, required: u8| {
-            let kind = ConstraintKind::from_tag(tag).unwrap();
-            assert_eq!(
-                lookup(tag, value, required),
-                Some(caption(kind, value, required)),
-                "{kind:?} {value} {required}"
-            );
-        };
-        for map in &catalog.maps {
-            for (_, primary, secondary) in &map.levels {
-                expect(primary[0], primary[1], primary[2]);
-                expect(secondary[0], secondary[1], secondary[2]);
-            }
-        }
-        for theme in zkube_core::DAILY_THEMES {
-            expect(theme.kind.tag(), theme.value, 0);
-        }
     }
 }

@@ -49,6 +49,27 @@ namespace ZKube.Presentation.Tests
             catalog.themes[0].guardianLines.incomplete = " ";
             Assert.Throws<FormatException>(() => catalog.Validate(), "A guardian with a silent line is rejected");
         }
+        // Every Campaign goal in its realm, and every Daily objective with any
+        // guardian, finds its caption, counter and imported pictogram.
+        [UnityTest] public IEnumerator EveryCatalogGoalDrawsItsPictogramCounterAndCaption()
+        {
+            evidence.Load("realm-8-campaign"); yield return Ready();
+            var art = (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
+            var catalog = PageCatalog.Load();
+            void Check(byte[] goal, byte bonus)
+            {
+                var face = catalog.Goal(goal[0], goal[1], goal.Length > 2 ? goal[2] : (byte)0);
+                string at = "kind " + goal[0] + " value " + goal[1] + " bonus " + bonus;
+                Assert.That(face.text, Is.Not.Empty, at);
+                if (goal[0] == 0) { Assert.AreEqual("none", face.counter, at); return; }
+                Assert.That(new[] { "fill", "ring", "pips" }, Does.Contain(face.counter), at);
+                Assert.NotNull(art.SkinUi(face.Pictogram(bonus)), at);
+            }
+            foreach (var realm in ZKube.Core.Generated.Protocol.Realms)
+                foreach (var level in realm.Levels) { Check(level.Primary, (byte)realm.GuardianAndHeight[0]); Check(level.Secondary, (byte)realm.GuardianAndHeight[0]); }
+            foreach (var objective in ZKube.Core.Generated.Protocol.DailyThemes)
+                for (byte bonus = 1; bonus <= 3; bonus++) Check(objective, bonus);
+        }
         [Test] public void EverySkinMustCoverEveryRealm()
         {
             var text = Resources.Load<TextAsset>("ZKube/Catalog").text;

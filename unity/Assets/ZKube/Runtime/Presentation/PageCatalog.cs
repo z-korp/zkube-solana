@@ -21,8 +21,18 @@ namespace ZKube.Presentation
         // Where the realm's painting keeps its key light (a fraction of the painting
         // from its top left), how many shafts it throws, and its motes' size and drift.
         [Serializable] public sealed class RealmLight { public float[] source; public int shafts; public float moteDp; public int moteDrift; }
-        // Every goal the product shows, rendered by codegen in sentence case.
-        [Serializable] public sealed class ConstraintCaption { public byte kind, value, count; public string text; }
+        // Every goal the product shows, rendered by codegen: its sentence-case
+        // caption, the chip's numbers and signs, how its progress is counted
+        // (fill, ring, pips, or none for Classic) and its pictogram slot for
+        // each bonus in tag order.
+        [Serializable] public sealed class ConstraintCaption
+        {
+            public byte kind, value, count;
+            public string text, chip, counter;
+            public string[] pictograms;
+            // The picture for a realm whose guardian grants this bonus.
+            public string Pictogram(byte bonus) => pictograms[bonus - 1];
+        }
         [Serializable] public sealed class GuardianRule
         {
             public byte bonus, trigger;
@@ -74,10 +84,11 @@ namespace ZKube.Presentation
         }
         // A Daily objective has no count; a Campaign goal passes its authored count.
         // Codegen stores wording that does not change with the count at count zero.
-        public string ObjectiveName(byte kind, byte value, byte count = 0) =>
-            (constraintCaptions.SingleOrDefault(entry => entry.kind == kind && entry.value == value && entry.count == count)
-             ?? constraintCaptions.SingleOrDefault(entry => entry.kind == kind && entry.value == value && entry.count == 0)
-             ?? throw new FormatException("No generated caption for constraint kind " + kind + " value " + value + " count " + count)).text;
+        public string ObjectiveName(byte kind, byte value, byte count = 0) => Goal(kind, value, count).text;
+        public ConstraintCaption Goal(byte kind, byte value, byte count = 0) =>
+            constraintCaptions.SingleOrDefault(entry => entry.kind == kind && entry.value == value && entry.count == count)
+            ?? constraintCaptions.SingleOrDefault(entry => entry.kind == kind && entry.value == value && entry.count == 0)
+            ?? throw new FormatException("No generated caption for constraint kind " + kind + " value " + value + " count " + count);
         public RealmPage Realm(byte id) => themes.Single(value => value.realmId == id);
         // The first listed skin is the default; the generator guarantees every slot exists.
         public SkinEntry DefaultSkin => skins[0];
@@ -118,6 +129,10 @@ namespace ZKube.Presentation
                 constraintCaptions.Select(value => (value.kind, value.value, value.count)).Distinct().Count() != constraintCaptions.Length ||
                 dailyThemes.Any(value => !constraintCaptions.Any(name => name.kind == value.kind && name.value == value.value && name.count == 0)))
                 throw new FormatException("Generated constraint names are incomplete");
+            // Codegen makes every pictogram a skin slot; an older import lacks them.
+            if (constraintCaptions.Any(goal => goal.chip == null || goal.pictograms?.Length != (goal.kind == 0 ? 0 : 3) ||
+                    !new[] { "fill", "ring", "pips", "none" }.Contains(goal.counter)))
+                throw new FormatException("Regenerate the catalog with its goal pictograms");
             if (guardianRules == null || guardianRules.Any(rule => string.IsNullOrEmpty(rule.name) || string.IsNullOrEmpty(rule.effect)))
                 throw new FormatException("Generated guardian descriptions are missing");
             foreach (var realm in themes) Rule(realm.realmId);

@@ -132,6 +132,24 @@
       0,
       160,
       0
+    ],
+    "counter-track": [
+      17,
+      17,
+      17,
+      17
+    ],
+    "counter-fill": [
+      8,
+      8,
+      8,
+      8
+    ],
+    "counter-fill-done": [
+      8,
+      8,
+      8,
+      8
     ]
   },
   "light": {

@@ -4,6 +4,7 @@ mod art_catalog;
 mod captions;
 mod native_client;
 mod native_fixtures;
+mod pictograms;
 mod skins;
 
 use std::{fmt::Write as _, fs, path::PathBuf, process::ExitCode};

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 /// UI pieces drawn stretched; each declares its stretch border in skin.json.
-pub const UI_STRETCH_SLOTS: [&str; 19] = [
+pub const UI_STRETCH_SLOTS: [&str; 22] = [
     "panel",
     "plate",
     "dialog",
@@ -28,10 +28,14 @@ pub const UI_STRETCH_SLOTS: [&str; 19] = [
     "slider-fill",
     "list-row",
     "toggle-track",
+    // A cumulative goal's fill bar: the track, its fill and the fill once met.
+    "counter-track",
+    "counter-fill",
+    "counter-fill-done",
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 50] = [
+pub const UI_FIXED_SLOTS: [&str; 62] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -61,6 +65,14 @@ pub const UI_FIXED_SLOTS: [&str; 50] = [
     "icon-sound",
     "icon-lock",
     "icon-trophy",
+    // A bonus or reroll tablet with no charge, the moves tablet's hourglass
+    // and the Daily best's crown.
+    "icon-hammer-empty",
+    "icon-totem-empty",
+    "icon-wave-empty",
+    "icon-reroll-empty",
+    "icon-hourglass",
+    "icon-crown",
     // Effect sprites are white with variable alpha; the client tints them.
     // fx-glow is the light code places behind live and earned things.
     "fx-glow",
@@ -92,6 +104,15 @@ pub const UI_FIXED_SLOTS: [&str; 50] = [
     // perfect world; drawn in the ring's opening like a portrait.
     "emblem-11",
     "emblem-12",
+    // A goal pictogram's value chip, short and wide, under client-drawn text.
+    "chip",
+    "chip-wide",
+    // A one-move goal's ring, the pips of moves in a row, and the tick of a
+    // met goal (also the ring once earned).
+    "counter-ring",
+    "counter-pip",
+    "counter-pip-filled",
+    "tick",
 ];
 
 /// The ladder's tiers, from the core's own progression.
@@ -99,15 +120,16 @@ pub fn ladder_tiers() -> u8 {
     zkube_core::ladder_tier_for_points(u64::MAX) + 1
 }
 
-/// Every UI slot: the stretched and fixed pieces, and for each ladder tier
-/// the border worn around the emblem (in place of the guardian ring) and its
-/// badge.
+/// Every UI slot: the stretched and fixed pieces, every goal pictogram, and
+/// for each ladder tier the border worn around the emblem (in place of the
+/// guardian ring) and its badge.
 pub fn ui_slots() -> Vec<String> {
     let mut slots: Vec<String> = UI_STRETCH_SLOTS
         .iter()
         .chain(&UI_FIXED_SLOTS)
         .map(|s| (*s).to_owned())
         .collect();
+    slots.extend(super::pictograms::slots());
     for tier in 0..ladder_tiers() {
         slots.push(format!("ladder-border-{tier}"));
         slots.push(format!("ladder-badge-{tier}"));
@@ -490,8 +512,16 @@ mod tests {
         assert_eq!(skins[0]["realms"].as_array().unwrap().len(), 2);
         assert_eq!(
             skins[0]["ui"].as_array().unwrap().len(),
-            UI_STRETCH_SLOTS.len() + UI_FIXED_SLOTS.len() + 2 * usize::from(ladder_tiers())
+            UI_STRETCH_SLOTS.len()
+                + UI_FIXED_SLOTS.len()
+                + super::super::pictograms::slots().len()
+                + 2 * usize::from(ladder_tiers())
         );
+        let pictogram = root.join("assets/skins/test/ui/goal-streak.png");
+        fs::remove_file(&pictogram).unwrap();
+        let error = render(&root, &listed(), 2).unwrap_err();
+        assert!(error.contains("missing slot goal-streak"), "{error}");
+        fs::write(&pictogram, b"image").unwrap();
         let top = format!("ladder-border-{}", ladder_tiers() - 1);
         let path = root.join("assets/skins/test/ui").join(slot_file(&top));
         fs::remove_file(&path).unwrap();

@@ -98,8 +98,8 @@ Android builds are inspected after they finish. build.py holds a lease, so two r
 
 - A skin is a folder under assets/skins/<id>/, listed in assets/catalog.json. Lumen is the only skin.
 - Its slots are declared once, in crates/zkube-codegen/src/skins.rs: UI kit pieces (slice borders in skin.json),
-  ladder borders and badges, and per realm a background, HUD background and map painting (JPEG) plus a ledge,
-  mote and four block sprites (PNG with alpha).
+  goal pictograms, ladder borders and badges, and per realm a background, HUD background and map painting (JPEG)
+  plus a ledge, mote and four block sprites (PNG with alpha).
 - Each realm's tokens.json holds its block tints and light colours; skin.json places its key light, shafts and
   motes.
 - Guardians live in assets/theme-N/boss: ten full frames, a paws layer drawn over the board rim, and
@@ -111,7 +111,8 @@ Android builds are inspected after they finish. build.py holds a lease, so two r
 
 ## Content
 
-- Goal and Daily objective captions come from crates/zkube-codegen/src/captions.rs.
+- Goal and Daily objective captions come from crates/zkube-codegen/src/captions.rs, and each goal's pictogram,
+  value chip and counter from pictograms.rs beside it.
 - Realm names, guardian titles and their ten lines come from assets/catalog.json.
 - Page copy lives in the page that shows it.
 - A retired model's words are listed in services/tests/supersession.test.ts so they cannot return.
