@@ -184,7 +184,11 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(.72f * art.Token(SkinTokens.Text).a, bar.Ink(1).a, 1e-4f);
             bar.Select(1);
             Assert.AreEqual(dark, bar.Ink(1)); Assert.AreEqual(dark, Part(bar, "Tabs Daily icon").color);
-            Assert.AreEqual(art.Font(SkinUi.Type.Label), bar.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Tabs Daily label").font);
+            var label = bar.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Tabs Daily label");
+            Assert.AreEqual(art.Font(SkinUi.Type.Label), label.font);
+            Assert.IsTrue((label.fontStyle & FontStyles.UpperCase) != 0, "Tab labels are capitals");
+            Assert.AreEqual(SkinUi.LabelTracking, label.characterSpacing, "with +9% tracking");
+            Assert.IsNotNull(art.Sprite(BoardArt.Mark), "The wordmark's mark is a common image");
         }
 
         [Test] public void PillsTakeALeadingIconAndTheButtonType()

@@ -110,13 +110,28 @@ namespace ZKube.Presentation.Tests
             var name = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk name");
             Assert.AreEqual(realm.guardianName, name.text); Assert.AreEqual(art.Font(SkinUi.Type.Title), name.font);
             var title = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk title");
-            Assert.AreEqual(realm.guardianTitle.ToUpperInvariant(), title.text);
+            Assert.AreEqual(realm.guardianTitle, title.text);
+            Assert.IsTrue((title.fontStyle & FontStyles.UpperCase) != 0, "Labels render in capitals");
             var line = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk line");
             Assert.AreEqual(TextAlignmentOptions.TopLeft, title.alignment);
             Assert.AreEqual(SkinUi.ScreenRect(line.rectTransform).xMin, SkinUi.ScreenRect(title.rectTransform).xMin, .01f, "The title shares the line's left edge");
             Assert.LessOrEqual(SkinUi.ScreenRect(title.rectTransform).yMax, SkinUi.ScreenRect(Part("Talk name tag").rectTransform).yMin + .01f, "It sits under the tag");
             talk.Complete();
             Assert.AreEqual("EARN WAVE", root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule heading").text);
+        }
+
+        [Test] public void TheBoxFitsItsLinesWithTwoAtLeastAndCanHideItsHint()
+        {
+            Rect Box(GuardianTalk talk) => SkinUi.ScreenRect((RectTransform)talk.transform);
+            var shortLine = Talk(null, new TalkPage("Again.", "idle"));
+            float twoLines = 42 + 2 * SkinUi.TalkLeadingDp + 32;
+            Assert.AreEqual(twoLines, Box(shortLine).height, .01f, "A short line gets a compact box two lines tall");
+            Object.Destroy(shortLine.gameObject);
+            var ruled = Talk(null, new TalkPage("One line.", "idle", "EARN WAVE", "Clear 2+ lines in a move"));
+            Assert.Greater(Box(ruled).height, twoLines, "The rule adds its block");
+            Assert.IsTrue(root.GetComponentsInChildren<TMP_Text>().Any(t => t.name == "Talk hint"));
+            var quiet = ui.Talk("Quiet", 16, 300, 368, realm, new[] { new TalkPage("Hm.", "idle") }, null, root.transform, hint: false);
+            Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>().Any(t => t.name == "Quiet hint"), "A dialog with its own buttons hides the hint");
         }
 
         [Test] public void EveryMomentSpeaksItsAuthoredLine()

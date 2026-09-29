@@ -53,6 +53,7 @@ namespace ZKube.Presentation
         {
             var text = Rect<TextMeshProUGUI>(name, rect, parent);
             text.font = Art.Font(type); text.fontSharedMaterial = Styled(text.font);
+            Letter(text, type);
             text.text = value; text.fontSize = sizeDp * Density * Scale;
             text.color = Art.Token(token); text.alignment = alignment; text.raycastTarget = false;
             text.enableWordWrapping = true; text.enableAutoSizing = false; text.overflowMode = TextOverflowModes.Overflow;
@@ -174,19 +175,20 @@ namespace ZKube.Presentation
         // rail with the guardian's title beside it; the line starts 42 dp down.
         // The box grows to hold the longest page and its rule.
         public GuardianTalk Talk(string name, float x, float top, float width, PageCatalog.RealmPage realm, TalkPage[] pages, Action finished,
-            Transform parent)
+            Transform parent, bool hint = true)
         {
             float d = Density, inner = width - 40 * d;
             float Glyph(float fromTop, float sizeDp) => top - fromTop * d + HudLayout.DigitTop * sizeDp * Scale * d;
-            float lineHeight = 0, ruleHeight = 0;
+            // At least two lines tall, so a short line still gives a settled box.
+            float lineHeight = 2 * TalkLeadingDp * Scale * d, ruleHeight = 0;
             foreach (var page in pages)
             {
                 lineHeight = Mathf.Max(lineHeight, Lines(page.Line, inner, TalkLineDp, Type.Caption) * TalkLeadingDp * Scale * d);
                 if (page.Rule != null) ruleHeight = Mathf.Max(ruleHeight, TextHeight(page.Rule, inner, 12, Type.Caption) + 20 * Scale * d);
             }
-            // The rule's heading sits 126 dp down, as drawn, or under a longer line.
-            float ruleTop = Mathf.Max(126, 42 + lineHeight / d + 12);
-            float height = Mathf.Max(190 * d, (ruleHeight > 0 ? ruleTop * d + ruleHeight : 42 * d + lineHeight) + 32 * d);
+            // The box fits its content: the line, then the rule 24 dp under it.
+            float ruleTop = 42 + lineHeight / d + 24;
+            float height = (ruleHeight > 0 ? ruleTop * d + ruleHeight : 42 * d + lineHeight) + 32 * d;
             var box = new Rect(x, top - height, width, height);
 
             float body = Mathf.Min(180 * d, width * .49f), rail = 14 * d;
@@ -205,8 +207,8 @@ namespace ZKube.Presentation
             Piece(name + " name tag", SkinSlots.TabSelected, tag, parent);
             Label(name + " name", realm.guardianName, tag, 18, SkinTokens.TextOnPrimary, parent, Type.Title);
             // The title sits under the tag, on the line's left edge.
-            float titleHeight = TextHeight(realm.guardianTitle.ToUpperInvariant(), inner, 11, Type.Label);
-            Label(name + " title", realm.guardianTitle.ToUpperInvariant(), new Rect(box.x + 20 * d, Glyph(28, 11) - titleHeight, inner, titleHeight),
+            float titleHeight = TextHeight(realm.guardianTitle, inner, 11, Type.Label);
+            Label(name + " title", realm.guardianTitle, new Rect(box.x + 20 * d, Glyph(28, 11) - titleHeight, inner, titleHeight),
                 11, SkinTokens.TextMuted, parent, Type.Label, TextAlignmentOptions.TopLeft);
 
             var text = Label(name + " line", "", new Rect(box.x + 20 * d, Glyph(42, TalkLineDp) - lineHeight - 4 * d, inner, lineHeight + 4 * d),
@@ -218,9 +220,12 @@ namespace ZKube.Presentation
             var rule = Label(name + " rule", "", new Rect(box.x + 20 * d, Glyph(ruleTop + 20, 12) - Mathf.Max(1, ruleHeight), inner, Mathf.Max(1, ruleHeight)),
                 12, SkinTokens.Text, parent, Type.Caption, TextAlignmentOptions.TopLeft);
             var cue = Label(name + " continue", "▼", new Rect(box.xMax - 36 * d, box.y + 8 * d, 20 * d, 20 * d), 10, SkinTokens.Text, parent, Type.Body);
-            float hintHeight = TextHeight(TapHint, width, 12, Type.Caption);
-            Label(name + " hint", TapHint, new Rect(box.x, box.y - 28 * d - hintHeight + HudLayout.DigitTop * 12 * Scale * d, width, hintHeight), 12,
-                SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Top);
+            if (hint)
+            {
+                float hintHeight = TextHeight(TapHint, width, 12, Type.Caption);
+                Label(name + " hint", TapHint, new Rect(box.x, box.y - 28 * d - hintHeight + HudLayout.DigitTop * 12 * Scale * d, width, hintHeight), 12,
+                    SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Top);
+            }
 
             var talk = panel.gameObject.AddComponent<GuardianTalk>();
             talk.Bind(Art, guardian, text, heading, rule, cue, pages, finished);
@@ -405,6 +410,13 @@ namespace ZKube.Presentation
             }
             finally { UnityEngine.Object.Destroy(probe.gameObject); }
         }
+        // Labels are capitals with +9% tracking, as the type spec sets them.
+        public const float LabelTracking = 9;
+        private static void Letter(TMP_Text text, Type type)
+        {
+            if (type != Type.Label) return;
+            text.fontStyle |= FontStyles.UpperCase; text.characterSpacing = LabelTracking;
+        }
         // The extra spacing that makes a line advance leading em, in TMP's units.
         public static float LineSpacing(TMP_FontAsset font, float leading) =>
             (leading - font.faceInfo.lineHeight / font.faceInfo.pointSize) * 100;
@@ -415,6 +427,7 @@ namespace ZKube.Presentation
             var text = go.GetComponent<TextMeshProUGUI>();
             text.enableAutoSizing = false; text.enableWordWrapping = true;
             text.font = Art.Font(type); text.fontSize = sizeDp * Density * Scale;
+            Letter(text, type);
             return text;
         }
 

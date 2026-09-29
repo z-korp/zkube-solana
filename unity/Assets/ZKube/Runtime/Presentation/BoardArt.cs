@@ -137,6 +137,8 @@ namespace ZKube.Presentation
             }
             return sprite;
         }
+        // The zKube wordmark's mark alone, for small headers.
+        public const string Mark = "common/mark";
         public Color Color(string name, Color fallback) => colors.TryGetValue(name, out var color) ? color : fallback;
         public Color Token(string name) => tokens.TryGetValue(name, out var color) ? color
             : throw new InvalidOperationException("Skin token is missing: " + name);

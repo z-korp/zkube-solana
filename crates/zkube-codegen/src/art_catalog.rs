@@ -261,7 +261,7 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
         "dailyThemes": zkube_core::DAILY_THEMES.iter().map(|theme|
             objective(theme.kind.tag(), theme.value)).collect::<Vec<_>>(),
         "effects": effects,
-        "commonImages": {"totem": "/assets/common/bonus/tiki.png"},
+        "commonImages": {"totem": "/assets/common/bonus/tiki.png", "mark": "/assets/common/mark.png"},
         "skins": super::skins::render(root, &authored, realms.len())?,
     });
     serde_json::to_string_pretty(&output)

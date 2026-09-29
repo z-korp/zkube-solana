@@ -1,5 +1,6 @@
 {
   "commonImages": {
+    "mark": "/assets/common/mark.png",
     "totem": "/assets/common/bonus/tiki.png"
   },
   "constraintCaptions": [
