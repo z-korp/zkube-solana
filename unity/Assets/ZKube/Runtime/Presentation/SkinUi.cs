@@ -372,7 +372,9 @@ namespace ZKube.Presentation
             // Every label stays clear of the chip's painted round ends, shrinking
             // together toward the Label floor only when a word needs it.
             float room = TabLabelRoom(width), labelDp = TabLabelDp;
-            while (labelDp > TabLabelMinimumDp && tabs.Any(tab => TextWidth(tab.label, labelDp, Type.Label) > room)) labelDp -= .25f;
+            // The floor is the drawn size, so larger text stops at the same 9 dp.
+            while (labelDp > TabLabelMinimumDp / Scale && tabs.Any(tab => TextWidth(tab.label, labelDp, Type.Label) > room))
+                labelDp = Mathf.Max(labelDp - .25f, TabLabelMinimumDp / Scale);
             for (int i = 0; i < tabs.Length; i++)
             {
                 var (icon, label, action) = tabs[i];
