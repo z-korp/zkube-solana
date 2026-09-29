@@ -109,7 +109,12 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(Image.Type.Sliced, Part("Talk rail").type);
             var name = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk name");
             Assert.AreEqual(realm.guardianName, name.text); Assert.AreEqual(art.Font(SkinUi.Type.Title), name.font);
-            Assert.AreEqual(realm.guardianTitle.ToUpperInvariant(), root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk title").text);
+            var title = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk title");
+            Assert.AreEqual(realm.guardianTitle.ToUpperInvariant(), title.text);
+            var line = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk line");
+            Assert.AreEqual(TextAlignmentOptions.TopLeft, title.alignment);
+            Assert.AreEqual(SkinUi.ScreenRect(line.rectTransform).xMin, SkinUi.ScreenRect(title.rectTransform).xMin, .01f, "The title shares the line's left edge");
+            Assert.LessOrEqual(SkinUi.ScreenRect(title.rectTransform).yMax, SkinUi.ScreenRect(Part("Talk name tag").rectTransform).yMin + .01f, "It sits under the tag");
             talk.Complete();
             Assert.AreEqual("EARN WAVE", root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule heading").text);
         }

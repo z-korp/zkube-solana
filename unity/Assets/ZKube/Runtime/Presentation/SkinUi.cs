@@ -204,8 +204,9 @@ namespace ZKube.Presentation
             var tag = new Rect(box.x + 12 * d, top + 8 * d - 32 * d, tagWidth, 32 * d);
             Piece(name + " name tag", SkinSlots.TabSelected, tag, parent);
             Label(name + " name", realm.guardianName, tag, 18, SkinTokens.TextOnPrimary, parent, Type.Title);
-            float titleX = tag.xMax + 10 * d, titleHeight = TextHeight(realm.guardianTitle.ToUpperInvariant(), box.xMax - titleX - 16 * d, 11, Type.Label);
-            Label(name + " title", realm.guardianTitle.ToUpperInvariant(), new Rect(titleX, Glyph(22, 11) - titleHeight, box.xMax - titleX - 16 * d, titleHeight),
+            // The title sits under the tag, on the line's left edge.
+            float titleHeight = TextHeight(realm.guardianTitle.ToUpperInvariant(), inner, 11, Type.Label);
+            Label(name + " title", realm.guardianTitle.ToUpperInvariant(), new Rect(box.x + 20 * d, Glyph(28, 11) - titleHeight, inner, titleHeight),
                 11, SkinTokens.TextMuted, parent, Type.Label, TextAlignmentOptions.TopLeft);
 
             var text = Label(name + " line", "", new Rect(box.x + 20 * d, Glyph(42, TalkLineDp) - lineHeight - 4 * d, inner, lineHeight + 4 * d),

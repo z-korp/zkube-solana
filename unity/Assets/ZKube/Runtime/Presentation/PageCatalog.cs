@@ -52,9 +52,9 @@ namespace ZKube.Presentation
         // What the guardian says, by moment (codegen checks each is present and spoken).
         [Serializable] public sealed class GuardianLines
         {
-            public string greeting, dailyGreeting, encouragement, trialIntro, respectLine, oneStar, twoStar, threeStar,
+            public string greeting, dailyGreeting, trialIntro, respectLine, oneStar, twoStar, threeStar,
                 incomplete, defeatLine, newBestLine;
-            public string[] All => new[] { greeting, dailyGreeting, encouragement, trialIntro, respectLine, oneStar, twoStar, threeStar,
+            public string[] All => new[] { greeting, dailyGreeting, trialIntro, respectLine, oneStar, twoStar, threeStar,
                 incomplete, defeatLine, newBestLine };
             // A win by the stars it kept.
             public string Stars(int stars) => stars >= 3 ? threeStar : stars == 2 ? twoStar : oneStar;

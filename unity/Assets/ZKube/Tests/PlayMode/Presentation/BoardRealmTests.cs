@@ -41,7 +41,7 @@ namespace ZKube.Presentation.Tests
             foreach (var realm in catalog.themes)
             {
                 Assert.That(realm.guardianTitle, Is.Not.Empty, realm.guardianName);
-                Assert.AreEqual(11, realm.guardianLines.All.Length);
+                Assert.AreEqual(10, realm.guardianLines.All.Length);
                 foreach (var line in realm.guardianLines.All) Assert.That(line, Is.Not.Null.And.Not.Empty, realm.guardianName);
                 Assert.AreEqual(realm.guardianLines.oneStar, realm.guardianLines.Stars(1));
                 Assert.AreEqual(realm.guardianLines.threeStar, realm.guardianLines.Stars(3));

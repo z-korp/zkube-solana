@@ -36,12 +36,11 @@ pub const GUARDIAN_FRAMES: [&str; 10] = [
 ];
 
 /// What each guardian says, by moment: its first map greeting, the Daily,
-/// mid-run encouragement, the guardian level's preview, respect once passed,
+/// the guardian level's preview, respect once passed,
 /// a win by stars kept, an ended run, its defeat and an Arcade personal best.
-pub const GUARDIAN_LINES: [&str; 11] = [
+pub const GUARDIAN_LINES: [&str; 10] = [
     "greeting",
     "dailyGreeting",
-    "encouragement",
     "trialIntro",
     "respectLine",
     "oneStar",

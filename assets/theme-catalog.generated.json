@@ -3544,7 +3544,6 @@
       "guardianLines": {
         "dailyGreeting": "Today the tides shift for all challengers equally. Ride them better than anyone.",
         "defeatLine": "The current... flows past me now. Well ridden.",
-        "encouragement": "The current is with you. Trust the flow.",
         "greeting": "The ocean has many lessons, young one. Let the tides guide your hands.",
         "incomplete": "The tide recedes... but it always returns. Try again.",
         "newBestLine": "...The ocean itself just shifted. Your finest swim.",
@@ -3807,7 +3806,6 @@
       "guardianLines": {
         "dailyGreeting": "The Nile tests all equally today. Precision will separate the worthy from the rest.",
         "defeatLine": "The jaws... close on nothing. You were faster.",
-        "encouragement": "Patience and precision. The Nile rewards those who wait.",
         "greeting": "The sands remember all who enter. Only the precise survive the Nile's judgment.",
         "incomplete": "The sands swallow those who hesitate. Return stronger.",
         "newBestLine": "...Even the old river is impressed. Again.",
@@ -4070,7 +4068,6 @@
       "guardianLines": {
         "dailyGreeting": "The storm rages equally for all today. Strike harder than your rivals.",
         "defeatLine": "The storm breaks... the wolf yields. Lead the pack.",
-        "encouragement": "Strike hard. Strike fast. The frost does not wait.",
         "greeting": "The frozen wastes spare no one. Only those with fire in their heart survive.",
         "incomplete": "The cold takes the weak. Return with fire in your heart.",
         "newBestLine": "...A new howl echoes off the ice. Yours.",
@@ -4333,7 +4330,6 @@
       "guardianLines": {
         "dailyGreeting": "The same puzzle for all minds today. Prove yours is the sharpest.",
         "defeatLine": "Checkmate... elegantly played. The owl bows.",
-        "encouragement": "Think before you act. Every move is a theorem.",
         "greeting": "The temple is quiet. Marble is carved one steady strike at a time.",
         "incomplete": "The equation remains unsolved. Reconsider your approach.",
         "newBestLine": "...Remarkable. A theorem I had not foreseen.",
@@ -4596,7 +4592,6 @@
       "guardianLines": {
         "dailyGreeting": "The dragon's gaze falls on all challengers today. Outlast them all.",
         "defeatLine": "The storm passes... and you remain. The heavens take note.",
-        "encouragement": "Flow like the river. It carves mountains given time.",
         "greeting": "The dragon waits. Those who endure its gaze earn its power.",
         "incomplete": "The current swept you away. Plant your feet deeper next time.",
         "newBestLine": "...The heavens take note. So does the dragon.",
@@ -4859,7 +4854,6 @@
       "guardianLines": {
         "dailyGreeting": "The same mosaic for all eyes today. See the pattern faster than anyone.",
         "defeatLine": "The pattern... was you all along. Pass through.",
-        "encouragement": "Look deeper. The pattern reveals itself to the patient eye.",
         "greeting": "Every tile has its place in the mosaic. Can you see the pattern?",
         "incomplete": "The tiles scatter. Gather them and try again.",
         "newBestLine": "...The pattern rearranged itself. Astonishing.",
@@ -5122,7 +5116,6 @@
       "guardianLines": {
         "dailyGreeting": "The same trick for all challengers today. Let's see who falls for it last.",
         "defeatLine": "Nine tails, all fooled... you win this round.",
-        "encouragement": "Quick paws, quick mind. Don't overthink it.",
         "greeting": "Catch me if you can. Foxfire burns the careless.",
         "incomplete": "Lost in the illusion. Find your way back and try again.",
         "newBestLine": "...Wait. THAT was not an illusion?!",
@@ -5385,7 +5378,6 @@
       "guardianLines": {
         "dailyGreeting": "The jungle offers the same gifts to all today. Use them wisely, others won't hesitate.",
         "defeatLine": "The jaguar's eyes close... the jungle sleeps for you.",
-        "encouragement": "The ritual demands everything. Give it all.",
         "greeting": "One hunt, one breath. Feed the jungle whole rows, not scraps.",
         "incomplete": "The ritual failed. The spirits turn away. Begin anew.",
         "newBestLine": "...The jaguar's eyes widen. The jungle will remember this.",
@@ -5648,7 +5640,6 @@
       "guardianLines": {
         "dailyGreeting": "The same beat for all today. Match the rhythm longer than anyone else.",
         "defeatLine": "The rhythm... fades. Yours plays louder.",
-        "encouragement": "Feel the pulse. Let it guide your strikes.",
         "greeting": "Listen. The rhythm pulses through the earth. Follow it or fall.",
         "incomplete": "You lost the rhythm. Listen again, and return.",
         "newBestLine": "...The drums skipped. You broke your own record.",
@@ -5911,7 +5902,6 @@
       "guardianLines": {
         "dailyGreeting": "One path. One summit. All climbers face the same mountain today. Reach highest.",
         "defeatLine": "The peak... belongs to you. Fly higher than I.",
-        "encouragement": "Less is more. One wing beat, one purpose.",
         "greeting": "The mountain path is narrow and the air is thin. Only the focused reach the summit.",
         "incomplete": "The mountain rejects the unprepared. Train and return.",
         "newBestLine": "...Higher than your highest. The sun saw it.",
