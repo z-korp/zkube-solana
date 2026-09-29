@@ -32,8 +32,8 @@ runbooks or approval policy in README.md.
   `test_both_test_platforms_share_one_preparation_and_lease` guards the shared test preparation and lease.
 - Regenerate fixtures through unity/tools/build.py fixtures --fixture-action generate. Its native and
   program producers run in order, without concurrent writers.
-- Start delegated work in named Herdr agent panes beside the caller, using herdr agent start with its
-  cwd, never as hidden background jobs, so the owner can watch and steer it. Outside Herdr, say so and ask.
+- Start delegated work in named Herdr agent panes beside the caller, never as hidden background jobs, so
+  the owner can watch and steer it; Development environment lists the commands. Outside Herdr, say so and ask.
 - Reuse existing tool servers; stop a wedged process before replacing it and report its PID and reason.
   Report duplicate configuration. Request a region instead of parsing a huge page.
 - Large scratch work belongs in ignored build/, not the RAM-backed temporary directory. Remove scratch when
@@ -74,6 +74,27 @@ that class:
   data shape; `the_visible_streak_does_not_change_ladder_awards` is one example.
 - **Locked systems:** cutting or reshaping a locked system needs explicit owner approval and a specification
   amendment in the same change. Balance changes stay inside those rules.
+
+## Development environment
+
+| Tool | What it is for and how it is used here |
+| --- | --- |
+| Herdr | Terminal workspace for agents. Split a pane beside the caller with herdr pane split --current --direction right --no-focus, start a named agent with herdr agent start <name> --pane <id>, then send work with herdr agent prompt and follow it with herdr agent wait. |
+| Solana documentation MCP | https://mcp.solana.com/mcp: current Solana, Anchor and MagicBlock documentation for program and client chain work. |
+| Playwright MCP | A headless browser (Brave, driven as Chromium) for browser checks. |
+| Unity MCP relay | ~/.unity/relay/relay_linux --mcp, configured but disabled. Enable it only for work that drives a live Editor; builds, tests and imports still run through unity/tools/build.py. |
+| Blender MCP | ~/.local/bin/blender-mcp, for art tooling when an art task needs Blender. |
+| Skills | Shared skills live in ~/.agents/skills and are linked into each assistant's skill directory: herdr for pane control and solana-dev for program and client chain work. The plain-writing skill, stop-slop, is installed per assistant and applies to every player-facing string and document. |
+| Unity | The editor pinned in unity/toolchain.json, under ~/Unity/Hub/Editor/<version>, installed through Unity Hub with Android Build Support. unity/tools/build.py is the only entry point. |
+| Android emulator | The SDK emulator bundled with the pinned editor (Editor/Data/PlaybackEngines/AndroidPlayer/SDK/emulator) and AVD zkube_offline_api30 (API 30, google_apis, x86_64). Launch it windowed with emulator -avd zkube_offline_api30 -gpu host -accel on -port 5584; headless mode crashes. It runs the store build only, since the arm64 money APK needs a physical device. |
+| Art environment | build/art/.venv (Pillow, fontTools) runs the art scripts; ffmpeg trims and converts captures. |
+
+The emulator is shared. Coordinate before taking it and restore it afterwards:
+
+- Seeker geometry is adb shell wm size 1200x2670 and wm density 460; wm size reset and wm density reset
+  restore it.
+- Uninstall the package before installing a new local build, since each build carries a new debug signature.
+- Put back the clock (settings put global auto_time 1) and unroot adbd if you changed either.
 
 ## Deployment status
 
