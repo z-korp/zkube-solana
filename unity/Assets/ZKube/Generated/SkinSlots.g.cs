@@ -70,6 +70,18 @@ namespace ZKube.Core.Generated
         public const string FxShaft = "fx-shaft";
         public const string FxVignette = "fx-vignette";
         public const string FxPress = "fx-press";
+        public const string Emblem11 = "emblem-11";
+        public const string Emblem12 = "emblem-12";
+        public const string LadderBorder0 = "ladder-border-0";
+        public const string LadderBadge0 = "ladder-badge-0";
+        public const string LadderBorder1 = "ladder-border-1";
+        public const string LadderBadge1 = "ladder-badge-1";
+        public const string LadderBorder2 = "ladder-border-2";
+        public const string LadderBadge2 = "ladder-badge-2";
+        public const string LadderBorder3 = "ladder-border-3";
+        public const string LadderBadge3 = "ladder-badge-3";
+        public const string LadderBorder4 = "ladder-border-4";
+        public const string LadderBadge4 = "ladder-badge-4";
         public const string Background = "background";
         public const string HudBackground = "hud-background";
         public const string Map = "map";
@@ -77,6 +89,9 @@ namespace ZKube.Core.Generated
         public const string Ledge = "ledge";
         public const int BlockWidths = 4;
         public static string Block(int width) => "block-" + width;
+        public const int LadderTiers = 5;
+        public static string LadderBorder(int tier) => "ladder-border-" + tier;
+        public static string LadderBadge(int tier) => "ladder-badge-" + tier;
     }
 
     public static class SkinTokens

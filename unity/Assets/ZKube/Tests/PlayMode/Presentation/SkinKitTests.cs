@@ -213,6 +213,27 @@ namespace ZKube.Presentation.Tests
             Assert.IsNotNull(clip.GetComponent<Mask>());
         }
 
+        [Test] public void AWornEmblemTakesItsLadderBorderInTheSameRect()
+        {
+            Image Frame(string name) => root.GetComponentsInChildren<Image>().Single(i => i.name == name + " frame");
+            string Sprite(Image image) => image.sprite.name.Replace("(Clone)", "");
+            Assert.AreEqual(5, SkinSlots.LadderTiers);
+            for (int tier = 0; tier < SkinSlots.LadderTiers; tier++)
+            {
+                var rect = new Rect(tier * 100, 0, 96, 96);
+                var emblem = ui.Medallion("Tier " + tier, rect, art.SkinUi(tier % 2 == 0 ? SkinSlots.Emblem11 : SkinSlots.Emblem12),
+                    root.transform, SkinSlots.LadderBorder(tier));
+                var frame = Frame("Tier " + tier);
+                Assert.AreEqual("ladder-border-" + tier, Sprite(frame));
+                Assert.AreEqual(rect, SkinUi.ScreenRect(frame.rectTransform), "The border shares the emblem's rect");
+                Assert.AreEqual(rect, SkinUi.ScreenRect(emblem.rectTransform), "The emblem is not shrunk into the opening again");
+                Assert.Greater(frame.transform.GetSiblingIndex(), emblem.transform.parent.GetSiblingIndex(), "The border is drawn last");
+                Assert.AreEqual("ladder-badge-" + tier, art.SkinUi(SkinSlots.LadderBadge(tier)).name.Replace("(Clone)", ""));
+            }
+            ui.Medallion("Guardian", new Rect(0, 200, 96, 96), art.Sprite("boss__portrait"), root.transform);
+            Assert.AreEqual(SkinSlots.GuardianFrame, Sprite(Frame("Guardian")), "A guardian keeps its ring");
+        }
+
         [Test] public void EarnedStarsAreNeverDrawnLargerThanTheirSource()
         {
             string Name(bool earned, float pixels) => ui.StarSprite(earned, pixels).name.Replace("(Clone)", "");

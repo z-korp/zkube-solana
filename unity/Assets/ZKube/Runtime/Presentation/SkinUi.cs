@@ -235,10 +235,12 @@ namespace ZKube.Presentation
         // The dialogue line is 17 dp on a 24 dp leading, as drawn.
         public const float TalkLineDp = 17, TalkLeadingDp = 24;
 
-        // A round portrait framed by the skin's guardian ring. The guardian's
-        // portrait master is painted for the ring's opening, a centred circle
-        // 232/320 of the frame, so it is drawn at the ring's size and clipped there.
-        public Image Medallion(string name, Rect rect, Sprite portrait, Transform parent)
+        // A round portrait or emblem in a ring: the skin's guardian ring, or a
+        // ladder tier's border (SkinSlots.LadderBorder) around a worn emblem.
+        // Portraits and emblems are painted for the ring's opening, a centred
+        // circle 232/320 of the frame, so they are drawn at the ring's size and
+        // clipped there; the ring is drawn last.
+        public Image Medallion(string name, Rect rect, Sprite portrait, Transform parent, string ring = SkinSlots.GuardianFrame)
         {
             float opening = rect.width * 232f / 320f;
             var clip = Rect<Image>(name + " clip", new Rect(rect.center.x - opening / 2, rect.center.y - opening / 2, opening, opening), parent);
@@ -246,7 +248,7 @@ namespace ZKube.Presentation
             clip.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             var image = Rect<Image>(name, rect, clip.transform);
             image.sprite = portrait; image.preserveAspect = true; image.raycastTarget = false;
-            Piece(name + " frame", SkinSlots.GuardianFrame, rect, parent);
+            Piece(name + " frame", ring, rect, parent);
             return image;
         }
 

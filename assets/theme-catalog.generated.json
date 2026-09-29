@@ -1,7 +1,6 @@
 {
   "commonImages": {
-    "mark": "/assets/common/mark.png",
-    "totem": "/assets/common/bonus/tiki.png"
+    "mark": "/assets/common/mark.png"
   },
   "constraintCaptions": [
     {
@@ -2110,6 +2109,126 @@
           ],
           "image": "/assets/skins/lumen/ui/fx-press.png",
           "slot": "fx-press"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/emblem-11.png",
+          "slot": "emblem-11"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/emblem-12.png",
+          "slot": "emblem-12"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-border-0.png",
+          "slot": "ladder-border-0"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-badge-0.png",
+          "slot": "ladder-badge-0"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-border-1.png",
+          "slot": "ladder-border-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-badge-1.png",
+          "slot": "ladder-badge-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-border-2.png",
+          "slot": "ladder-border-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-badge-2.png",
+          "slot": "ladder-badge-2"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-border-3.png",
+          "slot": "ladder-border-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-badge-3.png",
+          "slot": "ladder-badge-3"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-border-4.png",
+          "slot": "ladder-border-4"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/ladder-badge-4.png",
+          "slot": "ladder-badge-4"
         }
       ]
     }

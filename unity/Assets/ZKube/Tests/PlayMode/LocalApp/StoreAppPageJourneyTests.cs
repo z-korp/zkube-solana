@@ -296,7 +296,7 @@ namespace ZKube.Tests
             Assert.That(app.GetComponentsInChildren<Image>().Any(value => value.name == "Guardian portrait"), Is.False);
             Assert.That(app.Flow.Realm, Is.EqualTo(2)); Assert.That(retainedArt.Sprite("boss__celebrate"), Is.Not.Null);
             var common = (UnityEngine.U2D.SpriteAtlas)typeof(BoardArt).GetField("common", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(retainedArt);
-            var uncached = common.GetSprite("bonus__tiki");
+            var uncached = common.GetSprite("mark");
             Assert.That(uncached, Is.Not.Null);
             UnityEngine.Object.Destroy(uncached);
         }
