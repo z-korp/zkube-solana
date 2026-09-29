@@ -198,8 +198,12 @@ namespace ZKube.Local.App
             try { Product.Write(current => { var next = LocalProductCodec.Decode(LocalProductCodec.Encode(current)); change(next); return next; }); }
             catch { if (!ReferenceEquals(before, Product.Read)) Unsaved = true; throw; }
         }
+        // A Campaign outcome belongs to the result page its run opened; leaving
+        // that page lets it go, so the next result page (today's Daily from
+        // View result) shows its own result.
         private void Navigate(StorePage page)
         {
+            if (page != StorePage.Result) LastCampaign = null;
             generation++; var old = pageWait; pageWait = new CancellationTokenSource();
             Page = page; Error = null; BillingNotice = null; old.Cancel(); old.Dispose(); Changed?.Invoke();
         }

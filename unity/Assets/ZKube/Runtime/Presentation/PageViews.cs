@@ -16,7 +16,7 @@ namespace ZKube.Presentation
     // through IAppPageSource; the identity adapter adds its own notices.
     public sealed partial class PageViews : MonoBehaviour
     {
-        public const float GutterDp = 16, ColumnDp = 480, IconDp = 48;
+        public const float GutterDp = 16, ColumnDp = 480, IconDp = 48, FadeDp = 24;
         private static readonly AppPage[] tabs = { AppPage.Campaign, AppPage.Daily, AppPage.Profile };
         private IAppPageSource source;
         private PageShell shell;
@@ -114,7 +114,7 @@ namespace ZKube.Presentation
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
             }
-            shell.Finish(column.Top - 16 * ui.Density);
+            shell.Finish(column.Top - (16 + FadeDp) * ui.Density);
             if (kept >= 0) shell.Offset = kept;
             else if (reveal.HasValue) shell.Reveal(reveal.Value);
             if (entering) shell.Enter(source.SettingsPage().ReducedMotion, ui.Density);
@@ -187,7 +187,8 @@ namespace ZKube.Presentation
             var screen = shell.ScreenArea;
             var body = fullBleed ? clipped ? Rect.MinMaxRect(screen.xMin, screen.yMin, screen.xMax, headerBottom) : screen :
                 new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
-            shell.Clear(body); shell.Hold(ui.Dispose);
+            // Scrolling content fades out over its last 24 dp at the tab bar and the header.
+            shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
             var chrome = shell.Overlay;
             if (title != null)
@@ -218,7 +219,9 @@ namespace ZKube.Presentation
             back = left;
             if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + GutterDp * d, iconY, icon, icon), leftIcon, false);
             if (right != null) { if (right.Enabled) HeaderButton(right, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconBack, true); }
-            else if (settings != null) HeaderButton(settings, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconSettings, false);
+            // A page without a header (Home) scrolls its settings tablet with it.
+            else if (settings != null) HeaderButton(settings, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconSettings, false,
+                title == null && subtitle == null && !fullBleed ? shell.Page : null);
             if (tab >= 0) TabBar(safe, tab);
             float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
             column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);

@@ -282,22 +282,21 @@ namespace ZKube.Presentation
             scrim.color = ui.Art.Token(SkinTokens.Scrim); scrim.raycastTarget = true;
             var realm = catalog.Realm(value.Realm);
             float mapBottom = column.Top;
+            // A short phone closes the preview up so Play stays on screen.
+            float d = ui.Density; bool compact = Compact;
             Dialog("Level", value.Back, (card, rail) => {
-                // The guardian's own level has its trial line; the others its
-                // greeting. Either way the rule and its bonus follow.
-                var page = TalkPage.For(realm.guardianLines, value.Level == Protocol.CampaignTargets.Length ? TalkMoment.TrialIntro : TalkMoment.Greeting);
-                var talk = Speak("Level talk", card.Parent, card.Left - 24 * ui.Density, rail, card.Width + 48 * ui.Density, realm,
-                    new[] { Explained(page, value.Realm) }, null, false);
-                card.Top = talk.y - 45 * ui.Density;
+                var talk = Speak("Level talk", card.Parent, card.Left - 24 * d, rail, card.Width + 48 * d, realm,
+                    new[] { LevelLine(realm.guardianLines, value.Level) }, null, false);
+                card.Top = talk.y - (compact ? 22 : 38) * d;
                 foreach (var notice in notices) card.Note("Notice", notice);
                 Title(card, "Level " + Number(value.Realm, value.Level), 30);
-                card.Typed("Level realm", realm.realmName + " · " + realm.guardianName, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, 18);
+                card.Typed("Level realm", realm.realmName + " · " + realm.guardianName, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, compact ? 10 : 18);
                 var goals = value.Goals;
-                Goal(card, "Score goal", "Score", goals.Points.ToString("N0", CultureInfo.InvariantCulture), false);
-                Goal(card, "Primary goal", catalog.ObjectiveName(goals.PrimaryKind, goals.PrimaryValue, goals.PrimaryCount), goals.PrimaryCount.ToString(CultureInfo.InvariantCulture), false);
-                Goal(card, "Secondary goal", catalog.ObjectiveName(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount), null, false);
-                card.Gap(8.5f);
-                card.Typed("Level moves", value.Moves + " moves", SkinUi.Type.Number, 20, SkinTokens.Accent, 25);
+                Goal(card, "Score goal", "Score", goals.Points.ToString("N0", CultureInfo.InvariantCulture), false, compact);
+                Goal(card, "Primary goal", catalog.ObjectiveName(goals.PrimaryKind, goals.PrimaryValue, goals.PrimaryCount), goals.PrimaryCount.ToString(CultureInfo.InvariantCulture), false, compact);
+                Goal(card, "Secondary goal", catalog.ObjectiveName(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount), null, false, compact);
+                card.Gap(compact ? 2 : 8.5f);
+                card.Typed("Level moves", value.Moves + " moves", SkinUi.Type.Number, 20, SkinTokens.Accent, compact ? 12 : 25);
                 if (!string.IsNullOrEmpty(value.Notice)) card.Typed("Level notice", value.Notice, SkinUi.Type.Body, 15, SkinTokens.Text, 12);
                 Pill(card, value.Play, true, null, 0);
             });
@@ -307,13 +306,14 @@ namespace ZKube.Presentation
             column = new PageColumn(ui, shell.Page, actions, column.Left, column.Width, bottom + 16 * ui.Density);
         }
         // A goal row: a star socket (lit once met), the goal in words and its value.
-        private void Goal(PageColumn card, string name, string label, string number, bool met)
+        private void Goal(PageColumn card, string name, string label, string number, bool met, bool compact = false)
         {
             float d = ui.Density;
             var rows = new PageColumn(ui, card.Parent, actions, card.Left - 10 * d, card.Width + 20 * d, card.Top);
             float numberWidth = number == null ? 0 : NumberSlot(number, 18, rows.Width / 2);
-            float height = Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(label, rows.Width - 64 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
-            var rect = rows.Take(height, 8);
+            // Goal rows are not touch targets, so a short phone draws them 44 dp tall.
+            float height = Mathf.Max((compact ? 44 : PageColumn.RowDp) * d, ui.TextHeight(label, rows.Width - 64 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
+            var rect = rows.Take(height, compact ? 6 : 8);
             ui.Piece(name + " row", SkinSlots.ListRow, rect, card.Parent);
             ui.Star(name + " star", new Rect(rect.x + 10 * d, rect.center.y - 10 * d, 20 * d, 20 * d), met, card.Parent);
             ui.Label(name + " label", label, new Rect(rect.x + 44 * d, rect.y, rect.width - 60 * d - numberWidth, rect.height), 15,
@@ -435,6 +435,25 @@ namespace ZKube.Presentation
         {
             var talk = ui.Talk(name, x, rail, width, realm, pages, finished, parent, hint);
             return SkinUi.ScreenRect((RectTransform)talk.transform);
+        }
+        // A phone under 720 dp tall: dialogs close up their spacing so their
+        // actions stay on screen.
+        private bool Compact => shell.SafeArea.height < 720 * ui.Density;
+
+        // The guardian's line on a level's preview: its trial line on its own
+        // level, and on the others a rotation by level that never repeats from one
+        // level to the next: the greeting, then the guardian's praise and star
+        // lines as prompts.
+        private static TalkPage LevelLine(PageCatalog.GuardianLines lines, byte level)
+        {
+            if (level == Protocol.CampaignTargets.Length) return TalkPage.For(lines, TalkMoment.TrialIntro);
+            return ((level - 1) % 5) switch {
+                0 => TalkPage.For(lines, TalkMoment.Greeting),
+                1 => new TalkPage(lines.respectLine, "satisfied"),
+                2 => new TalkPage(lines.twoStar, "satisfied"),
+                3 => new TalkPage(lines.oneStar, "idle"),
+                _ => new TalkPage(lines.threeStar, "celebrate"),
+            };
         }
         // The page shows the realm's rule once its line is done, with what the
         // bonus does: it removes blocks without scoring.

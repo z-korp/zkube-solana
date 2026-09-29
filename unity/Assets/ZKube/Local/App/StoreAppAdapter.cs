@@ -236,6 +236,9 @@ namespace ZKube.Local.App
                 Score = attempt?.DailyScore ?? 0,
                 ObjectiveTotal = attempt?.ObjectiveTotal ?? 0,
                 Streak = Flow.Product.Read.Streak,
+                // Realms speaks of the run itself: its finest, a scoring run, or one that scored nothing.
+                Speaks = attempt != null && attempt.DailyScore > 0 && attempt.DailyScore >= Flow.Product.Read.BestDailyScore ? TalkMoment.NewBest : TalkMoment.Win,
+                SpeaksStars = attempt != null && attempt.DailyScore > 0 ? 2 : 1,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
                 Share = ResultSharing.Open,
                 Done = Action("Back to Daily", () => Flow.Show(StorePage.Daily)) };

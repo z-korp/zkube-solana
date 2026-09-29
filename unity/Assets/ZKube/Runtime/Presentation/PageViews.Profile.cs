@@ -63,8 +63,9 @@ namespace ZKube.Presentation
                 plain.textWrappingMode = TextWrappingModes.NoWrap; plain.overflowMode = TextOverflowModes.Ellipsis;
                 return;
             }
+            // The name row has the stat rows' width, 16 dp inside the column.
             var rect = column.Take(48 * d, 3);
-            rect = new Rect(rect.x + 8 * d, rect.y, rect.width - 16 * d, rect.height);
+            rect = new Rect(rect.x + 16 * d, rect.y, rect.width - 32 * d, rect.height);
             var row = ui.Piece("Player name", SkinSlots.ListRow, rect, shell.Page);
             string cue = value.ChangeName == null ? null : editingName ? "Editing" : "Edit name";
             float cueWidth = cue == null ? 0 : ui.TextWidth(cue, 13, SkinUi.Type.Caption);
@@ -90,6 +91,10 @@ namespace ZKube.Presentation
                 TextAlignmentOptions.Left);
             label.textWrappingMode = TextWrappingModes.NoWrap;
             field.textViewport = area.rectTransform; field.textComponent = label; field.text = editedName;
+            // A visible caret in the accent light while the name is edited.
+            field.customCaretColor = true; field.caretColor = ui.Art.Token(SkinTokens.Accent);
+            field.caretWidth = Mathf.Max(2, Mathf.RoundToInt(2 * d)); field.caretBlinkRate = .85f;
+            field.selectionColor = SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .35f);
             nameField = field;
         }
         private TMP_InputField nameField;
@@ -125,8 +130,11 @@ namespace ZKube.Presentation
             var save = Pill(slot, new PageAction { Label = "Save name", Invoke = () => { editingName = false; value.ChangeName(field.text); } }, true, null, 24);
             var saveGroup = save.transform.parent.GetChild(save.transform.GetSiblingIndex() - 1);
             column.Top = slot.Top;
-            column.Typed("Name purpose", "Your name appears on this device and on the results you share.", SkinUi.Type.Caption, 16, SkinTokens.Text, 42,
+            // The helper text keeps the cards' text margin, 24 dp inside the column.
+            var helper = new PageColumn(ui, shell.Page, actions, column.Left + 24 * d, column.Width - 48 * d, column.Top);
+            helper.Typed("Name purpose", "Your name appears on this device and on the results you share.", SkinUi.Type.Caption, 16, SkinTokens.Text, 42,
                 TextAlignmentOptions.Left);
+            column.Top = helper.Top;
             var card = column.Card("Name preview card", null, 24, 25, 24);
             card.Typed("Name preview heading", "Name preview", SkinUi.Type.Caption, 12, SkinTokens.TextMuted, 16, TextAlignmentOptions.Left);
             var preview = card.Typed("Name preview", editedName, SkinUi.Type.Title, 27, SkinTokens.Text, 12, TextAlignmentOptions.Left);
@@ -235,8 +243,8 @@ namespace ZKube.Presentation
             Shade(SkinUi.ScreenRect(saved.rectTransform), ui.TextWidth(saved.text, 13, SkinUi.Type.Caption), shell.Page);
             saved.transform.SetAsLastSibling();
         }
-        // A 56 dp row whose whole width switches the kit toggle at its end, with
-        // On or Off beside it.
+        // A 56 dp row whose whole width switches the kit toggle at its end; the
+        // toggle shows its state.
         private void Switch(PageColumn rows, string title, bool on, Action toggle)
         {
             float d = ui.Density;
@@ -244,8 +252,6 @@ namespace ZKube.Presentation
             var row = ui.Piece(title + " row", SkinSlots.ListRow, rect, shell.Page);
             ui.Label(title + " label", title, new Rect(rect.x + 16 * d, rect.y, rect.width - 150 * d, rect.height), 16, SkinTokens.Text, row.transform,
                 SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            ui.Label(title + " state", on ? "On" : "Off", new Rect(rect.xMax - 117 * d, rect.y, 40 * d, rect.height), 13,
-                on ? SkinTokens.Accent : SkinTokens.TextMuted, row.transform, SkinUi.Type.Caption, TextAlignmentOptions.Left);
             ui.Toggle(title + ": " + (on ? "on" : "off"), new Rect(rect.x, rect.y + (rect.height - 48 * d) / 2, rect.width - 22 * d, 48 * d), on,
                 _ => actions.Run(toggle), row.transform);
         }

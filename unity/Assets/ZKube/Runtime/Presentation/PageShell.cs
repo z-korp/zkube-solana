@@ -95,7 +95,9 @@ namespace ZKube.Presentation
 
         // Retires the previous page and places an empty body between the header and
         // the tab bar. Page pieces are laid out from the top of Page, in screen pixels.
-        public void Clear(Rect body)
+        // fade softens the body's top and bottom edges, in pixels, so content
+        // scrolling under the header or down to the tab bar fades out there.
+        public void Clear(Rect body, float fade = 0)
         {
             StopTransition();
             foreach (var layer in new[] { Chrome, Overlay, Page })
@@ -108,6 +110,7 @@ namespace ZKube.Presentation
             SkinUi.Place(Overlay, screen, stage);
             SkinUi.Place(Chrome, screen, Root.transform);
             SkinUi.Place(Viewport, body, stage);
+            Viewport.GetComponent<RectMask2D>().softness = new Vector2Int(0, Mathf.RoundToInt(fade));
             Scroll.StopMovement();
             content.anchorMin = new Vector2(0, 1); content.anchorMax = Vector2.one; content.pivot = new Vector2(.5f, 1);
             content.anchoredPosition = Vector2.zero; content.sizeDelta = Vector2.zero;

@@ -33,7 +33,7 @@ namespace ZKube.Presentation
             Frame(page.Tab, page.Title, page.Subtitle, page.Back ?? page.Corner, null, page.Settings ? Settings() : null, messages,
                 leftIcon: page.Back == null && page.CornerIcon != null ? page.CornerIcon : SkinSlots.IconBack);
             Blocks(page.Blocks);
-            shell.Finish(column.Top - 16 * ui.Density);
+            shell.Finish(column.Top - (16 + FadeDp) * ui.Density);
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(reducedMotion, ui.Density);
         }

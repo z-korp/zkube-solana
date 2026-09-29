@@ -21,16 +21,18 @@ namespace ZKube.Presentation
             int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
             bool cleared = value.EndReason == 1;
             string title = cleared ? "Level cleared!" : value.EndReason == 3 ? "Run ended" : value.MovesLeft == 0 ? "Out of moves" : "Board full";
-            // The core keeps no stars from a run the player ends.
-            string summary = value.EndReason == 3 ? "An ended run keeps no stars · try again" : stars == 3 ? "All three goals complete" :
-                stars == 0 ? "No stars yet · try again" : stars + (stars == 1 ? " star" : " stars") + " kept · try again";
+            // What the core keeps by end reason: a run the player ends keeps no
+            // stars; a run out of moves or on a full board keeps those it latched.
+            // The guardian's line already says to try again.
+            string summary = value.EndReason == 3 ? "An ended run keeps no stars." : cleared ? "All three goals complete" :
+                stars == 0 ? "No stars kept" : stars + (stars == 1 ? " star" : " stars") + " kept";
             var realm = catalog.Realm(value.Realm);
             PageAction share = null;
             if (value.Share != null)
                 share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName,
                     realm.realmName, "Level " + Number(value.Realm, value.Level) + " stars", (ulong)stars, value.Score, null),
                     "Share");
-            float d = ui.Density;
+            float d = ui.Density; bool compact = Compact;
             // The dialog sits over the dimmed painting.
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .45f);
             Image[] lit = null; TMP_Text scoreText = null; RectTransform chip = null, stroke = null, finish = null;
@@ -41,20 +43,20 @@ namespace ZKube.Presentation
                 var page = TalkPage.For(lines, !cleared ? TalkMoment.Ended : value.Level == Protocol.CampaignTargets.Length ? TalkMoment.GuardianDefeated
                     : TalkMoment.Win, stars);
                 var talk = Speak("Result talk", card.Parent, card.Left - 24 * d, rail, card.Width + 48 * d, realm, new[] { page }, null, false);
-                card.Top = talk.y - 43 * d;
-                Title(card, title, 30);
+                card.Top = talk.y - (compact ? 6 : 43) * d;
+                Title(card, title, compact ? 26 : 30);
                 stroke = (RectTransform)card.Parent.GetChild(card.Parent.childCount - 1);
                 card.Gap(4.5f);
-                lit = BigStars(card, stars);
+                lit = BigStars(card, stars, compact);
                 card.Typed("Score caption", "SCORE", SkinUi.Type.Label, 12, SkinTokens.TextMuted, -8);
-                scoreText = card.Typed("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), SkinUi.Type.Number, 56, SkinTokens.Score, 3);
-                if (value.NewBest) chip = Group("New best chip", card.Parent, () => NewBest(card));
-                card.Gap(value.NewBest ? 24 : 12);
+                scoreText = card.Typed("Score", value.Score.ToString("N0", CultureInfo.InvariantCulture), SkinUi.Type.Number, compact ? 40 : 56, SkinTokens.Score, 3);
+                if (value.NewBest) chip = Group("New best chip", card.Parent, () => NewBest(card, compact));
+                card.Gap(value.NewBest ? compact ? 6 : 24 : compact ? 2 : 12);
                 card.Typed("Result summary", summary, SkinUi.Type.Caption, 15, SkinTokens.TextMuted, 0);
                 if (!string.IsNullOrEmpty(value.Notice)) card.Typed("Result notice", value.Notice, SkinUi.Type.Body, 15, SkinTokens.Text, 0);
-                card.Gap(21);
+                card.Gap(compact ? 8 : 21);
                 finish = Group("Result actions", card.Parent, () => {
-                    Pill(card, cleared ? value.Done : value.Retry, true, null, 16);
+                    Pill(card, cleared ? value.Done : value.Retry, true, null, compact ? 8 : 16);
                     PillPair(card, cleared ? value.Retry : value.Done, share);
                 });
             });
@@ -116,14 +118,15 @@ namespace ZKube.Presentation
         // raised, as drawn (its light 74 dp across, the others' 58, 86 dp apart).
         // The star art keeps a margin round its light, so its rect is larger.
         // Returns the lit ones.
-        private Image[] BigStars(PageColumn card, int earned)
+        // A short phone draws them three fifths as large.
+        private Image[] BigStars(PageColumn card, int earned, bool compact = false)
         {
-            float d = ui.Density, side = 74 * d, middle = 95 * d;
-            var row = card.Take(middle, 16);
+            float d = ui.Density, scale = compact ? .6f : 1, side = 74 * d * scale, middle = 95 * d * scale, pitch = 86 * d * scale;
+            var row = card.Take(middle, compact ? 8 : 16);
             var lit = new Image[earned];
             for (int i = 0; i < 3; i++)
             {
-                float size = i == 1 ? middle : side, x = row.center.x + (i - 1) * 86 * d, y = row.center.y + (i == 1 ? 4.4f : -4.4f) * d;
+                float size = i == 1 ? middle : side, x = row.center.x + (i - 1) * pitch, y = row.center.y + (i == 1 ? 4.4f : -4.4f) * d * scale;
                 var star = ui.Star("Result star " + (i + 1), new Rect(x - size / 2, y - size / 2, size, size), i < earned, card.Parent);
                 if (i < earned) lit[i] = star;
             }
@@ -131,10 +134,11 @@ namespace ZKube.Presentation
         }
         // The "New best!" chip: a 36 dp glass plate with the trophy and the words
         // in warm light, as drawn.
-        private void NewBest(PageColumn card)
+        private void NewBest(PageColumn card, bool compact)
         {
             float d = ui.Density, text = ui.TextWidth("New best!", 16, SkinUi.Type.Number), width = Mathf.Max(165 * d, text + 70 * d);
-            var rect = card.Take(36 * d, 0);
+            // A short phone draws the plate 30 dp tall.
+            var rect = card.Take((compact ? 30 : 36) * d, 0);
             var chip = new Rect(rect.center.x - width / 2, rect.y, width, rect.height);
             ui.Piece("New best", SkinSlots.Plate, chip, card.Parent, .6f);
             float start = chip.center.x - (text + 30 * d) / 2;
@@ -162,8 +166,8 @@ namespace ZKube.Presentation
             float d = ui.Density;
             var realm = catalog.Realm(value.Realm);
             column.Gap(177 - 4);
-            var talk = Speak("Result talk", shell.Page, column.Left, column.Top, column.Width, realm, new[] { TalkPage.For(realm.guardianLines, TalkMoment.Daily) },
-                null, false);
+            var line = TalkPage.For(realm.guardianLines, value.Speaks ?? TalkMoment.Daily, value.SpeaksStars);
+            var talk = Speak("Result talk", shell.Page, column.Left, column.Top, column.Width, realm, new[] { line }, null, false);
             column.Top = talk.y - 19 * d;
             var card = column.Card("Result card", null, 24, 20, 20);
             card.Typed("Score caption", "SCORE", SkinUi.Type.Label, 12, SkinTokens.TextMuted, -2);

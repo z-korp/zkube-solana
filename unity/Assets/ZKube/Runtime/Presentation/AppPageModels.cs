@@ -160,6 +160,10 @@ namespace ZKube.Presentation
         public bool NewBest;
         public Func<string, CancellationToken, Task<bool>> Share;
         public PageAction Done, Retry;
+        // The guardian's line on a Daily result: the identity's own moment (a
+        // star or new-best line), or its daily greeting when unset.
+        public TalkMoment? Speaks;
+        public int SpeaksStars;
     }
 
     // An identity's own page, drawn from the kit by the shared page views: the

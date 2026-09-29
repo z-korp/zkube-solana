@@ -299,16 +299,16 @@ namespace ZKube.Tests
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Trial 1"); yield return Page(StorePage.Level);
             // The preview words every goal from its constraint and shows its target
-            // (there is no progress yet), with the guardian's rule and what its bonus
-            // does; no internal source names.
+            // (there is no progress yet) under the guardian's line for the level, as
+            // drawn (the rule is the map greeting's); no internal source names.
             var level = Protocol.Realms[0].Levels[0]; var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
             app.GetComponentInChildren<GuardianTalk>().Complete();
             var texts = Texts();
             Assert.That(texts, Does.Contain("Score").And.Contain(Protocol.CampaignTargets[0].ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain(level.Primary[2].ToString()));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])));
-            Assert.That(texts, Does.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description + "\n" + rule.effect)
-                .And.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain(catalog.Realm(1).guardianTitle));
+            Assert.That(texts, Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain(catalog.Realm(1).guardianTitle));
+            Assert.That(texts, Does.Not.Contain(rule.description + "\n" + rule.effect));
             Assert.That(texts.Any(text => text.StartsWith("0 / ")), Is.False);
             Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
             Click(app, "Play"); yield return BoardReady();
@@ -317,7 +317,7 @@ namespace ZKube.Tests
             Assert.That(outcome, Is.Not.Null); Assert.That(outcome.Realm, Is.EqualTo(1)); Assert.That(outcome.Level, Is.EqualTo(1));
             Assert.That(outcome.EndReason, Is.EqualTo(3));
             // The guardian says how it went; an ended run lights no star.
-            Assert.That(Texts(), Does.Contain("Run ended").And.Contain("An ended run keeps no stars · try again")
+            Assert.That(Texts(), Does.Contain("Run ended").And.Contain("An ended run keeps no stars.")
                 .And.Contain(catalog.Realm(1).guardianLines.incomplete));
             var sockets = app.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Result star ")).ToArray();
             Assert.That(sockets.Length, Is.EqualTo(3));
@@ -482,7 +482,11 @@ namespace ZKube.Tests
             yield return EndRun(); yield return Page(StorePage.Result);
             var today = runs.Today(); var catalog = PageCatalog.Load();
             var texts = Texts();
-            Assert.That(texts, Does.Contain("Daily complete").And.Contain(catalog.Realm(today.Realm).guardianLines.dailyGreeting).And.Contain("SCORE").And.Contain("DAILY STREAK"));
+            // Realms speaks of the run: a new best, a scoring run, or one that scored nothing; never the Arena's greeting.
+            var lines = catalog.Realm(today.Realm).guardianLines; var attempt = product.Read.DailyAttempt;
+            string said = attempt.DailyScore > 0 && attempt.DailyScore >= product.Read.BestDailyScore ? lines.newBestLine : lines.Stars(attempt.DailyScore > 0 ? 2 : 1);
+            Assert.That(texts, Does.Contain("Daily complete").And.Contain(said).And.Contain("SCORE").And.Contain("DAILY STREAK"));
+            Assert.That(texts, Does.Not.Contain(lines.dailyGreeting));
             if (today.ObjectiveKind != 0) Assert.That(texts, Does.Contain(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue)));
             var share = FindButton(app, "Share result");
             Assert.That(share.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
@@ -603,8 +607,9 @@ namespace ZKube.Tests
         private void AssertLastPieceClearsTheBar(PageShell shell, string page)
         {
             var scroll = shell.Scroll; scroll.verticalNormalizedPosition = 0; Canvas.ForceUpdateCanvases();
+            // Past the tab bar (or the screen's bottom) and its 24 dp fade, fully in view.
             var bar = shell.Chrome.GetComponentInChildren<SkinTabBar>();
-            float floor = bar != null ? SkinUi.ScreenRect((RectTransform)bar.transform).yMax : shell.SafeArea.yMin;
+            float floor = (bar != null ? SkinUi.ScreenRect((RectTransform)bar.transform).yMax : shell.SafeArea.yMin) + PageViews.FadeDp;
             var viewport = SkinUi.ScreenRect(shell.Viewport);
             foreach (var piece in shell.Page.GetComponentsInChildren<Graphic>().Where(graphic => graphic.color.a > 0 && graphic.enabled &&
                 !graphic.name.Contains("glow") && !graphic.name.Contains("halo") && graphic.name != "Realm map"))
@@ -646,6 +651,100 @@ namespace ZKube.Tests
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
             yield return EndRun(); yield return Words(StorePage.Result, "Daily result");
             app.Flow.Show(StorePage.Daily); yield return Words(StorePage.Daily, "Home after today's run");
+        }
+        // View result on the used Daily opens today's Daily result, even right
+        // after a Campaign run's result page.
+        [UnityTest] public IEnumerator ViewResultOpensTodaysDailyResultAfterACampaignResult()
+        {
+            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
+            yield return EndRun(); yield return Page(StorePage.Result);
+            Assert.That(app.ResultPage().Mode, Is.EqualTo("Daily"));
+            app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+            app.Flow.Preview(1); yield return Page(StorePage.Level);
+            Click(app, "Play"); yield return BoardReady();
+            yield return EndRun(); yield return Page(StorePage.Result);
+            Assert.That(app.ResultPage().Mode, Is.EqualTo("Campaign"), "A finished Campaign run opens its own result");
+            Click(app, "Map"); yield return Page(StorePage.Campaign);
+            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "View result"); yield return Page(StorePage.Result);
+            var result = app.ResultPage();
+            Assert.That(result.Mode, Is.EqualTo("Daily"));
+            Assert.That(result.Day, Is.EqualTo(runs.Today().DayId));
+            Assert.That(Texts(), Does.Contain("Daily complete"));
+        }
+        // On a compact phone the level preview and every Campaign result keep
+        // their actions on screen without scrolling; the result says what the
+        // core keeps for its end reason, and leaves "try again" to the guardian.
+        [UnityTest] public IEnumerator PreviewAndResultsKeepTheirActionsOnACompactPhone()
+        {
+            var shell = app.GetComponent<PageShell>(); shell.Frame = new Rect(0, 0, 360, 640);
+            void OnScreen(string button, string page)
+            {
+                var rect = SkinUi.ScreenRect((RectTransform)FindButton(app, button).transform);
+                Assert.That(rect.yMin, Is.GreaterThanOrEqualTo(shell.SafeArea.yMin - .5f), page + ": " + button + " is below the fold");
+                Assert.That(rect.yMax, Is.LessThanOrEqualTo(shell.SafeArea.yMax + .5f), page + ": " + button + " is above the screen");
+            }
+            app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+            app.Flow.Preview(1); yield return Page(StorePage.Level);
+            OnScreen("Play", "Level preview");
+            var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
+            foreach (var (reason, stars, moves, title, summary) in new[] {
+                ((byte)3, (byte)0, 4u, "Run ended", "An ended run keeps no stars."),
+                ((byte)2, (byte)1, 0u, "Out of moves", "1 star kept"),
+                ((byte)2, (byte)3, 6u, "Board full", "2 stars kept"),
+                ((byte)2, (byte)0, 0u, "Out of moves", "No stars kept") })
+            {
+                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = stars, EndReason = reason, MovesLeft = moves, Goals = goals });
+                yield return Page(StorePage.Result);
+                foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                yield return null;
+                Assert.That(Texts(), Does.Contain(title).And.Contain(summary), title);
+                Assert.That(Texts().Count(text => text != null && text.IndexOf("try again", StringComparison.OrdinalIgnoreCase) >= 0), Is.LessThanOrEqualTo(1),
+                    title + ": only the guardian says to try again");
+                foreach (var button in new[] { "Retry", "Map", "Share" }) OnScreen(button, title);
+            }
+        }
+        // Every level's preview has its own line: the guardian's trial line on its
+        // own level, and no two neighbouring levels share one.
+        [UnityTest] public IEnumerator EachLevelPreviewSpeaksItsOwnLine()
+        {
+            product.Write(state => { for (int level = 0; level < 9; level++) state.Stars[level] = 1; return state; });
+            var lines = PageCatalog.Load().Realm(1).guardianLines; string previous = null;
+            app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+            for (byte level = 1; level <= 10; level++)
+            {
+                app.Flow.Preview(level); yield return Page(StorePage.Level);
+                var talk = app.GetComponentsInChildren<GuardianTalk>().Single(); talk.Complete(); yield return null;
+                string said = talk.Shown;
+                if (level == 10) Assert.That(said, Is.EqualTo(lines.trialIntro));
+                else Assert.That(said, Is.Not.EqualTo(previous), "Level " + level + " repeats level " + (level - 1));
+                Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Level talk rule heading" && !string.IsNullOrEmpty(text.text)), Is.False,
+                    "The preview speaks only its line, as drawn");
+                previous = said;
+                Click(app, "Back to map"); yield return Page(StorePage.Campaign);
+            }
+        }
+        // Home, which has no header, scrolls its settings tablet with the page;
+        // the profile's name row has the stat rows' width and a visible caret;
+        // settings toggles carry no On or Off words beside them.
+        [UnityTest] public IEnumerator HomeTabletScrollsNameRowMatchesAndTogglesSpeakForThemselves()
+        {
+            var shell = app.GetComponent<PageShell>();
+            Assert.That(FindButton(app, "Settings").transform.IsChildOf(shell.Page), Is.True, "Home's settings tablet scrolls with the page");
+            app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+            var name = SkinUi.ScreenRect((RectTransform)FindButton(app, "Edit name").transform);
+            var stat = SkinUi.ScreenRect((RectTransform)app.GetComponentsInChildren<Image>().First(image => image.name == "Best Daily row").transform);
+            Assert.That(name.xMin, Is.EqualTo(stat.xMin).Within(.5f)); Assert.That(name.xMax, Is.EqualTo(stat.xMax).Within(.5f));
+            Click(app, "Edit name"); yield return null;
+            var field = app.GetComponentInChildren<TMP_InputField>();
+            Assert.That(field.customCaretColor, Is.True); Assert.That(field.caretColor.a, Is.GreaterThan(.9f)); Assert.That(field.caretWidth, Is.GreaterThanOrEqualTo(2));
+            var purpose = SkinUi.ScreenRect(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name purpose").rectTransform);
+            var preview = SkinUi.ScreenRect(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name preview").rectTransform);
+            Assert.That(purpose.xMin, Is.EqualTo(preview.xMin).Within(.5f), "The helper text keeps the cards' text margin");
+            app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
+            foreach (var row in new[] { "Haptics row", "Reduced motion row" })
+                Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == row).GetComponentsInChildren<TMP_Text>().Select(text => text.text),
+                    Has.None.EqualTo("On").And.None.EqualTo("Off"), row);
         }
         private void AssertEveryVisiblePieceHasArt(string step)
         {
