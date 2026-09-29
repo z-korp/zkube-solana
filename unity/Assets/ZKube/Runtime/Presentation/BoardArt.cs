@@ -37,6 +37,8 @@ namespace ZKube.Presentation
         public byte RealmId { get; private set; }
         public string ThemeId { get; private set; }
         public string GuardianName { get; private set; }
+        // The loaded realm's key light, shafts and motes.
+        public PageCatalog.RealmLight Light { get; private set; }
         // The guardian's rail line, a fraction of its canvas from the top.
         public float GuardianRailY { get; private set; }
         public string LevelMusicResource { get; private set; }
@@ -73,7 +75,9 @@ namespace ZKube.Presentation
                 common = commonLoad.Request.asset as SpriteAtlas;
             }
             var skin = data.DefaultSkin;
-            foreach (var token in skin.tokens.Concat(skin.realms.Single(value => value.realmId == realmId).tokens))
+            var realmEntry = skin.realms.Single(value => value.realmId == realmId);
+            Light = realmEntry.light;
+            foreach (var token in skin.tokens.Concat(realmEntry.tokens))
                 tokens.Add(token.name, new Color(token.value[0], token.value[1], token.value[2], token.value[3]));
             var realmSkin = skinRealmLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-theme-" + realmId);
             if (skinUiLoad == null) skinUiLoad = AcquireAtlas("ZKube/Atlases/skin-" + skin.id + "-ui");

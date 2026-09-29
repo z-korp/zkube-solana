@@ -170,7 +170,7 @@ namespace ZKube.Presentation
             foreach (var renderer in pool) if (!renderer.gameObject.activeSelf) { renderer.gameObject.SetActive(true); return renderer; }
             if (pool.Count >= PoolSize) return null;
             var go = new GameObject("Board effect", typeof(SpriteRenderer)); go.transform.SetParent(parent, false);
-            var created = go.GetComponent<SpriteRenderer>(); created.sortingOrder = order;
+            var created = go.GetComponent<SpriteRenderer>(); created.sortingOrder = order; created.sharedMaterial = BoardLight.Unlit;
             pool.Add(created);
             return created;
         }

@@ -493,7 +493,17 @@
             "block-4": "/assets/skins/lumen/realm-1/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-1/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-1/ledge.png",
-            "map": "/assets/skins/lumen/realm-1/map.jpg"
+            "map": "/assets/skins/lumen/realm-1/map.jpg",
+            "mote": "/assets/skins/lumen/realm-1/mote.png"
+          },
+          "light": {
+            "moteDp": 5.0,
+            "moteDrift": 1,
+            "shafts": 0,
+            "source": [
+              0.47,
+              0.05
+            ]
           },
           "realmId": 1,
           "tokens": [
@@ -570,7 +580,17 @@
             "block-4": "/assets/skins/lumen/realm-2/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-2/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-2/ledge.png",
-            "map": "/assets/skins/lumen/realm-2/map.jpg"
+            "map": "/assets/skins/lumen/realm-2/map.jpg",
+            "mote": "/assets/skins/lumen/realm-2/mote.png"
+          },
+          "light": {
+            "moteDp": 4.0,
+            "moteDrift": 1,
+            "shafts": 1,
+            "source": [
+              0.54,
+              0.07
+            ]
           },
           "realmId": 2,
           "tokens": [
@@ -647,7 +667,17 @@
             "block-4": "/assets/skins/lumen/realm-3/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-3/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-3/ledge.png",
-            "map": "/assets/skins/lumen/realm-3/map.jpg"
+            "map": "/assets/skins/lumen/realm-3/map.jpg",
+            "mote": "/assets/skins/lumen/realm-3/mote.png"
+          },
+          "light": {
+            "moteDp": 12.0,
+            "moteDrift": -1,
+            "shafts": 0,
+            "source": [
+              0.55,
+              0.02
+            ]
           },
           "realmId": 3,
           "tokens": [
@@ -724,7 +754,17 @@
             "block-4": "/assets/skins/lumen/realm-4/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-4/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-4/ledge.png",
-            "map": "/assets/skins/lumen/realm-4/map.jpg"
+            "map": "/assets/skins/lumen/realm-4/map.jpg",
+            "mote": "/assets/skins/lumen/realm-4/mote.png"
+          },
+          "light": {
+            "moteDp": 12.0,
+            "moteDrift": 1,
+            "shafts": 0,
+            "source": [
+              0.56,
+              0.05
+            ]
           },
           "realmId": 4,
           "tokens": [
@@ -801,7 +841,17 @@
             "block-4": "/assets/skins/lumen/realm-5/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-5/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-5/ledge.png",
-            "map": "/assets/skins/lumen/realm-5/map.jpg"
+            "map": "/assets/skins/lumen/realm-5/map.jpg",
+            "mote": "/assets/skins/lumen/realm-5/mote.png"
+          },
+          "light": {
+            "moteDp": 28.0,
+            "moteDrift": -1,
+            "shafts": 0,
+            "source": [
+              0.62,
+              0.05
+            ]
           },
           "realmId": 5,
           "tokens": [
@@ -878,7 +928,17 @@
             "block-4": "/assets/skins/lumen/realm-6/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-6/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-6/ledge.png",
-            "map": "/assets/skins/lumen/realm-6/map.jpg"
+            "map": "/assets/skins/lumen/realm-6/map.jpg",
+            "mote": "/assets/skins/lumen/realm-6/mote.png"
+          },
+          "light": {
+            "moteDp": 9.0,
+            "moteDrift": 1,
+            "shafts": 0,
+            "source": [
+              0.45,
+              0.08
+            ]
           },
           "realmId": 6,
           "tokens": [
@@ -955,7 +1015,17 @@
             "block-4": "/assets/skins/lumen/realm-7/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-7/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-7/ledge.png",
-            "map": "/assets/skins/lumen/realm-7/map.jpg"
+            "map": "/assets/skins/lumen/realm-7/map.jpg",
+            "mote": "/assets/skins/lumen/realm-7/mote.png"
+          },
+          "light": {
+            "moteDp": 12.0,
+            "moteDrift": -1,
+            "shafts": 0,
+            "source": [
+              0.55,
+              0.1
+            ]
           },
           "realmId": 7,
           "tokens": [
@@ -1032,7 +1102,17 @@
             "block-4": "/assets/skins/lumen/realm-8/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-8/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-8/ledge.png",
-            "map": "/assets/skins/lumen/realm-8/map.jpg"
+            "map": "/assets/skins/lumen/realm-8/map.jpg",
+            "mote": "/assets/skins/lumen/realm-8/mote.png"
+          },
+          "light": {
+            "moteDp": 12.0,
+            "moteDrift": 1,
+            "shafts": 1,
+            "source": [
+              0.48,
+              0.02
+            ]
           },
           "realmId": 8,
           "tokens": [
@@ -1109,7 +1189,17 @@
             "block-4": "/assets/skins/lumen/realm-9/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-9/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-9/ledge.png",
-            "map": "/assets/skins/lumen/realm-9/map.jpg"
+            "map": "/assets/skins/lumen/realm-9/map.jpg",
+            "mote": "/assets/skins/lumen/realm-9/mote.png"
+          },
+          "light": {
+            "moteDp": 7.0,
+            "moteDrift": 1,
+            "shafts": 0,
+            "source": [
+              0.62,
+              0.12
+            ]
           },
           "realmId": 9,
           "tokens": [
@@ -1186,7 +1276,17 @@
             "block-4": "/assets/skins/lumen/realm-10/block-4.png",
             "hud-background": "/assets/skins/lumen/realm-10/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-10/ledge.png",
-            "map": "/assets/skins/lumen/realm-10/map.jpg"
+            "map": "/assets/skins/lumen/realm-10/map.jpg",
+            "mote": "/assets/skins/lumen/realm-10/mote.png"
+          },
+          "light": {
+            "moteDp": 12.0,
+            "moteDrift": 1,
+            "shafts": 0,
+            "source": [
+              0.55,
+              0.08
+            ]
           },
           "realmId": 10,
           "tokens": [
@@ -1979,6 +2079,36 @@
           ],
           "image": "/assets/skins/lumen/ui/fx-dim-ripple.png",
           "slot": "fx-dim-ripple"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-shaft.png",
+          "slot": "fx-shaft"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-vignette.png",
+          "slot": "fx-vignette"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/fx-press.png",
+          "slot": "fx-press"
         }
       ]
     }

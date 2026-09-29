@@ -67,9 +67,13 @@ namespace ZKube.Core.Generated
         public const string FxTrail = "fx-trail";
         public const string FxHalo = "fx-halo";
         public const string FxDimRipple = "fx-dim-ripple";
+        public const string FxShaft = "fx-shaft";
+        public const string FxVignette = "fx-vignette";
+        public const string FxPress = "fx-press";
         public const string Background = "background";
         public const string HudBackground = "hud-background";
         public const string Map = "map";
+        public const string Mote = "mote";
         public const string Ledge = "ledge";
         public const int BlockWidths = 4;
         public static string Block(int width) => "block-" + width;

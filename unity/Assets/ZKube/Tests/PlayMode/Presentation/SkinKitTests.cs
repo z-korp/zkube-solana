@@ -123,11 +123,21 @@ namespace ZKube.Presentation.Tests
                     if (reduce) Assert.AreEqual(Vector3.one, rect.localScale);
                     else
                     {
-                        Assert.Less(rect.localScale.x, .97f);
+                        Assert.AreEqual(PressSquash.Pressed, rect.localScale.x, .001f, "The face sinks to 97%");
                         Assert.AreEqual(resting.center.x, SkinUi.ScreenRect(rect).center.x, .5f, "The squash keeps the button centred");
                     }
                     squash.OnPointerUp(At(100, 60));
+                    Assert.AreEqual(1, squash.Glints, "A glint of light answers the release, whatever the motion setting");
+                    var glint = button.GetComponentsInChildren<Image>().Single(image => image.name == "Press glint");
+                    Assert.AreEqual("fx-press", glint.sprite.name.Replace("(Clone)", ""));
+                    if (!reduce)
+                    {
+                        float peak = 1;
+                        for (float end = Time.realtimeSinceStartup + .15f; Time.realtimeSinceStartup < end;) { peak = Mathf.Max(peak, rect.localScale.x); yield return null; }
+                        Assert.Greater(peak, 1.01f, "The release overshoots before it rests");
+                    }
                     for (float end = Time.realtimeSinceStartup + .8f; Time.realtimeSinceStartup < end;) yield return null;
+                    Assert.IsFalse(button.GetComponentsInChildren<Image>().Any(image => image.name == "Press glint"), "The glint is gone");
                     Assert.AreEqual(Vector3.one, rect.localScale);
                     Assert.AreEqual(resting, SkinUi.ScreenRect(rect));
                 }

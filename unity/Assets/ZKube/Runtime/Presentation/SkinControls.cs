@@ -81,34 +81,83 @@ namespace ZKube.Presentation
 
     // Kit buttons squash to 92% while pressed and spring back with a little
     // overshoot on release, about their centre. Reduced motion keeps them still.
+    // A press, per the motion spec: the face sinks to 97% over 60 ms as the
+    // pressed art swaps in; on release it rises through a 103% overshoot back to
+    // rest over 120 ms, and a glint of warm light flashes at the touch point
+    // (0, 50%, 0 over 180 ms). Reduced motion keeps the pressed art and the glint,
+    // without scaling. The action itself starts on release, as buttons do.
     public sealed class PressSquash : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
     {
-        private const float Pressed = .92f, Stiffness = 900, Damping = 28;
+        public const float Pressed = .97f, Overshoot = 1.03f, PressSeconds = .06f, ReleaseSeconds = .12f, GlintSeconds = .18f, GlintDp = 40;
         private RectTransform rect;
         private Vector2 origin;
-        private float size = 1, speed, target = 1;
-        private bool moving;
+        private float size = 1, from = 1, started;
+        private bool down, moving;
+        private Sprite glint;
+        private float density = 1;
         public float Size => size;
+        public int Glints { get; private set; }
+
+        internal void Bind(Sprite glintSprite, float screenDensity) { glint = glintSprite; density = screenDensity; }
 
         public void OnPointerDown(PointerEventData eventData)
         {
             var selectable = GetComponent<Selectable>();
-            if (AppPreferences.ReducedMotion || selectable != null && !selectable.IsInteractable()) return;
+            if (selectable != null && !selectable.IsInteractable()) return;
+            down = true;
+            if (AppPreferences.ReducedMotion) return;
             if (!moving) { rect = (RectTransform)transform; origin = rect.anchoredPosition; moving = true; }
-            target = Pressed;
+            from = size; started = Time.unscaledTime;
         }
-        public void OnPointerUp(PointerEventData eventData) => target = 1;
-        public void OnPointerExit(PointerEventData eventData) => target = 1;
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            if (!down) return;
+            down = false;
+            if (glint != null && eventData != null) Glint(eventData.position);
+            if (!moving) return;
+            from = size; started = Time.unscaledTime;
+        }
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            if (!down) return;
+            down = false;
+            if (!moving) return;
+            from = size; started = Time.unscaledTime;
+        }
 
         private void Update()
         {
             if (!moving) return;
-            float dt = Mathf.Min(Time.unscaledDeltaTime, 1 / 30f);
-            speed += (Stiffness * (target - size) - Damping * speed) * dt;
-            size += speed * dt;
-            if (target == 1 && Mathf.Abs(size - 1) < .001f && Mathf.Abs(speed) < .01f) { size = 1; speed = 0; moving = false; }
+            float t = Time.unscaledTime - started;
+            if (down) size = Mathf.Lerp(from, Pressed, 1 - Mathf.Pow(1 - Mathf.Clamp01(t / PressSeconds), 2));
+            else
+            {
+                float k = Mathf.Clamp01(t / ReleaseSeconds);
+                size = k < .6f ? Mathf.Lerp(from, Overshoot, k / .6f) : Mathf.Lerp(Overshoot, 1, (k - .6f) / .4f);
+                if (k >= 1) { size = 1; moving = false; }
+            }
             rect.localScale = new Vector3(size, size, 1);
             rect.anchoredPosition = origin - rect.rect.size * (size - 1) / 2;
+        }
+
+        private void Glint(Vector2 at)
+        {
+            float extent = GlintDp * density;
+            var image = new GameObject("Press glint", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+            image.transform.SetParent(transform, false);
+            SkinUi.Place(image.rectTransform, new Rect(at.x - extent / 2, at.y - extent / 2, extent, extent), transform);
+            image.sprite = glint; image.raycastTarget = false; image.color = new Color(1, .965f, .855f, 0);
+            Glints++;
+            StartCoroutine(Flash(image));
+        }
+        private static System.Collections.IEnumerator Flash(Image image)
+        {
+            for (float t = 0; t < GlintSeconds && image != null; t += Time.unscaledDeltaTime)
+            {
+                var c = image.color; c.a = .5f * Mathf.Sin(Mathf.PI * t / GlintSeconds); image.color = c;
+                yield return null;
+            }
+            if (image != null) Destroy(image.gameObject);
         }
     }
 

@@ -55,9 +55,13 @@ namespace ZKube.Presentation.Tests
             var catalog = JsonUtility.FromJson<PageCatalog>(text);
             catalog.Validate();
             catalog.skins = new[] { new PageCatalog.SkinEntry { id = "test", tokens = new PageCatalog.Swatch[0], ui = new PageCatalog.UiSlot[0],
-                realms = catalog.themes.Select(realm => new PageCatalog.SkinRealm { realmId = realm.realmId, tokens = new PageCatalog.Swatch[0] }).ToArray() } };
+                realms = catalog.themes.Select(realm => new PageCatalog.SkinRealm { realmId = realm.realmId, tokens = new PageCatalog.Swatch[0],
+                    light = new PageCatalog.RealmLight { source = new float[2] } }).ToArray() } };
             catalog.Validate();
             Assert.AreEqual("test", catalog.DefaultSkin.id);
+            catalog.skins[0].realms[0].light = null;
+            Assert.Throws<FormatException>(() => catalog.Validate(), "Every skin realm places its light");
+            catalog.skins[0].realms[0].light = new PageCatalog.RealmLight { source = new float[2] };
             catalog.skins[0].realms[0].tokens = null;
             Assert.Throws<FormatException>(() => catalog.Validate(), "Every skin realm carries its own tokens");
             catalog.skins[0].realms = catalog.skins[0].realms.Skip(1).ToArray();

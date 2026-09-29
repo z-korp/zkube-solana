@@ -17,7 +17,10 @@ namespace ZKube.Presentation
         private static PageCatalog cached;
         [Serializable] public sealed class SkinEntry { public string id, name; public Swatch[] tokens; public UiSlot[] ui; public SkinRealm[] realms; }
         [Serializable] public sealed class UiSlot { public string slot, image; public int[] border; }
-        [Serializable] public sealed class SkinRealm { public byte realmId; public Swatch[] tokens; }
+        [Serializable] public sealed class SkinRealm { public byte realmId; public Swatch[] tokens; public RealmLight light; }
+        // Where the realm's painting keeps its key light (a fraction of the painting
+        // from its top left), how many shafts it throws, and its motes' size and drift.
+        [Serializable] public sealed class RealmLight { public float[] source; public int shafts; public float moteDp; public int moteDrift; }
         // Every goal the product shows, rendered by codegen in sentence case.
         [Serializable] public sealed class ConstraintCaption { public byte kind, value, count; public string text; }
         [Serializable] public sealed class GuardianRule
@@ -114,7 +117,7 @@ namespace ZKube.Presentation
             if (skins == null || skins.Length == 0) throw new FormatException("Regenerate the catalog with its skin list");
             foreach (var skin in skins)
                 if (string.IsNullOrEmpty(skin.id) || skin.tokens == null || skin.ui == null || skin.realms == null ||
-                    skin.realms.Any(realm => realm.tokens == null) ||
+                    skin.realms.Any(realm => realm.tokens == null || realm.light?.source == null || realm.light.source.Length != 2) ||
                     skin.realms.Select(realm => realm.realmId).OrderBy(id => id).SequenceEqual(themes.Select(realm => realm.realmId).OrderBy(id => id)) == false)
                     throw new FormatException("Imported skin does not cover every realm");
             if (portraits == null || portraits.Length != themes.Length || portraits.Select(value => value.realmId).Distinct().Count() != themes.Length)

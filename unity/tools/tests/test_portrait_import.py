@@ -32,7 +32,7 @@ class PortraitImports(unittest.TestCase):
                              ('idle', 'blink', 'talk-mid', 'talk-open', 'greeting', 'satisfied', 'surprised',
                               'celebrate', 'defeated', 'portrait', 'paws')])
             expected.update(f'assets/skins/{skin}/realm-{realm}/{name}' for skin in skins for name in
-                            ('background.jpg', 'hud-background.jpg', 'map.jpg', 'ledge.png',
+                            ('background.jpg', 'hud-background.jpg', 'map.jpg', 'ledge.png', 'mote.png',
                              'block-1.png', 'block-2.png', 'block-3.png', 'block-4.png'))
             expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
         expected.update(f'assets/skins/{skin}/ui/{name}.png' for skin in skins for name in skin_slots())

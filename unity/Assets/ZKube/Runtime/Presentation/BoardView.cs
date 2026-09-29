@@ -42,6 +42,7 @@ namespace ZKube.Presentation
         private readonly Stack<SpriteRenderer> spareBlocks = new Stack<SpriteRenderer>();
         public int BlockSpritesCreated { get; private set; }
         public BoardFx Effects { get; private set; }
+        public BoardLight Lighting { get; private set; }
         private uint scoreShown, scoreTarget;
         private bool countingScore, guardianFinal;
         private string guardianFace = "idle";
@@ -84,10 +85,12 @@ namespace ZKube.Presentation
             // guardian's paws and their contact shadow, rest on top.
             var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.HudBackground), -20);
             Size(background, new Rect(0, 0, Screen.width, Screen.height), true);
+            background.sharedMaterial = BoardLight.Lit;
             float d = Layout.Density, cell = Layout.Cell;
             var key = art.Token(SkinTokens.LightKey);
             guardian = NewSprite("Calm realm guardian", art.Sprite("boss__idle"), -16);
             Size(guardian, hud.Guardian);
+            guardian.sharedMaterial = BoardLight.Lit;
             var backlight = NewSprite("Board backlight", art.SkinUi(SkinSlots.FxGlow), -15);
             Size(backlight, new Rect(Layout.Rim.x - 12 * d, Layout.Rim.y - 24 * d, Layout.Rim.width + 24 * d, Layout.Rim.height + 48 * d));
             backlight.color = new Color(key.r, key.g, key.b, .5f);
@@ -112,6 +115,9 @@ namespace ZKube.Presentation
             pawsShadow.color = new Color(0, 0, 0, .45f);
             paws = NewSprite("Guardian paws", pawsSprite, 8);
             Size(paws, hud.Guardian);
+            paws.sharedMaterial = BoardLight.Lit;
+            Lighting = gameObject.AddComponent<BoardLight>();
+            Lighting.Initialize(art, boardCamera, background.bounds, Layout, boardRoot, backlight);
 
             canvas = new GameObject("Board interface", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster)).GetComponent<Canvas>();
             canvas.transform.SetParent(transform, false); canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -891,6 +897,7 @@ namespace ZKube.Presentation
         {
             var go = new GameObject(name, typeof(SpriteRenderer)); go.transform.SetParent(boardRoot, false);
             var renderer = go.GetComponent<SpriteRenderer>(); renderer.sprite = sprite; renderer.sortingOrder = order;
+            renderer.sharedMaterial = BoardLight.Unlit;
             return renderer;
         }
         // Stretched board pieces keep their authored borders at the kit scale.

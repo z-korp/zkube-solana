@@ -3,7 +3,10 @@
   "references": [
     "Unity.TextMeshPro",
     "Unity.ugui",
-    "ZKube.Core"
+    "ZKube.Core",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Universal.2D.Runtime"
   ],
   "autoReferenced": true,
   "overrideReferences": true,

@@ -91,31 +91,46 @@ namespace ZKube.Presentation
         // Scrolls so an unscrolled screen height sits in the middle of the viewport.
         public void Reveal(float y) => Offset = SkinUi.ScreenRect(Viewport).yMax - y - Viewport.rect.height / 2;
 
-        // A short slide and fade from the side of the destination tab. Reduced
-        // motion shows the page at once.
+        // A page arrives as the motion spec draws it: it rises 12 dp as it fades in
+        // over 220 ms, with a dark vignette swelling at the screen's edges and
+        // clearing again. Nothing slides sideways, so direction is unused.
+        // Reduced motion cross-fades in 120 ms.
+        public const float ReducedTransitionSeconds = .12f, RiseDp = 12;
         public void Enter(int direction, bool reducedMotion, float density)
         {
             StopTransition();
-            if (reducedMotion || !isActiveAndEnabled) return;
-            transition = StartCoroutine(Slide(direction * 28 * density));
+            if (!isActiveAndEnabled) return;
+            transition = StartCoroutine(Arrive(reducedMotion, density));
         }
-        private IEnumerator Slide(float offset)
+        private IEnumerator Arrive(bool reducedMotion, float density)
         {
+            float seconds = reducedMotion ? ReducedTransitionSeconds : TransitionSeconds, rise = reducedMotion ? 0 : RiseDp * density;
+            if (!reducedMotion && Artwork != null && vignette == null)
+            {
+                vignette = Child<Image>("Page vignette", Root.transform); vignette.raycastTarget = false;
+                vignette.sprite = Artwork.SkinUi(SkinSlots.FxVignette);
+                // 1.5 times the screen, centred: its dark band lands on the edges.
+                var screen = new Rect(-Screen.width * .25f, -Screen.height * .25f, Screen.width * 1.5f, Screen.height * 1.5f);
+                SkinUi.Place(vignette.rectTransform, screen, Root.transform);
+            }
             float start = Time.unscaledTime;
             while (true)
             {
-                float t = Mathf.Clamp01((Time.unscaledTime - start) / TransitionSeconds), eased = 1 - (1 - t) * (1 - t);
-                fade.alpha = Mathf.Lerp(.15f, 1, eased);
-                Page.anchoredPosition = new Vector2(offset * (1 - eased), 0);
+                float t = Mathf.Clamp01((Time.unscaledTime - start) / seconds), eased = 1 - (1 - t) * (1 - t);
+                fade.alpha = eased;
+                Page.anchoredPosition = new Vector2(0, -rise * (1 - eased));
+                if (vignette != null) vignette.color = SkinUi.WithAlpha(Artwork.Token(SkinTokens.Scrim), .42f * Mathf.Sin(Mathf.PI * t));
                 if (t >= 1) break;
                 yield return null;
             }
             transition = null;
         }
+        private Image vignette;
         private void StopTransition()
         {
             if (transition != null) StopCoroutine(transition);
             transition = null;
+            if (vignette != null) vignette.color = Color.clear;
             if (fade != null) fade.alpha = 1;
             if (Page != null) Page.anchoredPosition = Vector2.zero;
         }

@@ -5,7 +5,10 @@
     "Unity.ugui",
     "ZKube.Core",
     "ZKube.Core.Tests",
-    "ZKube.Presentation"
+    "ZKube.Presentation",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Universal.2D.Runtime"
   ],
   "autoReferenced": false,
   "optionalUnityReferences": [

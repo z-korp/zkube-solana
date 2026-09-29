@@ -31,7 +31,7 @@ pub const UI_STRETCH_SLOTS: [&str; 19] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 45] = [
+pub const UI_FIXED_SLOTS: [&str; 48] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -84,6 +84,10 @@ pub const UI_FIXED_SLOTS: [&str; 45] = [
     // The guardian's celebration halo and its defeat ripple.
     "fx-halo",
     "fx-dim-ripple",
+    // A realm's light shaft, the page-transition vignette and a press glint.
+    "fx-shaft",
+    "fx-vignette",
+    "fx-press",
 ];
 
 /// Blocks are coloured by width, so each realm draws one block per width.
@@ -121,7 +125,7 @@ pub const REALM_PAINTINGS: [&str; 3] = ["background", "hud-background", "map"];
 pub const REALM_STRETCH_SLOTS: [&str; 1] = ["ledge"];
 
 pub fn realm_slots() -> Vec<String> {
-    let mut slots: Vec<String> = ["background", "hud-background", "map"]
+    let mut slots: Vec<String> = ["background", "hud-background", "map", "mote"]
         .into_iter()
         .chain(REALM_STRETCH_SLOTS)
         .map(str::to_owned)
@@ -138,6 +142,36 @@ struct SkinSource {
     name: String,
     tokens: Colours,
     borders: std::collections::BTreeMap<String, [u16; 4]>,
+    light: std::collections::BTreeMap<String, RealmLight>,
+}
+
+/// Where a realm's painting keeps its key light (a fraction of the painting
+/// from its top left), whether that light throws a shaft, and how its motes
+/// look: their drawn size in dp and whether they rise (1) or fall (-1).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RealmLight {
+    source: [f64; 2],
+    shafts: u8,
+    mote_dp: f64,
+    mote_drift: i8,
+}
+
+fn realm_light(light: &RealmLight, owner: &str) -> Result<Value, String> {
+    let inside = |v: f64| (0.0..=1.0).contains(&v);
+    if !light.source.iter().all(|v| inside(*v))
+        || light.shafts > 2
+        || !(2.0..=48.0).contains(&light.mote_dp)
+        || light.mote_drift.abs() != 1
+    {
+        return Err(format!(
+            "{owner} light needs a source inside its painting, at most two shafts, a mote of 2-48 dp and a drift of 1 or -1"
+        ));
+    }
+    Ok(
+        json!({"source": light.source, "shafts": light.shafts, "moteDp": light.mote_dp,
+        "moteDrift": light.mote_drift}),
+    )
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
@@ -236,6 +270,12 @@ fn skin(root: &Path, id: &str, realm_count: usize) -> Result<Value, String> {
         .map(|s| (*s).to_owned())
         .collect();
     exact_slots(&base.join("ui"), ui.iter().map(String::as_str), None)?;
+    let lit: BTreeSet<String> = (1..=realm_count).map(|r| r.to_string()).collect();
+    if source.light.keys().cloned().collect::<BTreeSet<_>>() != lit {
+        return Err(format!(
+            "skin {id} must light exactly realms 1 to {realm_count}"
+        ));
+    }
     let mut realms = vec![];
     for realm_id in 1..=realm_count {
         let dir = base.join(format!("realm-{realm_id}"));
@@ -263,9 +303,13 @@ fn skin(root: &Path, id: &str, realm_count: usize) -> Result<Value, String> {
             .iter()
             .map(|slot| ((*slot).to_owned(), json!(source.borders[*slot])))
             .collect();
+        let light = realm_light(
+            &source.light[&realm_id.to_string()],
+            &format!("skin {id} realm {realm_id}"),
+        )?;
         realms.push(
             json!({"realmId": realm_id, "images": images, "borders": borders,
-            "tokens": realm_tokens}),
+            "tokens": realm_tokens, "light": light}),
         );
     }
     let ui_slots: Vec<Value> = UI_STRETCH_SLOTS
@@ -391,9 +435,18 @@ mod tests {
             .chain(&REALM_STRETCH_SLOTS)
             .map(|s| ((*s).to_owned(), json!([8, 8, 8, 8])))
             .collect();
+        let light: Map<String, Value> = (1..=2)
+            .map(|r| {
+                (
+                    r.to_string(),
+                    json!({"source": [0.5, 0.05], "shafts": 0, "moteDp": 12, "moteDrift": 1}),
+                )
+            })
+            .collect();
         fs::write(
             base.join("skin.json"),
-            json!({"name": "Test", "tokens": tokens, "borders": borders}).to_string(),
+            json!({"name": "Test", "tokens": tokens, "borders": borders, "light": light})
+                .to_string(),
         )
         .unwrap();
         root
@@ -499,6 +552,43 @@ mod tests {
         assert!(
             error.contains("cannot read") && error.contains("tokens.json"),
             "{error}"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn every_realm_places_its_key_light_shafts_and_motes() {
+        let root = fixture("light");
+        let skins = render(&root, &listed(), 2).unwrap();
+        assert_eq!(
+            skins[0]["realms"][1]["light"],
+            json!({"source": [0.5, 0.05], "shafts": 0, "moteDp": 12.0, "moteDrift": 1})
+        );
+        let path = root.join("assets/skins/test/skin.json");
+        let good: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        for (field, value) in [
+            ("source", json!([1.2, 0.0])),
+            ("shafts", json!(3)),
+            ("moteDp", json!(0.5)),
+            ("moteDrift", json!(0)),
+        ] {
+            let mut bad = good.clone();
+            bad["light"]["2"][field] = value;
+            fs::write(&path, bad.to_string()).unwrap();
+            assert!(
+                render(&root, &listed(), 2)
+                    .unwrap_err()
+                    .contains("realm 2 light"),
+                "{field}"
+            );
+        }
+        let mut missing = good.clone();
+        missing["light"].as_object_mut().unwrap().remove("2");
+        fs::write(&path, missing.to_string()).unwrap();
+        assert!(
+            render(&root, &listed(), 2)
+                .unwrap_err()
+                .contains("light exactly realms")
         );
         let _ = fs::remove_dir_all(root);
     }

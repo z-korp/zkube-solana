@@ -68,7 +68,7 @@ namespace ZKube.Presentation
             var face = Rect<Image>(name, rect, parent);
             face.sprite = Art.SkinUi(SkinSlots.ButtonIcon); face.raycastTarget = true;
             var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
-            face.gameObject.AddComponent<PressSquash>();
+            face.gameObject.AddComponent<PressSquash>().Bind(Art.SkinUi(SkinSlots.FxPress), Density);
             button.transition = Selectable.Transition.SpriteSwap;
             button.spriteState = new SpriteState { pressedSprite = Art.SkinUi(SkinSlots.ButtonIconPressed), disabledSprite = face.sprite };
             button.onClick.AddListener(() => action());
@@ -123,7 +123,7 @@ namespace ZKube.Presentation
         {
             var face = Piece(name, primary ? SkinSlots.ButtonPrimary : SkinSlots.ButtonSecondary, rect, parent); face.raycastTarget = true;
             var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
-            face.gameObject.AddComponent<PressSquash>();
+            face.gameObject.AddComponent<PressSquash>().Bind(Art.SkinUi(SkinSlots.FxPress), Density);
             button.transition = Selectable.Transition.SpriteSwap;
             button.spriteState = new SpriteState
             {
@@ -284,7 +284,7 @@ namespace ZKube.Presentation
             {
                 row.raycastTarget = true;
                 row.gameObject.AddComponent<Button>().onClick.AddListener(() => action());
-                row.gameObject.AddComponent<PressSquash>();
+                row.gameObject.AddComponent<PressSquash>().Bind(Art.SkinUi(SkinSlots.FxPress), Density);
             }
             float pad = 16 * Density, x = rect.x + pad, right = rect.xMax - pad;
             if (icon != null)
