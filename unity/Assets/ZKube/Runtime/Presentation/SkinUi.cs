@@ -26,11 +26,12 @@ namespace ZKube.Presentation
         }
 
         // borderScale draws a sliced piece's ends smaller than authored.
-        // The type roles: Fraunces for titles, Nunito for everything else, by weight.
-        public enum Type { Title, Number, Label, Caption, Body }
+        // The type roles: Fraunces for titles, Lilita One for the board HUD's
+        // display numerals and signs, Nunito for everything else, by weight.
+        public enum Type { Title, Number, Label, Caption, Body, Display }
         public static string FontName(Type type) => type switch
         {
-            Type.Title => "Fraunces-650", Type.Number => "Nunito-1000", Type.Label => "Nunito-900",
+            Type.Title => "Fraunces-650", Type.Display => "LilitaOne-Regular", Type.Number => "Nunito-1000", Type.Label => "Nunito-900",
             Type.Caption => "Nunito-800", _ => "Nunito-700",
         };
         // Callers that only distinguish display text get numbers and plain text.

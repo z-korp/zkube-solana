@@ -24,12 +24,20 @@ namespace ZKube.Presentation
         public readonly Rect[] Sockets = new Rect[3], Plates = new Rect[3];
         // Type sizes in dp for this layout, at the player's text size.
         public float CountPt, MovesPt, LevelPt, ScorePt, ChipPt, EarnPt, LabelPt, StatusPt, BubblePt, BubbleCountPt;
+        // A fill bar's height: 6 dp, 4 on a compact screen.
+        public float BarDp;
         public float Density => Layout.Density;
 
         // The wireframes' rows, dp from the drawing's top.
-        private const float RimTop = 222, CompactRimTop = 156;
+        private const float RimTop = 222;
         private const float StarTop = 28, CompactStarTop = 6;
         private const float GuardianDp = 186, CompactGuardianDp = 150;
+        // A compact screen gives the board priority: its cells are at least this.
+        public const float MinCompactCellDp = 34;
+        // The Earn caption's size, the Caption role's 11 dp, 10 on a compact screen.
+        private static float EarnCaptionPt(bool compact) => compact ? 10 : 11;
+        // The crown overlaps the top eighth of the guardian's canvas, clear above its head.
+        private const float CrownOverGuardian = .124f;
         // Digit tops sit this far (in em) below the font's ascender, where a
         // top-aligned TMP line starts.
         public static float DigitTop = .31f;
@@ -69,36 +77,60 @@ namespace ZKube.Presentation
         public static HudLayout Build(SkinUi ui, RunSummary state, BoardSession session, Rect safe, float density, Rect? screen = null)
         {
             var result = new HudLayout { Scale = ui.Scale, Campaign = session == null || !session.Daily };
-            bool compact = new BoardLayout(safe, density).Compact;
-            float d = new BoardLayout(safe, density).Density, s = ui.Scale, k = result.K = compact ? .8f : 1;
+            var plain = new BoardLayout(safe, density);
+            bool compact = plain.Compact;
+            float d = plain.Density, s = ui.Scale;
             var drawing = screen ?? safe;
             float inset = Mathf.Max(0, drawing.yMax - safe.yMax) / d;
             float H(string value, float width, float size, SkinUi.Type type) => ui.TextHeight(value, width, size, type) / d;
             float W(string value, float size, SkinUi.Type type) => ui.TextWidth(value, size, type) / d;
 
+            // The earning caption decides the Earn panel's height; the row scales with the width alone.
+            var rule = state == null || session == null ? null : ui.Art.Guardian(state.BonusType, session.Rules.Trigger, session.Rules.TriggerThreshold);
+            float row = plain.RowScale, captionWidth = 76 * row;
+            float earn = Mathf.Max(50 * row, 12 * row + H(rule?.description ?? "", captionWidth * d, EarnCaptionPt(compact), SkinUi.Type.Caption));
+            // NEXT ROW sits in the gap between the frame and the tray, which grows with larger text.
+            float labelPt = compact ? 10 : 11, label = H("NEXT ROW", plain.Frame.width, labelPt, SkinUi.Type.Label);
+
+            // A compact screen takes the header from what the board's rows at
+            // MinCompactCellDp leave: the plates shrink to 0.6 of their drawn size,
+            // then the guardian, as far as 72 dp.
+            float k = 1, guardianDp = GuardianDp, crownDp = 1.34f * 44;
+            if (compact)
+            {
+                float header = safe.height / d - new BoardLayout(safe, density, 1, earn * d, label * d).BelowHeader / d - 11 * MinCompactCellDp - 2;
+                k = Mathf.Clamp((header - 2 * 4) / (3 * 46), .6f, .8f);
+                crownDp = result.Campaign ? 1.34f * 44 * k : 58 * k;
+                guardianDp = Mathf.Clamp((header - crownDp) / (ui.Art.GuardianRailY - CrownOverGuardian), 72, CompactGuardianDp);
+            }
+            result.K = k;
+
             result.CountPt = Mathf.Max(18 * k, 14); result.MovesPt = 52 * k; result.LevelPt = 19; result.ScorePt = 38 * k;
-            result.ChipPt = 11 * k; result.EarnPt = Mathf.Max(11 * k, 10); result.LabelPt = compact ? 10 : 11; result.StatusPt = 12;
+            result.ChipPt = Mathf.Max(11 * k, 9); result.EarnPt = EarnCaptionPt(compact); result.LabelPt = labelPt; result.StatusPt = 12;
             result.BubblePt = 13; result.BubbleCountPt = 16;
 
             // Plates: one width for the three, wide enough for the widest count.
             // Counts stop at their targets, so the widest is the larger target over itself.
             uint target = session == null ? 99 : Math.Max(session.Daily ? 0 : session.Rules.PointsRequired, session.Rules.PrimaryCount);
-            float countWidth = W(target + "/" + target, result.CountPt, SkinUi.Type.Number) + 2;
+            float countWidth = W(target + "/" + target, result.CountPt, SkinUi.Type.Display) + 2;
             float plateWidth = Mathf.Max(104 * k, 44 * k + countWidth + 6 * k);
-            float countHeight = H("0/0", plateWidth * d, result.CountPt, SkinUi.Type.Number);
-            float plate = Mathf.Max(46 * k, 6 * k + countHeight + 2 * k + 6 + 4 * k), gap = compact ? 4 : 6;
+            float countHeight = H("0/0", plateWidth * d, result.CountPt, SkinUi.Type.Display);
+            result.BarDp = compact ? 4 : 6;
+            float plate = Mathf.Max(46 * k, 6 * k + countHeight + 2 * k + result.BarDp + 4 * k), gap = compact ? 4 : 6;
             float stack = 3 * plate + 2 * gap;
-            float moves = Mathf.Max(112 * k, MovesIconDp * k + H("88", 104 * k * d, result.MovesPt, SkinUi.Type.Number) + 2 * k);
-            float movesBelow = compact ? 22 : 18;
+            float moves = Mathf.Max(112 * k, MovesIconDp * k + H("88", 104 * k * d, result.MovesPt, SkinUi.Type.Display) + 2 * k);
+            float movesBelow = compact ? 28 * k : 18;
 
             // The crown and the medal sit as drawn from the drawing's top, lower only
             // as far as the inset needs; the plates and the tablet end at the frame.
-            float rimRef = compact ? CompactRimTop : RimTop, starRef = compact ? CompactStarTop : StarTop, star = 44 * k;
+            float starRef = compact ? CompactStarTop : StarTop, star = 44 * k;
             bool medal = !compact && result.Campaign;
-            float score = Mathf.Max(58 * k, 8 * k + H("0", 126 * k * d, result.ScorePt, SkinUi.Type.Number));
+            float score = Mathf.Max(58 * k, 8 * k + H("0", 126 * k * d, result.ScorePt, SkinUi.Type.Display));
             float crownTop = result.Campaign ? starRef - .1f * star : starRef - 6 * k, crownHeight = result.Campaign ? 1.34f * star : score;
             float crownHalf = result.Campaign ? 1.5f * star + .28f * star + .18f * star : 94 * k, medalTop = 30;
             float room = inset + 2, shift = Mathf.Max(0, room - (medal ? Mathf.Min(crownTop, medalTop) : crownTop));
+            // Compact: the crown, then the guardian's head under it, then the frame.
+            float rimRef = compact ? crownTop + crownHeight + (ui.Art.GuardianRailY - CrownOverGuardian) * guardianDp : RimTop;
             crownTop += shift; medalTop += shift;
             // The frame: as drawn, or lower when a column would reach the inset,
             // or when wide plates or a tall tablet would reach under the crown or the medal.
@@ -109,17 +141,12 @@ namespace ZKube.Presentation
             float top = drawing.yMax;
             float Y(float dpFromTop) => top - dpFromTop * d;
 
-            // The earning caption decides the Earn panel's height.
-            var rule = state == null || session == null ? null : ui.Art.Guardian(state.BonusType, session.Rules.Trigger, session.Rules.TriggerThreshold);
-            var provisional = new BoardLayout(safe, density, (rim - inset) * d);
-            float row = provisional.RowScale, captionWidth = 76 * row;
-            float earn = Mathf.Max(50 * row, 12 * row + H(rule?.description ?? "", captionWidth * d, result.EarnPt, SkinUi.Type.Caption));
-            result.Layout = new BoardLayout(safe, density, (rim - inset) * d, earn * d);
+            result.Layout = new BoardLayout(safe, density, (rim - inset) * d, earn * d, label * d);
             var layout = result.Layout;
             float cx = layout.Rim.center.x;
 
             // The guardian leans on the frame's edge: its rail line 1 dp below the top.
-            float guardian = (compact ? CompactGuardianDp : GuardianDp) * d;
+            float guardian = guardianDp * d;
             result.Guardian = new Rect(cx - guardian / 2, layout.Rim.yMax - 1 * d - (1 - ui.Art.GuardianRailY) * guardian, guardian, guardian);
 
             float starTop = crownTop + .1f * star;
@@ -140,10 +167,9 @@ namespace ZKube.Presentation
                 result.Plates[i] = new Rect(plateRight - plateWidth * d, Y(rim - stack + i * (plate + gap) + plate), plateWidth * d, plate * d);
             result.Moves = new Rect(safe.x + 8 * d, Y(rim - movesBelow), 104 * k * d, moves * d);
 
-            // NEXT ROW sits between the frame and the tray, clear of both.
-            float labelHeight = H("NEXT ROW", layout.Rim.width, result.LabelPt, SkinUi.Type.Label) * d;
-            float labelTop = layout.Rim.y - (compact ? 2 : 4) * d + DigitTop * result.LabelPt * s * d;
-            result.NextLabel = new Rect(layout.Rim.x, Mathf.Min(labelTop, layout.Rim.y) - labelHeight, layout.Rim.width, labelHeight);
+            // NEXT ROW, centred in the gap between the frame and the tray.
+            float labelHeight = label * d, gapBelow = layout.Rim.y - layout.Tray.yMax;
+            result.NextLabel = new Rect(layout.Rim.x, layout.Tray.yMax + (gapBelow - labelHeight) / 2, layout.Rim.width, labelHeight);
 
             // Notices float as a toast on the board's top edge instead of taking a row.
             var board = layout.Board;

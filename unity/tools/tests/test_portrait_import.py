@@ -41,7 +41,7 @@ class PortraitImports(unittest.TestCase):
                         'Guardian frames import at their device size')
         self.assertEqual({font['name'] for font in catalog['fonts']},
                          {'NotoSansSymbols2-Regular', 'NotoSansMath-Regular',
-                          'Fraunces-650', 'Nunito-700', 'Nunito-800', 'Nunito-900', 'Nunito-1000'})
+                          'Fraunces-650', 'LilitaOne-Regular', 'Nunito-700', 'Nunito-800', 'Nunito-900', 'Nunito-1000'})
         body = next(font for font in catalog['fonts'] if font['name'] == 'Nunito-700')
         settings = (imports.PROJECT / 'Assets/TextMesh Pro/Resources/TMP Settings.asset').read_text()
         self.assertIn('m_defaultFontAsset: {fileID: 1, guid: ' + body['fontAssetGuid'], settings)

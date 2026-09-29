@@ -129,7 +129,7 @@ namespace ZKube.Presentation
             if (type == SkinUi.Type.Caption || type == SkinUi.Type.Label)
                 label.lineSpacing = SkinUi.LineSpacing(label.font, HudLayout.CaptionLeading);
             // A number reads as one line whatever its length.
-            if (type == SkinUi.Type.Number) label.enableWordWrapping = false;
+            if (type == SkinUi.Type.Number || type == SkinUi.Type.Display) label.enableWordWrapping = false;
             return label;
         }
 
@@ -162,7 +162,7 @@ namespace ZKube.Presentation
                 {
                     ui.Piece("Level medal", SkinSlots.MapNodeOpen, hud.Medal, root);
                     Text("Level", HudLayout.LevelNumber(session.RealmId, level), hud.Medal, hud.LevelPt, SkinTokens.Text, root,
-                        SkinUi.Type.Number, TextAlignmentOptions.Center);
+                        SkinUi.Type.Display, TextAlignmentOptions.Center);
                 }
                 ui.Pill("Star crown", hud.Crown, root);
                 var gold = art.Token(SkinTokens.Accent);
@@ -190,10 +190,10 @@ namespace ZKube.Presentation
                 ui.Piece("Score plate", SkinSlots.GoalPlate, hud.Crown, root);
                 ui.Piece("Score pictogram", SkinSlots.GoalScore, hud.In(hud.Crown, 12, 9, 40, 40), root);
                 score = Text("Score", "0", new Rect(hud.Crown.x + 54 * hud.K * d, hud.Crown.y, hud.Crown.width - 62 * hud.K * d, hud.Crown.height),
-                    hud.ScorePt, SkinTokens.Score, root, SkinUi.Type.Number, TextAlignmentOptions.Center);
+                    hud.ScorePt, SkinTokens.Score, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
                 var rules = session.Rules;
                 ui.Piece("Pressure plate", SkinSlots.GoalPlate, hud.Plates[0], root);
-                pressure = Text("Pressure", "", hud.Plates[0], hud.CountPt, SkinTokens.Accent, root, SkinUi.Type.Number, TextAlignmentOptions.Center);
+                pressure = Text("Pressure", "", hud.Plates[0], hud.CountPt, SkinTokens.Accent, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
                 if (rules.ObjectiveKind != 0)
                 {
                     var goal = catalog.Goal(rules.ObjectiveKind, rules.ObjectiveValue);
@@ -209,7 +209,7 @@ namespace ZKube.Presentation
             movesFace = ui.Piece("Moves tablet", SkinSlots.MovesCalm, hud.Moves, root);
             ui.Piece("Moves icon", SkinSlots.IconHourglass, hud.In(hud.Moves, 38, 8, 28, 28), root);
             moves = Text("Moves remaining", "", new Rect(hud.Moves.x, hud.Moves.y, hud.Moves.width, hud.Moves.height - HudLayout.MovesIconDp * hud.K * d),
-                hud.MovesPt, SkinTokens.Score, root, SkinUi.Type.Number, TextAlignmentOptions.Center);
+                hud.MovesPt, SkinTokens.Score, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
 
             var next = nextLabel = Text("Next row label", "NEXT ROW", hud.NextLabel, hud.LabelPt, SkinTokens.TextMuted, root, SkinUi.Type.Label,
                 TextAlignmentOptions.Top);
@@ -256,10 +256,11 @@ namespace ZKube.Presentation
             if (!string.IsNullOrEmpty(chip))
             {
                 // The chip's right edge overhangs the picture by 2 dp, its top 19 dp down.
-                float height = 13.5f * k * d, width = Mathf.Max(15 * k * d, ui.TextWidth(chip, hud.ChipPt, SkinUi.Type.Number) / ui.Scale + 4 * k * d);
-                var chipRect = new Rect(picture.xMax + 2 * k * d - width, picture.yMax - 19 * k * d - height, width, height);
+                float height = 13.5f * k * d, width = Mathf.Max(15 * k * d, ui.TextWidth(chip, hud.ChipPt, SkinUi.Type.Display) / ui.Scale + 4 * k * d);
+                // A wide chip shifts right rather than leave its plate.
+                var chipRect = new Rect(Mathf.Max(rect.x + 2 * k * d, picture.xMax + 2 * k * d - width), picture.yMax - 19 * k * d - height, width, height);
                 ui.Piece("Goal plate " + index + " chip", SkinSlots.Chip, chipRect, parent);
-                var sign = Text("Goal plate " + index + " chip label", chip, Line(chipRect, chip), hud.ChipPt, SkinTokens.Text, parent, SkinUi.Type.Number,
+                var sign = Text("Goal plate " + index + " chip label", chip, Line(chipRect, chip), hud.ChipPt, SkinTokens.Text, parent, SkinUi.Type.Display,
                     TextAlignmentOptions.Center);
                 sign.fontSize = hud.ChipPt * d; // A sign on the picture keeps its drawn size.
             }
@@ -268,11 +269,11 @@ namespace ZKube.Presentation
             {
                 float countTop = 6 * k;
                 plate.Count = Text(name, "", new Rect(rect.x + 40 * k * d, rect.y + 12 * k * d, rect.width - 44 * k * d, rect.height - countTop * d - 12 * k * d),
-                    hud.CountPt, SkinTokens.Score, parent, SkinUi.Type.Number, TextAlignmentOptions.Center);
+                    hud.CountPt, SkinTokens.Score, parent, SkinUi.Type.Display, TextAlignmentOptions.Center);
                 plate.Count.richText = true;
                 if (counter == "fill")
                 {
-                    var bar = new Rect(rect.x + 44 * k * d, rect.y + 5 * k * d, rect.width - 50 * k * d, 6 * d);
+                    var bar = new Rect(rect.x + 44 * k * d, rect.y + 5 * k * d, rect.width - 50 * k * d, hud.BarDp * d);
                     plate.Track = ui.Piece(name + " track", SkinSlots.CounterTrack, bar, parent);
                     plate.Fill = ui.Piece(name + " fill", SkinSlots.CounterFill, bar, parent);
                     plate.Tick = ui.Piece(name + " tick", SkinSlots.Tick, hud.In(rect, 26, 2, 15, 15), parent);
@@ -298,7 +299,7 @@ namespace ZKube.Presentation
         // be shorter than the sign's line.
         private Rect Line(Rect chip, string sign)
         {
-            float height = Mathf.Max(chip.height, ui.TextHeight(sign, float.PositiveInfinity, hud.ChipPt, SkinUi.Type.Number) / ui.Scale);
+            float height = Mathf.Max(chip.height, ui.TextHeight(sign, float.PositiveInfinity, hud.ChipPt, SkinUi.Type.Display) / ui.Scale);
             return new Rect(chip.x, chip.center.y - height / 2, chip.width, height);
         }
         // Shows a plate's progress; met says whether its star is earned.
@@ -308,6 +309,8 @@ namespace ZKube.Presentation
             if (plate.Counter == "count") plate.Count.text = progress.ToString();
             if (plate.Counter == "fill")
             {
+                // A met goal reads its target, whatever the count behind it.
+                if (met) progress = target;
                 plate.Count.text = progress + "<color=#" + Muted + ">/" + target + "</color>";
                 float share = target == 0 ? 1 : Mathf.Clamp01((float)progress / target);
                 var bar = SkinUi.ScreenRect(plate.Track.rectTransform);
@@ -334,10 +337,10 @@ namespace ZKube.Presentation
             ui.Piece("Earn trigger", rule.pictogram, picture, root);
             if (!string.IsNullOrEmpty(rule.chip))
             {
-                float height = 13.5f * k * d, width = Mathf.Max(15 * k * d, ui.TextWidth(rule.chip, hud.ChipPt, SkinUi.Type.Number) / ui.Scale + 4 * k * d);
-                var chipRect = new Rect(picture.xMax + 2 * k * d - width, picture.yMax - 20 * k * d - height, width, height);
+                float height = 13.5f * k * d, width = Mathf.Max(15 * k * d, ui.TextWidth(rule.chip, hud.ChipPt, SkinUi.Type.Display) / ui.Scale + 4 * k * d);
+                var chipRect = new Rect(Mathf.Max(panel.x + 2 * k * d, picture.xMax + 2 * k * d - width), picture.yMax - 20 * k * d - height, width, height);
                 ui.Piece("Earn trigger chip", SkinSlots.Chip, chipRect, root);
-                Text("Earn trigger chip label", rule.chip, Line(chipRect, rule.chip), hud.ChipPt, SkinTokens.Text, root, SkinUi.Type.Number, TextAlignmentOptions.Center)
+                Text("Earn trigger chip label", rule.chip, Line(chipRect, rule.chip), hud.ChipPt, SkinTokens.Text, root, SkinUi.Type.Display, TextAlignmentOptions.Center)
                     .fontSize = hud.ChipPt * d;
             }
             Text("Earn arrow", "→", At(40, 13, 16, 22), 14, SkinTokens.TextMuted, root, SkinUi.Type.Number, TextAlignmentOptions.Center);
@@ -1040,7 +1043,7 @@ namespace ZKube.Presentation
             // The body is 150 dp wide (more for larger text), padded 12 by 10 dp.
             float width = Mathf.Max(150 * k, 150 * k * Mathf.Sqrt(ui.Scale)) * d, inner = width - 24 * k * d;
             float captionHeight = ui.TextHeight(plate.Caption, inner, hud.BubblePt, SkinUi.Type.Caption, HudLayout.BubbleLeading);
-            float countHeight = progress == null ? 0 : ui.TextHeight(progress, inner, hud.BubbleCountPt, SkinUi.Type.Number);
+            float countHeight = progress == null ? 0 : ui.TextHeight(progress, inner, hud.BubbleCountPt, SkinUi.Type.Display);
             float height = Mathf.Max(70 * k * d, 20 * k * d + captionHeight + countHeight);
             float tail = 14 * k * d, right = plate.Rect.x - (tail - 2 * k * d);
             float top = Mathf.Min(Layout.Frame.yMax - 4 * d, plate.Rect.center.y + height / 2);
@@ -1053,7 +1056,7 @@ namespace ZKube.Presentation
             caption.lineSpacing = SkinUi.LineSpacing(caption.font, HudLayout.BubbleLeading);
             if (progress != null)
                 ui.Label("Bubble progress", progress, new Rect(body.x + 12 * k * d, body.yMax - 10 * k * d - captionHeight - countHeight, inner, countHeight),
-                    hud.BubbleCountPt, SkinTokens.TextOnPrimary, bubble.transform, SkinUi.Type.Number, TextAlignmentOptions.TopLeft);
+                    hud.BubbleCountPt, SkinTokens.TextOnPrimary, bubble.transform, SkinUi.Type.Display, TextAlignmentOptions.TopLeft);
         }
         public void CloseBubble()
         {

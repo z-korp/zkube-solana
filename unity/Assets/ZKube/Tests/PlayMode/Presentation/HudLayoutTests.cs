@@ -130,7 +130,7 @@ namespace ZKube.Presentation.Tests
                                 Canvas.ForceUpdateCanvases();
                                 var layout = plan.Layout; float d = layout.Density;
                                 string at = $"{name} at {scale}, goals {first.kind}/{first.value} and {second.kind}/{second.value}: cell {layout.Cell / d} dp";
-                                Assert.GreaterOrEqual(layout.Cell / d, name == "Seeker" ? scale == 1 ? 46 : 44 : scale == 1 ? 26 : 24, at + " keeps a playable board");
+                                Assert.GreaterOrEqual(layout.Cell / d, name == "Seeker" ? scale == 1 ? 46 : 44 : scale == 1 ? HudLayout.MinCompactCellDp : 30, at + " keeps a playable board");
                                 // The header sits in the safe area over the frame, its pieces apart.
                                 Apart(Header(plan), at);
                                 foreach (var piece in Header(plan))
@@ -172,6 +172,27 @@ namespace ZKube.Presentation.Tests
             {
                 (rules.PrimaryKind, rules.PrimaryValue, rules.PrimaryCount, rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount) = saved;
                 board.View.gameObject.SetActive(true);
+            }
+        }
+        [UnityTest] public IEnumerator AtA360x640PhoneTheBoardKeeps34DpCellsInEveryRealm()
+        {
+            // The board has priority: the header gives way until the cells reach 34 dp.
+            var (_, screen, safe, density) = Screens()[1];
+            foreach (string fixture in Enumerable.Range(1, 10).Select(realm => "realm-" + realm + "-campaign").Concat(new[] { "realm-1-daily", "realm-8-daily" }))
+            {
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                var plan = HudLayout.Build(new SkinUi(Art(), density, 1), board.State, board.Session, safe, density, screen);
+                var layout = plan.Layout;
+                Assert.IsTrue(layout.Compact);
+                Assert.GreaterOrEqual(layout.Cell / density, HudLayout.MinCompactCellDp, fixture + " keeps playable cells");
+                Assert.GreaterOrEqual(plan.Guardian.width / density, 72, fixture + " keeps its guardian");
+                Apart(Header(plan), fixture);
+                foreach (var piece in Header(plan))
+                {
+                    Assert.IsTrue(Inside(safe, piece), fixture + " keeps " + piece + " in the safe area");
+                    Assert.GreaterOrEqual(piece.yMin, layout.Rim.yMax - .5f, fixture + " keeps " + piece + " above the frame");
+                }
+                Assert.IsTrue(layout.PauseButton.yMin >= safe.yMin && layout.GuardianButton.yMin >= safe.yMin, fixture + " keeps its thumb row on screen");
             }
         }
         [UnityTest] public IEnumerator TheCampaignHudHasItsWireframeGeometry()
@@ -300,6 +321,51 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Earn trigger").sprite.name.Replace("(Clone)", ""),
                 PageCatalog.Load().guardianRules.Single(rule => rule.bonus == rules.BonusType && rule.trigger == rules.Trigger && rule.threshold == rules.TriggerThreshold).pictogram);
             Fits(Label("Earn caption"));
+        }
+        [UnityTest] public IEnumerator AMetGoalReadsItsTargetWithItsTickAndAnOpenOneNeverTicks()
+        {
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            var rules = board.Session.Rules; var state = board.State; var view = board.View;
+            Image Named(string name) => view.GetComponentsInChildren<Image>(true).Single(image => image.name == name);
+            var saved = (state.LatchedStarSources, state.PrimaryProgress, state.Score);
+            try
+            {
+                // Every mix of met and open goals, with counts below their targets.
+                for (byte latched = 0; latched < 8; latched++)
+                {
+                    state.LatchedStarSources = latched; state.PrimaryProgress = 0; state.Score = 0;
+                    view.Summary(state, board.Session, true);
+                    bool primary = (latched & 2) != 0, secondary = (latched & 4) != 0;
+                    Assert.AreEqual(Named("Theme tick").enabled, primary, "The lines plate ticks only when met");
+                    Assert.AreEqual(primary ? rules.PrimaryCount + "/" + rules.PrimaryCount : "0/" + rules.PrimaryCount, StripTags(Label("Theme").text),
+                        latched + ": a ticked plate reads its target");
+                    Assert.AreEqual(Named("Secondary tick").enabled, secondary);
+                    Assert.AreEqual(!secondary, Named("Secondary ring").enabled);
+                }
+                // The score plate ticks when its count reaches the target.
+                state.LatchedStarSources = 1; state.Score = rules.PointsRequired + 5;
+                view.Summary(state, board.Session, true);
+                Assert.IsTrue(Named("Score tick").enabled);
+                Assert.AreEqual(rules.PointsRequired + "/" + rules.PointsRequired, StripTags(Label("Score").text));
+            }
+            finally { (state.LatchedStarSources, state.PrimaryProgress, state.Score) = saved; view.Summary(state, board.Session, true); }
+            yield return null;
+        }
+        [UnityTest] public IEnumerator HudNumeralsAreLilitaOneAndCaptionsNunito()
+        {
+            foreach (string fixture in new[] { "realm-1-campaign", "realm-8-daily" })
+            {
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                var display = SkinUi.FontName(SkinUi.Type.Display);
+                Assert.AreEqual("LilitaOne-Regular", display);
+                var labels = board.View.GetComponentsInChildren<TMP_Text>();
+                foreach (var label in labels.Where(t => t.name == "Moves remaining" || t.name == "Score" || t.name == "Theme" || t.name == "Pressure" ||
+                    t.name.EndsWith(" chip label", StringComparison.Ordinal)))
+                    Assert.AreEqual(display, label.font.name, label.name + " is a display numeral");
+                if (!board.Session.Daily) Assert.IsTrue(labels.Any(t => t.name.EndsWith(" chip label", StringComparison.Ordinal)), fixture + " draws a chip");
+                Assert.AreEqual(SkinUi.FontName(SkinUi.Type.Caption), Label("Earn caption").font.name);
+                Assert.AreEqual(SkinUi.FontName(SkinUi.Type.Label), Label("Next row label").font.name);
+            }
         }
         private static string StripTags(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
         [UnityTest] public IEnumerator NativePartialLatchRendersAllThreeClearSocketsInNarrowGeometry()

@@ -14,9 +14,11 @@ namespace ZKube.Presentation
         // between the frame and the tray, which holds the NEXT ROW label.
         public const float RimDp = 4;
         private static float TrayInsetDp(bool compact) => compact ? 4 : 6;
-        private static float LabelGapDp(bool compact) => compact ? 20 : 26;
+        private static float LabelGapDp(bool compact) => compact ? 16 : 26;
         public static float DefaultHeaderDp(bool compact) => compact ? 156 : 222;
-        private static float BottomDp(bool compact) => compact ? 8 : 16;
+        private static float BottomDp(bool compact) => compact ? 4 : 16;
+        // The thumb row hangs 14 dp under the tray, 4 dp on a compact screen.
+        private static float RowGapDp(bool compact, float k) => compact ? 4 : 14 * k;
         // The thumb row is drawn 382.7 dp wide: 14 dp under the tray, pause at 2,
         // the Earn panel at 54 and the power and reroll tablets at 234 and 306.
         public const float RowDp = 382.7f, EarnDp = 50, TabletDp = 60, PauseDp = 44;
@@ -32,9 +34,12 @@ namespace ZKube.Presentation
         // pause plate as drawn.
         public readonly Rect Frame, Rim, Board, Tray, Preview, EarnPanel, PauseFace, PauseButton, GuardianButton, RerollButton;
         public readonly float Cell, Density, Header, Footer, TrayInset, RowScale;
+        // Everything under the header except the board's cells and the tray's row.
+        public readonly float BelowHeader;
         public readonly bool Compact;
-        // earnPixels is the Earn panel's height when its caption needs more than drawn.
-        public BoardLayout(Rect safeArea, float density, float headerPixels = 0, float earnPixels = 0)
+        // earnPixels is the Earn panel's height when its caption needs more than
+        // drawn; labelPixels the NEXT ROW label's, when larger text needs more gap.
+        public BoardLayout(Rect safeArea, float density, float headerPixels = 0, float earnPixels = 0, float labelPixels = 0)
         {
             Density = Mathf.Max(.5f, density);
             float d = Density;
@@ -45,17 +50,22 @@ namespace ZKube.Presentation
             float row = Mathf.Min(safeArea.width / d - 16, RowDp);
             RowScale = row / RowDp;
             float k = RowScale, earn = Mathf.Max(EarnDp * k * d, earnPixels);
-            Footer = 14 * k * d + Mathf.Max(55 * k * d, earn) + BottomDp(Compact) * d;
+            // The tablets stand 5 dp proud of the row, level with it on a compact screen.
+            float lift = Compact ? 0 : -5;
+            Footer = RowGapDp(Compact, k) * d + Mathf.Max((TabletDp + lift) * k * d, earn) + BottomDp(Compact) * d;
             TrayInset = TrayInsetDp(Compact) * d;
-            float rim = RimDp * d, stack = Header + Footer + 2 * rim + LabelGapDp(Compact) * d + 2 * TrayInset;
+            float rim = RimDp * d;
+            float label = Mathf.Max(LabelGapDp(Compact) * d, labelPixels);
+            BelowHeader = Footer + 2 * rim + label + 2 * TrayInset;
+            float stack = Header + BelowHeader;
             Cell = Mathf.Max(1, Mathf.Floor(Mathf.Min(96 * d, (safeArea.width - 16 * d - 2 * rim) / 8, (safeArea.height - stack) / 11)));
             float top = safeArea.yMax - Header - rim;
             Board = new Rect(safeArea.center.x - 4 * Cell, top - 10 * Cell, 8 * Cell, 10 * Cell);
             Rim = new Rect(Board.x - rim, Board.y - rim, Board.width + 2 * rim, Board.height + 2 * rim);
-            Tray = new Rect(Rim.x, Rim.y - LabelGapDp(Compact) * d - Cell - 2 * TrayInset, Rim.width, Cell + 2 * TrayInset);
+            Tray = new Rect(Rim.x, Rim.y - label - Cell - 2 * TrayInset, Rim.width, Cell + 2 * TrayInset);
             Preview = new Rect(Board.x, Tray.y + TrayInset, 8 * Cell, Cell);
             // The row hangs under the tray, spread over the frame or its own width.
-            float width = Mathf.Max(Rim.width, row * d), left = safeArea.center.x - width / 2, rowTop = Tray.y - 14 * k * d;
+            float width = Mathf.Max(Rim.width, row * d), left = safeArea.center.x - width / 2, rowTop = Tray.y - RowGapDp(Compact, k) * d;
             float X(float dp) => left + dp * width / RowDp;
             Rect Square(float x, float fromRowTop, float size) => new Rect(x, rowTop - (fromRowTop + size) * k * d, size * k * d, size * k * d);
             Rect Touch(Rect face)
@@ -64,7 +74,7 @@ namespace ZKube.Presentation
                 return new Rect(face.center.x - size / 2, face.center.y - size / 2, size, size);
             }
             PauseFace = Square(X(2), 3, PauseDp); PauseButton = Touch(PauseFace);
-            GuardianButton = Touch(Square(X(234), -5, TabletDp)); RerollButton = Touch(Square(X(306), -5, TabletDp));
+            GuardianButton = Touch(Square(X(234), lift, TabletDp)); RerollButton = Touch(Square(X(306), lift, TabletDp));
             // On a narrow row the pause's 48 dp touch area pushes the panel's left edge.
             float earnLeft = Mathf.Max(X(54), PauseButton.xMax);
             EarnPanel = new Rect(earnLeft, rowTop - earn, X(54) + 170 * k * d - earnLeft, earn);
