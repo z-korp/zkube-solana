@@ -2,6 +2,7 @@
 import contextlib
 import io
 import json
+import re
 import os
 from pathlib import Path
 import subprocess
@@ -102,6 +103,24 @@ class ProcessReportingTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'explicit positive ZKUBE_ANDROID_VERSION_CODE'):
                 build.main()
             toolchain.assert_not_called()
+
+    def test_production_without_signing_fails_before_toolchain_work_naming_only_the_variable(self):
+        fake = {name: f'fake-{index}-value' for index, name in enumerate(build.SIGNING)}
+        for missing in build.SIGNING:
+            supplied = {name: value for name, value in fake.items() if name != missing}
+            with patch.object(sys, 'argv', ['build.py', 'android', '--production']), \
+                    patch.dict(os.environ, dict(supplied, ZKUBE_ANDROID_VERSION_CODE='3'), clear=True), \
+                    patch.object(build, 'toolchain') as toolchain:
+                with self.assertRaises(RuntimeError) as error:
+                    build.main()
+                toolchain.assert_not_called()
+            self.assertEqual(f'Production signing requires {missing}', str(error.exception))
+            self.assertFalse(any(value in str(error.exception) for value in fake.values()))
+
+    def test_signing_variables_have_one_list_in_the_build_and_the_editor(self):
+        source = (TOOLS.parent / 'Assets/ZKube/Editor/ZKubeBuild.cs').read_text()
+        declared = re.search(r'SigningVariables =\s*\{([^}]*)\}', source)
+        self.assertEqual(list(build.SIGNING), re.findall(r'"([A-Z_]+)"', declared[1]))
 
     def test_toolchain_checks_android_targets_and_bundletool_first(self):
         lock = json.loads((TOOLS.parent / 'toolchain.json').read_text())

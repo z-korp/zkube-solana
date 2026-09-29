@@ -85,9 +85,9 @@ namespace ZKube.Editor
             // so permission must not depend on Unity's networking usage scan.
             PlayerSettings.Android.forceInternetPermission = true;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
-            if (production && !PlayerSettings.Android.useCustomKeystore)
-                throw new InvalidOperationException("Production requires configured non-debug Android signing");
-            if (!production) PlayerSettings.Android.useCustomKeystore = false;
+            // Signing is applied only around the Player build; settings never hold it.
+            ClearSigning();
+            if (production) MissingSigning();
             PlayerSettings.runInBackground = false;
             PlayerSettings.SplashScreen.show = false;
             PlayerSettings.SplashScreen.showUnityLogo = false;
@@ -217,6 +217,32 @@ namespace ZKube.Editor
             EditorApplication.Exit(1);
         }
 
+        // The owner supplies release signing for one production build through
+        // these variables. It is applied to PlayerSettings in memory around the
+        // Player build and cleared after it, so ProjectSettings never holds it;
+        // no value is logged or echoed, and a missing one is named, not shown.
+        public static readonly string[] SigningVariables =
+            { "ZKUBE_ANDROID_KEYSTORE", "ZKUBE_ANDROID_KEYSTORE_PASS", "ZKUBE_ANDROID_KEY_ALIAS", "ZKUBE_ANDROID_KEY_PASS" };
+        public static void MissingSigning()
+        {
+            var missing = SigningVariables.Where(name => string.IsNullOrEmpty(Environment.GetEnvironmentVariable(name))).ToArray();
+            if (missing.Length > 0) throw new InvalidOperationException("Production signing requires " + string.Join(", ", missing));
+        }
+        public static void ApplySigning()
+        {
+            MissingSigning();
+            string Value(int index) => Environment.GetEnvironmentVariable(SigningVariables[index]);
+            PlayerSettings.Android.useCustomKeystore = true;
+            PlayerSettings.Android.keystoreName = Value(0); PlayerSettings.Android.keystorePass = Value(1);
+            PlayerSettings.Android.keyaliasName = Value(2); PlayerSettings.Android.keyaliasPass = Value(3);
+        }
+        public static void ClearSigning()
+        {
+            PlayerSettings.Android.keystorePass = PlayerSettings.Android.keyaliasPass = "";
+            PlayerSettings.Android.keystoreName = PlayerSettings.Android.keyaliasName = "";
+            PlayerSettings.Android.useCustomKeystore = false;
+        }
+
         public const string Brand = "Assets/ZKube/Branding/Generated/";
         // Icons import uncompressed at their own size; the splash is a sprite
         // the launch screen loads from Resources before any realm art.
@@ -267,15 +293,19 @@ namespace ZKube.Editor
             EditorUserBuildSettings.exportAsGoogleAndroidProject =
                 Environment.GetEnvironmentVariable("ZKUBE_EXPORT_LOCKS") == "1";
             BuildReport report;
-            try { report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            try
+            {
+                if (Environment.GetEnvironmentVariable("ZKUBE_ANDROID_PRODUCTION") == "1") ApplySigning();
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { scenePath },
                 locationPathName = output,
                 target = BuildTarget.Android,
                 options = BuildOptions.None,
                 extraScriptingDefines = Identity.name == "store" ? new[] { "ZKUBE_STORE" } : Array.Empty<string>()
-            }); }
-            finally { EditorUserBuildSettings.exportAsGoogleAndroidProject = previousExport; }
+            });
+            }
+            finally { ClearSigning(); EditorUserBuildSettings.exportAsGoogleAndroidProject = previousExport; }
             if (report.summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException("Android build failed: " + report.summary.result);
             Debug.Log("ZKUBE_ANDROID_BUILD " + output);

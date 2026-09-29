@@ -58,6 +58,7 @@ def _identity(toolchain, name):
 
 # Each product's launcher icon (adaptive layers and the legacy icon) and splash,
 # staged for the selected identity only, so a package carries its own brand.
+SIGNING = ("ZKUBE_ANDROID_KEYSTORE", "ZKUBE_ANDROID_KEYSTORE_PASS", "ZKUBE_ANDROID_KEY_ALIAS", "ZKUBE_ANDROID_KEY_PASS")
 BRAND_FILES = {"icon-foreground.png": "IconForeground.png", "icon-background.png": "IconBackground.png",
                "icon.png": "Icon.png", "splash.jpg": "Resources/ZKube/Splash.jpg"}
 
@@ -622,6 +623,9 @@ def main():
         version = os.environ.get("ZKUBE_ANDROID_VERSION_CODE", "")
         if not version.isdecimal() or int(version) < 1:
             raise RuntimeError("Production requires an explicit positive ZKUBE_ANDROID_VERSION_CODE")
+        missing = [name for name in SIGNING if not os.environ.get(name)]
+        if missing:
+            raise RuntimeError("Production signing requires " + ", ".join(missing))
     if args.action == "exec" and not args.method:
         parser.error("exec requires --method ZKube.Editor.<Class>.<Method>")
     if args.method and not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+", args.method):
@@ -640,7 +644,10 @@ def main():
                  "DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XAUTHORITY",
                  "DBUS_SESSION_BUS_ADDRESS", "GRADLE_USER_HOME", "SSL_CERT_FILE",
                  "SSL_CERT_DIR", "ZKUBE_ANDROID_VERSION_CODE", "ZKUBE_ANDROID_VERSION_NAME"}
-    env = {key: value for key, value in os.environ.items() if key in inherited}
+    # Release signing reaches the Editor only for a production build; see
+    # ZKubeBuild.SigningVariables. Its values are never printed.
+    env = {key: value for key, value in os.environ.items()
+           if key in inherited or (args.production and key in SIGNING)}
     # The pinned sdkmanager's URLConnection calls have no explicit timeout.
     # Bound metadata fetches instead of hanging the Editor lease on a TLS peer.
     env["JAVA_TOOL_OPTIONS"] = ("-Dsun.net.client.defaultConnectTimeout=30000 "

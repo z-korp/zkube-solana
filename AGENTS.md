@@ -44,7 +44,9 @@ runbooks or approval policy in README.md.
 - Android work runs here; iOS work does not. Production candidates require explicit version codes and
   non-debug signing, guarded by `test_production_packages_require_explicit_version_and_non_debug_signing`
   and `test_production_without_version_fails_before_toolchain_work`. Prerequisites are checked first by
-  `test_toolchain_checks_android_targets_and_bundletool_first`.
+  `test_toolchain_checks_android_targets_and_bundletool_first`. The owner signs through ZKUBE_ANDROID_KEYSTORE,
+  ZKUBE_ANDROID_KEYSTORE_PASS, ZKUBE_ANDROID_KEY_ALIAS and ZKUBE_ANDROID_KEY_PASS, applied in memory only and
+  guarded by `test_production_without_signing_fails_before_toolchain_work_naming_only_the_variable`.
 
 ### Validation and defect classes
 
