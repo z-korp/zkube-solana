@@ -91,7 +91,7 @@ namespace ZKube.Integration.Presentation
                     () => PageAvailable() && !Busy && level > 0);
                 return value;
             }
-            value.Share = ResultSharing.Open;
+            value.Share = ResultSharing.Open; value.Arcade = true;
             value.Done = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             return value;
         }

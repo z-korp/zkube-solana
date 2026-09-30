@@ -237,12 +237,15 @@ namespace ZKube.Local.App
                 Score = attempt?.DailyScore ?? 0,
                 ObjectiveTotal = attempt?.ObjectiveTotal ?? 0,
                 Streak = Flow.Product.Read.Streak,
+                Tier = attempt != null && attempt.Finished ? attempt.Tier : (byte?)null,
+                NextOpensAt = attempt != null && attempt.DayId == Flow.Today.DayId ? Flow.Today.FreezesAt : 0, Now = Flow.Runs.Now,
+                NewBest = attempt != null && attempt.DailyScore > 0 && attempt.DailyScore >= Flow.Product.Read.BestDailyScore,
                 // Realms speaks of the run itself: its finest, a scoring run, or one that scored nothing.
                 Speaks = attempt != null && attempt.DailyScore > 0 && attempt.DailyScore >= Flow.Product.Read.BestDailyScore ? TalkMoment.NewBest : TalkMoment.Win,
                 SpeaksStars = attempt != null && attempt.DailyScore > 0 ? 2 : 1,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
                 Share = ResultSharing.Open,
-                Done = Action("Back to Daily", () => Flow.Show(StorePage.Daily)) };
+                Done = Action("Continue", () => Flow.Show(StorePage.Daily)) };
         }
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));

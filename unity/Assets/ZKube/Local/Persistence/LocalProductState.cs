@@ -11,6 +11,8 @@ namespace ZKube.Local
         public uint DayId { get; set; }
         public ulong DailyScore { get; set; }
         public ulong ObjectiveTotal { get; set; }
+        // The pressure tier the run finished on, for the multiplier it reached.
+        public byte Tier { get; set; }
         public bool Finished { get; set; }
     }
 
@@ -92,7 +94,7 @@ namespace ZKube.Local
                 document["name"] = state.Name;
                 document["dailyAttempt"] = attempt == null ? JValue.CreateNull() : new JObject {
                     ["dayId"] = attempt.DayId, ["dailyScore"] = attempt.DailyScore,
-                    ["objectiveTotal"] = attempt.ObjectiveTotal, ["finished"] = attempt.Finished,
+                    ["objectiveTotal"] = attempt.ObjectiveTotal, ["tier"] = attempt.Tier, ["finished"] = attempt.Finished,
                 };
                 document["streak"] = state.Streak; document["bestDailyScore"] = state.BestDailyScore;
                 document["wornEmblem"] = state.WornEmblem;
@@ -135,7 +137,7 @@ namespace ZKube.Local
             if (value == null) return null;
             return new LocalDailyAttempt {
                 DayId = Day(value["dayId"]), DailyScore = Nonnegative(value["dailyScore"]),
-                ObjectiveTotal = Nonnegative(value["objectiveTotal"]),
+                ObjectiveTotal = Nonnegative(value["objectiveTotal"]), Tier = (byte)Math.Min(byte.MaxValue, Nonnegative(value["tier"])),
                 Finished = value["finished"]?.Type == JTokenType.Boolean && (bool)value["finished"],
             };
         }

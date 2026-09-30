@@ -643,7 +643,9 @@ def main():
     inherited = {"HOME", "USER", "LOGNAME", "PATH", "LANG", "LC_ALL", "SHELL",
                  "DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XAUTHORITY",
                  "DBUS_SESSION_BUS_ADDRESS", "GRADLE_USER_HOME", "SSL_CERT_FILE",
-                 "SSL_CERT_DIR", "ZKUBE_ANDROID_VERSION_CODE", "ZKUBE_ANDROID_VERSION_NAME"}
+                 "SSL_CERT_DIR", "ZKUBE_ANDROID_VERSION_CODE", "ZKUBE_ANDROID_VERSION_NAME",
+                 # A folder the page tests write evidence captures to (Captures.Snap).
+                 "ZKUBE_CAPTURES"}
     # Release signing reaches the Editor only for a production build; see
     # ZKubeBuild.SigningVariables. Its values are never printed.
     env = {key: value for key, value in os.environ.items()

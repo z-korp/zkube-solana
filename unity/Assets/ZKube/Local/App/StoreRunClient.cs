@@ -52,7 +52,7 @@ namespace ZKube.Local.App
                 store.Write(current => {
                     var next = Copy(current);
                     next.BestDailyScore = Math.Max(current.BestDailyScore, summary.DailyScore);
-                    if (next.DailyAttempt != null && next.DailyAttempt.DayId == record.Day) { next.DailyAttempt.DailyScore = summary.DailyScore; next.DailyAttempt.ObjectiveTotal = summary.ObjectiveTotal; next.DailyAttempt.Finished = true; }
+                    if (next.DailyAttempt != null && next.DailyAttempt.DayId == record.Day) { next.DailyAttempt.DailyScore = summary.DailyScore; next.DailyAttempt.ObjectiveTotal = summary.ObjectiveTotal; next.DailyAttempt.Tier = summary.CurrentTier; next.DailyAttempt.Finished = true; }
                     return next;
                 });
             }

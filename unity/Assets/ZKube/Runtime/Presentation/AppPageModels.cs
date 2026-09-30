@@ -161,6 +161,13 @@ namespace ZKube.Presentation
         // Whether the next level was already open before this run (it then stays
         // open without a star); null when the identity cannot tell.
         public bool? NextOpen;
+        // A Daily result: the pressure tier the run finished on (null when the
+        // identity keeps none), when the next Daily opens with the clock to count
+        // to it, and whether it is an Arcade result, whose runs count on two boards.
+        public byte? Tier;
+        public long NextOpensAt;
+        public Func<long> Now;
+        public bool Arcade;
         public Func<string, CancellationToken, Task<bool>> Share;
         public PageAction Done, Retry;
         // The guardian's line on a Daily result: the identity's own moment (a

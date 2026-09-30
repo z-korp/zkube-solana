@@ -197,7 +197,8 @@ namespace ZKube.Tests
             yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(board.gameObject.activeSelf, Is.False); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
             Assert.That(app.Flow.LastCampaign, Is.Null);
-            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            // The result has no tab bar; Continue returns to the Daily.
+            Click(app, "Continue"); yield return Page(StorePage.Daily);
             // A used Daily gives its reason where Play was, never a greyed-out
             // Play, counts to the next Daily and shows the run; the result is the
             // action left to take, so it is the primary.
@@ -500,11 +501,29 @@ namespace ZKube.Tests
             // Realms speaks of the run: a new best, a scoring run, or one that scored nothing; never the Arena's greeting.
             var lines = catalog.Realm(today.Realm).guardianLines; var attempt = product.Read.DailyAttempt;
             string said = attempt.DailyScore > 0 && attempt.DailyScore >= product.Read.BestDailyScore ? lines.newBestLine : lines.Stars(attempt.DailyScore > 0 ? 2 : 1);
-            Assert.That(texts, Does.Contain("Daily complete").And.Contain(said).And.Contain("SCORE").And.Contain("DAILY STREAK"));
+            Assert.That(texts, Does.Contain("Daily complete").And.Contain(said).And.Contain("Daily streak").And.Contain("Multiplier reached")
+                .And.Contain(attempt.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             Assert.That(texts, Does.Not.Contain(lines.dailyGreeting));
             if (today.ObjectiveKind != 0) Assert.That(texts, Does.Contain(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue)));
-            var share = FindButton(app, "Share result");
-            Assert.That(share.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
+            // Continue leads; Share sits beside it.
+            Assert.That(FindButton(app, "Continue").GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
+            Assert.That(FindButton(app, "Share").GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonSecondary));
+            Assert.That(texts.Any(text => text != null && text.StartsWith("Today’s attempt is used. Next Daily in ")), Is.True);
+            var shell = app.GetComponent<PageShell>();
+            foreach (var (phone, name) in new (System.Action<PageShell>, string)[] {
+                (value => ZKube.Tests.Presentation.Phones.Seeker(value), "Seeker"), (value => ZKube.Tests.Presentation.Phones.Compact(value), "360 x 640") })
+            {
+                phone(shell);
+                try
+                {
+                    app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+                    Click(app, "View result"); yield return Page(StorePage.Result);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " daily result");
+                    ScreenFits(shell, name + " daily result", -1, "Continue", "Share");
+                }
+                finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+            }
         }
         // A page change sends the old page leaving on its own layer, which takes
         // no input and fades, raises the new one within the spec's budget, and
@@ -778,6 +797,31 @@ namespace ZKube.Tests
                 finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
             }
         }
+        // Each outcome speaks the line of the stars it kept, and a met goal's row
+        // reads at least its target, as the HUD's plates do.
+        [UnityTest] public IEnumerator CampaignResultsSpeakTheirStarsLineAndMetRowsReadTheirTarget()
+        {
+            var lines = PageCatalog.Load().Realm(1).guardianLines; var level = Protocol.Realms[0].Levels[0];
+            var goals = new CampaignGoals { Points = Protocol.CampaignTargets[0], PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1],
+                PrimaryCount = level.Primary[2], SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] };
+            app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+            foreach (var (reason, stars, said) in new[] {
+                ((byte)1, (byte)7, lines.threeStar), ((byte)2, (byte)3, lines.twoStar), ((byte)2, (byte)4, lines.oneStar),
+                ((byte)2, (byte)0, lines.incomplete), ((byte)3, (byte)0, lines.incomplete) })
+            {
+                // A low score with its star lit: the row still reads its target.
+                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 3, StarSources = stars, EndReason = reason,
+                    MovesLeft = 0, PrimaryProgress = 1, Goals = goals });
+                yield return Page(StorePage.Result);
+                foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                var shown = app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy).ToArray();
+                Assert.That(shown.Single(text => text.name == "Guardian line").text, Is.EqualTo(said), reason + "/" + stars);
+                string Row(string name) => System.Text.RegularExpressions.Regex.Replace(shown.Single(text => text.name == name).text, "<[^>]+>", "");
+                Assert.That(Row("Score goal"), Is.EqualTo(((stars & 1) != 0 ? goals.Points : 3u) + "/" + goals.Points), reason + "/" + stars + " score row");
+                Assert.That(Row("Primary goal"), Is.EqualTo(((stars & 2) != 0 ? goals.PrimaryCount : 1) + "/" + goals.PrimaryCount), reason + "/" + stars + " primary row");
+            }
+        }
         private static readonly System.Text.RegularExpressions.Regex Word = new System.Text.RegularExpressions.Regex("[A-Za-z][A-Za-z'’-]*");
         private void ScreenFits(PageShell shell, string at, int words, params string[] buttons)
         {
@@ -787,7 +831,7 @@ namespace ZKube.Tests
             var texts = app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy && !string.IsNullOrEmpty(text.text)).ToArray();
             string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
             int counted = texts.Where(text => text.name != "Guardian line").Sum(text => Word.Matches(Plain(text.text)).Count);
-            Assert.That(counted, Is.EqualTo(words), at + " words: " + string.Join(" | ", texts.Where(text => text.name != "Guardian line").Select(text => Plain(text.text))));
+            if (words >= 0) Assert.That(counted, Is.EqualTo(words), at + " words: " + string.Join(" | ", texts.Where(text => text.name != "Guardian line").Select(text => Plain(text.text))));
             foreach (var text in texts)
             {
                 text.ForceMeshUpdate();
@@ -800,8 +844,13 @@ namespace ZKube.Tests
                 Assert.That(rect.xMin >= safe.xMin - .5f && rect.xMax <= safe.xMax + .5f && rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f, Is.True,
                     at + ": '" + text.text + "' " + rect + " stays in the safe area " + safe);
             }
-            var pieces = new[] { "Screen title plate", "Star crown", "Screen card" }.Select(piece => app.GetComponentsInChildren<Image>().Single(image => image.name == piece))
+            var pieces = app.GetComponentsInChildren<Image>().Where(image => new[] { "Screen title plate", "Star crown", "Screen card", "Score plate" }.Contains(image.name))
                 .Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
+            Assert.That(pieces.Count, Is.GreaterThanOrEqualTo(3), at + " draws its title, its focal piece and its card");
+            // The guardian's bubble stays above its card.
+            var bubble = app.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian bubble");
+            var card = app.GetComponentsInChildren<Image>().Single(image => image.name == "Screen card");
+            Assert.That(SkinUi.ScreenRect(bubble.rectTransform).yMin, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(card.rectTransform).yMax - .5f), at + ": the bubble stays above the card");
             foreach (var button in buttons)
             {
                 var found = FindButton(app, button);
@@ -913,6 +962,7 @@ namespace ZKube.Tests
             var leases = (System.Collections.IDictionary)typeof(BoardArt).GetField("atlasLoads", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             var before = leases.Keys.Cast<string>().Where(key => key.Contains("/theme-")).ToHashSet();
             product.Write(state => { for (int realm = 1; realm <= 10; realm++) state.Stars[realm * 10 - 1] = 1; return state; });
+            Click(app, "Continue"); yield return Page(StorePage.Daily);
             Click(app, "Profile"); yield return Page(StorePage.Profile);
             var faces = app.GetComponentsInChildren<Image>().Where(value => value.name == "Guardian portrait").ToArray();
             Assert.That(faces.Length, Is.EqualTo(10)); Assert.That(faces.All(value => value.enabled && value.sprite != null), Is.True);

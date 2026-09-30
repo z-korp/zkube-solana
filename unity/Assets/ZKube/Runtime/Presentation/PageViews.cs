@@ -104,12 +104,7 @@ namespace ZKube.Presentation
                 case AppPage.Result:
                     var result = source.ResultPage();
                     if (result.HasResult && result.ShowStars) { Frame(-1, null, null, null, null, null, messages, fullBleed: true); back = result.Done; CampaignScreen(result); }
-                    else if (result.HasResult)
-                    {
-                        Frame(1, result.Mode + " complete", DayLabel(result.Day) + " · " + catalog.Realm(result.Realm).realmName,
-                            null, null, null, messages);
-                        Result(result);
-                    }
+                    else if (result.HasResult) { Frame(-1, null, null, null, null, null, messages, fullBleed: true); back = result.Done; DailyResultScreen(result); }
                     else { Frame(1, result.Mode, null, null, null, null, messages); NoResult(result); }
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
@@ -444,6 +439,7 @@ namespace ZKube.Presentation
                     countdownSecond = now;
                     if (countdown != null) countdown.text = Remaining(countdownView.ClosesAt - now);
                     if (nextDaily != null) nextDaily.text = NextDaily(countdownView.NextOpensAt - now);
+                    if (nextDailyResult != null) nextDailyResult.text = UsedLine(countdownView.NextOpensAt - now);
                 }
             }
             if (back != null && Input.GetKeyDown(KeyCode.Escape) && back.Available) actions.Run(back.Invoke);
@@ -458,7 +454,7 @@ namespace ZKube.Presentation
         }
         private static string Sentence(string value) => string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value.Substring(1);
         private static string DayLabel(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400)
-            .UtcDateTime.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+            .UtcDateTime.ToString("d MMM", CultureInfo.InvariantCulture);
         private static RectTransform Holder(string name, Rect rect, Transform parent)
         {
             var holder = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
@@ -469,7 +465,7 @@ namespace ZKube.Presentation
         public void Retire()
         {
             epoch++; sharing.Cancel(); sharing.Dispose(); sharing = new CancellationTokenSource();
-            actions?.Clear(); back = null; countdown = null; nextDaily = null; countdownView = null;
+            actions?.Clear(); back = null; countdown = null; nextDaily = null; nextDailyResult = null; countdownView = null;
             // The portraits stay with the page that shows them; the shell releases them.
             portraits = null;
         }

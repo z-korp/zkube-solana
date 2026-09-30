@@ -106,18 +106,25 @@ namespace ZKube.Presentation
                 fill(card);
                 var paws = ui.Rect<Image>("Screen guardian paws", canvas, shell.Page);
                 paws.sprite = ui.Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;
-                if (line != null) Bubble(line, canvas, c);
+                if (line != null) Bubble(line, canvas, c, card.yMax);
             });
         }
         // The guardian's line, beside its head with the tail pointing at it: 122u
-        // wide, left of the head when there is no room on its right.
-        private void Bubble(string line, Rect guardian, float c)
+        // wide, or up to 180u when a long line has the room, left of the head when
+        // there is no room on its right, and never down over the card.
+        private void Bubble(string line, Rect guardian, float c, float cardTop)
         {
-            float u = U, width = 122 * u, textDp = 12.5f * K, pad = 9 * u;
+            float u = U, textDp = 12.5f * K, pad = 9 * u;
             var safe = shell.SafeArea;
-            float height = ui.TextHeight(line, width - 2 * pad, textDp, SkinUi.Type.Caption, HudLayout.BubbleLeading) + 2 * pad;
-            bool right = guardian.x + .8f * c + width + 8 * u <= safe.xMax;
-            float x = right ? guardian.x + .8f * c : guardian.xMax - .8f * c - width, top = guardian.yMax - .06f * c;
+            float room = safe.xMax - 12 * u - (guardian.x + .8f * c);
+            float width = Mathf.Clamp(room, 122 * u, 180 * u);
+            float Height(float w) => ui.TextHeight(line, w - 2 * pad, textDp, SkinUi.Type.Caption, HudLayout.BubbleLeading) + 2 * pad;
+            // The narrow bubble serves a short line; a long one widens into the room.
+            if (Height(122 * u) <= guardian.yMax - .06f * c - cardTop - 6 * u) width = 122 * u;
+            float height = Height(width);
+            bool right = guardian.x + .8f * c + width <= safe.xMax - 4 * u;
+            float x = right ? guardian.x + .8f * c : guardian.xMax - .8f * c - width;
+            float top = Mathf.Max(guardian.yMax - .06f * c, cardTop + 6 * u + height);
             var body = new Rect(x, top - height, width, height);
             ui.Piece("Guardian bubble", SkinSlots.TapBubble, body, shell.Page, .5f);
             var tail = ui.Piece("Guardian bubble tail", SkinSlots.TapBubbleTail,
@@ -333,12 +340,13 @@ namespace ZKube.Presentation
             string frame = stars == 3 ? "celebrate" : stars == 0 ? "defeated" : "satisfied";
             var lit = new[] { (value.StarSources & 1) != 0, (value.StarSources & 2) != 0, (value.StarSources & 4) != 0 };
             var goals = value.Goals == null ? Array.Empty<GoalLine>() : Goals(value.Goals, value.Realm, RealmBonus(value.Realm));
-            for (int i = 0; i < goals.Length; i++) goals[i].Met = lit[i];
             if (goals.Length == 3)
             {
                 goals[0].Progress = (uint)Math.Min(value.Score, uint.MaxValue);
-                goals[1].Progress = lit[1] ? goals[1].Target : value.PrimaryProgress;
+                goals[1].Progress = value.PrimaryProgress;
             }
+            // As on the HUD, a met goal reads at least its target.
+            for (int i = 0; i < goals.Length; i++) { goals[i].Met = lit[i]; if (lit[i]) goals[i].Progress = Math.Max(goals[i].Progress, goals[i].Target); }
             float iconU = Step(38, 32), inner = Mathf.Min(shell.SafeArea.width - 24 * u, ColumnDp * d) - 24 * u, tick = 24 * u;
             string Count(GoalLine goal) => goal.Counter == "fill" ? goal.Progress.ToString("N0", CultureInfo.InvariantCulture) + "<color=#"
                 + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">/" + goal.Target.ToString("N0", CultureInfo.InvariantCulture) + "</color>" : null;
@@ -417,5 +425,96 @@ namespace ZKube.Presentation
             skip.gameObject.AddComponent<Button>().onClick.AddListener(sequence.Finish);
             sequence.Finished += () => { if (skip != null) { skip.gameObject.SetActive(false); Destroy(skip.gameObject); } };
         }
+        // The Daily's result, as the v3 composites draw it: the day's title,
+        // the score on its plate (with "New best!"), the guardian's line over the
+        // card of the run's rows, and Continue with Share. Realms lists the
+        // multiplier reached, the objective count and the streak, then when the
+        // next Daily opens; the Arcade names the two boards the run counts on.
+        private TMP_Text nextDailyResult;
+        private void DailyResultScreen(ResultPageView value)
+        {
+            float d = ui.Density, u = U, k = K;
+            var realm = catalog.Realm(value.Realm);
+            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .55f);
+            var line = TalkPage.For(realm.guardianLines, value.Speaks ?? TalkMoment.Daily, value.SpeaksStars);
+            string objective = value.ObjectiveKind == 0 ? null : catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
+            string picture = value.ObjectiveKind == 0 ? null : catalog.Goal(value.ObjectiveKind, value.ObjectiveValue).Pictogram(RealmBonus(value.Realm));
+            string N(ulong number) => number.ToString("N0", CultureInfo.InvariantCulture);
+            // Each row: its icon (and the icon's width in u), caption, detail and value.
+            var rows = new List<(string name, string icon, float iconU, float iconTallU, string caption, string detail, string number, string token)>();
+            if (value.Arcade)
+            {
+                rows.Add(("Score board", SkinSlots.GoalScore, 34, 34, "Score board", "Your best run counts", N(value.Score), SkinTokens.Score));
+                if (objective != null) rows.Add(("Objective board", picture, 34, 34, "Objective board", objective, N(value.ObjectiveTotal), SkinTokens.Score));
+            }
+            else
+            {
+                if (value.Tier.HasValue)
+                    rows.Add(("Multiplier", SkinSlots.MultiplierRing, 40, 16, "Multiplier reached", null,
+                        HudLayout.PressureValue(new RunSummary { CurrentTier = value.Tier.Value }), SkinTokens.Accent));
+                if (objective != null) rows.Add(("Objective", picture, 36, 36, objective, null, N(value.ObjectiveTotal), SkinTokens.Score));
+                if (value.Streak.HasValue) rows.Add(("Streak", SkinSlots.IconCrown, 32, 32, "Daily streak", null, Days(value.Streak.Value), SkinTokens.Score));
+            }
+            float inner = Mathf.Min(shell.SafeArea.width - 24 * u, ColumnDp * d) - 24 * u;
+            var heights = rows.Select(row => RowHeight(row.caption, row.detail, inner, row.iconU, NumeralWidth(row.number))).ToArray();
+            string boards = value.Arcade ? "Places are final when each board is sealed after the day closes at 00:00 UTC." : null;
+            float boardsHeight = boards == null ? 0 : ui.TextHeight(boards, inner, 12, SkinUi.Type.Caption) + 6 * u;
+            float cardHeight = heights.Sum() + boardsHeight + 20 * u;
+            // The score's plate: the spark, the score and "New best!".
+            string score = N(value.Score);
+            float spark = Step(40, 32) * u, scoreDp = 44 * k, tag = value.NewBest ? ui.TextWidth("New best!", 13, SkinUi.Type.Display) + 24 * u : 0;
+            float scoreWidth = ui.TextWidth(score, scoreDp, SkinUi.Type.Display), scoreHeight = ui.TextHeight(score, scoreWidth * 2, scoreDp, SkinUi.Type.Display);
+            var pieces = new List<Piece> { Piece.Grow,
+                TitlePlate(value.Arcade ? "Daily run complete" : "Daily complete", DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName),
+                new Piece(Mathf.Max(spark, scoreHeight) + 12 * u, rect => {
+                    float width = spark + 8 * u + scoreWidth + (tag > 0 ? 8 * u + tag : 0) + 32 * u;
+                    var plate = new Rect(rect.center.x - width / 2, rect.y, width, rect.height);
+                    ui.Piece("Score plate", SkinSlots.Card, plate, shell.Page);
+                    float x = plate.x + 16 * u;
+                    ui.Piece("Score icon", SkinSlots.GoalScore, new Rect(x, plate.center.y - spark / 2, spark, spark), shell.Page);
+                    var total = ui.Label("Score", score, new Rect(x + spark + 8 * u, plate.y, scoreWidth + 2 * d, plate.height), scoreDp, SkinTokens.Score,
+                        shell.Page, SkinUi.Type.Display, TextAlignmentOptions.Left);
+                    total.textWrappingMode = TextWrappingModes.NoWrap;
+                    if (tag > 0)
+                    {
+                        var chip = new Rect(x + spark + 16 * u + scoreWidth, plate.center.y - 13 * u, tag, 26 * u);
+                        ui.Pill("New best", chip, shell.Page, new Color(1, 233 / 255f, 168 / 255f, 1));
+                        ui.Label("New best label", "New best!", chip, 13, SkinTokens.TextOnPrimary, shell.Page, SkinUi.Type.Display);
+                    }
+                }),
+                GuardianCard(line.Mood == "surprised" || line.Mood == "celebrate" ? "satisfied" : line.Mood, line.Line, Step(156, 112), cardHeight, card => {
+                    float y = card.yMax - 10 * u, x = card.x + 12 * u, width = card.width - 24 * u;
+                    for (int i = 0; i < rows.Count; i++)
+                    {
+                        var row = rows[i]; var rect = new Rect(x, y - heights[i], width, heights[i]);
+                        var icon = Row(row.name, rect, row.icon, row.iconU, row.caption, row.detail, NumeralWidth(row.number), i > 0);
+                        if (icon != null && row.iconTallU != row.iconU)
+                            SkinUi.Place(icon.rectTransform, new Rect(rect.x, rect.center.y - row.iconTallU * u / 2, row.iconU * u, row.iconTallU * u), shell.Page);
+                        Numeral(row.name + " value", row.number, new Rect(rect.xMax - NumeralWidth(row.number), rect.y, NumeralWidth(row.number), rect.height), row.token);
+                        y -= heights[i];
+                    }
+                    if (boards != null)
+                        ui.Label("Boards note", boards, new Rect(x, y - boardsHeight, width, boardsHeight), 12, SkinTokens.TextMuted, shell.Page,
+                            SkinUi.Type.Caption, TextAlignmentOptions.Left);
+                }) };
+            if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(Note(value.Notice));
+            if (value.NextOpensAt > 0 && value.Now != null)
+            {
+                var next = Note(UsedLine(value.NextOpensAt - value.Now()));
+                pieces.Add(new Piece(next.Height, rect => {
+                    next.Draw(rect);
+                    nextDailyResult = shell.Page.GetComponentsInChildren<TMP_Text>().Last(text => text.name == "Screen note");
+                    countdownView = new DailyPageView { NextOpensAt = value.NextOpensAt, Now = value.Now }; countdownSecond = value.Now();
+                }));
+            }
+            pieces.Add(Piece.Grow);
+            PageAction share = null;
+            if (value.Share != null)
+                share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName, realm.realmName,
+                    objective ?? "Score only", value.ObjectiveTotal, value.Score, value.Streak), "Share");
+            pieces.Add(Buttons((value.Done, true, SkinSlots.IconPlay), (share, false, SkinSlots.IconShare)));
+            Compose(pieces.ToArray());
+        }
+        private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + Clock(seconds) + ".";
     }
 }

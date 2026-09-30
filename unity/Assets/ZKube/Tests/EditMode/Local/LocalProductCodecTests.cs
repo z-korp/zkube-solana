@@ -16,7 +16,7 @@ namespace ZKube.Local.Tests
                 Name = "Mira 🚀", CampaignPrice = "€4.99", CampaignOwned = true,
                 Stars = Enumerable.Range(0, 100).Select(i => (byte)(i % 4)).ToArray(),
                 WornEmblem = 7, Streak = 12, BestDailyScore = 9000,
-                DailyAttempt = new LocalDailyAttempt { DayId = 20705, DailyScore = 840, ObjectiveTotal = 13, Finished = true },
+                DailyAttempt = new LocalDailyAttempt { DayId = 20705, DailyScore = 840, ObjectiveTotal = 13, Tier = 4, Finished = true },
                 CampaignRun = new LocalCampaignRun { Id = "1", CatalogVersion = ZKube.Core.Generated.Protocol.CatalogVersion, Realm = 2, Level = 5,
                     Seed = Enumerable.Range(0, 32).ToArray(), Actions = {
                         new LocalCampaignAction { Kind = "Move", Row = 2, Start = 1, Destination = 3 },
@@ -27,6 +27,7 @@ namespace ZKube.Local.Tests
             var utf8 = new UTF8Encoding(false, true);
             var restored = LocalProductCodec.Decode(utf8.GetString(utf8.GetBytes(encoded)));
             Assert.That(LocalProductCodec.Encode(restored), Is.EqualTo(encoded));
+            Assert.That(restored.DailyAttempt.Tier, Is.EqualTo(4), "The run's final tier is kept for its multiplier");
             CollectionAssert.AreEqual(state.Stars, restored.Stars);
             CollectionAssert.AreEqual(state.CampaignRun.Seed, restored.CampaignRun.Seed);
             Assert.That(restored.CampaignRun.Actions[0].Destination, Is.EqualTo(3));
