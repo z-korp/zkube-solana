@@ -1020,6 +1020,40 @@ namespace ZKube.Tests
             // The veil darkens the top and bottom as the composites' gradient does.
             CollectionAssert.AreEqual(new[] { (0f, .667f), (.3f, .333f), (.7f, .533f), (1f, .8f) }, PageShell.VeilStops);
         }
+        // The screens drawn over the painting still show the scene above their
+        // card, as the approved composites do: the top third of the Tiki preview
+        // and of an ended run's result is as bright as tiki-preview-seeker.png
+        // (0.160 mean luminance) and tiki-resEnded-seeker.png (0.172), within a
+        // quarter.
+        [UnityTest] public IEnumerator TheSceneReadsAboveThePreviewAndResultCards()
+        {
+            var shell = app.GetComponent<PageShell>();
+            ZKube.Tests.Presentation.Phones.Seeker(shell);
+            try
+            {
+                IEnumerator TopThird(string at, float composite)
+                {
+                    foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                    yield return new WaitForSecondsRealtime(1); yield return new WaitForEndOfFrame();
+                    var area = shell.ScreenArea; int width = (int)area.width, third = (int)(area.height / 3);
+                    var texture = new Texture2D(width, third, TextureFormat.RGB24, false);
+                    try
+                    {
+                        texture.ReadPixels(new Rect(area.x, area.yMax - third, width, third), 0, 0); texture.Apply();
+                        float luminance = texture.GetPixels().Average(pixel => .2126f * pixel.r + .7152f * pixel.g + .0722f * pixel.b);
+                        Assert.That(luminance, Is.InRange(composite * .75f, composite * 1.25f), at + ": the scene above the card reads as the composite's does");
+                    }
+                    finally { UnityEngine.Object.Destroy(texture); }
+                }
+                yield return NamePlayer();
+                app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+                app.Flow.Preview(1); yield return Page(StorePage.Level);
+                yield return TopThird("Tiki preview", .160f);
+                Click(app, "Play"); yield return BoardReady(); yield return EndRun(); yield return Page(StorePage.Result);
+                yield return TopThird("Tiki ended result", .172f);
+            }
+            finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+        }
         // Every level's preview has its own line: the guardian's trial line on its
         // own level, and no two neighbouring levels share one.
         [UnityTest] public IEnumerator EachLevelPreviewSpeaksItsOwnLine()

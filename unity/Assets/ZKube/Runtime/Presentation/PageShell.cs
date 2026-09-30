@@ -50,8 +50,9 @@ namespace ZKube.Presentation
             Root.transform.SetParent(transform, false);
             var canvas = Root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 20;
             Background = Child<Image>("Realm backdrop", Root.transform); Background.color = Color.clear; Background.raycastTarget = false;
-            Veil = Child<Image>("Backdrop veil", Root.transform); Veil.sprite = VeilSprite(); Veil.raycastTarget = false; Veil.enabled = false;
-            Scrim = Child<Image>("Backdrop scrim", Root.transform); Scrim.color = new Color(2 / 255f, 7 / 255f, 14 / 255f, .8f); Scrim.raycastTarget = false;
+            Veil = Child<Image>("Backdrop veil", Root.transform); Veil.sprite = Gradient(VeilStops, new Color(2 / 255f, 10 / 255f, 18 / 255f)); Veil.raycastTarget = false;
+            Veil.enabled = false;
+            Scrim = Child<Image>("Backdrop scrim", Root.transform); Scrim.sprite = Gradient(ScrimStops, new Color(2 / 255f, 7 / 255f, 14 / 255f)); Scrim.raycastTarget = false;
             Scrim.enabled = false;
             Stage();
             Chrome = Child<RectTransform>("Page chrome", Root.transform);
@@ -271,7 +272,8 @@ namespace ZKube.Presentation
         // painting covers the screen and keeps its aspect, its point at focus down
         // its height placed that far down the screen (CSS's "center 80%"), under
         // the veil that darkens its top and bottom. A screen drawn over the
-        // painting (the preview, the results) adds the scrim.
+        // painting (the preview, the results) adds the scrim, light over the
+        // scene at the top and deep behind its card and actions.
         public void Backdrop(Sprite sprite, bool scrim = false, float focus = .5f)
         {
             Background.sprite = sprite; Background.color = sprite == null ? Color.clear : Color.white;
@@ -286,25 +288,26 @@ namespace ZKube.Presentation
         }
         // The veil, top to bottom: #020A12 at 67%, 33% at 30% down, 53% at 70% and 80% at the bottom.
         public static readonly (float at, float alpha)[] VeilStops = { (0, .667f), (.3f, .333f), (.7f, .533f), (1, .8f) };
-        private static Sprite veil;
-        private static Sprite VeilSprite()
+        // The scrim, #02070E: light where the scene shows above the card, 80% under it.
+        public static readonly (float at, float alpha)[] ScrimStops = { (0, .15f), (.3f, .2f), (.55f, .7f), (1, .8f) };
+        // A vertical gradient of one colour through its stops, top to bottom.
+        private static Sprite Gradient((float at, float alpha)[] stops, Color ink)
         {
-            if (veil != null) return veil;
             const int rows = 64;
             var texture = new Texture2D(1, rows, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
             for (int row = 0; row < rows; row++)
             {
-                float down = 1 - row / (rows - 1f), alpha = VeilStops[VeilStops.Length - 1].alpha;
-                for (int i = 1; i < VeilStops.Length; i++)
-                    if (down <= VeilStops[i].at)
+                float down = 1 - row / (rows - 1f), alpha = stops[stops.Length - 1].alpha;
+                for (int i = 1; i < stops.Length; i++)
+                    if (down <= stops[i].at)
                     {
-                        float t = (down - VeilStops[i - 1].at) / (VeilStops[i].at - VeilStops[i - 1].at);
-                        alpha = Mathf.Lerp(VeilStops[i - 1].alpha, VeilStops[i].alpha, t); break;
+                        float t = (down - stops[i - 1].at) / (stops[i].at - stops[i - 1].at);
+                        alpha = Mathf.Lerp(stops[i - 1].alpha, stops[i].alpha, t); break;
                     }
-                texture.SetPixel(0, row, new Color(2 / 255f, 10 / 255f, 18 / 255f, alpha));
+                ink.a = alpha; texture.SetPixel(0, row, ink);
             }
             texture.Apply(false, true);
-            return veil = Sprite.Create(texture, new Rect(0, 0, 1, rows), new Vector2(.5f, .5f));
+            return Sprite.Create(texture, new Rect(0, 0, 1, rows), new Vector2(.5f, .5f));
         }
 
         public bool RealmReady(byte realm) => !Loading && ArtworkError == null && Artwork?.RealmId == realm;
