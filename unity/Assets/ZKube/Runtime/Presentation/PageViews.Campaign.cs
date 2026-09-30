@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using TMPro;
@@ -88,23 +89,21 @@ namespace ZKube.Presentation
                 SkinUi.Type.Caption, TextAlignmentOptions.Left);
         }
 
-        // The map's geometry in the 60 x 100 box: node radii and star sizes,
-        // as the wireframe draws them. Sizes follow the box, so every realm's
-        // clearance holds at any fitted size.
-        public const float NodeRadius = 3.77f, CurrentRadius = 4.25f, GuardianRadius = 6.13f, StarSize = 2.36f, GuardianStarSize = 2.9f, StarGap = .3f;
-        // The box fitted into room, as SVG's "xMidYMid meet" places a 60 x 100 view box.
-        public static Rect MapBox(Rect room)
-        {
-            float scale = Mathf.Min(room.width / 60, room.height / 100);
-            return new Rect(room.center.x - 30 * scale, room.center.y - 50 * scale, 60 * scale, 100 * scale);
-        }
-        public static Vector2 MapPoint(Rect box, PageCatalog.Point point) => new Vector2(box.x + point.x * box.width, box.yMax - point.y * box.height);
+        // Node sizes in dp: the glowstone 48 on the Seeker and 40 on a compact
+        // phone, the current one 1.1 and the guardian 1.6 times larger, stars a
+        // share of the glowstone under each finished node and the guardian. A
+        // crowded realm shrinks them, never below 34 dp, until every node and its
+        // star row clear the others by 4 dp.
+        public const float CurrentScale = 1.1f, GuardianScale = 1.6f, StarShare = .31f, GuardianStarShare = .38f, StarGapShare = .06f;
+        public const float MinimumNodeDp = 34, ClearanceDp = 4;
 
-        // The painting, the path and the nodes in the room between the header and Play.
+        // The painting, the path and the nodes in the room between the header and
+        // Play. The authored path is fitted to the room's width and height apart,
+        // over its own extent, so it spreads over the whole room on any aspect.
         private void Map(CampaignPageView value, Rect room)
         {
             var realm = catalog.Realm(value.Realm);
-            var screen = shell.ScreenArea;
+            var screen = shell.ScreenArea; float d = ui.Density;
             int count = value.Trials.Length, focus = Focus(value.Trials, 0);
             // The painting covers the screen with its lower part in view, as CSS's "center 80%".
             var art = ui.Art.SkinRealm(SkinSlots.Map);
@@ -112,15 +111,66 @@ namespace ZKube.Presentation
             float top = screen.yMax + (height - screen.height) * .8f;
             var image = ui.Rect<Image>("Realm map", new Rect(screen.center.x - width / 2, top - height, width, height), shell.Page);
             image.sprite = art; image.raycastTarget = false;
-            var box = MapBox(room); float unit = box.width / 60;
+            bool Lit(int index) => index == focus && value.Trials[index].Available;
+            float normal = Step(48, 40) * d; Rect path; Vector2[] at;
+            while (true)
+            {
+                path = PathRect(realm.campaignPath, room, normal);
+                var placed = path;
+                at = realm.campaignPath.Select(point => new Vector2(placed.x + point.x * placed.width, placed.yMax - point.y * placed.height)).ToArray();
+                var feet = at.Select((center, index) => Footprint(value.Trials[index], center, normal, index == count - 1, Lit(index))).ToArray();
+                if (Clearance(feet) >= ClearanceDp * d - .01f || normal <= MinimumNodeDp * d) break;
+                normal = Mathf.Max(MinimumNodeDp * d, normal - .5f * d);
+            }
             var states = value.Trials.Select((trial, index) => trial.Playing ? "playing" :
                 trial.Stars > 0 ? "cleared" : trial.Available ? "current" : "locked").ToArray();
-            var line = ui.Rect<CampaignPathGraphic>("Lit path", box, shell.Page);
+            // The path graphic maps the authored points through its rect, so the rect
+            // is the fit's own; strokes and dashes keep their dp at any fit.
+            var line = ui.Rect<CampaignPathGraphic>("Lit path", path, shell.Page);
+            float unit = path.width / 60;
+            string Units(float dp) => (dp * d / unit).ToString(CultureInfo.InvariantCulture);
             var gold = new Color(1, 233 / 255f, 168 / 255f, 1); var moon = new Color(221 / 255f, 239 / 255f, 247 / 255f, 1);
-            line.Configure(realm, states, new PageCatalog.PathStyle { pathStyle = "solid", strokeWidth = .7f, lockedStrokeWidth = .45f, lockedDash = ".5 1.4",
+            line.Configure(realm, states, new PageCatalog.PathStyle { pathStyle = "solid", strokeWidth = 4.5f * d / unit, lockedStrokeWidth = 3 * d / unit,
+                lockedDash = Units(3) + " " + Units(8),
                 clearedRgba = new[] { gold.r, gold.g, gold.b, 1f }, activeRgba = new[] { gold.r, gold.g, gold.b, 1f }, lockedRgba = new[] { moon.r, moon.g, moon.b, 1.2f } });
             for (int index = 0; index < count; index++)
-                Node(value, value.Trials[index], MapPoint(box, realm.campaignPath[index]), unit, index == count - 1, index == focus);
+                Node(value, value.Trials[index], at[index], normal, index == count - 1, Lit(index));
+        }
+        // The rect through which the authored points land: the path's extent
+        // fitted to the room's width and height apart, inset so the guardian, a
+        // current node and a star row stay inside it.
+        private Rect PathRect(PageCatalog.Point[] points, Rect room, float normal)
+        {
+            float d = ui.Density, guardian = normal * GuardianScale;
+            float side = guardian / 2 + 2 * d, above = guardian / 2 + 2 * d;
+            float below = Mathf.Max(normal * CurrentScale / 2, normal / 2 + normal * StarGapShare + normal * StarShare * 1.18f) + 2 * d;
+            float minX = points.Min(point => point.x), maxX = points.Max(point => point.x), minY = points.Min(point => point.y), maxY = points.Max(point => point.y);
+            float width = (room.width - 2 * side) / Mathf.Max(.01f, maxX - minX), height = (room.height - above - below) / Mathf.Max(.01f, maxY - minY);
+            float x = room.x + side - minX * width, yMax = room.yMax - above + minY * height;
+            return new Rect(x, yMax - height, width, height);
+        }
+        // A node's size and its star row, if it shows one.
+        private static (Rect node, Rect stars, bool starred) NodeRects(CampaignTrialView trial, Vector2 center, float normal, bool guardian, bool lit)
+        {
+            float size = normal * (guardian ? GuardianScale : lit ? CurrentScale : 1), star = normal * (guardian ? GuardianStarShare : StarShare);
+            var node = new Rect(center.x - size / 2, center.y - size / 2, size, size);
+            var stars = new Rect(center.x - 1.5f * star * 1.05f, node.y - StarGapShare * normal - star * 1.18f, 3 * star * 1.05f, star * 1.18f);
+            return (node, stars, guardian || trial.Stars > 0);
+        }
+        private static Rect Footprint(CampaignTrialView trial, Vector2 center, float normal, bool guardian, bool lit)
+        {
+            var (node, stars, starred) = NodeRects(trial, center, normal, guardian, lit);
+            return starred ? Rect.MinMaxRect(Mathf.Min(node.xMin, stars.xMin), stars.yMin, Mathf.Max(node.xMax, stars.xMax), node.yMax) : node;
+        }
+        // The smallest gap between two footprints, along whichever axis parts them most.
+        public static float Clearance(IReadOnlyList<Rect> feet)
+        {
+            float least = float.PositiveInfinity;
+            for (int a = 0; a < feet.Count; a++)
+                for (int b = a + 1; b < feet.Count; b++)
+                    least = Mathf.Min(least, Mathf.Max(Mathf.Max(feet[b].xMin - feet[a].xMax, feet[a].xMin - feet[b].xMax),
+                        Mathf.Max(feet[b].yMin - feet[a].yMax, feet[a].yMin - feet[b].yMax)));
+            return least;
         }
         // The current level: the one being played, else the first open one without
         // a star, else the last one reached. Home's Campaign card plays it too.
@@ -138,17 +188,14 @@ namespace ZKube.Presentation
         // portal ring with a soft halo, dimmed with a lock until it opens, its
         // stars always under it. The touch area covers the node and its stars,
         // at least 48 dp.
-        private void Node(CampaignPageView value, CampaignTrialView trial, Vector2 center, float unit, bool guardian, bool current)
+        private void Node(CampaignPageView value, CampaignTrialView trial, Vector2 center, float normal, bool guardian, bool lit)
         {
             float d = ui.Density;
             string name = "Trial " + trial.Level;
-            bool done = trial.Stars > 0, open = trial.Available, lit = current && open;
-            float size = 2 * unit * (guardian ? GuardianRadius : lit ? CurrentRadius : NodeRadius);
-            var rect = new Rect(center.x - size / 2, center.y - size / 2, size, size);
-            float star = unit * (guardian ? GuardianStarSize : StarSize);
-            bool starred = done || guardian;
-            var stars = new Rect(center.x - 1.5f * star * 1.05f, rect.y - StarGap * unit - star * 1.18f, 3 * star * 1.05f, star * 1.18f);
-            var area = starred ? Rect.MinMaxRect(Mathf.Min(rect.xMin, stars.xMin), stars.yMin, Mathf.Max(rect.xMax, stars.xMax), rect.yMax) : rect;
+            bool done = trial.Stars > 0, open = trial.Available;
+            var (rect, stars, starred) = NodeRects(trial, center, normal, guardian, lit);
+            float size = rect.width, star = stars.height / 1.18f;
+            var area = Footprint(trial, center, normal, guardian, lit);
             float touch = BoardLayout.MinimumTouchDp * d;
             var hitRect = Rect.MinMaxRect(Mathf.Min(area.xMin, area.center.x - touch / 2), Mathf.Min(area.yMin, area.center.y - touch / 2),
                 Mathf.Max(area.xMax, area.center.x + touch / 2), Mathf.Max(area.yMax, area.center.y + touch / 2));
@@ -178,7 +225,7 @@ namespace ZKube.Presentation
             {
                 ui.Piece(name + " node", done && !lit ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked, rect, hit.transform);
                 if (open || done)
-                    ui.Label(name + " number", Number(value.Realm, trial.Level), rect, unit * (lit ? 3.2f : 2.8f) / d, SkinTokens.Text, hit.transform,
+                    ui.Label(name + " number", Number(value.Realm, trial.Level), rect, size * .37f / d, SkinTokens.Text, hit.transform,
                         SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
                 else Tinted(name + " lock", SkinSlots.IconLock, Scaled(rect, .46f), SkinTokens.TextMuted, hit.transform);
             }
@@ -251,16 +298,15 @@ namespace ZKube.Presentation
             // The passage line first on a realm opened by beating the guardian
             // before it, then the greeting with the rule and what its bonus does.
             var pages = TalkPage.MapGreeting(realm, catalog.Rule(realmId), realmId > 1);
-            Explained(pages[pages.Length - 1], realmId);
             GuardianTalk talk = null;
             var box = Speak("Guardian greeting talk", root, left, safe.center.y + 15 * d, width, realm, pages,
                 () => { Greetings.Greet(realmId); if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); } }, true);
             talk = root.GetComponentInChildren<GuardianTalk>();
-            // A long greeting lifts so it and its prompt stay above the tab bar, and
-            // the guardian stays under the top of the safe area.
-            float lift = Mathf.Min(Mathf.Max(0, ui.TabBarRect(safe).yMax + 16 * d - (box.y - 60 * d)),
-                safe.yMax - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
-            if (lift > 0) { foreach (Transform piece in root) if (piece != scrim.transform) ((RectTransform)piece).anchoredPosition += new Vector2(0, lift); box.y += lift; }
+            // The box sits low, 24 dp over the safe bottom, as the composites place
+            // it, and the guardian stays under the top of the safe area.
+            float lift = Mathf.Min(safe.y + 24 * d - box.y, safe.yMax - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
+            foreach (Transform piece in root) if (piece != scrim.transform) ((RectTransform)piece).anchoredPosition += new Vector2(0, lift);
+            box.y += lift;
             if (!reducedMotion)
             {
                 // The scrim fades in, then the guardian rises onto the rail.
@@ -312,12 +358,6 @@ namespace ZKube.Presentation
         }
         // The page shows the realm's rule once its line is done, with what the
         // bonus does: it removes blocks without scoring.
-        private TalkPage Explained(TalkPage page, byte realm)
-        {
-            var rule = catalog.Rule(realm);
-            page.RuleHeading = HudLayout.GuardianCaption(rule.bonus); page.Rule = rule.description + "\n" + rule.effect;
-            return page;
-        }
         private static Image Guardian(Transform parent) =>
             parent.GetComponentsInChildren<Image>().FirstOrDefault(image => image.name.EndsWith(" guardian"));
 

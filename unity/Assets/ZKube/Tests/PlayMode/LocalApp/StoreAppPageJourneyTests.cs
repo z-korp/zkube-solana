@@ -264,7 +264,7 @@ namespace ZKube.Tests
             Assert.That(Buttons().Any(button => button.name == "Emblem 2"), Is.False, "A locked emblem takes no tap");
             Click(app, "Emblem 1"); yield return Page(StorePage.Profile);
             Assert.That(product.Read.WornEmblem, Is.EqualTo(1));
-            Assert.That(Texts(), Does.Contain("Wearing Mako"));
+            Assert.That(Texts(), Does.Contain("Wearing Mako’s emblem").And.Contain("Mako · worn"));
         }
         private Button[] Buttons() => app.GetComponentsInChildren<Button>().Where(value => value.gameObject.activeInHierarchy).ToArray();
         private string[] Texts() => app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy).Select(text => text.text).ToArray();
@@ -398,10 +398,16 @@ namespace ZKube.Tests
             greeted = 0; yield return NamePlayer();
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
-            app.GetComponentInChildren<GuardianTalk>().Complete();
-            Assert.That(Texts(), Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain("EARN " + rule.name.ToUpperInvariant()).And.Contain(rule.description + "\n" + rule.effect));
+            var talk = app.GetComponentInChildren<GuardianTalk>(); talk.Complete();
+            Assert.That(Texts(), Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain(catalog.Realm(1).guardianName)
+                .And.Contain(catalog.Realm(1).guardianTitle));
+            // A tap turns to the rule page: what the rule earns, the rule and its effect.
             Click(app, "Continue"); yield return null;
             Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianLines.greeting));
+            Assert.That(Texts(), Does.Contain("Earn a " + HudLayout.BonusName(rule.bonus)).And.Contain(rule.description.TrimEnd('.') + ".").And.Contain(rule.effect));
+            Assert.That(new GuardianGreetings(() => greeted, _ => { }).Greeted(1), Is.False, "The rule page is part of the greeting");
+            Click(app, "Continue"); yield return null;
+            Assert.That(Texts(), Does.Not.Contain(rule.effect));
             Assert.That(new GuardianGreetings(() => greeted, _ => { }).Greeted(1), Is.True);
             Click(app, "Daily"); yield return Page(StorePage.Daily);
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
@@ -420,11 +426,12 @@ namespace ZKube.Tests
             Assert.That(Texts(), Does.Contain("Level 3"));
         }
         // The map fits its whole path between the header and Play on both
-        // phones, as the v3 wireframe fits it ("meet" in a 60 x 100 box): it
-        // never scrolls, so another realm always opens whole. It speaks the
-        // spec's 9 words on Tiki. Every node and its star row clear the others by
-        // at least 4 dp in every realm, with every level finished and with a
-        // current node, as the spec's footprint rule asks.
+        // phones, spread over the room's width and height apart: it never
+        // scrolls, so another realm always opens whole, and the path spans at
+        // least 70% of the width. It speaks the spec's 9 words on Tiki. Every
+        // node is at least 34 dp, and every node and its star row clear the
+        // others by at least 4 dp in every realm, with every level finished and
+        // with a current node, as the spec's footprint rule asks.
         [UnityTest] public IEnumerator EveryRealmsMapFitsWholeAndItsNodesClearEachOtherOnBothPhones()
         {
             var shell = app.GetComponent<PageShell>();
@@ -456,6 +463,11 @@ namespace ZKube.Tests
                             Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Scroll.viewport.rect.height + .5f), where + " does not scroll");
                             var nodes = Nodes();
                             Assert.That(nodes.Length, Is.EqualTo(10), where);
+                            var faces = nodes.Select(node => SkinUi.ScreenRect(node.GetComponentsInChildren<Image>()
+                                .Single(image => image.name == node.name + " node" || image.name == node.name + " ring").rectTransform)).ToArray();
+                            foreach (var face in faces) Assert.That(face.width / d, Is.GreaterThanOrEqualTo(PageViews.MinimumNodeDp - .01f), where + ": a node is at least 34 dp");
+                            Assert.That((faces.Max(face => face.xMax) - faces.Min(face => face.xMin)) / shell.SafeArea.width, Is.GreaterThanOrEqualTo(.7f),
+                                where + ": the path spans the width");
                             var feet = nodes.Select(node => node.GetComponentsInChildren<Image>()
                                 .Where(image => image.name == node.name + " node" || image.name == node.name + " ring" || image.name.StartsWith(node.name + " star "))
                                 .Select(image => SkinUi.ScreenRect(image.rectTransform))
@@ -849,8 +861,8 @@ namespace ZKube.Tests
                     at + ": '" + text.text + "' " + rect + " stays in the safe area " + safe);
             }
             var pieces = app.GetComponentsInChildren<Graphic>().Where(image => new[] { "Screen title plate", "Star crown", "Screen card", "Score plate",
-                "Wordmark", "Daily card", "Campaign card", "Map header" }.Contains(image.name) || image.name == "Lit path").Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
-            Assert.That(pieces.Count, Is.GreaterThanOrEqualTo(2), at + " draws its title and its focal piece");
+                "Wordmark", "Daily card", "Campaign card", "Map header" }.Contains(image.name)).Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
+            Assert.That(pieces.Count + buttons.Length, Is.GreaterThanOrEqualTo(2), at + " draws its title and its focal piece or action");
             // The guardian's bubble stays above its card.
             var bubble = app.GetComponentsInChildren<Image>().SingleOrDefault(image => image.name == "Guardian bubble");
             if (bubble != null)
@@ -907,6 +919,76 @@ namespace ZKube.Tests
             }
             finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
+        // The map greeting, its rule page, the profile and settings, as the v3
+        // composites draw them, on both phones: every word fits in the safe area,
+        // each action is 48 dp to touch and each screen speaks the spec's count
+        // (8, 44 and 21 words, and the rule page's 6 with its rule and effect;
+        // a guardian's line is its own).
+        [UnityTest] public IEnumerator GreetingRuleProfileAndSettingsSpeakTheirWordsAndFitOnBothPhones()
+        {
+            var shell = app.GetComponent<PageShell>();
+            product.Write(state => { state.Stars[9] = 1; state.WornEmblem = 1; return state; });
+            // The composite's levels: music at 20% and effects at 40%.
+            board.SetMusicVolume(.2); board.SetEffectsVolume(.4); board.SetMuted(false);
+            try
+            {
+                foreach (bool compact in new[] { false, true })
+                {
+                    if (compact) ZKube.Tests.Presentation.Phones.Compact(shell); else ZKube.Tests.Presentation.Phones.Seeker(shell);
+                    string phone = compact ? "360 x 640" : "Seeker";
+                    var safe = shell.SafeArea; float d = safe.height / (compact ? 572 : 882);
+                    void Fits(IEnumerable<TMP_Text> texts, string at, int words)
+                    {
+                        Canvas.ForceUpdateCanvases();
+                        texts = texts.Where(text => text.gameObject.activeInHierarchy && !string.IsNullOrEmpty(text.text)).ToArray();
+                        string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
+                        var counted = texts.Where(text => !text.name.EndsWith(" line") && text.name != "Guardian line").ToArray();
+                        Assert.That(counted.Sum(text => Word.Matches(Plain(text.text)).Count), Is.EqualTo(words),
+                            at + " words: " + string.Join(" | ", counted.Select(text => Plain(text.text))));
+                        foreach (var text in texts)
+                        {
+                            text.ForceMeshUpdate();
+                            var rect = SkinUi.ScreenRect(text.rectTransform);
+                            Assert.That(text.GetPreferredValues(text.text, rect.width, float.PositiveInfinity).y, Is.LessThanOrEqualTo(rect.height + .5f), at + ": '" + text.text + "' fits");
+                            if (text.textWrappingMode == TextWrappingModes.NoWrap)
+                                Assert.That(text.GetPreferredValues(text.text, float.PositiveInfinity, float.PositiveInfinity).x, Is.LessThanOrEqualTo(rect.width + 1),
+                                    at + ": '" + text.text + "' fits its width");
+                            Assert.That(rect.xMin >= safe.xMin - .5f && rect.xMax <= safe.xMax + .5f && rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f,
+                                Is.True, at + ": '" + text.text + "' stays in the safe area");
+                        }
+                    }
+                    void Touch(string name, string at) =>
+                        Assert.That(SkinUi.ScreenRect((RectTransform)FindButton(app, name).transform).height / d, Is.GreaterThanOrEqualTo(48 - .01f), at + ": " + name);
+                    // The greeting and its rule page.
+                    greeted = 0;
+                    app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+                    app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    var greeting = shell.Chrome.Find("Guardian greeting");
+                    var talk = greeting.GetComponentInChildren<GuardianTalk>(); talk.Complete();
+                    Fits(greeting.GetComponentsInChildren<TMP_Text>(), phone + " greeting", 8);
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " greeting");
+                    Click(app, "Continue"); yield return null;
+                    var rule = PageCatalog.Load().Rule(1);
+                    Fits(greeting.GetComponentsInChildren<TMP_Text>(), phone + " greeting rule",
+                        6 + Word.Matches(rule.description).Count + Word.Matches(rule.effect).Count);
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " greeting rule");
+                    Click(app, "Continue"); yield return null;
+                    // The profile and settings, their tab labels counted.
+                    app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " profile", 44);
+                    Touch("Edit name", phone + " profile");
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " profile");
+                    app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " settings", 21);
+                    foreach (var name in new[] { "Music switch", "Effects switch", "Text size: standard", "Restore purchases" }) Touch(name, phone + " settings");
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " settings");
+                }
+            }
+            finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+        }
         // Every level's preview has its own line: the guardian's trial line on its
         // own level, and no two neighbouring levels share one.
         [UnityTest] public IEnumerator EachLevelPreviewSpeaksItsOwnLine()
@@ -939,18 +1021,19 @@ namespace ZKube.Tests
             Assert.That(app.GetComponentsInChildren<Image>().Any(image => image.name == "Settings icon"), Is.False, "Home has no settings gear");
             Assert.That(FindButton(app, "Settings").transform.IsChildOf(app.GetComponent<PageShell>().Chrome), Is.True, "Settings is a tab");
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
-            var name = SkinUi.ScreenRect((RectTransform)FindButton(app, "Edit name").transform);
-            var stat = SkinUi.ScreenRect((RectTransform)app.GetComponentsInChildren<Image>().First(image => image.name == "Best Daily row").transform);
-            Assert.That(name.xMin, Is.EqualTo(stat.xMin).Within(.5f)); Assert.That(name.xMax, Is.EqualTo(stat.xMax).Within(.5f));
             Click(app, "Edit name"); yield return null;
             var field = app.GetComponentInChildren<TMP_InputField>();
+            // The name is edited in place, in the wearer's card.
+            var wearer = SkinUi.ScreenRect(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wearer card").rectTransform);
+            var at = SkinUi.ScreenRect((RectTransform)field.transform);
+            Assert.That(wearer.Contains(at.min) && wearer.Contains(at.max), Is.True, "The field sits in the wearer card");
             Assert.That(field.customCaretColor, Is.True); Assert.That(field.caretColor.a, Is.GreaterThan(.9f)); Assert.That(field.caretWidth, Is.GreaterThanOrEqualTo(2));
             var purpose = SkinUi.ScreenRect(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name purpose").rectTransform);
             var preview = SkinUi.ScreenRect(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name preview").rectTransform);
             Assert.That(purpose.xMin, Is.EqualTo(preview.xMin).Within(.5f), "The helper text keeps the cards' text margin");
             app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
-            foreach (var row in new[] { "Haptics row", "Reduced motion row" })
-                Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == row).GetComponentsInChildren<TMP_Text>().Select(text => text.text),
+            foreach (var row in new[] { "Haptics", "Reduced motion" })
+                Assert.That(app.GetComponentsInChildren<TMP_Text>().Where(text => text.name.StartsWith(row)).Select(text => text.text),
                     Has.None.EqualTo("On").And.None.EqualTo("Off"), row);
         }
         private void AssertEveryVisiblePieceHasArt(string step)

@@ -63,7 +63,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator FreshProfileDoesNotOfferOpenedButUnearnedGuardians()
         {
             yield return PrepareProfilePage("profile-fresh");
-            Assert.That(Text("Campaign stars"), Is.EqualTo("0 / 300"));
+            Assert.That(Text("Campaign stars"), Is.EqualTo("0/300"));
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             foreach (var button in host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Emblem ") && button.name != "Emblem 0"))
                 Assert.That(button.interactable, Is.False, button.name);

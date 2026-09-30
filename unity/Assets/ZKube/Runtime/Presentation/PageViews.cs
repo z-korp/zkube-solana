@@ -92,11 +92,11 @@ namespace ZKube.Presentation
                     LevelScreen(level, messages); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(2, "Profile", null, profile.Records, null, messages, leftIcon: SkinSlots.IconTrophy); Profile(profile); break;
+                    Frame(2, null, null, profile.Records, null, Array.Empty<string>(), leftIcon: SkinSlots.IconTrophy); Profile(profile, messages); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
-                    Frame(3, "Settings", null, null, null, messages);
-                    Settings(settings); break;
+                    Frame(3, null, null, null, null, Array.Empty<string>());
+                    Settings(settings, messages); break;
                 case AppPage.Result:
                     var result = source.ResultPage();
                     if (result.HasResult && result.ShowStars) { Frame(-1, null, null, null, null, messages, fullBleed: true); back = result.Done; CampaignScreen(result); }

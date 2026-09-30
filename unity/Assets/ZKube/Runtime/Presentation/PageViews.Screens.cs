@@ -49,7 +49,7 @@ namespace ZKube.Presentation
             var rowHeights = goals.Select(goal => Kit.RowHeight(goal.Caption, null, inner, iconU, RightWidth(goal))).ToArray();
             // The moves and the rule share the last row: the moves chip, then the
             // trigger pictogram, an arrow, the bonus icon and the rule's words.
-            string moves = value.Moves.ToString(CultureInfo.InvariantCulture), earns = "Earns a " + Sentence(HudLayout.PowerName(bonus).ToLowerInvariant());
+            string moves = value.Moves.ToString(CultureInfo.InvariantCulture), earns = "Earns a " + HudLayout.BonusName(bonus);
             float chipWidth = 22 * u + ui.TextWidth(moves, 16 * k, SkinUi.Type.Display) + ui.TextWidth(" moves", Mathf.Max(12, 13 * k), SkinUi.Type.Caption) + 22 * u;
             float ruleLead = chipWidth + 12 * u + 30 * u + 20 * u + 30 * u + 10 * u;
             float ruleHeight = Mathf.Max(50 * u, ui.TextHeight(rule.description, inner - ruleLead, Mathf.Max(13, 15 * k), SkinUi.Type.Caption)

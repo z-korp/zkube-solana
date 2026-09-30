@@ -73,8 +73,8 @@ namespace ZKube.Presentation
             long minutes = DayCountdown(seconds) / 60;
             return (minutes / 60).ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + (minutes % 60).ToString("00", System.Globalization.CultureInfo.InvariantCulture);
         }
-        public static string PowerName(byte bonus) => bonus == 1 ? "HAMMER" : bonus == 3 ? "WAVE" : "TOTEM";
-        public static string GuardianCaption(byte bonus) => "EARN " + PowerName(bonus);
+        // The bonus a realm's guardian grants, as a word.
+        public static string BonusName(byte bonus) => bonus == 1 ? "Hammer" : bonus == 3 ? "Wave" : "Totem";
         public static string BonusIcon(byte bonus, bool charged) => bonus == 1
             ? charged ? SkinSlots.IconHammer : SkinSlots.IconHammerEmpty
             : bonus == 3 ? charged ? SkinSlots.IconWave : SkinSlots.IconWaveEmpty

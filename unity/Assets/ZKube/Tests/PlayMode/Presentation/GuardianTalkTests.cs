@@ -92,7 +92,8 @@ namespace ZKube.Presentation.Tests
 
         [Test] public void TheGuardianLeansOnTheRailOverTheBox()
         {
-            var talk = Talk(null, new TalkPage("One line.", "idle", "EARN WAVE", "Clear 2+ lines in a move"));
+            var rule = PageCatalog.Load().Rule(1);
+            var talk = Talk(null, new TalkPage("One line.", "idle"), TalkPage.RulePage(rule));
             Image Part(string name) => root.GetComponentsInChildren<Image>(true).Single(i => i.name == name);
             var box = SkinUi.ScreenRect((RectTransform)talk.transform);
             var rail = SkinUi.ScreenRect(Part("Talk rail").rectTransform);
@@ -101,23 +102,36 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(box.xMin - 2, rail.xMin, .01f, "The rail overhangs the box");
             var frame = SkinUi.ScreenRect(body.rectTransform);
             Assert.AreEqual(box.yMax, frame.yMax - art.GuardianRailY * frame.height, .01f, "Its rail line sits on the ledge");
-            Assert.AreEqual(box.center.x, frame.center.x, .01f);
+            Assert.AreEqual(box.x + box.width * SkinUi.TalkGuardianAt, frame.center.x, .01f, "It stands right of centre");
             int Order(Component c) => c.transform.GetSiblingIndex();
             Assert.Less(Order(body), Order(talk), "The body is behind the box");
             Assert.Greater(Order(paws), Order(Part("Talk rail")), "The paws rest in front of the rail");
             Assert.AreEqual("boss__paws", paws.sprite.name.Replace("(Clone)", ""));
             Assert.AreEqual(Image.Type.Sliced, Part("Talk rail").type);
+            // The name tag breaks the box's top on its left, clear of the guardian, with the title inside it.
+            var tag = SkinUi.ScreenRect(Part("Talk name tag").rectTransform);
+            Assert.Greater(tag.yMax, box.yMax, "The tag breaks the box's top edge");
+            Assert.LessOrEqual(tag.xMax, frame.center.x - frame.width / 4, "The tag stays clear of the guardian");
             var name = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk name");
-            Assert.AreEqual(realm.guardianName, name.text); Assert.AreEqual(art.Font(SkinUi.Type.Title), name.font);
+            Assert.AreEqual(realm.guardianName, name.text); Assert.AreEqual(art.Font(SkinUi.Type.Display), name.font);
             var title = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk title");
             Assert.AreEqual(realm.guardianTitle, title.text);
-            Assert.IsTrue((title.fontStyle & FontStyles.UpperCase) != 0, "Labels render in capitals");
-            var line = root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk line");
-            Assert.AreEqual(TextAlignmentOptions.TopLeft, title.alignment);
-            Assert.AreEqual(SkinUi.ScreenRect(line.rectTransform).xMin, SkinUi.ScreenRect(title.rectTransform).xMin, .01f, "The title shares the line's left edge");
-            Assert.LessOrEqual(SkinUi.ScreenRect(title.rectTransform).yMax, SkinUi.ScreenRect(Part("Talk name tag").rectTransform).yMin + .01f, "It sits under the tag");
-            talk.Complete();
-            Assert.AreEqual("EARN WAVE", root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule heading").text);
+            Assert.IsTrue((title.fontStyle & FontStyles.UpperCase) == 0, "The title reads as words");
+            var titleRect = SkinUi.ScreenRect(title.rectTransform);
+            Assert.IsTrue(titleRect.yMin >= tag.yMin - .01f && titleRect.yMax <= tag.yMax + .01f && titleRect.xMin >= tag.xMin, "The title sits inside the tag");
+            // The rule page: the tag names what the rule earns, the Earn panel at size, the rule and its effect.
+            talk.Complete(); talk.Tap();
+            Assert.AreEqual(1, talk.Page);
+            Assert.IsFalse(talk.Typing, "A rule page shows at once");
+            Assert.AreEqual("Earn a Wave", name.text);
+            Assert.IsFalse(title.gameObject.activeInHierarchy, "The title belongs to the guardian's pages");
+            Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>(true).Single(t => t.name == "Talk line").gameObject.activeInHierarchy);
+            Assert.AreEqual(rule.pictogram, Part("Talk rule trigger").sprite.name.Replace("(Clone)", ""));
+            Assert.AreEqual(HudLayout.BonusIcon(rule.bonus, true), Part("Talk rule bonus").sprite.name.Replace("(Clone)", ""));
+            Assert.AreEqual(SkinUi.RuleIconDp, SkinUi.ScreenRect(Part("Talk rule trigger").rectTransform).width, .01f);
+            Assert.AreEqual(rule.description.TrimEnd('.') + ".", root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule").text);
+            Assert.AreEqual(rule.effect, root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule effect").text);
+            talk.Tap(); Assert.IsTrue(talk.Done);
         }
 
         [Test] public void TheBoxFitsItsLinesWithTwoAtLeastAndCanHideItsHint()
@@ -127,17 +141,18 @@ namespace ZKube.Presentation.Tests
             float twoLines = 42 + 2 * SkinUi.TalkLeadingDp + 32;
             Assert.AreEqual(twoLines, Box(shortLine).height, .01f, "A short line gets a compact box two lines tall");
             Object.Destroy(shortLine.gameObject);
-            var ruled = Talk(null, new TalkPage("One line.", "idle", "EARN WAVE", "Clear 2+ lines in a move"));
-            Assert.Greater(Box(ruled).height, twoLines, "The rule adds its block");
+            var ruled = Talk(null, new TalkPage("One line.", "idle"), TalkPage.RulePage(PageCatalog.Load().Rule(1)));
+            Assert.Greater(Box(ruled).height, twoLines, "The rule page sizes the box");
             var hint = root.GetComponentsInChildren<TMP_Text>().Last(t => t.name == "Talk hint");
             // The hint sits inside the box, in its bottom band beside the ▼, clear of the rule.
             var cue = root.GetComponentsInChildren<TMP_Text>(true).Last(t => t.name == "Talk continue");
-            var rule = root.GetComponentsInChildren<TMP_Text>(true).Last(t => t.name == "Talk rule");
-            ruled.Complete(); hint.ForceMeshUpdate(); rule.ForceMeshUpdate();
+            ruled.Complete(); ruled.Tap();
+            var effect = root.GetComponentsInChildren<TMP_Text>(true).Last(t => t.name == "Talk rule effect");
+            hint.ForceMeshUpdate(); effect.ForceMeshUpdate();
             var box = Box(ruled); var words = SkinUi.ScreenRect(hint.rectTransform);
             Assert.IsTrue(box.Contains(words.min) && box.Contains(words.max), "Inside the box");
             Assert.LessOrEqual(words.xMax, SkinUi.ScreenRect(cue.rectTransform).xMin, "Beside the ▼");
-            float ruleInk = rule.transform.TransformPoint(rule.textBounds.min).y;
+            float ruleInk = effect.transform.TransformPoint(effect.textBounds.min).y;
             Assert.LessOrEqual(words.yMax, ruleInk, "Under the rule's words");
             var quiet = ui.Talk("Quiet", 16, 300, 368, realm, new[] { new TalkPage("Hm.", "idle") }, null, root.transform, hint: false);
             Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>().Any(t => t.name == "Quiet hint"), "A dialog with its own buttons hides the hint");
@@ -157,10 +172,11 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual((lines.newBestLine, "surprised"), Said(TalkPage.For(lines, TalkMoment.NewBest)));
             var rule = PageCatalog.Load().guardianRules[0];
             var first = TalkPage.MapGreeting(realm, rule, false);
-            Assert.AreEqual(1, first.Length); Assert.AreEqual(lines.greeting, first[0].Line);
-            Assert.AreEqual(HudLayout.GuardianCaption(rule.bonus), first[0].RuleHeading); Assert.AreEqual(rule.description, first[0].Rule);
+            Assert.AreEqual(2, first.Length); Assert.AreEqual(lines.greeting, first[0].Line);
+            Assert.AreSame(rule, first[1].Rule, "The greeting is followed by the guardian's rule page");
+            Assert.AreEqual("Earn a " + HudLayout.BonusName(rule.bonus), first[1].RuleHeading);
             var passage = TalkPage.MapGreeting(realm, rule, true);
-            Assert.AreEqual(new[] { lines.respectLine, lines.greeting }, passage.Select(p => p.Line).ToArray(),
+            Assert.AreEqual(new[] { lines.respectLine, lines.greeting, null }, passage.Select(p => p.Line).ToArray(),
                 "A realm opened by beating its predecessor's guardian first grants passage");
         }
         private static (string, string) Said(TalkPage page) => (page.Line, page.Mood);

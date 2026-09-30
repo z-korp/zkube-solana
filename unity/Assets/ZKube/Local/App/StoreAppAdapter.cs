@@ -208,7 +208,7 @@ namespace ZKube.Local.App
             var state = Flow.Product.Read;
             var worn = ProfileEmblems.All.FirstOrDefault(emblem => emblem.Id != 0 && emblem.Id == state.WornEmblem);
             return new ProfilePageView { Name = state.Name, ChangeName = Flow.SetName, Realm = WornRealm, Emblem = worn?.Id ?? 0,
-                Worn = worn == null ? null : "Wearing " + worn.Name,
+                Worn = worn == null ? null : "Wearing " + worn.Name + (worn.Realm != 0 ? "’s emblem" : ""),
                 Stars = state.Stars.Sum(value => (int)value), Streak = state.Streak, BestDailyScore = state.BestDailyScore,
                 Emblems = ProfileEmblems.All.Where(emblem => emblem.Id != 0).Select(emblem => {
                     byte id = emblem.Id;

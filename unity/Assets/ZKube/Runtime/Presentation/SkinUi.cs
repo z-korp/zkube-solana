@@ -187,19 +187,25 @@ namespace ZKube.Presentation
             float d = Density, inner = width - 40 * d;
             float Glyph(float fromTop, float sizeDp) => top - fromTop * d + HudLayout.DigitTop * sizeDp * Scale * d;
             // At least two lines tall, so a short line still gives a settled box.
-            float lineHeight = 2 * TalkLeadingDp * Scale * d, ruleHeight = 0;
+            float lineHeight = 2 * TalkLeadingDp * Scale * d;
             foreach (var page in pages)
+                if (page.Line != null) lineHeight = Mathf.Max(lineHeight, Lines(page.Line, inner, TalkLineDp, Type.Caption) * TalkLeadingDp * Scale * d);
+            // A rule page: the Earn panel at size, then the rule and its effect, centred.
+            var ruled = pages.FirstOrDefault(page => page.Rule != null);
+            float icon = RuleIconDp * d, sentence = 0, effect = 0, ruleHeight = 0;
+            if (ruled != null)
             {
-                lineHeight = Mathf.Max(lineHeight, Lines(page.Line, inner, TalkLineDp, Type.Caption) * TalkLeadingDp * Scale * d);
-                if (page.Rule != null) ruleHeight = Mathf.Max(ruleHeight, TextHeight(page.Rule, inner, 12, Type.Caption) + 20 * Scale * d);
+                sentence = TextHeight(ruled.RuleSentence, inner, TalkLineDp, Type.Caption);
+                effect = TextHeight(ruled.Rule.effect, inner, 13, Type.Caption);
+                ruleHeight = icon + 12 * d + sentence + 4 * d + effect;
             }
-            // The box fits its content: the line, then the rule 24 dp under it.
-            float ruleTop = 42 + lineHeight / d + 24;
-            float height = (ruleHeight > 0 ? ruleTop * d + ruleHeight : 42 * d + lineHeight) + 32 * d;
+            // The box fits its tallest page.
+            float height = 42 * d + Mathf.Max(lineHeight, ruleHeight) + 32 * d;
             var box = new Rect(x, top - height, width, height);
 
+            // The guardian leans on the ledge right of centre, clear of the name tag.
             float body = Mathf.Min(180 * d, width * .49f), rail = 14 * d;
-            var frame = new Rect(box.center.x - body / 2, top - (1 - Art.GuardianRailY) * body, body, body);
+            var frame = new Rect(box.x + width * TalkGuardianAt - body / 2, top - (1 - Art.GuardianRailY) * body, body, body);
             var guardian = Rect<Image>(name + " guardian", frame, parent);
             guardian.sprite = Art.Sprite("boss__idle"); guardian.preserveAspect = true; guardian.raycastTarget = false;
             var panel = Piece(name, SkinSlots.Dialog, box, parent); panel.raycastTarget = true;
@@ -209,23 +215,40 @@ namespace ZKube.Presentation
             var paws = Rect<Image>(name + " paws", frame, parent);
             paws.sprite = Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;
 
-            float tagWidth = Mathf.Max(94 * d, TextWidth(realm.guardianName, 18, Type.Title) + 24 * d);
-            var tag = new Rect(box.x + 12 * d, top + 8 * d - 32 * d, tagWidth, 32 * d);
-            Piece(name + " name tag", SkinSlots.TabSelected, tag, parent);
-            Label(name + " name", realm.guardianName, tag, 18, SkinTokens.TextOnPrimary, parent, Type.Title);
-            // The title sits under the tag, on the line's left edge.
-            float titleHeight = TextHeight(realm.guardianTitle, inner, 11, Type.Label);
-            Label(name + " title", realm.guardianTitle, new Rect(box.x + 20 * d, Glyph(28, 11) - titleHeight, inner, titleHeight),
-                11, SkinTokens.TextMuted, parent, Type.Label, TextAlignmentOptions.TopLeft);
+            // The name tag breaks the box's top edge: the name, and the guardian's
+            // title under it; on the rule page, what the rule earns.
+            string heading = ruled?.RuleHeading ?? "";
+            float nameWidth = Mathf.Max(TextWidth(realm.guardianName, TalkNameDp, Type.Display), TextWidth(heading, TalkNameDp, Type.Display));
+            float tagWidth = Mathf.Min(inner, Mathf.Max(nameWidth, TextWidth(realm.guardianTitle, 12, Type.Caption)) + 24 * d);
+            float nameHeight = TextHeight(realm.guardianName, tagWidth, TalkNameDp, Type.Display), titleHeight = TextHeight(realm.guardianTitle, tagWidth, 12, Type.Caption);
+            var tag = new Rect(box.x + 12 * d, top + 12 * d - (nameHeight + titleHeight + 8 * d), tagWidth, nameHeight + titleHeight + 8 * d);
+            Piece(name + " name tag", SkinSlots.TitlePlate, tag, parent);
+            var tagName = Label(name + " name", realm.guardianName, new Rect(tag.x + 12 * d, tag.yMax - 4 * d - nameHeight, tagWidth - 24 * d, nameHeight),
+                TalkNameDp, SkinTokens.Accent, parent, Type.Display, TextAlignmentOptions.Left);
+            tagName.textWrappingMode = TextWrappingModes.NoWrap;
+            var tagTitle = Label(name + " title", realm.guardianTitle, new Rect(tag.x + 12 * d, tag.y + 4 * d, tagWidth - 24 * d, titleHeight), 12,
+                SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.TopLeft);
 
             var text = Label(name + " line", "", new Rect(box.x + 20 * d, Glyph(42, TalkLineDp) - lineHeight - 4 * d, inner, lineHeight + 4 * d),
                 TalkLineDp, SkinTokens.Text, parent, Type.Caption, TextAlignmentOptions.TopLeft);
             text.lineSpacing = LineSpacing(text.font, TalkLeadingDp / TalkLineDp);
-            float headingHeight = TextHeight("EARN", inner, 11, Type.Label);
-            var heading = Label(name + " rule heading", "", new Rect(box.x + 20 * d, Glyph(ruleTop, 11) - headingHeight, inner, headingHeight), 11,
-                SkinTokens.Accent, parent, Type.Label, TextAlignmentOptions.TopLeft);
-            var rule = Label(name + " rule", "", new Rect(box.x + 20 * d, Glyph(ruleTop + 20, 12) - Mathf.Max(1, ruleHeight), inner, Mathf.Max(1, ruleHeight)),
-                12, SkinTokens.Text, parent, Type.Caption, TextAlignmentOptions.TopLeft);
+            GameObject rules = null;
+            if (ruled != null)
+            {
+                rules = new GameObject(name + " rule", typeof(RectTransform));
+                rules.transform.SetParent(parent, false); Place((RectTransform)rules.transform, box, parent);
+                float row = top - 42 * d - icon, centre = box.center.x;
+                Piece(name + " rule trigger", ruled.Rule.pictogram, new Rect(centre - icon - 22 * d, row, icon, icon), rules.transform);
+                if (!string.IsNullOrEmpty(ruled.Rule.chip))
+                    Label(name + " rule chip", ruled.Rule.chip, new Rect(centre - icon - 26 * d, row - 4 * d, 30 * d, 18 * d), 13, SkinTokens.Text, rules.transform,
+                        Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
+                Label(name + " rule arrow", "→", new Rect(centre - 16 * d, row, 32 * d, icon), 22, SkinTokens.TextMuted, rules.transform, Type.Caption);
+                Piece(name + " rule bonus", HudLayout.BonusIcon(ruled.Rule.bonus, true), new Rect(centre + 22 * d, row, icon, icon), rules.transform);
+                Label(name + " rule", ruled.RuleSentence, new Rect(box.x + 20 * d, row - 12 * d - sentence, inner, sentence), TalkLineDp, SkinTokens.Text,
+                    rules.transform, Type.Caption);
+                Label(name + " rule effect", ruled.Rule.effect, new Rect(box.x + 20 * d, row - 12 * d - sentence - 4 * d - effect, inner, effect), 13,
+                    SkinTokens.TextMuted, rules.transform, Type.Caption);
+            }
             var cue = Label(name + " continue", "▼", new Rect(box.xMax - 36 * d, box.y + 8 * d, 20 * d, 20 * d), 10, SkinTokens.Text, parent, Type.Body);
             // The hint shares the box's bottom band with the ▼, inside the box,
             // so nothing the page draws beneath can meet it.
@@ -234,9 +257,11 @@ namespace ZKube.Presentation
                     SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Right);
 
             var talk = panel.gameObject.AddComponent<GuardianTalk>();
-            talk.Bind(Art, guardian, text, heading, rule, cue, pages, finished);
+            talk.Bind(Art, guardian, text, tagName, tagTitle, rules, cue, pages, finished);
             return talk;
         }
+        // The guardian stands at this share of the box's width; the rule's pictograms are 56 dp; the name 20 dp.
+        public const float TalkGuardianAt = .64f, RuleIconDp = 56, TalkNameDp = 20;
         public const string TapHint = "Tap to continue";
         // The dialogue line is 17 dp on a 24 dp leading, as drawn.
         public const float TalkLineDp = 17, TalkLeadingDp = 24;

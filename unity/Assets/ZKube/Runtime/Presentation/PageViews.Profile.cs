@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using ZKube.Core.Generated;
+using Piece = ZKube.Presentation.ScreenKit.Piece;
 
 namespace ZKube.Presentation
 {
@@ -14,37 +16,33 @@ namespace ZKube.Presentation
         public const int NameLimit = 24;
         private bool editingName;
 
-        // The profile: the worn emblem's medallion, the name (edited in place
-        // where the identity allows it), what is worn, the stat rows and the
-        // emblem grid, locked emblems dimmed.
-        private void Profile(ProfilePageView value)
+        // The profile, as the v3 composite draws it: the title plate, the
+        // wearer's card (the worn emblem, the name, edited in place where the
+        // identity allows it, and what is worn), the three stat tiles and the
+        // guardian emblems in a card, then Edit name. The identity's own lines
+        // and actions (the ladder standing, borders, saving) follow.
+        private void Profile(ProfilePageView value, string[] notices)
         {
-            float d = ui.Density;
-            column.Gap(-1);
-            var medallion = column.Take(114 * d, 11);
-            ui.Medallion("Worn emblem", new Rect(medallion.center.x - 57 * d, medallion.y, 114 * d, 114 * d), EmblemArt(value.Emblem), shell.Page,
-                value.Tier.HasValue ? SkinSlots.LadderBorder(value.Tier.Value) : SkinSlots.GuardianFrame);
+            var kit = Kit;
             if (value.ChangeName == null) editingName = false;
             if (savedName != value.Name) { savedName = value.Name; editedName = value.Name; }
-            NameRow(value);
-            if (!string.IsNullOrEmpty(value.Worn))
+            var pieces = new List<Piece> { kit.TitlePlate("Profile", null) };
+            foreach (var notice in notices) pieces.Add(kit.Note(notice));
+            pieces.Add(WearerCard(value, kit));
+            if (editingName) { Compose(pieces.ToArray()); NameEditor(value); return; }
+            pieces.Add(StatTiles(value, kit));
+            if (value.Emblems.Length != 0) pieces.Add(EmblemCard(value.Emblems, kit));
+            foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
+            if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(kit.Note(value.Notice));
+            if (value.ChangeName != null)
             {
-                var worn = column.Typed("Worn", value.Worn, SkinUi.Type.Caption, 13, SkinTokens.TextMuted, editingName ? 29 : 19);
-                Shade(SkinUi.ScreenRect(worn.rectTransform), ui.TextWidth(value.Worn, 13, SkinUi.Type.Caption), shell.Page);
-                worn.transform.SetAsLastSibling();
+                pieces.Add(Piece.Grow);
+                pieces.Add(Buttons((new PageAction { Name = "Edit name", Label = "Edit name", Invoke = () => { editingName = true; editedName = value.Name; Redraw(); } },
+                    false, SkinSlots.IconProfile)));
             }
+            Compose(pieces.ToArray());
             if (value.Standing != null) Standing(value);
-            if (editingName) { NameEditor(value); return; }
-            var rows = new PageColumn(ui, shell.Page, actions, column.Left + 16 * d, column.Width - 32 * d, column.Top);
-            ResultRow(rows, "Best Daily", "Best Daily", value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture), SkinTokens.Score, 6);
-            ResultRow(rows, "Campaign stars", "Campaign stars", value.Stars + " / " + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3,
-                SkinTokens.Score, 6);
-            ResultRow(rows, "Daily streak", "Daily streak", Days(value.Streak), SkinTokens.Score, 13);
-            column.Top = rows.Top;
-            foreach (var fact in value.Facts) column.Typed("Profile fact", fact, SkinUi.Type.Body, 15, SkinTokens.Text, 8);
-            if (!string.IsNullOrEmpty(value.Notice)) column.Typed("Profile notice", value.Notice, SkinUi.Type.Body, 15, SkinTokens.Text, 8);
             foreach (var action in value.Actions) Pill(column, action, false, null, 12);
-            if (value.Emblems.Length != 0) Emblems(value.Emblems);
             if (value.Borders.Length != 0) column.Typed("Border heading", "BORDER", SkinUi.Type.Label, 12, SkinTokens.Accent, 10, TextAlignmentOptions.Left);
             foreach (var choice in value.Borders)
                 Pill(column, new PageAction { Name = "Border " + choice.Id, Label = choice.Name + (choice.Detail == null ? "" : " · " + choice.Detail),
@@ -52,46 +50,72 @@ namespace ZKube.Presentation
             Pill(column, value.Save, false, null, 12); Pill(column, value.Restore, false, null, 12);
         }
 
-        // The name on a 48 dp row. Tapping it edits the name in place; while
-        // editing, the row holds the text field.
-        private void NameRow(ProfilePageView value)
+        // The wearer: the worn emblem in its ring (the ladder border where there
+        // is a ladder), the name, or its field while editing, and what is worn.
+        private Piece WearerCard(ProfilePageView value, ScreenKit kit)
+        {
+            float d = ui.Density, u = kit.U, k = kit.K, face = Step(64, 52) * u;
+            float nameDp = Mathf.Max(16, 19 * k), wornDp = Mathf.Max(12, 14 * k), text = kit.Inner - face - 12 * u;
+            float nameHeight = Mathf.Max(editingName ? 48 * d : 0, ui.TextHeight(value.Name, text, nameDp, SkinUi.Type.Caption));
+            float wornHeight = string.IsNullOrEmpty(value.Worn) ? 0 : ui.TextHeight(value.Worn, text, wornDp, SkinUi.Type.Caption);
+            float row = Mathf.Max(face, nameHeight + wornHeight);
+            return kit.Card(row + 24 * u, card => {
+                float x = card.x + 12 * u, middle = card.center.y;
+                ui.Medallion("Worn emblem", new Rect(x, middle - face / 2, face, face), EmblemArt(value.Emblem), shell.Page,
+                    value.Tier.HasValue ? SkinSlots.LadderBorder(value.Tier.Value) : SkinSlots.GuardianFrame);
+                float tx = x + face + 12 * u, top = middle + (nameHeight + wornHeight) / 2;
+                var nameRect = new Rect(tx, top - nameHeight, text, nameHeight);
+                if (editingName) NameField(nameRect);
+                else ui.Label("Name text", value.Name, nameRect, nameDp, SkinTokens.Text, shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left)
+                    .textWrappingMode = TextWrappingModes.NoWrap;
+                if (wornHeight > 0)
+                    ui.Label("Worn", value.Worn, new Rect(tx, top - nameHeight - wornHeight, text, wornHeight), wornDp, SkinTokens.TextMuted, shell.Page,
+                        SkinUi.Type.Caption, TextAlignmentOptions.Left);
+            }, "Wearer card");
+        }
+
+        // Campaign stars, the best Daily and the streak, a tile each: the icon,
+        // the number and what it counts.
+        private Piece StatTiles(ProfilePageView value, ScreenKit kit)
+        {
+            float u = kit.U, k = kit.K, gap = 8 * u, tile = (kit.Width - 2 * gap) / 3, icon = 24 * u, numberDp = 24 * k, captionDp = Mathf.Max(11, 12 * k);
+            var tiles = new[] {
+                ("Campaign stars", SkinSlots.IconCampaign, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
+                ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
+                ("Daily streak", SkinSlots.IconClock, Days(value.Streak)) };
+            float numberHeight = ui.TextHeight("0", tile, numberDp, SkinUi.Type.Display);
+            float captionHeight = tiles.Max(entry => ui.TextHeight(entry.Item1, tile - 8 * u, captionDp, SkinUi.Type.Caption));
+            return new Piece(10 * u + icon + 4 * u + numberHeight + captionHeight + 10 * u, rect => {
+                for (int i = 0; i < tiles.Length; i++)
+                {
+                    var (name, slot, number) = tiles[i];
+                    var card = new Rect(rect.x + i * (tile + gap), rect.y, tile, rect.height);
+                    ui.Piece(name + " tile", SkinSlots.Card, card, shell.Page);
+                    ui.Piece(name + " icon", slot, new Rect(card.center.x - icon / 2, card.yMax - 10 * u - icon, icon, icon), shell.Page);
+                    var numberRect = new Rect(card.x + 4 * u, card.yMax - 14 * u - icon - numberHeight, tile - 8 * u, numberHeight);
+                    NumberFit.Apply(ui, ui.Label(name, number, numberRect, numberDp, SkinTokens.Score, shell.Page, SkinUi.Type.Display), numberRect.width, numberDp);
+                    ui.Label(name + " label", name, new Rect(card.x + 4 * u, card.y + 10 * u, tile - 8 * u, captionHeight), captionDp, SkinTokens.Text,
+                        shell.Page, SkinUi.Type.Caption);
+                }
+            });
+        }
+
+        // The name's field while editing, in the wearer card: a visible caret in
+        // the accent light.
+        private void NameField(Rect rect)
         {
             float d = ui.Density;
-            if (value.ChangeName == null)
-            {
-                var plain = column.Typed("Name text", value.Name, SkinUi.Type.Number, 22, SkinTokens.Text, 12);
-                plain.textWrappingMode = TextWrappingModes.NoWrap; plain.overflowMode = TextOverflowModes.Ellipsis;
-                return;
-            }
-            // The name row has the stat rows' width, 16 dp inside the column.
-            var rect = column.Take(48 * d, 3);
-            rect = new Rect(rect.x + 16 * d, rect.y, rect.width - 32 * d, rect.height);
             var row = ui.Piece("Player name", SkinSlots.ListRow, rect, shell.Page);
-            string cue = value.ChangeName == null ? null : editingName ? "Editing" : "Edit name";
-            float cueWidth = cue == null ? 0 : ui.TextWidth(cue, 13, SkinUi.Type.Caption);
-            if (cue != null)
-                ui.Label("Name cue", cue, new Rect(rect.xMax - 8 * d - cueWidth, rect.y, cueWidth, rect.height), 13, SkinTokens.Accent, row.transform,
-                    SkinUi.Type.Caption, TextAlignmentOptions.Right);
-            var text = new Rect(rect.x + 16 * d, rect.y, rect.width - 40 * d - cueWidth, rect.height);
-            if (!editingName)
-            {
-                ui.Label("Name text", value.Name, text, 20, SkinTokens.Text, row.transform, SkinUi.Type.Number, TextAlignmentOptions.Left)
-                    .textWrappingMode = TextWrappingModes.NoWrap;
-                if (value.ChangeName == null) return;
-                row.raycastTarget = true;
-                var edit = row.gameObject.AddComponent<Button>(); edit.transition = Selectable.Transition.None; row.name = "Edit name";
-                actions.Wire(edit, new PageAction { Name = "Edit name", Invoke = () => { editingName = true; editedName = value.Name; Redraw(); } },
-                    fade: false);
-                return;
-            }
             row.raycastTarget = true;
+            ui.Label("Name cue", "Editing", new Rect(rect.xMax - 8 * d - ui.TextWidth("Editing", 13, SkinUi.Type.Caption), rect.y,
+                ui.TextWidth("Editing", 13, SkinUi.Type.Caption), rect.height), 13, SkinTokens.Accent, row.transform, SkinUi.Type.Caption, TextAlignmentOptions.Right);
             var field = row.gameObject.AddComponent<TMP_InputField>(); field.characterLimit = NameLimit;
-            var area = ui.Rect<RectMask2D>("Text area", text, row.transform);
+            var area = ui.Rect<RectMask2D>("Text area", new Rect(rect.x + 12 * d, rect.y, rect.width - 32 * d - ui.TextWidth("Editing", 13, SkinUi.Type.Caption),
+                rect.height), row.transform);
             var label = ui.Label("Name text", "", SkinUi.ScreenRect(area.rectTransform), 20, SkinTokens.Text, area.transform, SkinUi.Type.Number,
                 TextAlignmentOptions.Left);
             label.textWrappingMode = TextWrappingModes.NoWrap;
             field.textViewport = area.rectTransform; field.textComponent = label; field.text = editedName;
-            // A visible caret in the accent light while the name is edited.
             field.customCaretColor = true; field.caretColor = ui.Art.Token(SkinTokens.Accent);
             field.caretWidth = Mathf.Max(2, Mathf.RoundToInt(2 * d)); field.caretBlinkRate = .85f;
             field.selectionColor = SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .35f);
@@ -157,118 +181,133 @@ namespace ZKube.Presentation
             field.ActivateInputField();
         }
 
-        // The emblem grid: four across, each emblem in the guardian ring with its
-        // name; locked ones are dimmed with a lock and take no tap.
-        private void Emblems(ProfileChoiceView[] emblems)
+        // The guardian emblems in a card: the heading and how an emblem is won,
+        // then four across, each emblem in the guardian ring with its name ("·
+        // worn" on the worn one); locked ones are dimmed with a lock and take no tap.
+        private Piece EmblemCard(ProfileChoiceView[] emblems, ScreenKit kit)
         {
-            float d = ui.Density;
-            var heading = new PageColumn(ui, shell.Page, actions, column.Left + 16 * d, column.Width - 32 * d, column.Top);
-            heading.Typed("Emblem heading", "GUARDIAN EMBLEMS", SkinUi.Type.Label, 12, SkinTokens.Accent, 8.6f, TextAlignmentOptions.Left);
-            column.Top = heading.Top;
-            int across = 4;
-            // Four across, 16 dp inside the column, as drawn.
-            float cell = 64 * d, pitch = (column.Width - 32 * d - cell) / (across - 1), left = column.Left + 16 * d;
-            var portraits = new List<KeyValuePair<byte, Image>>();
-            for (int row = 0; row * across < emblems.Length; row++)
-            {
-                float labelHeight = 0;
-                for (int i = 0; i < across && row * across + i < emblems.Length; i++)
-                    labelHeight = Mathf.Max(labelHeight, ui.TextHeight(emblems[row * across + i].Name, pitch - 8 * d, 11, SkinUi.Type.Caption));
-                var line = column.Take(cell + labelHeight, 8);
-                for (int i = 0; i < across && row * across + i < emblems.Length; i++)
+            float d = ui.Density, u = kit.U, k = kit.K, inner = kit.Inner, cell = Step(48, 40) * u, nameDp = Mathf.Max(11, 12 * k);
+            const string how = "Win a guardian’s final trial to earn its emblem.";
+            float headingHeight = ui.TextHeight("GUARDIAN EMBLEMS", inner, 12, SkinUi.Type.Label), howHeight = ui.TextHeight(how, inner, Mathf.Max(12, 13 * k), SkinUi.Type.Caption);
+            int across = 4; float pitch = inner / across;
+            string Name(ProfileChoiceView choice) => choice.Detail == null ? choice.Name : choice.Name + " · " + choice.Detail.ToLowerInvariant();
+            var rows = Enumerable.Range(0, (emblems.Length + across - 1) / across).Select(row => emblems.Skip(row * across).Take(across)
+                .Max(choice => ui.TextHeight(Name(choice), pitch - 4 * u, nameDp, SkinUi.Type.Caption))).ToArray();
+            float grid = rows.Sum(label => cell + 4 * u + label) + (rows.Length - 1) * 8 * u;
+            return kit.Card(10 * u + headingHeight + 2 * u + howHeight + 10 * u + grid + 12 * u, card => {
+                float x = card.x + 12 * u, y = card.yMax - 10 * u;
+                ui.Label("Emblem heading", "GUARDIAN EMBLEMS", new Rect(x, y - headingHeight, inner, headingHeight), 12, SkinTokens.Text, shell.Page,
+                    SkinUi.Type.Label, TextAlignmentOptions.Left);
+                y -= headingHeight + 2 * u;
+                ui.Label("Emblem how", how, new Rect(x, y - howHeight, inner, howHeight), Mathf.Max(12, 13 * k), SkinTokens.TextMuted, shell.Page,
+                    SkinUi.Type.Caption, TextAlignmentOptions.Left);
+                y -= howHeight + 10 * u;
+                var portraits = new List<KeyValuePair<byte, Image>>();
+                for (int row = 0; row < rows.Length; row++)
                 {
-                    var choice = emblems[row * across + i];
-                    float x = left + i * pitch;
-                    var face = new Rect(x, line.yMax - cell, cell, cell);
-                    var hit = ui.Rect<Image>("Emblem " + choice.Id, new Rect(x + cell / 2 - pitch / 2, line.y, pitch, line.height), shell.Page);
-                    hit.color = Color.clear; hit.raycastTarget = choice.Available;
-                    // A locked emblem dims its face only; its name stays readable.
-                    var faceGroup = Holder("Emblem " + choice.Id + " face", shell.ScreenArea, hit.transform);
-                    faceGroup.gameObject.AddComponent<CanvasGroup>().alpha = choice.Available ? 1 : .32f;
-                    var image = ui.Medallion(choice.Realm != 0 ? "Guardian portrait" : "Achievement emblem", face,
-                        choice.Realm != 0 ? null : ui.Art.SkinUi(ProfileEmblems.Painting(choice.Id)), faceGroup);
-                    if (choice.Realm != 0) { image.enabled = false; portraits.Add(new KeyValuePair<byte, Image>(choice.Realm, image)); }
-                    var nameRect = new Rect(x + cell / 2 - pitch / 2 + 4 * d, line.y, pitch - 8 * d, labelHeight);
-                    if (!choice.Available) Shade(nameRect, ui.TextWidth(choice.Name, 11, SkinUi.Type.Caption), hit.transform);
-                    ui.Label("Emblem " + choice.Id + " name", choice.Name, nameRect, 11,
-                        choice.Detail != null ? SkinTokens.Accent : choice.Available ? SkinTokens.Text : SkinTokens.TextMuted, hit.transform, SkinUi.Type.Caption);
-                    if (!choice.Available)
+                    for (int i = 0; i < across && row * across + i < emblems.Length; i++)
                     {
-                        Tinted("Emblem " + choice.Id + " lock", SkinSlots.IconLock, new Rect(face.x + 46 * d, face.y + 3 * d, 18 * d, 18 * d),
-                            SkinTokens.TextMuted, shell.Page);
-                        continue;
+                        var choice = emblems[row * across + i];
+                        float cx = x + (i + .5f) * pitch;
+                        var face = new Rect(cx - cell / 2, y - cell, cell, cell);
+                        var hit = ui.Rect<Image>("Emblem " + choice.Id, new Rect(cx - pitch / 2, y - cell - 4 * u - rows[row], pitch, cell + 4 * u + rows[row]), shell.Page);
+                        hit.color = Color.clear; hit.raycastTarget = choice.Available;
+                        // A locked emblem dims its face only; its name stays readable.
+                        var faceGroup = Holder("Emblem " + choice.Id + " face", shell.ScreenArea, hit.transform);
+                        faceGroup.gameObject.AddComponent<CanvasGroup>().alpha = choice.Available ? 1 : .32f;
+                        var image = ui.Medallion(choice.Realm != 0 ? "Guardian portrait" : "Achievement emblem", face,
+                            choice.Realm != 0 ? null : ui.Art.SkinUi(ProfileEmblems.Painting(choice.Id)), faceGroup);
+                        if (choice.Realm != 0) { image.enabled = false; portraits.Add(new KeyValuePair<byte, Image>(choice.Realm, image)); }
+                        ui.Label("Emblem " + choice.Id + " name", Name(choice), new Rect(cx - pitch / 2 + 2 * u, y - cell - 4 * u - rows[row], pitch - 4 * u, rows[row]),
+                            nameDp, choice.Detail != null ? SkinTokens.Accent : choice.Available ? SkinTokens.Text : SkinTokens.TextMuted, hit.transform,
+                            SkinUi.Type.Caption);
+                        if (!choice.Available)
+                        {
+                            Tinted("Emblem " + choice.Id + " lock", SkinSlots.IconLock, new Rect(face.xMax - .3f * cell, face.y, .3f * cell, .3f * cell),
+                                SkinTokens.TextMuted, shell.Page);
+                            continue;
+                        }
+                        var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
+                        hit.gameObject.AddComponent<PressSquash>();
+                        actions.Wire(button, new PageAction { Name = "Emblem " + choice.Id, CanInvoke = choice.CanSelect, Invoke = choice.Select }, fade: false);
                     }
-                    var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
-                    hit.gameObject.AddComponent<PressSquash>();
-                    actions.Wire(button, new PageAction { Name = "Emblem " + choice.Id, CanInvoke = choice.CanSelect, Invoke = choice.Select }, fade: false);
+                    y -= cell + 4 * u + rows[row] + 8 * u;
                 }
-            }
-            if (portraits.Count != 0) StartCoroutine(LoadPortraits(portraits, epoch));
+                if (portraits.Count != 0) StartCoroutine(LoadPortraits(portraits, epoch));
+            }, "Emblem card");
         }
 
-        // Settings: the sound panel with a slider per channel (its row switches it
-        // off and back to the level it had), the haptics and reduced motion
-        // toggles, the text size, then the identity's own actions.
-        private void Settings(SettingsPageView value)
+        // Settings, as the v3 composite draws it: the title plate, the sound card
+        // (a slider per channel, whose name switches it off and back to the level
+        // it had), the card of haptics, reduced motion and the text size, then the
+        // identity's own actions and where preferences are kept.
+        private void Settings(SettingsPageView value, string[] notices)
         {
-            float d = ui.Density;
-            column.Gap(18);
-            var card = column.Card("Sound card", null, 24, 20, 21);
-            card.Typed("Sound heading", "SOUND", SkinUi.Type.Label, 12, SkinTokens.Accent, 22, TextAlignmentOptions.Left);
-            Volume(card, "Music", SkinSlots.IconMusic, value.Music, value.SetMusic, true, 11);
-            Volume(card, "Effects", SkinSlots.IconSound, value.Effects, value.SetEffects, false, 0);
-            column = card.End(28);
-            var rows = new PageColumn(ui, shell.Page, actions, column.Left + 8 * d, column.Width - 16 * d, column.Top);
-            Switch(rows, "Haptics", value.Haptics, value.ToggleHaptics);
-            Switch(rows, "Reduced motion", value.ReducedMotion, value.ToggleMotion);
-            var size = rows.Take(56 * d, 0);
-            var sizeRow = ui.Piece("Text size: " + (value.LargeText ? "larger" : "standard"), SkinSlots.ListRow, size, shell.Page);
-            sizeRow.raycastTarget = true;
-            ui.Label("Text size label", "Text size", new Rect(size.x + 16 * d, size.y, size.width / 2, size.height), 16, SkinTokens.Text, sizeRow.transform,
-                SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            ui.Label("Text size value", value.LargeText ? "Larger" : "Standard", new Rect(size.center.x, size.y, size.width / 2 - 24 * d, size.height), 16,
-                SkinTokens.Accent, sizeRow.transform, SkinUi.Type.Caption, TextAlignmentOptions.Right);
-            var sizeButton = sizeRow.gameObject.AddComponent<Button>(); sizeButton.transition = Selectable.Transition.None;
-            sizeRow.gameObject.AddComponent<PressSquash>();
-            actions.Wire(sizeButton, new PageAction { Invoke = value.ToggleText }, fade: false);
-            // Pills sit 54 dp under the rows, clear of their halos; a panel 32 dp.
-            bool panel = !value.Muted && value.Identity.Length != 0 && value.Identity[0].Kind == PanelKind.Card;
-            column.Top = rows.Top - (panel ? 32 : 54) * d;
-            var buttons = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top);
-            if (value.Muted) Pill(buttons, new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, false, SkinSlots.IconSound, 12);
-            column.Top = buttons.Top;
+            var kit = Kit; float d = ui.Density, u = kit.U, k = kit.K, inner = kit.Inner, row = Mathf.Max(48 * d, 52 * u);
+            var pieces = new List<Piece> { kit.TitlePlate("Settings", null) };
+            foreach (var notice in notices) pieces.Add(kit.Note(notice));
+            float headingHeight = ui.TextHeight("SOUND", inner, 12, SkinUi.Type.Label);
+            pieces.Add(kit.Card(10 * u + headingHeight + 2 * row + 6 * u, card => {
+                float x = card.x + 12 * u, y = card.yMax - 10 * u;
+                ui.Label("Sound heading", "SOUND", new Rect(x, y - headingHeight, inner, headingHeight), 12, SkinTokens.Text, shell.Page, SkinUi.Type.Label,
+                    TextAlignmentOptions.Left);
+                y -= headingHeight;
+                Volume(kit, new Rect(x, y - row, inner, row), "Music", SkinSlots.IconMusic, value.Music, value.SetMusic, true);
+                Volume(kit, new Rect(x, y - 2 * row, inner, row), "Effects", SkinSlots.IconSound, value.Effects, value.SetEffects, false);
+            }, "Sound card"));
+            pieces.Add(kit.Card(3 * row + 12 * u, card => {
+                float x = card.x + 12 * u, y = card.yMax - 6 * u;
+                Switch(kit, new Rect(x, y - row, inner, row), "Haptics", value.Haptics, value.ToggleHaptics, false);
+                Switch(kit, new Rect(x, y - 2 * row, inner, row), "Reduced motion", value.ReducedMotion, value.ToggleMotion, true);
+                var size = new Rect(x, y - 3 * row, inner, row);
+                kit.Rule("Text size rule", size);
+                var sizeRow = ui.Rect<Image>("Text size: " + (value.LargeText ? "larger" : "standard"), size, shell.Page);
+                sizeRow.color = Color.clear; sizeRow.raycastTarget = true;
+                string current = (value.LargeText ? "Larger" : "Standard") + " ›";
+                float valueWidth = kit.NumeralWidth(current);
+                ui.Label("Text size label", "Text size", new Rect(size.x, size.y, size.width - valueWidth - 10 * u, size.height), kit.CaptionDp, SkinTokens.Text,
+                    sizeRow.transform, SkinUi.Type.Caption, TextAlignmentOptions.Left);
+                kit.Numeral("Text size value", current, new Rect(size.xMax - valueWidth, size.y, valueWidth, size.height), SkinTokens.Text);
+                var sizeButton = sizeRow.gameObject.AddComponent<Button>(); sizeButton.transition = Selectable.Transition.None;
+                sizeRow.gameObject.AddComponent<PressSquash>();
+                actions.Wire(sizeButton, new PageAction { Invoke = value.ToggleText }, fade: false);
+            }, "Switches card"));
+            if (value.Muted) pieces.Add(Buttons((new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, false, SkinSlots.IconSound)));
+            // A store identity's own actions are plain buttons; they sit low, over where preferences are kept.
+            bool plain = value.Identity.All(block => block.Kind == PanelKind.Button && block.Action != null);
+            pieces.Add(Piece.Grow);
+            if (plain)
+                foreach (var block in value.Identity) pieces.Add(Buttons((block.Action, false, SkinSlots.IconRetry)));
+            pieces.Add(kit.Note("Preferences save on this device."));
+            if (plain) { Compose(pieces.ToArray()); return; }
+            // An identity with more to show draws it under the cards.
+            pieces.RemoveAt(pieces.Count - 1); pieces.Remove(Piece.Grow);
+            Compose(pieces.ToArray());
             Blocks(value.Identity);
-            column.Top -= 11 * d;
-            var saved = column.Typed("Settings saved", "Local preferences save automatically.", SkinUi.Type.Caption, 13, SkinTokens.TextMuted, 0);
-            Shade(SkinUi.ScreenRect(saved.rectTransform), ui.TextWidth(saved.text, 13, SkinUi.Type.Caption), shell.Page);
-            saved.transform.SetAsLastSibling();
+            column.Typed("Settings saved", "Preferences save on this device.", SkinUi.Type.Caption, Mathf.Max(12, 13 * k), SkinTokens.TextMuted, 0);
         }
-        // A 56 dp row whose whole width switches the kit toggle at its end; the
-        // toggle shows its state.
-        private void Switch(PageColumn rows, string title, bool on, Action toggle)
+        // A row whose whole width switches the kit toggle at its end; the toggle
+        // shows its state.
+        private void Switch(ScreenKit kit, Rect rect, string title, bool on, Action toggle, bool ruled)
         {
-            float d = ui.Density;
-            var rect = rows.Take(56 * d, 14);
-            var row = ui.Piece(title + " row", SkinSlots.ListRow, rect, shell.Page);
-            ui.Label(title + " label", title, new Rect(rect.x + 16 * d, rect.y, rect.width - 150 * d, rect.height), 16, SkinTokens.Text, row.transform,
+            if (ruled) kit.Rule(title + " rule", rect);
+            ui.Label(title + " label", title, new Rect(rect.x, rect.y, rect.width - 80 * ui.Density, rect.height), kit.CaptionDp, SkinTokens.Text, shell.Page,
                 SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            ui.Toggle(title + ": " + (on ? "on" : "off"), new Rect(rect.x, rect.y + (rect.height - 48 * d) / 2, rect.width - 22 * d, 48 * d), on,
-                _ => actions.Run(toggle), row.transform);
+            ui.Toggle(title + ": " + (on ? "on" : "off"), rect, on, _ => actions.Run(toggle), shell.Page);
         }
-        // One sound channel: its icon, name and level, then its slider. Tapping
-        // the name switches the channel off and back to its last level.
-        private void Volume(PageColumn card, string title, string icon, double value, Action<double> set, bool music, float gapDp)
+        // One sound channel on one row: its icon and name (a tap switches the
+        // channel off and back to its last level), its slider and its level.
+        private void Volume(ScreenKit kit, Rect rect, string title, string icon, double value, Action<double> set, bool music)
         {
-            float d = ui.Density;
-            var head = card.Take(24 * d, 5);
-            var hit = ui.Rect<Image>(title + " switch", new Rect(head.x - 8 * d, head.center.y - 24 * d, head.width + 16 * d, 48 * d), shell.Page);
+            float d = ui.Density, u = kit.U, size = 28 * u, levelWidth = kit.NumeralWidth("100%");
+            float labelWidth = ui.TextWidth("Effects", kit.CaptionDp, SkinUi.Type.Caption) + 4 * u;
+            var hit = ui.Rect<Image>(title + " switch", new Rect(rect.x, rect.y, size + 10 * u + labelWidth, rect.height), shell.Page);
             hit.color = Color.clear; hit.raycastTarget = true;
-            Tinted(title + " icon", icon, new Rect(head.x, head.y, 24 * d, 24 * d), SkinTokens.Text, hit.transform);
-            ui.Label(title + " label", title, new Rect(head.x + 36 * d, head.y - 6 * d, head.width / 2, head.height + 12 * d), 17, SkinTokens.Text,
+            Tinted(title + " icon", icon, new Rect(rect.x, rect.center.y - size / 2, size, size), SkinTokens.Text, hit.transform);
+            ui.Label(title + " label", title, new Rect(rect.x + size + 10 * u, rect.y, labelWidth, rect.height), kit.CaptionDp, SkinTokens.Text,
                 hit.transform, SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            var level = ui.Label(title + " level", "", new Rect(head.center.x, head.y - 6 * d, head.width / 2 - 9 * d, head.height + 12 * d), 15,
-                SkinTokens.TextMuted, hit.transform, SkinUi.Type.Caption, TextAlignmentOptions.Right);
-            var track = card.Take(48 * d, gapDp);
+            var level = kit.Numeral(title + " level", "", new Rect(rect.xMax - levelWidth, rect.y, levelWidth, rect.height), SkinTokens.Text);
+            float trackX = rect.x + size + 10 * u + labelWidth + 8 * u;
             SkinSlider slider = null;
             Action<double> apply = next => {
                 actions.Run(() => set(next)); value = next;
@@ -276,7 +315,7 @@ namespace ZKube.Presentation
                 level.text = next > 0 ? Math.Round(next * 100) + "%" : "Off";
                 slider?.SetWithoutNotify((float)next);
             };
-            slider = ui.Slider(title + " slider", new Rect(track.x - 6 * d, track.y, track.width + 12 * d, track.height), (float)value,
+            slider = ui.Slider(title + " slider", new Rect(trackX, rect.center.y - 24 * d, rect.xMax - levelWidth - 10 * u - trackX, 48 * d), (float)value,
                 next => apply(Math.Round(next * 100) / 100d), shell.Page);
             level.text = value > 0 ? Math.Round(value * 100) + "%" : "Off";
             var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None;
