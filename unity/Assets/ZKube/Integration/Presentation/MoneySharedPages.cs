@@ -87,7 +87,7 @@ namespace ZKube.Integration.Presentation
                 int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
                 value.Share = null;
                 value.Done = PageAction(stars > 0 ? "Continue" : "Map", () => _ = OpenCampaign(), () => PageAvailable() && !Busy);
-                value.Retry = PageAction("Retry", () => _ = OpenLocalCampaign(() => Flow.StartCampaignRun(realm, level), "Trial " + level),
+                value.Retry = PageAction("Retry", () => _ = OpenLocalCampaign(() => Flow.StartCampaignRun(realm, level)),
                     () => PageAvailable() && !Busy && level > 0);
                 return value;
             }

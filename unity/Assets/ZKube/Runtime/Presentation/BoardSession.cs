@@ -47,10 +47,9 @@ namespace ZKube.Presentation
         public readonly IBoardActionProvider Actions;
         public readonly bool Daily;
         public readonly byte RealmId;
-        public readonly string Title;
         // A Daily's best and close; null for a Campaign run or a host without them.
         public readonly DailyContext DailyFacts;
-        public BoardSession(CoreRunToken accepted, BuildConfigRequest rules, IBoardActionProvider actions, string title, byte realmId,
+        public BoardSession(CoreRunToken accepted, BuildConfigRequest rules, IBoardActionProvider actions, byte realmId,
             DailyContext daily = null)
         {
             Accepted = accepted ?? throw new ArgumentNullException(nameof(accepted));
@@ -59,7 +58,7 @@ namespace ZKube.Presentation
             Daily = rules.TierPolicy == 1;
             if (!System.Linq.Enumerable.Any(Protocol.Realms, realm => realm.MapId == realmId))
                 throw new ArgumentOutOfRangeException(nameof(realmId), "No authored realm has this identity");
-            RealmId = realmId; Title = title ?? ""; DailyFacts = Daily ? daily : null;
+            RealmId = realmId; DailyFacts = Daily ? daily : null;
             // Config comes from the authoritative boundary, including all rules
             // and replay fields. Do not pair a HUD with unrelated state/config.
             byte[] encoded = NativeEngine.BuildConfig(rules);

@@ -54,8 +54,6 @@ namespace ZKube.Presentation
         // Campaign levels are numbered across realms.
         public static string LevelNumber(byte realm, byte level) =>
             ((realm - 1) * Protocol.CampaignTargets.Length + level).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        public static string CampaignTitle(byte realm, byte level) =>
-            PageCatalog.Load().Realm(realm).realmName + " · Level " + LevelNumber(realm, level);
         public static uint MovesLeft(RunSummary state, BoardSession session) => (uint)Math.Max(0, session.Rules.MaxMoves - state.Moves);
         // The tablet warms at five moves left and turns ember at three.
         public static string MovesSlot(uint left) => left <= 3 ? SkinSlots.MovesEmber : left <= 5 ? SkinSlots.MovesWarm : SkinSlots.MovesCalm;

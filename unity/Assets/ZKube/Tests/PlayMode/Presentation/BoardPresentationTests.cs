@@ -221,7 +221,7 @@ namespace ZKube.Presentation.Tests
         {
             yield return Load("realm-8-daily"); var original = board.Session;
             var provider = new UncertainProvider();
-            board.Bind(new BoardSession(original.Accepted, original.Rules, provider, "Daily", original.RealmId));
+            board.Bind(new BoardSession(original.Accepted, original.Rules, provider, original.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action");
             yield return Wait(() => !board.Busy); Assert.IsTrue(board.RecoveryRequired);
             board.SetTextScale(1.3f); yield return null;
@@ -238,7 +238,7 @@ namespace ZKube.Presentation.Tests
         {
             yield return Load("realm-8-daily"); var original = board.Session;
             var provider = new UncertainProvider();
-            board.Bind(new BoardSession(original.Accepted, original.Rules, provider, "Daily", original.RealmId));
+            board.Bind(new BoardSession(original.Accepted, original.Rules, provider, original.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action");
             yield return Wait(() => !board.Busy); yield return null;
             evidence.Click("Dialog Recover run"); provider.Result.SetResult(null);
@@ -265,7 +265,7 @@ namespace ZKube.Presentation.Tests
         {
             yield return Load("realm-8-daily");
             var accepted = board.Session.Accepted;
-            board.Bind(new BoardSession(accepted, board.Session.Rules, new CrossedResponse(), "Daily", board.Session.RealmId));
+            board.Bind(new BoardSession(accepted, board.Session.Rules, new CrossedResponse(), board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Reroll action"); yield return Wait(() => !board.Busy);
             CollectionAssert.AreEqual(accepted.Config, board.Session.Accepted.Config);
@@ -298,7 +298,7 @@ namespace ZKube.Presentation.Tests
         {
             yield return Load("realm-8-daily");
             var recording = new RecordingAction(board.Session.Actions);
-            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, recording, "Balam Daily", board.Session.RealmId));
+            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, recording, board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var grid = board.State.Grid;
             // Find a block with a free run on its right that ends at another block.
@@ -324,7 +324,7 @@ namespace ZKube.Presentation.Tests
         {
             yield return Load("realm-8-daily");
             var held = new HeldAction(board.Session.Actions);
-            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, "Balam Daily", board.Session.RealmId));
+            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Reroll action"); Assert.IsTrue(board.Busy);
             for (float end = Time.realtimeSinceStartup + BoardView.AwaitDelay * .5f; Time.realtimeSinceStartup < end;) yield return null;
@@ -339,7 +339,7 @@ namespace ZKube.Presentation.Tests
         {
             yield return Load("realm-8-daily"); yield return evidence.PlayNextInput();
             var held = new HeldAction(board.Session.Actions);
-            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, "Balam Daily", board.Session.RealmId));
+            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var move = evidence.Current.steps.First(s => s.operation == NativeOperation.PlayMove);
             int width = board.State.Grid[move.row * 8 + move.start];

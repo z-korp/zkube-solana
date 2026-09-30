@@ -74,10 +74,10 @@ namespace ZKube.Integration.Presentation
         {
             if (!confirmingDaily || !CanEnterDaily() || boardHost == null) return Task.CompletedTask;
             confirmingDaily = false;
-            return OpenRun(() => Flow.StartDailyRun(), "Daily");
+            return OpenRun(() => Flow.StartDailyRun());
         }
         public Task ResumeDailyRun() => !CanUseDaily() || boardHost == null ? Task.CompletedTask :
-            OpenRun(() => Flow.OpenSavedRun(), "Daily");
+            OpenRun(() => Flow.OpenSavedRun());
 
         // The Arcade: today's Daily with its prize pool and entry clock, the one
         // entry action or the reason there is none, then the Kredits and rewards.

@@ -165,7 +165,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             {
                 var env = await Environment.Create(); var initial = await env.Client.Inspect();
                 var provider = Provider(env, initial);
-                var board = provider.Bind(initial, mode);
+                var board = provider.Bind(initial);
                 var result = await provider.Submit(board.Accepted, new BoardAction(BoardActionKind.Reroll), default);
                 Assert.That(NativeEngine.Summary(result.Token).ActionCounter, Is.EqualTo(1));
                 Assert.That(NativeEngine.Summary(result.Token).Phase, Is.EqualTo((byte)CorePhase.AwaitingVrf));
@@ -204,7 +204,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             var env = await Environment.Create(); var initial = await env.Client.Inspect();
             var native = new ActiveRunReconciler(env.Accounts);
             var provider = Provider(env, initial);
-            var board = provider.Bind(initial, "Arcade"); env.Http.Confirmed = false;
+            var board = provider.Bind(initial); env.Http.Confirmed = false;
             await ZKube.Integration.Tests.AsyncAssert.Throws<RunExecutionException>(async () => await provider.Submit(board.Accepted, new BoardAction(BoardActionKind.Reroll), default));
             var pending = await env.Journal.Load(env.Owner);
             Assert.That((await env.Journal.Load(env.Owner)).Signature, Is.EqualTo(pending.Signature));
@@ -228,7 +228,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             {
                 var env = await Environment.Create(); var initial = await env.Client.Inspect();
                 var provider = Provider(env, initial);
-                var board = provider.Bind(initial, "Arcade"); env.Http.Confirmed = false;
+                var board = provider.Bind(initial); env.Http.Confirmed = false;
                 await ZKube.Integration.Tests.AsyncAssert.Throws<RunExecutionException>(async () => await provider.Submit(board.Accepted, new BoardAction(BoardActionKind.Reroll), default));
                 string signature = (await env.Journal.Load(env.Owner)).Signature;
                 if (ownerChanges)
@@ -423,7 +423,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 byte expected = (byte)env.Accounts.ActiveRun(observed.Account, env.Owner)["map_id"];
                 var native = new ActiveRunReconciler(env.Accounts);
                 var binding = new RunPresentationBinding(observed, native);
-                var board = Provider(env, observed).Bind(observed, "Run");
+                var board = Provider(env, observed).Bind(observed);
                 Assert.That(binding.RealmId, Is.EqualTo(expected)); Assert.That(board.RealmId, Is.EqualTo(expected));
                 CollectionAssert.AreEqual(observed.Token.State, board.Accepted.State);
                 Assert.That(env.Http.Sent, Is.Empty);

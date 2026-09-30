@@ -16,7 +16,7 @@ namespace ZKube.Local.Tests
             foreach (var realm in Protocol.Realms)
             {
                 var run = client.StartCampaign(realm.MapId, 1);
-                var session = new LocalBoardActionProvider(client, run).Bind("");
+                var session = new LocalBoardActionProvider(client, run).Bind();
                 Assert.That(session.RealmId, Is.EqualTo(run.View.Realm));
                 Assert.That(session.RealmId, Is.EqualTo(realm.MapId));
                 CollectionAssert.AreEqual(run.View.Token.State, session.Accepted.State);
@@ -29,11 +29,11 @@ namespace ZKube.Local.Tests
             var client = new LocalRunClient(new LocalProductStore());
             var run = client.StartCampaign(1, 1); var provider = new LocalBoardActionProvider(client, run);
             foreach (byte invalid in new byte[] { 0, 11, 255 })
-                Assert.Throws<ArgumentOutOfRangeException>(() => new BoardSession(run.View.Token, run.View.Rules, provider, "", invalid));
+                Assert.Throws<ArgumentOutOfRangeException>(() => new BoardSession(run.View.Token, run.View.Rules, provider, invalid));
             // Synthetic native probes may intentionally reuse the Balam visual
             // composition; a non-unique rules tuple cannot determine identity.
-            var first = new BoardSession(run.View.Token, run.View.Rules, provider, "Probe", 1);
-            var eighth = new BoardSession(run.View.Token, run.View.Rules, provider, "Probe", 8);
+            var first = new BoardSession(run.View.Token, run.View.Rules, provider, 1);
+            var eighth = new BoardSession(run.View.Token, run.View.Rules, provider, 8);
             Assert.That(first.RealmId, Is.EqualTo(1)); Assert.That(eighth.RealmId, Is.EqualTo(8));
             CollectionAssert.AreEqual(first.Accepted.State, eighth.Accepted.State);
         }

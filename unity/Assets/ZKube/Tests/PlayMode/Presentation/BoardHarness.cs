@@ -62,7 +62,7 @@ namespace ZKube.Presentation.Tests
             Current = Fixtures.Single(f => f.name == name); journeyCursor = 0;
             var config = BuildConfigRequest.Decode(Hex(Current.configRequestHex));
             var token = new CoreRunToken(Hex(Current.configHex), Hex(Current.initialStateHex));
-            Board.Bind(new BoardSession(token, config, new OfflineActions(Current), "", Current.realmId));
+            Board.Bind(new BoardSession(token, config, new OfflineActions(Current), Current.realmId));
         }
 
         public IEnumerator PlayNextInput()

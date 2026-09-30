@@ -34,19 +34,19 @@ namespace ZKube.Integration.Presentation
         {
             if (!CanBrowse() || browseLevel == 0 || boardHost == null) return Task.CompletedTask;
             byte realm = browseRealm, trial = browseLevel;
-            return OpenLocalCampaign(() => Flow.StartCampaignRun(realm, trial), "Trial " + trial);
+            return OpenLocalCampaign(() => Flow.StartCampaignRun(realm, trial));
         }
         public Task ResumeCampaignRun() => boardHost == null ? Task.CompletedTask :
-            OpenLocalCampaign(() => Flow.OpenSavedCampaign(), "Campaign");
+            OpenLocalCampaign(() => Flow.OpenSavedCampaign());
 
-        private Task OpenLocalCampaign(Func<Task<MoneyRead<LocalBoardActionProvider>>> action, string title) => RunCampaign(async (epoch, token) => {
+        private Task OpenLocalCampaign(Func<Task<MoneyRead<LocalBoardActionProvider>>> action) => RunCampaign(async (epoch, token) => {
             var result = await action();
             if (!Current(epoch) || !result.IsCurrent) return;
-            boardHost.Open(result, title, textScale);
+            boardHost.Open(result, textScale);
             HidePages(); RetireArtwork();
         });
 
-        private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action, string title) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
+        private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
             Status = "Opening your accepted run…";
             var result = await action();
             if (!Current(epoch) || !result.IsCurrent) return;
@@ -59,7 +59,7 @@ namespace ZKube.Integration.Presentation
                 return;
             }
             ulong best = profileRead != null && profileRead.IsCurrent ? (ulong)((uint?)profileRead.Value.Profile.Fields?["best_daily_score"] ?? 0) : 0;
-            boardHost.Open(result.Value, title, textScale, best);
+            boardHost.Open(result.Value, textScale, best);
             HidePages(); RetireArtwork();
         });
 

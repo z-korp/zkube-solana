@@ -28,7 +28,7 @@ namespace ZKube.Local.App.Tests
         {
             var client = new StoreRunClient(new LocalProductStore(), () => 20705L * 86400);
             var daily = client.StartDaily();
-            Assert.That(new LocalBoardActionProvider(client, daily).Bind("Daily").RealmId, Is.EqualTo(client.Today().Realm));
+            Assert.That(new LocalBoardActionProvider(client, daily).Bind().RealmId, Is.EqualTo(client.Today().Realm));
         }
     }
 }

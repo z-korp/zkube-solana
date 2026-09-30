@@ -23,8 +23,6 @@ namespace ZKube.Local
         // failure visible; recovering a board never retries or blesses its save.
         public Exception PersistenceFailure { get; private set; }
         public bool Daily => initial.Mode == "daily";
-        // The board's title: the realm and level of a Campaign run; a Daily is titled by its guardian.
-        public string Title => Daily ? null : HudLayout.CampaignTitle(initial.Realm, initial.Level);
 
         public LocalBoardActionProvider(LocalRunClient client, LocalRunUpdate initial, Exception persistenceFailure = null)
             : this(client, initial?.View, persistenceFailure) { }
@@ -37,9 +35,9 @@ namespace ZKube.Local
             var observed = BoundObservation();
             if (observed == null || !Same(observed.Token, delivered)) throw new InvalidOperationException("The initial local board is stale");
         }
-        public BoardSession Bind(string title, DailyContext daily = null)
+        public BoardSession Bind(DailyContext daily = null)
         {
-            lock (gate) return new BoardSession(new CoreRunToken(delivered.Config, delivered.State), initial.Rules, this, title, initial.Realm, daily);
+            lock (gate) return new BoardSession(new CoreRunToken(delivered.Config, delivered.State), initial.Rules, this, initial.Realm, daily);
         }
 
         public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)

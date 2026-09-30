@@ -447,7 +447,7 @@ namespace ZKube.Presentation.Tests
         {
             evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var session = board.Session;
-            board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions, "", session.RealmId,
+            board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions, session.RealmId,
                 new DailyContext { Best = best, ClosesAt = closesAt, Now = () => now }));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
         }
@@ -636,8 +636,7 @@ namespace ZKube.Presentation.Tests
             evidence.Load("realm-8-daily"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var session = board.Session;
             board.SetTextScale(1.3f);
-            board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions,
-                "Balam daily board presentation with a deliberately long descriptive title", session.RealmId));
+            board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions, session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Fits(Label("Moves remaining"));
             var view = board.View;

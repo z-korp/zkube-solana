@@ -252,7 +252,7 @@ namespace ZKube.Presentation.Tests
             yield return Load("Hammer-perfect-clear-continuation", true);
             var initial = board.Session.Accepted; var rules = board.Session.Rules;
             var pending = new Pending();
-            board.Bind(new BoardSession(initial, rules, pending, "Daily", board.Session.RealmId));
+            board.Bind(new BoardSession(initial, rules, pending, board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             evidence.Click("Guardian action"); evidence.Tap(board.View.Layout.CellCenter(1, 0));
             yield return null;

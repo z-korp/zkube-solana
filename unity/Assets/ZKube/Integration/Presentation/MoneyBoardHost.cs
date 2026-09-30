@@ -42,7 +42,7 @@ namespace ZKube.Integration.Presentation
         }
 
         // best is the owner's best Daily score as last read, zero when unknown.
-        public void Open(MoneyRunLaunch launch, string title, float textScale, ulong best = 0)
+        public void Open(MoneyRunLaunch launch, float textScale, ulong best = 0)
         {
             if (flow == null || HasRun || !launch.CanBind || !flow.RunIdentityCurrent(launch.Run))
                 throw new InvalidOperationException("No current accepted run can be opened");
@@ -59,12 +59,12 @@ namespace ZKube.Integration.Presentation
             var root = new GameObject("Money accepted run"); root.transform.SetParent(transform, false);
             board = root.AddComponent<BoardController>();
             board.SetTextScale(textScale); board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
-            board.Bind(provider.Bind(launch.Operation.State, title,
+            board.Bind(provider.Bind(launch.Operation.State,
                 new DailyContext { Best = best, ClosesAt = run.Binding.DeadlineAt, Now = now }));
             board.SetHostInputEnabled(!paused && !Frozen());
         }
 
-        public void Open(MoneyRead<LocalBoardActionProvider> launch, string title, float textScale)
+        public void Open(MoneyRead<LocalBoardActionProvider> launch, float textScale)
         {
             if (flow == null || HasRun || !launch.IsCurrent)
                 throw new InvalidOperationException("No current local run can be opened");
@@ -75,7 +75,7 @@ namespace ZKube.Integration.Presentation
             var root = new GameObject("Money local Campaign"); root.transform.SetParent(transform, false);
             board = root.AddComponent<BoardController>(); board.SetTextScale(textScale);
             board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
-            board.Bind(launch.Value.Bind(title));
+            board.Bind(launch.Value.Bind());
             board.SetHostInputEnabled(!paused);
         }
 
