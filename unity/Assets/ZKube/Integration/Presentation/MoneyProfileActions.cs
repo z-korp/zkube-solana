@@ -87,7 +87,7 @@ namespace ZKube.Integration.Presentation
             return new ProfilePageView {
                 Name = Short(player.Owner), Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
                 Standing = EmblemDefinition(worn.DisplayedEmblem).Name + (worn.StoredEmblem == 0 && worn.DisplayedEmblem != 0 ? " (automatic)" : "") + " · " +
-                    TierDefinition(player.WornTier).Name + " · " + player.LadderPoints.ToString("N0", CultureInfo.InvariantCulture) + " ladder points",
+                    TierDefinition(player.WornTier).Name + " · " + NumberFit.Figure(player.LadderPoints) + " ladder points",
                 Records = PageAction("Your records", () => ShowProfile(ProfileView.Records), () => PageAvailable() && !Busy),
                 ChooseBorder = PageAction("Choose a border", () => ShowProfile(ProfileView.Borders), () => PageAvailable() && !Busy),
                 Stars = state.Campaign.TotalStars ?? 0,
@@ -211,7 +211,7 @@ namespace ZKube.Integration.Presentation
                 PanelBlock.Split("Ladder", null, player.LadderPoints.ToString("N0", CultureInfo.InvariantCulture), 36, TierDefinition(player.CurrentTier).Name,
                     SkinSlots.LadderBadge(player.CurrentTier), 18) };
             ladder.Add(PanelBlock.Text("Ladder next", player.NextTierFloor.HasValue ?
-                (player.NextTierFloor.Value > player.LadderPoints ? player.NextTierFloor.Value - player.LadderPoints : 0).ToString("N0", CultureInfo.InvariantCulture) +
+                NumberFit.Figure(player.NextTierFloor.Value > player.LadderPoints ? player.NextTierFloor.Value - player.LadderPoints : 0) +
                 " points to " + TierDefinition((byte)(player.CurrentTier + 1)).Name : "Top tier", 14, SkinTokens.TextMuted, gap: 0));
             if (player.HighestTier > player.CurrentTier)
                 ladder.Add(PanelBlock.Text("Ladder best", "Best ever · " + TierDefinition(player.HighestTier).Name, 14, SkinTokens.TextMuted, gap: 0, lead: 8));

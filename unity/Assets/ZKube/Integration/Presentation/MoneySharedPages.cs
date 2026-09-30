@@ -132,7 +132,7 @@ namespace ZKube.Integration.Presentation
                     if (CanBrowse() && campaignRead.Value.Browse.Realms.Count != 0) views.Render(browseLevel == 0 ? AppPage.Campaign : AppPage.Level, notices);
                     else views.RenderPanel(Waiting("Campaign", "Campaign", null, 0, pageNotice ?? "Campaign trial data is unavailable.")); break;
                 case "Daily":
-                    if (dailyRead == null) views.RenderPanel(Waiting("Daily", null, "arena", 1, pageNotice));
+                    if (dailyRead == null) views.RenderPanel(Waiting("Daily", null, "Arena", 1, pageNotice));
                     else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);
                     else views.Render(AppPage.Daily, notices);
                     break;
@@ -199,7 +199,7 @@ namespace ZKube.Integration.Presentation
             blocks.Add(PanelBlock.Button(PageAction(failure != null ? "Try connecting again" : "Connect wallet", () => _ = Connect(),
                 () => PageAvailable() && !Busy, "Connect"), true, 24));
             blocks.Add(PanelBlock.Text("Connect hint", "Choose your wallet in the Android wallet sheet.", 13, SkinTokens.TextMuted, gap: 0));
-            return new PanelPageView { Key = "Connect", Subtitle = "arena", Blocks = blocks.ToArray() };
+            return new PanelPageView { Key = "Connect", Subtitle = "Arena", Blocks = blocks.ToArray() };
         }
 
         // The last operation: its outcome, what it was, the receipt and the one
@@ -226,7 +226,7 @@ namespace ZKube.Integration.Presentation
         private PanelPageView OperationPage()
         {
             var back = PageAction("Back", ReturnFromOperation, () => PageAvailable() && !Busy);
-            var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "arena", Back = back };
+            var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "Arena", Back = back };
             var receipt = LastReceipt;
             var arcade = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             if (receipt == null)

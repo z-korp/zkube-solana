@@ -86,10 +86,10 @@ namespace ZKube.Integration.Presentation
         {
             var back = sessionFromSettings ? PageAction("Back", () => OpenSharedPage(AppPage.Settings), () => PageAvailable() && !Busy) :
                 PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
-            if (sessionRead == null) { var waiting = Waiting("Device", "This device", "arena · device session", -1, pageNotice); waiting.Back = back; return waiting; }
+            if (sessionRead == null) { var waiting = Waiting("Device", "This device", "Arena · Device session", -1, pageNotice); waiting.Back = back; return waiting; }
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
-            var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "arena · device session", Back = back };
+            var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "Arena · Device session", Back = back };
             var lines = new List<PanelBlock> {
                 PanelBlock.Text("Device owner", Short(state.Owner), 16, SkinTokens.TextMuted, gap: 14),
                 PanelBlock.Title(look.Title, 25, look.Token, 22, name: "Device state"),
@@ -136,7 +136,7 @@ namespace ZKube.Integration.Presentation
         private PanelPageView RevokePage()
         {
             var keep = PageAction("Keep enabled", () => { revokeConfirming = false; Present(); }, () => PageAvailable());
-            return new PanelPageView { Key = "Revoke", Title = "Disable this device", Subtitle = "arena", Back = keep, Blocks = new[] {
+            return new PanelPageView { Key = "Revoke", Title = "Disable this device", Subtitle = "Arena", Back = keep, Blocks = new[] {
                 PanelBlock.Card("Revoke card", PanelBlock.Title("Revoke device access?", 26, gap: 30, centered: true),
                     PanelBlock.Text("Revoke effect", "This device will stop signing game actions and spending your prepaid Kredits.", 17, gap: 30),
                     PanelBlock.Text("Revoke return", "The remaining fee allowance returns to your wallet. Your Kredits remain in your balance, and this device keeps its install key for later reauthorization.", 16, gap: 0)),

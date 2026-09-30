@@ -150,7 +150,7 @@ namespace ZKube.Integration.Presentation
                     rows.Add(PanelBlock.Row("Last run objective", Sentence(objective), lastResult.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture), gap: 0));
                 blocks.Add(PanelBlock.Card("Last run card", rows.ToArray()));
             }
-            blocks.Add(PanelBlock.Text("Kredit balance", lobby.Profile.Kredits + " confirmed Kredits", 14, SkinTokens.TextMuted, gap: 14, lead: -4));
+            blocks.Add(PanelBlock.Text("Kredit balance", NumberFit.Figure(lobby.Profile.Kredits) + " confirmed Kredits", 14, SkinTokens.TextMuted, gap: 14, lead: -4));
             blocks.Add(PanelBlock.Pair(PageAction("Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy),
                 PageAction("Rewards", () => _ = OpenRewards(), () => PageAvailable() && !Busy), noKredits ? 0 : -1, 16));
             blocks.Add(PanelBlock.Text("Arcade rule", lobby.ObjectiveKind == 0 ? "Classic pays the whole prize pool to Score." :

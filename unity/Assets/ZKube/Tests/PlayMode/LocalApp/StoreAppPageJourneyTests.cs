@@ -989,6 +989,37 @@ namespace ZKube.Tests
             }
             finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
+        // Every screen has the full-scene painting behind it, as the composites
+        // draw them: the realm's painting covering the screen under the veil
+        // (the map and the preview draw the map painting), and a scrim only on the
+        // screens drawn over it, the preview and the results.
+        [UnityTest] public IEnumerator EveryScreenHasItsFullScenePaintingUnderTheVeil()
+        {
+            var shell = app.GetComponent<PageShell>();
+            void Painted(string at, string slot, bool scrim)
+            {
+                Assert.That(shell.Background.color.a, Is.EqualTo(1).Within(.001f), at + ": the page has settled");
+                Assert.That(shell.Background.sprite, Is.SameAs(shell.Artwork.SkinRealm(slot)), at + " draws its " + slot + " painting");
+                Assert.That(shell.Background.color.r + shell.Background.color.g + shell.Background.color.b, Is.EqualTo(3).Within(.001f), at + " at full strength");
+                var painting = SkinUi.ScreenRect(shell.Background.rectTransform); var screen = shell.ScreenArea;
+                Assert.That(painting.xMin <= screen.xMin + .5f && painting.xMax >= screen.xMax - .5f && painting.yMin <= screen.yMin + .5f && painting.yMax >= screen.yMax - .5f,
+                    Is.True, at + ": the painting covers the screen");
+                Assert.That(shell.Veil.enabled, Is.True, at + " is veiled");
+                Assert.That(shell.Scrim.enabled, Is.EqualTo(scrim), at + (scrim ? " is drawn over the painting" : " shows the painting"));
+            }
+            IEnumerator Settled(StorePage page) { yield return Page(page); yield return new WaitForSecondsRealtime(1); }
+            yield return NamePlayer();
+            app.Flow.Show(StorePage.Daily); yield return Settled(StorePage.Daily); Painted("Home", SkinSlots.Background, false);
+            app.Flow.Show(StorePage.Campaign); yield return Settled(StorePage.Campaign); Painted("Map", SkinSlots.Map, false);
+            app.Flow.Preview(1); yield return Settled(StorePage.Level); Painted("Preview", SkinSlots.Map, true);
+            app.Flow.Show(StorePage.Profile); yield return Settled(StorePage.Profile); Painted("Profile", SkinSlots.Background, false);
+            app.Flow.Show(StorePage.Settings); yield return Settled(StorePage.Settings); Painted("Settings", SkinSlots.Background, false);
+            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            Click(app, "Play today"); yield return BoardReady(); yield return EndRun(); yield return Page(StorePage.Result);
+            yield return new WaitForSecondsRealtime(1); Painted("Daily result", SkinSlots.Background, true);
+            // The veil darkens the top and bottom as the composites' gradient does.
+            CollectionAssert.AreEqual(new[] { (0f, .667f), (.3f, .333f), (.7f, .533f), (1f, .8f) }, PageShell.VeilStops);
+        }
         // Every level's preview has its own line: the guardian's trial line on its
         // own level, and no two neighbouring levels share one.
         [UnityTest] public IEnumerator EachLevelPreviewSpeaksItsOwnLine()

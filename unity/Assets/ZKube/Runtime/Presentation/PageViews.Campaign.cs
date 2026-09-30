@@ -103,14 +103,10 @@ namespace ZKube.Presentation
         private void Map(CampaignPageView value, Rect room)
         {
             var realm = catalog.Realm(value.Realm);
-            var screen = shell.ScreenArea; float d = ui.Density;
+            float d = ui.Density;
             int count = value.Trials.Length, focus = Focus(value.Trials, 0);
-            // The painting covers the screen with its lower part in view, as CSS's "center 80%".
-            var art = ui.Art.SkinRealm(SkinSlots.Map);
-            float aspect = art.rect.width / art.rect.height, height = Mathf.Max(screen.height, screen.width / aspect), width = height * aspect;
-            float top = screen.yMax + (height - screen.height) * .8f;
-            var image = ui.Rect<Image>("Realm map", new Rect(screen.center.x - width / 2, top - height, width, height), shell.Page);
-            image.sprite = art; image.raycastTarget = false;
+            // The realm's map painting covers the screen with its lower part in view, as CSS's "center 80%".
+            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Map), focus: .8f);
             bool Lit(int index) => index == focus && value.Trials[index].Available;
             float normal = Step(48, 40) * d; Rect path; Vector2[] at;
             while (true)

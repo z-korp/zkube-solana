@@ -291,7 +291,7 @@ namespace ZKube.Local.App
         private GameObject CanvasRoot(string name, int order) => AppShell.CanvasRoot(name, transform, order);
         private void RetirePage()
         {
-            views.Retire(); shell.Backdrop(null, 1);
+            views.Retire(); shell.Backdrop(null);
         }
         private void OnDestroy()
         {

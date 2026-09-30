@@ -122,6 +122,7 @@ namespace ZKube.Integration.Presentation
             {
                 blocks.Add(PanelBlock.Talk(boards.All(board => board.Rows.Count == 0) ? "No one placed on this day’s sealed boards." :
                     "You have no placed position on a sealed board for this day.", "idle", blocks.Count == 0 ? 209 : 40));
+                blocks.Add(PanelBlock.Icon(SkinSlots.IconTrophy, 56, SkinTokens.Text, gap: 12));
                 blocks.Add(PanelBlock.Title("No rewards yet", 27, gap: 50));
                 blocks.Add(PanelBlock.Button(PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy), true));
                 foreach (var board in boards.Where(board => board.Rows.Count != 0))
@@ -145,7 +146,7 @@ namespace ZKube.Integration.Presentation
             return page;
         }
         private static PanelBlock Ladder(MoneyRewardState state) =>
-            PanelBlock.Text("Ladder total", "Ladder · " + state.Profile.LadderPoints + " points", 13, SkinTokens.TextMuted, gap: 26, centered: false);
+            PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(state.Profile.LadderPoints) + " points", 13, SkinTokens.TextMuted, gap: 26, centered: false);
 
         // One board: its name and whether it is sealed, your position and
         // payout, then the claim, or its state.
@@ -241,7 +242,7 @@ namespace ZKube.Integration.Presentation
                 state.Profile.LadderPoints - payment.PreviousPoints < payment.Points) return null;
             // The confirmed claim instruction awards this native-computed amount.
             // The total above is always the subsequently validated profile value.
-            return MoneyText.Board(payment.Kind, catalog) + " reward received · " + Sol(payment.Amount) + "\n+" + payment.Points + " ladder points";
+            return MoneyText.Board(payment.Kind, catalog) + " reward received · " + Sol(payment.Amount) + "\n+" + NumberFit.Figure(payment.Points) + " ladder points";
         }
         public Task CollectReward(string kind)
         {

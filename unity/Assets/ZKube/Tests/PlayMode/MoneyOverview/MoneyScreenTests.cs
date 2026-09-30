@@ -41,6 +41,7 @@ namespace ZKube.Tests.MoneyOverview
                 if (rect.width <= 0) continue;
                 Assert.That(Mathf.Max(rect.height, rect.width) / d, Is.GreaterThanOrEqualTo(48 - .01f), at + ": " + button.name + " is 48 dp to touch");
             }
+            PageText.AssertRunningTextFigures(host.transform, at, shell.Artwork.Font(SkinUi.Type.Caption), shell.Artwork.Font(SkinUi.Type.Body));
             yield return Captures.Snap(shell, "arena " + at);
         }
 

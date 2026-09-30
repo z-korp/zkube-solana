@@ -23,6 +23,9 @@ namespace ZKube.Presentation
         public RectTransform Page { get; private set; }
         public ScrollRect Scroll { get; private set; }
         public Image Background { get; private set; }
+        // Over the painting: the composites' veil, and the scrim of a screen drawn over it.
+        public Image Veil { get; private set; }
+        public Image Scrim { get; private set; }
         public BoardArt Artwork { get; private set; }
         public bool Loading { get; private set; }
         public Exception ArtworkError { get; private set; }
@@ -47,6 +50,9 @@ namespace ZKube.Presentation
             Root.transform.SetParent(transform, false);
             var canvas = Root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 20;
             Background = Child<Image>("Realm backdrop", Root.transform); Background.color = Color.clear; Background.raycastTarget = false;
+            Veil = Child<Image>("Backdrop veil", Root.transform); Veil.sprite = VeilSprite(); Veil.raycastTarget = false; Veil.enabled = false;
+            Scrim = Child<Image>("Backdrop scrim", Root.transform); Scrim.color = new Color(2 / 255f, 7 / 255f, 14 / 255f, .8f); Scrim.raycastTarget = false;
+            Scrim.enabled = false;
             Stage();
             Chrome = Child<RectTransform>("Page chrome", Root.transform);
             swell = Child<Image>("Page change glow", Root.transform); swell.raycastTarget = false; swell.enabled = false;
@@ -56,7 +62,7 @@ namespace ZKube.Presentation
         private void Stage()
         {
             stage = Child<RectTransform>("Page stage", Root.transform);
-            stage.SetSiblingIndex(Background.transform.GetSiblingIndex() + 1 + leaving.Count);
+            stage.SetSiblingIndex(Scrim.transform.GetSiblingIndex() + 1 + leaving.Count);
             fade = stage.gameObject.AddComponent<CanvasGroup>();
             Viewport = Child<RectTransform>("Page viewport", stage);
             Viewport.gameObject.AddComponent<RectMask2D>();
@@ -261,15 +267,44 @@ namespace ZKube.Presentation
             else if (Input.GetMouseButton(0) || Input.GetMouseButtonUp(0)) { tap = Input.mousePosition; tapTime = Time.unscaledTime; }
         }
 
-        // The page background covers the screen and keeps the art's aspect.
-        public void Backdrop(Sprite sprite, float brightness)
+        // The page background, as the composites draw every screen: the full
+        // painting covers the screen and keeps its aspect, its point at focus down
+        // its height placed that far down the screen (CSS's "center 80%"), under
+        // the veil that darkens its top and bottom. A screen drawn over the
+        // painting (the preview, the results) adds the scrim.
+        public void Backdrop(Sprite sprite, bool scrim = false, float focus = .5f)
         {
-            Background.sprite = sprite; Background.color = sprite == null ? Color.clear : new Color(brightness, brightness, brightness, 1);
+            Background.sprite = sprite; Background.color = sprite == null ? Color.clear : Color.white;
+            Veil.enabled = sprite != null; Scrim.enabled = sprite != null && scrim;
             if (sprite == null) return;
             var area = ScreenArea;
             float scale = Mathf.Max(area.width / sprite.rect.width, area.height / sprite.rect.height);
             var size = sprite.rect.size * scale;
-            SkinUi.Place(Background.rectTransform, new Rect(area.center.x - size.x / 2, area.center.y - size.y / 2, size.x, size.y), Root.transform);
+            float top = area.yMax + (size.y - area.height) * focus;
+            SkinUi.Place(Background.rectTransform, new Rect(area.center.x - size.x / 2, top - size.y, size.x, size.y), Root.transform);
+            SkinUi.Place(Veil.rectTransform, area, Root.transform); SkinUi.Place(Scrim.rectTransform, area, Root.transform);
+        }
+        // The veil, top to bottom: #020A12 at 67%, 33% at 30% down, 53% at 70% and 80% at the bottom.
+        public static readonly (float at, float alpha)[] VeilStops = { (0, .667f), (.3f, .333f), (.7f, .533f), (1, .8f) };
+        private static Sprite veil;
+        private static Sprite VeilSprite()
+        {
+            if (veil != null) return veil;
+            const int rows = 64;
+            var texture = new Texture2D(1, rows, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            for (int row = 0; row < rows; row++)
+            {
+                float down = 1 - row / (rows - 1f), alpha = VeilStops[VeilStops.Length - 1].alpha;
+                for (int i = 1; i < VeilStops.Length; i++)
+                    if (down <= VeilStops[i].at)
+                    {
+                        float t = (down - VeilStops[i - 1].at) / (VeilStops[i].at - VeilStops[i - 1].at);
+                        alpha = Mathf.Lerp(VeilStops[i - 1].alpha, VeilStops[i].alpha, t); break;
+                    }
+                texture.SetPixel(0, row, new Color(2 / 255f, 10 / 255f, 18 / 255f, alpha));
+            }
+            texture.Apply(false, true);
+            return veil = Sprite.Create(texture, new Rect(0, 0, 1, rows), new Vector2(.5f, .5f));
         }
 
         public bool RealmReady(byte realm) => !Loading && ArtworkError == null && Artwork?.RealmId == realm;
@@ -305,7 +340,7 @@ namespace ZKube.Presentation
         public void ReleaseArtwork()
         {
             StopAllCoroutines(); StopTransition(); Loading = false; requestedRealm = 0; ArtworkError = null;
-            if (Background != null) { Background.sprite = null; Background.color = Color.clear; }
+            if (Background != null) { Background.sprite = null; Background.color = Color.clear; Veil.enabled = Scrim.enabled = false; }
             foreach (var entry in leaving.ToArray()) if (entry.layer != null) { entry.layer.SetActive(false); Destroy(entry.layer); }
             var art = held.Concat(leaving.SelectMany(entry => entry.art)).Append(current).Where(release => release != null).Distinct().ToArray();
             leaving.Clear(); held.Clear(); current = null; Artwork = null;

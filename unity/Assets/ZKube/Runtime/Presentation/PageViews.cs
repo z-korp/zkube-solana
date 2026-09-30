@@ -126,7 +126,7 @@ namespace ZKube.Presentation
             Retire(); Shown = null; shownPanel = null;
             float d = Mathf.Max(.5f, density());
             var safe = shell.SafeArea;
-            shell.Clear(safe); shell.Backdrop(null, 1);
+            shell.Clear(safe); shell.Backdrop(null);
             var font = TMP_Settings.defaultFontAsset;
             float y = safe.yMax - 40 * d;
             foreach (var (text, size) in new[] { (title, 26f), (message, 17f) })
@@ -167,7 +167,7 @@ namespace ZKube.Presentation
             var body = fullBleed ? screen : new Rect(safe.x, bottom, safe.width, safe.yMax - bottom);
             // Scrolling content fades out over its last 24 dp at the tab bar.
             shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
-            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
+            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background));
             // Utility tablets sit 4 dp inside the top safe inset, on the page gutters.
             // An action that cannot be taken is not drawn.
             float iconY = safe.yMax - 4 * d - icon;
@@ -428,7 +428,7 @@ namespace ZKube.Presentation
             action.Invoke = () => Share(value, text, action, epoch);
             return action;
         }
-        private static string Days(ulong days) => days + (days == 1 ? " day" : " days");
+        private static string Days(ulong days) => NumberFit.Figure(days) + (days == 1 ? " day" : " days");
 
         private async void Share(ResultPageView value, string text, PageAction action, long expectedEpoch)
         {

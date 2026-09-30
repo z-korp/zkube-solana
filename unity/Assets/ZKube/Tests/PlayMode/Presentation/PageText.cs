@@ -40,6 +40,15 @@ namespace ZKube.Tests.Presentation
         }
 
         // Every number the page draws (outside a button's label) sits on one line inside its rect.
+        // A count in running text (a sentence in the caption or body face) is
+        // written by NumberFit.Figure: never a figure longer than "9,999,999".
+        public static void AssertRunningTextFigures(Component root, string page, params TMP_FontAsset[] sentences)
+        {
+            foreach (var text in Visible(root).Where(text => sentences.Contains(text.font) && text.text.Any(char.IsLetter)))
+                foreach (Match figure in Regex.Matches(Regex.Replace(text.text, "<[^>]+>", ""), @"\d[\d,]*"))
+                    Assert.That(figure.Value.Count(char.IsDigit), Is.LessThanOrEqualTo(7),
+                        page + ": '" + text.text + "' carries a figure NumberFit.Figure would shorten");
+        }
         public static void AssertNumbersOnOneLine(Component root, TMP_FontAsset numbers, string page)
         {
             foreach (var text in Visible(root).Where(text => text.font == numbers && text.GetComponentInParent<Button>() == null &&

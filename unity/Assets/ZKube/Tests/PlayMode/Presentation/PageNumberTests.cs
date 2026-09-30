@@ -32,7 +32,7 @@ namespace ZKube.Tests.Presentation
             public DailyPageView Daily;
             public DailyPageView DailyPage() => Daily;
             public ProfilePageView ProfilePage() => new ProfilePageView { Name = "Player", Realm = 1, Emblem = 1, Tier = 4, Stars = int.MaxValue,
-                Streak = ulong.MaxValue, BestDailyScore = ulong.MaxValue, Standing = "Mako · Prism · " + Max + " ladder points",
+                Streak = ulong.MaxValue, BestDailyScore = ulong.MaxValue, Standing = "Mako · Prism · " + NumberFit.Figure(ulong.MaxValue) + " ladder points",
                 ChooseBorder = new PageAction { Label = "Choose a border" } };
             public SettingsPageView SettingsPage() => AppPreferences.Read(() => { });
             public ResultPageView Result;
@@ -68,6 +68,7 @@ namespace ZKube.Tests.Presentation
                 foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
                 yield return null;
                 PageText.AssertNumbersOnOneLine(root.transform, numbers, page);
+                PageText.AssertRunningTextFigures(root.transform, page, shell.Artwork.Font(SkinUi.Type.Caption), shell.Artwork.Font(SkinUi.Type.Body));
                 PageText.AssertPillLabelsOnOneLine(root.transform, page);
             }
             source.Daily = new DailyPageView { Day = 20705, Realm = 1, ObjectiveKind = daily.Kind, ObjectiveValue = daily.Value, Now = () => now,
@@ -78,7 +79,8 @@ namespace ZKube.Tests.Presentation
                 ClosesAt = now + 3600, Arcade = new ArcadeView { Pot = MaxSol, Closes = "Closes 23:59 UTC" },
                 Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } },
                 Blocks = new[] { PanelBlock.Card("Last run", PanelBlock.Row("Last score", "Score", Max), PanelBlock.Row("Last objective", "Objective", Max)),
-                    PanelBlock.Text("Kredit balance", Max + " confirmed Kredits", 14) } };
+                    PanelBlock.Text("Kredit balance", NumberFit.Figure(ulong.MaxValue) + " confirmed Kredits", 14),
+                    PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(ulong.MaxValue) + " points", 13) } };
             yield return Check("Arcade", () => views.Render(AppPage.Daily));
             yield return Check("Level", () => views.Render(AppPage.Level));
             yield return Check("Profile", () => views.Render(AppPage.Profile));
@@ -111,6 +113,10 @@ namespace ZKube.Tests.Presentation
             Assert.That(NumberFit.Abbreviate(MaxSol), Is.EqualTo("18.4B SOL"));
             Assert.That(NumberFit.Abbreviate("#1 · 999"), Is.EqualTo("#1 · 999"));
             Assert.That(NumberFit.Abbreviate("1,840"), Is.EqualTo("1.8K"));
+            // A count in running text keeps its figures up to seven digits.
+            Assert.That(NumberFit.Figure(9_999_999), Is.EqualTo("9,999,999"));
+            Assert.That(NumberFit.Figure(10_000_000), Is.EqualTo("10.0M"));
+            Assert.That(NumberFit.Figure(9007199254740993), Is.EqualTo("9.0Qa"));
         }
     }
 }

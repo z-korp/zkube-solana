@@ -39,7 +39,7 @@ namespace ZKube.Presentation
         {
             float d = ui.Density, u = U, k = K;
             var realm = catalog.Realm(value.Realm);
-            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Map), .45f);
+            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Map), scrim: true);
             byte bonus = RealmBonus(value.Realm);
             var goals = ScreenKit.Goals(catalog, value.Goals, bonus);
             var rule = catalog.Rule(value.Realm);
@@ -123,7 +123,7 @@ namespace ZKube.Presentation
         {
             float d = ui.Density, u = U;
             var realm = catalog.Realm(value.Realm);
-            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .55f);
+            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), scrim: true);
             int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
             var (title, subtitle, icon, good) = ResultWords(value);
             bool cleared = value.EndReason == 1;
@@ -225,7 +225,7 @@ namespace ZKube.Presentation
         {
             float d = ui.Density, u = U, k = K;
             var realm = catalog.Realm(value.Realm);
-            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .55f);
+            shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), scrim: true);
             var line = TalkPage.For(realm.guardianLines, value.Speaks ?? TalkMoment.Daily, value.SpeaksStars);
             string objective = value.ObjectiveKind == 0 ? null : catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             string picture = value.ObjectiveKind == 0 ? null : catalog.Goal(value.ObjectiveKind, value.ObjectiveValue).Pictogram(RealmBonus(value.Realm));

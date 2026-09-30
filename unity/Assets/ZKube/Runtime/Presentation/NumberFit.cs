@@ -39,6 +39,12 @@ namespace ZKube.Presentation
             return text;
         }
 
+        // A count written into running text ("1,240 ladder points"): grouped up
+        // to seven digits, its short-scale abbreviation beyond, so no sentence
+        // carries a figure longer than "9,999,999".
+        public static string Figure(ulong value) =>
+            value < 10_000_000 ? value.ToString("N0", CultureInfo.InvariantCulture) : Compact(value);
+
         // Every figure of four digits or more (with its thousands separators and
         // any fraction) becomes its short-scale abbreviation.
         public static string Abbreviate(string value) =>

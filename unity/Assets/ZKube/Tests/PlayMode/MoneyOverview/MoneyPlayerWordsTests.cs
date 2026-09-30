@@ -24,6 +24,8 @@ namespace ZKube.Tests.MoneyOverview
             yield return Idle();
             PageText.AssertPlayerWords(host.transform, page);
             PageText.AssertPillLabelsOnOneLine(host.transform, page);
+            var art = host.GetComponent<PageShell>().Artwork;
+            if (art != null) PageText.AssertRunningTextFigures(host.transform, page, art.Font(SkinUi.Type.Caption), art.Font(SkinUi.Type.Body));
         }
         // The walk is on a compact phone at larger text, where words are tightest.
         private IEnumerator Compact(string scenario)
