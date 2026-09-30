@@ -25,6 +25,13 @@ namespace ZKube.Presentation
             public AtlasLoad(string path) { Path = path; Request = Resources.LoadAsync<SpriteAtlas>(path); }
         }
         private static readonly Dictionary<string, AtlasLoad> atlasLoads = new Dictionary<string, AtlasLoad>();
+        // The atlases are late-binding, in Resources under their own tag. When
+        // Unity itself asks for one (a packed sprite drawn before its atlas was
+        // bound), it gets the same asset, not a warning and a blank sprite.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void BindLateAtlases() { SpriteAtlasManager.atlasRequested -= Supply; SpriteAtlasManager.atlasRequested += Supply; }
+        private static void Supply(string tag, Action<SpriteAtlas> bind) { var atlas = LateAtlas(tag); if (atlas != null) bind(atlas); }
+        public static SpriteAtlas LateAtlas(string tag) => Resources.Load<SpriteAtlas>("ZKube/Atlases/" + tag);
         private AtlasLoad realmLoad, commonLoad, skinUiLoad, skinRealmLoad;
         private SpriteAtlas skinUi, skinRealm;
         // The skin's tokens and the loaded realm's own tokens, in one lookup.
