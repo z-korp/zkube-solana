@@ -230,9 +230,9 @@ namespace ZKube.Presentation.Tests
             var button = ui.TextButton("Play", new Rect(20, 20, 240, 56), "Play", () => { }, true, root.transform, out var label, SkinSlots.IconDaily);
             var icon = Part(button, "Play icon");
             var iconRect = SkinUi.ScreenRect(icon.rectTransform);
-            Assert.AreEqual(24, iconRect.width, .01f); Assert.AreEqual(42, iconRect.x, .01f);
+            Assert.AreEqual(24, iconRect.width, .01f); Assert.AreEqual(36, iconRect.x, .01f, "The icon sits 16 dp in");
             Assert.AreEqual(art.Token(SkinTokens.TextOnPrimary), icon.color);
-            Assert.AreEqual(140 + 12, SkinUi.ScreenRect(label.rectTransform).center.x, .01f, "The word centres 12 dp right of the pill's centre");
+            Assert.AreEqual(140 + 18, SkinUi.ScreenRect(label.rectTransform).center.x, .01f, "The word starts 6 dp after the icon and centres in the rest");
             Assert.AreEqual(art.Font(SkinUi.Type.Number), label.font);
             Assert.AreEqual(SkinUi.ButtonDp, label.fontSize, .01f);
         }

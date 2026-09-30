@@ -80,6 +80,17 @@ namespace ZKube.Integration.Presentation
         {
             var value = lastResult != null && lastResult.PlayerName == identity.Owner ? lastResult :
                 new ResultPageView { ProductName = Application.productName, Mode = "Daily", Realm = 1, PlayerName = identity.Owner ?? "" };
+            if (value.HasResult && value.Mode == "Campaign")
+            {
+                // A Campaign result continues on the map, or replays its level; it has no Share.
+                byte realm = value.Realm, level = value.Level;
+                int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
+                value.Share = null;
+                value.Done = PageAction(stars > 0 ? "Continue" : "Map", () => _ = OpenCampaign(), () => PageAvailable() && !Busy);
+                value.Retry = PageAction("Retry", () => _ = OpenLocalCampaign(() => Flow.StartCampaignRun(realm, level), "Trial " + level),
+                    () => PageAvailable() && !Busy && level > 0);
+                return value;
+            }
             value.Share = ResultSharing.Open;
             value.Done = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             return value;

@@ -225,8 +225,9 @@ namespace ZKube.Local.App
                     HasResult = true, ShowStars = true, Realm = outcome.Realm, Level = outcome.Level, Score = outcome.Score,
                     StarSources = outcome.StarSources, EndReason = outcome.EndReason, MovesLeft = outcome.MovesLeft,
                     PrimaryProgress = outcome.PrimaryProgress, Goals = outcome.Goals,
-                    NewBest = outcome.Stars > outcome.PreviousStars, Share = ResultSharing.Open,
-                    Done = Action(outcome.Stars == 3 ? "Continue" : "Map", () => Flow.Show(StorePage.Campaign)),
+                    NewBest = outcome.Stars > outcome.PreviousStars, NextOpen = outcome.PreviousStars > 0,
+                    // A kept star continues on the map; none leaves for it. Campaign results have no Share.
+                    Done = Action(outcome.Stars > 0 ? "Continue" : "Map", () => Flow.Show(StorePage.Campaign)),
                     Retry = Action("Retry", Flow.Retry) };
             var attempt = Flow.Product.Read.DailyAttempt;
             var pair = attempt == null ? null : NativeEngine.Daily(attempt.DayId);

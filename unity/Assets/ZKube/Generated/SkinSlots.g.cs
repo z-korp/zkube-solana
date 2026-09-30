@@ -32,6 +32,8 @@ namespace ZKube.Core.Generated
         public const string EarnPanel = "earn-panel";
         public const string TapBubble = "tap-bubble";
         public const string Chip = "chip";
+        public const string Card = "card";
+        public const string TitlePlate = "title-plate";
         public const string GridCell = "grid-cell";
         public const string GuardianFrame = "guardian-frame";
         public const string Badge = "badge";
@@ -68,6 +70,12 @@ namespace ZKube.Core.Generated
         public const string IconHourglass = "icon-hourglass";
         public const string IconCrown = "icon-crown";
         public const string IconClock = "icon-clock";
+        public const string IconPlay = "icon-play";
+        public const string IconRetry = "icon-retry";
+        public const string IconMap = "icon-map";
+        public const string IconHourglassEmpty = "icon-hourglass-empty";
+        public const string IconBoardFull = "icon-board-full";
+        public const string IconFlag = "icon-flag";
         public const string FxGlow = "fx-glow";
         public const string FxShard1 = "fx-shard-1";
         public const string FxShard2 = "fx-shard-2";

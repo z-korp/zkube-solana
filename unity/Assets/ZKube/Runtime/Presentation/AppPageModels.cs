@@ -158,6 +158,9 @@ namespace ZKube.Presentation
         public uint MovesLeft, PrimaryProgress;
         public CampaignGoals Goals;
         public bool NewBest;
+        // Whether the next level was already open before this run (it then stays
+        // open without a star); null when the identity cannot tell.
+        public bool? NextOpen;
         public Func<string, CancellationToken, Task<bool>> Share;
         public PageAction Done, Retry;
         // The guardian's line on a Daily result: the identity's own moment (a

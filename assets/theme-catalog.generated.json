@@ -1887,20 +1887,20 @@
         },
         {
           "border": [
-            64,
-            72,
-            64,
-            52
+            56,
+            56,
+            56,
+            56
           ],
           "image": "/assets/skins/lumen/ui/button-secondary.png",
           "slot": "button-secondary"
         },
         {
           "border": [
-            64,
-            72,
-            64,
-            52
+            56,
+            56,
+            56,
+            56
           ],
           "image": "/assets/skins/lumen/ui/button-secondary-pressed.png",
           "slot": "button-secondary-pressed"
@@ -2124,6 +2124,26 @@
           ],
           "image": "/assets/skins/lumen/ui/chip.png",
           "slot": "chip"
+        },
+        {
+          "border": [
+            40,
+            40,
+            40,
+            40
+          ],
+          "image": "/assets/skins/lumen/ui/card.png",
+          "slot": "card"
+        },
+        {
+          "border": [
+            40,
+            40,
+            40,
+            40
+          ],
+          "image": "/assets/skins/lumen/ui/title-plate.png",
+          "slot": "title-plate"
         },
         {
           "border": [
@@ -2484,6 +2504,66 @@
           ],
           "image": "/assets/skins/lumen/ui/icon-clock.png",
           "slot": "icon-clock"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-play.png",
+          "slot": "icon-play"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-retry.png",
+          "slot": "icon-retry"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-map.png",
+          "slot": "icon-map"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-hourglass-empty.png",
+          "slot": "icon-hourglass-empty"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-board-full.png",
+          "slot": "icon-board-full"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-flag.png",
+          "slot": "icon-flag"
         },
         {
           "border": [

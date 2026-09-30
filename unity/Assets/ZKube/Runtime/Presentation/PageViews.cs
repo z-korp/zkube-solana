@@ -89,10 +89,10 @@ namespace ZKube.Presentation
                         clipped: MapScrolls(campaign));
                     Campaign(campaign, messages); break;
                 case AppPage.Level:
-                    var level = source.LevelPage(); var map = source.CampaignView();
+                    var level = source.LevelPage();
                     Frame(-1, null, null, null, null, null, Array.Empty<string>(), fullBleed: true);
                     back = level.Back;
-                    Level(level, map, messages); break;
+                    LevelScreen(level, messages); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
                     Frame(2, "Profile", null, profile.Records, null, Settings(), messages, leftIcon: SkinSlots.IconTrophy); Profile(profile); break;
@@ -103,7 +103,7 @@ namespace ZKube.Presentation
                     Settings(settings); break;
                 case AppPage.Result:
                     var result = source.ResultPage();
-                    if (result.HasResult && result.ShowStars) { Frame(-1, null, null, null, null, null, messages); back = result.Done; CampaignResult(result); }
+                    if (result.HasResult && result.ShowStars) { Frame(-1, null, null, null, null, null, messages, fullBleed: true); back = result.Done; CampaignScreen(result); }
                     else if (result.HasResult)
                     {
                         Frame(1, result.Mode + " complete", DayLabel(result.Day) + " · " + catalog.Realm(result.Realm).realmName,

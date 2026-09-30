@@ -89,7 +89,8 @@ namespace ZKube.Tests
             var exactText = choices.Where(value => value.GetComponentsInChildren<TMP_Text>().Any(text => text.text == name)).ToArray();
             if (exactText.Length == 1) return exactText[0];
             var exactName = choices.Where(value => value.name == name).ToArray();
-            Assert.That(exactName.Length, Is.EqualTo(1), "Expected one active button: " + name);
+            string Path(Transform t) => t == null || t == parent.transform ? "" : Path(t.parent) + "/" + t.name;
+            Assert.That(exactName.Length, Is.EqualTo(1), "Expected one active button: " + name + " (" + string.Join(", ", exactName.Select(value => Path(value.transform))) + ")");
             return exactName[0];
         }
         private static void Click(Component parent, string name)
@@ -299,15 +300,15 @@ namespace ZKube.Tests
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Trial 1"); yield return Page(StorePage.Level);
             // The preview words every goal from its constraint and shows its target
-            // (there is no progress yet) under the guardian's line for the level, as
-            // drawn (the rule is the map greeting's); no internal source names.
+            // (there is no progress yet) under the guardian's line for the level, in
+            // its bubble; the rule's words sit with its pictograms. No internal source names.
             var level = Protocol.Realms[0].Levels[0]; var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
-            app.GetComponentInChildren<GuardianTalk>().Complete();
             var texts = Texts();
             Assert.That(texts, Does.Contain("Score").And.Contain(Protocol.CampaignTargets[0].ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Primary[0], level.Primary[1], level.Primary[2])).And.Contain(level.Primary[2].ToString()));
             Assert.That(texts, Does.Contain(catalog.ObjectiveName(level.Secondary[0], level.Secondary[1], level.Secondary[2])));
-            Assert.That(texts, Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain(catalog.Realm(1).guardianTitle));
+            Assert.That(texts, Does.Contain(catalog.Realm(1).guardianLines.greeting).And.Contain("Tiki · " + catalog.Realm(1).guardianName)
+                .And.Contain("Level 1").And.Contain(rule.description).And.Contain("Earns a Wave"));
             Assert.That(texts, Does.Not.Contain(rule.description + "\n" + rule.effect));
             Assert.That(texts.Any(text => text.StartsWith("0 / ")), Is.False);
             Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
@@ -319,9 +320,10 @@ namespace ZKube.Tests
             // The guardian says how it went; an ended run lights no star.
             Assert.That(Texts(), Does.Contain("Run ended").And.Contain("An ended run keeps no stars.")
                 .And.Contain(catalog.Realm(1).guardianLines.incomplete));
-            var sockets = app.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Result star ")).ToArray();
+            var sockets = app.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Result star ") && image.name != "Result star flight").ToArray();
             Assert.That(sockets.Length, Is.EqualTo(3));
-            Assert.That(sockets.All(image => image.sprite.name.StartsWith(SkinSlots.StarOff)), Is.True);
+            Assert.That(sockets.All(image => image.sprite.name.StartsWith(SkinSlots.StarSocket)), Is.True);
+            Assert.That(Buttons().Any(button => button.name == "Share"), Is.False, "A Campaign result has no Share");
             Click(app, "Retry"); yield return BoardReady();
             Assert.That(board.Session.RealmId, Is.EqualTo(1)); Assert.That(runs.Active("campaign").Level, Is.EqualTo(1));
             yield return EndRun(); yield return Page(StorePage.Result);
@@ -478,7 +480,8 @@ namespace ZKube.Tests
             FindButton(app, "Skip").onClick.Invoke(); yield return null;
             Assert.That(retry.IsInteractable(), Is.True);
             Assert.That(Buttons().Any(button => button.name == "Skip"), Is.False);
-            Assert.That(Texts(), Does.Contain(app.Flow.LastCampaign.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
+            Assert.That(Texts().Any(text => text != null && text.StartsWith(app.Flow.LastCampaign.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "<")),
+                "The score row reads the run's final score");
             typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, true);
             Click(app, "Retry"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
@@ -709,11 +712,13 @@ namespace ZKube.Tests
             app.Flow.Preview(1); yield return Page(StorePage.Level);
             OnScreen("Play", "Level preview");
             var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
+            // Level 1 has never been starred here, so a starless run says how to open Level 2.
             foreach (var (reason, stars, moves, title, summary) in new[] {
                 ((byte)3, (byte)0, 4u, "Run ended", "An ended run keeps no stars."),
-                ((byte)2, (byte)1, 0u, "Out of moves", "1 star kept"),
-                ((byte)2, (byte)3, 6u, "Board full", "2 stars kept"),
-                ((byte)2, (byte)0, 0u, "Out of moves", "No stars kept") })
+                ((byte)2, (byte)1, 0u, "Out of moves", "1 star kept · Level 2 is open"),
+                ((byte)2, (byte)3, 6u, "Board full", "2 stars kept · Level 2 is open"),
+                ((byte)2, (byte)0, 0u, "Out of moves", "No stars kept · earn one to open Level 2"),
+                ((byte)1, (byte)7, 3u, "Level cleared!", "Level 2 is open") })
             {
                 app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = stars, EndReason = reason, MovesLeft = moves, Goals = goals });
                 yield return Page(StorePage.Result);
@@ -722,8 +727,99 @@ namespace ZKube.Tests
                 Assert.That(Texts(), Does.Contain(title).And.Contain(summary), title);
                 Assert.That(Texts().Count(text => text != null && text.IndexOf("try again", StringComparison.OrdinalIgnoreCase) >= 0), Is.LessThanOrEqualTo(1),
                     title + ": only the guardian says to try again");
-                foreach (var button in new[] { "Retry", "Map", "Share" }) OnScreen(button, title);
+                foreach (var button in new[] { stars > 0 ? "Continue" : "Retry", stars == 7 ? null : stars > 0 ? "Retry" : "Map" }.Where(name => name != null))
+                    OnScreen(button, title);
+                Assert.That(Buttons().Any(button => button.name == "Share"), Is.False, title + ": no Share on Campaign");
             }
+        }
+        // The preview and every Campaign result, as the v3 wireframes draw them
+        // for Tiki 1, on the Seeker and a 360 x 640 phone in their safe areas:
+        // the spec's word counts (UI words, without numbers or the guardian's
+        // line), every text inside its rect and the screen, the pieces apart,
+        // and 48 dp buttons on screen.
+        [UnityTest] public IEnumerator PreviewAndResultsKeepTheirWordsFitAndTapTargetsOnBothPhones()
+        {
+            var level = Protocol.Realms[0].Levels[0];
+            var goals = new CampaignGoals { Points = Protocol.CampaignTargets[0], PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1],
+                PrimaryCount = level.Primary[2], SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] };
+            var shell = app.GetComponent<PageShell>();
+            foreach (var (phone, name) in new (System.Action<PageShell>, string)[] {
+                (value => ZKube.Tests.Presentation.Phones.Seeker(value), "Seeker"), (value => ZKube.Tests.Presentation.Phones.Compact(value), "360 x 640") })
+            {
+                phone(shell);
+                try
+                {
+                    app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+                    app.Flow.Preview(1); yield return Page(StorePage.Level);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " preview");
+                    ScreenFits(shell, name + " preview", 21, "Play", "Back to map");
+                    // In a player's order: starless runs on a fresh level, its first three
+                    // stars (a new best), then runs that keep fewer.
+                    product.Write(state => { state.Stars[0] = 0; return state; });
+                    typeof(StoreAppFlow).GetField("startingStars", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(app.Flow, (byte)0);
+                    foreach (var (reason, stars, moves, words, buttons) in new[] {
+                        ((byte)2, (byte)0, 0u, 21, new[] { "Retry", "Map" }),
+                        ((byte)3, (byte)0, 5u, 18, new[] { "Retry", "Map" }),
+                        ((byte)1, (byte)7, 3u, 16, new[] { "Continue" }),
+                        ((byte)2, (byte)3, 0u, 18, new[] { "Continue", "Retry" }),
+                        ((byte)2, (byte)4, 0u, 18, new[] { "Continue", "Retry" }) })
+                    {
+                        if (stars == 7) product.Write(state => { state.Stars[0] = 3; return state; });
+                        app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = stars == 7 ? 24u : 8u, StarSources = stars, EndReason = reason,
+                            MovesLeft = moves, PrimaryProgress = 4, Goals = goals });
+                        yield return Page(StorePage.Result);
+                        foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                        yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                        yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " result " + reason + "-" + stars);
+                        ScreenFits(shell, name + " result " + reason + "/" + stars, words, buttons);
+                    }
+                }
+                finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+            }
+        }
+        private static readonly System.Text.RegularExpressions.Regex Word = new System.Text.RegularExpressions.Regex("[A-Za-z][A-Za-z'’-]*");
+        private void ScreenFits(PageShell shell, string at, int words, params string[] buttons)
+        {
+            Canvas.ForceUpdateCanvases();
+            var safe = shell.SafeArea; float d = shell.SafeArea.height / (at.StartsWith("Seeker") ? ZKube.Tests.Presentation.Phones.SeekerScreen.height - ZKube.Tests.Presentation.Phones.SeekerTopInsetDp
+                : ZKube.Tests.Presentation.Phones.CompactScreen.height - ZKube.Tests.Presentation.Phones.CompactTopInsetDp);
+            var texts = app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy && !string.IsNullOrEmpty(text.text)).ToArray();
+            string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
+            int counted = texts.Where(text => text.name != "Guardian line").Sum(text => Word.Matches(Plain(text.text)).Count);
+            Assert.That(counted, Is.EqualTo(words), at + " words: " + string.Join(" | ", texts.Where(text => text.name != "Guardian line").Select(text => Plain(text.text))));
+            foreach (var text in texts)
+            {
+                text.ForceMeshUpdate();
+                var rect = SkinUi.ScreenRect(text.rectTransform);
+                Assert.That(text.GetPreferredValues(text.text, rect.width, float.PositiveInfinity).y, Is.LessThanOrEqualTo(rect.height + .5f),
+                    at + ": '" + text.text + "' fits its height");
+                if (text.textWrappingMode == TextWrappingModes.NoWrap)
+                    Assert.That(text.GetPreferredValues(text.text, float.PositiveInfinity, float.PositiveInfinity).x, Is.LessThanOrEqualTo(rect.width + 1),
+                        at + ": '" + text.text + "' fits its width");
+                Assert.That(rect.xMin >= safe.xMin - .5f && rect.xMax <= safe.xMax + .5f && rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f, Is.True,
+                    at + ": '" + text.text + "' " + rect + " stays in the safe area " + safe);
+            }
+            var pieces = new[] { "Screen title plate", "Star crown", "Screen card" }.Select(piece => app.GetComponentsInChildren<Image>().Single(image => image.name == piece))
+                .Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
+            foreach (var button in buttons)
+            {
+                var found = FindButton(app, button);
+                var rect = SkinUi.ScreenRect((RectTransform)found.transform);
+                Assert.That(rect.height / d, Is.GreaterThanOrEqualTo(48 - .01f), at + ": " + button + " is 48 dp to touch");
+                var icon = found.GetComponentsInChildren<Image>().FirstOrDefault(image => image.name.EndsWith(" icon"));
+                var word = found.GetComponentInChildren<TMP_Text>();
+                if (icon != null && word != null)
+                {
+                    word.ForceMeshUpdate();
+                    float ink = word.transform.TransformPoint(word.textBounds.min).x;
+                    Assert.That(ink, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(icon.rectTransform).xMax - .5f), at + ": " + button + "'s word clears its icon");
+                }
+                Assert.That(rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f, Is.True, at + ": " + button + " is on screen");
+                if (button != "Back to map") pieces.Add(rect);
+            }
+            for (int a = 0; a < pieces.Count; a++) for (int b = a + 1; b < pieces.Count; b++)
+                Assert.That(pieces[a].Overlaps(pieces[b]), Is.False, at + ": pieces " + pieces[a] + " and " + pieces[b] + " stay apart");
         }
         // Every level's preview has its own line: the guardian's trial line on its
         // own level, and no two neighbouring levels share one.
@@ -735,8 +831,12 @@ namespace ZKube.Tests
             for (byte level = 1; level <= 10; level++)
             {
                 app.Flow.Preview(level); yield return Page(StorePage.Level);
-                var talk = app.GetComponentsInChildren<GuardianTalk>().Single(); talk.Complete(); yield return null;
-                string said = talk.Shown;
+                // The previous preview leaves on its own layer; read the shown one.
+                yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                var spoken = app.GetComponentsInChildren<TMP_Text>().Where(text => text.name == "Guardian line").ToArray();
+                string Path(Transform t) => t == null || t == app.transform ? "" : Path(t.parent) + "/" + t.name;
+                Assert.That(spoken.Length, Is.EqualTo(1), string.Join(", ", spoken.Select(text => Path(text.transform))));
+                string said = spoken[0].text;
                 if (level == 10) Assert.That(said, Is.EqualTo(lines.trialIntro));
                 else Assert.That(said, Is.Not.EqualTo(previous), "Level " + level + " repeats level " + (level - 1));
                 Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Level talk rule heading" && !string.IsNullOrEmpty(text.text)), Is.False,

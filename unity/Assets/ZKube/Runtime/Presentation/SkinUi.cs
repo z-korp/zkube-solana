@@ -124,8 +124,9 @@ namespace ZKube.Presentation
         }
 
         // A pill: an action with a word, and optionally a leading 24 dp icon.
+        // The screens around the board set their own type, size and icon size.
         public Button TextButton(string name, Rect rect, string label, Action action, bool primary, Transform parent, out TMP_Text text,
-            string icon = null)
+            string icon = null, Type type = Type.Number, float sizeDp = ButtonDp, float iconDp = 24)
         {
             var face = Piece(name, primary ? SkinSlots.ButtonPrimary : SkinSlots.ButtonSecondary, rect, parent); face.raycastTarget = true;
             var button = face.gameObject.AddComponent<Button>(); button.targetGraphic = face;
@@ -141,12 +142,13 @@ namespace ZKube.Presentation
             string ink = primary ? SkinTokens.TextOnPrimary : SkinTokens.TextOnSecondary;
             if (icon != null)
             {
-                float size = 24 * Density;
-                Piece(name + " icon", icon, new Rect(rect.x + 22 * Density, rect.center.y - size / 2, size, size), face.transform).color = Art.Token(ink);
-                lead = 24 * Density;
+                // The icon sits 16 dp in; its word starts 6 dp after it.
+                float size = iconDp * Density;
+                Piece(name + " icon", icon, new Rect(rect.x + 16 * Density, rect.center.y - size / 2, size, size), face.transform).color = Art.Token(ink);
+                lead = (iconDp + 12) * Density;
             }
-            text = Label(name + " label", label, new Rect(rect.x + pad + lead, rect.y, rect.width - 2 * pad - lead, rect.height), ButtonDp,
-                ink, face.transform, Type.Number);
+            text = Label(name + " label", label, new Rect(rect.x + pad + lead, rect.y, rect.width - 2 * pad - lead, rect.height), sizeDp,
+                ink, face.transform, type);
             return button;
         }
 
@@ -497,13 +499,13 @@ namespace ZKube.Presentation
 
         // The dark pill behind the HUD's star crown, rounded at half its height.
         // A code stand-in until the kit paints the crown pill.
-        public Image Pill(string name, Rect rect, Transform parent)
+        public Image Pill(string name, Rect rect, Transform parent, Color? color = null)
         {
             var image = Rect<Image>(name, rect, parent);
             Circle();
             if (pill == null) pill = Sprite.Create(circleTexture, new Rect(0, 0, 128, 128), Vector2.one / 2, 100, 0, SpriteMeshType.FullRect, Vector4.one * 63);
             image.sprite = pill; image.type = Image.Type.Sliced; image.pixelsPerUnitMultiplier = 128 / rect.height;
-            image.color = new Color(6 / 255f, 18 / 255f, 27 / 255f, .72f); image.raycastTarget = false;
+            image.color = color ?? new Color(6 / 255f, 18 / 255f, 27 / 255f, .72f); image.raycastTarget = false;
             return image;
         }
         private Sprite Circle()

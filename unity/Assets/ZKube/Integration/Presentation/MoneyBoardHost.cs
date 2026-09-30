@@ -238,7 +238,14 @@ namespace ZKube.Integration.Presentation
                     ObjectiveValue = board.Session.Daily ? board.Session.Rules.ObjectiveValue : board.Session.Rules.PrimaryValue,
                     Score = board.Session.Daily ? board.State.DailyScore : board.State.Score,
                     ObjectiveTotal = board.Session.Daily ? board.State.ObjectiveTotal : board.State.PrimaryProgress, ShowStars = !board.Session.Daily,
-                    StarSources = board.State.LatchedStarSources, Notice = "Result saved." });
+                    StarSources = board.State.LatchedStarSources, Notice = "Result saved.",
+                    // A Campaign run's level, end and goals, for its result's words and rows.
+                    Level = HudLayout.CampaignLevel(board.Session), EndReason = board.State.EndReason,
+                    MovesLeft = HudLayout.MovesLeft(board.State, board.Session), PrimaryProgress = board.State.PrimaryProgress,
+                    Goals = board.Session.Daily ? null : new CampaignGoals { Points = board.Session.Rules.PointsRequired,
+                        PrimaryKind = board.Session.Rules.PrimaryKind, PrimaryValue = board.Session.Rules.PrimaryValue, PrimaryCount = board.Session.Rules.PrimaryCount,
+                        SecondaryKind = board.Session.Rules.SecondaryKind, SecondaryValue = board.Session.Rules.SecondaryValue,
+                        SecondaryCount = board.Session.Rules.SecondaryCount } });
             generation++; run = null; campaign = null;
             var previous = board; board = null;
             try { lifetime?.Cancel(); }

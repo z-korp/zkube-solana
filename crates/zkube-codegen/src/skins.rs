@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 /// UI pieces drawn stretched; each declares its stretch border in skin.json.
-pub const UI_STRETCH_SLOTS: [&str; 29] = [
+pub const UI_STRETCH_SLOTS: [&str; 31] = [
     "panel",
     "plate",
     "dialog",
@@ -41,10 +41,13 @@ pub const UI_STRETCH_SLOTS: [&str; 29] = [
     "earn-panel",
     "tap-bubble",
     "chip",
+    // A page's card and its title plate.
+    "card",
+    "title-plate",
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 69] = [
+pub const UI_FIXED_SLOTS: [&str; 75] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -83,6 +86,14 @@ pub const UI_FIXED_SLOTS: [&str; 69] = [
     "icon-hourglass",
     "icon-crown",
     "icon-clock",
+    // Result and page actions and outcomes: play, retry, the map, out of
+    // moves, a full board and an ended run.
+    "icon-play",
+    "icon-retry",
+    "icon-map",
+    "icon-hourglass-empty",
+    "icon-board-full",
+    "icon-flag",
     // Effect sprites are white with variable alpha; the client tints them.
     // fx-glow is the light code places behind live and earned things.
     "fx-glow",
