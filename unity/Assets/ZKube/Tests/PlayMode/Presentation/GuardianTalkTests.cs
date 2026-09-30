@@ -142,11 +142,17 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(twoLines, Box(shortLine).height, .01f, "A short line gets a compact box two lines tall");
             Object.Destroy(shortLine.gameObject);
             var ruled = Talk(null, new TalkPage("One line.", "idle"), TalkPage.RulePage(PageCatalog.Load().Rule(1)));
-            Assert.Greater(Box(ruled).height, twoLines, "The rule page sizes the box");
+            // Each page sizes the box: the line's page is compact, the rule page grows it upward from its bottom.
+            var first = Box(ruled);
+            Assert.AreEqual(twoLines, first.height, .01f, "The line's page is as compact as a short line's");
             var hint = root.GetComponentsInChildren<TMP_Text>().Last(t => t.name == "Talk hint");
             // The hint sits inside the box, in its bottom band beside the ▼, clear of the rule.
             var cue = root.GetComponentsInChildren<TMP_Text>(true).Last(t => t.name == "Talk continue");
             ruled.Complete(); ruled.Tap();
+            Assert.Greater(Box(ruled).height, twoLines, "The rule page sizes the box");
+            Assert.AreEqual(first.yMin, Box(ruled).yMin, .01f, "The box keeps its bottom");
+            var rail = SkinUi.ScreenRect(root.GetComponentsInChildren<Image>(true).Last(i => i.name == "Talk rail").rectTransform);
+            Assert.AreEqual(Box(ruled).yMax, rail.yMax, .01f, "The ledge rises with the box's top");
             var effect = root.GetComponentsInChildren<TMP_Text>(true).Last(t => t.name == "Talk rule effect");
             hint.ForceMeshUpdate(); effect.ForceMeshUpdate();
             var box = Box(ruled); var words = SkinUi.ScreenRect(hint.rectTransform);

@@ -979,6 +979,10 @@ namespace ZKube.Tests
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " profile", 44);
                     Touch("Edit name", phone + " profile");
+                    // The whole profile, Edit name included, stands above the tabs without scrolling.
+                    var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
+                    Assert.That(SkinUi.ScreenRect((RectTransform)FindButton(app, "Edit name").transform).yMin, Is.GreaterThanOrEqualTo(tabs.yMax - .5f),
+                        phone + " profile: Edit name is in view");
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " profile");
                     app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);

@@ -80,7 +80,7 @@ namespace ZKube.Presentation
                     // Another realm is another page: it opens at its own start.
                     if (campaign.Realm != shownRealm) kept = -1;
                     shownRealm = campaign.Realm;
-                    if (campaign.Locked != null) Frame(0, realm.realmName, "REALM " + campaign.Realm + " / " + Protocol.Realms.Length, campaign.Previous, null,
+                    if (campaign.Locked != null) Frame(0, realm.realmName, "Realm " + campaign.Realm + " of " + Protocol.Realms.Length, campaign.Previous, null,
                         Array.Empty<string>());
                     else Frame(0, null, null, null, null, Array.Empty<string>(), fullBleed: true);
                     Campaign(campaign, messages); break;

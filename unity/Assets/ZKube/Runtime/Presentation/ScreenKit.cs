@@ -94,14 +94,16 @@ namespace ZKube.Presentation
             fill(rect);
         });
 
-        // Three star sockets on the dark pill, the side ones 14% lower; lit ones
-        // hold the earned star. sockets receives them left to right.
+        // Three star sockets, the side ones 14% lower, bare over the scene as the
+        // composites draw them; lit ones hold the earned star. sockets receives
+        // them left to right.
         public Piece Crown(bool[] lit, float sizeU, Image[] sockets)
         {
             float u = U, s = sizeU * u, gap = .25f * s;
             return new Piece(s * 1.14f + .2f * s, rect => {
                 float width = 3 * s + 2 * gap;
-                Ui.Pill("Star crown", new Rect(rect.center.x - width / 2 - .22f * s, rect.y, width + .44f * s, rect.height), Parent);
+                var crown = Ui.Rect<Image>("Star crown", new Rect(rect.center.x - width / 2 - .22f * s, rect.y, width + .44f * s, rect.height), Parent);
+                crown.color = Color.clear; crown.raycastTarget = false;
                 for (int i = 0; i < 3; i++)
                 {
                     var socket = new Rect(rect.center.x - width / 2 + i * (s + gap), rect.yMax - .1f * s - s - (i == 1 ? 0 : .14f * s), s, s);
@@ -238,11 +240,15 @@ namespace ZKube.Presentation
         public Piece Buttons((string name, string label, Action click, bool primary, string icon)[] items, Action<int, Button, TMP_Text> made = null)
         {
             float u = U, height = 62 * u, gap = 10 * u, column = Width;
+            // A row too wide for the column first sets its words a step smaller
+            // (the primary at 20u, the others at 18u), then stacks.
+            float primaryDp = 24 * K, secondaryDp = 20 * K;
             float Wide((string name, string label, Action click, bool primary, string icon) item) =>
-                Ui.TextWidth(item.label, item.primary ? 24 * K : 20 * K, SkinUi.Type.Display) + (item.icon == null ? 0 : (28 * K + 12) * Ui.Density)
+                Ui.TextWidth(item.label, item.primary ? primaryDp : secondaryDp, SkinUi.Type.Display) + (item.icon == null ? 0 : (28 * K + 12) * Ui.Density)
                     + 32 * Ui.Density;
-            var widths = items.Select(Wide).ToArray();
-            bool stacked = widths.Sum() + gap * (items.Length - 1) > column;
+            float Row() => items.Sum(Wide) + gap * (items.Length - 1);
+            if (Row() > column) { primaryDp = 20 * K; secondaryDp = 18 * K; }
+            bool stacked = Row() > column;
             // A stack puts the primary on top; made still gets each button's own index.
             var order = Enumerable.Range(0, items.Length).OrderBy(i => stacked && !items[i].primary).ToArray();
             float stackWidth = Mathf.Clamp(items.Select(Wide).DefaultIfEmpty(0).Max(), 0, column);
@@ -256,7 +262,7 @@ namespace ZKube.Presentation
                     float width = stacked ? stackWidth : item.primary ? primary : Wide(item);
                     var at = stacked ? new Rect(rect.center.x - width / 2, y, width, height) : new Rect(x, rect.y, width, height);
                     var button = Ui.TextButton(item.name, at, item.label, item.click, item.primary, Parent, out var text,
-                        item.icon, SkinUi.Type.Display, item.primary ? 24 * K : 20 * K, 28 * K);
+                        item.icon, SkinUi.Type.Display, item.primary ? primaryDp : secondaryDp, 28 * K);
                     // The carved icons keep their own colours.
                     foreach (var image in button.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))) image.color = Color.white;
                     text.textWrappingMode = TextWrappingModes.NoWrap;

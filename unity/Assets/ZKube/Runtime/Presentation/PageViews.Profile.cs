@@ -55,7 +55,7 @@ namespace ZKube.Presentation
         // is a ladder), the name, or its field while editing, and what is worn.
         private Piece WearerCard(ProfilePageView value, ScreenKit kit)
         {
-            float d = ui.Density, u = kit.U, k = kit.K, face = Step(64, 52) * u;
+            float d = ui.Density, u = kit.U, k = kit.K, face = Step(64, 44) * u;
             float nameDp = Mathf.Max(16, 19 * k), wornDp = Mathf.Max(12, 14 * k), text = kit.Inner - face - 12 * u;
             float nameHeight = Mathf.Max(editingName ? 48 * d : 0, ui.TextHeight(value.Name, text, nameDp, SkinUi.Type.Caption));
             string worn = value.Standing ?? value.Worn;
@@ -88,23 +88,24 @@ namespace ZKube.Presentation
         // the number and what it counts.
         private Piece StatTiles(ProfilePageView value, ScreenKit kit)
         {
-            float u = kit.U, k = kit.K, gap = 8 * u, tile = (kit.Width - 2 * gap) / 3, icon = 24 * u, numberDp = 24 * k, captionDp = Mathf.Max(11, 12 * k);
+            float u = kit.U, k = kit.K, gap = 8 * u, tile = (kit.Width - 2 * gap) / 3, icon = Step(24, 18) * u, pad = Step(10, 6) * u;
+            float numberDp = 24 * k, captionDp = Mathf.Max(11, 12 * k);
             var tiles = new[] {
                 ("Campaign stars", SkinSlots.IconCampaign, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
                 ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
                 ("Daily streak", SkinSlots.IconClock, Days(value.Streak)) };
             float numberHeight = ui.TextHeight("0", tile, numberDp, SkinUi.Type.Display);
             float captionHeight = tiles.Max(entry => ui.TextHeight(entry.Item1, tile - 8 * u, captionDp, SkinUi.Type.Caption));
-            return new Piece(10 * u + icon + 4 * u + numberHeight + captionHeight + 10 * u, rect => {
+            return new Piece(pad + icon + 4 * u + numberHeight + captionHeight + pad, rect => {
                 for (int i = 0; i < tiles.Length; i++)
                 {
                     var (name, slot, number) = tiles[i];
                     var card = new Rect(rect.x + i * (tile + gap), rect.y, tile, rect.height);
                     ui.Piece(name + " tile", SkinSlots.Card, card, shell.Page);
-                    ui.Piece(name + " icon", slot, new Rect(card.center.x - icon / 2, card.yMax - 10 * u - icon, icon, icon), shell.Page);
-                    var numberRect = new Rect(card.x + 4 * u, card.yMax - 14 * u - icon - numberHeight, tile - 8 * u, numberHeight);
+                    ui.Piece(name + " icon", slot, new Rect(card.center.x - icon / 2, card.yMax - pad - icon, icon, icon), shell.Page);
+                    var numberRect = new Rect(card.x + 4 * u, card.yMax - pad - 4 * u - icon - numberHeight, tile - 8 * u, numberHeight);
                     NumberFit.Apply(ui, ui.Label(name, number, numberRect, numberDp, SkinTokens.Score, shell.Page, SkinUi.Type.Display), numberRect.width, numberDp);
-                    ui.Label(name + " label", name, new Rect(card.x + 4 * u, card.y + 10 * u, tile - 8 * u, captionHeight), captionDp, SkinTokens.Text,
+                    ui.Label(name + " label", name, new Rect(card.x + 4 * u, card.y + pad, tile - 8 * u, captionHeight), captionDp, SkinTokens.Text,
                         shell.Page, SkinUi.Type.Caption);
                 }
             });
@@ -175,14 +176,14 @@ namespace ZKube.Presentation
         // worn" on the worn one); locked ones are dimmed with a lock and take no tap.
         private Piece EmblemCard(ProfileChoiceView[] emblems, ScreenKit kit)
         {
-            float d = ui.Density, u = kit.U, k = kit.K, inner = kit.Inner, cell = Step(48, 40) * u, nameDp = Mathf.Max(11, 12 * k);
+            float d = ui.Density, u = kit.U, k = kit.K, inner = kit.Inner, cell = Step(48, 34) * u, nameDp = Mathf.Max(11, 12 * k), rowGap = Step(8, 4) * u;
             const string how = "Win a guardian’s final trial to earn its emblem.";
             float headingHeight = ui.TextHeight("GUARDIAN EMBLEMS", inner, 12, SkinUi.Type.Label), howHeight = ui.TextHeight(how, inner, Mathf.Max(12, 13 * k), SkinUi.Type.Caption);
             int across = 4; float pitch = inner / across;
             string Name(ProfileChoiceView choice) => choice.Detail == null ? choice.Name : choice.Name + " · " + choice.Detail.ToLowerInvariant();
             var rows = Enumerable.Range(0, (emblems.Length + across - 1) / across).Select(row => emblems.Skip(row * across).Take(across)
                 .Max(choice => ui.TextHeight(Name(choice), pitch - 4 * u, nameDp, SkinUi.Type.Caption))).ToArray();
-            float grid = rows.Sum(label => cell + 4 * u + label) + (rows.Length - 1) * 8 * u;
+            float grid = rows.Sum(label => cell + 4 * u + label) + (rows.Length - 1) * rowGap;
             return kit.Card(10 * u + headingHeight + 2 * u + howHeight + 10 * u + grid + 12 * u, card => {
                 float x = card.x + 12 * u, y = card.yMax - 10 * u;
                 ui.Label("Emblem heading", "GUARDIAN EMBLEMS", new Rect(x, y - headingHeight, inner, headingHeight), 12, SkinTokens.Text, shell.Page,
@@ -220,7 +221,7 @@ namespace ZKube.Presentation
                         hit.gameObject.AddComponent<PressSquash>();
                         actions.Wire(button, new PageAction { Name = "Emblem " + choice.Id, CanInvoke = choice.CanSelect, Invoke = choice.Select }, fade: false);
                     }
-                    y -= cell + 4 * u + rows[row] + 8 * u;
+                    y -= cell + 4 * u + rows[row] + rowGap;
                 }
                 if (portraits.Count != 0) StartCoroutine(LoadPortraits(portraits, epoch));
             }, "Emblem card");

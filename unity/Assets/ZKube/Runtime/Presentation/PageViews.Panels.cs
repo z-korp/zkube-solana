@@ -114,7 +114,7 @@ namespace ZKube.Presentation
                     // Pills keep the kit's 320 dp width, centred on the page.
                     float width = Mathf.Min(320 * d, at.Width);
                     var pill = new PageColumn(ui, at.Parent, actions, at.Left + (at.Width - width) / 2, width, at.Top);
-                    Pill(pill, block.Action, block.Primary == 0, null, block.Gap ?? 20);
+                    Pill(pill, block.Action, block.Primary == 0, block.Sprite, block.Gap ?? 20);
                     at.Top = pill.Top;
                     break;
                 }

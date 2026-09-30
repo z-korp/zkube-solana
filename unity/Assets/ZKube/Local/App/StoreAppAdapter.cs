@@ -219,7 +219,7 @@ namespace ZKube.Local.App
         public SettingsPageView SettingsPage()
         {
             var view = AppPreferences.Read(Refresh, board);
-            view.Identity = new[] { PanelBlock.Button(Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy), false, 12) };
+            view.Identity = new[] { PanelBlock.Button(Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy), false, 12, icon: SkinSlots.IconRetry) };
             return view;
         }
         public ResultPageView ResultPage()

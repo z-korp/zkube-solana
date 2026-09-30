@@ -199,8 +199,11 @@ namespace ZKube.Presentation
                 effect = TextHeight(ruled.Rule.effect, inner, 13, Type.Caption);
                 ruleHeight = icon + 12 * d + sentence + 4 * d + effect;
             }
-            // The box fits its tallest page.
-            float height = 42 * d + Mathf.Max(lineHeight, ruleHeight) + 32 * d;
+            // The box fits its first page; a taller page grows it upward from its bottom.
+            float Height(TalkPage page) => 42 * d + (page.Rule != null ? ruleHeight
+                : Mathf.Max(2 * TalkLeadingDp * Scale * d, Lines(page.Line, inner, TalkLineDp, Type.Caption) * TalkLeadingDp * Scale * d)) + 32 * d;
+            var heights = pages.Select(Height).ToArray();
+            float height = heights[0];
             var box = new Rect(x, top - height, width, height);
 
             // The guardian leans on the ledge right of centre, clear of the name tag.
@@ -257,7 +260,10 @@ namespace ZKube.Presentation
                     SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Right);
 
             var talk = panel.gameObject.AddComponent<GuardianTalk>();
-            talk.Bind(Art, guardian, text, tagName, tagTitle, rules, cue, pages, finished);
+            // What stands on the box's top moves with it when a page resizes the box.
+            var tops = new RectTransform[] { guardian.rectTransform, ledge.rectTransform, paws.rectTransform, tagName.rectTransform, tagTitle.rectTransform,
+                text.rectTransform, (RectTransform)parent.Find(name + " name tag"), rules == null ? null : (RectTransform)rules.transform }.Where(rect => rect != null).ToArray();
+            talk.Bind(Art, guardian, text, tagName, tagTitle, rules, cue, pages, finished, panel.rectTransform, tops, heights);
             return talk;
         }
         // The guardian stands at this share of the box's width; the rule's pictograms are 56 dp; the name 20 dp.

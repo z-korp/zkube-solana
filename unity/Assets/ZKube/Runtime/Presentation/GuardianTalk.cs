@@ -84,9 +84,14 @@ namespace ZKube.Presentation
         public bool Done { get; private set; }
 
         private string guardianName;
+        private RectTransform box;
+        private RectTransform[] tops = Array.Empty<RectTransform>();
+        private float[] heights;
+        private float shownHeight;
         internal void Bind(BoardArt source, Image frame, TMP_Text text, TMP_Text nameText, TMP_Text titleText, GameObject rules, TMP_Text continueCue,
-            TalkPage[] talk, Action onFinished)
+            TalkPage[] talk, Action onFinished, RectTransform panel = null, RectTransform[] onTop = null, float[] pageHeights = null)
         {
+            box = panel; tops = onTop ?? Array.Empty<RectTransform>(); heights = pageHeights; shownHeight = pageHeights?[0] ?? 0;
             if (talk == null || talk.Length == 0) throw new ArgumentException("A guardian needs something to say", nameof(talk));
             art = source; guardian = frame; line = text; tagName = nameText; tagTitle = titleText; rulePanel = rules; cue = continueCue;
             guardianName = tagName.text;
@@ -98,6 +103,13 @@ namespace ZKube.Presentation
         {
             page = index; var current = pages[index];
             bool ruled = current.Rule != null;
+            // Each page sizes the box, which keeps its bottom and grows or shrinks at its top.
+            if (box != null && heights != null && heights[index] != shownHeight)
+            {
+                float delta = heights[index] - shownHeight; shownHeight = heights[index];
+                box.offsetMax += new Vector2(0, delta);
+                foreach (var rect in tops) rect.anchoredPosition += new Vector2(0, delta);
+            }
             line.text = current.Line ?? ""; shown = 0;
             tagName.text = ruled ? current.RuleHeading : guardianName;
             line.gameObject.SetActive(!ruled); tagTitle.gameObject.SetActive(!ruled);

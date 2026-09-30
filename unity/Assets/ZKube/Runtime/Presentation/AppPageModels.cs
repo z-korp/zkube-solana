@@ -253,8 +253,9 @@ namespace ZKube.Presentation
         // the guardian ring, or in a worn ladder border.
         public static PanelBlock Portrait(byte emblem, float size, string ring = SkinSlots.GuardianFrame, float? gap = null, float lead = 0) =>
             new PanelBlock { Kind = PanelKind.Portrait, Name = "Portrait", Emblem = emblem, Ring = ring, Size = size, Gap = gap, Lead = lead };
-        public static PanelBlock Button(PageAction action, bool primary, float? gap = null, float lead = 0) =>
-            new PanelBlock { Kind = PanelKind.Button, Action = action, Primary = primary ? 0 : -1, Gap = gap, Lead = lead };
+        // A pill, led by its icon when it has one.
+        public static PanelBlock Button(PageAction action, bool primary, float? gap = null, float lead = 0, string icon = null) =>
+            new PanelBlock { Kind = PanelKind.Button, Action = action, Primary = primary ? 0 : -1, Gap = gap, Lead = lead, Sprite = icon };
         // Two half-width pills side by side; primary names the one with the halo.
         public static PanelBlock Pair(PageAction left, PageAction right, int primary = -1, float? gap = null) =>
             new PanelBlock { Kind = PanelKind.Pair, Actions = new[] { left, right }, Primary = primary, Gap = gap };
