@@ -446,7 +446,10 @@ namespace ZKube.Presentation
         }
 
         private static string Remaining(long seconds) => Clock(seconds) + " left";
-        private static string NextDaily(long seconds) => "Next Daily in " + Clock(seconds);
+        private static string NextDaily(long seconds) => "Next Daily in " + NextDailyClock(seconds);
+        // The time to the next Daily, which opens at 00:00 UTC, so it reads at most
+        // 23:59:59; at the day's first second the next Daily is a whole day away.
+        public static string NextDailyClock(long seconds) => Clock(Math.Min(seconds, 24 * 3600 - 1));
         private static string Clock(long seconds)
         {
             seconds = Math.Max(0, seconds);

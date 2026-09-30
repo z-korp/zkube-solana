@@ -11,13 +11,13 @@ namespace ZKube.Tests.Presentation
     // row first; without it, Snap does nothing.
     public static class Captures
     {
-        public static IEnumerator Snap(PageShell shell, string name)
+        public static IEnumerator Snap(PageShell shell, string name) => Snap(shell.ScreenArea, name);
+        public static IEnumerator Snap(Rect area, string name)
         {
             string folder = Environment.GetEnvironmentVariable("ZKUBE_CAPTURES");
             if (string.IsNullOrEmpty(folder)) yield break;
             Directory.CreateDirectory(folder);
             yield return new WaitForEndOfFrame();
-            var area = shell.ScreenArea;
             var texture = new Texture2D((int)area.width, (int)area.height, TextureFormat.RGBA32, false);
             try
             {

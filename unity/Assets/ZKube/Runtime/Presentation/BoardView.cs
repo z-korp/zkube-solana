@@ -22,6 +22,7 @@ namespace ZKube.Presentation
         private HudLayout hud;
         private SkinUi ui;
         public float TextScale => hud.Scale;
+        public HudLayout Hud => hud;
         public bool NeedsTextReflow { get; private set; }
         private Canvas canvas;
         private Transform boardRoot;

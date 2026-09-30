@@ -438,24 +438,31 @@ namespace ZKube.Presentation
             if (!PresentationInitialized || Session == null || IsTerminal()) return;
             paused = true; queued = null; CancelDrag(); music.Pause();
             pauseDialog?.Close();
-            pauseDialog = PauseDialog.Open(View, art, art.Title(Session), Resume, new[] {
-                new PauseDialog.Row { Name = Muted ? "Sound: off" : "Sound: on", Label = "Sound", On = !Muted, Invoke = () => { SetMuted(!Muted); Pause(); } },
-                new PauseDialog.Row { Name = ReducedMotion ? "Reduced motion: on" : "Reduced motion: off", Label = "Reduced motion", On = ReducedMotion,
-                    Invoke = () => { SetReducedMotion(!ReducedMotion); Pause(); } },
-                new PauseDialog.Row { Name = Haptics ? "Haptics: on" : "Haptics: off", Label = "Haptics", On = Haptics, Invoke = () => { SetHaptics(!Haptics); Pause(); } },
-                new PauseDialog.Row { Name = TextScale > 1 ? "Text size: larger" : "Text size: standard", Label = "Text size", Value = TextScale > 1 ? "Larger" : "Standard",
-                    Invoke = () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); } },
-            }, () => {
-                pauseDialog?.Close(); pauseDialog = null;
-                View.OpenModal("End this run?", EndRunDetail(State), EndRun,
-                    ("Keep playing", Resume), (EndRun, () => { paused = false; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); }));
+            pauseDialog = PauseDialog.Pause(View, art, State, Session, Resume, PauseRows(), () => {
+                pauseDialog?.Close();
+                pauseDialog = PauseDialog.Confirm(View, art, EndRunCost(Session, State), Resume,
+                    () => { paused = false; pauseDialog?.Close(); pauseDialog = null; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); });
             });
         }
+        // The pause's settings: the sound, haptics and reduced motion switches, and the text size.
+        public PauseDialog.Row[] PauseRows() => new[] {
+            new PauseDialog.Row { Name = Muted ? "Sound: off" : "Sound: on", Label = "Sound", Icon = SkinSlots.IconSound, On = !Muted,
+                Invoke = () => { SetMuted(!Muted); Pause(); } },
+            new PauseDialog.Row { Name = Haptics ? "Haptics: on" : "Haptics: off", Label = "Haptics", On = Haptics, Invoke = () => { SetHaptics(!Haptics); Pause(); } },
+            new PauseDialog.Row { Name = ReducedMotion ? "Reduced motion: on" : "Reduced motion: off", Label = "Reduced motion", On = ReducedMotion,
+                Invoke = () => { SetReducedMotion(!ReducedMotion); Pause(); } },
+            new PauseDialog.Row { Name = TextScale > 1 ? "Text size: larger" : "Text size: standard", Label = "Text size", Value = TextScale > 1 ? "Larger" : "Standard",
+                Invoke = () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); } },
+        };
         private PauseDialog pauseDialog;
         public const string EndRun = "End run";
-        // Only a run with accepted actions keeps anything when it ends.
-        public static string EndRunDetail(RunSummary state) =>
-            state.ActionCounter > 0 ? "Your accepted actions remain part of this run." : null;
+        // What ending costs, from the core's end rule: an ended Campaign run
+        // keeps no stars; an ended Daily is scored at its last accepted state,
+        // and one without an accepted action ends unscored (the Arcade expires
+        // the entry; Realms records nothing gained).
+        public static string EndRunCost(BoardSession session, RunSummary state) =>
+            !session.Daily ? "An ended run keeps no stars." :
+            state.ActionCounter > 0 ? "Your score so far counts for today." : "Today’s run ends with no score.";
         public void Resume()
         {
             if (!HostInputEnabled) return;

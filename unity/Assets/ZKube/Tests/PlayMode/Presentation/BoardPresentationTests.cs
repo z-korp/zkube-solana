@@ -115,38 +115,53 @@ namespace ZKube.Presentation.Tests
             }
         }
 
-        [UnityTest] public IEnumerator EndingARunSaysOnlyWhatIsTrueAndEndRunLooksDestructive()
+        [UnityTest] public IEnumerator EndingARunAsksWithItsCostAndSaysOnlyWhatIsTrue()
         {
             yield return Load("realm-8-campaign");
             TMP_Text Text(string name) => board.View.GetComponentsInChildren<TMP_Text>().SingleOrDefault(t => t.name == name);
-            var negative = ZKube.Tests.Presentation.BoardTestState.Art(board).Token(SkinTokens.Negative);
+            UnityEngine.UI.Image Image(string name) => board.View.GetComponentsInChildren<UnityEngine.UI.Image>().SingleOrDefault(i => i.name == name);
             Assert.AreEqual(0, board.State.ActionCounter);
             evidence.Click("Pause"); yield return null;
-            var end = Text("Dialog End run label");
-            Assert.AreEqual(negative, end.color, "End run wears the negative ink");
-            foreach (string row in new[] { "Sound: on", "Reduced motion: off", "Text size: standard" })
-            {
-                var label = Text("Dialog " + row + " label");
-                if (label == null) continue;
-                Assert.AreNotEqual(negative, label.color, row + " stays a settings row");
-                Assert.GreaterOrEqual(SkinUi.ScreenRect((RectTransform)label.transform.parent).yMin - SkinUi.ScreenRect((RectTransform)end.transform.parent).yMax,
-                    BoardView.DestructiveGapDp * board.View.Layout.Density, "End run is set apart");
-            }
+            // The pause names the level and ends with Resume, lit, and End run under its flag.
+            Assert.AreEqual("Paused", Text("Screen title").text);
+            StringAssert.StartsWith("Level ", Text("Screen subtitle").text);
+            Assert.AreEqual(SkinSlots.ButtonPrimary, Image("Dialog Resume").sprite.name.Replace("(Clone)", ""));
+            Assert.AreEqual(SkinSlots.ButtonSecondary, Image("Dialog End run").sprite.name.Replace("(Clone)", ""));
+            Assert.AreEqual(SkinSlots.IconFlag, Image("Dialog End run icon").sprite.name.Replace("(Clone)", ""));
             evidence.Click("Dialog End run"); yield return null;
-            Assert.IsNull(Text("Dialog details"), "A run without actions just ends");
-            // The confirmation is the pause's Lumen dialog: medallion, Fraunces title, the close icon on End run.
-            var art = ZKube.Tests.Presentation.BoardTestState.Art(board);
-            Assert.AreEqual(art.Font(SkinUi.Type.Title), Text("Dialog title").font);
-            Assert.AreEqual("End this run?", Text("Dialog title").text);
-            Assert.IsTrue(board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Any(i => i.name == "Dialog guardian"), "The guardian's medallion crowns it");
-            Assert.AreEqual(SkinSlots.Dialog, board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Single(i => i.name == "Dialog panel").sprite.name.Replace("(Clone)", ""));
-            Assert.IsTrue(board.View.GetComponentsInChildren<UnityEngine.UI.Image>().Any(i => i.name == "Dialog End run icon"), "End run carries the close icon");
-            Assert.AreEqual(negative, Text("Dialog End run label").color);
+            Assert.AreEqual("End this run?", Text("Screen title").text);
+            Assert.AreEqual("An ended run keeps no stars.", Text("Dialog cost").text);
+            Assert.IsNull(Text("Dialog details"), "The cost is the only line");
+            Assert.AreEqual(SkinSlots.ButtonPrimary, Image("Dialog Keep playing").sprite.name.Replace("(Clone)", ""), "Keeping on is the lit choice");
+            Assert.IsNull(Image("Dialog guardian"), "The HUD's guardian is the only one");
+            evidence.Click("Dialog Keep playing"); yield return null;
+            Assert.IsFalse(board.Paused);
+            yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            Assert.Greater(board.State.ActionCounter, 0);
+            evidence.Click("Pause"); yield return null; evidence.Click("Dialog End run"); yield return null;
+            Assert.AreEqual("An ended run keeps no stars.", Text("Dialog cost").text, "Actions change nothing a Campaign run keeps");
+            Assert.IsNull(Text("Dialog details"));
+            evidence.Click("Dialog Keep playing");
+        }
+        // A Daily has no stars: an ended Daily is scored at its last accepted
+        // state, and one without an accepted action ends unscored.
+        [UnityTest] public IEnumerator EndingADailySaysWhatItsScoreBecomes()
+        {
+            yield return Load("realm-8-daily");
+            TMP_Text Text(string name) => board.View.GetComponentsInChildren<TMP_Text>().SingleOrDefault(t => t.name == name);
+            Assert.AreEqual(0, board.State.ActionCounter);
+            evidence.Click("Pause"); yield return null;
+            StringAssert.StartsWith("Daily · ", Text("Screen subtitle").text);
+            Assert.IsNotNull(Text("Multiplier value"));
+            evidence.Click("Dialog End run"); yield return null;
+            Assert.AreEqual("Today’s run ends with no score.", Text("Dialog cost").text);
+            StringAssert.DoesNotContain("star", Text("Dialog cost").text);
             evidence.Click("Dialog Keep playing"); yield return null;
             yield return evidence.PlayNextInput(); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Assert.Greater(board.State.ActionCounter, 0);
             evidence.Click("Pause"); yield return null; evidence.Click("Dialog End run"); yield return null;
-            Assert.AreEqual("Your accepted actions remain part of this run.", Text("Dialog details").text);
+            Assert.AreEqual("Your score so far counts for today.", Text("Dialog cost").text);
+            Assert.IsNull(Text("Dialog details"));
             evidence.Click("Dialog Keep playing");
         }
 

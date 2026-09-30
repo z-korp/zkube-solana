@@ -19,6 +19,8 @@ namespace ZKube.Presentation
         public bool Campaign;
         // The plates' scale: 1, or 0.8 on a compact screen.
         public float K;
+        // The whole screen the board draws on; Layout.Frame is its safe area.
+        public Rect Screen;
         // Crown is the dark pill behind the sockets, or the Daily score plate.
         // Best is the Daily's best-score badge over the score plate's top right.
         public Rect Guardian, Crown, Medal, Best, Moves, NextLabel, Status;
@@ -92,6 +94,7 @@ namespace ZKube.Presentation
             bool compact = plain.Compact;
             float d = plain.Density, s = ui.Scale;
             var drawing = screen ?? safe;
+            result.Screen = drawing;
             float inset = Mathf.Max(0, drawing.yMax - safe.yMax) / d;
             float H(string value, float width, float size, SkinUi.Type type) => ui.TextHeight(value, width, size, type) / d;
             float W(string value, float size, SkinUi.Type type) => ui.TextWidth(value, size, type) / d;

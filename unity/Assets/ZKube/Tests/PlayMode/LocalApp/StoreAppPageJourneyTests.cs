@@ -203,7 +203,8 @@ namespace ZKube.Tests
             // Play, counts to the next Daily and shows the run; the result is the
             // action left to take, so it is the primary.
             Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Play today")), Is.False);
-            Assert.That(Texts(), Does.Contain("Today’s attempt is used").And.Contain("Next Daily in 24:00:00"));
+            // The test clock sits on the day's first second: the next Daily is a whole day away.
+            Assert.That(Texts(), Does.Contain("Today’s attempt is used").And.Contain("Next Daily in 23:59:59"));
             Assert.That(Texts(), Does.Contain("Score").And.Contain(product.Read.DailyAttempt.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             var result = FindButton(app, "View result");
             Assert.That(result.interactable, Is.True);

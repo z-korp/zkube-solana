@@ -104,6 +104,81 @@ namespace ZKube.Presentation.Tests
                 ("Seeker", Scaled(seeker), Safe(Scaled(seeker), ZKube.Tests.Presentation.Phones.SeekerTopInsetDp), density),
                 ("360 x 640", Scaled(compact), Safe(Scaled(compact), ZKube.Tests.Presentation.Phones.CompactTopInsetDp), density) };
         }
+        // The pause and its end-run confirm, as the v3 composites draw them over
+        // the dimmed HUD: one guardian (the HUD's), the title plate, the goals as
+        // they stand, the four settings and two buttons, every word fitting and
+        // every row and button 48 dp to touch, on the Seeker and a 360 x 640
+        // phone at both text sizes, for a Campaign run and a Daily. The pause
+        // counts the spec's 21 words on Tiki's first level; the confirm, the
+        // question, its cost and the two buttons.
+        private static readonly System.Text.RegularExpressions.Regex Word = new System.Text.RegularExpressions.Regex("[A-Za-z][A-Za-z'’-]*");
+        [UnityTest] public IEnumerator PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones()
+        {
+            foreach (string fixture in new[] { "realm-1-campaign", "realm-8-daily" })
+            {
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                var art = Art();
+                board.View.gameObject.SetActive(false);
+                foreach (var (name, screen, safe, density) in Screens())
+                    foreach (float scale in new[] { 1f, 1.3f })
+                        foreach (bool confirm in new[] { false, true })
+                        {
+                            var host = new GameObject("Pause view"); host.transform.SetParent(root.transform);
+                            string at = $"{fixture} {(confirm ? "confirm" : "pause")} on {name} at {scale}";
+                            try
+                            {
+                                var ui = new SkinUi(art, density, scale);
+                                var plan = HudLayout.Build(ui, board.State, board.Session, safe, density, screen);
+                                var view = host.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
+                                view.Summary(board.State, board.Session, true);
+                                var dialog = confirm
+                                    ? PauseDialog.Confirm(view, art, BoardController.EndRunCost(board.Session, board.State), () => { }, () => { })
+                                    : PauseDialog.Pause(view, art, board.State, board.Session, () => { }, board.PauseRows(), () => { });
+                                Canvas.ForceUpdateCanvases();
+                                var texts = dialog.GetComponentsInChildren<TMP_Text>().Where(text => !string.IsNullOrEmpty(text.text)).ToArray();
+                                string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
+                                if (fixture == "realm-1-campaign" && scale == 1)
+                                    Assert.AreEqual(confirm ? 13 : 21, texts.Sum(text => Word.Matches(Plain(text.text)).Count),
+                                        at + " words: " + string.Join(" | ", texts.Select(text => Plain(text.text))));
+                                foreach (var text in texts)
+                                {
+                                    Fits(text);
+                                    var rect = WorldRect(text.rectTransform);
+                                    if (text.textWrappingMode == TextWrappingModes.NoWrap)
+                                        Assert.LessOrEqual(text.GetPreferredValues(text.text, float.PositiveInfinity, float.PositiveInfinity).x, rect.width + 1,
+                                            at + ": '" + text.text + "' fits its width");
+                                    Assert.IsTrue(Inside(safe, rect), at + ": '" + text.text + "' " + rect + " stays in the safe area " + safe);
+                                }
+                                var images = dialog.GetComponentsInChildren<Image>();
+                                Assert.IsFalse(images.Any(image => image.name.ToLowerInvariant().Contains("guardian")), at + ": the HUD's guardian is the only one");
+                                var buttons = dialog.GetComponentsInChildren<Button>();
+                                Assert.AreEqual(confirm ? 2 : 6, buttons.Length, at + ": " + string.Join(", ", buttons.Select(button => button.name)));
+                                foreach (var button in buttons)
+                                {
+                                    var rect = WorldRect((RectTransform)button.transform);
+                                    Assert.GreaterOrEqual(rect.height / density, 48 - .01f, at + ": " + button.name + " is 48 dp to touch");
+                                    Assert.IsTrue(Inside(safe, rect), at + ": " + button.name + " stays in the safe area");
+                                    var icon = button.GetComponentsInChildren<Image>().FirstOrDefault(image => image.name == button.name + " icon");
+                                    var word = button.GetComponentsInChildren<TMP_Text>().FirstOrDefault(text => text.name == button.name + " label");
+                                    if (icon != null && word != null)
+                                    {
+                                        word.ForceMeshUpdate();
+                                        Assert.GreaterOrEqual(Ink(word).xMin, WorldRect(icon.rectTransform).xMax - .5f, at + ": " + button.name + "'s word clears its icon");
+                                    }
+                                }
+                                var pieces = images.Where(image => image.name == "Screen title plate" || image.name == "Screen card").Select(image => WorldRect(image.rectTransform))
+                                    .Concat(buttons.Where(button => !button.name.Contains(":")).Select(button => WorldRect((RectTransform)button.transform))).ToArray();
+                                Apart(pieces, at);
+                                Assert.AreEqual(SkinSlots.IconFlag, images.Single(image => image.name == "Dialog End run icon").sprite.name.Replace("(Clone)", ""), at);
+                                if (scale == 1) yield return ZKube.Tests.Presentation.Captures.Snap(screen, (fixture.Contains("daily") ? "daily" : "tiki") + "-"
+                                    + (confirm ? "endconfirm" : "pause") + "-" + (name == "Seeker" ? "seeker" : "compact"));
+                            }
+                            finally { UnityEngine.Object.Destroy(host); }
+                            yield return null;
+                        }
+                board.View.gameObject.SetActive(true);
+            }
+        }
         [UnityTest] public IEnumerator EveryCatalogGoalFitsTheCampaignHudOnTheSeekerAndA360x640Phone()
         {
             evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));

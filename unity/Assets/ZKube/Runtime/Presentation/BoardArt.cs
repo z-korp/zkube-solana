@@ -43,8 +43,6 @@ namespace ZKube.Presentation
         public float GuardianRailY { get; private set; }
         public string LevelMusicResource { get; private set; }
         private bool disposed;
-        public string Title(BoardSession session) => !string.IsNullOrEmpty(session?.Title) ? session.Title :
-            GuardianName + (session == null ? "" : session.Daily ? " · Daily" : " · Campaign");
         public IEnumerator Load(byte realmId)
         {
             if (disposed) throw new ObjectDisposedException(nameof(BoardArt));
