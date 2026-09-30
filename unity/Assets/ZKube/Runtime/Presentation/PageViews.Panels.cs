@@ -5,6 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using ZKube.Core.Generated;
+using Piece = ZKube.Presentation.ScreenKit.Piece;
 
 namespace ZKube.Presentation
 {
@@ -38,6 +39,18 @@ namespace ZKube.Presentation
         }
 
         private void Blocks(IEnumerable<PanelBlock> blocks) { foreach (var block in blocks) Block(column, block, false); }
+        // An identity's blocks as one piece of a composed screen: they are drawn
+        // once in a holder of their own, measured, and moved to where the column
+        // places them.
+        private Piece BlockPiece(string name, IEnumerable<PanelBlock> blocks, ScreenKit kit)
+        {
+            var holder = Holder(name, shell.ScreenArea, shell.Page);
+            float top = shell.ScreenArea.yMax;
+            var at = new PageColumn(ui, holder, actions, kit.Safe.center.x - kit.Width / 2, kit.Width, top);
+            foreach (var block in blocks) Block(at, block, false);
+            float height = top - at.Top;
+            return new Piece(Mathf.Max(0, height), rect => holder.anchoredPosition += new Vector2(0, rect.yMax - top));
+        }
 
         private void Block(PageColumn at, PanelBlock block, bool inCard)
         {
@@ -49,7 +62,7 @@ namespace ZKube.Presentation
                 case PanelKind.Talk:
                 {
                     at.Gap(block.Lead - 4);
-                    var box = Speak(block.Name, shell.Page, at.Left, at.Top, at.Width, catalog.Realm(ui.Art.RealmId),
+                    var box = Speak(block.Name, at.Parent, at.Left, at.Top, at.Width, catalog.Realm(ui.Art.RealmId),
                         new[] { new TalkPage(block.Copy, block.Mood) }, null, false);
                     at.Top = box.y - (block.Gap ?? 38) * d;
                     break;
@@ -268,52 +281,5 @@ namespace ZKube.Presentation
         private Sprite EmblemArt(byte emblem) => emblem > Protocol.Realms.Length ? ui.Art.SkinUi(ProfileEmblems.Painting(emblem)) :
             ui.Art.Sprite("boss__portrait");
 
-        // The Arcade's Daily panel, as drawn at 400 dp: the guardian's portrait
-        // beside the realm, guardian and objective; the entry clock beside the
-        // prize pool; then the entry action, or the reason there is none.
-        private void Arcade(DailyPageView value, PageCatalog.RealmPage realm, string objective)
-        {
-            float d = ui.Density; var arcade = value.Arcade;
-            var card = column.Card("Daily card", null, 24, 22, 16);
-            card.Typed("Daily heading", "TODAY’S DAILY", SkinUi.Type.Label, 12, SkinTokens.Accent, 27, TextAlignmentOptions.Left);
-            float portrait = 116 * d, indent = 116 * d;
-            var text = new PageColumn(ui, card.Parent, actions, card.Left + indent, card.Width - indent, card.Top - 6 * d);
-            text.Typed("Daily realm", realm.realmName, SkinUi.Type.Title, 28, SkinTokens.Text, 6, TextAlignmentOptions.Left);
-            text.Typed("Daily guardian name", realm.guardianName, SkinUi.Type.Caption, 15, SkinTokens.TextMuted, 14, TextAlignmentOptions.Left);
-            text.Typed("Daily objective", Sentence(objective), SkinUi.Type.Caption, 19, SkinTokens.Objective, 0, TextAlignmentOptions.Left);
-            var head = card.Take(Mathf.Max(portrait, card.Top - text.Top), 20);
-            ui.Medallion("Daily guardian", new Rect(card.Left - 10 * d, head.yMax - portrait, portrait, portrait), ui.Art.Sprite("boss__portrait"), card.Parent);
-
-            // The clock on the left, the prize pool from 229 dp across, or as far
-            // right as its widest line lets it sit.
-            float pool = arcade.Pot == null ? 0 : Mathf.Min(card.Width * .45f,
-                Mathf.Max(ui.TextWidth(arcade.Pot, 18, SkinUi.Type.Number), ui.TextWidth("PRIZE POOL", 11, SkinUi.Type.Label)) + 4 * d);
-            float across = Mathf.Min(229 * d, card.Width - pool);
-            var clock = new PageColumn(ui, card.Parent, actions, card.Left, across - 8 * d, card.Top);
-            string headline = arcade.Headline ?? (value.ClosesAt > 0 && value.Now != null ? Remaining(value.ClosesAt - countdownSecond) : null);
-            if (headline != null)
-            {
-                var label = clock.Typed("Daily countdown", headline, SkinUi.Type.Number, 21, SkinTokens.Accent, 8, TextAlignmentOptions.Left);
-                if (arcade.Headline == null) countdown = label;
-            }
-            if (arcade.Closes != null) clock.Typed("Daily closes", arcade.Closes, SkinUi.Type.Caption, 12, SkinTokens.TextMuted, 0, TextAlignmentOptions.Left);
-            float bottom = clock.Top;
-            if (arcade.Pot != null)
-            {
-                var pot = new PageColumn(ui, card.Parent, actions, card.Left + across, card.Width - across, card.Top);
-                pot.Typed("Prize pool caption", "PRIZE POOL", SkinUi.Type.Label, 11, SkinTokens.TextMuted, 10, TextAlignmentOptions.Left);
-                pot.Typed("Prize pool", arcade.Pot, SkinUi.Type.Number, 18, SkinTokens.Score, 0, TextAlignmentOptions.Left);
-                bottom = Mathf.Min(bottom, pot.Top);
-            }
-            card.Top = bottom - 30 * d;
-            if (arcade.Reason != null)
-            {
-                card.Typed("Daily reason", arcade.Reason, SkinUi.Type.Caption, 18, arcade.Warning ? SkinTokens.Negative : SkinTokens.Text, 10);
-                if (arcade.Detail != null) card.Typed("Daily reason detail", arcade.Detail, SkinUi.Type.Caption, 14, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, 16);
-            }
-            else card.Gap(6);
-            for (int i = 0; i < value.Actions.Length; i++) Pill(card, value.Actions[i], i == 0, null, i == value.Actions.Length - 1 ? 4 : 12);
-            column = card.End(18);
-        }
     }
 }

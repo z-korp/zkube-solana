@@ -303,7 +303,7 @@ namespace ZKube.Presentation
         public float CardInset => 28 * Density;
         public Image Card(string name, Rect rect, string heading, Transform parent, out TMP_Text title)
         {
-            var panel = Piece(name, SkinSlots.Panel, rect, parent);
+            var panel = Piece(name, SkinSlots.Card, rect, parent);
             title = null;
             if (heading == null) return panel;
             float width = rect.width - 2 * CardInset, height = TextHeight(heading, width, 17, true);

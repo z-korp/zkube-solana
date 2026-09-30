@@ -33,7 +33,6 @@ namespace ZKube.Presentation
         private CancellationTokenSource sharing = new CancellationTokenSource();
         private PageAction back;
         private Rect tabBar;
-        private float headerBottom;
         private int selectedTab;
         private TMP_Text countdown, nextDaily;
         private DailyPageView countdownView;
@@ -92,7 +91,7 @@ namespace ZKube.Presentation
                     LevelScreen(level, messages); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(2, null, null, profile.Records, null, Array.Empty<string>(), leftIcon: SkinSlots.IconTrophy); Profile(profile, messages); break;
+                    Frame(2, null, null, null, null, Array.Empty<string>()); Profile(profile, messages); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
                     Frame(3, null, null, null, null, Array.Empty<string>());
@@ -150,79 +149,48 @@ namespace ZKube.Presentation
             shell.Finish(y - 56 * d);
         }
 
-        // Header, body frame and tab bar for one page. The tab bar sits inside the
-        // side gutters and above the bottom safe inset; the body scrolls between the
-        // header and the top of the tab bar. A full-bleed page (the map) scrolls
-        // under both instead. A page without a title (Home) draws its own header
-        // in the body.
-        // A page with a subtitle and no title carries the product mark in the
-        // title's place. The left tablet is Back unless the page names its icon.
+        // Body frame, title and tab bar for one page. The tab bar sits inside the
+        // side gutters and above the bottom safe inset; the body scrolls between
+        // the safe top and the top of the tab bar. A titled page carries its title
+        // on the screens' title plate at the top of its body, with its left and
+        // right tablets beside it; they scroll with it. A full-bleed page (the map,
+        // the preview and the results) runs under the tab bar and draws its own.
         private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, string[] notices,
             bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
         {
             var safe = shell.SafeArea; float d = ui.Density;
             selectedTab = tab;
-            float icon = IconDp * d, titleWidth = TitleWidth();
-            float titleHeight = title == null ? 0 : ui.TextHeight(title, titleWidth, 25, SkinUi.Type.Title);
-            float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 12, SkinUi.Type.Label);
-            float header = Header(title, subtitle);
+            float icon = IconDp * d;
             tabBar = ui.TabBarRect(safe);
             float bottom = tab >= 0 ? tabBar.yMax : safe.y;
-            headerBottom = safe.yMax - header;
-            // A full-bleed page runs under the header and tab bar.
             var screen = shell.ScreenArea;
-            var body = fullBleed ? screen :
-                new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
-            // Scrolling content fades out over its last 24 dp at the tab bar and the header.
+            var body = fullBleed ? screen : new Rect(safe.x, bottom, safe.width, safe.yMax - bottom);
+            // Scrolling content fades out over its last 24 dp at the tab bar.
             shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), .92f);
-            var chrome = shell.Overlay;
-            if (title != null)
-            {
-                var rect = new Rect(safe.center.x - titleWidth / 2, safe.yMax - 5 * d - titleHeight, titleWidth, titleHeight);
-                Shade(rect, ui.TextWidth(title, 25, SkinUi.Type.Title), chrome);
-                ui.Label("Page title", title, rect, 25, SkinTokens.Text, chrome, SkinUi.Type.Title);
-                ui.Piece("Page title stroke", SkinSlots.TitleRibbon, new Rect(safe.center.x - 75 * d, safe.yMax - 53 * d, 150 * d, 7 * d), chrome);
-            }
-            else if (subtitle != null)
-            {
-                // The wordmark's mark, 48 dp wide, in the title's band.
-                var mark = ui.Art.Sprite(BoardArt.Mark);
-                float markWidth = IconDp * d, markHeight = markWidth * mark.rect.height / mark.rect.width;
-                var image = ui.Rect<Image>("Page mark", new Rect(safe.center.x - markWidth / 2, safe.yMax - 12 * d - markHeight, markWidth, markHeight), chrome);
-                image.sprite = mark; image.preserveAspect = true; image.raycastTarget = false;
-                ui.Piece("Page title stroke", SkinSlots.TitleRibbon, new Rect(safe.center.x - 75 * d, safe.yMax - 53 * d, 150 * d, 7 * d), chrome);
-            }
-            if (subtitle != null)
-            {
-                var rect = new Rect(safe.center.x - titleWidth / 2, safe.yMax - 59 * d - subtitleHeight, titleWidth, subtitleHeight);
-                Shade(rect, ui.TextWidth(subtitle, 12, SkinUi.Type.Label), chrome);
-                ui.Label("Page subtitle", subtitle, rect, 12, SkinTokens.TextMuted, chrome, SkinUi.Type.Label);
-            }
             // Utility tablets sit 4 dp inside the top safe inset, on the page gutters.
             // An action that cannot be taken is not drawn.
             float iconY = safe.yMax - 4 * d - icon;
             back = left;
-            if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + GutterDp * d, iconY, icon, icon), leftIcon, false);
-            if (right != null && right.Enabled) HeaderButton(right, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconBack, true);
+            var parent = fullBleed ? shell.Overlay : shell.Page;
+            if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + GutterDp * d, iconY, icon, icon), leftIcon, false, parent);
+            if (right != null && right.Enabled) HeaderButton(right, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconBack, true, parent);
             if (tab >= 0) TabBar(safe, tab);
             float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
             column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);
+            if ((title ?? subtitle) != null)
+            {
+                // The plate keeps clear of the tablets on both sides.
+                var kit = Kit;
+                var plate = kit.TitlePlate(title ?? subtitle, title == null ? null : subtitle, room: safe.width - 2 * (GutterDp * d + icon + 8 * d));
+                plate.Draw(new Rect(column.Left, safe.yMax - 4 * d - plate.Height, column.Width, plate.Height));
+                column.Top = safe.yMax - 4 * d - plate.Height - 10 * kit.U;
+            }
             foreach (var notice in notices) column.Note("Notice", notice);
         }
-        private float TitleWidth() => shell.SafeArea.width - 2 * (IconDp + 24) * ui.Density;
-        // The inner-page header's height: the title 5 dp under the safe inset, its
-        // light stroke at 46 dp and the subtitle at 59 dp.
-        private float Header(string title, string subtitle)
+        private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored, Transform parent = null)
         {
-            float d = ui.Density;
-            if (title == null && subtitle == null) return 0;
-            float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, TitleWidth(), 12, SkinUi.Type.Label);
-            return Mathf.Max((subtitle == null ? 70 : 84) * d, 59 * d + subtitleHeight + 8 * d);
-        }
-        private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored)
-        {
-            var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), shell.Overlay, false, out var glyph, out _);
+            var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), parent ?? shell.Overlay, false, out var glyph, out _);
             if (mirrored)
             {
                 var glyphRect = glyph.rectTransform;
@@ -249,47 +217,14 @@ namespace ZKube.Presentation
         // its action opens the result. The Arena draws its Arcade instead.
         private void Home(DailyPageView value, string[] notices)
         {
-            if (value.Arcade != null) { ArcadeHome(value); return; }
-            var kit = Kit; float u = kit.U, k = kit.K;
+            if (value.Arcade != null) { ArcadeHome(value, notices); return; }
+            var kit = Kit; float u = kit.U;
             var realm = catalog.Realm(value.Realm);
-            string objective = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
             if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
             bool used = value.NextOpensAt > 0 && value.Now != null;
             string clock = used ? NextDaily(value.NextOpensAt - countdownSecond)
                 : value.ClosesAt > 0 && value.Now != null ? Remaining(value.ClosesAt - countdownSecond) : null;
-            float chipDp = Mathf.Max(13, 15 * k), chipHeight = 30 * u;
-            // The chip holds the widest the clock can read.
-            float chipWidth = clock == null ? 0 : 18 * u + 6 * u + ui.TextWidth(System.Text.RegularExpressions.Regex.Replace(clock, "[0-9]", "8"), chipDp,
-                SkinUi.Type.Display) + 22 * u;
-            float usedHeight = used ? ui.TextHeight("Today’s attempt is used", kit.Inner, Mathf.Max(13, 15 * k), SkinUi.Type.Caption) + 4 * u : 0;
-            var pieces = new List<Piece> { Lockup(kit), Piece.Grow,
-                HomeCard(kit, "Daily", "TODAY’S DAILY", Step(76, 60), image => image.sprite = ui.Art.Sprite("boss__portrait"), realm.guardianName, objective,
-                    clock == null ? 0 : usedHeight + chipHeight, rect => {
-                        float x = rect.x;
-                        if (used)
-                            ui.Label("Daily used", "Today’s attempt is used", new Rect(rect.x, rect.yMax - usedHeight, rect.width, usedHeight),
-                                Mathf.Max(13, 15 * k), SkinTokens.Text, shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left);
-                        else if (value.ObjectiveKind != 0)
-                        {
-                            var goal = catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
-                            ui.Piece("Daily objective pictogram", goal.Pictogram(RealmBonus(value.Realm)), new Rect(x, rect.y + 2 * u, 26 * u, 26 * u), shell.Page);
-                            // The goal's sign sits on the picture's lower left, as on the HUD.
-                            if (!string.IsNullOrEmpty(goal.chip))
-                            {
-                                float signDp = Mathf.Max(9, 11 * k), sign = ui.TextHeight(goal.chip, 40 * u, signDp, SkinUi.Type.Display);
-                                ui.Label("Daily objective chip", goal.chip, new Rect(x - 4 * u, rect.y - 2 * u, 22 * u, sign), signDp, SkinTokens.Text, shell.Page,
-                                    SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
-                            }
-                            x += 34 * u;
-                        }
-                        var chip = new Rect(x, rect.y, Mathf.Min(chipWidth, rect.xMax - x), chipHeight);
-                        ui.Pill("Daily clock chip", chip, shell.Page, new Color(11 / 255f, 20 / 255f, 28 / 255f, 1));
-                        ui.Piece("Daily clock icon", SkinSlots.IconClock, new Rect(chip.x + 10 * u, chip.center.y - 9 * u, 18 * u, 18 * u), shell.Page);
-                        var text = ui.Label(used ? "Next Daily" : "Daily countdown", clock, new Rect(chip.x + 34 * u, chip.y, chip.width - 40 * u, chip.height),
-                            chipDp, SkinTokens.Text, shell.Page, SkinUi.Type.Display, TextAlignmentOptions.Left);
-                        text.textWrappingMode = TextWrappingModes.NoWrap;
-                        if (used) nextDaily = text; else countdown = text;
-                    }, 0, null) };
+            var pieces = new List<Piece> { Lockup(kit), Piece.Grow, DailyCard(kit, value, realm.guardianName, clock, used, 0, null) };
             foreach (var notice in notices) pieces.Add(kit.Note(notice));
             if (!string.IsNullOrEmpty(value.Status)) pieces.Add(kit.Note(value.Status));
             foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
@@ -317,6 +252,45 @@ namespace ZKube.Presentation
             pieces.Add(Buttons((value.Actions.FirstOrDefault(), true, SkinSlots.IconPlay), (play, false, play == summary?.Map ? SkinSlots.IconMap : SkinSlots.IconPlay)));
             Compose(pieces.ToArray());
         }
+        // Today's Daily card: the guardian, its name, the objective and, beside the
+        // objective's pictogram, the time left; once the attempt is used, the count
+        // to the next Daily. footer draws under the row (the Arena's prize pool).
+        private Piece DailyCard(ScreenKit kit, DailyPageView value, string title, string clock, bool used, float footerHeight, Action<Rect> footer)
+        {
+            float u = kit.U, k = kit.K;
+            float chipDp = Mathf.Max(13, 15 * k), chipHeight = 30 * u;
+            // The chip holds the widest the clock can read.
+            float chipWidth = clock == null ? 0 : 18 * u + 6 * u + ui.TextWidth(System.Text.RegularExpressions.Regex.Replace(clock, "[0-9]", "8"), chipDp,
+                SkinUi.Type.Display) + 22 * u;
+            float usedHeight = used ? ui.TextHeight("Today’s attempt is used", kit.Inner, Mathf.Max(13, 15 * k), SkinUi.Type.Caption) + 4 * u : 0;
+            return HomeCard(kit, "Daily", "TODAY’S DAILY", Step(76, 60), image => image.sprite = ui.Art.Sprite("boss__portrait"), title,
+                catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue), clock == null ? 0 : usedHeight + chipHeight, rect => {
+                    float x = rect.x;
+                    if (used)
+                        ui.Label("Daily used", "Today’s attempt is used", new Rect(rect.x, rect.yMax - usedHeight, rect.width, usedHeight),
+                            Mathf.Max(13, 15 * k), SkinTokens.Text, shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left);
+                    else if (value.ObjectiveKind != 0)
+                    {
+                        var goal = catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
+                        ui.Piece("Daily objective pictogram", goal.Pictogram(RealmBonus(value.Realm)), new Rect(x, rect.y + 2 * u, 26 * u, 26 * u), shell.Page);
+                        // The goal's sign sits on the picture's lower left, as on the HUD.
+                        if (!string.IsNullOrEmpty(goal.chip))
+                        {
+                            float signDp = Mathf.Max(9, 11 * k), sign = ui.TextHeight(goal.chip, 40 * u, signDp, SkinUi.Type.Display);
+                            ui.Label("Daily objective chip", goal.chip, new Rect(x - 4 * u, rect.y - 2 * u, 22 * u, sign), signDp, SkinTokens.Text, shell.Page,
+                                SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
+                        }
+                        x += 34 * u;
+                    }
+                    var chip = new Rect(x, rect.y, Mathf.Min(chipWidth, rect.xMax - x), chipHeight);
+                    ui.Pill("Daily clock chip", chip, shell.Page, new Color(11 / 255f, 20 / 255f, 28 / 255f, 1));
+                    ui.Piece("Daily clock icon", SkinSlots.IconClock, new Rect(chip.x + 10 * u, chip.center.y - 9 * u, 18 * u, 18 * u), shell.Page);
+                    var text = ui.Label(used ? "Next Daily" : "Daily countdown", clock, new Rect(chip.x + 34 * u, chip.y, chip.width - 40 * u, chip.height),
+                        chipDp, SkinTokens.Text, shell.Page, SkinUi.Type.Display, TextAlignmentOptions.Left);
+                    text.textWrappingMode = TextWrappingModes.NoWrap;
+                    if (used) nextDaily = text; else if (value.Arcade?.Headline == null) countdown = text;
+                }, 0, null, footerHeight, footer);
+        }
         // The product's painted lockup, 200u wide.
         private Piece Lockup(ScreenKit kit)
         {
@@ -331,14 +305,15 @@ namespace ZKube.Presentation
         // beside a name and a line; under draws below the line (the Daily's
         // clock), side on the right (the Campaign's stars).
         private Piece HomeCard(ScreenKit kit, string name, string heading, float portraitU, Action<Image> portrait, string title, string line,
-            float underHeight, Action<Rect> under, float sideWidth, Action<Rect> side)
+            float underHeight, Action<Rect> under, float sideWidth, Action<Rect> side, float footerHeight = 0, Action<Rect> footer = null)
         {
             float u = kit.U, k = kit.K, headingDp = Mathf.Max(11, 12 * k), titleDp = Mathf.Max(15, 17 * k), lineDp = Mathf.Max(12, 14 * k);
             float face = portraitU * u, text = kit.Inner - face - 12 * u - (side == null ? 0 : sideWidth + 10 * u);
             float headingHeight = ui.TextHeight(heading, kit.Inner, headingDp, SkinUi.Type.Label);
             float titleHeight = ui.TextHeight(title, text, titleDp, SkinUi.Type.Caption), lineHeight = ui.TextHeight(line, text, lineDp, SkinUi.Type.Caption);
             float block = titleHeight + lineHeight + (underHeight > 0 ? 6 * u + underHeight : 0), row = Mathf.Max(face, block);
-            return kit.Card(10 * u + headingHeight + 8 * u + row + 12 * u, card => {
+            float foot = footer == null ? 0 : footerHeight + 8 * u;
+            return kit.Card(10 * u + headingHeight + 8 * u + row + foot + 12 * u, card => {
                 float x = card.x + 12 * u, top = card.yMax - 10 * u;
                 ui.Label(name + " heading", heading, new Rect(x, top - headingHeight, kit.Inner, headingHeight), headingDp, SkinTokens.Text, shell.Page,
                     SkinUi.Type.Label, TextAlignmentOptions.Left);
@@ -352,37 +327,76 @@ namespace ZKube.Presentation
                     SkinUi.Type.Caption, TextAlignmentOptions.Left);
                 if (under != null) under(new Rect(tx, y - block, card.xMax - 12 * u - tx, underHeight));
                 if (side != null) side(new Rect(card.xMax - 12 * u - sideWidth, middle - face / 2, sideWidth, face));
+                if (footer != null)
+                {
+                    var foot = new Rect(x, card.y + 12 * u, kit.Inner, footerHeight);
+                    kit.Rule(name + " footer rule", new Rect(foot.x, foot.y, foot.width, foot.height + 4 * u));
+                    footer(foot);
+                }
             }, name + " card");
         }
-        // The Arena's Home: its lockup over the Arcade panel and its blocks.
-        private void ArcadeHome(DailyPageView value)
+        // The Arena's Home, as the v3 composite draws it: the Arena lockup over the
+        // painting, today's Daily card with the prize pool and when entries close,
+        // why no entry can be made when none can, the identity's words (the Kredit
+        // balance and the board rule), the Daily's actions, then its pill pairs
+        // (Kredits and Rewards).
+        private void ArcadeHome(DailyPageView value, string[] notices)
         {
-            float d = ui.Density;
-            var mark = ui.Art.Sprite("common/brand__" + brand);
-            float markWidth = 180 * d, markHeight = markWidth * mark.rect.height / mark.rect.width;
-            var markRect = column.Take(markHeight, 8);
-            var wordmark = ui.Rect<Image>("Wordmark", new Rect(column.Left + (column.Width - markWidth) / 2, markRect.y, markWidth, markHeight), shell.Page);
-            wordmark.sprite = mark; wordmark.preserveAspect = true; wordmark.raycastTarget = false;
+            var kit = Kit; float u = kit.U, k = kit.K;
+            var arcade = value.Arcade; var realm = catalog.Realm(value.Realm);
             if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
-            Arcade(value, catalog.Realm(value.Realm), catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue));
-            Blocks(value.Blocks);
+            string clock = arcade.Headline ?? (value.ClosesAt > 0 && value.Now != null ? Remaining(value.ClosesAt - countdownSecond) : null);
+            float poolDp = Mathf.Max(13, 15 * k), closesDp = Mathf.Max(11, 12 * k), potDp = 24 * k;
+            float footer = arcade.Pot == null ? 0 : Mathf.Max(ui.TextHeight("Prize pool", kit.Inner, poolDp, SkinUi.Type.Caption)
+                + (arcade.Closes == null ? 0 : ui.TextHeight(arcade.Closes, kit.Inner, closesDp, SkinUi.Type.Caption)), ui.TextHeight("0", kit.Inner, potDp, SkinUi.Type.Display));
+            var pieces = new List<Piece> { Lockup(kit), Piece.Grow };
+            foreach (var notice in notices) pieces.Add(kit.Note(notice));
+            pieces.Add(DailyCard(kit, value, realm.guardianName + " · " + realm.realmName, clock, false, footer, rect => {
+                float potWidth = Mathf.Min(rect.width / 2, ui.TextWidth(arcade.Pot, potDp, SkinUi.Type.Display) + 2 * u);
+                float poolHeight = ui.TextHeight("Prize pool", rect.width, poolDp, SkinUi.Type.Caption);
+                ui.Label("Prize pool caption", "Prize pool", new Rect(rect.x, rect.yMax - poolHeight, rect.width - potWidth, poolHeight), poolDp, SkinTokens.Text,
+                    shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left);
+                if (arcade.Closes != null)
+                    ui.Label("Daily closes", arcade.Closes, new Rect(rect.x, rect.y, rect.width - potWidth, rect.height - poolHeight), closesDp, SkinTokens.TextMuted,
+                        shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.TopLeft);
+                NumberFit.Apply(ui, ui.Label("Prize pool", arcade.Pot, new Rect(rect.xMax - potWidth, rect.y, potWidth, rect.height), potDp, SkinTokens.Accent,
+                    shell.Page, SkinUi.Type.Display, TextAlignmentOptions.Right), potWidth, potDp);
+            }));
+            if (arcade.Reason != null)
+            {
+                pieces.Add(Line("Daily reason", arcade.Reason, arcade.Warning ? SkinTokens.Negative : SkinTokens.Text, kit));
+                if (arcade.Detail != null) pieces.Add(Line("Daily reason detail", arcade.Detail, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, kit));
+            }
+            var words = value.Blocks.Where(block => block.Kind != PanelKind.Pair).ToArray();
+            var pairs = value.Blocks.Where(block => block.Kind == PanelKind.Pair).ToArray();
+            if (words.Length != 0) pieces.Add(BlockPiece("Arcade words", words, kit));
+            pieces.Add(Buttons(value.Actions.Select((action, i) => (action, i == 0, i == 0 ? SkinSlots.IconPlay : (string)null)).ToArray()));
+            if (pairs.Length != 0) pieces.Add(BlockPiece("Arcade pills", pairs, kit));
+            Compose(pieces.ToArray());
         }
-        // A 52 dp kit list row: the label on the left and its number on the right.
+        // A centred line in its own name and ink, between a screen's pieces.
+        private Piece Line(string name, string text, string token, ScreenKit kit)
+        {
+            float size = Mathf.Max(13, 15 * kit.K), height = ui.TextHeight(text, kit.Width, size, SkinUi.Type.Caption);
+            return new Piece(height, rect => ui.Label(name, text, rect, size, token, shell.Page, SkinUi.Type.Caption));
+        }
+        // A 52 dp ruled row: the label on the left and its number on the right, in
+        // the display face, as the screens' cards draw their rows.
         private Image ResultRow(PageColumn rows, string name, string label, string number, string token, float gapDp)
         {
             float d = ui.Density;
-            float numberWidth = NumberSlot(number, 18, rows.Width / 2);
+            float numberWidth = Mathf.Min(ui.TextWidth(number, 20, SkinUi.Type.Display), rows.Width / 2);
             float height = Mathf.Max(PageColumn.RowDp * d, ui.TextHeight(label, rows.Width - 44 * d - numberWidth, 15, SkinUi.Type.Caption) + 16 * d);
             var rect = rows.Take(height, gapDp);
-            var row = ui.Piece(name + " row", SkinSlots.ListRow, rect, rows.Parent);
+            var row = ui.Rect<Image>(name + " row", rect, rows.Parent); row.color = Color.clear; row.raycastTarget = false;
+            var rule = ui.Rect<Image>(name + " rule", new Rect(rect.x, rect.yMax, rect.width, Mathf.Max(1, d)), rows.Parent);
+            rule.color = new Color(35 / 255f, 57 / 255f, 74 / 255f, 1); rule.raycastTarget = false;
             ui.Label(name + " label", label, new Rect(rect.x + 14 * d, rect.y, rect.width - 36 * d - numberWidth, rect.height), 15,
-                SkinTokens.Text, rows.Parent, SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            FittedNumber(name, number, new Rect(rect.xMax - 15 * d - numberWidth, rect.y, numberWidth, rect.height), 18, token, rows.Parent,
-                TextAlignmentOptions.Right);
+                SkinTokens.Text, row.transform, SkinUi.Type.Caption, TextAlignmentOptions.Left);
+            NumberFit.Apply(ui, ui.Label(name, number, new Rect(rect.xMax - 15 * d - numberWidth, rect.y, numberWidth, rect.height), 20, token, row.transform,
+                SkinUi.Type.Display, TextAlignmentOptions.Right), numberWidth, 20);
             return row;
         }
-        // A number's slot: its width, at most the room it is given.
-        private float NumberSlot(string number, float sizeDp, float room) => Mathf.Min(ui.TextWidth(number, sizeDp, SkinUi.Type.Number), room);
         // A number drawn on one line, fitted to its rect.
         private TMP_Text FittedNumber(string name, string number, Rect rect, float sizeDp, string token, Transform parent, TextAlignmentOptions alignment) =>
             NumberFit.Apply(ui, ui.Label(name, number, rect, sizeDp, token, parent, SkinUi.Type.Number, alignment), rect.width, sizeDp);

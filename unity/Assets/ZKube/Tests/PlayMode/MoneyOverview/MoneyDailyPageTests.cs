@@ -24,7 +24,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator DailyNavigationReadsThePublicChallengeAndOffersOnlySavedRunResume()
         {
             yield return OpenDailyPage();
-            StringAssert.Contains("PRIZE POOL", DailyText());
+            StringAssert.Contains("Prize pool", DailyText());
             StringAssert.Contains("23:59 UTC", DailyText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit" || button.name == "Confirm 1 Kredit"), Is.False);

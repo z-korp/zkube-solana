@@ -61,12 +61,15 @@ namespace ZKube.Presentation
 
         // A screen's title on its plate: an optional icon before the title, and
         // a line under it in its token.
-        public Piece TitlePlate(string title, string subtitle, string subtitleToken = SkinTokens.TextMuted, string icon = null)
+        public Piece TitlePlate(string title, string subtitle, string subtitleToken = SkinTokens.TextMuted, string icon = null, float? room = null)
         {
             float k = K, u = U, titleDp = 28 * k, subtitleDp = Mathf.Max(12, 13 * k), iconSize = icon == null ? 0 : 30 * u;
-            float room = Width - 32 * u;
-            float titleWidth = Mathf.Min(room, Ui.TextWidth(title, titleDp, SkinUi.Type.Display) + (icon == null ? 0 : iconSize + 6 * u));
-            float subtitleWidth = subtitle == null ? 0 : Mathf.Min(room, Ui.TextWidth(subtitle, subtitleDp, SkinUi.Type.Caption));
+            float space = Mathf.Min(room ?? float.PositiveInfinity, Width) - 32 * u;
+            // A title too wide for its plate shrinks toward 20u before it wraps.
+            float wide = Ui.TextWidth(title, titleDp, SkinUi.Type.Display) + iconSize + (icon == null ? 0 : 6 * u);
+            if (wide > space) titleDp = Mathf.Max(20 * k, titleDp * space / wide);
+            float titleWidth = Mathf.Min(space, Ui.TextWidth(title, titleDp, SkinUi.Type.Display) + (icon == null ? 0 : iconSize + 6 * u));
+            float subtitleWidth = subtitle == null ? 0 : Mathf.Min(space, Ui.TextWidth(subtitle, subtitleDp, SkinUi.Type.Caption));
             float inner = Mathf.Max(titleWidth, subtitleWidth);
             float titleHeight = Ui.TextHeight(title, titleWidth - (icon == null ? 0 : iconSize + 6 * u), titleDp, SkinUi.Type.Display);
             float subtitleHeight = subtitle == null ? 0 : Ui.TextHeight(subtitle, inner, subtitleDp, SkinUi.Type.Caption);

@@ -97,8 +97,9 @@ namespace ZKube.Presentation
             if (action == null) return null;
             float lead = icon == null ? 0 : 24 * D, room = Width - 20 * D - lead;
             var (label, size) = PillLabel(Ui, action.Label, action.Short, room);
-            float height = Mathf.Max(ButtonDp * D, Ui.TextHeight(label, float.PositiveInfinity, size, SkinUi.Type.Number) + 24 * D);
-            var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), label, Actions.Click(action), primary, Parent, out var text, icon);
+            float height = Mathf.Max(ButtonDp * D, Ui.TextHeight(label, float.PositiveInfinity, size, SkinUi.Type.Display) + 24 * D);
+            var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), label, Actions.Click(action), primary, Parent, out var text, icon,
+                SkinUi.Type.Display);
             Style(Ui, text, size);
             return Actions.Bind(button, action, relabel: value => {
                 var (shown, fitted) = PillLabel(Ui, value, action.Short, room);
@@ -113,7 +114,7 @@ namespace ZKube.Presentation
         public const float ButtonMinimumDp = 14;
         public static (string Label, float Size) PillLabel(SkinUi ui, string label, string shorter, float room)
         {
-            float width = ui.TextWidth(label, SkinUi.ButtonDp, SkinUi.Type.Number), floor = ButtonMinimumDp / ui.Scale;
+            float width = ui.TextWidth(label, SkinUi.ButtonDp, SkinUi.Type.Display), floor = ButtonMinimumDp / ui.Scale;
             if (width <= room) return (label, SkinUi.ButtonDp);
             float size = Mathf.Floor(SkinUi.ButtonDp * room / width * 10) / 10;
             if (size >= floor) return (label, size);

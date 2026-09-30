@@ -16,11 +16,12 @@ namespace ZKube.Presentation
         public const int NameLimit = 24;
         private bool editingName;
 
-        // The profile, as the v3 composite draws it: the title plate, the
+        // The profile, as the v3 composites draw it: the title plate, the
         // wearer's card (the worn emblem, the name, edited in place where the
-        // identity allows it, and what is worn), the three stat tiles and the
-        // guardian emblems in a card, then Edit name. The identity's own lines
-        // and actions (the ladder standing, borders, saving) follow.
+        // identity allows it, and what is worn, or the ladder standing, a tap on
+        // which chooses the border), the three stat tiles and the guardian emblems
+        // in a card, then Edit name or the records. The identity's own lines and
+        // actions (borders, saving) follow.
         private void Profile(ProfilePageView value, string[] notices)
         {
             var kit = Kit;
@@ -34,14 +35,14 @@ namespace ZKube.Presentation
             if (value.Emblems.Length != 0) pieces.Add(EmblemCard(value.Emblems, kit));
             foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
             if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(kit.Note(value.Notice));
-            if (value.ChangeName != null)
+            var edit = value.ChangeName == null ? null
+                : new PageAction { Name = "Edit name", Label = "Edit name", Invoke = () => { editingName = true; editedName = value.Name; Redraw(); } };
+            if (edit != null || value.Records != null)
             {
                 pieces.Add(Piece.Grow);
-                pieces.Add(Buttons((new PageAction { Name = "Edit name", Label = "Edit name", Invoke = () => { editingName = true; editedName = value.Name; Redraw(); } },
-                    false, SkinSlots.IconProfile)));
+                pieces.Add(Buttons((edit, false, SkinSlots.IconProfile), (value.Records, false, SkinSlots.IconCrown)));
             }
             Compose(pieces.ToArray());
-            if (value.Standing != null) Standing(value);
             foreach (var action in value.Actions) Pill(column, action, false, null, 12);
             if (value.Borders.Length != 0) column.Typed("Border heading", "BORDER", SkinUi.Type.Label, 12, SkinTokens.Accent, 10, TextAlignmentOptions.Left);
             foreach (var choice in value.Borders)
@@ -57,7 +58,8 @@ namespace ZKube.Presentation
             float d = ui.Density, u = kit.U, k = kit.K, face = Step(64, 52) * u;
             float nameDp = Mathf.Max(16, 19 * k), wornDp = Mathf.Max(12, 14 * k), text = kit.Inner - face - 12 * u;
             float nameHeight = Mathf.Max(editingName ? 48 * d : 0, ui.TextHeight(value.Name, text, nameDp, SkinUi.Type.Caption));
-            float wornHeight = string.IsNullOrEmpty(value.Worn) ? 0 : ui.TextHeight(value.Worn, text, wornDp, SkinUi.Type.Caption);
+            string worn = value.Standing ?? value.Worn;
+            float wornHeight = string.IsNullOrEmpty(worn) ? 0 : ui.TextHeight(worn, text, wornDp, SkinUi.Type.Caption);
             float row = Mathf.Max(face, nameHeight + wornHeight);
             return kit.Card(row + 24 * u, card => {
                 float x = card.x + 12 * u, middle = card.center.y;
@@ -69,8 +71,16 @@ namespace ZKube.Presentation
                 else ui.Label("Name text", value.Name, nameRect, nameDp, SkinTokens.Text, shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left)
                     .textWrappingMode = TextWrappingModes.NoWrap;
                 if (wornHeight > 0)
-                    ui.Label("Worn", value.Worn, new Rect(tx, top - nameHeight - wornHeight, text, wornHeight), wornDp, SkinTokens.TextMuted, shell.Page,
-                        SkinUi.Type.Caption, TextAlignmentOptions.Left);
+                    ui.Label(value.Standing != null ? "Standing line" : "Worn", worn, new Rect(tx, top - nameHeight - wornHeight, text, wornHeight), wornDp,
+                        SkinTokens.TextMuted, shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left);
+                // Where there is a ladder, a tap on the card chooses the border.
+                if (value.ChooseBorder != null && !editingName)
+                {
+                    var hit = ui.Rect<Image>(value.ChooseBorder.Name ?? value.ChooseBorder.Label, card, shell.Page);
+                    hit.color = Color.clear; hit.raycastTarget = true;
+                    var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
+                    actions.Wire(button, value.ChooseBorder, fade: false);
+                }
             }, "Wearer card");
         }
 
@@ -122,27 +132,6 @@ namespace ZKube.Presentation
             nameField = field;
         }
         private TMP_InputField nameField;
-
-        // The ladder standing under the name: the worn tier's badge, then what is
-        // worn and the ladder points; a tap chooses the border.
-        private void Standing(ProfilePageView value)
-        {
-            float d = ui.Density, badge = 32 * d;
-            float width = Mathf.Min(column.Width - 48 * d, ui.TextWidth(value.Standing, 13, SkinUi.Type.Caption) + 8 * d);
-            var rect = column.Take(Mathf.Max(badge, ui.TextHeight(value.Standing, width, 13, SkinUi.Type.Caption)), 14);
-            float left = rect.center.x - (badge + 8 * d + width) / 2;
-            var hit = ui.Rect<Image>("Standing", new Rect(left - 8 * d, rect.center.y - 24 * d, badge + width + 24 * d, 48 * d), shell.Page);
-            hit.color = Color.clear;
-            var icon = ui.Rect<Image>("Standing badge", new Rect(left, rect.center.y - badge / 2, badge, badge), shell.Page);
-            icon.sprite = ui.Art.SkinUi(SkinSlots.LadderBadge(value.Tier ?? 0)); icon.preserveAspect = true; icon.raycastTarget = false;
-            var line = new Rect(left + badge + 8 * d, rect.y, width, rect.height);
-            Shade(line, width, shell.Page);
-            ui.Label("Standing line", value.Standing, line, 13, SkinTokens.TextMuted, shell.Page, SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            if (value.ChooseBorder == null) return;
-            hit.raycastTarget = true; hit.name = value.ChooseBorder.Name ?? value.ChooseBorder.Label;
-            var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
-            actions.Wire(button, value.ChooseBorder, fade: false);
-        }
 
         // Editing: Save appears once the name differs from the saved one, then
         // what the name is for, and a preview of it as a shared result shows it.
@@ -273,18 +262,11 @@ namespace ZKube.Presentation
                 actions.Wire(sizeButton, new PageAction { Invoke = value.ToggleText }, fade: false);
             }, "Switches card"));
             if (value.Muted) pieces.Add(Buttons((new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, false, SkinSlots.IconSound)));
-            // A store identity's own actions are plain buttons; they sit low, over where preferences are kept.
-            bool plain = value.Identity.All(block => block.Kind == PanelKind.Button && block.Action != null);
+            // The identity's own actions sit low, over where preferences are kept.
             pieces.Add(Piece.Grow);
-            if (plain)
-                foreach (var block in value.Identity) pieces.Add(Buttons((block.Action, false, SkinSlots.IconRetry)));
+            if (value.Identity.Length != 0) pieces.Add(BlockPiece("Identity settings", value.Identity, kit));
             pieces.Add(kit.Note("Preferences save on this device."));
-            if (plain) { Compose(pieces.ToArray()); return; }
-            // An identity with more to show draws it under the cards.
-            pieces.RemoveAt(pieces.Count - 1); pieces.Remove(Piece.Grow);
             Compose(pieces.ToArray());
-            Blocks(value.Identity);
-            column.Typed("Settings saved", "Preferences save on this device.", SkinUi.Type.Caption, Mathf.Max(12, 13 * k), SkinTokens.TextMuted, 0);
         }
         // A row whose whole width switches the kit toggle at its end; the toggle
         // shows its state.
