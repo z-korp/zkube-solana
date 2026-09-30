@@ -46,7 +46,7 @@ namespace ZKube.Tests.MoneyOverview
             var controller = host.GetComponent<MoneyIdentity>().Controller; var views = host.GetComponent<PageViews>();
             Assert.That(views.ShownPanel, Is.EqualTo("Device"));
             yield return SessionClick("Back"); yield return Idle();
-            yield return SessionClick("Back"); yield return Idle();
+            // Settings is a tab page: the tab bar leaves it.
             yield return SessionClick("Campaign"); yield return Idle();
             Assert.That(controller.BrowsingSession, Is.False);
             Assert.That(views.ShownPanel, Is.Null); Assert.That(views.Shown, Is.EqualTo(AppPage.Campaign));

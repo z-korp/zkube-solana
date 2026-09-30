@@ -13,8 +13,9 @@ namespace ZKube.Presentation
     // The composed screens around the board, drawn with the screen kit.
     public sealed partial class PageViews
     {
-        // The column and its pieces, on this page.
-        private ScreenKit Kit => new ScreenKit(ui, shell.Page, shell.ScreenArea, shell.SafeArea);
+        // The column and its pieces, on this page: a tab page's column ends above its tab bar.
+        private ScreenKit Kit => new ScreenKit(ui, shell.Page, shell.ScreenArea,
+            selectedTab >= 0 ? Rect.MinMaxRect(shell.SafeArea.xMin, tabBar.yMax, shell.SafeArea.xMax, shell.SafeArea.yMax) : shell.SafeArea);
         private float K => Kit.K;
         private float U => Kit.U;
         private float Step(float seeker, float compact) => Kit.Step(seeker, compact);
@@ -304,6 +305,6 @@ namespace ZKube.Presentation
             pieces.Add(Buttons((value.Done, true, SkinSlots.IconPlay), (share, false, SkinSlots.IconShare)));
             Compose(pieces.ToArray());
         }
-        private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + NextDailyClock(seconds) + ".";
+        private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + DayClock(seconds) + ".";
     }
 }

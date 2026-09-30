@@ -57,7 +57,7 @@ namespace ZKube.Presentation
             var realm = catalog.Realm(value.Realm);
             float d = ui.Density; var screen = shell.ScreenArea;
             int count = value.Trials.Length;
-            int focus = Focus(value, previewLevel);
+            int focus = Focus(value.Trials, previewLevel);
             // The band between the header and the Play button, the same on the map
             // and under its preview.
             float top = shell.SafeArea.yMax - MapHeader(value), floor = PlayRect().yMax + 16 * d;
@@ -89,11 +89,13 @@ namespace ZKube.Presentation
             }
             return focus;
         }
-        private static int Focus(CampaignPageView value, byte previewLevel)
+        // The current level: the one being played, else the first open one without
+        // a star, else the last one reached. Home's Campaign card plays it too.
+        private static int Focus(CampaignTrialView[] trials, byte previewLevel)
         {
-            int focus = previewLevel > 0 ? previewLevel - 1 : Array.FindIndex(value.Trials, trial => trial.Playing);
-            if (focus < 0) focus = Array.FindIndex(value.Trials, trial => trial.Available && trial.Stars == 0);
-            if (focus < 0) focus = Math.Max(0, Array.FindLastIndex(value.Trials, trial => trial.Available || trial.Stars > 0));
+            int focus = previewLevel > 0 ? previewLevel - 1 : Array.FindIndex(trials, trial => trial.Playing);
+            if (focus < 0) focus = Array.FindIndex(trials, trial => trial.Available && trial.Stars == 0);
+            if (focus < 0) focus = Math.Max(0, Array.FindLastIndex(trials, trial => trial.Available || trial.Stars > 0));
             return focus;
         }
         private float MapBand(CampaignPageView value, int focus, float room) => Band(catalog.Realm(value.Realm),
@@ -107,7 +109,7 @@ namespace ZKube.Presentation
         private bool MapScrolls(CampaignPageView value)
         {
             float room = shell.SafeArea.yMax - MapHeader(value) - (PlayRect().yMax + 16 * ui.Density);
-            return MapBand(value, Focus(value, 0), room) > room;
+            return MapBand(value, Focus(value.Trials, 0), room) > room;
         }
         // The band height that keeps every node, with room for what it shows under
         // it, clear of the others and of the band's edges: the room between the

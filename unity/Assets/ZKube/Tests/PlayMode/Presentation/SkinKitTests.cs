@@ -85,7 +85,7 @@ namespace ZKube.Presentation.Tests
             }
         }
 
-        [Test] public void TabCapitalsFitInsideTheirChipAtBothWidthsAndTextSizes()
+        [Test] public void FourTabLabelsFitInsideTheirChipAtBothWidthsAndTextSizes()
         {
             foreach (var (safe, density) in new[] { (new Rect(0, 0, 360, 640), 1f), (new Rect(0, 0, 1200, 2670), 3f) })
             foreach (float scale in new[] { 1f, 1.3f })
@@ -95,15 +95,17 @@ namespace ZKube.Presentation.Tests
                 var bar = sized.TabBar(name, safe, new (string, string, System.Action)[]
                 {
                     (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }), (SkinSlots.IconProfile, "Profile", () => { }),
+                    (SkinSlots.IconSettings, "Settings", () => { }),
                 }, 0, root.transform);
-                foreach (var tab in new[] { "Campaign", "Daily", "Profile" })
+                foreach (var tab in new[] { "Campaign", "Daily", "Profile", "Settings" })
                 {
                     var chip = SkinUi.ScreenRect((RectTransform)Part(bar, name + " " + tab).transform);
                     var label = bar.GetComponentsInChildren<TMP_Text>().Single(t => t.name == name + " " + tab + " label");
                     label.ForceMeshUpdate();
                     float room = sized.TabLabelRoom(chip.width), words = label.textBounds.size.x;
                     string at = tab + " at " + safe.width + "px, text " + scale;
-                    Assert.AreEqual(chip.width - 40 * density, room, .01f, "The chip's round ends are 20 dp each");
+                    Assert.AreEqual(chip.width - 20 * density, room, .01f, "The chip's round ends are 10 dp each");
+                    Assert.AreEqual(1, label.textInfo.lineCount, at + " stays on one line");
                     Assert.LessOrEqual(words, room + .5f, at + " stays clear of its chip's round ends");
                     Assert.GreaterOrEqual(label.fontSize, SkinUi.TabLabelMinimumDp * density - .01f, at + " is drawn at 9 dp or more");
                     var text = SkinUi.ScreenRect(label.rectTransform);
@@ -114,7 +116,7 @@ namespace ZKube.Presentation.Tests
                 float drawn = bar.GetComponentsInChildren<TMP_Text>().First().fontSize / (density * scale);
                 float space = sized.TabLabelRoom(SkinUi.ScreenRect((RectTransform)Part(bar, name + " Campaign").transform).width);
                 if (drawn < SkinUi.TabLabelDp - .01f && drawn > SkinUi.TabLabelMinimumDp / scale + .01f)
-                    Assert.Greater(sized.TextWidth("Campaign", drawn + .25f, SkinUi.Type.Label), space, name + " shrank further than it needed");
+                    Assert.Greater(sized.TextWidth("Campaign", drawn + .25f, SkinUi.Type.Caption), space, name + " shrank further than it needed");
                 sized.Dispose();
             }
         }
@@ -219,9 +221,10 @@ namespace ZKube.Presentation.Tests
             bar.Select(1);
             Assert.AreEqual(dark, bar.Ink(1)); Assert.AreEqual(dark, Part(bar, "Tabs Daily icon").color);
             var label = bar.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Tabs Daily label");
-            Assert.AreEqual(art.Font(SkinUi.Type.Label), label.font);
-            Assert.IsTrue((label.fontStyle & FontStyles.UpperCase) != 0, "Tab labels are capitals");
-            Assert.AreEqual(SkinUi.LabelTracking, label.characterSpacing, "with +9% tracking");
+            // Four tabs carry their words as the composites set them: the caption face, in sentence case.
+            Assert.AreEqual(art.Font(SkinUi.Type.Caption), label.font);
+            Assert.IsTrue((label.fontStyle & FontStyles.UpperCase) == 0, "Tab labels are words, not capitals");
+            Assert.AreEqual(TextWrappingModes.NoWrap, label.textWrappingMode, "A tab label keeps to one line");
             Assert.IsNotNull(art.Sprite(BoardArt.Mark), "The wordmark's mark is a common image");
         }
 

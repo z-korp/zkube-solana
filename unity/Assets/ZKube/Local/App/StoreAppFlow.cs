@@ -98,11 +98,13 @@ namespace ZKube.Local.App
             if (realm < 1 || realm > Protocol.Realms.Length) throw new ArgumentOutOfRangeException(nameof(realm));
             Realm = realm; Navigate(StorePage.Campaign);
         }
-        public void Preview(byte level)
+        public void Preview(byte level) => Preview(Realm, level);
+        // A level's preview in any realm, as Home's Campaign card opens it.
+        public void Preview(byte realm, byte level)
         {
             Check();
-            if (!LevelAvailable(Realm, level)) throw new InvalidOperationException("Clear the preceding trial first");
-            Level = level; Navigate(StorePage.Level);
+            if (!LevelAvailable(realm, level)) throw new InvalidOperationException("Clear the preceding trial first");
+            Realm = realm; Level = level; Navigate(StorePage.Level);
         }
         public void PlayCampaign()
         {

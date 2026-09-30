@@ -19,14 +19,17 @@ namespace ZKube.Editor.Tests
             Assert.AreEqual(("Board full", "No stars kept · earn one to open Level 2", "icon-board-full", false), Words(2, 0, 4));
             Assert.AreEqual(("Run ended", "An ended run keeps no stars.", "icon-flag", false), Words(3, 0, 5));
         }
-        // The next Daily opens at 00:00 UTC: its countdown never reads 24:00:00.
-        [Test] public void TheNextDailyCountdownReadsAtMostOneSecondUnderADay()
+        // The day closes and the next Daily opens at 00:00 UTC: no day clock,
+        // the pages' or the HUD's, reads 24 hours.
+        [Test] public void EveryDayCountdownReadsAtMostOneSecondUnderADay()
         {
-            Assert.AreEqual("23:59:59", PageViews.NextDailyClock(24 * 3600));
-            Assert.AreEqual("23:59:59", PageViews.NextDailyClock(24 * 3600 - 1));
-            Assert.AreEqual("00:00:01", PageViews.NextDailyClock(1));
-            Assert.AreEqual("00:00:00", PageViews.NextDailyClock(0));
-            Assert.AreEqual("00:00:00", PageViews.NextDailyClock(-5));
+            Assert.AreEqual("23:59", HudLayout.TimeLeft(24 * 3600));
+            Assert.AreEqual("0:00", HudLayout.TimeLeft(-1));
+            Assert.AreEqual("23:59:59", PageViews.DayClock(24 * 3600));
+            Assert.AreEqual("23:59:59", PageViews.DayClock(24 * 3600 - 1));
+            Assert.AreEqual("00:00:01", PageViews.DayClock(1));
+            Assert.AreEqual("00:00:00", PageViews.DayClock(0));
+            Assert.AreEqual("00:00:00", PageViews.DayClock(-5));
         }
         [Test] public void AStarlessRunNeverClaimsTheNextLevelIsShutWhenItIsOpenOrUnknown()
         {

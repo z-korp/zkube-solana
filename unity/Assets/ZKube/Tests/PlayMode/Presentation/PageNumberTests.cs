@@ -24,8 +24,8 @@ namespace ZKube.Tests.Presentation
             public byte Kind, Value;
             public CampaignPageView CampaignView() => new CampaignPageView { Realm = 1, Stars = int.MaxValue,
                 Trials = Enumerable.Range(1, 10).Select(level => new CampaignTrialView { Level = (byte)level, Stars = 3, Available = true }).ToArray() };
-            public CampaignSummaryView CampaignSummary() => new CampaignSummaryView { Realm = 1, Stars = int.MaxValue, Cleared = int.MaxValue, Levels = 10,
-                Open = new PageAction { Label = "Explore map" } };
+            public CampaignSummaryView CampaignSummary() => new CampaignSummaryView { Realm = 1, Stars = int.MaxValue, Levels = 10,
+                Trials = CampaignView().Trials, Map = new PageAction { Label = "Explore map" } };
             public LevelPageView LevelPage() => new LevelPageView { Realm = 1, Level = 3, Stars = 3, Moves = uint.MaxValue,
                 Goals = new CampaignGoals { Points = uint.MaxValue, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 },
                 Play = new PageAction { Label = "Play" }, Back = new PageAction { Label = "Back to map" } };

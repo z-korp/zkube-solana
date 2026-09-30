@@ -145,7 +145,7 @@ namespace ZKube.Local.App
             new PageAction { Label = label, Invoke = invoke, Enabled = enabled };
         public CampaignPageView CampaignView()
         {
-            var active = Flow.Runs.Active("campaign"); string locked = Flow.Runs.CampaignLock(Flow.Realm);
+            string locked = Flow.Runs.CampaignLock(Flow.Realm);
             if (pages == null) pages = PageCatalog.Load();
             var here = pages.Realm(Flow.Realm); var before = Flow.Realm > 1 ? pages.Realm((byte)(Flow.Realm - 1)) : null;
             bool purchase = locked == "purchase", offline = purchase && Flow.StoreUnavailable;
@@ -160,21 +160,26 @@ namespace ZKube.Local.App
                     Action("Unlock full Campaign" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice),
                         () => _ = Flow.RefreshBilling(purchase: true), !Flow.Billing.Busy),
                 Restore = purchase && !offline ? Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) : null,
-                Trials = Enumerable.Range(1, Protocol.CampaignTargets.Length).Select(index => {
-                    byte level = (byte)index;
-                    return new CampaignTrialView { Level = level,
-                        Stars = Flow.Product.Read.Stars[(Flow.Realm - 1) * Protocol.CampaignTargets.Length + level - 1],
-                        Available = Flow.LevelAvailable(Flow.Realm, level), Playing = active?.Realm == Flow.Realm && active.Level == level,
-                        Open = () => Flow.Preview(level) };
-                }).ToArray()
+                Trials = Trials(Flow.Realm)
             };
+        }
+        // A realm's trials, each opening its level's preview.
+        private CampaignTrialView[] Trials(byte realm)
+        {
+            var active = Flow.Runs.Active("campaign");
+            return Enumerable.Range(1, Protocol.CampaignTargets.Length).Select(index => {
+                byte level = (byte)index;
+                return new CampaignTrialView { Level = level, Stars = Flow.LevelStars(realm, level),
+                    Available = Flow.LevelAvailable(realm, level), Playing = active?.Realm == realm && active.Level == level,
+                    Open = () => Flow.Preview(realm, level) };
+            }).ToArray();
         }
         public CampaignSummaryView CampaignSummary()
         {
             byte realm = Flow.FurthestRealm;
-            var stars = Enumerable.Range(1, Protocol.CampaignTargets.Length).Select(level => Flow.LevelStars(realm, (byte)level)).ToArray();
-            return new CampaignSummaryView { Realm = realm, Stars = stars.Sum(value => (int)value), Cleared = stars.Count(value => value > 0),
-                Levels = stars.Length, Open = Action("Explore map", () => Flow.SelectRealm(realm)) };
+            var trials = Trials(realm);
+            return new CampaignSummaryView { Realm = realm, Stars = trials.Sum(trial => (int)trial.Stars), Levels = trials.Length, Trials = trials,
+                Map = Action("Explore map", () => Flow.SelectRealm(realm)) };
         }
         public LevelPageView LevelPage()
         {

@@ -351,14 +351,15 @@ namespace ZKube.Presentation
 
         // The bottom tab bar, ornaments included, sits inside the side gutters and
         // above the bottom of the safe area. Pages end their scroll area at its yMax.
-        // A tab label as drawn: 11 dp capitals centred 42 dp down a 58 dp chip;
-        // the Label floor is 9 dp.
-        public const float TabLabelDp = 11, TabLabelMinimumDp = 9, TabLabelLine = 42f / 58;
+        // A tab label as drawn: 11 dp words centred 42 dp down a 58 dp chip,
+        // never below 9 dp. Four tabs share the bar, so the selected chip's round
+        // ends draw at half their kit size, as the composites draw them.
+        public const float TabLabelDp = 11, TabLabelMinimumDp = 9, TabLabelLine = 42f / 58, TabChipBorder = .5f;
         // A chip's width less its round ends, the selected chip's slice borders.
         public float TabLabelRoom(float chipWidth)
         {
             var border = Art.SkinUi(SkinSlots.TabSelected).border;
-            return chipWidth - (border.x + border.z) * Ui;
+            return chipWidth - (border.x + border.z) * Ui * TabChipBorder;
         }
         public Rect TabBarRect(Rect safeArea) =>
             new Rect(safeArea.x + 16 * Density, safeArea.y + 8 * Density, safeArea.width - 32 * Density, 72 * Density);
@@ -373,13 +374,13 @@ namespace ZKube.Presentation
             float pad = 20 * Density, width = (rect.width - 2 * pad) / tabs.Length;
             var cells = new Rect[tabs.Length];
             for (int i = 0; i < tabs.Length; i++) cells[i] = new Rect(rect.x + pad + i * width, rect.y + 6 * Density, width, rect.height - 12 * Density);
-            var plate = Piece(name + " selected", SkinSlots.TabSelected, cells[0], bar.transform);
+            var plate = Piece(name + " selected", SkinSlots.TabSelected, cells[0], bar.transform, TabChipBorder);
             var icons = new Image[tabs.Length]; var labels = new TMP_Text[tabs.Length];
             // Every label stays clear of the chip's painted round ends, shrinking
             // together toward the Label floor only when a word needs it.
             float room = TabLabelRoom(width), labelDp = TabLabelDp;
             // The floor is the drawn size, so larger text stops at the same 9 dp.
-            while (labelDp > TabLabelMinimumDp / Scale && tabs.Any(tab => TextWidth(tab.label, labelDp, Type.Label) > room))
+            while (labelDp > TabLabelMinimumDp / Scale && tabs.Any(tab => TextWidth(tab.label, labelDp, Type.Caption) > room))
                 labelDp = Mathf.Max(labelDp - .25f, TabLabelMinimumDp / Scale);
             for (int i = 0; i < tabs.Length; i++)
             {
@@ -390,9 +391,10 @@ namespace ZKube.Presentation
                 float size = cell.height * .45f;
                 icons[i] = Piece(name + " " + label + " icon", icon, new Rect(cell.center.x - size / 2, cell.yMax - 4 * Density - size, size, size), hit.transform);
                 // The capitals centre on the chip's label line, clear of its lip.
-                float height = TextHeight(label, room, labelDp, Type.Label), line = cell.yMax - TabLabelLine * cell.height;
+                float height = TextHeight(label, room, labelDp, Type.Caption), line = cell.yMax - TabLabelLine * cell.height;
                 labels[i] = Label(name + " " + label + " label", label, new Rect(cell.center.x - room / 2, line - height / 2, room, height), labelDp, SkinTokens.Text,
-                    hit.transform, Type.Label);
+                    hit.transform, Type.Caption);
+                labels[i].textWrappingMode = TextWrappingModes.NoWrap;
             }
             var tabBar = bar.gameObject.AddComponent<SkinTabBar>();
             tabBar.Bind(cells, plate.rectTransform, selected, icons, labels, Art.Token(SkinTokens.TextOnPrimary), Art.Token(SkinTokens.Text));

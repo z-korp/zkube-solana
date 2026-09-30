@@ -60,11 +60,15 @@ namespace ZKube.Presentation
     }
 
     // The realm a returning player continues in: the furthest realm the core progression opens.
+    // Home's Campaign card: the furthest open realm, its stars and its trials,
+    // from which the card plays the map's current level; Map opens the realm
+    // when no level there can be played (a purchase closes it).
     public sealed class CampaignSummaryView
     {
         public byte Realm;
-        public int Stars, Cleared, Levels;
-        public PageAction Open;
+        public int Stars, Levels;
+        public CampaignTrialView[] Trials = Array.Empty<CampaignTrialView>();
+        public PageAction Map;
     }
 
     public sealed class DailyPageView
@@ -189,7 +193,6 @@ namespace ZKube.Presentation
         // The left tablet: Back, or on a tab page an action with its own icon.
         public PageAction Back, Corner;
         public string CornerIcon;
-        public bool Settings;
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
     }
 

@@ -161,7 +161,7 @@ namespace ZKube.Integration.Presentation
         // read failed or went stale, the guardian says why with the way forward.
         private PanelPageView Waiting(string key, string title, string subtitle, int tab, string message)
         {
-            var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab, Settings = tab != 0 };
+            var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab };
             if (failure != null && !Busy)
                 page.Blocks = new[] {
                     PanelBlock.Talk(failure == "Network configuration is unavailable." ? failure :

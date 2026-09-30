@@ -26,11 +26,10 @@ namespace ZKube.Presentation
             reducedMotion = source.SettingsPage().ReducedMotion;
             editedName = null; savedName = null; editingName = false;
             Shown = null; shownPanel = page;
-            if (page.Tab >= 0) lastTab = tabs[page.Tab];
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
-            Frame(page.Tab, page.Title, page.Subtitle, page.Back ?? page.Corner, null, page.Settings ? Settings() : null, messages,
+            Frame(page.Tab, page.Title, page.Subtitle, page.Back ?? page.Corner, null, messages,
                 leftIcon: page.Back == null && page.CornerIcon != null ? page.CornerIcon : SkinSlots.IconBack);
             Blocks(page.Blocks);
             shell.Finish(column.Top - (16 + FadeDp) * ui.Density);

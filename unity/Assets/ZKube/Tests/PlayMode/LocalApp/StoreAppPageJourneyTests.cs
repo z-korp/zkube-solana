@@ -200,12 +200,11 @@ namespace ZKube.Tests
             // The result has no tab bar; Continue returns to the Daily.
             Click(app, "Continue"); yield return Page(StorePage.Daily);
             // A used Daily gives its reason where Play was, never a greyed-out
-            // Play, counts to the next Daily and shows the run; the result is the
-            // action left to take, so it is the primary.
+            // Play, and counts to the next Daily; the result, which holds the
+            // run's numbers, is the action left to take, so it is the primary.
             Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Play today")), Is.False);
             // The test clock sits on the day's first second: the next Daily is a whole day away.
             Assert.That(Texts(), Does.Contain("Today’s attempt is used").And.Contain("Next Daily in 23:59:59"));
-            Assert.That(Texts(), Does.Contain("Score").And.Contain(product.Read.DailyAttempt.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
             var result = FindButton(app, "View result");
             Assert.That(result.interactable, Is.True);
             Assert.That(result.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
@@ -283,12 +282,12 @@ namespace ZKube.Tests
             var hits = new List<RaycastResult>(); EventSystem.current.RaycastAll(pointer, hits);
             Assert.That(hits.Count, Is.GreaterThan(0));
             Assert.That(ExecuteEvents.GetEventHandler<IDragHandler>(hits[0].gameObject), Is.EqualTo(scroll.gameObject));
-            // The Campaign header holds the realm arrows; settings open from the other tabs.
+            // The Campaign header holds the realm arrows; settings is the fourth tab.
             Click(app, "Daily"); yield return Page(StorePage.Daily);
             Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Text size: standard"); yield return Page(StorePage.Settings);
-            // Settings has no tab bar; its back button returns to the tab it was opened from.
-            Click(app, "Back"); yield return Page(StorePage.Daily);
+            Assert.That(Buttons().Any(button => button.name == "Back"), Is.False, "A tab page has no back button");
+            Click(app, "Daily"); yield return Page(StorePage.Daily);
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             nodes = Nodes();
             AssertNodeCaptions(nodes);
@@ -331,17 +330,20 @@ namespace ZKube.Tests
             yield return EndRun(); yield return Page(StorePage.Result);
             Click(app, "Map"); yield return Page(StorePage.Campaign);
         }
-        // The home Campaign card follows the furthest realm the core progression opens.
-        [UnityTest] public IEnumerator HomeCampaignCardShowsTheFurthestOpenRealm()
+        // The home Campaign card follows the furthest realm the core progression
+        // opens and plays the level the map would: its first open level without
+        // a star, opening that level's preview.
+        [UnityTest] public IEnumerator HomeCampaignCardPlaysTheFurthestOpenRealmsCurrentLevel()
         {
             product.Write(state => { state.Stars[9] = 1; state.Stars[19] = 2; return state; });
             var summary = app.CampaignSummary();
             Assert.That(summary.Realm, Is.EqualTo(3)); Assert.That(summary.Stars, Is.Zero);
-            yield return Page(StorePage.Daily);
-            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Realm 3 / 10"), Is.True);
+            app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            Assert.That(Texts(), Does.Contain("Realm 3 of 10 · Level 21"));
             Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite.name, Does.StartWith("brand__realms"));
-            Click(app, "Explore map"); yield return Page(StorePage.Campaign);
-            Assert.That(app.Flow.Realm, Is.EqualTo(3));
+            Click(app, "Play level 21"); yield return Page(StorePage.Level);
+            Assert.That(app.Flow.Realm, Is.EqualTo(3)); Assert.That(app.Flow.Level, Is.EqualTo(1));
         }
         // At the larger text size on a 360 x 640 phone (its safe area as the
         // device reports it), Home is taller than the space between the
@@ -385,7 +387,7 @@ namespace ZKube.Tests
                 yield return Reveal(FindButton(app, "Play today"));
                 shell.Scroll.verticalNormalizedPosition = 0; Canvas.ForceUpdateCanvases(); yield return null;
                 Inside(images.Single(image => image.name == "Campaign card"));
-                Inside(FindButton(app, "Explore map"));
+                Inside(FindButton(app, "Play level 1"));
             }
             finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
@@ -559,7 +561,7 @@ namespace ZKube.Tests
             // Realm 2 is still closed, so its page is the waiting realm, drawn from its own art.
             var steps = new[] { ("Campaign", StorePage.Campaign), ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign),
                 ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign), ("Trial 1", StorePage.Level), ("Back to map", StorePage.Campaign),
-                ("Profile", StorePage.Profile), ("Settings", StorePage.Settings), ("Back", StorePage.Profile), ("Daily", StorePage.Daily),
+                ("Profile", StorePage.Profile), ("Settings", StorePage.Settings), ("Profile", StorePage.Profile), ("Daily", StorePage.Daily),
                 ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile), ("Daily", StorePage.Daily) };
             var shown = app.GetComponent<PageShell>().Artwork; int swaps = 0;
             foreach (var (control, page) in steps)
@@ -629,7 +631,6 @@ namespace ZKube.Tests
                     ("Settings", StorePage.Settings) })
                 {
                     if (app.Flow.Page == page) { app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily); }
-                    if (page == StorePage.Settings && app.Flow.Page != StorePage.Profile) { Click(app, "Profile"); yield return Page(StorePage.Profile); }
                     Click(app, control); yield return Page(page);
                     yield return Wait(() => !app.GetComponentsInChildren<Transform>().Any(value => value.name == "Leaving page"), "The page did not settle");
                     AssertLastPieceClearsTheBar(shell, page + " at " + textScale);
@@ -845,13 +846,17 @@ namespace ZKube.Tests
                 Assert.That(rect.xMin >= safe.xMin - .5f && rect.xMax <= safe.xMax + .5f && rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f, Is.True,
                     at + ": '" + text.text + "' " + rect + " stays in the safe area " + safe);
             }
-            var pieces = app.GetComponentsInChildren<Image>().Where(image => new[] { "Screen title plate", "Star crown", "Screen card", "Score plate" }.Contains(image.name))
-                .Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
+            var pieces = app.GetComponentsInChildren<Image>().Where(image => new[] { "Screen title plate", "Star crown", "Screen card", "Score plate",
+                "Wordmark", "Daily card", "Campaign card" }.Contains(image.name)).Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
             Assert.That(pieces.Count, Is.GreaterThanOrEqualTo(3), at + " draws its title, its focal piece and its card");
             // The guardian's bubble stays above its card.
-            var bubble = app.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian bubble");
-            var card = app.GetComponentsInChildren<Image>().Single(image => image.name == "Screen card");
-            Assert.That(SkinUi.ScreenRect(bubble.rectTransform).yMin, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(card.rectTransform).yMax - .5f), at + ": the bubble stays above the card");
+            var bubble = app.GetComponentsInChildren<Image>().SingleOrDefault(image => image.name == "Guardian bubble");
+            if (bubble != null)
+            {
+                var card = app.GetComponentsInChildren<Image>().Single(image => image.name == "Screen card");
+                Assert.That(SkinUi.ScreenRect(bubble.rectTransform).yMin, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(card.rectTransform).yMax - .5f),
+                    at + ": the bubble stays above the card");
+            }
             foreach (var button in buttons)
             {
                 var found = FindButton(app, button);
@@ -870,6 +875,35 @@ namespace ZKube.Tests
             }
             for (int a = 0; a < pieces.Count; a++) for (int b = a + 1; b < pieces.Count; b++)
                 Assert.That(pieces[a].Overlaps(pieces[b]), Is.False, at + ": pieces " + pieces[a] + " and " + pieces[b] + " stay apart");
+        }
+        // Home, as the v3 composite draws it, on both phones: the lockup, the two
+        // cards and the two plays over the four tabs, every word fitting and
+        // each play 48 dp to touch. The spec's 25 words are its 20 fixed words
+        // and the day's guardian, objective and realm names.
+        [UnityTest] public IEnumerator HomeSpeaksItsWordsAndFitsOnBothPhones()
+        {
+            var shell = app.GetComponent<PageShell>();
+            try
+            {
+                foreach (bool compact in new[] { false, true })
+                {
+                    if (compact) ZKube.Tests.Presentation.Phones.Compact(shell); else ZKube.Tests.Presentation.Phones.Seeker(shell);
+                    app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+                    app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    var catalog = PageCatalog.Load(); var today = app.DailyPage();
+                    int Count(string text) => Word.Matches(text).Count;
+                    int words = 20 + Count(catalog.Realm(today.Realm).guardianName) + Count(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue))
+                        + Count(catalog.Realm(app.CampaignSummary().Realm).realmName);
+                    string at = compact ? "360 x 640 home" : "Seeker home";
+                    ScreenFits(shell, at, words, "Play today", "Play level 1");
+                    var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
+                    Assert.That(SkinUi.ScreenRect((RectTransform)FindButton(app, "Play today").transform).yMin, Is.GreaterThanOrEqualTo(tabs.yMax), at + ": the plays sit above the tabs");
+                    Assert.That(shell.Chrome.GetComponentInChildren<SkinTabBar>().GetComponentsInChildren<Button>().Length, Is.EqualTo(4), at + ": four tabs");
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, at);
+                }
+            }
+            finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
         // Every level's preview has its own line: the guardian's trial line on its
         // own level, and no two neighbouring levels share one.
@@ -895,13 +929,13 @@ namespace ZKube.Tests
                 Click(app, "Back to map"); yield return Page(StorePage.Campaign);
             }
         }
-        // Home, which has no header, scrolls its settings tablet with the page;
-        // the profile's name row has the stat rows' width and a visible caret;
-        // settings toggles carry no On or Off words beside them.
-        [UnityTest] public IEnumerator HomeTabletScrollsNameRowMatchesAndTogglesSpeakForThemselves()
+        // Settings is the fourth tab and Home has no gear; the profile's name row
+        // has the stat rows' width and a visible caret; settings toggles carry
+        // no On or Off words beside them.
+        [UnityTest] public IEnumerator SettingsIsATabNameRowMatchesAndTogglesSpeakForThemselves()
         {
-            var shell = app.GetComponent<PageShell>();
-            Assert.That(FindButton(app, "Settings").transform.IsChildOf(shell.Page), Is.True, "Home's settings tablet scrolls with the page");
+            Assert.That(app.GetComponentsInChildren<Image>().Any(image => image.name == "Settings icon"), Is.False, "Home has no settings gear");
+            Assert.That(FindButton(app, "Settings").transform.IsChildOf(app.GetComponent<PageShell>().Chrome), Is.True, "Settings is a tab");
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
             var name = SkinUi.ScreenRect((RectTransform)FindButton(app, "Edit name").transform);
             var stat = SkinUi.ScreenRect((RectTransform)app.GetComponentsInChildren<Image>().First(image => image.name == "Best Daily row").transform);
@@ -1026,7 +1060,7 @@ namespace ZKube.Tests
             Assert.That(audio[AudioPolicy.MusicKey], Is.EqualTo(.73f));
             Assert.That(audio[AudioPolicy.EffectsKey], Is.EqualTo(.27f)); Assert.That(board.Muted, Is.True);
             Slide("Music slider", 0);
-            Click(app, "Back"); yield return Page(StorePage.Daily); Click(app, "Settings"); yield return Page(StorePage.Settings);
+            Click(app, "Daily"); yield return Page(StorePage.Daily); Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Music switch"); yield return Page(StorePage.Settings); Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));
         }
     }

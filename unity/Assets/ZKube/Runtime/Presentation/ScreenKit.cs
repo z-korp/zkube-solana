@@ -86,8 +86,8 @@ namespace ZKube.Presentation
         }
 
         // A card of rows drawn by fill, which gets the card's rect.
-        public Piece Card(float height, Action<Rect> fill) => new Piece(height, rect => {
-            Ui.Piece("Screen card", SkinSlots.Card, rect, Parent);
+        public Piece Card(float height, Action<Rect> fill, string name = "Screen card") => new Piece(height, rect => {
+            Ui.Piece(name, SkinSlots.Card, rect, Parent);
             fill(rect);
         });
 
