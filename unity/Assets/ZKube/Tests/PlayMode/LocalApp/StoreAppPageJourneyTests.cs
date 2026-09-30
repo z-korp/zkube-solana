@@ -415,28 +415,68 @@ namespace ZKube.Tests
             yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Assert.That(Buttons().Any(button => button.name == "Previous"), Is.False);
             Assert.That(FindButton(app, "Next").interactable, Is.True);
-            Click(app, "Play · Level 3"); yield return Page(StorePage.Level);
+            Click(app, "Play level 3"); yield return Page(StorePage.Level);
             Assert.That(app.Flow.Level, Is.EqualTo(3));
             Assert.That(Texts(), Does.Contain("Level 3"));
         }
-        // Another realm is another page: on a phone where the map scrolls, it opens
-        // on its own current level, never at the scroll the last realm was left at.
-        [UnityTest] public IEnumerator SwitchingRealmsOpensTheNewMapAtItsCurrentLevel()
+        // The map fits its whole path between the header and Play on both
+        // phones, as the v3 wireframe fits it ("meet" in a 60 x 100 box): it
+        // never scrolls, so another realm always opens whole. It speaks the
+        // spec's 9 words on Tiki. Every node and its star row clear the others by
+        // at least 4 dp in every realm, with every level finished and with a
+        // current node, as the spec's footprint rule asks.
+        [UnityTest] public IEnumerator EveryRealmsMapFitsWholeAndItsNodesClearEachOtherOnBothPhones()
         {
-            product.Write(state => { state.Stars[9] = 1; return state; });
             var shell = app.GetComponent<PageShell>();
-            ZKube.Tests.Presentation.Phones.Compact(shell);
             try
             {
-                yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
-                Click(app, "Next"); yield return Page(StorePage.Campaign);
-                Assert.That(app.Flow.Realm, Is.EqualTo(2));
-                float opened = shell.Offset;
-                Assert.That(opened, Is.GreaterThan(0), "The current level sits low on a scrolling map");
-                Click(app, "Previous"); yield return Page(StorePage.Campaign);
-                shell.Offset = 0;
-                Click(app, "Next"); yield return Page(StorePage.Campaign);
-                Assert.That(shell.Offset, Is.EqualTo(opened).Within(1));
+                foreach (bool compact in new[] { false, true })
+                {
+                    if (compact) ZKube.Tests.Presentation.Phones.Compact(shell); else ZKube.Tests.Presentation.Phones.Seeker(shell);
+                    float d = shell.SafeArea.height / (compact ? 572 : 882);
+                    app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+                    app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    string at = compact ? "360 x 640 map" : "Seeker map";
+                    ScreenFits(shell, at, 9, "Play level 1");
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, at);
+                    foreach (int finished in new[] { 10, 4 })
+                    {
+                        product.Write(state => {
+                            state.CampaignOwned = true;
+                            // Each guardian keeps its star, so every realm is open.
+                            for (int index = 0; index < state.Stars.Length; index++) state.Stars[index] = (byte)(index % 10 < finished || index % 10 == 9 ? 3 : 0);
+                            return state;
+                        });
+                        for (byte realm = 1; realm <= 10; realm++)
+                        {
+                            app.Flow.SelectRealm(realm); yield return Page(StorePage.Campaign);
+                            yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                            string where = at + " of realm " + realm + " with " + finished + " finished";
+                            Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Scroll.viewport.rect.height + .5f), where + " does not scroll");
+                            var nodes = Nodes();
+                            Assert.That(nodes.Length, Is.EqualTo(10), where);
+                            var feet = nodes.Select(node => node.GetComponentsInChildren<Image>()
+                                .Where(image => image.name == node.name + " node" || image.name == node.name + " ring" || image.name.StartsWith(node.name + " star "))
+                                .Select(image => SkinUi.ScreenRect(image.rectTransform))
+                                .Aggregate((a, b) => Rect.MinMaxRect(Mathf.Min(a.xMin, b.xMin), Mathf.Min(a.yMin, b.yMin), Mathf.Max(a.xMax, b.xMax), Mathf.Max(a.yMax, b.yMax))))
+                                .ToArray();
+                            for (int a = 0; a < feet.Length; a++)
+                                for (int b = a + 1; b < feet.Length; b++)
+                                {
+                                    float clear = Mathf.Max(Mathf.Max(feet[b].xMin - feet[a].xMax, feet[a].xMin - feet[b].xMax),
+                                        Mathf.Max(feet[b].yMin - feet[a].yMax, feet[a].yMin - feet[b].yMax));
+                                    Assert.That(clear / d, Is.GreaterThanOrEqualTo(4 - .01f), where + ": nodes " + (a + 1) + " and " + (b + 1) + " clear by " + clear / d + " dp");
+                                }
+                            var header = SkinUi.ScreenRect(app.GetComponentsInChildren<Image>().Single(image => image.name == "Map header").rectTransform);
+                            var play = SkinUi.ScreenRect((RectTransform)FindButton(app, "Play level").transform);
+                            foreach (var foot in feet)
+                                Assert.That(foot.yMax <= header.yMin + .5f && foot.yMin >= play.yMax - .5f, Is.True, where + ": every node sits between the header and Play");
+                        }
+                        product.Write(state => { state.CampaignOwned = false; for (int index = 0; index < state.Stars.Length; index++) state.Stars[index] = 0; return state; });
+                    }
+                    app.Flow.SelectRealm(1); yield return Page(StorePage.Campaign);
+                }
             }
             finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
@@ -580,45 +620,6 @@ namespace ZKube.Tests
             }
             Assert.That(swaps, Is.GreaterThanOrEqualTo(4), "The walk must cross realm art loads");
         }
-        // On a compact phone and at Seeker size no visible part of any map node,
-        // its label or its stars ever touches the page header, in every realm,
-        // wherever the map opens.
-        [UnityTest] public IEnumerator MapNodesNeverReachTheHeaderOnCompactOrSeekerPhones()
-        {
-            product.Write(state => {
-                state.CampaignOwned = true;
-                for (int realm = 0; realm < Protocol.Realms.Length; realm++)
-                    for (int level = 0; level < 5; level++) state.Stars[realm * 10 + level] = (byte)(level % 3 + 1);
-                for (int realm = 0; realm < Protocol.Realms.Length; realm++) state.Stars[realm * 10 + 9] = 1;
-                return state;
-            });
-            var shell = app.GetComponent<PageShell>();
-            foreach (var phone in new System.Action<PageShell>[] { shell1 => ZKube.Tests.Presentation.Phones.Compact(shell1), shell1 => ZKube.Tests.Presentation.Phones.Seeker(shell1) })
-            {
-                phone(shell); var frame = shell.SafeArea;
-                for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
-                {
-                    app.Flow.SelectRealm(realm); yield return Page(StorePage.Campaign);
-                    var header = Rect.MinMaxRect(frame.xMin, frame.yMax - 84, frame.xMax, frame.yMax);
-                    var viewport = SkinUi.ScreenRect(shell.Viewport);
-                    var nodes = Nodes();
-                    Assert.That(nodes.Length, Is.EqualTo(10), frame.width + " realm " + realm);
-                    foreach (var node in nodes)
-                        foreach (var piece in node.GetComponentsInChildren<Graphic>().Where(graphic => graphic.gameObject != node.gameObject &&
-                            !graphic.name.EndsWith(" glow") && graphic.color.a > 0))
-                        {
-                            var rect = SkinUi.ScreenRect(piece.rectTransform);
-                            var shown = Rect.MinMaxRect(Mathf.Max(rect.xMin, viewport.xMin), Mathf.Max(rect.yMin, viewport.yMin),
-                                Mathf.Min(rect.xMax, viewport.xMax), Mathf.Min(rect.yMax, viewport.yMax));
-                            if (shown.width <= 0 || shown.height <= 0) continue;
-                            Assert.That(shown.yMax, Is.LessThanOrEqualTo(header.yMin + .5f), frame.width + " realm " + realm + ": " + piece.name + " reaches the header");
-                        }
-                }
-            }
-            ZKube.Tests.Presentation.Phones.Clear(shell);
-        }
-        // On a compact phone every page's last piece scrolls fully above the tab
-        // bar (or the screen's bottom where there is no tab bar).
         [UnityTest] public IEnumerator EveryPagesLastPieceScrollsAboveTheTabBarOnACompactPhone()
         {
             var shell = app.GetComponent<PageShell>();
@@ -643,9 +644,10 @@ namespace ZKube.Tests
         private void AssertLastPieceClearsTheBar(PageShell shell, string page)
         {
             var scroll = shell.Scroll; scroll.verticalNormalizedPosition = 0; Canvas.ForceUpdateCanvases();
-            // Past the tab bar (or the screen's bottom) and its 24 dp fade, fully in view.
+            // Past the tab bar (or the screen's bottom), and its 24 dp fade on a page that scrolls, fully in view.
             var bar = shell.Chrome.GetComponentInChildren<SkinTabBar>();
-            float floor = (bar != null ? SkinUi.ScreenRect((RectTransform)bar.transform).yMax : shell.SafeArea.yMin) + PageViews.FadeDp;
+            bool scrolls = scroll.content.rect.height > scroll.viewport.rect.height + .5f;
+            float floor = (bar != null ? SkinUi.ScreenRect((RectTransform)bar.transform).yMax : shell.SafeArea.yMin) + (scrolls ? PageViews.FadeDp : 0);
             var viewport = SkinUi.ScreenRect(shell.Viewport);
             foreach (var piece in shell.Page.GetComponentsInChildren<Graphic>().Where(graphic => graphic.color.a > 0 && graphic.enabled &&
                 !graphic.name.Contains("glow") && !graphic.name.Contains("halo") && graphic.name != "Realm map"))
@@ -846,9 +848,9 @@ namespace ZKube.Tests
                 Assert.That(rect.xMin >= safe.xMin - .5f && rect.xMax <= safe.xMax + .5f && rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f, Is.True,
                     at + ": '" + text.text + "' " + rect + " stays in the safe area " + safe);
             }
-            var pieces = app.GetComponentsInChildren<Image>().Where(image => new[] { "Screen title plate", "Star crown", "Screen card", "Score plate",
-                "Wordmark", "Daily card", "Campaign card" }.Contains(image.name)).Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
-            Assert.That(pieces.Count, Is.GreaterThanOrEqualTo(3), at + " draws its title, its focal piece and its card");
+            var pieces = app.GetComponentsInChildren<Graphic>().Where(image => new[] { "Screen title plate", "Star crown", "Screen card", "Score plate",
+                "Wordmark", "Daily card", "Campaign card", "Map header" }.Contains(image.name) || image.name == "Lit path").Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
+            Assert.That(pieces.Count, Is.GreaterThanOrEqualTo(2), at + " draws its title and its focal piece");
             // The guardian's bubble stays above its card.
             var bubble = app.GetComponentsInChildren<Image>().SingleOrDefault(image => image.name == "Guardian bubble");
             if (bubble != null)
@@ -971,13 +973,16 @@ namespace ZKube.Tests
             }
         }
         private Button[] Nodes() => app.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Trial ")).ToArray();
-        // Each node shows its level number on one line, inside the node's touch
-        // area, at both text sizes.
+        // Each open node shows its level number on one line, inside the node's
+        // touch area, at both text sizes; a locked node shows its lock.
         private static void AssertNodeCaptions(Button[] nodes)
         {
             foreach (var node in nodes)
             {
-                var caption = node.GetComponentInChildren<TMP_Text>(); caption.ForceMeshUpdate();
+                var caption = node.GetComponentInChildren<TMP_Text>();
+                Assert.That(caption != null || node.GetComponentsInChildren<Image>().Any(image => image.name == node.name + " lock"), Is.True, node.name);
+                if (caption == null) continue;
+                caption.ForceMeshUpdate();
                 Assert.That(caption.textInfo.lineCount, Is.EqualTo(1), node.name);
                 var bounds = ((RectTransform)node.transform).rect;
                 foreach (var character in caption.textInfo.characterInfo.Take(caption.textInfo.characterCount).Where(value => value.isVisible))

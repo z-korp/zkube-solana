@@ -35,7 +35,6 @@ namespace ZKube.Presentation
         private Rect tabBar;
         private float headerBottom;
         private int selectedTab;
-        private float? reveal;
         private TMP_Text countdown, nextDaily;
         private DailyPageView countdownView;
         private long countdownSecond = -1;
@@ -82,9 +81,9 @@ namespace ZKube.Presentation
                     // Another realm is another page: it opens at its own start.
                     if (campaign.Realm != shownRealm) kept = -1;
                     shownRealm = campaign.Realm;
-                    if (campaign.Locked != null) Frame(0, realm.realmName, Place(campaign), campaign.Previous, null, Array.Empty<string>());
-                    else Frame(0, realm.realmName, MapSubtitle(campaign), campaign.Previous, campaign.Next, Array.Empty<string>(), fullBleed: true,
-                        clipped: MapScrolls(campaign));
+                    if (campaign.Locked != null) Frame(0, realm.realmName, "REALM " + campaign.Realm + " / " + Protocol.Realms.Length, campaign.Previous, null,
+                        Array.Empty<string>());
+                    else Frame(0, null, null, null, null, Array.Empty<string>(), fullBleed: true);
                     Campaign(campaign, messages); break;
                 case AppPage.Level:
                     var level = source.LevelPage();
@@ -108,7 +107,6 @@ namespace ZKube.Presentation
             }
             shell.Finish(column.Top - (16 + FadeDp) * ui.Density);
             if (kept >= 0) shell.Offset = kept;
-            else if (reveal.HasValue) shell.Reveal(reveal.Value);
             if (entering) shell.Enter(source.SettingsPage().ReducedMotion, ui.Density);
         }
 
@@ -160,10 +158,10 @@ namespace ZKube.Presentation
         // A page with a subtitle and no title carries the product mark in the
         // title's place. The left tablet is Back unless the page names its icon.
         private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, string[] notices,
-            bool fullBleed = false, string leftIcon = SkinSlots.IconBack, bool clipped = false)
+            bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
         {
             var safe = shell.SafeArea; float d = ui.Density;
-            reveal = null; selectedTab = tab;
+            selectedTab = tab;
             float icon = IconDp * d, titleWidth = TitleWidth();
             float titleHeight = title == null ? 0 : ui.TextHeight(title, titleWidth, 25, SkinUi.Type.Title);
             float subtitleHeight = subtitle == null ? 0 : ui.TextHeight(subtitle, titleWidth, 12, SkinUi.Type.Label);
@@ -171,10 +169,9 @@ namespace ZKube.Presentation
             tabBar = ui.TabBarRect(safe);
             float bottom = tab >= 0 ? tabBar.yMax : safe.y;
             headerBottom = safe.yMax - header;
-            // A full-bleed page runs under the header and tab bar; a clipped one
-            // (a map that scrolls) stops at the header so nothing scrolls under it.
+            // A full-bleed page runs under the header and tab bar.
             var screen = shell.ScreenArea;
-            var body = fullBleed ? clipped ? Rect.MinMaxRect(screen.xMin, screen.yMin, screen.xMax, headerBottom) : screen :
+            var body = fullBleed ? screen :
                 new Rect(safe.x, bottom, safe.width, headerBottom - bottom);
             // Scrolling content fades out over its last 24 dp at the tab bar and the header.
             shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);

@@ -97,7 +97,10 @@ namespace ZKube.Tests.MoneyOverview
                 var rect = SkinUi.ScreenRect((RectTransform)node.transform);
                 Assert.That(rect.width / density, Is.GreaterThanOrEqualTo(48 - .01), node.name);
                 Assert.That(rect.height / density, Is.GreaterThanOrEqualTo(48 - .01), node.name);
-                var label = node.GetComponentInChildren<TMP_Text>(); label.ForceMeshUpdate();
+                // An open node shows its number; a locked one shows its lock.
+                var label = node.GetComponentInChildren<TMP_Text>();
+                if (label == null) { Assert.That(node.GetComponentsInChildren<UnityEngine.UI.Image>().Any(image => image.name == node.name + " lock"), Is.True, node.name); continue; }
+                label.ForceMeshUpdate();
                 Assert.That(label.preferredWidth, Is.LessThanOrEqualTo(label.rectTransform.rect.width + 1), node.name);
             }
             Assert.That(environment.ForbiddenCalls, Is.Zero);

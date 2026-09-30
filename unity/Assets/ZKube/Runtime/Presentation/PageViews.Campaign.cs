@@ -13,34 +13,40 @@ namespace ZKube.Presentation
     // they share with the results.
     public sealed partial class PageViews
     {
-        private static readonly float[] NodeSizes = { 52, 56, 70, 88 };
         public GuardianGreetings Greetings { get; set; } = GuardianGreetings.Device();
 
-        // The map: the realm's painting under the header, the client-drawn path
-        // and nodes between the header and the Play button, which repeats the
-        // current level's action above the tab bar. The path fits that band and
-        // scrolls only when its nodes would crowd.
+        // The map, as the v3 composites draw it: the realm's painting behind the
+        // header card (the realm, "Realm N of 10" and its stars), the authored
+        // path fitted into the room between the header and Play in a 60 x 100
+        // box ("meet", no scroll) with S-curve edges, the glowstone medallions
+        // and the guardian 1.6 times their size, each finished node's stars under
+        // it, the current node breathing, and "Play level N" above the tabs.
         private void Campaign(CampaignPageView value, string[] notices)
         {
             var realm = catalog.Realm(value.Realm);
             if (value.Locked != null) { Waiting(value, realm, notices); return; }
-            int focus = Map(value, 0);
-            float d = ui.Density;
-            var trial = value.Trials[focus];
-            var play = new PageAction { Name = "Play level", Label = (trial.Playing ? "Resume · Level " : "Play · Level ") + Number(value.Realm, trial.Level),
+            var kit = Kit; float d = ui.Density, u = kit.U;
+            var trial = value.Trials[Focus(value.Trials, 0)];
+            var play = new PageAction { Name = "Play level", Label = (trial.Playing ? "Resume level " : "Play level ") + Number(value.Realm, trial.Level),
                 Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open };
-            var bottom = new PageColumn(ui, shell.Overlay, actions, PlayRect().x, PlayRect().width, PlayRect().yMax);
-            Pill(bottom, play, true, null, 0);
+            var buttons = Buttons((play, true, SkinSlots.IconPlay));
+            var playRect = new Rect(kit.Safe.center.x - kit.Width / 2, kit.Safe.y + (kit.K > .95f ? 16 : 10) * d, kit.Width, buttons.Height);
+            // The header is drawn over the map, so the guardian's glow passes under it.
+            float header = MapHeaderHeight(kit);
+            Map(value, Rect.MinMaxRect(kit.Safe.xMin, playRect.yMax + 10 * u, kit.Safe.xMax, kit.Safe.yMax - 4 * d - header - 10 * u));
+            MapHeader(value, kit, header);
+            buttons.Draw(playRect);
+            column = new PageColumn(ui, shell.Page, actions, playRect.x, playRect.width, playRect.y);
             var lines = notices.Concat(new[] { value.Notice, value.SavedRun }).Where(text => !string.IsNullOrEmpty(text)).ToArray();
-            var buttons = new[] { value.Resume, value.Result }.Where(action => action != null).ToArray();
-            if (lines.Length != 0 || buttons.Length != 0)
-                Float("Campaign notice", PlayRect().yMax + 12 * d, card => {
+            var more = new[] { value.Resume, value.Result }.Where(action => action != null).ToArray();
+            if (lines.Length != 0 || more.Length != 0)
+                Float("Campaign notice", playRect.yMax + 12 * d, card => {
                     foreach (var line in lines) card.Typed("Campaign notice text", line, SkinUi.Type.Body, 15, SkinTokens.Text, 8);
-                    for (int i = 0; i < buttons.Length; i++) card.Button(buttons[i], false, i == buttons.Length - 1 ? 0 : 10);
+                    for (int i = 0; i < more.Length; i++) card.Button(more[i], false, i == more.Length - 1 ? 0 : 10);
                 });
             if (!Greetings.Greeted(value.Realm)) Greeting(value.Realm, realm);
         }
-        // The fixed Play button: 320 dp wide, 20 dp above the tab bar.
+        // The fixed Play button of a waiting realm and the panels: 320 dp wide, 20 dp above the tab bar.
         private Rect PlayRect()
         {
             float d = ui.Density; var safe = shell.SafeArea;
@@ -48,46 +54,73 @@ namespace ZKube.Presentation
             return new Rect(safe.center.x - width / 2, ui.TabBarRect(safe).yMax + 20 * d, width, PageColumn.ButtonDp * d);
         }
 
-        // Draws the painting, path and nodes and returns the index of the current
-        // level: the run in progress, else the first open level without stars,
-        // else the furthest open one. A preview passes its level, which is drawn
-        // as the current node.
-        private int Map(CampaignPageView value, byte previewLevel)
+        // The header card: Previous, the realm and its place, its stars and Next.
+        private float MapHeaderHeight(ScreenKit kit) => Mathf.Max(64 * kit.U, IconDp * ui.Density + 12 * kit.U);
+        private void MapHeader(CampaignPageView value, ScreenKit kit, float height)
+        {
+            float d = ui.Density, u = kit.U, k = kit.K, icon = IconDp * d;
+            string name = catalog.Realm(value.Realm).realmName, place = "Realm " + value.Realm + " of " + Protocol.Realms.Length;
+            string total = "/" + Protocol.CampaignTargets.Length * 3;
+            var card = new Rect(kit.Safe.center.x - kit.Width / 2, kit.Safe.yMax - 4 * d - height, kit.Width, height);
+            ui.Piece("Map header", SkinSlots.Card, card, shell.Page);
+            float left = card.x + 8 * u, right = card.xMax - 8 * u;
+            if (value.Previous != null && value.Previous.Enabled)
+            {
+                HeaderButton(value.Previous, new Rect(left, card.center.y - icon / 2, icon, icon), SkinSlots.IconBack, false); left += icon + 10 * u;
+            }
+            else left += 6 * u;
+            if (value.Next != null && value.Next.Enabled)
+            {
+                HeaderButton(value.Next, new Rect(right - icon, card.center.y - icon / 2, icon, icon), SkinSlots.IconBack, true); right -= icon + 10 * u;
+            }
+            string stars = value.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">" + total + "</color>";
+            float starsWidth = kit.NumeralWidth(value.Stars + total);
+            kit.Numeral("Map stars", stars, new Rect(right - starsWidth, card.y, starsWidth, card.height));
+            right -= starsWidth + 6 * u;
+            ui.Piece("Map stars icon", SkinSlots.IconCampaign, new Rect(right - 28 * u, card.center.y - 14 * u, 28 * u, 28 * u), shell.Page);
+            right -= 28 * u + 10 * u;
+            float titleDp = 28 * k, placeDp = Mathf.Max(12, 13 * k), width = right - left;
+            float titleHeight = ui.TextHeight(name, width, titleDp, SkinUi.Type.Display), placeHeight = ui.TextHeight(place, width, placeDp, SkinUi.Type.Caption);
+            float top = card.center.y + (titleHeight + placeHeight) / 2;
+            ui.Label("Map title", name, new Rect(left, top - titleHeight, width, titleHeight), titleDp, SkinTokens.Text, shell.Page, SkinUi.Type.Display,
+                TextAlignmentOptions.Left);
+            ui.Label("Map place", place, new Rect(left, top - titleHeight - placeHeight, width, placeHeight), placeDp, SkinTokens.TextMuted, shell.Page,
+                SkinUi.Type.Caption, TextAlignmentOptions.Left);
+        }
+
+        // The map's geometry in the 60 x 100 box: node radii and star sizes,
+        // as the wireframe draws them. Sizes follow the box, so every realm's
+        // clearance holds at any fitted size.
+        public const float NodeRadius = 3.77f, CurrentRadius = 4.25f, GuardianRadius = 6.13f, StarSize = 2.36f, GuardianStarSize = 2.9f, StarGap = .3f;
+        // The box fitted into room, as SVG's "xMidYMid meet" places a 60 x 100 view box.
+        public static Rect MapBox(Rect room)
+        {
+            float scale = Mathf.Min(room.width / 60, room.height / 100);
+            return new Rect(room.center.x - 30 * scale, room.center.y - 50 * scale, 60 * scale, 100 * scale);
+        }
+        public static Vector2 MapPoint(Rect box, PageCatalog.Point point) => new Vector2(box.x + point.x * box.width, box.yMax - point.y * box.height);
+
+        // The painting, the path and the nodes in the room between the header and Play.
+        private void Map(CampaignPageView value, Rect room)
         {
             var realm = catalog.Realm(value.Realm);
-            float d = ui.Density; var screen = shell.ScreenArea;
-            int count = value.Trials.Length;
-            int focus = Focus(value.Trials, previewLevel);
-            // The band between the header and the Play button, the same on the map
-            // and under its preview.
-            float top = shell.SafeArea.yMax - MapHeader(value), floor = PlayRect().yMax + 16 * d;
-            float band = MapBand(value, focus, top - floor);
-            var path = new Rect(screen.x, top - band, screen.width, band);
+            var screen = shell.ScreenArea;
+            int count = value.Trials.Length, focus = Focus(value.Trials, 0);
+            // The painting covers the screen with its lower part in view, as CSS's "center 80%".
             var art = ui.Art.SkinRealm(SkinSlots.Map);
-            float height = Mathf.Max(screen.width * art.rect.height / art.rect.width, screen.yMax - (path.y - (floor - screen.y)));
-            var image = ui.Rect<Image>("Realm map", new Rect(screen.x, screen.yMax - height, screen.width, height), shell.Page);
+            float aspect = art.rect.width / art.rect.height, height = Mathf.Max(screen.height, screen.width / aspect), width = height * aspect;
+            float top = screen.yMax + (height - screen.height) * .8f;
+            var image = ui.Rect<Image>("Realm map", new Rect(screen.center.x - width / 2, top - height, width, height), shell.Page);
             image.sprite = art; image.raycastTarget = false;
-            column = new PageColumn(ui, shell.Page, actions, screen.x, screen.width, path.y - (floor - screen.y) + 16 * d);
-            Vector2 At(int index)
-            {
-                var point = realm.campaignPath[index];
-                return new Vector2(path.x + point.x * path.width, path.yMax - point.y * path.height);
-            }
-            var states = value.Trials.Select((trial, index) => trial.Playing || previewLevel > 0 && index == focus ? "playing" :
+            var box = MapBox(room); float unit = box.width / 60;
+            var states = value.Trials.Select((trial, index) => trial.Playing ? "playing" :
                 trial.Stars > 0 ? "cleared" : trial.Available ? "current" : "locked").ToArray();
-            Path(realm, path, states, index => NodeSize(value.Trials[index], index == count - 1, index == focus) / 2 + 6 * d, At);
+            var line = ui.Rect<CampaignPathGraphic>("Lit path", box, shell.Page);
+            var gold = new Color(1, 233 / 255f, 168 / 255f, 1); var moon = new Color(221 / 255f, 239 / 255f, 247 / 255f, 1);
+            line.Configure(realm, states, new PageCatalog.PathStyle { pathStyle = "solid", strokeWidth = .7f, lockedStrokeWidth = .45f, lockedDash = ".5 1.4",
+                clearedRgba = new[] { gold.r, gold.g, gold.b, 1f }, activeRgba = new[] { gold.r, gold.g, gold.b, 1f }, lockedRgba = new[] { moon.r, moon.g, moon.b, 1.2f } });
             for (int index = 0; index < count; index++)
-                Node(value, value.Trials[index], At(index), index == count - 1, index == focus);
-            if (band > top - floor && previewLevel == 0)
-            {
-                // A path that scrolls stops at the header (the page is clipped
-                // there), and the header sits on a dark band over the painting.
-                reveal = At(focus).y;
-                var shade = ui.Rect<Image>("Header band", Rect.MinMaxRect(screen.x, top, screen.xMax, screen.yMax), shell.Overlay);
-                shade.color = SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Scrim), .75f); shade.raycastTarget = false;
-                shade.transform.SetAsFirstSibling();
-            }
-            return focus;
+                Node(value, value.Trials[index], MapPoint(box, realm.campaignPath[index]), unit, index == count - 1, index == focus);
         }
         // The current level: the one being played, else the first open one without
         // a star, else the last one reached. Home's Campaign card plays it too.
@@ -98,95 +131,35 @@ namespace ZKube.Presentation
             if (focus < 0) focus = Math.Max(0, Array.FindLastIndex(trials, trial => trial.Available || trial.Stars > 0));
             return focus;
         }
-        private float MapBand(CampaignPageView value, int focus, float room) => Band(catalog.Realm(value.Realm),
-            index => NodeSize(value.Trials[index], index == value.Trials.Length - 1, index == focus), shell.ScreenArea.width, room);
-        private static string Place(CampaignPageView value) => "REALM " + value.Realm + " / " + Protocol.Realms.Length;
-        private static string MapSubtitle(CampaignPageView value) =>
-            Place(value) + " · " + value.Stars + " / " + Protocol.CampaignTargets.Length * 3 + " STARS";
-        // The map's header: the realm's name over its place and stars.
-        private float MapHeader(CampaignPageView value) => Header(catalog.Realm(value.Realm).realmName, MapSubtitle(value));
-        // The map scrolls when its path needs more than the room under its header.
-        private bool MapScrolls(CampaignPageView value)
-        {
-            float room = shell.SafeArea.yMax - MapHeader(value) - (PlayRect().yMax + 16 * ui.Density);
-            return MapBand(value, Focus(value.Trials, 0), room) > room;
-        }
-        // The band height that keeps every node, with room for what it shows under
-        // it, clear of the others and of the band's edges: the room between the
-        // header and the Play button, or taller when the path would crowd there.
-        private float Band(PageCatalog.RealmPage realm, Func<int, float> size, float width, float room)
-        {
-            float d = ui.Density, band = room;
-            var points = realm.campaignPath;
-            float Reach(int index) => size(index) / 2 + 10 * d;
-            for (int i = 0; i < points.Length; i++)
-            {
-                band = Mathf.Max(band, Reach(i) / Mathf.Max(.01f, points[i].y), (Reach(i) + 10 * d) / Mathf.Max(.01f, 1 - points[i].y));
-                for (int j = i + 1; j < points.Length; j++)
-                {
-                    float gap = Reach(i) + Reach(j), dx = Mathf.Abs(points[i].x - points[j].x) * width, dy = Mathf.Abs(points[i].y - points[j].y);
-                    if (dx < gap) band = Mathf.Max(band, Mathf.Sqrt(gap * gap - dx * dx) / Mathf.Max(.01f, dy));
-                }
-            }
-            return Mathf.Ceil(band);
-        }
-        private float NodeSize(CampaignTrialView trial, bool guardian, bool current) =>
-            (guardian ? NodeSizes[3] : current && trial.Available ? NodeSizes[2] : trial.Stars > 0 ? NodeSizes[1] : NodeSizes[0]) * ui.Density;
 
-        // The lit path: done segments are solid warm light, those ahead are soft
-        // moonstone dots at 40%.
-        private void Path(PageCatalog.RealmPage realm, Rect path, string[] states, Func<int, float> clearance, Func<int, Vector2> at)
+        // One level. Locked: dark stone with a lock. Open or finished: the
+        // glowstone with its number, a finished one with its three stars under
+        // it. Current: larger, breathing. The guardian: its portrait in the
+        // portal ring with a soft halo, dimmed with a lock until it opens, its
+        // stars always under it. The touch area covers the node and its stars,
+        // at least 48 dp.
+        private void Node(CampaignPageView value, CampaignTrialView trial, Vector2 center, float unit, bool guardian, bool current)
         {
             float d = ui.Density;
-            var line = ui.Rect<CampaignPathGraphic>("Lit path", path, shell.Page);
-            var warm = ui.Art.Token(SkinTokens.Accent);
-            var style = new PageCatalog.PathStyle { pathStyle = "solid", strokeWidth = 6 * d * 60 / path.width, lockedStrokeWidth = 1, lockedDash = "1 1",
-                clearedRgba = new[] { warm.r, warm.g, warm.b, 1f }, activeRgba = new[] { warm.r, warm.g, warm.b, 1f }, lockedRgba = new[] { 0f, 0, 0, 0 } };
-            line.Configure(realm, states, style);
-            var dot = ui.Art.Token(SkinTokens.Objective); dot.a = .4f;
-            for (int i = 0; i + 1 < states.Length; i++)
-            {
-                if (CampaignPathGraphic.EdgeState(states[i], states[i + 1]) != "locked") continue;
-                Vector2 from = at(i), to = at(i + 1);
-                int steps = 96; float step = 14 * d, walked = 0; var previous = from;
-                for (int k = 1; k <= steps; k++)
-                {
-                    var next = CampaignPathGraphic.Curve(from, to, k / (float)steps);
-                    walked += Vector2.Distance(previous, next); previous = next;
-                    if (walked < step) continue;
-                    walked = 0;
-                    if (Vector2.Distance(next, from) < clearance(i) || Vector2.Distance(next, to) < clearance(i + 1)) continue;
-                    var piece = ui.Piece("Path dot " + (i + 1), SkinSlots.FxGlow, new Rect(next.x - 5 * d, next.y - 5 * d, 10 * d, 10 * d), shell.Page);
-                    piece.color = dot;
-                }
-            }
-        }
-
-        // One level. Locked: dark stone with a lock and its number beneath. Done:
-        // a moonstone orb with its number and three stars on an arc. Current: the
-        // larger gold orb with its number and a breathing glow. The guardian: a
-        // portal ring around its portrait, dimmed with a lock until it opens, and
-        // its name beneath. The touch area covers the node and what it shows.
-        private void Node(CampaignPageView value, CampaignTrialView trial, Vector2 center, bool guardian, bool current)
-        {
-            float d = ui.Density;
-            string name = "Trial " + trial.Level, number = Number(value.Realm, trial.Level);
+            string name = "Trial " + trial.Level;
             bool done = trial.Stars > 0, open = trial.Available, lit = current && open;
-            float size = NodeSize(trial, guardian, current);
+            float size = 2 * unit * (guardian ? GuardianRadius : lit ? CurrentRadius : NodeRadius);
             var rect = new Rect(center.x - size / 2, center.y - size / 2, size, size);
-            string below = guardian ? number + " · " + catalog.Realm(value.Realm).guardianName : !open && !done ? number : null;
-            var label = below == null ? new Rect(rect.x, rect.y, rect.width, 0) : Measured(below, SkinUi.Type.Caption, 12, center.x, rect.y - 3 * d);
-            float star = 15 * d;
-            var stars = done ? new Rect(center.x - 1.7f * star, label.y - star - (below == null ? 0 : 2 * d), 3.4f * star, star + 3 * d) : label;
-            var area = Union(Union(rect, label), stars);
-            float grow = Mathf.Max(0, BoardLayout.MinimumTouchDp * d - area.width) / 2;
-            var hit = ui.Rect<Image>(name, new Rect(area.x - 6 * d - grow, area.y - 6 * d, area.width + 12 * d + 2 * grow, area.height + 12 * d), shell.Page);
+            float star = unit * (guardian ? GuardianStarSize : StarSize);
+            bool starred = done || guardian;
+            var stars = new Rect(center.x - 1.5f * star * 1.05f, rect.y - StarGap * unit - star * 1.18f, 3 * star * 1.05f, star * 1.18f);
+            var area = starred ? Rect.MinMaxRect(Mathf.Min(rect.xMin, stars.xMin), stars.yMin, Mathf.Max(rect.xMax, stars.xMax), rect.yMax) : rect;
+            float touch = BoardLayout.MinimumTouchDp * d;
+            var hitRect = Rect.MinMaxRect(Mathf.Min(area.xMin, area.center.x - touch / 2), Mathf.Min(area.yMin, area.center.y - touch / 2),
+                Mathf.Max(area.xMax, area.center.x + touch / 2), Mathf.Max(area.yMax, area.center.y + touch / 2));
+            var hit = ui.Rect<Image>(name, hitRect, shell.Page);
             hit.color = Color.clear; hit.raycastTarget = true;
             var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = hit;
             hit.gameObject.AddComponent<PressSquash>();
-            if (lit) ui.Glow(name + " glow", Scaled(rect, 1.7f), SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .55f), hit.transform, HaloSeconds);
+            if (lit) ui.Glow(name + " glow", Scaled(rect, 1.7f), SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .55f), hit.transform, reducedMotion ? 0 : HaloSeconds);
             if (guardian)
             {
+                ui.Glow(name + " light", Scaled(rect, 1.9f), new Color(189 / 255f, 243 / 255f, 1, .5f), hit.transform);
                 // The portrait fills the portal ring's 176/256 opening; the ring is
                 // drawn over it in place of the medallion's own frame.
                 float face = size * 176f / 256f * 320f / 232f;
@@ -197,34 +170,24 @@ namespace ZKube.Presentation
                 if (!open && !done)
                 {
                     portrait.color = new Color(.45f, .45f, .45f, 1);
-                    Tinted(name + " lock", SkinSlots.IconLock, new Rect(rect.xMax - 26 * d, rect.y + 2 * d, 24 * d, 24 * d), SkinTokens.Text, hit.transform);
+                    Tinted(name + " lock", SkinSlots.IconLock, new Rect(rect.xMax - .36f * size, rect.y + .03f * size, .3f * size, .3f * size), SkinTokens.Text,
+                        hit.transform);
                 }
             }
             else
             {
                 ui.Piece(name + " node", done && !lit ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked, rect, hit.transform);
                 if (open || done)
-                    ui.Label(name + " number", number, new Rect(rect.x, rect.y + size * .03f, rect.width, rect.height), lit ? 28 : 22,
-                        SkinTokens.TextOnPrimary, hit.transform, SkinUi.Type.Number);
-                else Tinted(name + " lock", SkinSlots.IconLock, new Rect(center.x - 11 * d, center.y - 11 * d, 22 * d, 22 * d), SkinTokens.TextMuted, hit.transform);
+                    ui.Label(name + " number", Number(value.Realm, trial.Level), rect, unit * (lit ? 3.2f : 2.8f) / d, SkinTokens.Text, hit.transform,
+                        SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
+                else Tinted(name + " lock", SkinSlots.IconLock, Scaled(rect, .46f), SkinTokens.TextMuted, hit.transform);
             }
-            if (below != null)
-            {
-                if (guardian) Shade(label, label.width, hit.transform);
-                ui.Label(name + " label", below, label, 12, guardian ? SkinTokens.Text : SkinTokens.TextMuted, hit.transform, SkinUi.Type.Caption);
-            }
-            if (done)
+            if (starred)
                 for (int i = 0; i < 3; i++)
-                    ui.Star(name + " star " + (i + 1), new Rect(stars.x + (.2f + i * 1.1f) * star, stars.y + (i == 1 ? 0 : 3 * d), star, star), i < trial.Stars, hit.transform);
+                    ui.Star(name + " star " + (i + 1), new Rect(stars.x + i * star * 1.05f, stars.y + (i == 1 ? .18f * star : 0), star, star), i < trial.Stars,
+                        hit.transform);
             actions.Wire(button, new PageAction { Name = name, Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open }, fade: false);
         }
-        // A one-line label's rectangle, centred on x under a top edge.
-        private Rect Measured(string text, SkinUi.Type role, float sizeDp, float x, float top)
-        {
-            float w = ui.TextWidth(text, sizeDp, role) + 8 * ui.Density, h = ui.TextHeight(text, w, sizeDp, role);
-            return new Rect(x - w / 2, top - h, w, h);
-        }
-        private static Rect Union(Rect a, Rect b) => Rect.MinMaxRect(Mathf.Min(a.xMin, b.xMin), Mathf.Min(a.yMin, b.yMin), Mathf.Max(a.xMax, b.xMax), Mathf.Max(a.yMax, b.yMax));
         private Image Tinted(string name, string slot, Rect rect, string token, Transform parent)
         {
             var image = ui.Piece(name, slot, rect, parent); image.color = ui.Art.Token(token); return image;

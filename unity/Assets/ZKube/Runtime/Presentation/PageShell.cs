@@ -143,8 +143,6 @@ namespace ZKube.Presentation
             get => content.anchoredPosition.y;
             set => content.anchoredPosition = new Vector2(0, Mathf.Clamp(value, 0, Mathf.Max(0, content.sizeDelta.y - Viewport.rect.height)));
         }
-        // Scrolls so an unscrolled screen height sits in the middle of the viewport.
-        public void Reveal(float y) => Offset = SkinUi.ScreenRect(Viewport).yMax - y - Viewport.rect.height / 2;
 
         // A page change: the outgoing page sinks 8 dp and fades while it takes no
         // input, as the next page rises 12 dp and fades in over it, with a soft
