@@ -37,14 +37,15 @@ namespace ZKube.Presentation
             if (value.Emblems.Length != 0) pieces.Add(EmblemCard(value.Emblems, kit, value.Tier == null));
             foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
             if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(kit.Note(value.Notice));
+            // The identity's own actions (a device to manage, saving, restoring) are quiet buttons in one row.
+            var more = value.Actions.Concat(new[] { value.Save, value.Restore }).Where(action => action != null).ToArray();
+            if (more.Length != 0) pieces.Add(Buttons(kit, more.Select(action => (action, ScreenKit.Kind.Quiet, (string)null)).ToArray()));
             pieces.Add(Piece.Grow);
             Compose(pieces.ToArray());
-            foreach (var action in value.Actions) Pill(column, action, false, null, 12);
             if (value.Borders.Length != 0) column.Typed("Border heading", "BORDER", SkinUi.Type.Label, 12, SkinTokens.Accent, 10, TextAlignmentOptions.Left);
             foreach (var choice in value.Borders)
                 Pill(column, new PageAction { Name = "Border " + choice.Id, Label = choice.Name + (choice.Detail == null ? "" : " · " + choice.Detail),
                     Enabled = choice.Available, CanInvoke = choice.CanSelect, Invoke = choice.Select }, false, null, 12);
-            Pill(column, value.Save, false, null, 12); Pill(column, value.Restore, false, null, 12);
         }
         // One quiet button as a row's part, as wide as its words.
         private ScreenKit.Side Quiet(ScreenKit kit, PageAction action, string icon = null)

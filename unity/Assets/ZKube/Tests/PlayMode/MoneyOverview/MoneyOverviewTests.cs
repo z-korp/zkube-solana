@@ -164,13 +164,13 @@ namespace ZKube.Tests.MoneyOverview
             while (controller.Drawing && Time.realtimeSinceStartup < limit) yield return null;
             Assert.That(controller.Drawing, Is.False, "The page did not draw");
         }
-        // Larger text on a 360 x 640 phone: the Arcade grows past the screen and
-        // scrolls under real drags from empty page space, and every action's
-        // label fits its pill.
+        // Larger text on a phone shorter than any the pages are laid out for
+        // (360 x 520 dp): the Arcade grows past the screen and scrolls under
+        // real drags from empty page space, and every action's label fits its pill.
         [UnityTest] public IEnumerator LargerTextReflowsInsideScrollAndKeepsAllActionsReadable()
         {
             yield return PrepareScenario("owner-overview", 1.3f);
-            ZKube.Tests.Presentation.Phones.Compact(host.GetComponent<PageShell>());
+            host.GetComponent<PageShell>().Simulate(new Rect(0, 0, 360, 520), new Rect(0, 0, 360, 520 - ZKube.Tests.Presentation.Phones.CompactTopInsetDp));
             Click("Connect"); yield return Idle();
             var shell = host.GetComponent<PageShell>(); var scroll = shell.Scroll;
             Canvas.ForceUpdateCanvases();

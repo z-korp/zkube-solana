@@ -194,6 +194,56 @@ namespace ZKube.Tests.Presentation
             Phones.Clear(shell);
         }
 
+        // No Realms page scrolls on the emulator's default phone or the Seeker:
+        // each page's column ends inside its body (DECISIONS 2026-10-01).
+        [UnityTest] public IEnumerator NoRealmsPageScrollsAtTheEmulatorDefaultOrTheSeeker()
+        {
+            root = new GameObject("Unscrolled pages");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Unscrolled pages");
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            long now = 20705L * 86400 + 6 * 3600;
+            var daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
+                Actions = new[] { new PageAction { Label = "Play today" } } };
+            var arcade = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
+                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 00:00 UTC" },
+                Blocks = new[] { PanelBlock.Bar("Kredit balance", SkinSlots.IconKredit, "3", "Kredits", false, new PageAction { Label = "Kredits" }, new PageAction { Label = "Rewards" }),
+                    PanelBlock.Text("Arcade rule", "Your best run on each board counts.", SkinTokens.TextMuted) } };
+            var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
+                Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
+                Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+            var dailyResult = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,
+                ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, NewBest = true, NextOpensAt = 20705L * 86400,
+                Now = () => 20705L * 86400 - 7 * 3600, Done = new PageAction { Label = "Continue" }, Share = (text, token) => System.Threading.Tasks.Task.FromResult(true) };
+            var pages = new (string name, Action draw)[] {
+                ("home", () => { source.Daily = daily; views.Render(AppPage.Daily); }),
+                ("arcade", () => { source.Daily = arcade; views.Render(AppPage.Daily); }),
+                ("preview", () => views.Render(AppPage.Level)),
+                ("map", () => views.Render(AppPage.Campaign)),
+                ("result", () => { source.Result = campaign; views.Render(AppPage.Result); }),
+                ("daily result", () => { source.Result = dailyResult; views.Render(AppPage.Result); }),
+                ("profile", () => views.Render(AppPage.Profile)),
+                ("settings", () => views.Render(AppPage.Settings)) };
+            foreach (var (phone, use) in new (string, Action)[] { ("emulator default", () => Phones.EmulatorDefault(shell)), ("Seeker", () => Phones.Seeker(shell)) })
+            {
+                use();
+                foreach (var (name, draw) in pages)
+                {
+                    draw(); yield return null;
+                    foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                    Canvas.ForceUpdateCanvases();
+                    yield return Captures.Snap(shell, "unscrolled " + phone + " " + name);
+                    Assert.LessOrEqual(shell.Scroll.content.rect.height, shell.Viewport.rect.height + .5f, phone + " " + name + " fits without scrolling");
+                }
+            }
+            Phones.Clear(shell);
+        }
+
         // The Daily card shows the day's own guardian: its portrait, its name
         // and, on the Arcade, its realm all come from the Daily, in every realm,
         // whatever realm the page's painting is from.

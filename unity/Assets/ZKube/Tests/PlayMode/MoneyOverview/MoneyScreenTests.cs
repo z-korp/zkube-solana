@@ -11,10 +11,10 @@ using ZKube.Tests.Presentation;
 
 namespace ZKube.Tests.MoneyOverview
 {
-    // The Arena's screens as the v3 composites draw them, on the Seeker and a
+    // The Arena's screens on the Seeker, the emulator's default phone and a
     // 360 x 640 phone: the Arcade home, entering the Daily, Kredits, rewards,
-    // this device and the profile. Every word fits its place and every action
-    // is 48 dp to touch. The Arena runs on a physical device only, so these
+    // this device and the profile. Every word fits its place, every action is
+    // 48 dp to touch, and no page scrolls but on the 360 x 640 phone. The Arena runs on a physical device only, so these
     // are its captures.
     public sealed partial class MoneyOverviewTests
     {
@@ -23,6 +23,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Idle(); yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f); Canvas.ForceUpdateCanvases();
             var shell = host.GetComponent<PageShell>();
             float d = shell.SafeArea.height / (phone == "Seeker" ? Phones.SeekerScreen.height - Phones.SeekerTopInsetDp
+                : phone == "emulator default" ? Phones.EmulatorScreen.height - Phones.EmulatorTopInsetDp - Phones.EmulatorBottomInsetDp
                 : Phones.CompactScreen.height - Phones.CompactTopInsetDp);
             string at = phone + " " + page;
             foreach (var text in host.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy && !string.IsNullOrEmpty(text.text)))
@@ -43,6 +44,9 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(Mathf.Max(rect.height, rect.width) / d, Is.GreaterThanOrEqualTo(48 - .01f), at + ": " + button.name + " is 48 dp to touch");
             }
             PageText.AssertRunningTextFigures(host.transform, at, shell.Artwork.Font(SkinUi.Type.Caption), shell.Artwork.Font(SkinUi.Type.Body));
+            // Only below the emulator's default phone may a page scroll.
+            if (phone != "360 x 640")
+                Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Viewport.rect.height + .5f), at + " fits without scrolling");
             yield return Captures.Snap(shell, "arena " + at);
         }
 
@@ -93,11 +97,15 @@ namespace ZKube.Tests.MoneyOverview
             yield return EndScenario();
         }
 
-        [UnityTest] public IEnumerator EveryArenaScreenFitsAndTouchesOnBothPhones()
+        [UnityTest] public IEnumerator EveryArenaScreenFitsAndTouchesOnEveryPhone()
         {
-            foreach (string phone in new[] { "Seeker", "360 x 640" })
+            foreach (string phone in new[] { "Seeker", "emulator default", "360 x 640" })
             {
-                void Use() { var shell = host.GetComponent<PageShell>(); if (phone == "Seeker") Phones.Seeker(shell); else Phones.Compact(shell); }
+                void Use()
+                {
+                    var shell = host.GetComponent<PageShell>();
+                    if (phone == "Seeker") Phones.Seeker(shell); else if (phone == "emulator default") Phones.EmulatorDefault(shell); else Phones.Compact(shell);
+                }
                 yield return PrepareScenario("owner-overview"); Use();
                 yield return Wait(Adapter.RefreshOverview()); yield return Idle();
                 Click("Connect"); yield return ArenaScreen(phone, "arcade");

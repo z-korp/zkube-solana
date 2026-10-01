@@ -104,9 +104,16 @@ namespace ZKube.Presentation
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
             }
-            shell.Finish(column.Top - (16 + FadeDp) * ui.Density);
+            FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(source.SettingsPage().ReducedMotion, ui.Density);
+        }
+        // A page that fits its body does not scroll; one that overflows scrolls
+        // to its last piece and a little past it, clear of the fade.
+        private void FinishPage()
+        {
+            float bottom = SkinUi.ScreenRect(shell.Viewport).yMin;
+            shell.Finish(column.Top >= bottom - .5f ? Mathf.Max(column.Top, bottom) : column.Top - (16 + FadeDp) * ui.Density);
         }
 
         private string[] shownNotices;

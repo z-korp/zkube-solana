@@ -362,7 +362,7 @@ namespace ZKube.Tests
                 var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
                 Assert.That(viewport.yMin, Is.GreaterThanOrEqualTo(tabs.yMax - .5f));
                 Assert.That(viewport.yMax, Is.LessThanOrEqualTo(640.5f));
-                Assert.That(shell.Scroll.content.rect.height, Is.GreaterThan(viewport.height), "Home should scroll at this size");
+                // Below the emulator's default phone a page may scroll; every piece still comes fully into view.
                 Rect Of(Component value) => SkinUi.ScreenRect((RectTransform)value.transform);
                 void Inside(Component value)
                 {
