@@ -112,7 +112,7 @@ namespace ZKube.Presentation.Tests
                 var kit = new ScreenKit(sized, null, safe, safe);
                 var bar = sized.TabBar(name, ScreenKit.TabRect(sized, safe, safe), kit.U, new (string, string, System.Action)[]
                 {
-                    (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }), (SkinSlots.IconProfile, "Profile", () => { }),
+                    (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconClock, "Daily", () => { }), (SkinSlots.IconProfile, "Profile", () => { }),
                     (SkinSlots.IconSettings, "Settings", () => { }),
                 }, 0, root.transform);
                 foreach (var tab in new[] { "Campaign", "Daily", "Profile", "Settings" })
@@ -146,7 +146,7 @@ namespace ZKube.Presentation.Tests
             var bar = ui.TabBar("Tabs", ScreenKit.TabRect(ui, new Rect(0, 0, 360, 640), new Rect(0, 0, 360, 640)), .8f, new (string, string, System.Action)[]
             {
                 (SkinSlots.IconCampaign, "Campaign", () => opened.Add("Campaign")),
-                (SkinSlots.IconDaily, "Daily", () => opened.Add("Daily")),
+                (SkinSlots.IconClock, "Daily", () => opened.Add("Daily")),
                 (SkinSlots.IconProfile, "Profile", () => opened.Add("Profile")),
             }, 1, root.transform);
             var plate = (RectTransform)Part(bar, "Tabs selected").transform;
@@ -235,7 +235,7 @@ namespace ZKube.Presentation.Tests
         {
             var bar = ui.TabBar("Tabs", ScreenKit.TabRect(ui, new Rect(0, 0, 360, 640), new Rect(0, 0, 360, 640)), .8f, new (string, string, System.Action)[]
             {
-                (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }),
+                (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconClock, "Daily", () => { }),
             }, 0, root.transform);
             var dark = art.Token(SkinTokens.TextOnPrimary);
             Assert.AreEqual(dark, bar.Ink(0));
@@ -252,7 +252,7 @@ namespace ZKube.Presentation.Tests
 
         [Test] public void PillsTakeALeadingIconAndTheButtonType()
         {
-            var button = ui.TextButton("Play", new Rect(20, 20, 240, 56), "Play", () => { }, true, root.transform, out var label, SkinSlots.IconDaily);
+            var button = ui.TextButton("Play", new Rect(20, 20, 240, 56), "Play", () => { }, true, root.transform, out var label, SkinSlots.IconClock);
             var icon = Part(button, "Play icon");
             var iconRect = SkinUi.ScreenRect(icon.rectTransform);
             Assert.AreEqual(24, iconRect.width, .01f); Assert.AreEqual(36, iconRect.x, .01f, "The icon sits 16 dp in");

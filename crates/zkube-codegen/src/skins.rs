@@ -52,7 +52,7 @@ pub const UI_STRETCH_SLOTS: [&str; 34] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 71] = [
+pub const UI_FIXED_SLOTS: [&str; 70] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -71,7 +71,6 @@ pub const UI_FIXED_SLOTS: [&str; 71] = [
     "icon-close",
     "icon-kredit",
     "icon-campaign",
-    "icon-daily",
     "icon-profile",
     "icon-share",
     "icon-music",

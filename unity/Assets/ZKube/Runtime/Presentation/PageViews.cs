@@ -213,7 +213,8 @@ namespace ZKube.Presentation
         // navigation is unavailable.
         private void TabBar(Rect safe, int selected)
         {
-            var icons = new[] { SkinSlots.IconCampaign, SkinSlots.IconDaily, SkinSlots.IconProfile, SkinSlots.IconSettings };
+            // The Daily's stopwatch, as its countdown chip draws it.
+            var icons = new[] { SkinSlots.IconCampaign, SkinSlots.IconClock, SkinSlots.IconProfile, SkinSlots.IconSettings };
             var bound = tabs.Select(target => new PageAction { Label = target == AppPage.Daily ? dailyTab : target.ToString(),
                 Name = target == AppPage.Daily ? dailyTab : target.ToString(), CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) }).ToArray();
             var bar = ui.TabBar("Tab bar", tabBar, new ScreenKit(ui, null, shell.ScreenArea, safe).U, bound.Select((action, i) => (icons[i], action.Label, actions.Click(action))).ToArray(), selected, shell.Chrome);

@@ -2412,16 +2412,6 @@
             0,
             0
           ],
-          "image": "/assets/skins/lumen/ui/icon-daily.png",
-          "slot": "icon-daily"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
           "image": "/assets/skins/lumen/ui/icon-profile.png",
           "slot": "icon-profile"
         },

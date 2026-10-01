@@ -172,6 +172,12 @@ namespace ZKube.Tests.Presentation
             source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "Play today" } } };
             yield return Page("home", () => views.Render(AppPage.Daily));
+            AssertButtonKinds(root.transform, "home", new string[0], new[] { "Play level*" });
+            // The four tabs draw four distinct pictures; the Daily's is its stopwatch.
+            var tabIcons = root.GetComponentsInChildren<SkinTabBar>().Single().GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))
+                .Select(image => image.sprite.name.Replace("(Clone)", "")).ToArray();
+            Assert.AreEqual(4, tabIcons.Distinct().Count(), "four distinct tab icons: " + string.Join(", ", tabIcons));
+            Assert.AreEqual(SkinSlots.IconClock, tabIcons[1], "The Daily tab is the stopwatch");
             yield return Page("preview", () => views.Render(AppPage.Level));
             yield return Page("map", () => views.Render(AppPage.Campaign));
             foreach (var (page, stars, reason, moves) in new[] { ("res3", 7, 1, 3u), ("res2", 3, 2, 0u), ("res1", 4, 2, 0u), ("res0", 0, 2, 0u), ("resEnded", 0, 3, 5u) })
