@@ -262,6 +262,16 @@ namespace ZKube.Presentation
             });
         }
 
+        // Sides one under another, gapU apart, at their left.
+        public Side Over(float gapU, params Side[] sides)
+        {
+            float gap = gapU * U;
+            return new Side(sides.Max(side => side.Width), sides.Sum(side => side.Height) + gap * Mathf.Max(0, sides.Length - 1), rect => {
+                float y = rect.yMax;
+                foreach (var side in sides) { side.Draw(new Rect(rect.x, y - side.Height, side.Width, side.Height)); y -= side.Height + gap; }
+            });
+        }
+
         // A chip (.chip3): an optional icon, a display number and words, on the dark pill.
         public Side Chip(string name, string icon, float iconU, string number, string words)
         {

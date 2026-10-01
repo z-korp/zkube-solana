@@ -195,7 +195,8 @@ namespace ZKube.Tests.Presentation
         }
 
         // No Realms page scrolls on the emulator's default phone or the Seeker:
-        // each page's column ends inside its body (DECISIONS 2026-10-01).
+        // each page's column ends inside its body (DECISIONS 2026-10-01), and
+        // the Daily card holds its own pieces in every state.
         [UnityTest] public IEnumerator NoRealmsPageScrollsAtTheEmulatorDefaultOrTheSeeker()
         {
             root = new GameObject("Unscrolled pages");
@@ -219,8 +220,11 @@ namespace ZKube.Tests.Presentation
             var dailyResult = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,
                 ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, NewBest = true, NextOpensAt = 20705L * 86400,
                 Now = () => 20705L * 86400 - 7 * 3600, Done = new PageAction { Label = "Continue" }, Share = (text, token) => System.Threading.Tasks.Task.FromResult(true) };
+            var used = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, NextOpensAt = 20706L * 86400,
+                Actions = new[] { new PageAction { Label = "View result" } } };
             var pages = new (string name, Action draw)[] {
                 ("home", () => { source.Daily = daily; views.Render(AppPage.Daily); }),
+                ("home with the attempt used", () => { source.Daily = used; views.Render(AppPage.Daily); }),
                 ("arcade", () => { source.Daily = arcade; views.Render(AppPage.Daily); }),
                 ("preview", () => views.Render(AppPage.Level)),
                 ("map", () => views.Render(AppPage.Campaign)),
@@ -239,6 +243,17 @@ namespace ZKube.Tests.Presentation
                     Canvas.ForceUpdateCanvases();
                     yield return Captures.Snap(shell, "unscrolled " + phone + " " + name);
                     Assert.LessOrEqual(shell.Scroll.content.rect.height, shell.Viewport.rect.height + .5f, phone + " " + name + " fits without scrolling");
+                    // The Daily card holds all of its own pieces.
+                    var card = root.GetComponentsInChildren<Image>().FirstOrDefault(image => image.name == "Daily card");
+                    if (card == null) continue;
+                    var inside = SkinUi.ScreenRect(card.rectTransform);
+                    foreach (var piece in root.GetComponentsInChildren<Graphic>().Where(graphic => graphic != card &&
+                        (graphic.name.StartsWith("Daily ") || graphic.name.StartsWith("Next Daily"))))
+                    {
+                        var rect = SkinUi.ScreenRect(piece.rectTransform);
+                        Assert.IsTrue(rect.xMin >= inside.xMin - .5f && rect.xMax <= inside.xMax + .5f && rect.yMin >= inside.yMin - .5f && rect.yMax <= inside.yMax + .5f,
+                            phone + " " + name + ": " + piece.name + " " + rect + " stays inside the Daily card " + inside);
+                    }
                 }
             }
             Phones.Clear(shell);

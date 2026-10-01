@@ -300,8 +300,14 @@ namespace ZKube.Presentation
             // before it, then the greeting with the rule and what its bonus does.
             var pages = TalkPage.MapGreeting(realm, catalog.Rule(realmId), realmId > 1);
             GuardianTalk talk = null;
-            var box = Speak("Guardian greeting talk", root, left, safe.center.y, width, realm, pages,
-                () => { Greetings.Greet(realmId); if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); } }, true);
+            // The talk scene takes the whole screen, as the wireframe draws it: the tab bar waits under it.
+            var tabs = shell.Chrome.GetComponentInChildren<SkinTabBar>();
+            if (tabs != null) tabs.gameObject.SetActive(false);
+            var box = Speak("Guardian greeting talk", root, left, safe.center.y, width, realm, pages, () => {
+                Greetings.Greet(realmId);
+                if (tabs != null) tabs.gameObject.SetActive(true);
+                if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); }
+            }, true);
             talk = root.GetComponentInChildren<GuardianTalk>();
             // The guardian stays under the top of the safe area.
             float lift = Mathf.Min(kit.Bottom + 40 * kit.U - box.y, safe.yMax - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);

@@ -305,9 +305,14 @@ namespace ZKube.Presentation
                 }));
             }
             if (value.Arcade?.Headline != null) under.Add(inside.Word("Daily headline", value.Arcade.Headline, inside.SmallDp, SkinTokens.Text));
-            // The day's own guardian, whatever realm the page's art is from.
-            var portrait = PortraitRow(inside, "Daily", value.Arcade == null ? Step(76, 60) : Step(72, 56), image => Portrait(value.Realm, image), title,
-                catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue), under.Count == 0 ? (ScreenKit.Side?)null : inside.Beside(8, under.ToArray()), null);
+            // The day's own guardian, whatever realm the page's art is from. Its
+            // line's parts sit side by side where they fit beside the portrait,
+            // else one under another.
+            float face = (value.Arcade == null ? Step(76, 60) : Step(72, 56)) * inside.U, room = inside.Width - face - 12 * inside.U;
+            ScreenKit.Side? line = null;
+            if (under.Count != 0) { line = inside.Beside(8, under.ToArray()); if (line.Value.Width > room) line = inside.Over(4, under.ToArray()); }
+            var portrait = PortraitRow(inside, "Daily", face / inside.U, image => Portrait(value.Realm, image), title,
+                catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue), line, null);
             return kit.Card("Today’s Daily", new[] { portrait }.Concat(rows).Append(buttons), "Daily card");
         }
         // The product's painted lockup in its 200u box.
