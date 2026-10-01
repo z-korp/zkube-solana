@@ -889,6 +889,11 @@
             "hud-background": "/assets/skins/lumen/realm-1/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-1/ledge.png",
             "map": "/assets/skins/lumen/realm-1/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-1/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-1/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-1/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-1/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-1/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-1/mote.png"
           },
           "light": {
@@ -976,6 +981,11 @@
             "hud-background": "/assets/skins/lumen/realm-2/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-2/ledge.png",
             "map": "/assets/skins/lumen/realm-2/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-2/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-2/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-2/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-2/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-2/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-2/mote.png"
           },
           "light": {
@@ -1063,6 +1073,11 @@
             "hud-background": "/assets/skins/lumen/realm-3/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-3/ledge.png",
             "map": "/assets/skins/lumen/realm-3/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-3/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-3/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-3/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-3/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-3/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-3/mote.png"
           },
           "light": {
@@ -1150,6 +1165,11 @@
             "hud-background": "/assets/skins/lumen/realm-4/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-4/ledge.png",
             "map": "/assets/skins/lumen/realm-4/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-4/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-4/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-4/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-4/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-4/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-4/mote.png"
           },
           "light": {
@@ -1237,6 +1257,11 @@
             "hud-background": "/assets/skins/lumen/realm-5/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-5/ledge.png",
             "map": "/assets/skins/lumen/realm-5/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-5/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-5/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-5/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-5/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-5/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-5/mote.png"
           },
           "light": {
@@ -1324,6 +1349,11 @@
             "hud-background": "/assets/skins/lumen/realm-6/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-6/ledge.png",
             "map": "/assets/skins/lumen/realm-6/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-6/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-6/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-6/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-6/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-6/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-6/mote.png"
           },
           "light": {
@@ -1411,6 +1441,11 @@
             "hud-background": "/assets/skins/lumen/realm-7/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-7/ledge.png",
             "map": "/assets/skins/lumen/realm-7/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-7/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-7/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-7/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-7/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-7/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-7/mote.png"
           },
           "light": {
@@ -1498,6 +1533,11 @@
             "hud-background": "/assets/skins/lumen/realm-8/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-8/ledge.png",
             "map": "/assets/skins/lumen/realm-8/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-8/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-8/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-8/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-8/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-8/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-8/mote.png"
           },
           "light": {
@@ -1585,6 +1625,11 @@
             "hud-background": "/assets/skins/lumen/realm-9/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-9/ledge.png",
             "map": "/assets/skins/lumen/realm-9/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-9/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-9/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-9/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-9/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-9/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-9/mote.png"
           },
           "light": {
@@ -1672,6 +1717,11 @@
             "hud-background": "/assets/skins/lumen/realm-10/hud-background.jpg",
             "ledge": "/assets/skins/lumen/realm-10/ledge.png",
             "map": "/assets/skins/lumen/realm-10/map.jpg",
+            "map-node-current": "/assets/skins/lumen/realm-10/map-node-current.png",
+            "map-node-done": "/assets/skins/lumen/realm-10/map-node-done.png",
+            "map-node-guardian": "/assets/skins/lumen/realm-10/map-node-guardian.png",
+            "map-node-locked": "/assets/skins/lumen/realm-10/map-node-locked.png",
+            "map-node-open": "/assets/skins/lumen/realm-10/map-node-open.png",
             "mote": "/assets/skins/lumen/realm-10/mote.png"
           },
           "light": {
@@ -1837,10 +1887,10 @@
       "ui": [
         {
           "border": [
-            60,
-            60,
-            60,
-            60
+            48,
+            48,
+            48,
+            48
           ],
           "image": "/assets/skins/lumen/ui/panel.png",
           "slot": "panel"
@@ -2127,23 +2177,53 @@
         },
         {
           "border": [
-            40,
-            40,
-            40,
-            40
+            48,
+            48,
+            48,
+            48
           ],
           "image": "/assets/skins/lumen/ui/card.png",
           "slot": "card"
         },
         {
           "border": [
-            40,
-            40,
-            40,
-            40
+            44,
+            44,
+            44,
+            44
           ],
           "image": "/assets/skins/lumen/ui/title-plate.png",
           "slot": "title-plate"
+        },
+        {
+          "border": [
+            4,
+            0,
+            4,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/divider.png",
+          "slot": "divider"
+        },
+        {
+          "border": [
+            68,
+            36,
+            36,
+            92
+          ],
+          "image": "/assets/skins/lumen/ui/speech-left.png",
+          "slot": "speech-left"
+        },
+        {
+          "border": [
+            36,
+            36,
+            68,
+            92
+          ],
+          "image": "/assets/skins/lumen/ui/speech-right.png",
+          "slot": "speech-right"
         },
         {
           "border": [
@@ -2174,46 +2254,6 @@
           ],
           "image": "/assets/skins/lumen/ui/badge.png",
           "slot": "badge"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/lumen/ui/map-node-locked.png",
-          "slot": "map-node-locked"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/lumen/ui/map-node-open.png",
-          "slot": "map-node-open"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/lumen/ui/map-node-done.png",
-          "slot": "map-node-done"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/lumen/ui/map-node-guardian.png",
-          "slot": "map-node-guardian"
         },
         {
           "border": [

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 /// UI pieces drawn stretched; each declares its stretch border in skin.json.
-pub const UI_STRETCH_SLOTS: [&str; 31] = [
+pub const UI_STRETCH_SLOTS: [&str; 34] = [
     "panel",
     "plate",
     "dialog",
@@ -41,20 +41,21 @@ pub const UI_STRETCH_SLOTS: [&str; 31] = [
     "earn-panel",
     "tap-bubble",
     "chip",
-    // A page's card and its title plate.
+    // A page's card, its title plate and the rule between a card's rows.
     "card",
     "title-plate",
+    "divider",
+    // A guardian's speech, its tail in the fixed upper corner on the side it
+    // speaks from.
+    "speech-left",
+    "speech-right",
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 75] = [
+pub const UI_FIXED_SLOTS: [&str; 71] = [
     "grid-cell",
     "guardian-frame",
     "badge",
-    "map-node-locked",
-    "map-node-open",
-    "map-node-done",
-    "map-node-guardian",
     "star-on",
     "star-off",
     "star-big",
@@ -200,10 +201,21 @@ pub const REALM_PAINTINGS: [&str; 3] = ["background", "hud-background", "map"];
 /// Realm pieces drawn stretched; their borders are skin-wide in skin.json.
 pub const REALM_STRETCH_SLOTS: [&str; 1] = ["ledge"];
 
+/// Each realm's own map nodes, drawn at their own aspect ratio: a level locked,
+/// open, current and done, and the guardian's ring around its portrait.
+pub const REALM_NODE_SLOTS: [&str; 5] = [
+    "map-node-locked",
+    "map-node-open",
+    "map-node-current",
+    "map-node-done",
+    "map-node-guardian",
+];
+
 pub fn realm_slots() -> Vec<String> {
     let mut slots: Vec<String> = ["background", "hud-background", "map", "mote"]
         .into_iter()
         .chain(REALM_STRETCH_SLOTS)
+        .chain(REALM_NODE_SLOTS)
         .map(str::to_owned)
         .collect();
     slots.extend((1..=BLOCK_WIDTHS).map(|width| format!("block-{width}")));

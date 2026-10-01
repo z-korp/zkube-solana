@@ -18,6 +18,12 @@ def skin_slots():
     return {entry['slot'] for skin in catalog['skins'] for entry in skin['ui']}
 
 
+def realm_images():
+    """Every skin realm's images as the codegen emits them, by the same owner."""
+    catalog = json.loads((ROOT / 'assets/theme-catalog.generated.json').read_text())
+    return {image.removeprefix('/') for skin in catalog['skins'] for realm in skin['realms'] for image in realm['images'].values()}
+
+
 class PortraitImports(unittest.TestCase):
     def test_imports_only_the_assets_loaded_by_the_game(self):
         _, catalog = imports.asset_plan()
@@ -30,11 +36,9 @@ class PortraitImports(unittest.TestCase):
                             ['background'] + [f'boss/{frame}' for frame in
                              ('idle', 'blink', 'talk-mid', 'talk-open', 'greeting', 'satisfied', 'surprised',
                               'celebrate', 'defeated', 'portrait', 'paws')])
-            expected.update(f'assets/skins/{skin}/realm-{realm}/{name}' for skin in skins for name in
-                            ('background.jpg', 'hud-background.jpg', 'map.jpg', 'ledge.png', 'mote.png',
-                             'block-1.png', 'block-2.png', 'block-3.png', 'block-4.png'))
             expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
         expected.update(f'assets/skins/{skin}/ui/{name}.png' for skin in skins for name in skin_slots())
+        expected.update(realm_images())
         self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
         frames = [entry for entry in catalog['assets'] if '/boss/' in entry['source'] and entry['scope'] != 'portraits']
         self.assertTrue(frames and all(entry['maxTextureSize'] == imports.GUARDIAN_TEXTURE for entry in frames),

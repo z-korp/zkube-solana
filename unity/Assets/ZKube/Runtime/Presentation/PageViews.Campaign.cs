@@ -173,12 +173,12 @@ namespace ZKube.Presentation
             return focus;
         }
 
-        // One level. Locked: dark stone with a lock. Open or finished: the
-        // glowstone with its number, a finished one with its three stars under
-        // it. Current: larger, breathing. The guardian: its portrait in the
-        // portal ring with a soft halo, dimmed with a lock until it opens, its
-        // stars always under it. The touch area covers the node and its stars,
-        // at least 48 dp.
+        // One level, in its realm's own node set. Locked: dark stone with a
+        // lock. Open or finished: the glowstone with its number, a finished one
+        // with its three stars under it. Current: larger, its cream rim,
+        // breathing. The guardian: its portrait in the portal ring with a soft
+        // halo, dimmed with a lock until it opens, its stars always under it.
+        // The touch area covers the node and its stars, at least 48 dp.
         private void Node(CampaignPageView value, CampaignTrialView trial, Vector2 center, float normal, bool guardian, bool lit)
         {
             float d = ui.Density;
@@ -204,7 +204,7 @@ namespace ZKube.Presentation
                 var portrait = ui.Medallion(name + " guardian", new Rect(rect.center.x - face / 2, rect.center.y - face / 2, face, face),
                     ui.Art.Sprite("boss__portrait"), hit.transform);
                 Destroy(hit.transform.Find(name + " guardian frame").gameObject);
-                ui.Piece(name + " ring", SkinSlots.MapNodeGuardian, rect, hit.transform);
+                RealmPiece(name + " ring", SkinSlots.MapNodeGuardian, rect, hit.transform);
                 if (!open && !done)
                 {
                     portrait.color = new Color(.45f, .45f, .45f, 1);
@@ -214,7 +214,8 @@ namespace ZKube.Presentation
             }
             else
             {
-                ui.Piece(name + " node", done && !lit ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked, rect, hit.transform);
+                RealmPiece(name + " node", lit ? SkinSlots.MapNodeCurrent : done ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked,
+                    rect, hit.transform);
                 if (open || done)
                     ui.Label(name + " number", Number(value.Realm, trial.Level), rect, size * .37f / d, SkinTokens.Text, hit.transform,
                         SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
@@ -225,6 +226,13 @@ namespace ZKube.Presentation
                     ui.Star(name + " star " + (i + 1), new Rect(stars.x + i * star * 1.05f, stars.y + (i == 1 ? .18f * star : 0), star, star), i < trial.Stars,
                         hit.transform);
             actions.Wire(button, new PageAction { Name = name, Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open }, fade: false);
+        }
+        // A piece of the page realm's own art (its map nodes), at its own aspect.
+        private Image RealmPiece(string name, string slot, Rect rect, Transform parent)
+        {
+            var image = ui.Rect<Image>(name, rect, parent);
+            image.sprite = ui.Art.SkinRealm(slot); image.preserveAspect = true; image.raycastTarget = false;
+            return image;
         }
         private Image Tinted(string name, string slot, Rect rect, string token, Transform parent)
         {

@@ -222,11 +222,8 @@ namespace ZKube.Presentation
             float w = TextWidth(text, sizeDp, SkinUi.Type.Caption), h = Ui.TextHeight(text, w, sizeDp, SkinUi.Type.Caption);
             return new Side(w, h, rect => Ui.Label(name, text, rect, sizeDp, token, Parent, SkinUi.Type.Caption).textWrappingMode = TextWrappingModes.NoWrap);
         }
-        public void Rule(string name, Rect row)
-        {
-            var rule = Ui.Rect<Image>(name, new Rect(row.x, row.yMax - Mathf.Max(1, Ui.Density), row.width, Mathf.Max(1, Ui.Density)), Parent);
-            rule.color = new Color(35 / 255f, 57 / 255f, 74 / 255f, 1); rule.raycastTarget = false;
-        }
+        // The kit's divider along a row's top edge.
+        public void Rule(string name, Rect row) => Ui.Piece(name, SkinSlots.Divider, new Rect(row.x, row.yMax - 2 * Ui.Density, row.width, 4 * Ui.Density), Parent);
 
         // A value (.val3): the 24u display numeral at line height 1.
         public Side Value(string name, string text, string token = SkinTokens.Score, float? sizeDp = null)
@@ -333,6 +330,7 @@ namespace ZKube.Presentation
                 if (line != null) Bubble(line, canvas, c, cardRect.yMax);
             });
         }
+        public const float TailDp = 15;
         // The guardian's line (.bub): 122u wide, 0.8c from the canvas's left and
         // 0.06c down, padded 8u by 10u, 12.5u at 1.25, its tail toward the head.
         // A long line widens into the room rather than reach the card.
@@ -348,10 +346,11 @@ namespace ZKube.Presentation
             float x = right ? guardian.x + .8f * c : guardian.xMax - .8f * c - w;
             float top = Mathf.Max(guardian.yMax - .06f * c, cardTop + 6 * u + height);
             var body = new Rect(x, top - height, w, height);
-            Ui.Piece("Guardian bubble", SkinSlots.TapBubble, body, Parent, .5f);
-            var tail = Ui.Piece("Guardian bubble tail", SkinSlots.TapBubbleTail,
-                new Rect(right ? body.x - 9 * u : body.xMax, top - 18 * u - 9 * u, 9 * u, 18 * u), Parent);
-            if (right) { tail.rectTransform.localScale = new Vector3(-1, 1, 1); tail.rectTransform.anchoredPosition += new Vector2(9 * u, 0); }
+            // The speech piece carries its tail in its upper corner on the
+            // guardian's side, reaching TailDp past the body toward its mouth.
+            float tail = TailDp * Ui.Density;
+            Ui.Piece("Guardian bubble", right ? SkinSlots.SpeechLeft : SkinSlots.SpeechRight,
+                new Rect(right ? body.x - tail : body.x, body.y, w + tail, height), Parent);
             Text("Guardian line", line, new Rect(body.x + 10 * u, body.y + 8 * u, w - 20 * u, height - 16 * u), textDp, SkinTokens.TextOnPrimary, SkinUi.Type.Caption,
                 BubbleLeading, TextAlignmentOptions.TopLeft);
         }

@@ -162,7 +162,8 @@ namespace ZKube.Presentation
                 byte level = HudLayout.CampaignLevel(session);
                 if (hud.Medal.width > 0 && level > 0)
                 {
-                    ui.Piece("Level medal", SkinSlots.MapNodeOpen, hud.Medal, root);
+                    var medal = ui.Rect<Image>("Level medal", hud.Medal, root);
+                    medal.sprite = art.SkinRealm(SkinSlots.MapNodeOpen); medal.preserveAspect = true; medal.raycastTarget = false;
                     Text("Level", HudLayout.LevelNumber(session.RealmId, level), hud.Medal, hud.LevelPt, SkinTokens.Text, root,
                         SkinUi.Type.Display, TextAlignmentOptions.Center);
                 }
