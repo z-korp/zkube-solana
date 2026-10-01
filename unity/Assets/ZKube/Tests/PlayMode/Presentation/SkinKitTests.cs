@@ -66,13 +66,29 @@ namespace ZKube.Presentation.Tests
             toggle.SetWithoutNotify(true); Assert.IsTrue(toggle.Value); Assert.AreEqual(2, reported.Count);
         }
 
+        // On is a teal track under a light knob; off, a dim knob on the dark track, never gold.
+        [Test] public void ASwitchReadsOnInTealAndOffAsADimKnob()
+        {
+            var toggle = ui.Toggle("Sound", new Rect(0, 0, 300, 48), true, _ => { }, root.transform);
+            float Luminance(Color c) => .2126f * c.r + .7152f * c.g + .0722f * c.b;
+            var on = Part(toggle, "Sound on"); var knob = Part(toggle, "Sound knob");
+            Assert.IsTrue(on.enabled); Assert.AreEqual(SkinToggle.OnTrack, on.color);
+            Assert.Greater(on.color.g, on.color.r + .2f, "On is teal"); Assert.Greater(on.color.b, on.color.r + .2f, "On is teal, not gold");
+            Assert.AreEqual(SkinToggle.OnKnob, knob.color);
+            float lit = Luminance(knob.color);
+            toggle.SetWithoutNotify(false);
+            Assert.IsFalse(on.enabled, "Off shows the dark track");
+            Assert.AreEqual(SkinToggle.OffKnob, knob.color);
+            Assert.Less(Luminance(knob.color), lit - .2f, "The off knob is dim beside the on knob");
+        }
+
         [Test] public void TabBarStaysInsideTheGuttersAndAboveTheSafeBottom()
         {
             var safe = new Rect(0, 24, 360, 616);
             var expected = ScreenKit.TabRect(ui, new Rect(0, 0, 360, 640), safe);
             var bar = ui.TabBar("Tabs", expected, .8f, new (string, string, System.Action)[]
             {
-                (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }),
+                (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconClock, "Daily", () => { }),
             }, 0, root.transform);
             var drawn = SkinUi.ScreenRect((RectTransform)bar.transform);
             Assert.AreEqual(expected, drawn, "Pages learn the bar's edges from ScreenKit.TabRect");

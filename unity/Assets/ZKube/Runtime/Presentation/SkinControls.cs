@@ -51,15 +51,18 @@ namespace ZKube.Presentation
     // An on/off switch built by SkinUi.Toggle; a tap flips it.
     public sealed class SkinToggle : MonoBehaviour, IPointerClickHandler
     {
+        // As the wireframe draws a switch: on is a teal track under a light knob,
+        // off a dim knob on the dark track. Gold is kept for what is earned.
+        public static readonly Color OnTrack = new Color(31 / 255f, 107 / 255f, 95 / 255f, 1), OnKnob = new Color(156 / 255f, 240 / 255f, 230 / 255f, 1),
+            OffKnob = new Color(143 / 255f, 166 / 255f, 178 / 255f, 1);
         private Rect track;
-        private RectTransform knob;
-        private Image on;
+        private Image knob, on;
         private Action<bool> changed;
         public bool Value { get; private set; }
 
-        internal void Bind(Rect trackRect, Image onFill, RectTransform knobRect, bool value, Action<bool> onChanged)
+        internal void Bind(Rect trackRect, Image onFill, Image knobImage, bool value, Action<bool> onChanged)
         {
-            track = trackRect; on = onFill; knob = knobRect; changed = onChanged;
+            track = trackRect; on = onFill; knob = knobImage; changed = onChanged;
             Show(value);
         }
 
@@ -72,10 +75,10 @@ namespace ZKube.Presentation
 
         private void Show(bool value)
         {
-            Value = value; on.enabled = value;
-            var size = knob.sizeDelta;
+            Value = value; on.enabled = value; knob.color = value ? OnKnob : OffKnob;
+            var rect = knob.rectTransform; var size = rect.sizeDelta;
             float x = value ? track.xMax - track.height / 2 : track.x + track.height / 2;
-            SkinUi.Place(knob, new Rect(x - size.x / 2, track.center.y - size.y / 2, size.x, size.y), knob.parent);
+            SkinUi.Place(rect, new Rect(x - size.x / 2, track.center.y - size.y / 2, size.x, size.y), rect.parent);
         }
     }
 
