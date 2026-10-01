@@ -232,7 +232,7 @@ fn guardian([bonus, trigger, threshold, _]: [u16; 4]) -> Value {
     json!({"bonus": bonus, "trigger": trigger, "threshold": threshold, "name": name,
         "pictogram": pictogram, "chip": chip,
         "description": description, "sentence": format!("{condition} a {name}."),
-        "effect": format!("{effect} What it removes scores nothing; only lines completed as the blocks drop score.")})
+        "effect": format!("{effect} What it removes scores nothing.")})
 }
 
 // A Daily objective's words come from the one caption owner.
