@@ -212,8 +212,9 @@ namespace ZKube.Presentation
             var frame = new Rect(box.xMax - 4 * u - body, top - (1 - Art.GuardianRailY) * body, body, body);
             var guardian = Rect<Image>(name + " guardian", frame, parent);
             guardian.sprite = Art.Sprite("boss__idle"); guardian.preserveAspect = true; guardian.raycastTarget = false;
-            var panel = Piece(name, SkinSlots.Dialog, box, parent); panel.raycastTarget = true;
-            var ledge = Rect<Image>(name + " rail", new Rect(box.x - 2 * d, top - rail, width + 4 * d, rail), parent);
+            // The box is the speech's cream (the bubble's piece), under the realm's ledge rail across its width.
+            var panel = Piece(name, SkinSlots.TapBubble, box, parent); panel.raycastTarget = true;
+            var ledge = Rect<Image>(name + " rail", new Rect(box.x, top - rail, width, rail), parent);
             ledge.sprite = Art.SkinRealm(SkinSlots.Ledge); ledge.type = Image.Type.Sliced; ledge.pixelsPerUnitMultiplier = 1 / Ui;
             ledge.raycastTarget = false;
             var paws = Rect<Image>(name + " paws", frame, parent);
@@ -239,7 +240,7 @@ namespace ZKube.Presentation
                 SkinTokens.TextMuted, parent, Type.Caption, beside ? TextAlignmentOptions.Left : TextAlignmentOptions.TopLeft);
 
             var text = Label(name + " line", "", new Rect(box.x + pad, top - 26 * u - lineHeight, inner, lineHeight),
-                lineDp, SkinTokens.Text, parent, Type.Caption, TextAlignmentOptions.TopLeft);
+                lineDp, TalkInk, parent, Type.Caption, TextAlignmentOptions.TopLeft);
             text.lineSpacing = LineSpacing(text.font, TalkLeading);
             GameObject rules = null;
             if (ruled != null)
@@ -248,24 +249,25 @@ namespace ZKube.Presentation
                 rules.transform.SetParent(parent, false); Place((RectTransform)rules.transform, box, parent);
                 float row = top - 26 * u - 4 * u - icon, centre = box.center.x, arrow = 22 * u;
                 Pictogram(name + " rule trigger", ruled.Rule.pictogram, ruled.Rule.chip, new Rect(centre - arrow / 2 - 10 * u - icon, row, icon, icon), rules.transform);
-                Label(name + " rule arrow", "→", new Rect(centre - arrow / 2, row, arrow, icon), 22 * k, SkinTokens.TextMuted, rules.transform, Type.Caption);
+                Label(name + " rule arrow", "→", new Rect(centre - arrow / 2, row, arrow, icon), 22 * k, SkinTokens.TextOnPrimary, rules.transform, Type.Caption).color = Ink(.72f);
                 Piece(name + " rule bonus", HudLayout.BonusIcon(ruled.Rule.bonus, true), new Rect(centre + arrow / 2 + 10 * u, row, icon, icon), rules.transform);
-                var said = Label(name + " rule", ruled.RuleSentence, new Rect(box.x + pad, row - 8 * u - sentence, inner, sentence), lineDp, SkinTokens.Text,
+                var said = Label(name + " rule", ruled.RuleSentence, new Rect(box.x + pad, row - 8 * u - sentence, inner, sentence), lineDp, TalkInk,
                     rules.transform, Type.Caption);
                 said.lineSpacing = LineSpacing(said.font, TalkLeading);
                 var does = Label(name + " rule effect", ruled.Rule.effect, new Rect(box.x + pad, row - 8 * u - sentence - 4 * u - effect, inner, effect), 13 * k,
-                    SkinTokens.TextMuted, rules.transform, Type.Caption);
+                    TalkInk, rules.transform, Type.Caption);
+                does.color = Ink(.72f);
                 does.lineSpacing = LineSpacing(does.font, TalkLeading);
             }
             // The ▼ and the hint centre on the box's bottom band, each as tall as its face draws it.
             float cueWidth = 12 * u, band = box.y + 14 * u + cueHeight / 2;
             float mark = TextHeight("▼", cueWidth, cueDp, Type.Body), words = TextHeight(TapHint, inner, cueDp, Type.Caption);
-            var cue = Label(name + " continue", "▼", new Rect(box.xMax - pad - cueWidth, band - mark / 2, cueWidth, mark), cueDp, SkinTokens.Text, parent, Type.Body);
+            var cue = Label(name + " continue", "▼", new Rect(box.xMax - pad - cueWidth, band - mark / 2, cueWidth, mark), cueDp, TalkInk, parent, Type.Body);
             // The hint shares the box's bottom band with the ▼, inside the box,
             // so nothing the page draws beneath can meet it.
             if (hint)
                 Label(name + " hint", TapHint, new Rect(box.x + pad, band - words / 2, inner - cueWidth - 4 * u, words), cueDp,
-                    SkinTokens.TextMuted, parent, Type.Caption, TextAlignmentOptions.Right);
+                    TalkInk, parent, Type.Caption, TextAlignmentOptions.Right).color = Ink(.72f);
 
             var talk = panel.gameObject.AddComponent<GuardianTalk>();
             // What stands on the box's top moves with it when a page resizes the box.
@@ -274,6 +276,10 @@ namespace ZKube.Presentation
             talk.Bind(Art, guardian, text, tagName, tagTitle, rules, cue, pages, finished, panel.rectTransform, tops, heights);
             return talk;
         }
+        // The talk's words are the speech's ink on its cream face; quieter words are that ink at 72%,
+        // still 4.5:1 on the cream.
+        public const string TalkInk = SkinTokens.TextOnPrimary;
+        private Color Ink(float alpha) => WithAlpha(Art.Token(TalkInk), alpha);
         // The rule's pictograms are 56u; the line is 16u at 1.35.
         public const float RuleIconU = 56, TalkLeading = 1.35f;
         public const string TapHint = "Tap to continue";

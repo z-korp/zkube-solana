@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using ZKube.Core.Generated;
 
 namespace ZKube.Presentation.Tests
 {
@@ -99,7 +100,8 @@ namespace ZKube.Presentation.Tests
             var rail = SkinUi.ScreenRect(Part("Talk rail").rectTransform);
             var body = Part("Talk guardian"); var paws = Part("Talk paws");
             Assert.AreEqual(box.yMax, rail.yMax, .01f, "The ledge is the box's top");
-            Assert.AreEqual(box.xMin - 2, rail.xMin, .01f, "The rail overhangs the box");
+            Assert.AreEqual(box.xMin, rail.xMin, .01f, "The rail starts with the box");
+            Assert.AreEqual(box.width, rail.width, .01f, "The rail spans the box's width exactly");
             var frame = SkinUi.ScreenRect(body.rectTransform);
             Assert.AreEqual(box.yMax, frame.yMax - art.GuardianRailY * frame.height, .01f, "Its rail line sits on the ledge");
             Assert.AreEqual(box.xMax - 4, frame.xMax, .01f, "It stands at the right, 4u in");
@@ -133,6 +135,29 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(rule.effect, root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule effect").text);
             talk.Tap(); Assert.IsTrue(talk.Done);
         }
+
+        // The talk is the speech's cream with ink words, every one 4.5:1 or better on the cream face
+        // (the bubble piece's #F7F1E1); the name tag stays dark.
+        [UnityTest] public IEnumerator TheTalkIsCreamWithInkWordsAndADarkNameTag()
+        {
+            var talk = Talk(null, new TalkPage("The tide keeps its own time.", "idle"), TalkPage.RulePage(PageCatalog.Load().Rule(1)));
+            Assert.AreEqual(SkinSlots.TapBubble, talk.GetComponent<Image>().sprite.name.Replace("(Clone)", ""), "The box is the speech's cream piece");
+            Assert.AreEqual(SkinSlots.TitlePlate, Part("Talk name tag").sprite.name.Replace("(Clone)", ""), "The name tag stays dark");
+            var cream = new Color(247 / 255f, 241 / 255f, 225 / 255f);
+            float Luminance(Color c) { float L(float v) => v <= .03928f ? v / 12.92f : Mathf.Pow((v + .055f) / 1.055f, 2.4f); return .2126f * L(c.r) + .7152f * L(c.g) + .0722f * L(c.b); }
+            void Readable()
+            {
+                foreach (var text in root.GetComponentsInChildren<TMP_Text>().Where(text => text.name != "Talk name" && text.name != "Talk title" && !text.name.EndsWith(" chip label")))
+                {
+                    var ink = Color.Lerp(cream, text.color, text.color.a);
+                    float a = Luminance(cream), b = Luminance(ink);
+                    Assert.GreaterOrEqual((Mathf.Max(a, b) + .05f) / (Mathf.Min(a, b) + .05f), 4.5f, text.name + " reads at 4.5:1 on the cream");
+                }
+            }
+            talk.Complete(); Readable();
+            talk.Tap(); yield return null; Readable();
+        }
+        Image Part(string name) => root.GetComponentsInChildren<Image>(true).Single(i => i.name == name);
 
         [Test] public void TheBoxFitsItsLinesWithTwoAtLeastAndCanHideItsHint()
         {

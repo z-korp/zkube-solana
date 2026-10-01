@@ -84,7 +84,7 @@ namespace ZKube.Tests.Presentation
                 ["guardians"] = Where(image => image.name == "Screen guardian" || image.name.EndsWith("talk guardian")),
                 ["crowns"] = Where(image => image.name == "Star crown"),
                 ["lockup"] = Where(image => image.name == "Wordmark"),
-                ["talk"] = Where(image => Slot(image) == SkinSlots.Dialog),
+                ["talk"] = Where(image => image.GetComponent<GuardianTalk>() != null),
                 ["tabs"] = at.GetComponentsInChildren<SkinTabBar>().Select(bar => Dp((RectTransform)bar.transform)).ToList(),
             };
         }
