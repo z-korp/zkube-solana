@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using ZKube.Core.Generated;
+using Piece = ZKube.Presentation.ScreenKit.Piece;
 
 namespace ZKube.Presentation
 {
@@ -16,28 +17,28 @@ namespace ZKube.Presentation
     {
         public GuardianGreetings Greetings { get; set; } = GuardianGreetings.Device();
 
-        // The map, as the v3 composites draw it: the realm's painting behind the
-        // header card (the realm, "Realm N of 10" and its stars), the authored
-        // path fitted into the room between the header and Play in a 60 x 100
-        // box ("meet", no scroll) with S-curve edges, the glowstone medallions
-        // and the guardian 1.6 times their size, each finished node's stars under
-        // it, the current node breathing, and "Play level N" above the tabs.
+        // The map, as the wireframe draws it: the realm's painting behind the
+        // header card (Previous, the realm, "Realm N of 10" and its stars), the
+        // authored path fitted into the room between the header and Play with
+        // S-curve edges, the glowstone medallions and the guardian 1.6 times
+        // their size, each finished node's stars under it, the current node
+        // breathing, and "Play level N" above the tabs.
         private void Campaign(CampaignPageView value, string[] notices)
         {
             var realm = catalog.Realm(value.Realm);
             if (value.Locked != null) { Waiting(value, realm, notices); return; }
-            var kit = Kit; float d = ui.Density, u = kit.U;
+            var kit = Kit; float d = ui.Density;
             var trial = value.Trials[Focus(value.Trials, 0)];
             var play = new PageAction { Name = "Play level", Label = (trial.Playing ? "Resume level " : "Play level ") + Number(value.Realm, trial.Level),
                 Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open };
-            var buttons = Buttons((play, true, SkinSlots.IconPlay));
-            var playRect = new Rect(kit.Safe.center.x - kit.Width / 2, kit.Safe.y + (kit.K > .95f ? 16 : 10) * d, kit.Width, buttons.Height);
+            var buttons = Buttons(kit, (play, ScreenKit.Kind.Primary, SkinSlots.IconPlay));
+            var header = MapHeader(value, kit);
+            Rect headerRect = default, room = default, playRect = default;
+            Compose(new Piece(header.Height, rect => headerRect = rect), new Piece(-1, rect => room = rect), new Piece(buttons.Height, rect => playRect = rect));
             // The header is drawn over the map, so the guardian's glow passes under it.
-            float header = MapHeaderHeight(kit);
-            Map(value, Rect.MinMaxRect(kit.Safe.xMin, playRect.yMax + 10 * u, kit.Safe.xMax, kit.Safe.yMax - 4 * d - header - 10 * u));
-            MapHeader(value, kit, header);
+            Map(value, room);
+            header.Draw(headerRect);
             buttons.Draw(playRect);
-            column = new PageColumn(ui, shell.Page, actions, playRect.x, playRect.width, playRect.y);
             var lines = notices.Concat(new[] { value.Notice, value.SavedRun }).Where(text => !string.IsNullOrEmpty(text)).ToArray();
             var more = new[] { value.Resume, value.Result }.Where(action => action != null).ToArray();
             if (lines.Length != 0 || more.Length != 0)
@@ -52,41 +53,35 @@ namespace ZKube.Presentation
         {
             float d = ui.Density; var safe = shell.SafeArea;
             float width = Mathf.Min(320 * d, safe.width - 2 * (GutterDp + 24) * d);
-            return new Rect(safe.center.x - width / 2, ui.TabBarRect(safe).yMax + 20 * d, width, PageColumn.ButtonDp * d);
+            return new Rect(safe.center.x - width / 2, ScreenKit.TabRect(ui, shell.ScreenArea, safe).yMax + 20 * d, width, PageColumn.ButtonDp * d);
         }
 
-        // The header card: Previous, the realm and its place, its stars and Next.
-        private float MapHeaderHeight(ScreenKit kit) => Mathf.Max(64 * kit.U, IconDp * ui.Density + 12 * kit.U);
-        private void MapHeader(CampaignPageView value, ScreenKit kit, float height)
+        // The header card: Previous (a 38u button), the realm's title and place
+        // left-aligned, its stars, and Next where it can be taken.
+        private Piece MapHeader(CampaignPageView value, ScreenKit kit)
         {
-            float d = ui.Density, u = kit.U, k = kit.K, icon = IconDp * d;
+            float u = kit.U, back = kit.Touch(38); var inside = kit.Inside();
             string name = catalog.Realm(value.Realm).realmName, place = "Realm " + value.Realm + " of " + Protocol.Realms.Length;
             string total = "/" + Protocol.CampaignTargets.Length * 3;
-            var card = new Rect(kit.Safe.center.x - kit.Width / 2, kit.Safe.yMax - 4 * d - height, kit.Width, height);
-            ui.Piece("Map header", SkinSlots.Card, card, shell.Page);
-            float left = card.x + 8 * u, right = card.xMax - 8 * u;
-            if (value.Previous != null && value.Previous.Enabled)
-            {
-                HeaderButton(value.Previous, new Rect(left, card.center.y - icon / 2, icon, icon), SkinSlots.IconBack, false); left += icon + 10 * u;
-            }
-            else left += 6 * u;
-            if (value.Next != null && value.Next.Enabled)
-            {
-                HeaderButton(value.Next, new Rect(right - icon, card.center.y - icon / 2, icon, icon), SkinSlots.IconBack, true); right -= icon + 10 * u;
-            }
-            string stars = value.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">" + total + "</color>";
-            float starsWidth = kit.NumeralWidth(value.Stars + total);
-            kit.Numeral("Map stars", stars, new Rect(right - starsWidth, card.y, starsWidth, card.height));
-            right -= starsWidth + 6 * u;
-            ui.Piece("Map stars icon", SkinSlots.IconCampaign, new Rect(right - 28 * u, card.center.y - 14 * u, 28 * u, 28 * u), shell.Page);
-            right -= 28 * u + 10 * u;
-            float titleDp = 28 * k, placeDp = Mathf.Max(12, 13 * k), width = right - left;
-            float titleHeight = ui.TextHeight(name, width, titleDp, SkinUi.Type.Display), placeHeight = ui.TextHeight(place, width, placeDp, SkinUi.Type.Caption);
-            float top = card.center.y + (titleHeight + placeHeight) / 2;
-            ui.Label("Map title", name, new Rect(left, top - titleHeight, width, titleHeight), titleDp, SkinTokens.Text, shell.Page, SkinUi.Type.Display,
-                TextAlignmentOptions.Left);
-            ui.Label("Map place", place, new Rect(left, top - titleHeight - placeHeight, width, placeHeight), placeDp, SkinTokens.TextMuted, shell.Page,
-                SkinUi.Type.Caption, TextAlignmentOptions.Left);
+            var stars = inside.Beside(10, inside.Icon("Map stars icon", SkinSlots.StarLit, 28),
+                inside.Value("Map stars", value.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">" + total + "</color>"));
+            bool previous = value.Previous != null && value.Previous.Enabled, next = value.Next != null && value.Next.Enabled;
+            float text = inside.Width - (previous ? back + 10 * u : 0) - stars.Width - 10 * u - (next ? back + 10 * u : 0);
+            float titleHeight = inside.Block(name, text, inside.TitleDp, SkinUi.Type.Display, ScreenKit.TitleLeading);
+            float placeHeight = inside.Block(place, text, inside.SubtitleDp, SkinUi.Type.Caption, ScreenKit.NoteLeading);
+            float block = titleHeight + 2 * u + placeHeight;
+            // The back button's 48 dp reach may spill into the card's padding; the row keeps the wireframe's 38u.
+            return kit.Card(null, new[] { new Piece(Mathf.Max(38 * u, block), rect => {
+                float left = rect.x, right = rect.xMax;
+                if (previous) { HeaderButton(value.Previous, new Rect(left, rect.center.y - back / 2, back, back), SkinSlots.IconBack, false); left += back + 10 * u; }
+                if (next) { HeaderButton(value.Next, new Rect(right - back, rect.center.y - back / 2, back, back), SkinSlots.IconBack, true); right -= back + 10 * u; }
+                stars.Draw(new Rect(right - stars.Width, rect.center.y - stars.Height / 2, stars.Width, stars.Height));
+                float top = rect.center.y + block / 2;
+                inside.Text("Map title", name, new Rect(left, top - titleHeight, text, titleHeight), inside.TitleDp, SkinTokens.Text, SkinUi.Type.Display,
+                    ScreenKit.TitleLeading, TextAlignmentOptions.Left);
+                inside.Text("Map place", place, new Rect(left, top - block, text, placeHeight), inside.SubtitleDp, SkinTokens.TextMuted, SkinUi.Type.Caption,
+                    ScreenKit.NoteLeading, TextAlignmentOptions.Left);
+            }) }, "Map header");
         }
 
         // Node sizes in dp: the glowstone 48 on the Seeker and 40 on a compact
@@ -290,17 +285,18 @@ namespace ZKube.Presentation
             var root = Holder("Guardian greeting", shell.ScreenArea, shell.Chrome);
             var scrim = ui.Rect<Image>("Greeting scrim", shell.ScreenArea, root);
             scrim.color = ui.Art.Token(SkinTokens.Scrim); scrim.raycastTarget = true;
-            float width = Mathf.Min(safe.width - 2 * GutterDp * d, ColumnDp * d) - 8 * d, left = safe.center.x - width / 2;
+            // The talk box (.talkbox) spans the column, its bottom 30u and a gap over the column's foot.
+            var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
+            float width = kit.Width, left = safe.center.x - width / 2;
             // The passage line first on a realm opened by beating the guardian
             // before it, then the greeting with the rule and what its bonus does.
             var pages = TalkPage.MapGreeting(realm, catalog.Rule(realmId), realmId > 1);
             GuardianTalk talk = null;
-            var box = Speak("Guardian greeting talk", root, left, safe.center.y + 15 * d, width, realm, pages,
+            var box = Speak("Guardian greeting talk", root, left, safe.center.y, width, realm, pages,
                 () => { Greetings.Greet(realmId); if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); } }, true);
             talk = root.GetComponentInChildren<GuardianTalk>();
-            // The box sits low, 24 dp over the safe bottom, as the composites place
-            // it, and the guardian stays under the top of the safe area.
-            float lift = Mathf.Min(safe.y + 24 * d - box.y, safe.yMax - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
+            // The guardian stays under the top of the safe area.
+            float lift = Mathf.Min(kit.Bottom + 40 * kit.U - box.y, safe.yMax - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
             foreach (Transform piece in root) if (piece != scrim.transform) ((RectTransform)piece).anchoredPosition += new Vector2(0, lift);
             box.y += lift;
             if (!reducedMotion)
@@ -328,7 +324,7 @@ namespace ZKube.Presentation
         private Rect Speak(string name, Transform parent, float x, float rail, float width, PageCatalog.RealmPage realm, TalkPage[] pages,
             Action finished, bool hint)
         {
-            var talk = ui.Talk(name, x, rail, width, realm, pages, finished, parent, hint);
+            var talk = ui.Talk(name, x, rail, width, U, realm, pages, finished, parent, hint);
             return SkinUi.ScreenRect((RectTransform)talk.transform);
         }
         // A phone under 720 dp tall: dialogs close up their spacing so their

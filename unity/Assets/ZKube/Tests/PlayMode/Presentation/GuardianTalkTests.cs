@@ -31,7 +31,7 @@ namespace ZKube.Presentation.Tests
             ui.Dispose(); Object.Destroy(root); art.Dispose();
         }
         private GuardianTalk Talk(System.Action finished, params TalkPage[] pages) =>
-            ui.Talk("Talk", 16, 600, 368, realm, pages, finished, root.transform);
+            ui.Talk("Talk", 16, 600, 368, 1, realm, pages, finished, root.transform);
         private static IEnumerator Seconds(float seconds)
         {
             for (float end = Time.realtimeSinceStartup + seconds; Time.realtimeSinceStartup < end;) yield return null;
@@ -102,7 +102,7 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(box.xMin - 2, rail.xMin, .01f, "The rail overhangs the box");
             var frame = SkinUi.ScreenRect(body.rectTransform);
             Assert.AreEqual(box.yMax, frame.yMax - art.GuardianRailY * frame.height, .01f, "Its rail line sits on the ledge");
-            Assert.AreEqual(box.x + box.width * SkinUi.TalkGuardianAt, frame.center.x, .01f, "It stands right of centre");
+            Assert.AreEqual(box.xMax - 4, frame.xMax, .01f, "It stands at the right, 4u in");
             int Order(Component c) => c.transform.GetSiblingIndex();
             Assert.Less(Order(body), Order(talk), "The body is behind the box");
             Assert.Greater(Order(paws), Order(Part("Talk rail")), "The paws rest in front of the rail");
@@ -128,7 +128,7 @@ namespace ZKube.Presentation.Tests
             Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>(true).Single(t => t.name == "Talk line").gameObject.activeInHierarchy);
             Assert.AreEqual(rule.pictogram, Part("Talk rule trigger").sprite.name.Replace("(Clone)", ""));
             Assert.AreEqual(HudLayout.BonusIcon(rule.bonus, true), Part("Talk rule bonus").sprite.name.Replace("(Clone)", ""));
-            Assert.AreEqual(SkinUi.RuleIconDp, SkinUi.ScreenRect(Part("Talk rule trigger").rectTransform).width, .01f);
+            Assert.AreEqual(SkinUi.RuleIconU, SkinUi.ScreenRect(Part("Talk rule trigger").rectTransform).width, .01f);
             Assert.AreEqual(rule.description.TrimEnd('.') + ".", root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule").text);
             Assert.AreEqual(rule.effect, root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule effect").text);
             talk.Tap(); Assert.IsTrue(talk.Done);
@@ -138,7 +138,7 @@ namespace ZKube.Presentation.Tests
         {
             Rect Box(GuardianTalk talk) => SkinUi.ScreenRect((RectTransform)talk.transform);
             var shortLine = Talk(null, new TalkPage("Again.", "idle"));
-            float twoLines = 42 + 2 * SkinUi.TalkLeadingDp + 32;
+            float twoLines = 26 + 2 * 16 * SkinUi.TalkLeading + 8 + 12 * 1.364f + 14;
             Assert.AreEqual(twoLines, Box(shortLine).height, .01f, "A short line gets a compact box two lines tall");
             Object.Destroy(shortLine.gameObject);
             var ruled = Talk(null, new TalkPage("One line.", "idle"), TalkPage.RulePage(PageCatalog.Load().Rule(1)));
@@ -160,7 +160,7 @@ namespace ZKube.Presentation.Tests
             Assert.LessOrEqual(words.xMax, SkinUi.ScreenRect(cue.rectTransform).xMin, "Beside the ▼");
             float ruleInk = effect.transform.TransformPoint(effect.textBounds.min).y;
             Assert.LessOrEqual(words.yMax, ruleInk, "Under the rule's words");
-            var quiet = ui.Talk("Quiet", 16, 300, 368, realm, new[] { new TalkPage("Hm.", "idle") }, null, root.transform, hint: false);
+            var quiet = ui.Talk("Quiet", 16, 300, 368, 1, realm, new[] { new TalkPage("Hm.", "idle") }, null, root.transform, hint: false);
             Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>().Any(t => t.name == "Quiet hint"), "A dialog with its own buttons hides the hint");
         }
 

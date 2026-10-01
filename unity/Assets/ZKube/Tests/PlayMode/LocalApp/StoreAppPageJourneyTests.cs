@@ -885,7 +885,9 @@ namespace ZKube.Tests
                     Assert.That(ink, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(icon.rectTransform).xMax - .5f), at + ": " + button + "'s word clears its icon");
                 }
                 Assert.That(rect.yMin >= safe.yMin - .5f && rect.yMax <= safe.yMax + .5f, Is.True, at + ": " + button + " is on screen");
-                if (button != "Back to map") pieces.Add(rect);
+                // A card's own button sits inside it, as the wireframes place Play today and Play level N.
+                bool carded = pieces.Any(piece => piece.Contains(rect.min + Vector2.one * .5f) && piece.Contains(rect.max - Vector2.one * .5f));
+                if (button != "Back to map" && !carded) pieces.Add(rect);
             }
             for (int a = 0; a < pieces.Count; a++) for (int b = a + 1; b < pieces.Count; b++)
                 Assert.That(pieces[a].Overlaps(pieces[b]), Is.False, at + ": pieces " + pieces[a] + " and " + pieces[b] + " stay apart");

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
@@ -7,12 +8,15 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
-    // The composed screens, as the v3 wireframes lay them out: one column from
-    // the safe top to the bottom, 12u gutters and 10u between pieces, with
-    // spacers sharing the height left over. u follows the screen's height, from
-    // 0.8 dp at 640 dp to 1.1 dp at 890 dp and above; a few sizes are drawn in
-    // two steps, the Seeker's and the compact phone's. The pages and the
-    // board's pause draw with the same pieces.
+    // The composed screens, laid out as the v3 wireframes (ux/screens-v3.html) lay
+    // them out, by the same box rules as their CSS: one column from the safe top to
+    // the bottom with 12u gutters and 10u between pieces, spacers sharing what is
+    // left; cards padded 10u by 12u with 4u between their parts; rows at least 50u;
+    // text measured as CSS measures it, lines times size times line height. u
+    // follows the screen's height, from 0.8 dp at 640 dp to 1.1 dp at 890 dp and
+    // above, and some sizes come in two steps, the Seeker's and the compact
+    // phone's. The pages and the board's pause draw with the same pieces;
+    // WireframeGeometryTests holds every page to the wireframe's rects.
     public sealed class ScreenKit
     {
         // A piece of a composed screen: its height in pixels, or a spacer, and
@@ -24,29 +28,86 @@ namespace ZKube.Presentation
             public Piece(float height, Action<Rect> draw) { Height = height; Draw = draw; }
             public static readonly Piece Grow = new Piece(-1, null);
         }
+        // What a row holds on its right: its size and how it draws.
+        public readonly struct Side
+        {
+            public readonly float Width, Height;
+            public readonly Action<Rect> Draw;
+            public Side(float width, float height, Action<Rect> draw) { Width = width; Height = height; Draw = draw; }
+        }
+        // A button: its words and icon, what it does and its kind: the lit
+        // primary, the teal secondary or the quiet dark pill.
+        public enum Kind { Primary, Secondary, Quiet }
 
         public readonly SkinUi Ui;
         public readonly Transform Parent;
         public readonly Rect Safe;
         public readonly float K, U;
-        public ScreenKit(SkinUi ui, Transform parent, Rect screen, Rect safe)
+        private readonly float width, bottom;
+        // bottom is the column's foot over the safe area's (the tab bar's top for a
+        // tab page); width narrows the column (a card's inside).
+        public ScreenKit(SkinUi ui, Transform parent, Rect screen, Rect safe, float? bottom = null, float? width = null)
         {
             Ui = ui; Parent = parent; Safe = safe;
             K = Mathf.Clamp(.8f + (screen.height / ui.Density - 640) * .0012f, .8f, 1.1f);
             U = K * ui.Density;
+            this.width = width ?? Mathf.Min(safe.width - 24 * U, PageViews.ColumnDp * ui.Density);
+            this.bottom = bottom ?? safe.y + (K > .95f ? 16 : 10) * ui.Density;
+        }
+        private ScreenKit(ScreenKit kit, float width)
+        {
+            Ui = kit.Ui; Parent = kit.Parent; Safe = kit.Safe; K = kit.K; U = kit.U; this.width = width; bottom = kit.bottom;
         }
         // The wireframes draw some sizes in two steps: the Seeker's and the compact phone's.
         public float Step(float seeker, float compact) => K > .95f ? seeker : compact;
-        public float Width => Mathf.Min(Safe.width - 24 * U, PageViews.ColumnDp * Ui.Density);
-        // A card's width inside its 12u padding.
-        public float Inner => Width - 24 * U;
+        public float Width => width;
+        // The column's foot: the safe bottom less its 16 dp (10 on a compact phone), or a tab page's tab bar.
+        public float Bottom => bottom;
+        // A card's inside: the column less its 12u padding each side.
+        public ScreenKit Inside(float padU = 12) => new ScreenKit(this, width - 2 * padU * U);
+        public float Inner => width - 24 * U;
+
+        // The type sizes, in dp, as the wireframe's CSS sets them.
+        public float TitleDp => 28 * K;
+        public float SubtitleDp => Mathf.Max(12, 13 * K);
+        public float CaptionDp => Mathf.Max(13, 15 * K);
+        public float SmallDp => Mathf.Max(12, 12 * K);
+        public float HeaderDp => Mathf.Max(13, 15 * K);
+        public float NumeralDp => 24 * K;
+        public float QuietDp => Mathf.Max(13, 14 * K);
+        // Every place a finger lands is at least 48 dp: the wireframe's size, or that floor.
+        public float Touch(float sizeU) => Mathf.Max(BoardLayout.MinimumTouchDp * Ui.Density, sizeU * U);
+        public float QuietHeight => Touch(44);
+        // CSS line heights: the title 1.05, captions 1.2, notes 1.3, the bubble
+        // 1.25; "normal" is each face's own, Lilita One 1.14 and Nunito 1.364.
+        public const float TitleLeading = 1.05f, CaptionLeading = 1.2f, NoteLeading = 1.3f, BubbleLeading = 1.25f, DisplayNormal = 1.14f, BodyNormal = 1.364f;
+
+        // A block of text, measured as CSS measures it: its lines times its size and line height.
+        public float Block(string text, float widthPx, float sizeDp, SkinUi.Type type, float leading) =>
+            string.IsNullOrEmpty(text) ? 0 : Ui.Lines(text, widthPx, sizeDp, type) * sizeDp * Ui.Scale * Ui.Density * leading;
+        // Text in its CSS line box: the label is drawn a little taller than the box
+        // when the face's own line is taller than the leading, as CSS lets glyphs
+        // overflow their line box, and its lines step at the leading.
+        public TMP_Text Text(string name, string text, Rect box, float sizeDp, string token, SkinUi.Type type, float leading,
+            TextAlignmentOptions alignment = TextAlignmentOptions.Center, Transform parent = null)
+        {
+            var label = Ui.Label(name, text, box, sizeDp, token, parent ?? Parent, type, alignment);
+            var face = label.font.faceInfo;
+            float natural = (face.ascentLine - face.descentLine) / face.pointSize, size = sizeDp * Ui.Scale * Ui.Density;
+            float spill = Mathf.Max(0, (natural - leading) * size / 2);
+            // The words never rise past the safe top: a box there spills downward.
+            float top = Mathf.Min(box.yMax + spill, Mathf.Max(box.yMax, Safe.yMax));
+            if (spill > 0) SkinUi.Place(label.rectTransform, new Rect(box.x, top - box.height - 2 * spill, box.width, box.height + 2 * spill), parent ?? Parent);
+            label.lineSpacing = SkinUi.LineSpacing(label.font, leading);
+            return label;
+        }
+        public float TextWidth(string text, float sizeDp, SkinUi.Type type) => Ui.TextWidth(text, sizeDp, type);
 
         // Lays the pieces down the column; spacers take an equal share of what
         // is left. Returns the column, from the bottom of its last piece up.
         public Rect Compose(params Piece[] pieces)
         {
-            float d = Ui.Density, u = U, width = Width, left = Safe.center.x - width / 2;
-            float top = Safe.yMax, bottom = Safe.y + (K > .95f ? 16 : 10) * d, gap = 10 * u;
+            float u = U, left = Safe.center.x - width / 2, top = Safe.yMax, gap = 10 * u;
             float taken = pieces.Where(piece => piece.Height >= 0).Sum(piece => piece.Height) + gap * (pieces.Length - 1);
             int spacers = pieces.Count(piece => piece.Height < 0);
             float spare = Mathf.Max(0, top - bottom - taken) / Mathf.Max(1, spacers), y = top;
@@ -58,144 +119,234 @@ namespace ZKube.Presentation
             }
             return new Rect(left, y + gap, width, top - y - gap);
         }
-
-        // A screen's title on its plate: an optional icon before the title, and
-        // a line under it in its token.
-        public Piece TitlePlate(string title, string subtitle, string subtitleToken = SkinTokens.TextMuted, string icon = null, float? room = null)
+        // Pieces stacked with gapU between them, as one piece (a card's inside).
+        public Piece Stack(float gapU, params Piece[] pieces)
         {
-            float k = K, u = U, titleDp = 28 * k, subtitleDp = Mathf.Max(12, 13 * k), iconSize = icon == null ? 0 : 30 * u;
-            float space = Mathf.Min(room ?? float.PositiveInfinity, Width) - 32 * u;
+            pieces = pieces.Where(piece => piece.Draw != null || piece.Height > 0).ToArray();
+            float gap = gapU * U, height = pieces.Sum(piece => piece.Height) + Mathf.Max(0, pieces.Length - 1) * gap;
+            return new Piece(height, rect => {
+                float y = rect.yMax;
+                foreach (var piece in pieces) { piece.Draw?.Invoke(new Rect(rect.x, y - piece.Height, rect.width, piece.Height)); y -= piece.Height + gap; }
+            });
+        }
+        public Piece Space(float heightU) => new Piece(heightU * U, null);
+
+        // A screen's title (.t3): the 28u title at 1.05 and the subtitle under it
+        // 2u down at 1.3, centred; the plate is drawn 6u outside the words, so
+        // the layout keeps the wireframe's box.
+        public const float PlateOutsetU = 6;
+        public Piece Title(string title, string subtitle, string subtitleToken = SkinTokens.TextMuted, string icon = null, float? room = null)
+        {
+            float u = U, space = Mathf.Min(room ?? float.PositiveInfinity, width) - 32 * u, iconSize = icon == null ? 0 : 30 * u, lead = icon == null ? 0 : iconSize + 6 * u;
+            float titleDp = TitleDp;
             // A title too wide for its plate shrinks toward 20u before it wraps.
-            float wide = Ui.TextWidth(title, titleDp, SkinUi.Type.Display) + iconSize + (icon == null ? 0 : 6 * u);
-            if (wide > space) titleDp = Mathf.Max(20 * k, titleDp * space / wide);
-            float titleWidth = Mathf.Min(space, Ui.TextWidth(title, titleDp, SkinUi.Type.Display) + (icon == null ? 0 : iconSize + 6 * u));
-            float subtitleWidth = subtitle == null ? 0 : Mathf.Min(space, Ui.TextWidth(subtitle, subtitleDp, SkinUi.Type.Caption));
+            float wide = TextWidth(title, titleDp, SkinUi.Type.Display) + lead;
+            if (wide > space) titleDp = Mathf.Max(20 * K, titleDp * space / wide);
+            float titleWidth = Mathf.Min(space, TextWidth(title, titleDp, SkinUi.Type.Display) + lead);
+            float subtitleWidth = subtitle == null ? 0 : Mathf.Min(space, TextWidth(subtitle, SubtitleDp, SkinUi.Type.Caption));
             float inner = Mathf.Max(titleWidth, subtitleWidth);
-            float titleHeight = Ui.TextHeight(title, titleWidth - (icon == null ? 0 : iconSize + 6 * u), titleDp, SkinUi.Type.Display);
-            float subtitleHeight = subtitle == null ? 0 : Ui.TextHeight(subtitle, inner, subtitleDp, SkinUi.Type.Caption);
-            return new Piece(titleHeight + subtitleHeight + 14 * u, rect => {
-                var plate = new Rect(rect.center.x - (inner + 32 * u) / 2, rect.y, inner + 32 * u, rect.height);
-                Ui.Piece("Screen title plate", SkinSlots.TitlePlate, plate, Parent);
-                float x = rect.center.x - titleWidth / 2, y = rect.yMax - 7 * u;
-                if (icon != null)
-                    Ui.Piece("Screen title icon", icon, new Rect(x, y - titleHeight / 2 - iconSize / 2, iconSize, iconSize), Parent);
-                float textX = x + (icon == null ? 0 : iconSize + 6 * u);
-                Ui.Label("Screen title", title, new Rect(textX, y - titleHeight, titleWidth - (textX - x), titleHeight), titleDp, SkinTokens.Text,
-                    Parent, SkinUi.Type.Display);
+            // An icon sits 4u under the title's baseline, which deepens its line by 3u.
+            float titleHeight = Block(title, titleWidth - lead + 1, titleDp, SkinUi.Type.Display, TitleLeading) + (icon == null ? 0 : 3 * u);
+            float subtitleHeight = subtitle == null ? 0 : 2 * u + Block(subtitle, inner + 1, SubtitleDp, SkinUi.Type.Caption, NoteLeading);
+            return new Piece(titleHeight + subtitleHeight, rect => {
+                float outset = PlateOutsetU * u;
+                Ui.Piece("Screen title plate", SkinSlots.TitlePlate, new Rect(rect.center.x - (inner + 32 * u) / 2, rect.y - outset, inner + 32 * u, rect.height + 2 * outset), Parent);
+                float x = rect.center.x - titleWidth / 2;
+                if (icon != null) Ui.Piece("Screen title icon", icon, new Rect(x, rect.yMax - titleHeight / 2 - iconSize / 2, iconSize, iconSize), Parent);
+                Text("Screen title", title, new Rect(x + lead, rect.yMax - titleHeight, titleWidth - lead, titleHeight), titleDp, SkinTokens.Text, SkinUi.Type.Display,
+                    TitleLeading);
                 if (subtitle != null)
-                    Ui.Label("Screen subtitle", subtitle, new Rect(rect.center.x - inner / 2, y - titleHeight - subtitleHeight, inner, subtitleHeight),
-                        subtitleDp, subtitleToken, Parent, SkinUi.Type.Caption);
+                    Text("Screen subtitle", subtitle, new Rect(rect.center.x - inner / 2, rect.y, inner, subtitleHeight - 2 * u), SubtitleDp, subtitleToken,
+                        SkinUi.Type.Caption, NoteLeading);
             });
         }
 
-        // A card of rows drawn by fill, which gets the card's rect.
-        public Piece Card(float height, Action<Rect> fill, string name = "Screen card") => new Piece(height, rect => {
-            Ui.Piece(name, SkinSlots.Card, rect, Parent);
-            fill(rect);
-        });
+        // A card (.card3): padding 10u by 12u, its header in the display face's
+        // muted capitals, then its parts 4u apart. The parts are drawn by pieces
+        // measured at the card's inside (Inside()).
+        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", float padVU = 10, float padHU = 12)
+        {
+            float u = U, pad = padVU * u;
+            var stack = Stack(4, parts.ToArray());
+            float headerHeight = header == null ? 0 : HeaderDp * Ui.Scale * Ui.Density * DisplayNormal + 4 * u;
+            return new Piece(2 * pad + headerHeight + stack.Height, rect => {
+                Ui.Piece(name, SkinSlots.Card, rect, Parent);
+                var inside = new Rect(rect.x + padHU * u, rect.y + pad, rect.width - 2 * padHU * u, rect.height - 2 * pad);
+                if (header != null)
+                {
+                    var head = Text(name + " heading", header.ToUpperInvariant(), new Rect(inside.x, inside.yMax - headerHeight + 4 * u, inside.width, headerHeight - 4 * u),
+                        HeaderDp, SkinTokens.TextMuted, SkinUi.Type.Display, DisplayNormal, TextAlignmentOptions.Left);
+                    head.characterSpacing = 6;
+                }
+                stack.Draw(new Rect(inside.x, inside.y, inside.width, inside.height - headerHeight));
+            });
+        }
+        public Piece Card(string header, params Piece[] parts) => Card(header, (IEnumerable<Piece>)parts);
 
-        // Three star sockets, the side ones 14% lower, bare over the scene as the
-        // composites draw them; lit ones hold the earned star. sockets receives
-        // them left to right.
+        // A row (.row3): what leads it (its icon), its caption with a smaller
+        // line under it, and what sits on its right, 10u apart and centred, at
+        // least 50u tall. A row after another is ruled from it.
+        public Piece Row(string name, Side? lead, string caption, string small, Side? right, bool ruled, string captionToken = SkinTokens.Text)
+        {
+            float u = U;
+            float text = width - (lead.HasValue ? lead.Value.Width + 10 * u : 0) - (right.HasValue ? right.Value.Width + 10 * u : 0);
+            float captionHeight = Block(caption, text, CaptionDp, SkinUi.Type.Caption, CaptionLeading);
+            float smallHeight = Block(small, text, SmallDp, SkinUi.Type.Caption, CaptionLeading);
+            float height = Mathf.Max(Touch(50), Mathf.Max(lead?.Height ?? 0, Mathf.Max(captionHeight + smallHeight, right?.Height ?? 0)));
+            return new Piece(height, rect => {
+                if (ruled) Rule(name + " rule", rect);
+                float x = rect.x;
+                if (lead.HasValue) { lead.Value.Draw(new Rect(x, rect.center.y - lead.Value.Height / 2, lead.Value.Width, lead.Value.Height)); x += lead.Value.Width + 10 * u; }
+                float top = rect.center.y + (captionHeight + smallHeight) / 2;
+                if (caption != null)
+                    Text(name + " label", caption, new Rect(x, top - captionHeight, text, captionHeight), CaptionDp, captionToken, SkinUi.Type.Caption, CaptionLeading,
+                        TextAlignmentOptions.Left);
+                if (small != null)
+                    Text(name + " detail", small, new Rect(x, top - captionHeight - smallHeight, text, smallHeight), SmallDp, SkinTokens.TextMuted, SkinUi.Type.Caption,
+                        CaptionLeading, TextAlignmentOptions.Left);
+                if (right.HasValue)
+                    right.Value.Draw(new Rect(rect.xMax - right.Value.Width, rect.center.y - right.Value.Height / 2, right.Value.Width, right.Value.Height));
+            });
+        }
+        // Words as a row's part: one line in the caption face.
+        public Side Word(string name, string text, float sizeDp, string token)
+        {
+            float w = TextWidth(text, sizeDp, SkinUi.Type.Caption), h = Ui.TextHeight(text, w, sizeDp, SkinUi.Type.Caption);
+            return new Side(w, h, rect => Ui.Label(name, text, rect, sizeDp, token, Parent, SkinUi.Type.Caption).textWrappingMode = TextWrappingModes.NoWrap);
+        }
+        public void Rule(string name, Rect row)
+        {
+            var rule = Ui.Rect<Image>(name, new Rect(row.x, row.yMax - Mathf.Max(1, Ui.Density), row.width, Mathf.Max(1, Ui.Density)), Parent);
+            rule.color = new Color(35 / 255f, 57 / 255f, 74 / 255f, 1); rule.raycastTarget = false;
+        }
+
+        // A value (.val3): the 24u display numeral at line height 1.
+        public Side Value(string name, string text, string token = SkinTokens.Score, float? sizeDp = null)
+        {
+            float size = sizeDp ?? NumeralDp;
+            float w = TextWidth(System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", ""), size, SkinUi.Type.Display), h = size * Ui.Scale * Ui.Density;
+            return new Side(w, h, rect => {
+                var label = Text(name, text, rect, size, token, SkinUi.Type.Display, 1, TextAlignmentOptions.Right);
+                label.textWrappingMode = TextWrappingModes.NoWrap; label.richText = true;
+            });
+        }
+        // A progress count over its 4u bar (the pause's rows), at least 86u wide.
+        public Side Progress(string name, string count, string plain, float share, bool met)
+        {
+            float u = U, w = Mathf.Max(86 * u, TextWidth(plain, NumeralDp, SkinUi.Type.Display)), h = NumeralDp * Ui.Scale * Ui.Density + 8 * u;
+            return new Side(w, h, rect => {
+                var label = Text(name, count, new Rect(rect.x, rect.yMax - (h - 8 * u), rect.width, h - 8 * u), NumeralDp, met ? SkinTokens.Accent : SkinTokens.Score,
+                    SkinUi.Type.Display, 1, TextAlignmentOptions.Right);
+                label.textWrappingMode = TextWrappingModes.NoWrap; label.richText = true;
+                var track = new Rect(rect.x, rect.y, rect.width, 4 * u);
+                Ui.Piece(name + " track", SkinSlots.CounterTrack, track, Parent);
+                if (share > 0) Ui.Piece(name + " fill", met ? SkinSlots.CounterFillDone : SkinSlots.CounterFill,
+                    new Rect(track.x, track.y, Mathf.Max(track.height, track.width * Mathf.Clamp01(share)), track.height), Parent);
+            });
+        }
+        public Side Icon(string name, string slot, float sizeU) =>
+            new Side(sizeU * U, sizeU * U, rect => Ui.Piece(name, slot, rect, Parent));
+        public Side Blank(float widthU) => new Side(widthU * U, 0, _ => { });
+        // Sides side by side, gapU apart.
+        public Side Beside(float gapU, params Side[] sides)
+        {
+            float gap = gapU * U;
+            return new Side(sides.Sum(side => side.Width) + gap * Mathf.Max(0, sides.Length - 1), sides.Max(side => side.Height), rect => {
+                float x = rect.x;
+                foreach (var side in sides) { side.Draw(new Rect(x, rect.center.y - side.Height / 2, side.Width, side.Height)); x += side.Width + gap; }
+            });
+        }
+
+        // A chip (.chip3): an optional icon, a display number and words, on the dark pill.
+        public Side Chip(string name, string icon, float iconU, string number, string words)
+        {
+            float u = U, numberDp = 16 * K, wordsDp = SubtitleDp;
+            float iconSize = icon == null ? 0 : iconU * u;
+            float numberWidth = number == null ? 0 : TextWidth(System.Text.RegularExpressions.Regex.Replace(number, "[0-9]", "8"), numberDp, SkinUi.Type.Display);
+            string spaced = words == null ? null : number == null ? words : " " + words;
+            float wordsWidth = words == null ? 0 : TextWidth(spaced, wordsDp, SkinUi.Type.Caption);
+            float w = 5 * u + iconSize + (icon == null ? 0 : 6 * u) + numberWidth + wordsWidth + 10 * u;
+            float h = Mathf.Max(iconSize, Mathf.Max(numberDp * Ui.Scale * Ui.Density * DisplayNormal, wordsDp * Ui.Scale * Ui.Density * BodyNormal)) + 8 * u;
+            return new Side(w, h, rect => {
+                Ui.Pill(name, rect, Parent, new Color(11 / 255f, 20 / 255f, 28 / 255f, 1));
+                float x = rect.x + 5 * u;
+                if (icon != null) { Ui.Piece(name + " icon", icon, new Rect(x, rect.center.y - iconSize / 2, iconSize, iconSize), Parent); x += iconSize + 6 * u; }
+                if (number != null)
+                {
+                    var n = Ui.Label(name + " number", number, new Rect(x, rect.y, numberWidth + 2, rect.height), numberDp, SkinTokens.Text, Parent, SkinUi.Type.Display,
+                        TextAlignmentOptions.Left);
+                    n.textWrappingMode = TextWrappingModes.NoWrap; x += numberWidth;
+                }
+                if (words != null)
+                    Ui.Label(name + " words", spaced, new Rect(x, rect.y, wordsWidth + 2, rect.height), wordsDp, SkinTokens.Text, Parent, SkinUi.Type.Caption,
+                        TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+            });
+        }
+
+        // A centred line of text (.t3b): the note size at 1.3.
+        public Piece Note(string text, string name = "Screen note", string token = SkinTokens.TextMuted)
+        {
+            float size = SubtitleDp, height = Block(text, width, size, SkinUi.Type.Caption, NoteLeading);
+            return new Piece(height, rect => Text(name, text, rect, size, token, SkinUi.Type.Caption, NoteLeading));
+        }
+
+        // Three star sockets (.crown3), the side ones 14% lower, bare over the
+        // scene; lit ones hold the earned star. sockets receives them left to right.
         public Piece Crown(bool[] lit, float sizeU, Image[] sockets)
         {
             float u = U, s = sizeU * u, gap = .25f * s;
-            return new Piece(s * 1.14f + .2f * s, rect => {
-                float width = 3 * s + 2 * gap;
-                var crown = Ui.Rect<Image>("Star crown", new Rect(rect.center.x - width / 2 - .22f * s, rect.y, width + .44f * s, rect.height), Parent);
+            return new Piece(s * 1.34f, rect => {
+                float w = 3 * s + 2 * gap;
+                var crown = Ui.Rect<Image>("Star crown", new Rect(rect.center.x - w / 2 - .22f * s, rect.y, w + .44f * s, rect.height), Parent);
                 crown.color = Color.clear; crown.raycastTarget = false;
                 for (int i = 0; i < 3; i++)
                 {
-                    var socket = new Rect(rect.center.x - width / 2 + i * (s + gap), rect.yMax - .1f * s - s - (i == 1 ? 0 : .14f * s), s, s);
+                    var socket = new Rect(rect.center.x - w / 2 + i * (s + gap), rect.yMax - .1f * s - s - (i == 1 ? 0 : .14f * s), s, s);
                     sockets[i] = Ui.Piece("Result star " + (i + 1), lit[i] ? SkinSlots.StarLit : SkinSlots.StarSocket, socket, Parent);
                 }
             });
         }
 
-        // The guardian leaning on its card: its body behind the card, its paws
-        // over the card's top edge 10u down, and its line in a bubble beside its
-        // head. The card holds rows drawn by fill, top-down from its padding.
-        public Piece GuardianCard(string frame, string line, float sizeU, float cardHeight, Action<Rect> fill)
+        // The guardian over its card (.gw then .card3): the c-wide canvas stands
+        // .833c above the card's top, which is where its rail line rests, the paws
+        // drawn over the card's edge, its line in a bubble beside its head.
+        public const float GuardianStand = .833f;
+        public Piece GuardianCard(string frame, string line, float sizeU, Piece card)
         {
-            float u = U, c = sizeU * u, overlap = 10 * u, above = c * Ui.Art.GuardianRailY - overlap;
-            return new Piece(above + cardHeight, rect => {
-                var card = new Rect(rect.x, rect.y, rect.width, cardHeight);
-                float rail = card.yMax - overlap;
-                var canvas = new Rect(rect.center.x - c / 2, rail - (1 - Ui.Art.GuardianRailY) * c, c, c);
+            float u = U, c = sizeU * u, above = GuardianStand * c;
+            return new Piece(above + card.Height, rect => {
+                var cardRect = new Rect(rect.x, rect.y, rect.width, card.Height);
+                var canvas = new Rect(rect.center.x - c / 2, rect.yMax - c, c, c);
                 var body = Ui.Rect<Image>("Screen guardian", canvas, Parent);
                 body.sprite = Ui.Art.Sprite("boss__" + frame); body.preserveAspect = true; body.raycastTarget = false;
-                Ui.Piece("Screen card", SkinSlots.Card, card, Parent);
-                fill(card);
+                card.Draw(cardRect);
                 var paws = Ui.Rect<Image>("Screen guardian paws", canvas, Parent);
                 paws.sprite = Ui.Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;
-                if (line != null) Bubble(line, canvas, c, card.yMax);
+                if (line != null) Bubble(line, canvas, c, cardRect.yMax);
             });
         }
-        // The guardian's line, beside its head with the tail pointing at it: 122u
-        // wide, or up to 180u when a long line has the room, left of the head when
-        // there is no room on its right, and never down over the card.
+        // The guardian's line (.bub): 122u wide, 0.8c from the canvas's left and
+        // 0.06c down, padded 8u by 10u, 12.5u at 1.25, its tail toward the head.
+        // A long line widens into the room rather than reach the card.
         private void Bubble(string line, Rect guardian, float c, float cardTop)
         {
-            float u = U, textDp = 12.5f * K, pad = 9 * u;
+            float u = U, textDp = 12.5f * K;
             float room = Safe.xMax - 12 * u - (guardian.x + .8f * c);
-            float width = Mathf.Clamp(room, 122 * u, 180 * u);
-            float Height(float w) => Ui.TextHeight(line, w - 2 * pad, textDp, SkinUi.Type.Caption, HudLayout.BubbleLeading) + 2 * pad;
-            // The narrow bubble serves a short line; a long one widens into the room.
-            if (Height(122 * u) <= guardian.yMax - .06f * c - cardTop - 6 * u) width = 122 * u;
-            float height = Height(width);
-            bool right = guardian.x + .8f * c + width <= Safe.xMax - 4 * u;
-            float x = right ? guardian.x + .8f * c : guardian.xMax - .8f * c - width;
+            float Height(float w) => Block(line, w - 20 * u, textDp, SkinUi.Type.Caption, BubbleLeading) + 16 * u;
+            float w = 122 * u;
+            if (guardian.yMax - .06f * c - Height(w) < cardTop + 6 * u) w = Mathf.Clamp(room, 122 * u, 180 * u);
+            float height = Height(w);
+            bool right = guardian.x + .8f * c + w <= Safe.xMax - 4 * u;
+            float x = right ? guardian.x + .8f * c : guardian.xMax - .8f * c - w;
             float top = Mathf.Max(guardian.yMax - .06f * c, cardTop + 6 * u + height);
-            var body = new Rect(x, top - height, width, height);
+            var body = new Rect(x, top - height, w, height);
             Ui.Piece("Guardian bubble", SkinSlots.TapBubble, body, Parent, .5f);
             var tail = Ui.Piece("Guardian bubble tail", SkinSlots.TapBubbleTail,
-                new Rect(right ? body.x - 12 * u : body.xMax - 2 * u, top - 18 * u - 7 * u, 14 * u, 16 * u), Parent);
-            if (right) tail.rectTransform.localScale = new Vector3(-1, 1, 1);
-            if (right) tail.rectTransform.anchoredPosition += new Vector2(14 * u, 0);
-            var label = Ui.Label("Guardian line", line, new Rect(body.x + pad, body.y + pad, width - 2 * pad, height - 2 * pad), textDp,
-                SkinTokens.TextOnPrimary, Parent, SkinUi.Type.Caption, TextAlignmentOptions.TopLeft);
-            label.lineSpacing = SkinUi.LineSpacing(label.font, HudLayout.BubbleLeading);
+                new Rect(right ? body.x - 9 * u : body.xMax, top - 18 * u - 9 * u, 9 * u, 18 * u), Parent);
+            if (right) { tail.rectTransform.localScale = new Vector3(-1, 1, 1); tail.rectTransform.anchoredPosition += new Vector2(9 * u, 0); }
+            Text("Guardian line", line, new Rect(body.x + 10 * u, body.y + 8 * u, w - 20 * u, height - 16 * u), textDp, SkinTokens.TextOnPrimary, SkinUi.Type.Caption,
+                BubbleLeading, TextAlignmentOptions.TopLeft);
         }
-
-        // A row: its icon, its caption (with a smaller line under it) and what
-        // sits on its right; rows are at least 50u and ruled apart.
-        public float CaptionDp => Mathf.Max(13, 15 * K);
-        public float RowHeight(string caption, string small, float inner, float iconU, float rightWidth)
-        {
-            float u = U, width = inner - (iconU > 0 ? iconU * u + 10 * u : 0) - rightWidth - 10 * u;
-            float text = Ui.TextHeight(caption, width, CaptionDp, SkinUi.Type.Caption)
-                + (small == null ? 0 : Ui.TextHeight(small, width, 12, SkinUi.Type.Caption));
-            return Mathf.Max(50 * u, text + 8 * u);
-        }
-        public void Rule(string name, Rect row)
-        {
-            var rule = Ui.Rect<Image>(name, new Rect(row.x, row.yMax, row.width, Mathf.Max(1, U)), Parent);
-            rule.color = new Color(35 / 255f, 57 / 255f, 74 / 255f, 1); rule.raycastTarget = false;
-        }
-        public Image Row(string name, Rect row, string icon, float iconU, string caption, string small, float rightWidth, bool ruled)
-        {
-            float u = U, iconSize = iconU * u;
-            if (ruled) Rule(name + " rule", row);
-            var picture = icon == null ? null : Ui.Piece(name + " icon", icon, new Rect(row.x, row.center.y - iconSize / 2, iconSize, iconSize), Parent);
-            float x = row.x + (iconU > 0 ? iconSize + 10 * u : 0), width = row.xMax - rightWidth - 10 * u - x;
-            float captionHeight = Ui.TextHeight(caption, width, CaptionDp, SkinUi.Type.Caption);
-            float smallHeight = small == null ? 0 : Ui.TextHeight(small, width, 12, SkinUi.Type.Caption);
-            float top = row.center.y + (captionHeight + smallHeight) / 2;
-            Ui.Label(name + " label", caption, new Rect(x, top - captionHeight, width, captionHeight), CaptionDp, SkinTokens.Text, Parent,
-                SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            if (small != null)
-                Ui.Label(name + " detail", small, new Rect(x, top - captionHeight - smallHeight, width, smallHeight), 12, SkinTokens.TextMuted,
-                    Parent, SkinUi.Type.Caption, TextAlignmentOptions.Left);
-            return picture;
-        }
-        public float NumeralDp => 24 * K;
-        public TMP_Text Numeral(string name, string text, Rect rect, string token = SkinTokens.Score)
-        {
-            var label = Ui.Label(name, text, rect, NumeralDp, token, Parent, SkinUi.Type.Display, TextAlignmentOptions.Right);
-            label.textWrappingMode = TextWrappingModes.NoWrap; label.richText = true;
-            return label;
-        }
-        public float NumeralWidth(string text) => Ui.TextWidth(text, NumeralDp, SkinUi.Type.Display);
 
         // One goal of a level: the score, or a catalog goal in the realm's
         // bonus, as its pictogram, its caption and its counter.
@@ -217,65 +368,148 @@ namespace ZKube.Presentation
                     Target = goals.SecondaryCount },
             };
         }
-        // A filled count reads "progress/target", the target muted; other goals
-        // are met in one move and show a ring, or a tick once met.
+        // A filled count reads "progress/target", the target muted.
         public string Count(GoalLine goal) => goal.Progress.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "<color=#"
             + ColorUtility.ToHtmlStringRGB(Ui.Art.Token(SkinTokens.TextMuted)) + ">/" + goal.Target.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)
             + "</color>";
-        public float CountWidth(GoalLine goal) =>
-            NumeralWidth(goal.Progress.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "/"
-                + goal.Target.ToString("N0", System.Globalization.CultureInfo.InvariantCulture));
-
-        // A centred line of muted words between a screen's pieces.
-        public Piece Note(string text)
+        public string Plain(GoalLine goal) => goal.Progress.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "/"
+            + goal.Target.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+        // The goal rows (goalRows): target ("10" or a ring), progress (the count
+        // over its bar, or a ring and a tick) or result (the count with its tick).
+        public enum GoalMode { Target, Progress, Result }
+        public Piece[] GoalRows(GoalLine[] goals, GoalMode mode, float iconU, Image[] icons = null)
         {
-            float size = Mathf.Max(12, 13 * K), height = Ui.TextHeight(text, Width, size, SkinUi.Type.Caption);
-            return new Piece(height, rect => Ui.Label("Screen note", text, rect, size, SkinTokens.TextMuted, Parent, SkinUi.Type.Caption));
+            float u = U;
+            return goals.Select((goal, i) => {
+                bool once = goal.Counter != "fill";
+                Side right;
+                if (mode == GoalMode.Target) right = once ? Icon(goal.Name + " ring", SkinSlots.CounterRing, 26) : Value(goal.Name, goal.Target.ToString("N0", System.Globalization.CultureInfo.InvariantCulture));
+                else if (once) right = goal.Met ? Icon(goal.Name + " tick", SkinSlots.Tick, 28) : Icon(goal.Name + " ring", SkinSlots.CounterRing, 26);
+                else if (mode == GoalMode.Progress)
+                    right = Progress(goal.Name + " value", Count(goal), Plain(goal), goal.Target == 0 ? 1 : (float)goal.Progress / goal.Target, goal.Met);
+                else
+                {
+                    var count = Value(goal.Name, Count(goal), goal.Met ? SkinTokens.Accent : SkinTokens.Score);
+                    right = Beside(10, new Side(Mathf.Max(86 * u, count.Width), count.Height, rect => count.Draw(new Rect(rect.xMax - count.Width, rect.y, count.Width, rect.height))),
+                        goal.Met ? Icon(goal.Name + " tick", SkinSlots.Tick, 24) : Blank(24));
+                }
+                var row = Row(goal.Name, Icon(goal.Name + " icon", goal.Pictogram, iconU), goal.Caption, null, right, i > 0);
+                if (icons == null) return row;
+                return new Piece(row.Height, rect => {
+                    row.Draw(rect);
+                    icons[i] = Parent.GetComponentsInChildren<Image>().LastOrDefault(image => image.name == goal.Name + " icon");
+                });
+            }).ToArray();
         }
 
-        // A screen's buttons in one row: the primary fills up to 300u,
-        // secondaries hug their words; each leads with its icon. A row too wide
-        // for the column (larger text) stacks them, the primary on top, each as
-        // wide as the widest. made receives each button and its label, in order.
-        public Piece Buttons((string name, string label, Action click, bool primary, string icon)[] items, Action<int, Button, TMP_Text> made = null)
+        // Three tiles side by side (.stat3), 8u apart: an icon, a number and what it counts.
+        public Piece Stats(params (string name, string icon, string number)[] tiles)
         {
-            float u = U, height = 62 * u, gap = 10 * u, column = Width;
-            // A row too wide for the column first sets its words a step smaller
-            // (the primary at 20u, the others at 18u), then stacks.
+            float u = U, gap = 8 * u, tile = (width - 2 * gap) / tiles.Length, smallDp = Mathf.Max(11, 11 * K);
+            float smallHeight = tiles.Max(entry => Block(entry.name, tile - 16 * u, smallDp, SkinUi.Type.Caption, BodyNormal));
+            float numberHeight = NumeralDp * Ui.Scale * Ui.Density;
+            return new Piece(8 * u + 24 * u + 2 * u + numberHeight + 2 * u + smallHeight + 8 * u, rect => {
+                for (int i = 0; i < tiles.Length; i++)
+                {
+                    var (name, slot, number) = tiles[i];
+                    var card = new Rect(rect.x + i * (tile + gap), rect.y, tile, rect.height);
+                    Ui.Piece(name + " tile", SkinSlots.Card, card, Parent);
+                    float y = card.yMax - 8 * u;
+                    Ui.Piece(name + " icon", slot, new Rect(card.center.x - 12 * u, y - 24 * u, 24 * u, 24 * u), Parent);
+                    y -= 26 * u;
+                    var numberRect = new Rect(card.x + 8 * u, y - numberHeight, tile - 16 * u, numberHeight);
+                    NumberFit.Apply(Ui, Text(name, number, numberRect, NumeralDp, SkinTokens.Score, SkinUi.Type.Display, 1), numberRect.width, NumeralDp);
+                    Text(name + " label", name, new Rect(card.x + 8 * u, card.y + 8 * u, tile - 16 * u, smallHeight), smallDp, SkinTokens.TextMuted, SkinUi.Type.Caption,
+                        BodyNormal);
+                }
+            });
+        }
+
+        // A screen's buttons in one row (.btns): the primary fills up to 300u,
+        // the others hug their words, 10u apart and centred; each leads with its
+        // icon. A row too wide for the column first sets its words a step smaller,
+        // then stacks, the primary on top. made receives each button and its
+        // label, by its index.
+        public Piece Buttons((string name, string label, Action click, Kind kind, string icon)[] items, Action<int, Button, TMP_Text> made = null)
+        {
+            float u = U, gap = 10 * u, column = width;
             float primaryDp = 24 * K, secondaryDp = 20 * K;
-            float Wide((string name, string label, Action click, bool primary, string icon) item) =>
-                Ui.TextWidth(item.label, item.primary ? primaryDp : secondaryDp, SkinUi.Type.Display) + (item.icon == null ? 0 : (28 * K + 12) * Ui.Density)
-                    + 32 * Ui.Density;
+            float Size((string name, string label, Action click, Kind kind, string icon) item) =>
+                item.kind == Kind.Primary ? primaryDp : item.kind == Kind.Secondary ? secondaryDp : QuietDp;
+            SkinUi.Type Face((string name, string label, Action click, Kind kind, string icon) item) => item.kind == Kind.Quiet ? SkinUi.Type.Caption : SkinUi.Type.Display;
+            float Tall((string name, string label, Action click, Kind kind, string icon) item) => item.kind == Kind.Quiet ? QuietHeight : 62 * u;
+            float Wide((string name, string label, Action click, Kind kind, string icon) item) =>
+                TextWidth(item.label, Size(item), Face(item)) + (item.icon == null ? 0 : 28 * u + 8 * u) + 32 * u;
             float Row() => items.Sum(Wide) + gap * (items.Length - 1);
             if (Row() > column) { primaryDp = 20 * K; secondaryDp = 18 * K; }
             bool stacked = Row() > column;
-            // A stack puts the primary on top; made still gets each button's own index.
-            var order = Enumerable.Range(0, items.Length).OrderBy(i => stacked && !items[i].primary).ToArray();
-            float stackWidth = Mathf.Clamp(items.Select(Wide).DefaultIfEmpty(0).Max(), 0, column);
-            return new Piece(stacked ? items.Length * height + (items.Length - 1) * gap : height, rect => {
-                float secondary = items.Where(item => !item.primary).Sum(Wide) + gap * (items.Length - 1);
-                float primary = items.Any(item => item.primary) ? Mathf.Clamp(rect.width - secondary, Wide(items.First(item => item.primary)), 300 * u) : 0;
-                float x = rect.center.x - (primary + secondary) / 2, y = rect.yMax - height;
+            var order = Enumerable.Range(0, items.Length).OrderBy(i => stacked && items[i].kind != Kind.Primary).ToArray();
+            float rowHeight = items.Length == 0 ? 0 : items.Max(Tall);
+            float height = stacked ? items.Sum(Tall) + gap * (items.Length - 1) : rowHeight;
+            return new Piece(height, rect => {
+                float others = items.Where(item => item.kind != Kind.Primary).Sum(Wide) + gap * (items.Length - 1);
+                float primary = items.Any(item => item.kind == Kind.Primary)
+                    ? Mathf.Clamp(rect.width - others, Wide(items.First(item => item.kind == Kind.Primary)), 300 * u) : 0;
+                float x = rect.center.x - (primary + others) / 2, y = rect.yMax;
                 foreach (int i in order)
                 {
                     var item = items[i];
-                    float width = stacked ? stackWidth : item.primary ? primary : Wide(item);
-                    var at = stacked ? new Rect(rect.center.x - width / 2, y, width, height) : new Rect(x, rect.y, width, height);
-                    var button = Ui.TextButton(item.name, at, item.label, item.click, item.primary, Parent, out var text,
-                        item.icon, SkinUi.Type.Display, item.primary ? primaryDp : secondaryDp, 28 * K);
-                    // The carved icons keep their own colours.
-                    foreach (var image in button.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))) image.color = Color.white;
-                    text.textWrappingMode = TextWrappingModes.NoWrap;
-                    made?.Invoke(i, button, text);
-                    if (item.primary)
+                    float w = stacked ? Mathf.Min(column, Mathf.Max(primary, Wide(item))) : item.kind == Kind.Primary ? primary : Wide(item), h = Tall(item);
+                    var at = stacked ? new Rect(rect.center.x - w / 2, y - h, w, h) : new Rect(x, rect.yMax - rowHeight / 2 - h / 2, w, h);
+                    Button button; TMP_Text text;
+                    if (item.kind == Kind.Quiet) button = QuietButton(item.name, at, item.label, item.click, item.icon, out text);
+                    else
                     {
-                        var halo = Ui.Glow(button.name + " halo", new Rect(at.x - width * .15f, at.y - height * .15f, width * 1.3f, height * 1.3f),
+                        button = Ui.TextButton(item.name, at, item.label, item.click, item.kind == Kind.Primary, Parent, out text,
+                            item.icon, SkinUi.Type.Display, Size(item), 28 * K);
+                        // The carved icons keep their own colours.
+                        foreach (var image in button.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))) image.color = Color.white;
+                    }
+                    text.textWrappingMode = TextWrappingModes.NoWrap;
+                    // The icon and the words centre together (.b3), 8u apart.
+                    float words = TextWidth(item.label, Size(item), Face(item)), lead = item.icon == null ? 0 : 36 * u;
+                    float left = Mathf.Max(at.x + 16 * u, at.center.x - (lead + words) / 2);
+                    var glyph = button.transform.Find(item.name + " icon");
+                    if (glyph != null) SkinUi.Place((RectTransform)glyph, new Rect(left, at.center.y - 14 * u, 28 * u, 28 * u), button.transform);
+                    SkinUi.Place(text.rectTransform, new Rect(left + lead, at.y, Mathf.Min(words, at.xMax - 16 * u - left - lead), at.height), button.transform);
+                    made?.Invoke(i, button, text);
+                    if (item.kind == Kind.Primary)
+                    {
+                        var halo = Ui.Glow(button.name + " halo", new Rect(at.x - w * .15f, at.y - h * .15f, w * 1.3f, h * 1.3f),
                             SkinUi.WithAlpha(Ui.Art.Token(SkinTokens.Accent), .4f), Parent, PageViews.HaloSeconds);
                         halo.transform.SetSiblingIndex(button.transform.GetSiblingIndex());
                     }
-                    x += width + gap; y -= height + gap;
+                    x += w + gap; y -= h + gap;
                 }
             });
+        }
+        // A quiet button (.b3.q): the dark pill with its words in the caption face, padded 16u.
+        public Button QuietButton(string name, Rect rect, string label, Action click, string icon, out TMP_Text text)
+        {
+            float u = U;
+            var face = Ui.Pill(name, rect, Parent, new Color(15 / 255f, 42 / 255f, 56 / 255f, 1));
+            face.raycastTarget = true;
+            var rim = Ui.Pill(name + " rim", rect, face.transform, new Color(63 / 255f, 113 / 255f, 133 / 255f, .9f));
+            var hole = Ui.Pill(name + " fill", new Rect(rect.x + 1.5f * u, rect.y + 1.5f * u, rect.width - 3 * u, rect.height - 3 * u), face.transform,
+                new Color(15 / 255f, 42 / 255f, 56 / 255f, 1));
+            var button = face.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; button.targetGraphic = face;
+            button.onClick.AddListener(() => click());
+            face.gameObject.AddComponent<PressSquash>();
+            if (icon != null) Ui.Piece(name + " icon", icon, new Rect(rect.x + 16 * u, rect.center.y - 14 * u, 28 * u, 28 * u), face.transform);
+            text = Ui.Label(name + " label", label, new Rect(rect.x + 16 * u, rect.y, rect.width - 32 * u, rect.height), QuietDp,
+                SkinTokens.Text, face.transform, SkinUi.Type.Caption);
+            return button;
+        }
+
+        // The tab bar's rect as the wireframe draws it (.tabs3), the last piece of
+        // a tab page: inside the gutters, its bottom on the column's foot, padded
+        // 4u round cells of 6u, a 26u icon, 2u and the label's line.
+        public static Rect TabRect(SkinUi ui, Rect screen, Rect safe)
+        {
+            var kit = new ScreenKit(ui, null, screen, safe);
+            float u = kit.U, k = kit.K, label = Mathf.Max(11, 11 * k) * ui.Scale * ui.Density * BodyNormal;
+            float height = 4 * u + 6 * u + 26 * u + 2 * u + label + 6 * u + 4 * u;
+            return new Rect(safe.center.x - kit.Width / 2, kit.bottom, kit.Width, height);
         }
     }
 }

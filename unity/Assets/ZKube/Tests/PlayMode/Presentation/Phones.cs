@@ -17,6 +17,10 @@ namespace ZKube.Tests.Presentation
         public static void Compact(PageShell shell, float density = 1) => Use(shell, CompactScreen, CompactTopInsetDp, density);
         // The Seeker, 417 x 929 dp, its safe area 417 x 882 dp.
         public static void Seeker(PageShell shell, float density = 1) => Use(shell, SeekerScreen, SeekerTopInsetDp, density);
+        // The v3 wireframes' Seeker frame, 400 x 890 dp with its safe area 47 dp down:
+        // the frame the wireframe geometry is measured on.
+        public static readonly Rect WireframeScreen = new Rect(0, 0, 400, 890);
+        public static void WireframeSeeker(PageShell shell, float density = 1) => Use(shell, WireframeScreen, SeekerTopInsetDp, density);
         // A phone of a given width in dp with the compact phone's height and inset.
         public static void CompactOfWidth(PageShell shell, float widthDp, float density = 1) =>
             Use(shell, new Rect(0, 0, widthDp, CompactScreen.height), CompactTopInsetDp, density);

@@ -132,13 +132,13 @@ namespace ZKube.Presentation.Tests
                                 var view = host.AddComponent<BoardView>(); view.Create(board, art, plan, ui);
                                 view.Summary(board.State, board.Session, true);
                                 var dialog = confirm
-                                    ? PauseDialog.Confirm(view, art, BoardController.EndRunCost(board.Session, board.State), () => { }, () => { })
+                                    ? PauseDialog.Confirm(view, art, BoardController.EndRunCost(board.Session, board.State), BoardController.EndRunDetail(board.Session), () => { }, () => { })
                                     : PauseDialog.Pause(view, art, board.State, board.Session, () => { }, board.PauseRows(), () => { });
                                 Canvas.ForceUpdateCanvases();
                                 var texts = dialog.GetComponentsInChildren<TMP_Text>().Where(text => !string.IsNullOrEmpty(text.text)).ToArray();
                                 string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
                                 if (fixture == "realm-1-campaign" && scale == 1)
-                                    Assert.AreEqual(confirm ? 13 : 21, texts.Sum(text => Word.Matches(Plain(text.text)).Count),
+                                    Assert.AreEqual(21, texts.Sum(text => Word.Matches(Plain(text.text)).Count),
                                         at + " words: " + string.Join(" | ", texts.Select(text => Plain(text.text))));
                                 foreach (var text in texts)
                                 {

@@ -440,7 +440,7 @@ namespace ZKube.Presentation
             pauseDialog?.Close();
             pauseDialog = PauseDialog.Pause(View, art, State, Session, Resume, PauseRows(), () => {
                 pauseDialog?.Close();
-                pauseDialog = PauseDialog.Confirm(View, art, EndRunCost(Session, State), Resume,
+                pauseDialog = PauseDialog.Confirm(View, art, EndRunCost(Session, State), EndRunDetail(Session), Resume,
                     () => { paused = false; pauseDialog?.Close(); pauseDialog = null; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); });
             });
         }
@@ -463,6 +463,8 @@ namespace ZKube.Presentation
         public static string EndRunCost(BoardSession session, RunSummary state) =>
             !session.Daily ? "An ended run keeps no stars." :
             state.ActionCounter > 0 ? "Your score so far counts for today." : "Today’s run ends with no score.";
+        // What stays: an ended Campaign run keeps its accepted actions.
+        public static string EndRunDetail(BoardSession session) => session.Daily ? null : "Your accepted actions stay part of this run.";
         public void Resume()
         {
             if (!HostInputEnabled) return;

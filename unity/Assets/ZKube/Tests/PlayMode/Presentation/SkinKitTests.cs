@@ -69,13 +69,14 @@ namespace ZKube.Presentation.Tests
         [Test] public void TabBarStaysInsideTheGuttersAndAboveTheSafeBottom()
         {
             var safe = new Rect(0, 24, 360, 616);
-            var bar = ui.TabBar("Tabs", safe, new (string, string, System.Action)[]
+            var expected = ScreenKit.TabRect(ui, new Rect(0, 0, 360, 640), safe);
+            var bar = ui.TabBar("Tabs", expected, .8f, new (string, string, System.Action)[]
             {
                 (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }),
             }, 0, root.transform);
             var drawn = SkinUi.ScreenRect((RectTransform)bar.transform);
-            Assert.AreEqual(ui.TabBarRect(safe), drawn, "Pages learn the bar's edges from TabBarRect");
-            Assert.GreaterOrEqual(drawn.xMin, safe.xMin + 16); Assert.LessOrEqual(drawn.xMax, safe.xMax - 16);
+            Assert.AreEqual(expected, drawn, "Pages learn the bar's edges from ScreenKit.TabRect");
+            Assert.AreEqual(drawn.xMin - safe.xMin, safe.xMax - drawn.xMax, .01f, "The bar sits between equal gutters");
             Assert.Greater(drawn.yMin, safe.yMin, "The bar sits above the bottom safe inset");
             foreach (var image in bar.GetComponentsInChildren<Image>())
             {
@@ -92,7 +93,8 @@ namespace ZKube.Presentation.Tests
             {
                 var sized = new SkinUi(art, density, scale);
                 string name = "Fit " + density + " " + scale;
-                var bar = sized.TabBar(name, safe, new (string, string, System.Action)[]
+                var kit = new ScreenKit(sized, null, safe, safe);
+                var bar = sized.TabBar(name, ScreenKit.TabRect(sized, safe, safe), kit.U, new (string, string, System.Action)[]
                 {
                     (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }), (SkinSlots.IconProfile, "Profile", () => { }),
                     (SkinSlots.IconSettings, "Settings", () => { }),
@@ -109,7 +111,8 @@ namespace ZKube.Presentation.Tests
                     Assert.LessOrEqual(words, room + .5f, at + " stays clear of its chip's round ends");
                     Assert.GreaterOrEqual(label.fontSize, SkinUi.TabLabelMinimumDp * density - .01f, at + " is drawn at 9 dp or more");
                     var text = SkinUi.ScreenRect(label.rectTransform);
-                    Assert.AreEqual(chip.yMax - SkinUi.TabLabelLine * chip.height, text.center.y, .5f, at + " sits on the chip's label line");
+                    var icon = SkinUi.ScreenRect((RectTransform)Part(bar, name + " " + tab + " icon").transform);
+                    Assert.LessOrEqual(text.yMax, icon.yMin - 2 * kit.U + .01f, at + " sits 2u under its icon");
                     Assert.IsTrue(text.xMin >= chip.xMin && text.xMax <= chip.xMax && text.yMin >= chip.yMin, at + " stays inside its chip");
                 }
                 // The labels shrink only as far as the widest one needs.
@@ -124,7 +127,7 @@ namespace ZKube.Presentation.Tests
         [Test] public void TabBarTabsRunTheirActionAndSelectMovesThePlate()
         {
             var opened = new List<string>();
-            var bar = ui.TabBar("Tabs", new Rect(0, 0, 360, 640), new (string, string, System.Action)[]
+            var bar = ui.TabBar("Tabs", ScreenKit.TabRect(ui, new Rect(0, 0, 360, 640), new Rect(0, 0, 360, 640)), .8f, new (string, string, System.Action)[]
             {
                 (SkinSlots.IconCampaign, "Campaign", () => opened.Add("Campaign")),
                 (SkinSlots.IconDaily, "Daily", () => opened.Add("Daily")),
@@ -132,11 +135,14 @@ namespace ZKube.Presentation.Tests
             }, 1, root.transform);
             var plate = (RectTransform)Part(bar, "Tabs selected").transform;
             var daily = (RectTransform)Part(bar, "Tabs Daily").transform;
-            Assert.AreEqual(SkinUi.ScreenRect(daily), SkinUi.ScreenRect(plate));
+            // A tab takes taps over the bar's height; its chip sits inside the bar's 4u padding.
+            Rect Chip(RectTransform tab) { var r = SkinUi.ScreenRect(tab); return new Rect(r.x, r.y + 4 * .8f, r.width, r.height - 8 * .8f); }
+            void Same(Rect a, Rect b) { Assert.AreEqual(a.x, b.x, .01f); Assert.AreEqual(a.y, b.y, .01f); Assert.AreEqual(a.width, b.width, .01f); Assert.AreEqual(a.height, b.height, .01f); }
+            Same(Chip(daily), SkinUi.ScreenRect(plate));
             Part(bar, "Tabs Profile").GetComponent<Button>().onClick.Invoke();
             CollectionAssert.AreEqual(new[] { "Profile" }, opened);
             bar.Select(2);
-            Assert.AreEqual(SkinUi.ScreenRect((RectTransform)Part(bar, "Tabs Profile").transform), SkinUi.ScreenRect(plate));
+            Same(Chip((RectTransform)Part(bar, "Tabs Profile").transform), SkinUi.ScreenRect(plate));
             foreach (var tab in new[] { "Campaign", "Daily", "Profile" })
                 Assert.GreaterOrEqual(SkinUi.ScreenRect((RectTransform)Part(bar, "Tabs " + tab).transform).height, BoardLayout.MinimumTouchDp);
             Assert.Throws<System.ArgumentOutOfRangeException>(() => bar.Select(3));
@@ -211,7 +217,7 @@ namespace ZKube.Presentation.Tests
 
         [Test] public void SelectedTabInkIsDarkOnTheChipAndTheOthersArePale()
         {
-            var bar = ui.TabBar("Tabs", new Rect(0, 0, 360, 640), new (string, string, System.Action)[]
+            var bar = ui.TabBar("Tabs", ScreenKit.TabRect(ui, new Rect(0, 0, 360, 640), new Rect(0, 0, 360, 640)), .8f, new (string, string, System.Action)[]
             {
                 (SkinSlots.IconCampaign, "Campaign", () => { }), (SkinSlots.IconDaily, "Daily", () => { }),
             }, 0, root.transform);
