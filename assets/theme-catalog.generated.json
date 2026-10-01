@@ -1937,20 +1937,20 @@
         },
         {
           "border": [
-            56,
-            56,
-            56,
-            56
+            64,
+            72,
+            64,
+            52
           ],
           "image": "/assets/skins/lumen/ui/button-secondary.png",
           "slot": "button-secondary"
         },
         {
           "border": [
-            56,
-            56,
-            56,
-            56
+            64,
+            72,
+            64,
+            52
           ],
           "image": "/assets/skins/lumen/ui/button-secondary-pressed.png",
           "slot": "button-secondary-pressed"

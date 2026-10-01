@@ -181,13 +181,17 @@ namespace ZKube.Tests.Presentation
                     Goals = source.Level.Goals, NewBest = stars == 7, NextOpen = false,
                     Done = new PageAction { Label = stars == 0 ? "Map" : "Continue" }, Retry = new PageAction { Label = "Retry" } };
                 yield return Page(page, () => views.Render(AppPage.Result));
+                if (page != "res3") AssertButtonKinds(root.transform, page, new[] { stars == 0 ? "Map" : "Retry" }, new string[0]);
             }
             source.Result = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,
                 ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, NewBest = true, NextOpensAt = 20705L * 86400,
                 Now = () => 20705L * 86400 - 7 * 3600 - 42 * 60 - 10, Done = new PageAction { Label = "Continue" }, Share = (text, token) => System.Threading.Tasks.Task.FromResult(true) };
             yield return Page("dres", () => views.Render(AppPage.Result));
+            AssertButtonKinds(root.transform, "dres", new[] { "Share" }, new string[0]);
             yield return Page("profile", () => views.Render(AppPage.Profile));
+            AssertButtonKinds(root.transform, "profile", new string[0], new[] { "Edit name" });
             yield return Page("settings", () => views.Render(AppPage.Settings));
+            AssertButtonKinds(root.transform, "settings", new string[0], new[] { "Restore purchases" });
             greeted = 0;
             yield return Page("greet", () => { views.Render(AppPage.Campaign); root.GetComponentInChildren<GuardianTalk>().Complete(); });
             yield return Page("greetRule", () => root.GetComponentInChildren<GuardianTalk>().Tap());
@@ -334,6 +338,20 @@ namespace ZKube.Tests.Presentation
                         string.Join(", ", starts.Select(start => start.name + " " + start.x)));
             }
         }
+        // A screen's secondary actions wear the skin's filled secondary piece; tertiary ones are the quiet outline.
+        public static void AssertButtonKinds(Component root, string page, string[] secondary, string[] quiet)
+        {
+            var buttons = root.GetComponentsInChildren<Button>();
+            // A name ending in * names every button it begins.
+            Button Named(string name) => buttons.Single(button => name.EndsWith("*") ? button.name.StartsWith(name.TrimEnd('*')) : button.name == name);
+            foreach (var name in secondary)
+                Assert.AreEqual(SkinSlots.ButtonSecondary, Named(name).GetComponent<Image>().sprite.name.Replace("(Clone)", ""), page + ": " + name + " is a secondary action");
+            foreach (var name in quiet)
+            {
+                var face = Named(name);
+                Assert.IsNotNull(face.transform.Find(face.name + " rim"), page + ": " + name + " is a quiet outline");
+            }
+        }
         private static byte Bonus(byte realm) => (byte)Protocol.Realms.Single(value => value.MapId == realm).GuardianAndHeight[0];
 
         [UnityTest] public IEnumerator EveryGoalPictogramCarriesItsChipAsTheHudDoes()
@@ -413,6 +431,7 @@ namespace ZKube.Tests.Presentation
                 var pieces = Pieces(dialog, screen, 1);
                 Dump(confirm ? "endconfirm" : "pause", pieces);
                 Match(confirm ? "endconfirm" : "pause", pieces, screen, 1.1f, "titles", "cards", "primaries");
+                AssertButtonKinds(dialog, confirm ? "endconfirm" : "pause", new[] { "Dialog " + BoardController.EndRun }, new string[0]);
                 if (!confirm) AssertPictograms(dialog, "pause", ScreenKit.Goals(PageCatalog.Load(), new CampaignGoals { Points = board.Session.Rules.PointsRequired,
                     PrimaryKind = board.Session.Rules.PrimaryKind, PrimaryValue = board.Session.Rules.PrimaryValue, PrimaryCount = board.Session.Rules.PrimaryCount,
                     SecondaryKind = board.Session.Rules.SecondaryKind, SecondaryValue = board.Session.Rules.SecondaryValue, SecondaryCount = board.Session.Rules.SecondaryCount },

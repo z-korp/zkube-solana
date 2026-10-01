@@ -97,6 +97,15 @@ def point_lights(path):
 
 
 class KitArt(unittest.TestCase):
+    def test_the_secondary_button_is_filled_moonstone_teal(self):
+        """design/hud-brief-amend-2: the secondary button is deep moonstone-teal in every realm, one skin-global
+        piece; an outline plate is the tertiary (quiet) button's look, drawn by code."""
+        for skin in json.loads((ROOT / "assets/catalog.json").read_text())["skins"]:
+            for slot in ("button-secondary", "button-secondary-pressed"):
+                face = Image.open(ROOT / f"assets/skins/{skin}/ui/{slot}.png").convert("RGB")
+                r, g, b = face.getpixel((face.width // 2, face.height // 2))
+                self.assertTrue(g > r + 20 and b > r + 20 and min(g, b) > 60, f"{skin} {slot}: its face {(r, g, b)} is a filled teal")
+
     def test_no_sliced_kit_piece_carries_a_stray_point_light(self):
         catalog = json.loads((ROOT / 'assets/theme-catalog.generated.json').read_text())
         sliced = [entry for skin in catalog['skins'] for entry in skin['ui'] if any(entry['border'])]
