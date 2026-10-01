@@ -280,17 +280,7 @@ namespace ZKube.Presentation
             else if (value.ObjectiveKind != 0)
             {
                 var goal = catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
-                float size = (value.Arcade == null ? 26 : 24) * u;
-                under.Add(new ScreenKit.Side(size, size, rect => {
-                    ui.Piece("Daily objective pictogram", goal.Pictogram(RealmBonus(value.Realm)), rect, shell.Page);
-                    // The goal's sign sits on the picture's lower left, as on the HUD.
-                    if (!string.IsNullOrEmpty(goal.chip))
-                    {
-                        float signDp = Mathf.Max(9, 11 * kit.K), sign = ui.TextHeight(goal.chip, 40 * u, signDp, SkinUi.Type.Display);
-                        ui.Label("Daily objective chip", goal.chip, new Rect(rect.x - 4 * u, rect.y - 4 * u, 22 * u, sign), signDp, SkinTokens.Text, shell.Page,
-                            SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
-                    }
-                }));
+                under.Add(inside.Pictogram("Daily objective", goal.Pictogram(RealmBonus(value.Realm)), goal.chip, value.Arcade == null ? 26 : 24));
             }
             if (clock.HasValue)
             {

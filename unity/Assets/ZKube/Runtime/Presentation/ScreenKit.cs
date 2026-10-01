@@ -251,6 +251,15 @@ namespace ZKube.Presentation
         }
         public Side Icon(string name, string slot, float sizeU) =>
             new Side(sizeU * U, sizeU * U, rect => Ui.Piece(name, slot, rect, Parent));
+        // A goal's pictogram with its chip (SkinUi.Pictogram); drawn receives the picture.
+        public Side Pictogram(string name, string slot, string chip, float sizeU, Action<Image> drawn = null) =>
+            new Side(sizeU * U, sizeU * U, rect => { var image = Ui.Pictogram(name, slot, chip, rect, Parent); drawn?.Invoke(image); });
+        // The multiplier's pictogram in a column sizeU wide: its ring 5/6 of it across, half its height.
+        public Side Multiplier(string name, float sizeU) =>
+            new Side(sizeU * U, sizeU * U / 2, rect => Ui.MultiplierPictogram(name, new Rect(rect.center.x - rect.width * 5 / 12, rect.y, rect.width * 5 / 6, rect.height), Parent));
+        // A row's lead centred in its card's icon column, so every row's words start at one x.
+        public Side Column(Side lead, float columnU) =>
+            new Side(columnU * U, lead.Height, rect => lead.Draw(new Rect(rect.center.x - lead.Width / 2, rect.y, lead.Width, lead.Height)));
         public Side Blank(float widthU) => new Side(widthU * U, 0, _ => { });
         // Sides side by side, gapU apart.
         public Side Beside(float gapU, params Side[] sides)
@@ -369,7 +378,7 @@ namespace ZKube.Presentation
         // bonus, as its pictogram, its caption and its counter.
         public sealed class GoalLine
         {
-            public string Name, Pictogram, Caption, Counter;
+            public string Name, Pictogram, Chip, Caption, Counter;
             public uint Target, Progress;
             public bool Met;
         }
@@ -379,10 +388,10 @@ namespace ZKube.Presentation
             var secondary = catalog.Goal(goals.SecondaryKind, goals.SecondaryValue, goals.SecondaryCount);
             return new[] {
                 new GoalLine { Name = "Score goal", Pictogram = SkinSlots.GoalScore, Caption = "Score", Counter = "fill", Target = goals.Points },
-                new GoalLine { Name = "Primary goal", Pictogram = primary.Pictogram(bonus), Caption = primary.text, Counter = primary.counter,
+                new GoalLine { Name = "Primary goal", Pictogram = primary.Pictogram(bonus), Chip = primary.chip, Caption = primary.text, Counter = primary.counter,
                     Target = goals.PrimaryCount },
-                new GoalLine { Name = "Secondary goal", Pictogram = secondary.Pictogram(bonus), Caption = secondary.text, Counter = secondary.counter,
-                    Target = goals.SecondaryCount },
+                new GoalLine { Name = "Secondary goal", Pictogram = secondary.Pictogram(bonus), Chip = secondary.chip, Caption = secondary.text,
+                    Counter = secondary.counter, Target = goals.SecondaryCount },
             };
         }
         // A filled count reads "progress/target", the target muted.
@@ -410,12 +419,8 @@ namespace ZKube.Presentation
                     right = Beside(10, new Side(Mathf.Max(86 * u, count.Width), count.Height, rect => count.Draw(new Rect(rect.xMax - count.Width, rect.y, count.Width, rect.height))),
                         goal.Met ? Icon(goal.Name + " tick", SkinSlots.Tick, 24) : Blank(24));
                 }
-                var row = Row(goal.Name, Icon(goal.Name + " icon", goal.Pictogram, iconU), goal.Caption, null, right, i > 0);
-                if (icons == null) return row;
-                return new Piece(row.Height, rect => {
-                    row.Draw(rect);
-                    icons[i] = Parent.GetComponentsInChildren<Image>().LastOrDefault(image => image.name == goal.Name + " icon");
-                });
+                return Row(goal.Name, Pictogram(goal.Name, goal.Pictogram, goal.Chip, iconU, image => { if (icons != null) icons[i] = image; }), goal.Caption, null,
+                    right, i > 0);
             }).ToArray();
         }
 

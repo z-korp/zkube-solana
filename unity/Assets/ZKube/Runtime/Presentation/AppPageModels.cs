@@ -205,7 +205,7 @@ namespace ZKube.Presentation
     {
         public PanelKind Kind;
         // Sprite, Badge and Pictogram are kit slots; a portrait shows Emblem in its Ring.
-        public string Name, Copy, Value, Caption, Token, Tag, TagToken, Sprite, Badge, Pictogram, Ring, Mood;
+        public string Name, Copy, Value, Caption, Token, Tag, TagToken, Sprite, Badge, Pictogram, Chip, Ring, Mood;
         public byte Emblem;
         public bool? Centered;
         public bool Dim, ChipAtEnd;
@@ -234,15 +234,16 @@ namespace ZKube.Presentation
         // badge when one is given.
         public static PanelBlock Split(string name, string caption, string value, string side, string badge = null) =>
             new PanelBlock { Kind = PanelKind.Split, Name = name, Caption = caption, Value = value, Copy = side, Badge = badge };
-        // A kit row: its icon, the label and its detail, and the value on the
+        // A kit row: its icon (a goal's pictogram with its chip), the label and its detail, and the value on the
         // right (as a tag in tagToken when one is given), or, without a value,
         // its action's button. A row with an action and a value is one button.
         // With a sprite it is a choice row: the sprite (a border) and its badge
         // lead the label.
         public static PanelBlock Row(string name, string label, string value, string token = SkinTokens.Score, PageAction action = null,
-            string sprite = null, string badge = null, bool dim = false, string detail = null, string icon = null, string tagToken = null, bool primary = false) =>
+            string sprite = null, string badge = null, bool dim = false, string detail = null, string icon = null, string tagToken = null, bool primary = false,
+            string chip = null) =>
             new PanelBlock { Kind = PanelKind.Row, Name = name, Copy = label, Value = value, Token = token, Action = action, Sprite = sprite,
-                Badge = badge, Dim = dim, Caption = detail, Pictogram = icon, Tag = tagToken == null ? null : value, TagToken = tagToken, Primary = primary ? 0 : -1 };
+                Badge = badge, Dim = dim, Caption = detail, Pictogram = icon, Chip = chip, Tag = tagToken == null ? null : value, TagToken = tagToken, Primary = primary ? 0 : -1 };
         public static PanelBlock Icon(string slot, string token) =>
             new PanelBlock { Kind = PanelKind.Icon, Name = slot, Sprite = slot, Token = token };
         // A medallion: an emblem (a guardian's is the page realm's portrait) in

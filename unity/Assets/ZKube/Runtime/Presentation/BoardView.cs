@@ -191,7 +191,7 @@ namespace ZKube.Presentation
             {
                 // The Daily's score sits where the Campaign's stars do.
                 ui.Piece("Score plate", SkinSlots.GoalPlate, hud.Crown, root);
-                ui.Piece("Score pictogram", SkinSlots.GoalScore, hud.In(hud.Crown, 12, 9, 40, 40), root);
+                ui.Pictogram("Score", SkinSlots.GoalScore, null, hud.In(hud.Crown, 12, 9, 40, 40), root);
                 score = Text("Score", "0", new Rect(hud.Crown.x + 54 * hud.K * d, hud.Crown.y, hud.Crown.width - 62 * hud.K * d, hud.Crown.height),
                     hud.ScorePt, SkinTokens.Score, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
                 var facts = session.DailyFacts;
@@ -279,19 +279,7 @@ namespace ZKube.Presentation
             touch.gameObject.AddComponent<LongPress>().Bind(() => OpenBubble(index));
             var parent = touch.transform;
             ui.Piece("Goal plate " + index + " face", SkinSlots.GoalPlate, rect, parent);
-            var picture = hud.In(rect, 6, 7, 32, 32);
-            plate.Pictogram = ui.Piece("Goal plate " + index + " pictogram", pictogram, picture, parent);
-            if (!string.IsNullOrEmpty(chip))
-            {
-                // The chip's right edge overhangs the picture by 2 dp, its top 19 dp down.
-                float height = 13.5f * k * d, width = Mathf.Max(15 * k * d, ui.TextWidth(chip, hud.ChipPt, SkinUi.Type.Display) / ui.Scale + 4 * k * d);
-                // A wide chip shifts right rather than leave its plate.
-                var chipRect = new Rect(Mathf.Max(rect.x + 2 * k * d, picture.xMax + 2 * k * d - width), picture.yMax - 19 * k * d - height, width, height);
-                ui.Piece("Goal plate " + index + " chip", SkinSlots.Chip, chipRect, parent);
-                var sign = Text("Goal plate " + index + " chip label", chip, Line(chipRect, chip), hud.ChipPt, SkinTokens.Text, parent, SkinUi.Type.Display,
-                    TextAlignmentOptions.Center);
-                sign.fontSize = hud.ChipPt * d; // A sign on the picture keeps its drawn size.
-            }
+            plate.Pictogram = ui.Pictogram("Goal plate " + index, pictogram, chip, hud.In(rect, 6, 7, 32, 32), parent);
             string name = index == 0 ? "Score" : index == 1 ? "Theme" : "Secondary";
             if (counter == "fill" || counter == "count")
             {
@@ -322,13 +310,6 @@ namespace ZKube.Presentation
                     plate.Pips[j] = ui.Piece(name + " pip " + j, SkinSlots.CounterPip, hud.In(rect, 44 + 8 - size / 2 + j * pitch, 23 - size / 2, size, size), parent);
             }
             return plate;
-        }
-        // A chip's sign is drawn at its own size, centred on the chip, which may
-        // be shorter than the sign's line.
-        private Rect Line(Rect chip, string sign)
-        {
-            float height = Mathf.Max(chip.height, ui.TextHeight(sign, float.PositiveInfinity, hud.ChipPt, SkinUi.Type.Display) / ui.Scale);
-            return new Rect(chip.x, chip.center.y - height / 2, chip.width, height);
         }
         // Shows a plate's progress; met says whether its star is earned.
         private void ShowPlate(GoalPlate plate, ulong progress, uint target, bool met)
@@ -361,16 +342,7 @@ namespace ZKube.Presentation
             Rect At(float x, float y, float w, float h) => new Rect(panel.x + x * k * d, panel.yMax - (y + h) * k * d, w * k * d, h * k * d);
             ui.Piece("Earn panel", SkinSlots.EarnPanel, panel, root);
             if (rule == null) return;
-            var picture = At(6, 7, 34, 34);
-            ui.Piece("Earn trigger", rule.pictogram, picture, root);
-            if (!string.IsNullOrEmpty(rule.chip))
-            {
-                float height = 13.5f * k * d, width = Mathf.Max(15 * k * d, ui.TextWidth(rule.chip, hud.ChipPt, SkinUi.Type.Display) / ui.Scale + 4 * k * d);
-                var chipRect = new Rect(Mathf.Max(panel.x + 2 * k * d, picture.xMax + 2 * k * d - width), picture.yMax - 20 * k * d - height, width, height);
-                ui.Piece("Earn trigger chip", SkinSlots.Chip, chipRect, root);
-                Text("Earn trigger chip label", rule.chip, Line(chipRect, rule.chip), hud.ChipPt, SkinTokens.Text, root, SkinUi.Type.Display, TextAlignmentOptions.Center)
-                    .fontSize = hud.ChipPt * d;
-            }
+            ui.Pictogram("Earn trigger", rule.pictogram, rule.chip, At(6, 7, 34, 34), root);
             Text("Earn arrow", "→", At(40, 13, 16, 22), 14, SkinTokens.TextMuted, root, SkinUi.Type.Number, TextAlignmentOptions.Center);
             ui.Piece("Earn bonus", HudLayout.BonusIcon(rules.BonusType, true), At(56, 10, 28, 28), root);
             var caption = new Rect(panel.x + 90 * k * d, panel.y + 6 * k * d, panel.width - 94 * k * d, panel.height - 12 * k * d);

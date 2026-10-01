@@ -393,7 +393,7 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(board.State.PrimaryProgress + "/" + rules.PrimaryCount, StripTags(Label("Theme").text));
             Assert.AreEqual("ring", secondary.counter);
             Assert.IsTrue(Named("Secondary ring").enabled); Assert.IsFalse(Named("Secondary tick").enabled);
-            Assert.AreEqual(board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Earn trigger").sprite.name.Replace("(Clone)", ""),
+            Assert.AreEqual(board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Earn trigger pictogram").sprite.name.Replace("(Clone)", ""),
                 PageCatalog.Load().guardianRules.Single(rule => rule.bonus == rules.BonusType && rule.trigger == rules.Trigger && rule.threshold == rules.TriggerThreshold).pictogram);
             Fits(Label("Earn caption"));
         }

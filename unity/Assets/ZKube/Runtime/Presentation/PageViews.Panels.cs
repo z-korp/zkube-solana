@@ -222,7 +222,7 @@ namespace ZKube.Presentation
                 var border = kit.Icon(block.Name + " border", block.Sprite, 44);
                 lead = block.Badge == null ? border : kit.Beside(6, border, kit.Icon(block.Name + " badge", block.Badge, 32));
             }
-            else if (block.Pictogram != null) lead = kit.Icon(block.Name + " icon", block.Pictogram, 30);
+            else if (block.Pictogram != null) lead = kit.Pictogram(block.Name, block.Pictogram, block.Chip, 30);
             ScreenKit.Side? right = block.Value == null ? (ScreenKit.Side?)null : block.Tag != null ? Tag(kit, block.Value, block.TagToken, block.Name)
                 : Fitted(kit, block.Name, block.Value, kit.Width * .45f, block.Dim ? SkinTokens.TextMuted : block.Token);
             if (block.Action != null && block.Sprite == null && block.Value == null) right = Small(kit, block.Action, block.Primary == 0);

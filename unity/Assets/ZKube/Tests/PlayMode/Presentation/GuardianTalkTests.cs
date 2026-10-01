@@ -126,9 +126,9 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual("Earn a Wave", name.text);
             Assert.IsFalse(title.gameObject.activeInHierarchy, "The title belongs to the guardian's pages");
             Assert.IsFalse(root.GetComponentsInChildren<TMP_Text>(true).Single(t => t.name == "Talk line").gameObject.activeInHierarchy);
-            Assert.AreEqual(rule.pictogram, Part("Talk rule trigger").sprite.name.Replace("(Clone)", ""));
+            Assert.AreEqual(rule.pictogram, Part("Talk rule trigger pictogram").sprite.name.Replace("(Clone)", ""));
             Assert.AreEqual(HudLayout.BonusIcon(rule.bonus, true), Part("Talk rule bonus").sprite.name.Replace("(Clone)", ""));
-            Assert.AreEqual(SkinUi.RuleIconU, SkinUi.ScreenRect(Part("Talk rule trigger").rectTransform).width, .01f);
+            Assert.AreEqual(SkinUi.RuleIconU, SkinUi.ScreenRect(Part("Talk rule trigger pictogram").rectTransform).width, .01f);
             Assert.AreEqual(rule.description.TrimEnd('.') + ".", root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule").text);
             Assert.AreEqual(rule.effect, root.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Talk rule effect").text);
             talk.Tap(); Assert.IsTrue(talk.Done);

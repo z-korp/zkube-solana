@@ -102,13 +102,12 @@ namespace ZKube.Presentation
             }
             string N(ulong number) => number.ToString("N0", CultureInfo.InvariantCulture);
             var rows = new List<Piece> {
-                inside.Row("Score goal", inside.Icon("Score goal icon", SkinSlots.GoalScore, iconU), "Score", null, inside.Value("Score goal value", N(state.DailyScore)), false),
-                inside.Row("Multiplier", new ScreenKit.Side((iconU + 4) * u, 16 * u, rect => kit.Ui.Piece("Multiplier icon", SkinSlots.MultiplierRing, rect, kit.Parent)),
-                    "Multiplier", null, inside.Value("Multiplier value", HudLayout.PressureValue(state), SkinTokens.Accent), true) };
+                inside.Row("Score goal", inside.Pictogram("Score goal", SkinSlots.GoalScore, null, iconU), "Score", null, inside.Value("Score goal value", N(state.DailyScore)), false),
+                inside.Row("Multiplier", inside.Multiplier("Multiplier", iconU), "Multiplier", null, inside.Value("Multiplier value", HudLayout.PressureValue(state), SkinTokens.Accent), true) };
             if (rules.ObjectiveKind != 0)
             {
                 var goal = PageCatalog.Load().Goal(rules.ObjectiveKind, rules.ObjectiveValue);
-                rows.Add(inside.Row("Objective", inside.Icon("Objective icon", goal.Pictogram(rules.BonusType), iconU), goal.text, null,
+                rows.Add(inside.Row("Objective", inside.Pictogram("Objective", goal.Pictogram(rules.BonusType), goal.chip, iconU), goal.text, null,
                     inside.Value("Objective value", N(state.ObjectiveTotal)), true));
             }
             return kit.Card(null, rows);

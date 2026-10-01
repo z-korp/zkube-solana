@@ -247,10 +247,7 @@ namespace ZKube.Presentation
                 rules = new GameObject(name + " rule", typeof(RectTransform));
                 rules.transform.SetParent(parent, false); Place((RectTransform)rules.transform, box, parent);
                 float row = top - 26 * u - 4 * u - icon, centre = box.center.x, arrow = 22 * u;
-                Piece(name + " rule trigger", ruled.Rule.pictogram, new Rect(centre - arrow / 2 - 10 * u - icon, row, icon, icon), rules.transform);
-                if (!string.IsNullOrEmpty(ruled.Rule.chip))
-                    Label(name + " rule chip", ruled.Rule.chip, new Rect(centre - arrow / 2 - 10 * u - icon - 4 * u, row - 4 * u, 30 * u, 18 * u), 13 * k,
-                        SkinTokens.Text, rules.transform, Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
+                Pictogram(name + " rule trigger", ruled.Rule.pictogram, ruled.Rule.chip, new Rect(centre - arrow / 2 - 10 * u - icon, row, icon, icon), rules.transform);
                 Label(name + " rule arrow", "→", new Rect(centre - arrow / 2, row, arrow, icon), 22 * k, SkinTokens.TextMuted, rules.transform, Type.Caption);
                 Piece(name + " rule bonus", HudLayout.BonusIcon(ruled.Rule.bonus, true), new Rect(centre + arrow / 2 + 10 * u, row, icon, icon), rules.transform);
                 var said = Label(name + " rule", ruled.RuleSentence, new Rect(box.x + pad, row - 8 * u - sentence, inner, sentence), lineDp, SkinTokens.Text,
@@ -280,6 +277,37 @@ namespace ZKube.Presentation
         // The rule's pictograms are 56u; the line is 16u at 1.35.
         public const float RuleIconU = 56, TalkLeading = 1.35f;
         public const string TapHint = "Tap to continue";
+
+        // A goal's pictogram (pictograms.rs): the picture and, when the goal has
+        // one, its chip, the badge of signs and numbers on the picture's lower
+        // right, overhanging it by 1/16 of its size, sized from the picture as
+        // the HUD's 32 dp goal picture draws it (13.5 dp tall, its top 19 dp
+        // down, its signs 11 dp and never under 9). The HUD and every page draw
+        // a goal through this one builder; the chip is a child of the picture.
+        public Image Pictogram(string name, string slot, string chip, Rect picture, Transform parent)
+        {
+            var image = Piece(name + " pictogram", slot, picture, parent);
+            if (string.IsNullOrEmpty(chip)) return image;
+            float s = picture.width / 32, size = Mathf.Max(11 * s / Density, 9);
+            float height = 13.5f * s, width = Mathf.Max(15 * s, TextWidth(chip, size, Type.Display) / Scale + 4 * s);
+            // A wide chip shifts right rather than run past the picture's own left margin.
+            var rect = new Rect(Mathf.Max(picture.x - 4 * s, picture.xMax + 2 * s - width), picture.yMax - 19 * s - height, width, height);
+            Piece(name + " chip", SkinSlots.Chip, rect, image.transform);
+            float line = Mathf.Max(rect.height, TextHeight(chip, float.PositiveInfinity, size, Type.Display) / Scale);
+            var sign = Label(name + " chip label", chip, new Rect(rect.x, rect.center.y - line / 2, rect.width, line), size, SkinTokens.Text, image.transform,
+                Type.Display);
+            // A sign on the picture keeps its drawn size at any text size.
+            sign.fontSize = size * Density; sign.enableWordWrapping = false;
+            return image;
+        }
+        // The multiplier's pictogram: its ring with the × inside, as its value reads beside it.
+        public Image MultiplierPictogram(string name, Rect rect, Transform parent)
+        {
+            var ring = Piece(name + " pictogram", SkinSlots.MultiplierRing, rect, parent);
+            var sign = Label(name + " sign", "×", rect, rect.height * .62f / Density, SkinTokens.Accent, ring.transform, Type.Display);
+            sign.fontSize = rect.height * .62f; sign.enableWordWrapping = false;
+            return ring;
+        }
 
         // A round portrait or emblem in a ring: the skin's guardian ring, or a
         // ladder tier's border (SkinSlots.LadderBorder) around a worn emblem.

@@ -167,20 +167,21 @@ namespace ZKube.Integration.Presentation
                 case "no-placement": detail = board.Rows.Count == 0 ? "No qualifying winners on this board." : "You have no reward on this board."; break;
                 default: detail = "Results are not available yet."; break;
             }
+            var (icon, chip) = BoardIcon(board.Kind);
             lines.Add(PanelBlock.Row(name + " position", board.Yours != null ? "Your place" : name, board.Yours == null ? null : "#" + board.Yours.Rank,
-                detail: detail, icon: BoardIcon(board.Kind)));
+                detail: detail, icon: icon, chip: chip));
             if (claim != null) lines.Add(claim);
             if (board.Rows.Count != 0 || isSealed)
                 lines.Add(PanelBlock.Button(PageAction("View board", () => OpenBoard(board.Kind), () => PageAvailable() && !Busy, "View " + name + " board"), false));
             return PanelBlock.Card(name + " card", lines.ToArray());
         }
-        // A board's pictogram: the score's spark, or the day's objective in its realm's bonus.
-        private string BoardIcon(string kind)
+        // A board's pictogram: the score's spark, or the day's objective in its realm's bonus with its chip.
+        private (string Icon, string Chip) BoardIcon(string kind)
         {
-            if (kind == "score") return SkinSlots.GoalScore;
             var daily = NativeEngine.Daily(rewardDay);
-            if (daily.Kind == 0) return SkinSlots.GoalScore;
-            return catalog.Goal(daily.Kind, daily.Value).Pictogram((byte)Protocol.Realms.Single(realm => realm.MapId == daily.Realm).GuardianAndHeight[0]);
+            if (kind == "score" || daily.Kind == 0) return (SkinSlots.GoalScore, null);
+            var goal = catalog.Goal(daily.Kind, daily.Value);
+            return (goal.Pictogram((byte)Protocol.Realms.Single(realm => realm.MapId == daily.Realm).GuardianAndHeight[0]), goal.chip);
         }
         // A board's own name where it fits a pill, its general name where not.
         private static PageAction Shorter(PageAction action, string words) { action.Short = words; return action; }

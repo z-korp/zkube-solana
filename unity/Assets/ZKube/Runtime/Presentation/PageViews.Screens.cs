@@ -68,7 +68,7 @@ namespace ZKube.Presentation
             var inside = kit.Inside();
             // The moves chip, then the trigger pictogram, an arrow, the bonus icon and the rule's words.
             var lead = new List<ScreenKit.Side> { inside.Chip("Level moves", SkinSlots.IconHourglass, 22, value.Moves.ToString(CultureInfo.InvariantCulture), "moves") };
-            if (rule.pictogram != null) lead.Add(inside.Icon("Level rule trigger", rule.pictogram, 30));
+            if (rule.pictogram != null) lead.Add(inside.Pictogram("Level rule trigger", rule.pictogram, rule.chip, 30));
             lead.Add(inside.Word("Level rule arrow", "→", 16 * k, SkinTokens.TextMuted));
             lead.Add(inside.Icon("Level rule bonus", HudLayout.BonusIcon(bonus, true), 30));
             var rows = inside.GoalRows(goals, ScreenKit.GoalMode.Target, Step(40, 34)).Append(inside.Row("Level rule", inside.Beside(10, lead.ToArray()),
@@ -202,16 +202,17 @@ namespace ZKube.Presentation
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), scrim: true);
             var line = TalkPage.For(realm.guardianLines, value.Speaks ?? TalkMoment.Daily, value.SpeaksStars);
             string objective = value.ObjectiveKind == 0 ? null : catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
-            string picture = value.ObjectiveKind == 0 ? null : catalog.Goal(value.ObjectiveKind, value.ObjectiveValue).Pictogram(RealmBonus(value.Realm));
+            var goal = value.ObjectiveKind == 0 ? null : catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
+            string picture = goal?.Pictogram(RealmBonus(value.Realm));
             string N(ulong number) => number.ToString("N0", CultureInfo.InvariantCulture);
             var inside = kit.Inside();
             var rows = new List<Piece>();
             if (value.Arcade)
             {
-                rows.Add(inside.Row("Score board", inside.Icon("Score board icon", SkinSlots.GoalScore, 34), "Score board", "Your best run counts",
+                rows.Add(inside.Row("Score board", inside.Pictogram("Score board", SkinSlots.GoalScore, null, 34), "Score board", "Your best run counts",
                     inside.Value("Score board value", N(value.Score)), false));
                 if (objective != null)
-                    rows.Add(inside.Row("Objective board", inside.Icon("Objective board icon", picture, 34), "Objective board", objective,
+                    rows.Add(inside.Row("Objective board", inside.Pictogram("Objective board", picture, goal.chip, 34), "Objective board", objective,
                         inside.Value("Objective board value", N(value.ObjectiveTotal)), true));
                 const string boards = "Places are final when each board is sealed after the day closes at 00:00 UTC.";
                 float size = inside.SmallDp, height = inside.Block(boards, inside.Width, size, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
@@ -220,15 +221,16 @@ namespace ZKube.Presentation
             }
             else
             {
+                // The rows share one 36u icon column.
                 if (value.Tier.HasValue)
-                    rows.Add(inside.Row("Multiplier", new ScreenKit.Side(36 * u, 14.4f * u, rect => ui.Piece("Multiplier icon", SkinSlots.MultiplierRing, rect, shell.Page)),
+                    rows.Add(inside.Row("Multiplier", inside.Multiplier("Multiplier", 36),
                         "Multiplier reached", null, inside.Value("Multiplier value", HudLayout.PressureValue(new RunSummary { CurrentTier = value.Tier.Value }), SkinTokens.Accent),
                         rows.Count > 0));
                 if (objective != null)
-                    rows.Add(inside.Row("Objective", inside.Icon("Objective icon", picture, 36), objective, null, inside.Value("Objective value", N(value.ObjectiveTotal)),
+                    rows.Add(inside.Row("Objective", inside.Pictogram("Objective", picture, goal.chip, 36), objective, null, inside.Value("Objective value", N(value.ObjectiveTotal)),
                         rows.Count > 0));
                 if (value.Streak.HasValue)
-                    rows.Add(inside.Row("Streak", inside.Icon("Streak icon", SkinSlots.IconCrown, 32), "Daily streak", null, inside.Value("Streak value", Days(value.Streak.Value)),
+                    rows.Add(inside.Row("Streak", inside.Column(inside.Icon("Streak icon", SkinSlots.IconCrown, 32), 36), "Daily streak", null, inside.Value("Streak value", Days(value.Streak.Value)),
                         rows.Count > 0));
             }
             // The score's plate (.card3 in a row): padded 6u by 16u, the spark, the 44u score and "New best!", 8u apart.
@@ -243,7 +245,7 @@ namespace ZKube.Presentation
                     var plate = new Rect(rect.center.x - plateWidth / 2, rect.y, plateWidth, rect.height);
                     ui.Piece("Score plate", SkinSlots.Card, plate, shell.Page);
                     float x = plate.x + 16 * u;
-                    ui.Piece("Score icon", SkinSlots.GoalScore, new Rect(x, plate.center.y - spark / 2, spark, spark), shell.Page);
+                    ui.Pictogram("Score", SkinSlots.GoalScore, null, new Rect(x, plate.center.y - spark / 2, spark, spark), shell.Page);
                     x += spark + 8 * u;
                     var total = kit.Text("Score", score, new Rect(x, plate.y + 6 * u, scoreWidth + 2 * ui.Density, plate.height - 12 * u), scoreDp, SkinTokens.Score,
                         SkinUi.Type.Display, 1, TextAlignmentOptions.Left);

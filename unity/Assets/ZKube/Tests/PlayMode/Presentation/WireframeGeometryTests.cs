@@ -291,6 +291,99 @@ namespace ZKube.Tests.Presentation
                 }
         }
 
+        // Every goal pictogram a page draws is SkinUi.Pictogram's: named "... pictogram", with its chip (the
+        // HUD's own chip piece and signs) exactly when the catalog's goal, from pictograms.rs, gives one.
+        public static void AssertPictograms(Component root, string page, IEnumerable<(string sprite, string chip)> goals)
+        {
+            var expected = new Dictionary<string, string>();
+            foreach (var (sprite, chip) in goals)
+            {
+                if (expected.TryGetValue(sprite, out var known)) Assert.AreEqual(known, chip ?? "", page + ": two goals share " + sprite);
+                expected[sprite] = chip ?? "";
+            }
+            int seen = 0;
+            foreach (var image in root.GetComponentsInChildren<Image>().Where(image => image.sprite != null && image.sprite.name.StartsWith("goal-")))
+            {
+                string sprite = image.sprite.name.Replace("(Clone)", ""), at = page + ": " + image.name + " (" + sprite + ")";
+                Assert.IsTrue(expected.ContainsKey(sprite), at + " is one of the page's goals");
+                StringAssert.EndsWith(" pictogram", image.name, at + " is drawn by the pictogram builder");
+                var chip = image.GetComponentsInChildren<Image>().FirstOrDefault(child => child != image && child.name.EndsWith(" chip"));
+                if (expected[sprite] == "") { Assert.IsNull(chip, at + " has no chip"); continue; }
+                Assert.IsNotNull(chip, at + " carries its chip \"" + expected[sprite] + "\"");
+                Assert.AreEqual(SkinSlots.Chip, chip.sprite.name.Replace("(Clone)", ""), at + " uses the HUD's chip piece");
+                Assert.AreEqual(expected[sprite], image.GetComponentsInChildren<TMP_Text>().Single(label => label.name.EndsWith(" chip label")).text, at);
+                seen++;
+            }
+            // A goal whose size or count the picture itself draws (a block's size) has no chip.
+            if (expected.Values.Any(chip => chip != "")) Assert.Greater(seen, 0, page + " draws its chips");
+        }
+        // In every card, the rows that lead with an icon share one icon column: their words start at one x.
+        public static void AssertOneIconColumn(Component root, string page)
+        {
+            var images = root.GetComponentsInChildren<Image>();
+            var labels = root.GetComponentsInChildren<TMP_Text>().Where(text => text.name.EndsWith(" label") && !text.name.EndsWith(" chip label"))
+                .Where(text => { string row = text.name.Substring(0, text.name.Length - " label".Length);
+                    return images.Any(image => image.name == row + " pictogram" || image.name == row + " icon"); }).ToArray();
+            foreach (var card in images.Where(image => image.sprite != null && image.sprite.name.Replace("(Clone)", "") == SkinSlots.Card && !image.name.EndsWith(" tile")))
+            {
+                var inside = SkinUi.ScreenRect(card.rectTransform);
+                var starts = labels.Where(text => inside.Contains(SkinUi.ScreenRect(text.rectTransform).center))
+                    .Select(text => (text.name, x: SkinUi.ScreenRect(text.rectTransform).xMin)).ToArray();
+                if (starts.Length > 1)
+                    Assert.AreEqual(starts.Min(start => start.x), starts.Max(start => start.x), .5f, page + ": " + card.name + "'s rows start their words at one x: " +
+                        string.Join(", ", starts.Select(start => start.name + " " + start.x)));
+            }
+        }
+        private static byte Bonus(byte realm) => (byte)Protocol.Realms.Single(value => value.MapId == realm).GuardianAndHeight[0];
+
+        [UnityTest] public IEnumerator EveryGoalPictogramCarriesItsChipAsTheHudDoes()
+        {
+            root = new GameObject("Pictogram pages");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Pictogram pages");
+            Phones.WireframeSeeker(shell);
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            var catalog = PageCatalog.Load();
+            var level = source.Level.Goals; var rule = catalog.Rule(1);
+            var campaign = new[] { (SkinSlots.GoalScore, (string)null),
+                (catalog.Goal(level.PrimaryKind, level.PrimaryValue, level.PrimaryCount).Pictogram(Bonus(1)), catalog.Goal(level.PrimaryKind, level.PrimaryValue, level.PrimaryCount).chip),
+                (catalog.Goal(level.SecondaryKind, level.SecondaryValue, level.SecondaryCount).Pictogram(Bonus(1)), catalog.Goal(level.SecondaryKind, level.SecondaryValue, level.SecondaryCount).chip) };
+            IEnumerator Page(string page, Action draw, IEnumerable<(string, string)> goals)
+            {
+                draw(); yield return null;
+                foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                AssertPictograms(root.transform, page, goals);
+                AssertOneIconColumn(root.transform, page);
+            }
+            yield return Page("preview", () => views.Render(AppPage.Level), campaign.Append((rule.pictogram, rule.chip)));
+            source.Result = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
+                Score = 14, StarSources = 3, EndReason = 2, PrimaryProgress = 6, Goals = level, Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+            yield return Page("result", () => views.Render(AppPage.Result), campaign);
+            foreach (bool arcade in new[] { false, true })
+            {
+                source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Actions = new[] { new PageAction { Label = "Play today" } },
+                    Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL" } : null };
+                yield return Page(arcade ? "Arcade" : "Home", () => views.Render(AppPage.Daily), new[] { (catalog.Goal(1, 3).Pictogram(Bonus(3)), catalog.Goal(1, 3).chip) });
+            }
+            source.Result = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,
+                ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, Done = new PageAction { Label = "Continue" } };
+            yield return Page("Daily result", () => views.Render(AppPage.Result), new[] { (SkinSlots.GoalScore, (string)null),
+                (catalog.Goal(2, 2).Pictogram(Bonus(1)), catalog.Goal(2, 2).chip) });
+            Assert.AreEqual("×", root.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Multiplier sign").text, "The multiplier's ring holds its ×");
+            source.Result.Arcade = true;
+            yield return Page("Arcade result", () => views.Render(AppPage.Result), new[] { (SkinSlots.GoalScore, (string)null),
+                (catalog.Goal(2, 2).Pictogram(Bonus(1)), catalog.Goal(2, 2).chip) });
+            greeted = 0;
+            yield return Page("greeting rule", () => { views.Render(AppPage.Campaign); var talk = root.GetComponentInChildren<GuardianTalk>(); talk.Complete(); talk.Tap(); },
+                new[] { (rule.pictogram, rule.chip) });
+            Phones.Clear(shell);
+        }
+
         // The pause and its end-run confirm over a Campaign board, on the
         // wireframe's Seeker frame.
         [UnityTest] public IEnumerator PauseAndItsConfirmMatchTheirWireframesAtSeekerSize()
@@ -320,9 +413,30 @@ namespace ZKube.Tests.Presentation
                 var pieces = Pieces(dialog, screen, 1);
                 Dump(confirm ? "endconfirm" : "pause", pieces);
                 Match(confirm ? "endconfirm" : "pause", pieces, screen, 1.1f, "titles", "cards", "primaries");
+                if (!confirm) AssertPictograms(dialog, "pause", ScreenKit.Goals(PageCatalog.Load(), new CampaignGoals { Points = board.Session.Rules.PointsRequired,
+                    PrimaryKind = board.Session.Rules.PrimaryKind, PrimaryValue = board.Session.Rules.PrimaryValue, PrimaryCount = board.Session.Rules.PrimaryCount,
+                    SecondaryKind = board.Session.Rules.SecondaryKind, SecondaryValue = board.Session.Rules.SecondaryValue, SecondaryCount = board.Session.Rules.SecondaryCount },
+                    board.Session.Rules.BonusType).Select(goal => (goal.Pictogram, goal.Chip)));
                 host.SetActive(false); UnityEngine.Object.Destroy(host); ui.Dispose();
                 yield return null;
             }
+            // A Daily's pause carries its objective's chip and the multiplier's ×.
+            evidence.Load("realm-8-daily");
+            for (float deadline = Time.realtimeSinceStartup + 20; !BoardTestState.Idle(board);)
+            {
+                if (Time.realtimeSinceStartup > deadline) Assert.Fail("Timed out waiting for the Daily board");
+                yield return null;
+            }
+            var daily = new GameObject("Daily pause view"); daily.transform.SetParent(root.transform);
+            var dailyUi = new SkinUi(art, 1, 1);
+            var dailyView = daily.AddComponent<BoardView>(); dailyView.Create(board, art, HudLayout.Build(dailyUi, board.State, board.Session, safe, 1, screen), dailyUi);
+            dailyView.Summary(board.State, board.Session, true);
+            var paused = PauseDialog.Pause(dailyView, art, board.State, board.Session, () => { }, board.PauseRows(), () => { });
+            var objective = PageCatalog.Load().Goal(board.Session.Rules.ObjectiveKind, board.Session.Rules.ObjectiveValue);
+            AssertPictograms(paused, "Daily pause", new[] { (SkinSlots.GoalScore, (string)null), (objective.Pictogram(board.Session.Rules.BonusType), objective.chip) });
+            AssertOneIconColumn(paused, "Daily pause");
+            Assert.AreEqual("×", paused.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Multiplier sign").text, "The multiplier's ring holds its ×");
+            daily.SetActive(false); UnityEngine.Object.Destroy(daily); dailyUi.Dispose();
         }
     }
 }
