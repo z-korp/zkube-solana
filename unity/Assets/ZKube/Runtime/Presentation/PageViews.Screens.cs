@@ -36,17 +36,20 @@ namespace ZKube.Presentation
         {
             items = items.Where(item => item.action != null).ToArray();
             return kit.Buttons(items.Select(item => (item.action.Name ?? item.action.Label, item.action.Label, actions.Click(item.action), item.kind, item.icon))
-                .ToArray(), (i, button, text) => actions.Bind(button, items[i].action, relabel: value => text.text = value));
+                .ToArray(), (i, button, text) => actions.Bind(button, items[i].action, relabel: value => text.text = value), shorter: items.Select(item => item.action.Short).ToArray());
         }
         private static byte RealmBonus(byte realm) => (byte)Protocol.Realms.Single(value => value.MapId == realm).GuardianAndHeight[0];
-        // "New best!" on its gold tag (.tag): the caption face at 11u, padded 2u by 8u.
-        private ScreenKit.Side NewBest(ScreenKit kit)
+        // A tag (.tag): its words in the caption face at 11u on a pill of its
+        // token's light, padded 2u by 8u. "New best!" is the gold one.
+        private ScreenKit.Side NewBest(ScreenKit kit) => Tag(kit, "New best!", new Color(1, 233 / 255f, 168 / 255f, 1), "New best");
+        private ScreenKit.Side Tag(ScreenKit kit, string text, string token, string name = null) => Tag(kit, text, ui.Art.Token(token), name ?? text);
+        private ScreenKit.Side Tag(ScreenKit kit, string text, Color fill, string name)
         {
             float u = kit.U, size = Mathf.Max(11, 11 * kit.K);
-            float w = ui.TextWidth("New best!", size, SkinUi.Type.Caption) + 16 * u, h = size * ui.Scale * ui.Density * ScreenKit.BodyNormal + 4 * u;
+            float w = ui.TextWidth(text, size, SkinUi.Type.Caption) + 16 * u, h = ui.TextHeight(text, w, size, SkinUi.Type.Caption) + 2 * u;
             return new ScreenKit.Side(w, h, rect => {
-                ui.Pill("New best", rect, shell.Page, new Color(1, 233 / 255f, 168 / 255f, 1));
-                ui.Label("New best label", "New best!", rect, size, SkinTokens.TextOnPrimary, shell.Page, SkinUi.Type.Caption).textWrappingMode = TextWrappingModes.NoWrap;
+                ui.Pill(name + " tag", rect, shell.Page, fill);
+                ui.Label(name, text, rect, size, SkinTokens.TextOnPrimary, shell.Page, SkinUi.Type.Caption).textWrappingMode = TextWrappingModes.NoWrap;
             });
         }
 

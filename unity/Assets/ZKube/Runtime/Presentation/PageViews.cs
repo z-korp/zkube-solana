@@ -168,26 +168,29 @@ namespace ZKube.Presentation
             // Scrolling content fades out over its last 24 dp at the tab bar.
             shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background));
-            // Utility tablets sit 4 dp inside the top safe inset, on the page gutters.
-            // An action that cannot be taken is not drawn.
+            // Utility tablets (.x3) sit 4 dp under the top safe inset, 12u in
+            // from the edges. An action that cannot be taken is not drawn.
+            var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
+            icon = kit.Touch(40);
             float iconY = safe.yMax - 4 * d - icon;
             back = left;
             var parent = fullBleed ? shell.Overlay : shell.Page;
-            if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + GutterDp * d, iconY, icon, icon), leftIcon, false, parent);
-            if (right != null && right.Enabled) HeaderButton(right, new Rect(safe.xMax - GutterDp * d - icon, iconY, icon, icon), SkinSlots.IconBack, true, parent);
+            if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + 12 * kit.U, iconY, icon, icon), leftIcon, false, parent);
+            if (right != null && right.Enabled) HeaderButton(right, new Rect(safe.xMax - 12 * kit.U - icon, iconY, icon, icon), SkinSlots.IconBack, true, parent);
             if (tab >= 0) TabBar(safe, tab);
             float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
             column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);
             if ((title ?? subtitle) != null)
             {
                 // The plate keeps clear of the tablets on both sides.
-                var kit = Kit;
-                var plate = kit.Title(title ?? subtitle, title == null ? null : subtitle, room: safe.width - 2 * (GutterDp * d + icon + 8 * d));
+                var plate = Kit.Title(title ?? subtitle, title == null ? null : subtitle, room: TitleRoom(kit));
                 plate.Draw(new Rect(column.Left, safe.yMax - plate.Height, column.Width, plate.Height));
                 column.Top = safe.yMax - plate.Height - 10 * kit.U;
             }
             foreach (var notice in notices) column.Note("Notice", notice);
         }
+        // A title's room between the corner tablets.
+        private float TitleRoom(ScreenKit kit) => shell.SafeArea.width - 2 * (12 * kit.U + kit.Touch(40) + 8 * ui.Density);
         private void HeaderButton(PageAction action, Rect rect, string icon, bool mirrored, Transform parent = null)
         {
             var button = ui.IconButton(action.Name ?? action.Label, rect, icon, actions.Click(action), parent ?? shell.Overlay, false, out var glyph, out _);
@@ -242,15 +245,21 @@ namespace ZKube.Presentation
                 string stars = summary.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">/" + summary.Levels * 3 + "</color>";
                 var count = inside.Beside(10, inside.Icon("Campaign stars icon", SkinSlots.StarLit, 24), inside.Value("Campaign stars", stars));
                 pieces.Add(kit.Card("Campaign · ten realms of ten levels", new[] {
-                    PortraitRow(inside, "Campaign", Step(60, 48), image => {
-                        image.enabled = false;
-                        StartCoroutine(LoadPortraits(new List<KeyValuePair<byte, Image>> { new KeyValuePair<byte, Image>(summary.Realm, image) }, epoch));
-                    }, campaign.realmName, "Realm " + summary.Realm + " of " + Protocol.Realms.Length + (level == null ? "" : " · Level " + level), null, count),
+                    PortraitRow(inside, "Campaign", Step(60, 48), image => Portrait(summary.Realm, image), campaign.realmName, "Realm " + summary.Realm + " of " + Protocol.Realms.Length + (level == null ? "" : " · Level " + level), null, count),
                     Buttons(inside, (play, ScreenKit.Kind.Quiet, play == summary.Map ? SkinSlots.IconMap : SkinSlots.IconPlay)) }, "Campaign card"));
             }
             foreach (var notice in notices) pieces.Add(kit.Note(notice));
             pieces.Add(Piece.Grow);
             Compose(pieces.ToArray());
+            ShowPortraits();
+        }
+        // The cards' guardian portraits come from their own realms, loaded once for the page.
+        private readonly List<KeyValuePair<byte, Image>> pendingPortraits = new List<KeyValuePair<byte, Image>>();
+        private void Portrait(byte realm, Image image) { image.enabled = false; pendingPortraits.Add(new KeyValuePair<byte, Image>(realm, image)); }
+        private void ShowPortraits()
+        {
+            if (pendingPortraits.Count == 0) return;
+            StartCoroutine(LoadPortraits(pendingPortraits.ToList(), epoch)); pendingPortraits.Clear();
         }
         // Today's Daily card: the guardian's portrait beside its name and the
         // objective, then the objective's pictogram and the clock chip; once the
@@ -289,7 +298,8 @@ namespace ZKube.Presentation
                 }));
             }
             if (value.Arcade?.Headline != null) under.Add(inside.Word("Daily headline", value.Arcade.Headline, inside.SmallDp, SkinTokens.Text));
-            var portrait = PortraitRow(inside, "Daily", value.Arcade == null ? Step(76, 60) : Step(72, 56), image => image.sprite = ui.Art.Sprite("boss__portrait"), title,
+            // The day's own guardian, whatever realm the page's art is from.
+            var portrait = PortraitRow(inside, "Daily", value.Arcade == null ? Step(76, 60) : Step(72, 56), image => Portrait(value.Realm, image), title,
                 catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue), under.Count == 0 ? (ScreenKit.Side?)null : inside.Beside(8, under.ToArray()), null);
             return kit.Card("Today’s Daily", new[] { portrait }.Concat(rows).Append(buttons), "Daily card");
         }
@@ -331,8 +341,8 @@ namespace ZKube.Presentation
         // The Arena's Home, as the wireframe draws it: the Arena lockup over the
         // painting, today's Daily card with the prize pool and when entries
         // close and Enter inside it, why no entry can be made when none can,
-        // the identity's words (the Kredit balance and the board rule) and its
-        // pill pairs (Kredits and Rewards).
+        // then the identity's blocks (the Kredit balance with Kredits and
+        // Rewards, and the board rule).
         private void ArcadeHome(DailyPageView value, string[] notices)
         {
             var kit = Kit; float u = kit.U, k = kit.K;
@@ -351,13 +361,11 @@ namespace ZKube.Presentation
                 pieces.Add(Line("Daily reason", arcade.Reason, arcade.Warning ? SkinTokens.Negative : SkinTokens.Text, kit));
                 if (arcade.Detail != null) pieces.Add(Line("Daily reason detail", arcade.Detail, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, kit));
             }
-            var words = value.Blocks.Where(block => block.Kind != PanelKind.Pair).ToArray();
-            var pairs = value.Blocks.Where(block => block.Kind == PanelKind.Pair).ToArray();
-            if (pairs.Length != 0) pieces.Add(BlockPiece("Arcade pills", pairs, kit));
-            if (words.Length != 0) pieces.Add(BlockPiece("Arcade words", words, kit));
+            pieces.AddRange(BlockPieces(value.Blocks, kit, false));
             foreach (var notice in notices) pieces.Add(kit.Note(notice));
             pieces.Add(Piece.Grow);
             Compose(pieces.ToArray());
+            ShowPortraits();
         }
         // A centred line in its own name and ink, between a screen's pieces.
         private Piece Line(string name, string text, string token, ScreenKit kit)
@@ -483,7 +491,7 @@ namespace ZKube.Presentation
         public void Retire()
         {
             epoch++; sharing.Cancel(); sharing.Dispose(); sharing = new CancellationTokenSource();
-            actions?.Clear(); back = null; countdown = null; nextDaily = null; nextDailyResult = null; countdownView = null;
+            actions?.Clear(); pendingPortraits.Clear(); back = null; countdown = null; nextDaily = null; nextDailyResult = null; countdownView = null;
             // The portraits stay with the page that shows them; the shell releases them.
             portraits = null;
         }

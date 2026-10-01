@@ -26,7 +26,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("session-enable-success", 1.3f);
             Assert.That(environment.SentSignature, Is.Null);
-            StringAssert.Contains("spend your prepaid Kredits", SessionText());
+            StringAssert.Contains("spends your prepaid Kredits", SessionText());
             yield return SessionClick("Enable device"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -63,9 +63,9 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator PendingDisableKeepsTheInstallKeyAndRevokesAfterConfirmation()
         {
             yield return PrepareDeviceScenario("session-disable-pending-success");
-            StringAssert.Contains("Revokes authorization", SessionText());
             yield return SessionClick("Disable this device"); yield return Idle();
             StringAssert.Contains("Revoke device access?", SessionText());
+            StringAssert.Contains("The remaining fee allowance returns to your wallet.", SessionText());
             yield return SessionClick("Disable in wallet"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));

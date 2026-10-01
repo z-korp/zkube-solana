@@ -88,7 +88,7 @@ namespace ZKube.Integration.Presentation
                 Name = Short(player.Owner), Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
                 Standing = EmblemDefinition(worn.DisplayedEmblem).Name + (worn.StoredEmblem == 0 && worn.DisplayedEmblem != 0 ? " (automatic)" : "") + " · " +
                     TierDefinition(player.WornTier).Name + " · " + NumberFit.Figure(player.LadderPoints) + " ladder points",
-                Records = PageAction("Your records", () => ShowProfile(ProfileView.Records), () => PageAvailable() && !Busy),
+                Records = PageAction("Records", () => ShowProfile(ProfileView.Records), () => PageAvailable() && !Busy, "Your records"),
                 ChooseBorder = PageAction("Choose a border", () => ShowProfile(ProfileView.Borders), () => PageAvailable() && !Busy),
                 Stars = state.Campaign.TotalStars ?? 0,
                 Streak = (uint?)fields?["entry_streak_days"] ?? 0, BestDailyScore = (uint?)fields?["best_daily_score"] ?? 0,
@@ -153,8 +153,8 @@ namespace ZKube.Integration.Presentation
                 case ProfileView.Borders:
                 {
                     var rows = new List<PanelBlock> {
-                        PanelBlock.Portrait(Shown(selectedEmblem), 114, SkinSlots.LadderBorder(selectedBorder), 26, 3),
-                        PanelBlock.Eyebrow("Choose a border", gap: 20) };
+                        PanelBlock.Portrait(Shown(selectedEmblem), SkinSlots.LadderBorder(selectedBorder)),
+                        PanelBlock.Eyebrow("Choose a border") };
                     foreach (var tier in ProfileIdentityCatalog.Tiers)
                     {
                         byte id = tier.Id; bool earned = id <= player.HighestTier;
@@ -164,8 +164,8 @@ namespace ZKube.Integration.Presentation
                                 () => ProfileEditable() && profileRead.Value.Identity.CanWear(selectedEmblem, id), "Border " + id) : null,
                             SkinSlots.LadderBorder(id), SkinSlots.LadderBadge(id), !earned));
                     }
-                    rows.Add(PanelBlock.Text("Border rule", "Earned borders stay available. Ladder points are permanent and pay no rewards.", 14,
-                        SkinTokens.TextMuted, gap: 0, lead: 6));
+                    rows.Add(PanelBlock.Text("Border rule", "Earned borders stay available. Ladder points are permanent and pay no rewards.",
+                        SkinTokens.TextMuted));
                     return new PanelPageView { Key = "Profile Borders", Title = "Borders", Subtitle = Short(player.Owner), Back = back, Tab = 2,
                         Blocks = rows.ToArray() };
                 }
@@ -174,28 +174,28 @@ namespace ZKube.Integration.Presentation
                     // The preview of a changed choice, to wear or put back.
                     var name = EmblemDefinition(Shown(selectedEmblem)).Name + " · " + TierDefinition(selectedBorder).Name;
                     var blocks = new List<PanelBlock> {
-                        PanelBlock.Portrait(Shown(selectedEmblem), 152, SkinSlots.LadderBorder(selectedBorder), 43, 33),
-                        PanelBlock.Card("Selection card", PanelBlock.Title(name, 28, gap: 24, centered: true, name: "Selection"),
-                            PanelBlock.Text("Selection rule", "Your current emblem and border stay worn until this change is confirmed.", 16, gap: 0)) };
+                        PanelBlock.Portrait(Shown(selectedEmblem), SkinSlots.LadderBorder(selectedBorder)),
+                        PanelBlock.Card("Selection card", PanelBlock.Title(name, centered: true, name: "Selection"),
+                            PanelBlock.Text("Selection rule", "Your current emblem and border stay worn until this change is confirmed.")) };
                     var receipt = ReceiptRow("Profile");
                     if (receipt != null) blocks.Add(receipt);
                     if (economyActionPending || sessionActionPending)
                     {
-                        blocks.Add(PanelBlock.Text("Selection notice", "Your wallet request is still finishing.", 16, gap: 20, lead: 20));
+                        blocks.Add(PanelBlock.Text("Selection notice", "Your wallet request is still finishing."));
                         blocks.Add(DisconnectButton());
                     }
                     else if (state.Pending != null)
                     {
-                        blocks.Add(PanelBlock.Text("Selection notice", "Check your pending transaction before changing your profile.", 16, gap: 20, lead: 20));
+                        blocks.Add(PanelBlock.Text("Selection notice", "Check your pending transaction before changing your profile."));
                         blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
                     }
                     else if (!state.Session.Current || state.Session.Funding != "ready")
                     {
-                        blocks.Add(PanelBlock.Text("Selection notice", "Set up this device to change your emblem or border.", 16, gap: 20, lead: 20));
+                        blocks.Add(PanelBlock.Text("Selection notice", "Set up this device to change your emblem or border."));
                         blocks.Add(PanelBlock.Button(PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy), true));
                     }
                     else blocks.Add(PanelBlock.Button(PageAction("Wear selection", () => _ = WearProfileSelection(),
-                        () => ProfileEditable() && ProfileSelectionChanged()), true, lead: 36));
+                        () => ProfileEditable() && ProfileSelectionChanged()), true));
                     blocks.Add(PanelBlock.Button(PageAction("Keep current look", KeepProfileLook, () => PageAvailable() && !Busy), false));
                     // Back keeps the choice for more changes; Keep current look puts it back.
                     return new PanelPageView { Key = "Profile Selection", Title = "Wear selection", Back = back, Blocks = blocks.ToArray() };
@@ -207,25 +207,25 @@ namespace ZKube.Integration.Presentation
         private PanelPageView Records(MoneyProfileState state, PageAction back)
         {
             var player = state.Profile; var fields = player.Fields;
-            var ladder = new List<PanelBlock> { PanelBlock.Eyebrow("Ladder", gap: 16),
-                PanelBlock.Split("Ladder", null, player.LadderPoints.ToString("N0", CultureInfo.InvariantCulture), 36, TierDefinition(player.CurrentTier).Name,
-                    SkinSlots.LadderBadge(player.CurrentTier), 18) };
+            var ladder = new List<PanelBlock> { PanelBlock.Eyebrow("Ladder"),
+                PanelBlock.Split("Ladder", null, player.LadderPoints.ToString("N0", CultureInfo.InvariantCulture), TierDefinition(player.CurrentTier).Name,
+                    SkinSlots.LadderBadge(player.CurrentTier)) };
             ladder.Add(PanelBlock.Text("Ladder next", player.NextTierFloor.HasValue ?
                 NumberFit.Figure(player.NextTierFloor.Value > player.LadderPoints ? player.NextTierFloor.Value - player.LadderPoints : 0) +
-                " points to " + TierDefinition((byte)(player.CurrentTier + 1)).Name : "Top tier", 14, SkinTokens.TextMuted, gap: 0));
+                " points to " + TierDefinition((byte)(player.CurrentTier + 1)).Name : "Top tier", SkinTokens.TextMuted));
             if (player.HighestTier > player.CurrentTier)
-                ladder.Add(PanelBlock.Text("Ladder best", "Best ever · " + TierDefinition(player.HighestTier).Name, 14, SkinTokens.TextMuted, gap: 0, lead: 8));
+                ladder.Add(PanelBlock.Text("Ladder best", "Best ever · " + TierDefinition(player.HighestTier).Name, SkinTokens.TextMuted));
             var blocks = new List<PanelBlock> { PanelBlock.Card("Ladder card", ladder.ToArray()) };
             foreach (string kind in new[] { "score", "theme" })
             {
                 var record = fields?[kind + "_record"]; uint rank = (uint?)record?["best_prize_rank"] ?? 0; uint wins = (uint?)record?["wins"] ?? 0;
                 ulong rewards = (ulong?)record?["rewards_lamports"] ?? 0;
                 string name = MoneyText.Board(kind, catalog);
-                blocks.Add(PanelBlock.Card(name + " record card", PanelBlock.Title(name + " boards", 24, gap: 18),
-                    PanelBlock.Row(name + " best", "Best paid place", rank == 0 ? "—" : "#" + rank, gap: 18),
-                    PanelBlock.Text(name + " wins", wins + (wins == 1 ? " win" : " wins") + " · " + Sol(rewards) + " received", 14, SkinTokens.TextMuted, gap: 0)));
+                blocks.Add(PanelBlock.Card(name + " record card", PanelBlock.Title(name + " boards"),
+                    PanelBlock.Row(name + " best", "Best paid place", rank == 0 ? "—" : "#" + rank),
+                    PanelBlock.Text(name + " wins", wins + (wins == 1 ? " win" : " wins") + " · " + Sol(rewards) + " received", SkinTokens.TextMuted)));
             }
-            blocks.Add(PanelBlock.Button(PageAction("Back to Profile", back.Invoke, back.CanInvoke), false, lead: 16));
+            blocks.Add(PanelBlock.Button(PageAction("Back to Profile", back.Invoke, back.CanInvoke), false));
             return new PanelPageView { Key = "Profile Records", Title = "Your records", Subtitle = Short(player.Owner), Back = back, Blocks = blocks.ToArray() };
         }
     }

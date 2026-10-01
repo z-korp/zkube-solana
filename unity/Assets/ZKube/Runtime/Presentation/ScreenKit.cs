@@ -164,8 +164,9 @@ namespace ZKube.Presentation
         // A card (.card3): padding 10u by 12u, its header in the display face's
         // muted capitals, then its parts 4u apart. The parts are drawn by pieces
         // measured at the card's inside (Inside()).
-        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", float padVU = 10, float padHU = 12)
+        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", Side? tag = null)
         {
+            const float padVU = 10, padHU = 12;
             float u = U, pad = padVU * u;
             var stack = Stack(4, parts.ToArray());
             float headerHeight = header == null ? 0 : HeaderDp * Ui.Scale * Ui.Density * DisplayNormal + 4 * u;
@@ -177,6 +178,13 @@ namespace ZKube.Presentation
                     var head = Text(name + " heading", header.ToUpperInvariant(), new Rect(inside.x, inside.yMax - headerHeight + 4 * u, inside.width, headerHeight - 4 * u),
                         HeaderDp, SkinTokens.TextMuted, SkinUi.Type.Display, DisplayNormal, TextAlignmentOptions.Left);
                     head.characterSpacing = 6;
+                    // A tag (.tag) follows the heading 6u on.
+                    if (tag.HasValue)
+                    {
+                        head.ForceMeshUpdate();
+                        float x = inside.x + head.textBounds.size.x + 6 * u, middle = inside.yMax - (headerHeight - 4 * u) / 2;
+                        tag.Value.Draw(new Rect(x, middle - tag.Value.Height / 2, tag.Value.Width, tag.Value.Height));
+                    }
                 }
                 stack.Draw(new Rect(inside.x, inside.y, inside.width, inside.height - headerHeight));
             });
@@ -263,9 +271,9 @@ namespace ZKube.Presentation
             float u = U, numberDp = 16 * K, wordsDp = SubtitleDp;
             float iconSize = icon == null ? 0 : iconU * u;
             float numberWidth = number == null ? 0 : TextWidth(System.Text.RegularExpressions.Regex.Replace(number, "[0-9]", "8"), numberDp, SkinUi.Type.Display);
-            string spaced = words == null ? null : number == null ? words : " " + words;
-            float wordsWidth = words == null ? 0 : TextWidth(spaced, wordsDp, SkinUi.Type.Caption);
-            float w = 5 * u + iconSize + (icon == null ? 0 : 6 * u) + numberWidth + wordsWidth + 10 * u;
+            // Its parts are 6u apart (.chip3).
+            float wordsWidth = words == null ? 0 : TextWidth(words, wordsDp, SkinUi.Type.Caption), between = number != null && words != null ? 6 * u : 0;
+            float w = 5 * u + iconSize + (icon == null ? 0 : 6 * u) + numberWidth + between + wordsWidth + 10 * u;
             float h = Mathf.Max(iconSize, Mathf.Max(numberDp * Ui.Scale * Ui.Density * DisplayNormal, wordsDp * Ui.Scale * Ui.Density * BodyNormal)) + 8 * u;
             return new Side(w, h, rect => {
                 Ui.Pill(name, rect, Parent, new Color(11 / 255f, 20 / 255f, 28 / 255f, 1));
@@ -275,10 +283,10 @@ namespace ZKube.Presentation
                 {
                     var n = Ui.Label(name + " number", number, new Rect(x, rect.y, numberWidth + 2, rect.height), numberDp, SkinTokens.Text, Parent, SkinUi.Type.Display,
                         TextAlignmentOptions.Left);
-                    n.textWrappingMode = TextWrappingModes.NoWrap; x += numberWidth;
+                    n.textWrappingMode = TextWrappingModes.NoWrap; x += numberWidth + between;
                 }
                 if (words != null)
-                    Ui.Label(name + " words", spaced, new Rect(x, rect.y, wordsWidth + 2, rect.height), wordsDp, SkinTokens.Text, Parent, SkinUi.Type.Caption,
+                    Ui.Label(name + " words", words, new Rect(x, rect.y, wordsWidth + 2, rect.height), wordsDp, SkinTokens.Text, Parent, SkinUi.Type.Caption,
                         TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
             });
         }
@@ -430,18 +438,23 @@ namespace ZKube.Presentation
         // icon. A row too wide for the column first sets its words a step smaller,
         // then stacks, the primary on top. made receives each button and its
         // label, by its index.
-        public Piece Buttons((string name, string label, Action click, Kind kind, string icon)[] items, Action<int, Button, TMP_Text> made = null)
+        // A small row (a pack's price on its row) keeps every button at the quiet
+        // height, its lit words at 18u.
+        // A button's words shrink toward 14 dp to fit it and, past that, take
+        // their shorter form (shorter, by index) where there is one.
+        public Piece Buttons((string name, string label, Action click, Kind kind, string icon)[] items, Action<int, Button, TMP_Text> made = null, bool small = false,
+            string[] shorter = null)
         {
             float u = U, gap = 10 * u, column = width;
-            float primaryDp = 24 * K, secondaryDp = 20 * K;
+            float primaryDp = small ? 18 * K : 24 * K, secondaryDp = small ? 18 * K : 20 * K;
             float Size((string name, string label, Action click, Kind kind, string icon) item) =>
                 item.kind == Kind.Primary ? primaryDp : item.kind == Kind.Secondary ? secondaryDp : QuietDp;
             SkinUi.Type Face((string name, string label, Action click, Kind kind, string icon) item) => item.kind == Kind.Quiet ? SkinUi.Type.Caption : SkinUi.Type.Display;
-            float Tall((string name, string label, Action click, Kind kind, string icon) item) => item.kind == Kind.Quiet ? QuietHeight : 62 * u;
+            float Tall((string name, string label, Action click, Kind kind, string icon) item) => item.kind == Kind.Quiet || small ? QuietHeight : 62 * u;
             float Wide((string name, string label, Action click, Kind kind, string icon) item) =>
                 TextWidth(item.label, Size(item), Face(item)) + (item.icon == null ? 0 : 28 * u + 8 * u) + 32 * u;
             float Row() => items.Sum(Wide) + gap * (items.Length - 1);
-            if (Row() > column) { primaryDp = 20 * K; secondaryDp = 18 * K; }
+            if (!small && Row() > column) { primaryDp = 20 * K; secondaryDp = 18 * K; }
             bool stacked = Row() > column;
             var order = Enumerable.Range(0, items.Length).OrderBy(i => stacked && items[i].kind != Kind.Primary).ToArray();
             float rowHeight = items.Length == 0 ? 0 : items.Max(Tall);
@@ -467,7 +480,16 @@ namespace ZKube.Presentation
                     }
                     text.textWrappingMode = TextWrappingModes.NoWrap;
                     // The icon and the words centre together (.b3), 8u apart.
-                    float words = TextWidth(item.label, Size(item), Face(item)), lead = item.icon == null ? 0 : 36 * u;
+                    float lead = item.icon == null ? 0 : 36 * u, room = w - 32 * u - lead, size = Size(item), floor = PageColumn.ButtonMinimumDp / Ui.Scale;
+                    // Measured on the label itself, as it draws.
+                    float Measure() => text.GetPreferredValues(text.text, float.PositiveInfinity, float.PositiveInfinity).x + Ui.Density;
+                    float words = Measure();
+                    if (words > room && shorter?[i] != null && room / words * size < floor) { text.text = shorter[i]; words = Measure(); }
+                    if (words > room)
+                    {
+                        size = Mathf.Max(floor, size * room / words);
+                        text.fontSize = size * Ui.Density * Ui.Scale; words = Measure();
+                    }
                     float left = Mathf.Max(at.x + 16 * u, at.center.x - (lead + words) / 2);
                     var glyph = button.transform.Find(item.name + " icon");
                     if (glyph != null) SkinUi.Place((RectTransform)glyph, new Rect(left, at.center.y - 14 * u, 28 * u, 28 * u), button.transform);

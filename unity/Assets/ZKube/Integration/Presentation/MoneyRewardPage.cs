@@ -81,12 +81,12 @@ namespace ZKube.Integration.Presentation
         }
         // A board by its name on this day.
         private string RewardName(string kind) => MoneyText.Board(kind, catalog, rewardDay);
-        private string ClaimLabel(string kind) => "Claim " + MoneyText.Board(kind, catalog) + " reward";
 
         private PageAction DayAction(string label, int step) =>
             PageAction(label, () => _ = OpenRewards((uint)(rewardDay + step)), () => PageAvailable() && !Busy);
-        private PanelBlock Days() => PanelBlock.Pair(rewardDay > 0 ? DayAction("Earlier day", -1) : null,
-            rewardDay < now() / 86400 ? DayAction("Later day", 1) : null, gap: 0);
+        // The days either side, and the ladder total at the line's end.
+        private PanelBlock Days(MoneyRewardState state) => PanelBlock.Bar("Ladder total", null, NumberFit.Figure(state.Profile.LadderPoints), "ladder points", true,
+            rewardDay > 0 ? DayAction("Earlier day", -1) : null, rewardDay < now() / 86400 ? DayAction("Later day", 1) : null);
 
         // The day's two boards, each with your position and payout and its claim,
         // or why there is none; the guardian speaks for a day with nothing to show.
@@ -103,82 +103,84 @@ namespace ZKube.Integration.Presentation
             if (receipt != null) blocks.Add(receipt);
             string paid = ConfirmedRewardText(state);
             if (economyActionPending || sessionActionPending)
-            { blocks.Add(PanelBlock.Text("Reward notice", "Your transaction is still finishing.", 16, gap: 16)); blocks.Add(DisconnectButton()); }
+            { blocks.Add(PanelBlock.Text("Reward notice", "Your transaction is still finishing.")); blocks.Add(DisconnectButton()); }
             else if (state.Pending != null)
             {
-                blocks.Add(PanelBlock.Text("Reward notice", "Check your pending transaction before collecting another reward.", 16, gap: 12));
+                blocks.Add(PanelBlock.Text("Reward notice", "Check your pending transaction before collecting another reward."));
                 blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
             }
             if (boards.All(board => board.ClaimStatus == "unsealed") && paid == null)
             {
-                blocks.Add(PanelBlock.Talk("This board has not been sealed yet. Rewards open after its results are finalized.", "idle", blocks.Count == 0 ? 209 : 40));
-                blocks.Add(PanelBlock.Title("Results pending", 27, gap: 50));
+                blocks.Add(PanelBlock.Talk("This board has not been sealed yet. Rewards open after its results are finalized.", "idle"));
+                blocks.Add(PanelBlock.Title("Results pending"));
                 blocks.Add(PanelBlock.Button(PageAction("Refresh results", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true));
-                blocks.Add(Ladder(state)); blocks.Add(Days());
+                blocks.Add(Days(state));
                 page.Blocks = blocks.ToArray();
                 return page;
             }
             if (boards.All(board => board.Yours == null) && paid == null)
             {
                 blocks.Add(PanelBlock.Talk(boards.All(board => board.Rows.Count == 0) ? "No one placed on this day’s sealed boards." :
-                    "You have no placed position on a sealed board for this day.", "idle", blocks.Count == 0 ? 209 : 40));
-                blocks.Add(PanelBlock.Icon(SkinSlots.IconTrophy, 56, SkinTokens.Text, gap: 12));
-                blocks.Add(PanelBlock.Title("No rewards yet", 27, gap: 50));
+                    "You have no placed position on a sealed board for this day.", "idle"));
+                blocks.Add(PanelBlock.Icon(SkinSlots.IconTrophy, SkinTokens.Text));
+                blocks.Add(PanelBlock.Title("No rewards yet"));
                 blocks.Add(PanelBlock.Button(PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy), true));
                 foreach (var board in boards.Where(board => board.Rows.Count != 0))
                     blocks.Add(PanelBlock.Button(Shorter(PageAction("View " + RewardName(board.Kind) + " board", () => OpenBoard(board.Kind),
                         () => PageAvailable() && !Busy), "View " + MoneyText.Board(board.Kind, catalog) + " board"), false));
-                blocks.Add(Ladder(state)); blocks.Add(Days());
+                blocks.Add(Days(state));
                 page.Blocks = blocks.ToArray();
                 return page;
             }
-            if (paid != null) blocks.Add(PanelBlock.Text("Reward received", paid, 16, SkinTokens.Positive, gap: 16));
+            if (paid != null) blocks.Add(PanelBlock.Text("Reward received", paid, SkinTokens.Positive));
             if (state.Pending == null && !economyActionPending && !sessionActionPending)
             {
-                if (!state.Session.Current) blocks.Add(PanelBlock.Text("Reward notice", "Set up this device to collect rewards.", 16, gap: 16));
-                else if (state.Session.Funding != "ready") blocks.Add(PanelBlock.Text("Reward notice", "Refill this device's fee allowance to collect rewards.", 16, gap: 16));
+                if (!state.Session.Current) blocks.Add(PanelBlock.Text("Reward notice", "Set up this device to collect rewards."));
+                else if (state.Session.Funding != "ready") blocks.Add(PanelBlock.Text("Reward notice", "Refill this device's fee allowance to collect rewards."));
             }
             foreach (var board in boards) blocks.Add(BoardCard(board, state));
-            blocks.Add(PanelBlock.Text("Claim window", "Each board has a 30-day claim window, starting when that board is sealed.", 15, gap: 8, centered: false));
-            blocks.Add(Ladder(state));
-            blocks.Add(Days());
+            blocks.Add(Days(state));
+            blocks.Add(PanelBlock.Text("Claim window", "Each board has a 30-day claim window from sealing.", SkinTokens.TextMuted));
             page.Blocks = blocks.ToArray();
             return page;
         }
-        private static PanelBlock Ladder(MoneyRewardState state) =>
-            PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(state.Profile.LadderPoints) + " points", 13, SkinTokens.TextMuted, gap: 26, centered: false);
-
-        // One board: its name and whether it is sealed, your position and
-        // payout, then the claim, or its state.
+        // One board: its name and whether it is sealed, then your place (or
+        // the board) with where it stands, its claim naming the payout, and
+        // the board's rows.
         private PanelBlock BoardCard(PrizeBoard board, MoneyRewardState state)
         {
             string name = RewardName(board.Kind);
             bool isSealed = board.ClaimStatus != "unsealed" && board.ClaimStatus != "unavailable";
-            var lines = new List<PanelBlock> { PanelBlock.Title(name, 25, gap: 20, tag: isSealed ? "Sealed" : null, name: name + " board") };
-            if (board.Yours != null) lines.Add(PanelBlock.Split(name + " position", "Your position", "#" + board.Yours.Rank, 33, Sol(board.Yours.PayoutLamports), gap: 22));
+            var lines = new List<PanelBlock> { PanelBlock.Eyebrow(name + " board", SkinTokens.TextMuted, isSealed ? "Sealed" : null) };
+            PanelBlock claim = null; string detail;
             switch (board.ClaimStatus)
             {
                 case "claimable":
-                    if (board.ExpiresAt.HasValue) lines.Add(PanelBlock.Text(name + " deadline", "Claim by " + Utc(board.ExpiresAt.Value), 13, SkinTokens.TextMuted, gap: 12));
+                    detail = board.ExpiresAt.HasValue ? "Claim by " + Utc(board.ExpiresAt.Value) : null;
                     if (state.Pending == null && state.Session.Current && state.Session.Funding == "ready")
-                        lines.Add(PanelBlock.Button(PageAction(ClaimLabel(board.Kind), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind),
-                            "Collect " + MoneyText.Board(board.Kind, catalog)), true, 12));
+                        claim = PanelBlock.Button(PageAction("Claim " + Sol(board.Yours.PayoutLamports), () => _ = CollectReward(board.Kind), () => CanClaimReward(board.Kind),
+                            "Collect " + MoneyText.Board(board.Kind, catalog)), true);
                     break;
-                case "claimed": lines.Add(PanelBlock.Text(name + " state", "Reward collected", 18, SkinTokens.Positive, gap: 12)); break;
-                case "expired":
-                    lines.Add(PanelBlock.Text(name + " state", "Claim window closed", 18, SkinTokens.Negative, gap: 8));
-                    lines.Add(PanelBlock.Text(name + " state detail", "Expired · 30 days after sealing", 14, SkinTokens.TextMuted, gap: 12)); break;
-                case "unsealed":
-                    lines.Add(PanelBlock.Text(name + " state", "Results are being finalized. Rewards open when this board is sealed.", 15, gap: 12)); break;
-                case "no-placement":
-                    lines.Add(PanelBlock.Text(name + " state", board.Rows.Count == 0 ? "No qualifying winners on this board." : "You have no reward on this board.", 15, gap: 12));
-                    break;
-                default: lines.Add(PanelBlock.Text(name + " state", "Results are not available yet.", 15, gap: 12)); break;
+                case "claimed": detail = "Reward collected · " + Sol(board.Yours.PayoutLamports); break;
+                case "expired": detail = "Claim window closed · 30 days after sealing"; break;
+                case "unsealed": detail = "Results are being finalized. Rewards open when this board is sealed."; break;
+                case "no-placement": detail = board.Rows.Count == 0 ? "No qualifying winners on this board." : "You have no reward on this board."; break;
+                default: detail = "Results are not available yet."; break;
             }
+            lines.Add(PanelBlock.Row(name + " position", board.Yours != null ? "Your place" : name, board.Yours == null ? null : "#" + board.Yours.Rank,
+                detail: detail, icon: BoardIcon(board.Kind)));
+            if (claim != null) lines.Add(claim);
             if (board.Rows.Count != 0 || isSealed)
-                lines.Add(PanelBlock.Button(PageAction("View board", () => OpenBoard(board.Kind), () => PageAvailable() && !Busy, "View " + name + " board"), false, 0));
-            else lines[lines.Count - 1].Gap = 0;
+                lines.Add(PanelBlock.Button(PageAction("View board", () => OpenBoard(board.Kind), () => PageAvailable() && !Busy, "View " + name + " board"), false));
             return PanelBlock.Card(name + " card", lines.ToArray());
+        }
+        // A board's pictogram: the score's spark, or the day's objective in its realm's bonus.
+        private string BoardIcon(string kind)
+        {
+            if (kind == "score") return SkinSlots.GoalScore;
+            var daily = NativeEngine.Daily(rewardDay);
+            if (daily.Kind == 0) return SkinSlots.GoalScore;
+            return catalog.Goal(daily.Kind, daily.Value).Pictogram((byte)Protocol.Realms.Single(realm => realm.MapId == daily.Realm).GuardianAndHeight[0]);
         }
         // A board's own name where it fits a pill, its general name where not.
         private static PageAction Shorter(PageAction action, string words) { action.Short = words; return action; }
@@ -199,31 +201,30 @@ namespace ZKube.Integration.Presentation
             var toggle = PanelBlock.Pair(PageAction("Score", () => { boardKind = "score"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
                 Shorter(PageAction(RewardName("theme"), () => { boardKind = "theme"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
                     MoneyText.Board("theme", catalog)),
-                boardKind == "score" ? 0 : 1, 22);
+                boardKind == "score" ? 0 : 1);
             if (board.Rows.Count == 0)
             {
                 page.Blocks = new[] { toggle,
-                    PanelBlock.Talk("No one has a positive result on this board. A run needs a result above zero to place.", "idle", 60),
-                    PanelBlock.Title("No qualifying runs", 27, gap: 50), PanelBlock.Button(back, true) };
+                    PanelBlock.Talk("No one has a positive result on this board. A run needs a result above zero to place.", "idle"),
+                    PanelBlock.Title("No qualifying runs"), PanelBlock.Button(back, true) };
                 return page;
             }
             const int count = 5;
             boardPage = Math.Max(0, Math.Min(boardPage, (board.Rows.Count - 1) / count));
-            var lines = new List<PanelBlock> { PanelBlock.Eyebrow(name, gap: 22) };
+            var lines = new List<PanelBlock> { PanelBlock.Eyebrow(name) };
             if (board.Yours != null)
-                lines.Add(PanelBlock.Figure(name + " yours", "Your position", "#" + board.Yours.Rank + " · " + board.Yours.Metric.ToString("N0", CultureInfo.InvariantCulture), 32, gap: 28));
+                lines.Add(PanelBlock.Figure(name + " yours", "Your position", "#" + board.Yours.Rank + " · " + board.Yours.Metric.ToString("N0", CultureInfo.InvariantCulture)));
             foreach (var row in board.Rows.Skip(boardPage * count).Take(count))
             {
                 string player = row.Record.Player == identity.Owner ? "You" : Short(row.Record.Player);
                 lines.Add(PanelBlock.Row(name + " row " + row.Rank, "#" + row.Rank + "  " + player,
-                    row.Metric.ToString("N0", CultureInfo.InvariantCulture) + "  ·  " + Sol(row.PayoutLamports), SkinTokens.Objective, gap: 13));
+                    row.Metric.ToString("N0", CultureInfo.InvariantCulture) + "  ·  " + Sol(row.PayoutLamports), SkinTokens.Objective));
             }
-            lines[lines.Count - 1].Gap = 0;
             var blocks = new List<PanelBlock> { toggle, PanelBlock.Card(name + " rows", lines.ToArray()),
-                PanelBlock.Text("Board rule", "One best run per player on each board. Places are final once the board is sealed.", 15, gap: 30, centered: false) };
+                PanelBlock.Text("Board rule", "One best run per player on each board. Places are final once the board is sealed.", centered: false) };
             if (boardPage > 0 || (boardPage + 1) * count < board.Rows.Count)
                 blocks.Add(PanelBlock.Pair(boardPage > 0 ? PageAction("Earlier rows", () => ChangeBoardRows(-1), () => PageAvailable() && !Busy) : null,
-                    (boardPage + 1) * count < board.Rows.Count ? PageAction("More rows", () => ChangeBoardRows(1), () => PageAvailable() && !Busy) : null, gap: 0));
+                    (boardPage + 1) * count < board.Rows.Count ? PageAction("More rows", () => ChangeBoardRows(1), () => PageAvailable() && !Busy) : null));
             page.Blocks = blocks.ToArray();
             return page;
         }

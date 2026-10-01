@@ -69,8 +69,8 @@ namespace ZKube.Integration.Presentation
             if (identity?.Owner == null) return view;
             var session = settingsRead != null && settingsRead.IsCurrent ? settingsRead.Value.Session : null;
             view.Identity = new[] {
-                PanelBlock.Card("Device card", PanelBlock.Eyebrow("This device", SkinTokens.TextMuted, gap: 10),
-                    new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = DeviceState(session).Short, Size = 18,
+                PanelBlock.Card("Device card", PanelBlock.Eyebrow("This device", SkinTokens.TextMuted),
+                    new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = DeviceState(session).Short,
                         Token = DeviceState(session).Token, Action = PageAction("Manage", () => _ = OpenSession(true), () => PageAvailable() && !Busy) }),
                 PanelBlock.Pair(PageAction("Last operation", () => OpenOperation(true), () => PageAvailable() && !Busy),
                     PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable())) };
@@ -152,7 +152,7 @@ namespace ZKube.Integration.Presentation
             }
         }
         // While a wallet request is open, Disconnect stays within reach.
-        private PanelBlock DisconnectButton() => PanelBlock.Button(PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()), false, lead: 8);
+        private PanelBlock DisconnectButton() => PanelBlock.Button(PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()), false);
         // A failure the page itself does not show goes on it as a notice.
         private string NoticeFor(string family) => family == "Connect" ? null :
             failure != null && !(walletFailure && family == "Kredits") ? failure : info;
@@ -166,13 +166,13 @@ namespace ZKube.Integration.Presentation
                 page.Blocks = new[] {
                     PanelBlock.Talk(failure == "Network configuration is unavailable." ? failure :
                         "We could not refresh Arcade. Check your connection, or continue your saved Campaign.", "defeated"),
-                    PanelBlock.Title("No connection", 27, gap: 50),
+                    PanelBlock.Title("No connection"),
                     PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true),
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
             else if (Busy || message == null)
                 page.Blocks = sessionActionPending || economyActionPending ?
-                    new[] { PanelBlock.Text("Page notice", "Your wallet request is still finishing.", 16, SkinTokens.TextMuted, lead: 40), DisconnectButton() } :
-                    new[] { PanelBlock.Text("Page notice", message ?? "Checking…", 16, SkinTokens.TextMuted, lead: 40) };
+                    new[] { PanelBlock.Text("Page notice", "Your wallet request is still finishing.", SkinTokens.TextMuted), DisconnectButton() } :
+                    new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
             else
                 page.Blocks = new[] {
                     PanelBlock.Talk(message, "idle"),
@@ -188,17 +188,16 @@ namespace ZKube.Integration.Presentation
             var today = publicRead != null && publicRead.IsCurrent ? publicRead.Value : null;
             string facts = today == null ? "Checking today’s Daily…" : "Today · " + Day(today.DayId) + " · UTC · " + PublicStatus(today.Status);
             var blocks = new List<PanelBlock> {
-                PanelBlock.Portrait(TodayRealm, 164, gap: 39, lead: 43),
+                PanelBlock.Portrait(TodayRealm),
                 PanelBlock.Card("Connect card",
-                    PanelBlock.Title("Your address. Your play.", 25, gap: 26, centered: true),
-                    PanelBlock.Text("Connect copy", "Connect your Solana wallet to enter Arena. Your address is your player identity.", 17, gap: 16),
-                    PanelBlock.Text("Connect cost", "Campaign is free. Connecting does not spend SOL or enable a device session.", 15, SkinTokens.TextMuted, gap: 16),
-                    PanelBlock.Text("Daily facts", facts, 13, SkinTokens.TextMuted, gap: 0)) };
-            if (failure != null && !Busy) blocks.Add(PanelBlock.Text("Connect failure", walletFailure ? "Connection cancelled" : failure, 18, SkinTokens.Negative, gap: 18));
-            else blocks[blocks.Count - 1].Gap = 48;
+                    PanelBlock.Title("Your address. Your play.", centered: true),
+                    PanelBlock.Text("Connect copy", "Connect your Solana wallet to enter Arena. Your address is your player identity."),
+                    PanelBlock.Text("Connect cost", "Campaign is free. Connecting does not spend SOL or enable a device session.", SkinTokens.TextMuted),
+                    PanelBlock.Text("Daily facts", facts, SkinTokens.TextMuted)) };
+            if (failure != null && !Busy) blocks.Add(PanelBlock.Text("Connect failure", walletFailure ? "Connection cancelled" : failure, SkinTokens.Negative));
             blocks.Add(PanelBlock.Button(PageAction(failure != null ? "Try connecting again" : "Connect wallet", () => _ = Connect(),
-                () => PageAvailable() && !Busy, "Connect"), true, 24));
-            blocks.Add(PanelBlock.Text("Connect hint", "Choose your wallet in the Android wallet sheet.", 13, SkinTokens.TextMuted, gap: 0));
+                () => PageAvailable() && !Busy, "Connect"), true));
+            blocks.Add(PanelBlock.Text("Connect hint", "Choose your wallet in the Android wallet sheet.", SkinTokens.TextMuted));
             return new PanelPageView { Key = "Connect", Subtitle = "Arena", Blocks = blocks.ToArray() };
         }
 
@@ -232,30 +231,29 @@ namespace ZKube.Integration.Presentation
             if (receipt == null)
             {
                 page.Blocks = new[] {
-                    PanelBlock.Card("Operation card", PanelBlock.Icon(SkinSlots.IconKredit, 64, SkinTokens.TextMuted),
-                        PanelBlock.Title("No operation yet", 25, gap: 20, centered: true),
-                        PanelBlock.Text("Transaction receipt", receiptNotice ?? "Your latest operation will appear here after a wallet or device action.", 16, gap: 8)),
-                    PanelBlock.Text("Operation note", "You can play Campaign without a device session.", 16, gap: 40, centered: false),
+                    PanelBlock.Card("Operation card", PanelBlock.Icon(SkinSlots.IconKredit, SkinTokens.TextMuted),
+                        PanelBlock.Title("No operation yet", centered: true),
+                        PanelBlock.Text("Transaction receipt", receiptNotice ?? "Your latest operation will appear here after a wallet or device action.")),
+                    PanelBlock.Text("Operation note", "You can play Campaign without a device session.", centered: false),
                     PanelBlock.Button(arcade, true) };
                 return page;
             }
             var lines = new List<PanelBlock> {
-                PanelBlock.Icon(SkinSlots.IconKredit, 64, receipt.Outcome == ExecutionOutcome.ConfirmedSuccess ? SkinTokens.Accent : SkinTokens.TextMuted),
-                PanelBlock.Title(MoneyReceiptText.Title(receipt), 25, gap: 18, centered: true) };
+                PanelBlock.Icon(SkinSlots.IconKredit, receipt.Outcome == ExecutionOutcome.ConfirmedSuccess ? SkinTokens.Accent : SkinTokens.TextMuted),
+                PanelBlock.Title(MoneyReceiptText.Title(receipt), centered: true) };
             // A confirmed title already names the operation.
             if (receipt.Outcome != ExecutionOutcome.ConfirmedSuccess)
-                lines.Add(PanelBlock.Text("Operation intent", MoneyReceiptText.Intent(receipt), 18, SkinTokens.Objective, gap: 30, centered: true));
-            else lines[lines.Count - 1].Gap = 30;
-            lines.Add(PanelBlock.Eyebrow("Receipt", SkinTokens.TextMuted, gap: 12));
-            if (string.IsNullOrEmpty(receipt.Signature)) lines.Add(PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt), 16, gap: 0));
+                lines.Add(PanelBlock.Text("Operation intent", MoneyReceiptText.Intent(receipt), SkinTokens.Objective, centered: true));
+            lines.Add(PanelBlock.Eyebrow("Receipt", SkinTokens.TextMuted));
+            if (string.IsNullOrEmpty(receipt.Signature)) lines.Add(PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt)));
             else
             {
-                lines.Add(PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt, fullReceipt), 16, gap: 10));
+                lines.Add(PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt, fullReceipt)));
                 lines.Add(PanelBlock.Button(PageAction(fullReceipt ? "Hide receipt" : "Show receipt", ToggleReceiptDetails,
-                    () => PageAvailable() && !Busy, "Receipt details"), false, 0));
+                    () => PageAvailable() && !Busy, "Receipt details"), false));
             }
             var blocks = new List<PanelBlock> { PanelBlock.Card("Operation card", lines.ToArray()) };
-            blocks.Add(PanelBlock.Text("Operation next", MoneyReceiptText.Next(receipt), 16, gap: 40, centered: false));
+            blocks.Add(PanelBlock.Text("Operation next", MoneyReceiptText.Next(receipt), centered: false));
             if (receipt.Outcome == ExecutionOutcome.Pending)
                 blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
             else if (receipt.Outcome == ExecutionOutcome.FeeShortage)
@@ -271,9 +269,9 @@ namespace ZKube.Integration.Presentation
             if (receiptFamily != family) return null;
             var receipt = LastReceipt;
             if (receipt == null && receiptNotice == null) return null;
-            return PanelBlock.Card("Receipt card", PanelBlock.Eyebrow("Last operation", SkinTokens.TextMuted, gap: 10),
-                PanelBlock.Text("Transaction receipt", receipt == null ? receiptNotice : MoneyReceiptText.Describe(receipt, fullReceipt), 15, gap: 12),
-                PanelBlock.Button(PageAction("View operation", () => OpenOperation(false), () => PageAvailable() && !Busy), false, 0));
+            return PanelBlock.Card("Receipt card", PanelBlock.Eyebrow("Last operation", SkinTokens.TextMuted),
+                PanelBlock.Text("Transaction receipt", receipt == null ? receiptNotice : MoneyReceiptText.Describe(receipt, fullReceipt)),
+                PanelBlock.Button(PageAction("View operation", () => OpenOperation(false), () => PageAvailable() && !Busy), false));
         }
     }
 }

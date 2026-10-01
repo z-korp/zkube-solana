@@ -196,69 +196,70 @@ namespace ZKube.Presentation
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
     }
 
-    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Card }
+    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card }
 
-    // One piece of an identity page. Sizes are in dp; a block's lead is the space
-    // above it and its gap the space under it. Text is left-aligned inside a
-    // card and centred outside one.
+    // One piece of an identity page, laid out by the screen kit as the
+    // wireframes lay out the Arena. Text is left-aligned inside a card and
+    // centred outside one; muted words in a card are a step smaller.
     public sealed class PanelBlock
     {
         public PanelKind Kind;
-        // Sprite and Badge are kit slots; a portrait shows Emblem in its Ring.
-        public string Name, Copy, Value, Caption, Token, Tag, TagToken, Sprite, Badge, Ring, Mood;
+        // Sprite, Badge and Pictogram are kit slots; a portrait shows Emblem in its Ring.
+        public string Name, Copy, Value, Caption, Token, Tag, TagToken, Sprite, Badge, Pictogram, Ring, Mood;
         public byte Emblem;
-        public float Size, Lead;
-        public float? Gap;
         public bool? Centered;
-        public bool Dim;
+        public bool Dim, ChipAtEnd;
         public int Primary = -1;
         public PageAction Action;
         public PageAction[] Actions = Array.Empty<PageAction>();
         public PanelBlock[] Lines = Array.Empty<PanelBlock>();
 
-        // The page realm's guardian says a line on its rail; lead is the space above.
-        public static PanelBlock Talk(string line, string mood, float lead = 209) =>
-            new PanelBlock { Kind = PanelKind.Talk, Name = "Talk", Copy = line, Mood = mood, Lead = lead };
-        // A title, with an optional tag on the right of its line.
-        public static PanelBlock Title(string text, float size = 25, string token = SkinTokens.Text, float? gap = null, bool? centered = null,
-            string tag = null, string tagToken = SkinTokens.Positive, string name = null) =>
-            new PanelBlock { Kind = PanelKind.Title, Name = name ?? text, Copy = text, Size = size, Token = token, Gap = gap, Centered = centered,
-                Tag = tag, TagToken = tagToken };
-        public static PanelBlock Text(string name, string text, float size = 16, string token = SkinTokens.Text, float? gap = null, bool? centered = null,
-            float lead = 0) =>
-            new PanelBlock { Kind = PanelKind.Text, Name = name, Copy = text, Size = size, Token = token, Gap = gap, Centered = centered, Lead = lead };
-        // Small capitals over a section, with an optional tag on the right.
-        public static PanelBlock Eyebrow(string text, string token = SkinTokens.Accent, string tag = null, string tagToken = SkinTokens.Positive,
-            float? gap = null) =>
-            new PanelBlock { Kind = PanelKind.Eyebrow, Name = text, Copy = text, Token = token, Tag = tag, TagToken = tagToken, Gap = gap };
-        // A big number with its caption above and unit after, and an optional
-        // sprite on its left.
-        public static PanelBlock Figure(string name, string caption, string value, float size, string unit = null, string sprite = null,
-            string token = SkinTokens.Accent, float? gap = null) =>
-            new PanelBlock { Kind = PanelKind.Figure, Name = name, Caption = caption, Value = value, Size = size, Copy = unit, Sprite = sprite,
-                Token = token, Gap = gap };
-        // A captioned big number on the left and a second value on the right, a
-        // title beside its badge when one is given.
-        public static PanelBlock Split(string name, string caption, string value, float size, string side, string badge = null, float? gap = null) =>
-            new PanelBlock { Kind = PanelKind.Split, Name = name, Caption = caption, Value = value, Size = size, Copy = side, Badge = badge, Gap = gap };
-        // A kit list row, one button when it has an action. With a sprite it is a
-        // choice row: the sprite (a border) and its badge lead the label.
+        // The page realm's guardian says a line, leaning on the card after it.
+        public static PanelBlock Talk(string line, string mood) =>
+            new PanelBlock { Kind = PanelKind.Talk, Name = "Talk", Copy = line, Mood = mood };
+        // A title, with an optional tag on the right of its line; a card's first
+        // title with a tag is its header.
+        public static PanelBlock Title(string text, string token = SkinTokens.Text, bool? centered = null, string tag = null,
+            string tagToken = SkinTokens.Positive, string name = null) =>
+            new PanelBlock { Kind = PanelKind.Title, Name = name ?? text, Copy = text, Token = token, Centered = centered, Tag = tag, TagToken = tagToken };
+        public static PanelBlock Text(string name, string text, string token = SkinTokens.Text, bool? centered = null) =>
+            new PanelBlock { Kind = PanelKind.Text, Name = name, Copy = text, Token = token, Centered = centered };
+        // A card's header: its capitals, with an optional tag beside them.
+        public static PanelBlock Eyebrow(string text, string token = SkinTokens.Accent, string tag = null, string tagToken = SkinTokens.Positive) =>
+            new PanelBlock { Kind = PanelKind.Eyebrow, Name = text, Copy = text, Token = token, Tag = tag, TagToken = tagToken };
+        // A big number beside its unit over its caption, led by a sprite.
+        public static PanelBlock Figure(string name, string caption, string value, string unit = null, string sprite = null, string token = SkinTokens.Accent) =>
+            new PanelBlock { Kind = PanelKind.Figure, Name = name, Caption = caption, Value = value, Copy = unit, Sprite = sprite, Token = token };
+        // A captioned number and a second value beside it, a title beside its
+        // badge when one is given.
+        public static PanelBlock Split(string name, string caption, string value, string side, string badge = null) =>
+            new PanelBlock { Kind = PanelKind.Split, Name = name, Caption = caption, Value = value, Copy = side, Badge = badge };
+        // A kit row: its icon, the label and its detail, and the value on the
+        // right (as a tag in tagToken when one is given), or, without a value,
+        // its action's button. A row with an action and a value is one button.
+        // With a sprite it is a choice row: the sprite (a border) and its badge
+        // lead the label.
         public static PanelBlock Row(string name, string label, string value, string token = SkinTokens.Score, PageAction action = null,
-            string sprite = null, string badge = null, bool dim = false, float? gap = null) =>
+            string sprite = null, string badge = null, bool dim = false, string detail = null, string icon = null, string tagToken = null, bool primary = false) =>
             new PanelBlock { Kind = PanelKind.Row, Name = name, Copy = label, Value = value, Token = token, Action = action, Sprite = sprite,
-                Badge = badge, Dim = dim, Gap = gap };
-        public static PanelBlock Icon(string slot, float size, string token, float? gap = null) =>
-            new PanelBlock { Kind = PanelKind.Icon, Name = slot, Sprite = slot, Size = size, Token = token, Gap = gap };
+                Badge = badge, Dim = dim, Caption = detail, Pictogram = icon, Tag = tagToken == null ? null : value, TagToken = tagToken, Primary = primary ? 0 : -1 };
+        public static PanelBlock Icon(string slot, string token) =>
+            new PanelBlock { Kind = PanelKind.Icon, Name = slot, Sprite = slot, Token = token };
         // A medallion: an emblem (a guardian's is the page realm's portrait) in
         // the guardian ring, or in a worn ladder border.
-        public static PanelBlock Portrait(byte emblem, float size, string ring = SkinSlots.GuardianFrame, float? gap = null, float lead = 0) =>
-            new PanelBlock { Kind = PanelKind.Portrait, Name = "Portrait", Emblem = emblem, Ring = ring, Size = size, Gap = gap, Lead = lead };
-        // A pill, led by its icon when it has one.
-        public static PanelBlock Button(PageAction action, bool primary, float? gap = null, float lead = 0, string icon = null) =>
-            new PanelBlock { Kind = PanelKind.Button, Action = action, Primary = primary ? 0 : -1, Gap = gap, Lead = lead, Sprite = icon };
-        // Two half-width pills side by side; primary names the one with the halo.
-        public static PanelBlock Pair(PageAction left, PageAction right, int primary = -1, float? gap = null) =>
-            new PanelBlock { Kind = PanelKind.Pair, Actions = new[] { left, right }, Primary = primary, Gap = gap };
+        public static PanelBlock Portrait(byte emblem, string ring = SkinSlots.GuardianFrame) =>
+            new PanelBlock { Kind = PanelKind.Portrait, Name = "Portrait", Emblem = emblem, Ring = ring };
+        // A button, led by its icon when it has one; buttons side by side share
+        // a row, and the page's last primary and the buttons after it sit at its foot.
+        public static PanelBlock Button(PageAction action, bool primary, string icon = null) =>
+            new PanelBlock { Kind = PanelKind.Button, Action = action, Primary = primary ? 0 : -1, Sprite = icon };
+        // Two buttons side by side; primary names the lit one.
+        public static PanelBlock Pair(PageAction left, PageAction right, int primary = -1) =>
+            new PanelBlock { Kind = PanelKind.Pair, Actions = new[] { left, right }, Primary = primary };
+        // A chip (its icon, a number and words) and quiet buttons on one line,
+        // the chip at the start, or at the end.
+        public static PanelBlock Bar(string name, string icon, string number, string words, bool chipAtEnd, params PageAction[] actions) =>
+            new PanelBlock { Kind = PanelKind.Bar, Name = name, Sprite = icon, Value = number, Copy = words, ChipAtEnd = chipAtEnd, Actions = actions };
         public static PanelBlock Card(string name, params PanelBlock[] lines) =>
             new PanelBlock { Kind = PanelKind.Card, Name = name, Lines = lines };
     }

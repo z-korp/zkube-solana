@@ -34,7 +34,7 @@ namespace ZKube.Presentation
             pieces.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
                 ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
                 ("Daily streak", SkinSlots.IconClock, Days(value.Streak))));
-            if (value.Emblems.Length != 0) pieces.Add(EmblemCard(value.Emblems, kit));
+            if (value.Emblems.Length != 0) pieces.Add(EmblemCard(value.Emblems, kit, value.Tier == null));
             foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
             if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(kit.Note(value.Notice));
             pieces.Add(Piece.Grow);
@@ -153,10 +153,11 @@ namespace ZKube.Presentation
         }
 
         // The guardian emblems in a card (.grid4): how an emblem is won, 10u
-        // over the grid, then four across, 4u apart and rows 8u apart, each
+        // over the grid (where the profile has no ladder standing to show in
+        // its place, as the Arena's wireframe draws it), then four across, 4u apart and rows 8u apart, each
         // emblem 56u in the guardian ring over its name ("· worn" on the worn
         // one); locked ones are dimmed with a lock and take no tap.
-        private Piece EmblemCard(ProfileChoiceView[] emblems, ScreenKit kit)
+        private Piece EmblemCard(ProfileChoiceView[] emblems, ScreenKit kit, bool explained)
         {
             float u = kit.U, k = kit.K; var inside = kit.Inside();
             float cell = 56 * u, nameDp = Mathf.Max(11, 10.5f * k);
@@ -167,10 +168,10 @@ namespace ZKube.Presentation
             var rows = Enumerable.Range(0, (emblems.Length + across - 1) / across).Select(row => emblems.Skip(row * across).Take(across)
                 .Max(choice => inside.Block(Name(choice), pitch, nameDp, SkinUi.Type.Caption, 1.15f))).ToArray();
             float grid = rows.Sum(label => cell + 2 * u + label) + (rows.Length - 1) * 8 * u;
-            return kit.Card("Guardian emblems", new[] {
-                new Piece(howHeight + 6 * u, rect => inside.Text("Emblem how", how, new Rect(rect.x, rect.yMax - howHeight, rect.width, howHeight), inside.SmallDp,
-                    SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left)),
-                new Piece(grid, rect => {
+            var parts = new List<Piece>();
+            if (explained) parts.Add(new Piece(howHeight + 6 * u, rect => inside.Text("Emblem how", how, new Rect(rect.x, rect.yMax - howHeight, rect.width, howHeight), inside.SmallDp,
+                    SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left)));
+            parts.Add(new Piece(grid, rect => {
                     float y = rect.yMax;
                     var portraits = new List<KeyValuePair<byte, Image>>();
                     for (int row = 0; row < rows.Length; row++)
@@ -204,7 +205,8 @@ namespace ZKube.Presentation
                         y -= cell + 2 * u + rows[row] + 8 * u;
                     }
                     if (portraits.Count != 0) StartCoroutine(LoadPortraits(portraits, epoch));
-                }) }, "Emblem card");
+                }));
+            return kit.Card("Guardian emblems", parts, "Emblem card");
         }
 
         // Settings, as the wireframe draws it: the title, the Sound card (a

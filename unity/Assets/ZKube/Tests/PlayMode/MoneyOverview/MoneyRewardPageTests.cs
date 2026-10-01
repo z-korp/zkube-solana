@@ -20,7 +20,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(controller.OpenRewards(environment.ClaimDay)); yield return Idle();
             Assert.That(controller.BrowsingRewards, Is.True);
             Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay));
-            StringAssert.Contains("Ladder · 200 points", SessionText());
+            StringAssert.Contains("200\nladder points", SessionText());
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
         }
         [UnityTest] public IEnumerator ScoreRewardButtonPaysOnceAndShowsConfirmedPoints() => CollectReward("score", "sealed", 170);
@@ -37,7 +37,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             StringAssert.Contains(name + " reward received · " + MoneyText.Sol(environment.ClaimAmount), SessionText());
             StringAssert.Contains("+" + points + " ladder points", SessionText());
-            StringAssert.Contains("Ladder · " + (200 + points) + " points", SessionText());
+            StringAssert.Contains((200 + points) + "\nladder points", SessionText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect " + name), Is.False);
             Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect " + peer).interactable, Is.True);
             yield return Wait(controller.CollectReward(kind));

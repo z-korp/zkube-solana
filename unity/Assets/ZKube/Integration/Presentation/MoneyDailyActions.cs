@@ -89,7 +89,6 @@ namespace ZKube.Integration.Presentation
             long freezes = (long)NativeEngine.Daily(lobby.DayId).FreezesAt;
             string closes = DateTimeOffset.FromUnixTimeSeconds(freezes).ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC";
             arcade.Closes = lobby.PotLamports.HasValue ? "Closes " + closes : null;
-            bool noKredits = false;
             // The day's state heads the clock; the entry's own state gives the reason.
             switch (lobby.Status)
             {
@@ -108,7 +107,7 @@ namespace ZKube.Integration.Presentation
                     break;
                 case "resume": break;
                 case "ready": break;
-                case "needs-kredits": noKredits = true; Reason(arcade, "No Kredits available", "Buy a pack to enter today."); break;
+                case "needs-kredits": Reason(arcade, "No Kredits available", "Buy a pack to enter today."); break;
                 case "needs-session": case "missing-player":
                     Reason(arcade, state.Entry.Status == "missing-player" ? "Set up your player before entering." : "Set up this device before entering.", null);
                     actions.Add(PageAction("Set up device", () => _ = OpenSession(), CanUseDaily)); break;
@@ -144,19 +143,19 @@ namespace ZKube.Integration.Presentation
             if (ResultAvailable("Daily") && lastResult.Day == lobby.DayId)
             {
                 string objective = catalog.ObjectiveName(lobby.ObjectiveKind, lobby.ObjectiveValue);
-                var rows = new List<PanelBlock> { PanelBlock.Eyebrow("Your last run today", SkinTokens.TextMuted, gap: 18),
-                    PanelBlock.Row("Last run score", "Score", lastResult.Score.ToString("N0", CultureInfo.InvariantCulture), gap: 3) };
+                var rows = new List<PanelBlock> { PanelBlock.Eyebrow("Your last run today", SkinTokens.TextMuted),
+                    PanelBlock.Row("Last run score", "Score", lastResult.Score.ToString("N0", CultureInfo.InvariantCulture)) };
                 if (lobby.ObjectiveKind != 0)
-                    rows.Add(PanelBlock.Row("Last run objective", Sentence(objective), lastResult.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture), gap: 0));
+                    rows.Add(PanelBlock.Row("Last run objective", Sentence(objective), lastResult.ObjectiveTotal.ToString("N0", CultureInfo.InvariantCulture)));
                 blocks.Add(PanelBlock.Card("Last run card", rows.ToArray()));
             }
-            blocks.Add(PanelBlock.Text("Kredit balance", NumberFit.Figure(lobby.Profile.Kredits) + " confirmed Kredits", 14, SkinTokens.TextMuted, gap: 14, lead: -4));
-            blocks.Add(PanelBlock.Pair(PageAction("Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy),
-                PageAction("Rewards", () => _ = OpenRewards(), () => PageAvailable() && !Busy), noKredits ? 0 : -1, 16));
+            blocks.Add(PanelBlock.Bar("Kredit balance", SkinSlots.IconKredit, NumberFit.Figure(lobby.Profile.Kredits), lobby.Profile.Kredits == 1 ? "Kredit" : "Kredits",
+                false, PageAction("Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy),
+                PageAction("Rewards", () => _ = OpenRewards(), () => PageAvailable() && !Busy)));
             blocks.Add(PanelBlock.Text("Arcade rule", lobby.ObjectiveKind == 0 ? "Classic pays the whole prize pool to Score." :
-                "Your best run on each board counts.", 13, SkinTokens.TextMuted, gap: 0));
+                "Your best run on each board counts.", SkinTokens.TextMuted));
             var receipt = ReceiptRow("Daily");
-            if (receipt != null) { receipt.Lead = 24; blocks.Add(receipt); }
+            if (receipt != null) blocks.Add(receipt);
             return new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm, ClosesAt = freezes, Now = now,
                 ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Status = PublicStatus(lobby.Status),
                 Arcade = arcade, Actions = actions.ToArray(), Blocks = blocks.ToArray() };
@@ -175,13 +174,12 @@ namespace ZKube.Integration.Presentation
             return new PanelPageView { Key = "Entry", Title = "Enter today’s Daily", Subtitle = realm.realmName + " · " + Day(lobby.DayId),
                 Back = PageAction("Back", close, CanUseDaily),
                 Blocks = new[] {
-                    PanelBlock.Talk(realm.guardianLines.dailyGreeting, "greeting", 184),
+                    PanelBlock.Talk(realm.guardianLines.dailyGreeting, "greeting"),
                     PanelBlock.Card("Entry card",
-                        PanelBlock.Row("Entry cost", "Entry", "1 Kredit", gap: 12),
-                        PanelBlock.Row("Entry balance", "Confirmed balance", lobby.Profile.Kredits.ToString(CultureInfo.InvariantCulture), gap: 22),
-                        PanelBlock.Text("Entry terms", "This entry is paid and cannot be refunded. It funds the following paid Daily, including across a suspension.", 15, gap: 6),
-                        PanelBlock.Text("Entry rule", "Each new entry uses one Kredit.", 15, gap: 0)),
-                    PanelBlock.Button(PageAction("Confirm · 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null, "Confirm 1 Kredit"), true),
+                        PanelBlock.Row("Entry cost", "Entry", "1 Kredit", icon: SkinSlots.IconKredit),
+                        PanelBlock.Row("Entry balance", "Confirmed balance", NumberFit.Figure(lobby.Profile.Kredits), icon: SkinSlots.IconKredit),
+                        PanelBlock.Text("Entry terms", "This entry is paid and cannot be refunded. It funds the next paid Daily.", SkinTokens.TextMuted)),
+                    PanelBlock.Button(PageAction("Confirm · 1 Kredit", () => _ = ConfirmDailyEntry(), () => CanEnterDaily() && boardHost != null, "Confirm 1 Kredit"), true, SkinSlots.IconPlay),
                     PanelBlock.Button(cancel, false) } };
         }
     }

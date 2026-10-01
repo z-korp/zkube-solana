@@ -79,8 +79,8 @@ namespace ZKube.Tests.Presentation
                 ClosesAt = now + 3600, Arcade = new ArcadeView { Pot = MaxSol, Closes = "Closes 23:59 UTC" },
                 Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } },
                 Blocks = new[] { PanelBlock.Card("Last run", PanelBlock.Row("Last score", "Score", Max), PanelBlock.Row("Last objective", "Objective", Max)),
-                    PanelBlock.Text("Kredit balance", NumberFit.Figure(ulong.MaxValue) + " confirmed Kredits", 14),
-                    PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(ulong.MaxValue) + " points", 13) } };
+                    PanelBlock.Text("Kredit balance", NumberFit.Figure(ulong.MaxValue) + " confirmed Kredits"),
+                    PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(ulong.MaxValue) + " points") } };
             yield return Check("Arcade", () => views.Render(AppPage.Daily));
             yield return Check("Level", () => views.Render(AppPage.Level));
             yield return Check("Profile", () => views.Render(AppPage.Profile));
@@ -93,12 +93,12 @@ namespace ZKube.Tests.Presentation
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
             yield return Check("Campaign result", () => views.Render(AppPage.Result));
             yield return Check("Identity page", () => views.RenderPanel(new PanelPageView { Key = "Largest", Title = "Largest", Tab = 1, Blocks = new[] {
-                PanelBlock.Card("Balance", PanelBlock.Figure("Balance", "Confirmed balance", Max, 48, "Kredits", SkinSlots.IconKredit)),
-                PanelBlock.Card("Position", PanelBlock.Split("Position", "Your position", "#" + uint.MaxValue.ToString("N0", CultureInfo.InvariantCulture), 33, MaxSol)),
-                PanelBlock.Card("Ladder", PanelBlock.Split("Ladder", null, Max, 36, "Prism", SkinSlots.LadderBadge(4))),
+                PanelBlock.Card("Balance", PanelBlock.Figure("Balance", "Confirmed balance", Max, "Kredits", SkinSlots.IconKredit)),
+                PanelBlock.Card("Position", PanelBlock.Split("Position", "Your position", "#" + uint.MaxValue.ToString("N0", CultureInfo.InvariantCulture), MaxSol)),
+                PanelBlock.Card("Ladder", PanelBlock.Split("Ladder", null, Max, "Prism", SkinSlots.LadderBadge(4))),
                 PanelBlock.Card("Rows", PanelBlock.Row("Fee allowance", "Fee allowance", MaxSol), PanelBlock.Row("Best", "Best paid place", "#" + uint.MaxValue)),
-                PanelBlock.Pair(new PageAction { Label = "Score" }, new PageAction { Label = "Clears leaving 3 rows or fewer", Short = "Objective" }, 0),
-                PanelBlock.Card("Device", new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = "Session active", Size = 18,
+                PanelBlock.Pair(new PageAction { Label = "Score" }, new PageAction { Label = "Clears leaving three rows or fewer on the board in one single move, twice over", Short = "Objective" }, 0),
+                PanelBlock.Card("Device", new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = "Session active",
                     Token = SkinTokens.Positive, Action = new PageAction { Label = "Manage" } }),
                 PanelBlock.Button(new PageAction { Label = "Wear the automatic emblem" }, false),
                 PanelBlock.Button(new PageAction { Label = "Buy 25 Kredits · 0.25 SOL" }, true),

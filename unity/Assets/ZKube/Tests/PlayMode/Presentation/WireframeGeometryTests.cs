@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
@@ -46,7 +47,7 @@ namespace ZKube.Tests.Presentation
             {
                 var settings = AppPreferences.Read(() => { });
                 settings.Music = .2; settings.Effects = .4; settings.Muted = false;
-                settings.Identity = new[] { PanelBlock.Button(new PageAction { Label = "Restore purchases" }, false, 12, icon: SkinSlots.IconRetry) };
+                settings.Identity = new[] { PanelBlock.Button(new PageAction { Label = "Restore purchases" }, false, icon: SkinSlots.IconRetry) };
                 return settings;
             }
             public ResultPageView Result;
@@ -191,6 +192,38 @@ namespace ZKube.Tests.Presentation
             yield return Page("greet", () => { views.Render(AppPage.Campaign); root.GetComponentInChildren<GuardianTalk>().Complete(); });
             yield return Page("greetRule", () => root.GetComponentInChildren<GuardianTalk>().Tap());
             Phones.Clear(shell);
+        }
+
+        // The Daily card shows the day's own guardian: its portrait, its name
+        // and, on the Arcade, its realm all come from the Daily, in every realm,
+        // whatever realm the page's painting is from.
+        [UnityTest] public IEnumerator TheDailyCardsGuardianIsTheDaysOwnInEveryRealm()
+        {
+            root = new GameObject("Daily cards");
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Daily cards");
+            Phones.WireframeSeeker(shell);
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1);
+            var catalog = PageCatalog.Load();
+            foreach (bool arcade in new[] { false, true })
+                for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
+                {
+                    source.Daily = new DailyPageView { Day = 20705, Realm = realm, ObjectiveKind = 1, ObjectiveValue = 3,
+                        Actions = new[] { new PageAction { Label = arcade ? "Enter · 1 Kredit" : "Play today" } },
+                        Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 00:00 UTC" } : null };
+                    views.Render(AppPage.Daily);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                    var portrait = root.GetComponentsInChildren<Image>(true).Single(image => image.name == "Daily guardian");
+                    for (float end = Time.realtimeSinceStartup + 10; !portrait.enabled && Time.realtimeSinceStartup < end;) yield return null;
+                    var page = catalog.Realm(realm);
+                    string at = (arcade ? "Arcade" : "Home") + " for realm " + realm;
+                    Assert.IsTrue(portrait.enabled, at + ": the portrait loads");
+                    Assert.AreEqual(catalog.Portrait(realm).sprite, portrait.sprite.name.Replace("(Clone)", ""), at + ": the day's guardian's portrait");
+                    Assert.AreEqual(arcade ? page.guardianName + " · " + page.realmName : page.guardianName,
+                        root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Daily guardian name").text, at + ": the day's guardian and realm");
+                }
         }
 
         // The pause and its end-run confirm over a Campaign board, on the

@@ -76,7 +76,7 @@ namespace ZKube.Integration.Presentation
         private PanelPageView KreditPage()
         {
             var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
-            var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "Arena", Back = back, Tab = 1 };
+            var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "One Kredit enters one Daily", Back = back, Tab = 1 };
             var arcade = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             var refresh = PageAction("Refresh balance", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Refresh Kredits");
             var blocks = new List<PanelBlock>();
@@ -87,11 +87,11 @@ namespace ZKube.Integration.Presentation
                 {
                     // A confirmed purchase whose balance could not be read back keeps its receipt.
                     page.Blocks = new[] {
-                        PanelBlock.Card("Operation card", PanelBlock.Title(MoneyReceiptText.Title(receipt), 27, gap: 16),
-                            PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt, fullReceipt), 16, gap: 0)),
-                        PanelBlock.Card("Balance card", PanelBlock.Title("Balance unavailable", 23, gap: 14),
-                            PanelBlock.Text("Balance failure", "The latest balance could not be read. Your confirmed receipt is retained.", 16, gap: 0)),
-                        PanelBlock.Button(refresh, true, lead: 12), PanelBlock.Button(arcade, false) };
+                        PanelBlock.Card("Operation card", PanelBlock.Title(MoneyReceiptText.Title(receipt)),
+                            PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt, fullReceipt))),
+                        PanelBlock.Card("Balance card", PanelBlock.Title("Balance unavailable"),
+                            PanelBlock.Text("Balance failure", "The latest balance could not be read. Your confirmed receipt is retained.")),
+                        PanelBlock.Button(refresh, true), PanelBlock.Button(arcade, false) };
                     return page;
                 }
                 var waiting = Waiting("Kredits", page.Title, page.Subtitle, 1, pageNotice);
@@ -99,43 +99,43 @@ namespace ZKube.Integration.Presentation
             }
             var state = kreditRead.Value;
             blocks.Add(PanelBlock.Card("Balance card", PanelBlock.Figure("Kredit balance", "Confirmed balance",
-                state.Profile.Kredits.ToString(CultureInfo.InvariantCulture), 48, "Kredits", SkinSlots.IconKredit, gap: 0)));
+                state.Profile.Kredits.ToString(CultureInfo.InvariantCulture), "Kredits", SkinSlots.IconKredit)));
             if (economyActionPending || sessionActionPending)
             {
-                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Wallet request open", 25, gap: 14),
-                    PanelBlock.Text("Kredit notice text", "Your wallet request is still finishing.", 16, gap: 0)));
+                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Wallet request open"),
+                    PanelBlock.Text("Kredit notice text", "Your wallet request is still finishing.")));
                 blocks.Add(DisconnectButton());
             }
             else if (state.Pending != null)
             {
-                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Purchase pending", 27, gap: 18),
-                    PanelBlock.Text("Kredit notice text", "Your confirmed balance has not changed. Check your pending transaction before buying more Kredits.", 16, gap: 0)));
-                blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true, lead: 20));
+                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Purchase pending"),
+                    PanelBlock.Text("Kredit notice text", "Your confirmed balance has not changed. Check your pending transaction before buying more Kredits.")));
+                blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
                 blocks.Add(PanelBlock.Button(arcade, false));
             }
             else if (failure != null && walletFailure)
             {
-                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Text("Kredit rate", "1 Kredit = " + Price(1), 20, SkinTokens.Accent, 30, true),
-                    PanelBlock.Icon(SkinSlots.IconKredit, 56, SkinTokens.TextMuted, 24),
-                    PanelBlock.Title("Purchase unavailable", 23, gap: 20, centered: true),
-                    PanelBlock.Text("Kredit notice text", failure + " Your confirmed balance is unchanged.", 15, gap: 0)));
-                blocks.Add(PanelBlock.Button(PageAction("Try again", () => { failure = null; walletFailure = false; Present(); }, () => PageAvailable() && !Busy), true, lead: 20));
+                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Text("Kredit rate", "1 Kredit = " + Price(1), SkinTokens.Accent, true),
+                    PanelBlock.Icon(SkinSlots.IconKredit, SkinTokens.TextMuted),
+                    PanelBlock.Title("Purchase unavailable", centered: true),
+                    PanelBlock.Text("Kredit notice text", failure + " Your confirmed balance is unchanged.")));
+                blocks.Add(PanelBlock.Button(PageAction("Try again", () => { failure = null; walletFailure = false; Present(); }, () => PageAvailable() && !Busy), true));
             }
             else
             {
-                var packs = new List<PanelBlock> { PanelBlock.Text("Kredit rate", "1 Kredit = " + Price(1), 20, SkinTokens.Accent, 24, true) };
+                var packs = new List<PanelBlock> { PanelBlock.Eyebrow("Buy Kredits") };
                 bool first = true;
                 foreach (uint pack in SessionViewPolicy.KreditPacks)
                 {
                     uint selected = pack;
-                    packs.Add(PanelBlock.Button(PageAction(KreditPurchaseLabel(pack), () => _ = PurchaseKredits(selected), CanBuyKredits), first, 20));
+                    packs.Add(PanelBlock.Row("Pack " + pack, pack + (pack == 1 ? " Kredit" : " Kredits"), null, icon: SkinSlots.IconKredit, primary: first,
+                        action: PageAction(Price(pack), () => _ = PurchaseKredits(selected), CanBuyKredits, KreditPurchaseLabel(pack))));
                     first = false;
                 }
                 blocks.Add(PanelBlock.Card("Pack card", packs.ToArray()));
             }
-            blocks.Add(PanelBlock.Card("Wallet card", PanelBlock.Eyebrow("Approved by your wallet", gap: 12),
-                PanelBlock.Text("Kredit terms", "One Kredit enters one Daily. Your wallet shows transaction fees and any setup rent before you approve.", 15, gap: 14),
-                PanelBlock.Text("Kredit limits", "Kredits cannot be transferred, withdrawn or exchanged back for SOL.", 13, SkinTokens.TextMuted, gap: 0)));
+            blocks.Add(PanelBlock.Text("Kredit terms", "Your wallet approves each purchase. Kredits cannot be transferred, withdrawn or exchanged for SOL.",
+                SkinTokens.TextMuted));
             var row = ReceiptRow("Kredits");
             if (row != null) blocks.Insert(1, row);
             page.Blocks = blocks.ToArray();
