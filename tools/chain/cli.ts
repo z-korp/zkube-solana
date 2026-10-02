@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PublicKey } from "@solana/web3.js";
 import { SOLANA_ENDPOINT, ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
-import { assertDevnetRelease, devnetConnection, requireHash, requireInteger, sha256 } from "./chainRelease.js";
+import { assertDevnetRelease, devnetConnection, requireHash, requireInteger } from "./chainRelease.js";
+import { buildRelease, releaseArtifact } from "./releaseBuild.js";
 import { deploymentRelease, deploymentRentSpaces, type DeploymentInput } from "./deploymentPlan.js";
 import { launchPlannerInputFromEnv } from "./launchPlanner.js";
 import { quoteBundle, quoteLaunch, readBundle } from "./operatorPlan.js";
@@ -13,6 +14,7 @@ import { loadPinnedKeypair, saveBundle } from "./operatorTransaction.js";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const HELP = `zKube Devnet operator
+  build-release
   plan deploy --bundle build/chain/deploy.json
   plan launch --bundle build/chain/launch.json
   plan top-up --launch-bundle build/chain/launch.json --top-up daily:current:1SOL --bundle build/chain/top-up.json
@@ -21,7 +23,9 @@ const HELP = `zKube Devnet operator
 
 Planning reads public state and writes one fingerprinted bundle. It loads no keypair.
 All plans accept SOLANA_DEVNET_RPC_URL (default: the shared Devnet endpoint).
-Deploy inputs: ZKUBE_SBF_PATH, ZKUBE_SBF_SHA256, ZKUBE_DEPLOYER_PUBLIC_KEY,
+build-release builds the program offline from a clean target with the pinned tools and
+  records the result under build/chain/release. It is the only ELF a deploy plan quotes.
+Deploy inputs: ZKUBE_SBF_SHA256 (the reviewed hash of that build), ZKUBE_DEPLOYER_PUBLIC_KEY,
   ZKUBE_PROGRAM_BUFFER_PUBLIC_KEY, ZKUBE_PROGRAM_UPGRADE_AUTHORITY.
 Launch inputs: ZKUBE_CLUSTER=devnet, ZKUBE_DEPLOYER_PUBLIC_KEY,
   ZKUBE_PROTOCOL_AUTHORITY, ZKUBE_TEAM_DESTINATION, ZKUBE_LAUNCH_DAY_ID,
@@ -44,6 +48,7 @@ function required(env: Env, name: string): string {
 
 export function parseOperatorArgs(args: string[]) {
   if (args.includes("--help") || !args.length) return { help: true as const };
+  if (args.length === 1 && args[0] === "build-release") return { help: false as const, mode: "build-release" as const };
   const mode = args.shift();
   if (mode !== "plan" && mode !== "execute") throw new Error("Use plan or execute");
   const operation = mode === "plan" ? args.shift() : undefined;
@@ -65,7 +70,7 @@ export function parseOperatorArgs(args: string[]) {
   if (Object.keys(options).some(key => !allowed.includes(key))) throw new Error("Option is not valid for this command");
   const bundle = options["--bundle"]?.[0];
   if (!bundle) throw new Error("--bundle is required");
-  return { help: false as const, mode, operation, options, bundle: resolve(ROOT, bundle) };
+  return { help: false as const, mode: mode as "plan" | "execute", operation, options, bundle: resolve(ROOT, bundle) };
 }
 
 export function parseDeposit(value: string): { selector: string; lamports: string } {
@@ -82,6 +87,7 @@ export function parseDeposit(value: string): { selector: string; lamports: strin
 export async function runOperator(args: string[], env: Env = process.env) {
   const command = parseOperatorArgs([...args]);
   if (command.help) return HELP;
+  if (command.mode === "build-release") return JSON.stringify(buildRelease(ROOT));
   const { bundle: path, options } = command;
   if (command.mode === "execute") {
     const result = await executeBundle(readFileSync(path, "utf8"), {
@@ -108,12 +114,10 @@ export async function runOperator(args: string[], env: Env = process.env) {
   const connection = devnetConnection(rpc);
   let bundle;
   if (command.operation === "deploy") {
-    const artifactPath = resolve(ROOT, required(env, "ZKUBE_SBF_PATH"));
-    const artifact = readFileSync(artifactPath);
-    const artifactSha256 = requireHash(required(env, "ZKUBE_SBF_SHA256"), "Frozen SBF hash");
-    if (sha256(artifact) !== artifactSha256) throw new Error("Frozen artifact hash differs from release input");
-    const rents = await Promise.all(deploymentRentSpaces(artifact.length).map(size => connection.getMinimumBalanceForRentExemption(size, "confirmed")));
-    const input: DeploymentInput = { artifactPath, artifactSha256, artifactBytes: artifact.length,
+    // Only the canonical release build is quoted, and only at the hash the owner reviewed.
+    const artifact = releaseArtifact(ROOT, requireHash(required(env, "ZKUBE_SBF_SHA256"), "Frozen SBF hash"));
+    const rents = await Promise.all(deploymentRentSpaces(artifact.artifactBytes).map(size => connection.getMinimumBalanceForRentExemption(size, "confirmed")));
+    const input: DeploymentInput = { ...artifact,
       payer: new PublicKey(required(env, "ZKUBE_DEPLOYER_PUBLIC_KEY")).toBase58(),
       buffer: new PublicKey(required(env, "ZKUBE_PROGRAM_BUFFER_PUBLIC_KEY")).toBase58(),
       authority: new PublicKey(required(env, "ZKUBE_PROGRAM_UPGRADE_AUTHORITY")).toBase58(),

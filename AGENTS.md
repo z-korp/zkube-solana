@@ -378,7 +378,10 @@ which day an instant belongs to and when a day opens; the program, the keeper, t
 both clients ask it and never divide a timestamp themselves.
 `every_day_runs_from_seven_utc_to_seven_utc`, `daily_window_is_derived_at_epoch_and_u32_day_bounds`,
 `keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits`, `EveryDayRunsFromSevenUtcToSevenUtc`,
-`DailyWindowUsesTheCoreAcrossTheFullDayRange` and `TheLocalDailyTurnsOverAtSevenUtcWithTheCore` guard clocks. Authority rotation and team destination changes
+`DailyWindowUsesTheCoreAcrossTheFullDayRange` and `TheLocalDailyTurnsOverAtSevenUtcWithTheCore` guard clocks.
+Entries close at 06:59 UTC. A clock time in a document, a comment or a line of copy is one of the core's two,
+never another literal; `every_utc_clock_time_in_authored_text_is_the_cores_day_window` guards it outside the
+shared presentation layer. Authority rotation and team destination changes
 require a program upgrade; the interface lock excludes runtime setters. `initialize_protocol` runs once and only
 with the signature of the program's upgrade authority, read from the loader's ProgramData, beside the governance
 authority it names; `an_untrusted_initializer_cannot_claim_the_protocol` guards the bootstrap.
@@ -576,6 +579,8 @@ display, not verified standings. Its ranking is the core's board
 order. `indexer_records_every_scored_run_and_ranks_each_wallets_best_on_both_boards`,
 `a_result_counts_only_when_the_zkube_program_logged_it`, `indexer_ranks_agree_with_the_core_board_order`,
 `ingesting_again_or_in_another_order_leaves_the_same_rows`,
+`discovery_and_results_count_an_instruction_however_it_was_invoked`,
+`a_finalization_however_late_is_recorded_and_one_unreadable_transaction_never_stops_the_walk`,
 `catch_up_walks_bounded_pages_and_reports_itself_incomplete_until_the_gap_closes`,
 `public_reads_serve_full_standings_and_any_wallets_rank_without_claiming_authority` and
 `the_webhook_needs_its_secret_and_only_adds_what_catch_up_would` guard it.

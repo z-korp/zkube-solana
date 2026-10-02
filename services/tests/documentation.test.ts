@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { dailyWindow } from "../src/zkubeCore.js";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -48,6 +49,31 @@ describe("specification references", () => {
     const document = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
     const missing = references(document).filter(reference => !names.has(reference) && !paths.has(reference));
     expect(missing).toEqual([]);
+  });
+
+  it("every_utc_clock_time_in_authored_text_is_the_cores_day_window", () => {
+    // The core owns when a day opens and when its entries close. Any clock
+    // time written beside "UTC" must be one of those two, read from the core.
+    const clock = (unix: number) => new Date(unix * 1_000).toISOString().slice(11, 16);
+    const window = dailyWindow(20_705);
+    const allowed = new Set([clock(window.opensAt), clock(window.runsCloseAt)]);
+    expect(allowed).toEqual(new Set(["07:00", "06:59"]));
+    // The shared presentation layer and the tests of its copy belong to its
+    // owner: its stale lines are reported there rather than edited here.
+    const presentationOwned = ["unity/Assets/ZKube/Runtime/Presentation/", "unity/Assets/ZKube/Tests/PlayMode/Presentation/",
+      "unity/Assets/ZKube/Tests/EditMode/Editor/ResultWordsTests.cs",
+      "unity/Assets/ZKube/Tests/PlayMode/MoneyOverview/MoneyPlayableJourneyTests.cs"];
+    const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      { cwd: ROOT, encoding: "utf8" }).split("\0")
+      .filter(file => /\.(?:md|rs|cs|ts|py|kt|mjs)$/.test(file) && !presentationOwned.some(prefix => file.startsWith(prefix)));
+    const stray: string[] = [];
+    for (const file of new Set(files)) {
+      const source = readFileSync(join(ROOT, file), "utf8");
+      for (const match of source.matchAll(/\b(\d{1,2}:\d{2})(?::\d{2})?\s*UTC\b/g)) {
+        if (!allowed.has(match[1]!.padStart(5, "0"))) stray.push(`${file}: ${match[0]}`);
+      }
+    }
+    expect(stray).toEqual([]);
   });
 
   it("reference_extraction_requires_a_declaration_and_ignores_command_blocks", () => {

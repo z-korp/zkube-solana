@@ -27,8 +27,8 @@ and distribution review.
   withdrawal, transfer, cash-out or bonus. An authorized device spends them within the owner's cap.
 - **Money:** 10% goes to the team at purchase. Spending a Kredit sends the other 90% to the following paid Daily,
   so an entry never grows the pot it competes for. Every entry is scored or expires; there are no refunds.
-- **The Daily:** one realm and one objective, drawn from a deterministic cycle. Entries close at 23:59 UTC; a run
-  with an accepted action scores its last committed state.
+- **The Daily:** one realm and one objective, drawn from a deterministic cycle. A day runs from 07:00 UTC to 07:00
+  UTC and its entries close at 06:59 UTC; a run with an accepted action scores its last committed state.
 - **Two boards:** Score ranks action points and the Objective board (Theme in the protocol) ranks the drawn
   objective's count; they split the pot equally. With no Objective qualifier, its half folds into Score. Each
   player keeps their best run per board.
