@@ -40,14 +40,11 @@ pub struct InitializeProtocol<'info> {
     pub authority: Signer<'info>,
     /// Only the program's upgrade authority may bootstrap its protocol.
     pub upgrade_authority: Signer<'info>,
-    #[account(
-        constraint = program.programdata_address()? == Some(program_data.key()) @ ErrorCode::Unauthorized
-    )]
-    pub program: Program<'info, crate::program::Solana>,
-    #[account(
-        constraint = program_data.upgrade_authority_address == Some(upgrade_authority.key()) @ ErrorCode::Unauthorized
-    )]
-    pub program_data: Account<'info, ProgramData>,
+    /// CHECK: This program's own executable account, read in the handler.
+    #[account(address = crate::ID @ ErrorCode::Unauthorized)]
+    pub program: UncheckedAccount<'info>,
+    /// CHECK: The loader's ProgramData for this program, read in the handler.
+    pub program_data: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -55,6 +52,11 @@ pub fn handler_initialize_protocol(
     ctx: Context<InitializeProtocol>,
     args: InitializeProtocolArgs,
 ) -> Result<()> {
+    require_upgrade_authority(
+        &ctx.accounts.program,
+        &ctx.accounts.program_data,
+        ctx.accounts.upgrade_authority.key,
+    )?;
     require!(args.replay_domain != [0; 32], ErrorCode::InvalidState);
     validate_team_destination(args.team_destination)?;
     let protocol = &mut ctx.accounts.protocol;
@@ -76,6 +78,33 @@ pub fn handler_initialize_protocol(
         available_prize_lamports: 0,
         bump: ctx.bumps.credit_vault,
     });
+    Ok(())
+}
+
+/// Reads the upgradeable loader's two fixed layouts directly: the program
+/// account names its ProgramData (tag 2, address), and ProgramData carries the
+/// upgrade authority (tag 3, slot, optional address).
+fn require_upgrade_authority(
+    program: &AccountInfo<'_>,
+    program_data: &AccountInfo<'_>,
+    signer: &Pubkey,
+) -> Result<()> {
+    let loader = anchor_lang::solana_program::bpf_loader_upgradeable::ID;
+    let program_bytes = program.try_borrow_data()?;
+    let data = program_data.try_borrow_data()?;
+    require!(
+        *program.owner == loader
+            && program.executable
+            && program_bytes.len() >= 36
+            && program_bytes[..4] == 2u32.to_le_bytes()
+            && program_bytes[4..36] == program_data.key.to_bytes()
+            && *program_data.owner == loader
+            && data.len() >= 45
+            && data[..4] == 3u32.to_le_bytes()
+            && data[12] == 1
+            && data[13..45] == signer.to_bytes(),
+        ErrorCode::Unauthorized
+    );
     Ok(())
 }
 
