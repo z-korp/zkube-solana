@@ -2396,6 +2396,16 @@
             0,
             0
           ],
+          "image": "/assets/skins/lumen/ui/icon-home.png",
+          "slot": "icon-home"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/lumen/ui/icon-campaign.png",
           "slot": "icon-campaign"
         },

@@ -54,6 +54,7 @@ namespace ZKube.Core.Generated
         public const string IconSettings = "icon-settings";
         public const string IconClose = "icon-close";
         public const string IconKredit = "icon-kredit";
+        public const string IconHome = "icon-home";
         public const string IconCampaign = "icon-campaign";
         public const string IconProfile = "icon-profile";
         public const string IconShare = "icon-share";

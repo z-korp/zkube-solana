@@ -224,8 +224,7 @@ namespace ZKube.Presentation
         // navigation is unavailable.
         private void TabBar(Rect safe, int selected)
         {
-            // Home is the crown until the kit has its house.
-            var icons = new[] { SkinSlots.IconCrown, SkinSlots.IconCampaign, SkinSlots.IconProfile, SkinSlots.IconSettings };
+            var icons = new[] { SkinSlots.IconHome, SkinSlots.IconCampaign, SkinSlots.IconProfile, SkinSlots.IconSettings };
             var bound = tabs.Select(target => new PageAction { Label = target == AppPage.Home ? homeTab : target.ToString(),
                 Name = target == AppPage.Home ? homeTab : target.ToString(), CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) }).ToArray();
             var bar = ui.TabBar("Tab bar", tabBar, new ScreenKit(ui, null, shell.ScreenArea, safe).U, bound.Select((action, i) => (icons[i], action.Label, actions.Click(action))).ToArray(), selected, shell.Chrome);

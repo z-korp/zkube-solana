@@ -180,7 +180,8 @@ namespace ZKube.Tests.Presentation
             // The four tabs draw four distinct pictures, Home first.
             var tabIcons = root.GetComponentsInChildren<SkinTabBar>().Single().GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))
                 .Select(image => image.sprite.name.Replace("(Clone)", "")).ToArray();
-            Assert.AreEqual(4, tabIcons.Distinct().Count(), "four distinct tab icons: " + string.Join(", ", tabIcons));
+            Assert.AreEqual(new[] { SkinSlots.IconHome, SkinSlots.IconCampaign, SkinSlots.IconProfile, SkinSlots.IconSettings }, tabIcons,
+                "The tabs wear the house, the map, the person and the gear");
             Assert.AreEqual(new[] { "Home", "Campaign", "Profile", "Settings" }, root.GetComponentsInChildren<SkinTabBar>().Single().GetComponentsInChildren<TMP_Text>()
                 .Select(label => label.text).ToArray(), "The tabs are Home, Campaign, Profile and Settings");
             yield return Page("preview", () => views.Render(AppPage.Level));
