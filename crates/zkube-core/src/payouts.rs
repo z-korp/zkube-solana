@@ -132,21 +132,19 @@ pub fn board_width(
             .and_then(|price| checked_scale(denominator, price))
             .is_some_and(|needed| wide_product(pool, RANK_WEIGHT_SCALE / u64::from(rank)) >= needed)
     };
-    let (mut low, mut high) = (
-        0,
-        (qualified_winners.min(PAYOUT_WIDTH_TABLE_RANKS) / WIDTH_STEP) as usize,
-    );
+    // Both bounds count stored steps, so they stay well inside u32 and usize.
+    let (mut low, mut high) = (0u32, qualified_winners.min(PAYOUT_WIDTH_TABLE_RANKS) / WIDTH_STEP);
     while low < high {
         let middle = low + (high - low).div_ceil(2);
-        if last_place_pays(middle as u32 * WIDTH_STEP, HARMONIC_DENOMINATORS[middle - 1]) {
+        if last_place_pays(middle * WIDTH_STEP, HARMONIC_DENOMINATORS[middle as usize - 1]) {
             low = middle;
         } else {
             high = middle - 1;
         }
     }
     if low > 0 {
-        winner_count = low as u32 * WIDTH_STEP;
-        denominator = HARMONIC_DENOMINATORS[low - 1];
+        winner_count = low * WIDTH_STEP;
+        denominator = HARMONIC_DENOMINATORS[low as usize - 1];
     }
     for rank in winner_count + 1..=qualified_winners {
         let weight = rank_weight(rank)?;
@@ -493,6 +491,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )] // Approximate pots only pick the cases; every comparison is exact.
     fn stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan() {
         // Entry price times width times the harmonic sum: pools that stop the
         // width just inside, on and past stored steps, and past the table.
