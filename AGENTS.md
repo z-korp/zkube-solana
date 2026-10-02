@@ -122,13 +122,15 @@ spending approval.
   `test_metadata_rejects_every_money_assembly_and_tests` guard the identity contract.
 - **Identity:** a connected Solana address identifies an Arena player, without embedded wallets or recovery
   codes. Its profile shows the address's Seeker ID (its .skr name) when one resolves, else the shortened
-  address: a cached display read from mainnet that never gates play and that no money path reads. Realms shows
+  address, and a verified-Seeker badge when the wallet holds a Seeker Genesis Token: cached display reads from
+  mainnet that never gate play, carry no perk and that no Kredit, entry, prize or ladder rule reads. Realms shows
   the platform player account, Google Play Games on Android behind one interface for other platforms, with no
   name to edit; signed out or refused, the profile shows the emblem alone and everything stays playable.
   `money_campaign_needs_an_address_and_no_session`, `StoreShowsThePlayerAccountAndPlaysWithoutIt`,
-  `SeekerIdsResolveFromTheirSkrRecordsOncePerAddress` and
-  `SeekerLookupsNeverThrowAndShowNothingWhenTheyCannotResolve` guard immediate Campaign play, the account and
-  the lookup.
+  `SeekerIdsResolveFromTheirSkrRecordsOncePerAddress`, `AVerifiedSeekerHoldsAGenesisTokenWithABalance`,
+  `SeekerLookupsNeverThrowAndShowNothingWhenTheyCannotResolve` and
+  `TheProfileShowsTheSeekerIdAndBadgeWithoutWaitingForThem` guard immediate Campaign play, the account and the
+  lookups.
 - **Realms leaderboard:** signed in, each finished Daily's score goes to one platform leaderboard (Play Games on
   Android) and a Leaderboard button on the Daily card and the Daily result opens the platform's own screen; it is
   behind the platform-account interface. Signed out there is no button and no submission, and nothing else

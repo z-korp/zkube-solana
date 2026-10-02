@@ -86,7 +86,7 @@ namespace ZKube.Integration.Presentation
                 actions.Add(PageAction("Wear the automatic emblem", () => SelectProfileEmblem(0),
                     () => ProfileEditable() && worn.CanWear(0, selectedBorder), "Emblem 0"));
             return new ProfilePageView {
-                Name = SeekerName(player.Owner), Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
+                Name = SeekerName(player.Owner), Badge = VerifiedSeeker(player.Owner) ? VerifiedSeekerBadge : null, Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
                 Standing = EmblemDefinition(worn.DisplayedEmblem).Name + (worn.StoredEmblem == 0 && worn.DisplayedEmblem != 0 ? " (automatic)" : "") + " · " +
                     TierDefinition(player.WornTier).Name + " · " + NumberFit.Figure(player.LadderPoints) + " ladder points",
                 Records = PageAction("Records", () => ShowProfile(ProfileView.Records), () => PageAvailable() && !Busy, "Your records"),
@@ -108,6 +108,11 @@ namespace ZKube.Integration.Presentation
         private ZKube.Integration.Transport.SeekerProfile seeker;
         private string seekerOwner;
         private string SeekerName(string owner) => (seekerOwner == owner ? seeker?.Name : null) ?? Short(owner);
+        // A wallet holding a Seeker Genesis Token wears the badge. It is a mark
+        // on the profile and nothing else: no perk, no gate, and no effect on
+        // Kredits, entries, prizes or the ladder.
+        public const string VerifiedSeekerBadge = "Verified Seeker";
+        private bool VerifiedSeeker(string owner) => seekerOwner == owner && seeker?.Verified == true;
         private async Task ShowSeeker(string owner)
         {
             if (owner == null || seekerOwner == owner) return;

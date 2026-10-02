@@ -20,19 +20,28 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.SentSignature, Is.Null);
         }
         // The profile names its player by the shortened address until the
-        // address's Seeker ID resolves, then by the ID. The lookup runs beside
-        // the page: the profile is drawn and usable before it answers.
-        [UnityTest] public IEnumerator TheProfileShowsTheSeekerIdWithoutWaitingForIt()
+        // address's Seeker ID resolves, then by the ID, and wears the
+        // verified-Seeker badge when the wallet holds a Seeker Genesis Token.
+        // The lookups run beside the page: the profile is drawn and usable
+        // before they answer, and the badge changes nothing else.
+        [UnityTest] public IEnumerator TheProfileShowsTheSeekerIdAndBadgeWithoutWaitingForThem()
         {
             yield return PrepareProfilePage("profile-success");
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             string owner = environment.Owner;
             Assert.That(Text("Name text"), Is.EqualTo(owner.Substring(0, 4) + "…" + owner.Substring(owner.Length - 4)), "Without a Seeker ID, the shortened address");
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Your records" && button.interactable), Is.True);
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Profile badge"), Is.False, "No badge until a Genesis Token is found");
+            string standing = Text("Standing line");
             // The lookup's answer for this address arrives.
             Set("seekerOwner", owner); Set("seeker", new ZKube.Integration.Transport.SeekerProfile { Name = "alice.skr" });
             yield return Wait(controller.OpenProfile()); yield return Idle();
             Assert.That(Text("Name text"), Is.EqualTo("alice.skr"));
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Profile badge"), Is.False, "A Seeker ID alone is not the badge");
+            Set("seeker", new ZKube.Integration.Transport.SeekerProfile { Name = "alice.skr", Verified = true });
+            yield return Wait(controller.OpenProfile()); yield return Idle();
+            Assert.That(Text("Profile badge"), Is.EqualTo(ZKube.Integration.Presentation.MoneyAppAdapter.VerifiedSeekerBadge));
+            Assert.That(Text("Standing line"), Is.EqualTo(standing), "The badge changes no standing");
             Assert.That(environment.SentSignature, Is.Null, "Showing a name sends nothing");
         }
         [UnityTest] public IEnumerator FeaturedIdentityRequiresAnExplicitWearAndShowsConfirmedReadback() => WearProfile("profile-success", 8, 3);

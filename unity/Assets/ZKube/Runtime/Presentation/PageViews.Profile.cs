@@ -51,8 +51,9 @@ namespace ZKube.Presentation
         // The wearer: the worn emblem in its ring (72u, or 76u in the ladder
         // border where there is a ladder); the player's name where the identity
         // has one (a platform account's, led by its round avatar, or the
-        // Arena's Seeker ID or address), and what is worn; the records on the
-        // right. An identity without a name shows the emblem and what is worn.
+        // Arena's Seeker ID or address), its badge under it (a verified
+        // Seeker), and what is worn; the records on the right. An identity
+        // without a name shows the emblem and what is worn.
         private Piece WearerCard(ProfilePageView value, ScreenKit kit)
         {
             float u = kit.U; var inside = kit.Inside();
@@ -63,7 +64,9 @@ namespace ZKube.Presentation
             float avatar = value.Avatar == null || value.Name == null ? 0 : 24 * u, lead = avatar == 0 ? 0 : avatar + 6 * u;
             float nameHeight = value.Name == null ? 0 : Mathf.Max(avatar, inside.Block(value.Name, text - lead, inside.CaptionDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading));
             float wornHeight = inside.Block(worn, text, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
-            float block = nameHeight + wornHeight;
+            ScreenKit.Side? badge = value.Badge == null ? (ScreenKit.Side?)null : Tag(inside, value.Badge, SkinTokens.Positive, "Profile badge");
+            float badgeHeight = badge.HasValue ? badge.Value.Height + 4 * u : 0;
+            float block = nameHeight + badgeHeight + wornHeight;
             return kit.Card(null, new[] { new Piece(Mathf.Max(face, block), rect => {
                 // Where there is a ladder, a tap on the row chooses the border.
                 if (value.ChooseBorder != null)
@@ -89,6 +92,7 @@ namespace ZKube.Presentation
                     inside.Text("Name text", value.Name, new Rect(x + lead, top - nameHeight, text - lead, nameHeight), inside.CaptionDp, SkinTokens.Text, SkinUi.Type.Caption,
                         ScreenKit.CaptionLeading, TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
                 }
+                if (badge.HasValue) badge.Value.Draw(new Rect(x, top - nameHeight - badge.Value.Height - 2 * u, badge.Value.Width, badge.Value.Height));
                 if (wornHeight > 0)
                     inside.Text(value.Standing != null ? "Standing line" : "Worn", worn, new Rect(x, top - block, text, wornHeight), inside.SmallDp,
                         SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left);

@@ -10,10 +10,12 @@ using Newtonsoft.Json.Linq;
 
 namespace ZKube.Integration.Transport
 {
-    // What an address's profile shows of its Seeker: its Seeker ID.
+    // What an address's profile shows of its Seeker: its Seeker ID, and whether
+    // it holds a Seeker Genesis Token.
     public sealed class SeekerProfile
     {
         public string Name;
+        public bool Verified;
     }
 
     // An address's Seeker facts, read from mainnet for display only.
@@ -23,12 +25,17 @@ namespace ZKube.Integration.Transport
     // on the name service, the owner at byte 40 and the .skr parent at byte 8),
     // then the reverse record of each, whose bytes after its 200-byte header
     // are the name.
-    // Nothing waits for it, a lookup that fails or finds nothing shows the
-    // shortened address, each address resolves once per app run, and no money
-    // path, entry, prize or ladder rule reads it.
+    // A verified Seeker holds a Seeker Genesis Token, as Solana Mobile's
+    // "Detecting Seeker Users" checks it: a Token-2022 account of the address
+    // with a balance, whose mint carries the SGT's metadata pointer and group
+    // membership.
+    // Nothing waits for either, a lookup that fails or finds nothing shows the
+    // shortened address without a badge, each address resolves once per app
+    // run, and no money path, entry, prize or ladder rule reads them.
     public sealed class SeekerNames
     {
-
+        public const string Token2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", GenesisGroup = "GT22s89nU4iWFkNXj1Bw6uYhJJWDRPpShHt4Bk8f99Te";
+        public const int MaximumMints = 100;
         public const string NameService = "ALTNSZ46uaAUU7XUV6awvdorLGqAsPwa9shm7h4uP2FK", TldHouse = "TLDHkysf5pCnKsVA4gXpNvmy7psXLPEu4LAdDJthT9S";
         public const string MainnetGenesis = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
         public const string Tld = ".skr";
@@ -83,7 +90,37 @@ namespace ZKube.Integration.Transport
         }
         private async Task<SeekerProfile> Lookup(string owner)
         {
-            return new SeekerProfile { Name = await Name(owner).ConfigureAwait(false) };
+            var name = Name(owner); var verified = Verified(owner);
+            return new SeekerProfile { Name = await name.ConfigureAwait(false), Verified = await verified.ConfigureAwait(false) };
+        }
+        // A mint's parsed account is a Seeker Genesis Token's when both its
+        // metadata pointer and its group membership name the SGT group.
+        public static bool GenesisMint(JToken account)
+        {
+            if (account?.Type != JTokenType.Object || (string)account["owner"] != Token2022) return false;
+            var extensions = account["data"]?["parsed"]?["info"]?["extensions"] as JArray;
+            if (extensions == null) return false;
+            string State(string extension, string field) => (string)extensions.FirstOrDefault(entry => (string)entry["extension"] == extension)?["state"]?[field];
+            return State("metadataPointer", "metadataAddress") == GenesisGroup && State("tokenGroupMember", "group") == GenesisGroup;
+        }
+        private async Task<bool> Verified(string owner)
+        {
+            try
+            {
+                SolanaAddress.Bytes(owner);
+                if (!await (mainnet ??= Mainnet()).ConfigureAwait(false)) return false;
+                var held = await Call("getTokenAccountsByOwner", new JArray(owner, new JObject { ["programId"] = Token2022 }, new JObject { ["encoding"] = "jsonParsed" }),
+                    1 << 20).ConfigureAwait(false) as JObject;
+                // An emptied token account stays open after its token leaves; only a balance is ownership.
+                var mints = (held?["value"] as JArray)?.Select(entry => entry["account"]?["data"]?["parsed"]?["info"])
+                    .Where(info => info != null && (string)info["tokenAmount"]?["amount"] is string amount && amount != "0")
+                    .Select(info => (string)info["mint"]).Where(mint => mint != null).Distinct().Take(MaximumMints).ToArray();
+                if (mints == null || mints.Length == 0) return false;
+                var accounts = await Call("getMultipleAccounts", new JArray(new JArray(mints), new JObject { ["encoding"] = "jsonParsed" }), 1 << 20)
+                    .ConfigureAwait(false) as JObject;
+                return (accounts?["value"] as JArray)?.Any(GenesisMint) == true;
+            }
+            catch (Exception) { return false; }
         }
         private async Task<string> Name(string owner)
         {

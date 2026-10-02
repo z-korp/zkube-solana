@@ -121,9 +121,9 @@ namespace ZKube.Presentation
     public sealed class ProfilePageView
     {
         // The player's name where the identity has one (a platform account's
-        // display name, the Arena's Seeker ID or address) and its avatar; what
-        // is worn, and a notice.
-        public string Name, Worn, Notice;
+        // display name, the Arena's Seeker ID or address), its avatar and a
+        // badge shown under it (a verified Seeker); what is worn, and a notice.
+        public string Name, Badge, Worn, Notice;
         public UnityEngine.Texture2D Avatar;
         // The realm behind the page, and the worn emblem (0 when none is worn).
         public byte Realm, Emblem;
