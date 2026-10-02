@@ -200,12 +200,15 @@ pub const REALM_PAINTINGS: [&str; 2] = ["background", "map"];
 pub const REALM_STRETCH_SLOTS: [&str; 1] = ["ledge"];
 
 /// Each realm's own map nodes, drawn at their own aspect ratio: a level locked,
-/// open, current and done, and the guardian's ring around its portrait.
-pub const REALM_NODE_SLOTS: [&str; 5] = [
+/// open and current, cleared in three tiers by its stars (bronze for one,
+/// silver for two, gold for three), and the guardian's ring around its portrait.
+pub const REALM_NODE_SLOTS: [&str; 7] = [
     "map-node-locked",
     "map-node-open",
     "map-node-current",
-    "map-node-done",
+    "map-node-done-1",
+    "map-node-done-2",
+    "map-node-done-3",
     "map-node-guardian",
 ];
 

@@ -449,7 +449,7 @@ namespace ZKube.Tests.Presentation
         }
 
         // The map tells its nodes apart (DECISIONS 2026-10-02): locked, open,
-        // done and current each wear the realm's own piece, the current one
+        // current and done, in the tier of its stars, each wear the realm's own piece, the current one
         // pulses (and holds still under reduced motion), and the guardian is
         // the boss: its own ring, nearly twice a node, in a breathing glow.
         [UnityTest] public IEnumerator TheMapTellsItsNodesApartAndItsGuardianIsTheBoss()
@@ -473,10 +473,12 @@ namespace ZKube.Tests.Presentation
                     string Slot(int level) => Face(level).sprite.name.Replace("(Clone)", "");
                     // The wireframe's map: levels 1-3 done, 4 open and current, 5-9 locked, 10 the guardian.
                     var art = shell.Artwork;
-                    foreach (var (level, slot) in new[] { (1, SkinSlots.MapNodeDone), (3, SkinSlots.MapNodeDone), (4, SkinSlots.MapNodeCurrent),
+                    // A cleared node wears the tier of its stars: gold for three, silver for two, bronze for one.
+                    foreach (var (level, slot) in new[] { (1, "map-node-done-3"), (2, "map-node-done-2"), (3, "map-node-done-1"), (4, SkinSlots.MapNodeCurrent),
                         (5, SkinSlots.MapNodeLocked), (9, SkinSlots.MapNodeLocked), (10, SkinSlots.MapNodeGuardian) })
                         Assert.AreEqual(art.SkinRealm(slot).name.Replace("(Clone)", ""), Slot(level), "Level " + level + " wears " + slot);
-                    Assert.AreNotEqual(art.SkinRealm(SkinSlots.MapNodeOpen), art.SkinRealm(SkinSlots.MapNodeDone), "Done is its own piece");
+                    for (int stars = 1; stars <= 3; stars++)
+                        Assert.AreNotEqual(art.SkinRealm(SkinSlots.MapNodeOpen), art.SkinRealm(PageViews.DoneNode(stars)), "Done is its own piece");
                     TMP_Text Number(int level) => root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Trial " + level + " number");
                     Assert.AreEqual(art.Token(SkinTokens.TextOnPrimary), Number(1).color, "A done node's number is dark on its light face");
                     Assert.AreEqual(art.Token(SkinTokens.Text), Number(4).color, "The current node's number keeps the light ink");

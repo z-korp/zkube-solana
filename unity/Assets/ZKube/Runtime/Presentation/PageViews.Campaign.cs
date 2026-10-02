@@ -179,8 +179,8 @@ namespace ZKube.Presentation
 
         // One level, in its realm's own node set. Locked: dark stone with a
         // lock. Open: the glowstone with its number. Done: its own settled
-        // stone, gold-rimmed and pale, its number in the dark ink and its stars
-        // under it. Current: larger, its cream rim, pulsing in
+        // stone in the tier of its stars (bronze, silver, gold), its number in
+        // the dark ink and its stars under it. Current: larger, its cream rim, pulsing in
         // its breathing light (reduced motion: the light alone). The guardian,
         // the realm's boss: its portrait in its own ring, nearly twice a node,
         // in the realm's breathing glow over a wider halo, dimmed with a lock
@@ -223,7 +223,7 @@ namespace ZKube.Presentation
             }
             else
             {
-                var face = RealmPiece(name + " node", lit ? SkinSlots.MapNodeCurrent : done ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked,
+                var face = RealmPiece(name + " node", lit ? SkinSlots.MapNodeCurrent : done ? DoneNode(trial.Stars) : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked,
                     rect, hit.transform);
                 if (lit) face.gameObject.AddComponent<SkinPulse>();
                 if (open || done)
@@ -239,6 +239,8 @@ namespace ZKube.Presentation
                         hit.transform);
             actions.Wire(button, new PageAction { Name = name, Enabled = trial.Available, CanInvoke = trial.CanOpen, Invoke = trial.Open }, fade: false);
         }
+        // A cleared node's piece, by the stars it kept: bronze for one, silver for two, gold for three.
+        public static string DoneNode(int stars) => "map-node-done-" + Mathf.Clamp(stars, 1, 3);
         // A piece of the page realm's own art (its map nodes), at its own aspect.
         private Image RealmPiece(string name, string slot, Rect rect, Transform parent)
         {

@@ -154,7 +154,9 @@ namespace ZKube.Core.Generated
         public const string MapNodeLocked = "map-node-locked";
         public const string MapNodeOpen = "map-node-open";
         public const string MapNodeCurrent = "map-node-current";
-        public const string MapNodeDone = "map-node-done";
+        public const string MapNodeDone1 = "map-node-done-1";
+        public const string MapNodeDone2 = "map-node-done-2";
+        public const string MapNodeDone3 = "map-node-done-3";
         public const string MapNodeGuardian = "map-node-guardian";
         public const string WordmarkRealms = "wordmark-realms";
         public const string WordmarkArena = "wordmark-arena";

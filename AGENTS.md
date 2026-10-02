@@ -413,15 +413,16 @@ for a result and the board; `MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAnd
 
 Skins live in assets/skins/<id>/ and are listed in assets/catalog.json; Lumen is the only skin and the first is
 the default. The codegen owns the slot and token list, emits it to C# and rejects a missing or unknown slot for
-the UI or any realm. Each realm owns its block tints, light colours, ledge rail, map node set and its colourway
-of the two product wordmarks (Home wears the day's Daily realm's), and skin.json places its key light, shafts and
-motes; paintings are JPEG and every piece with alpha is PNG. Ladder borders and
-badges derive from the core's tier count. build.py gives each skin UI kit and skin realm its own atlas with the
+the UI or any realm. Each realm owns its block tints, light colours, ledge rail, map node set (locked, open,
+current, cleared in bronze, silver and gold by its stars, and the guardian's ring) and its colourway of the two
+product wordmarks (Home wears the day's Daily realm's), and skin.json places its key light, shafts and motes;
+paintings are JPEG and every piece with alpha is PNG. Ladder borders and badges derive from the core's tier
+count. build.py gives each skin UI kit and skin realm its own atlas with the
 authored stretch borders. `every_skin_fills_every_ui_and_realm_slot`,
 `every_realm_declares_its_own_block_tints_and_light`, `every_realm_places_its_key_light_shafts_and_motes`,
 `paintings_are_jpeg_and_everything_with_alpha_is_png`,
-`EverySkinMustCoverEveryRealm` and `test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders`
-guard the contract. Kit art carries no seam or stray highlight;
+`EverySkinMustCoverEveryRealm`, `test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders` and
+`TheMapTellsItsNodesApartAndItsGuardianIsTheBoss` guard the contract. Kit art carries no seam or stray highlight;
 `NoSlicedKitPieceShowsASeamAtItsSliceLinesAtTwiceItsSize` and
 `test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
 
