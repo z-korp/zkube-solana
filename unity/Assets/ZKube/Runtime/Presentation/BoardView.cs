@@ -541,7 +541,7 @@ namespace ZKube.Presentation
             ShowTargets();
         }
         // A soft band over every row that holds a block, while a power is armed.
-        public const float TargetAlpha = .3f;
+        public const float TargetAlpha = .45f;
         private void ShowTargets()
         {
             for (int row = 0; row < 10; row++)
@@ -1451,7 +1451,7 @@ namespace ZKube.Presentation
                 guardianAura.color = SkinUi.WithAlpha(guardianAura.color, owner.ReducedMotion ? AuraAlpha : AuraAlpha * (.75f + .25f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 3)));
             if (BonusChosen)
             {
-                float pulse = owner.ReducedMotion ? .8f : .6f + .4f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f);
+                float pulse = owner.ReducedMotion ? .85f : .8f + .2f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f);
                 foreach (var band in targetRows)
                     if (band != null && band.enabled) band.color = SkinUi.WithAlpha(art.Token(SkinTokens.Accent), TargetAlpha * pulse);
             }
