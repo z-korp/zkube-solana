@@ -5569,13 +5569,13 @@
       ],
       "guardian": {
         "face": [
-          0.23958333333333334,
-          0.07291666666666667,
-          0.5104166666666666,
-          0.5885416666666666
+          0.328125,
+          0.19661458333333334,
+          0.34375,
+          0.28515625
         ],
-        "railFrontY": 0.8658854166666666,
-        "railY": 0.8333333333333334
+        "railFrontY": 0.7981770833333334,
+        "railY": 0.7877604166666666
       },
       "guardianLines": {
         "dailyGreeting": "The same beat for all today. Match the rhythm longer than anyone else.",
