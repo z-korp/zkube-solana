@@ -106,6 +106,26 @@ class KitArt(unittest.TestCase):
                 r, g, b = face.getpixel((face.width // 2, face.height // 2))
                 self.assertTrue(g > r + 20 and b > r + 20 and min(g, b) > 60, f"{skin} {slot}: its face {(r, g, b)} is a filled teal")
 
+    def test_only_the_wordmark_letters_change_colour_between_realms(self):
+        """Each product's plaque keeps one colour in every realm and on the loading screen: from the letters'
+        foot down, and around the letters' box, every colourway and the brand lockup carry the same pixels."""
+        left, top, right, foot = 23, 22, 638, 216
+        for product in ("realms", "arena"):
+            brand = Image.open(ROOT / f"assets/brand/{product}/wordmark.png").convert("RGBA")
+            realms = [Image.open(path).convert("RGBA") for path in sorted((ROOT / "assets/skins/lumen").glob(f"realm-*/wordmark-{product}.png"))]
+            self.assertEqual(10, len(realms))
+            letters = set()
+            for realm in realms:
+                self.assertEqual(brand.size, realm.size)
+                # A difference image keeps the alpha band's difference, and getbbox reads only alpha when it has one.
+                changed = ImageChops.difference(brand, realm).point(lambda value: 255 if value else 0).convert("RGB").getbbox() or \
+                    ImageChops.difference(brand.getchannel("A"), realm.getchannel("A")).getbbox()
+                if changed:
+                    self.assertTrue(left <= changed[0] and top <= changed[1] and changed[2] <= right and changed[3] <= foot,
+                                    f"{product}: a colourway changes pixels {changed} outside the letters")
+                letters.add(realm.crop((left, top, right, foot)).tobytes())
+            self.assertEqual(10, len(letters), f"{product}: every realm colours the letters its own way")
+
     def test_no_sliced_kit_piece_carries_a_stray_point_light(self):
         catalog = json.loads((ROOT / 'assets/theme-catalog.generated.json').read_text())
         sliced = [entry for skin in catalog['skins'] for entry in skin['ui'] if any(entry['border'])]
