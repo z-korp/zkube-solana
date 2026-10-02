@@ -85,7 +85,7 @@ namespace ZKube.Presentation
             // backlight, the glass well, the frame in the realm's key light, the
             // dimple cells and the tray. Blocks, then the guardian's paws and their
             // contact shadow, rest on top; the paws lean on the frame's own edge.
-            var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.HudBackground), -20);
+            var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.Background), -20);
             Size(background, new Rect(0, 0, Screen.width, Screen.height), true);
             background.sharedMaterial = BoardLight.Lit;
             float d = Layout.Density, cell = Layout.Cell;

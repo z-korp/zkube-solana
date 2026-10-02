@@ -94,15 +94,20 @@ namespace ZKube.Presentation.Tests
         }
         private static bool Inside(Rect outer, Rect inner, float slack = .5f) =>
             inner.xMin >= outer.xMin - slack && inner.xMax <= outer.xMax + slack && inner.yMin >= outer.yMin - slack && inner.yMax <= outer.yMax + slack;
-        // The Seeker and the smallest mainstream phone, each in its measured safe area.
-        private static (string name, Rect screen, Rect safe, float density)[] Screens(float density = 1)
+        // The Seeker, the smallest mainstream phone and the emulator's default
+        // phone, each in its measured safe area.
+        private static (string name, Rect screen, Rect safe, float density)[] Screens(float density = 1, bool emulator = false)
         {
             var seeker = ZKube.Tests.Presentation.Phones.SeekerScreen; var compact = ZKube.Tests.Presentation.Phones.CompactScreen;
             Rect Scaled(Rect r) => new Rect(r.x * density, r.y * density, r.width * density, r.height * density);
-            Rect Safe(Rect r, float inset) => new Rect(r.x, r.y, r.width, r.height - inset * density);
-            return new[] {
+            Rect Safe(Rect r, float inset, float below = 0) => new Rect(r.x, r.y + below * density, r.width, r.height - (inset + below) * density);
+            var phones = new[] {
                 ("Seeker", Scaled(seeker), Safe(Scaled(seeker), ZKube.Tests.Presentation.Phones.SeekerTopInsetDp), density),
                 ("360 x 640", Scaled(compact), Safe(Scaled(compact), ZKube.Tests.Presentation.Phones.CompactTopInsetDp), density) };
+            if (!emulator) return phones;
+            var phone = ZKube.Tests.Presentation.Phones.EmulatorScreen;
+            return phones.Concat(new[] { ("emulator", Scaled(phone), Safe(Scaled(phone), ZKube.Tests.Presentation.Phones.EmulatorTopInsetDp,
+                ZKube.Tests.Presentation.Phones.EmulatorBottomInsetDp), density) }).ToArray();
         }
         // The pause and its end-run confirm, as the v3 composites draw them over
         // the dimmed HUD: one guardian (the HUD's), the title plate, the goals as
@@ -119,7 +124,7 @@ namespace ZKube.Presentation.Tests
                 evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 var art = Art();
                 board.View.gameObject.SetActive(false);
-                foreach (var (name, screen, safe, density) in Screens())
+                foreach (var (name, screen, safe, density) in Screens(1, true))
                     foreach (float scale in new[] { 1f, 1.3f })
                         foreach (bool confirm in new[] { false, true })
                         {
@@ -188,7 +193,7 @@ namespace ZKube.Presentation.Tests
             board.View.gameObject.SetActive(false);
             try
             {
-                foreach (var (name, screen, safe, density) in Screens())
+                foreach (var (name, screen, safe, density) in Screens(1, true))
                     foreach (float scale in new[] { 1f, 1.3f })
                         for (int i = 0; i < captions.Length; i += 2)
                         {
@@ -270,35 +275,67 @@ namespace ZKube.Presentation.Tests
                 Assert.IsTrue(layout.PauseButton.yMin >= safe.yMin && layout.GuardianButton.yMin >= safe.yMin, fixture + " keeps its thumb row on screen");
             }
         }
-        [UnityTest] public IEnumerator TheCampaignHudHasItsWireframeGeometry()
+        // DECISIONS 2026-10-02: the board first. Its cells take the width, with
+        // the frame 4 dp in from each side, wherever the height allows (the
+        // Seeker), and grow from the old 222 dp header's 41 dp on the emulator's
+        // default phone. The guardian is drawn at most 150 dp; it leans on the
+        // frame's top, centred, with the crown over its head; the plates and the
+        // tablet end at the frame, and nothing leaves the safe area.
+        [UnityTest] public IEnumerator TheBoardTakesTheWidthAndTheHeaderTheHeightItLeaves()
         {
-            // ux/src/index.src.html section 1, drawn at 400 x 890 dp and 3 px/dp.
-            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, new Rect(0, 0, 1200, 2670), 3);
-            Rect Dp(Rect r) => new Rect(r.x / 3, (2670 - r.yMax) / 3, r.width / 3, r.height / 3);
-            void Near(Rect expected, Rect actual, string what)
+            foreach (string fixture in new[] { "realm-1-campaign", "realm-8-daily" })
             {
-                var dp = Dp(actual);
-                Assert.AreEqual(expected.x, dp.x, .6f, what + " x " + dp); Assert.AreEqual(expected.y, dp.y, .6f, what + " y " + dp);
-                Assert.AreEqual(expected.width, dp.width, .6f, what + " width " + dp); Assert.AreEqual(expected.height, dp.height, .6f, what + " height " + dp);
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                foreach (var (name, screen, safe, density) in Screens(3, true))
+                {
+                    var plan = HudLayout.Build(new SkinUi(Art(), density, 1), board.State, board.Session, safe, density, screen);
+                    var layout = plan.Layout; string at = fixture + " on " + name;
+                    float cell = layout.Cell / density, widest = BoardLayout.WidestCellDp(safe.width / density);
+                    Debug.Log($"HUD {at}: cell {cell:0.0} dp of {widest:0.0}, guardian {plan.Guardian.width / density:0.0} dp, k {plan.K:0.00}, header {(safe.yMax - layout.Rim.yMax) / density:0.0} dp");
+                    if (name == "Seeker") Assert.AreEqual(Mathf.Floor(widest * density) / density, cell, .01f, at + ": the cells take the width");
+                    if (name == "emulator") Assert.GreaterOrEqual(cell, 46, at + ": the cells grow into the old header");
+                    Assert.LessOrEqual(plan.Guardian.width / density, HudLayout.GuardianMaxDp + .01f, at + ": the guardian is drawn smaller");
+                    Assert.GreaterOrEqual(plan.Guardian.width / density, 72, at + " keeps its guardian");
+                    Assert.AreEqual(layout.Rim.center.x, plan.Guardian.center.x, .5f, at + ": the guardian is centred on the frame");
+                    Assert.AreEqual(layout.Rim.yMax - density - (1 - Art().GuardianRailY) * plan.Guardian.height, plan.Guardian.y, .5f, at + ": the guardian leans on the frame");
+                    Assert.AreEqual(layout.Rim.yMax, plan.Plates[2].yMin, .5f, at + ": the plates end at the frame");
+                    Assert.GreaterOrEqual(plan.Crown.yMin, plan.Guardian.yMax - .124f * plan.Guardian.height - .5f,
+                        at + ": the crown sits over the guardian's head");
+                    Apart(Header(plan), at);
+                    foreach (var piece in Header(plan).Concat(plan.Campaign ? plan.Sockets : new Rect[0]))
+                    {
+                        Assert.IsTrue(Inside(safe, piece), at + " keeps " + piece + " in the safe area " + safe);
+                        Assert.GreaterOrEqual(piece.yMin, layout.Rim.yMax - .5f, at + " keeps " + piece + " above the frame");
+                    }
+                    foreach (var piece in new[] { layout.PauseButton, layout.EarnPanel, layout.GuardianButton, layout.RerollButton, layout.Tray })
+                        Assert.IsTrue(Inside(safe, piece, 1), at + " keeps " + piece + " on screen");
+                }
             }
-            Assert.AreEqual(222, Dp(plan.Layout.Rim).y, .6f, "The frame's top");
-            for (int i = 0; i < 3; i++) Near(new Rect(288, 72 + 52 * i, 104, 46), plan.Plates[i], "plate " + i);
-            Near(new Rect(8, 92, 104, 112), plan.Moves, "moves tablet");
-            Near(new Rect(16, 30, 46, 46), plan.Medal, "level medal");
-            // 44 dp sockets 12.32 dp apart, the side ones 6.16 dp lower.
-            Near(new Rect(121.68f, 34.16f, 44, 44), plan.Sockets[0], "first socket");
-            Near(new Rect(178, 28, 44, 44), plan.Sockets[1], "middle socket");
-            Near(new Rect(234.32f, 34.16f, 44, 44), plan.Sockets[2], "last socket");
-            Assert.AreEqual(186, Dp(plan.Guardian).width, .6f, "The guardian is drawn 186 dp");
-            Assert.AreEqual(plan.Layout.Rim.center.x, plan.Guardian.center.x, .5f, "The guardian is centred on the frame");
-            // The thumb row: 14 dp under the tray, pause, the Earn panel and the two tablets.
-            float rowTop = Dp(plan.Layout.Tray).yMax + 14;
-            Near(new Rect(10, rowTop + 3, 44, 44), plan.Layout.PauseFace, "pause");
-            Assert.AreEqual(rowTop, Dp(plan.Layout.EarnPanel).y, .6f, "The Earn panel starts the row");
-            Assert.AreEqual(170, Dp(plan.Layout.EarnPanel).width, .6f);
-            Assert.AreEqual(60, Dp(plan.Layout.GuardianButton).width, .6f); Assert.AreEqual(rowTop - 5, Dp(plan.Layout.GuardianButton).y, .6f);
-            Assert.AreEqual(72, Dp(plan.Layout.RerollButton).x - Dp(plan.Layout.GuardianButton).x, .6f, "The tablets are 72 dp apart");
+        }
+        // Evidence: the HUD as drawn on each phone (with ZKUBE_CAPTURES set).
+        [UnityTest] public IEnumerator CaptureTheHudOnEachPhone()
+        {
+            foreach (string fixture in new[] { "realm-1-campaign", "realm-8-daily" })
+            {
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                board.View.gameObject.SetActive(false);
+                foreach (var (name, screen, safe, density) in Screens(1, true))
+                {
+                    var host = new GameObject("Captured view"); host.transform.SetParent(root.transform);
+                    try
+                    {
+                        var ui = new SkinUi(Art(), density, 1);
+                        var view = host.AddComponent<BoardView>(); view.Create(board, Art(), HudLayout.Build(ui, board.State, board.Session, safe, density, screen), ui);
+                        view.SetBoard(board.State.Grid); view.SetPreview(board.State.HasNextRow, board.State.NextRow);
+                        view.Summary(board.State, board.Session, true);
+                        yield return null;
+                        yield return ZKube.Tests.Presentation.Captures.Snap(screen, "hud-" + fixture + "-" + name.Replace(" ", ""));
+                    }
+                    finally { UnityEngine.Object.Destroy(host); }
+                    yield return null;
+                }
+                board.View.gameObject.SetActive(true);
+            }
         }
         [UnityTest] public IEnumerator NothingEntersTheTopInset()
         {
@@ -311,8 +348,6 @@ namespace ZKube.Presentation.Tests
                 var plan = HudLayout.Build(new SkinUi(Art(), 3, 1), board.State, board.Session, safe, 3, screen);
                 foreach (var piece in Header(plan).Concat(plan.Sockets))
                     Assert.GreaterOrEqual(Dp(piece.yMax), inset, "A " + inset + " dp inset leaves " + piece + " clear");
-                // The drawing moves down only as far as the inset needs.
-                Assert.AreEqual(Mathf.Max(222, inset + 2 + 222 - (28 - 4.4f)), Dp(plan.Layout.Rim.yMax), .6f, "The frame at a " + inset + " dp inset");
             }
         }
         [UnityTest] public IEnumerator APlateOpensItsCaptionAndProgressAndTheNextTouchClosesIt()
@@ -491,7 +526,7 @@ namespace ZKube.Presentation.Tests
             board.View.gameObject.SetActive(false);
             try
             {
-                foreach (var (name, screen, safe, density) in Screens())
+                foreach (var (name, screen, safe, density) in Screens(1, true))
                     foreach (float scale in new[] { 1f, 1.3f })
                     {
                         var host = new GameObject("Daily view"); host.transform.SetParent(root.transform);

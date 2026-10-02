@@ -16,6 +16,10 @@ namespace ZKube.Presentation
         private static float TrayInsetDp(bool compact) => compact ? 4 : 6;
         private static float LabelGapDp(bool compact) => compact ? 16 : 26;
         public static float DefaultHeaderDp(bool compact) => compact ? 156 : 222;
+        // The frame stands this far in from each side of the safe area.
+        public const float SideDp = 4;
+        // The largest cell a width allows: the frame and its side margins, at most 96 dp.
+        public static float WidestCellDp(float widthDp) => Mathf.Min(96, (widthDp - 2 * SideDp - 2 * RimDp) / 8);
         private static float BottomDp(bool compact) => compact ? 4 : 16;
         // The thumb row hangs 14 dp under the tray, 4 dp on a compact screen.
         private static float RowGapDp(bool compact, float k) => compact ? 4 : 14 * k;
@@ -58,7 +62,7 @@ namespace ZKube.Presentation
             float label = Mathf.Max(LabelGapDp(Compact) * d, labelPixels);
             BelowHeader = Footer + 2 * rim + label + 2 * TrayInset;
             float stack = Header + BelowHeader;
-            Cell = Mathf.Max(1, Mathf.Floor(Mathf.Min(96 * d, (safeArea.width - 16 * d - 2 * rim) / 8, (safeArea.height - stack) / 11)));
+            Cell = Mathf.Max(1, Mathf.Floor(Mathf.Min(WidestCellDp(safeArea.width / d) * d, (safeArea.height - stack) / 11)));
             float top = safeArea.yMax - Header - rim;
             Board = new Rect(safeArea.center.x - 4 * Cell, top - 10 * Cell, 8 * Cell, 10 * Cell);
             Rim = new Rect(Board.x - rim, Board.y - rim, Board.width + 2 * rim, Board.height + 2 * rim);

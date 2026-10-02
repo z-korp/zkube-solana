@@ -98,7 +98,7 @@ Android builds are inspected after they finish. build.py holds a lease, so two r
 
 - A skin is a folder under assets/skins/<id>/, listed in assets/catalog.json. Lumen is the only skin.
 - Its slots are declared once, in crates/zkube-codegen/src/skins.rs: UI kit pieces (slice borders in skin.json),
-  goal pictograms, ladder borders and badges, and per realm a background, HUD background and map painting (JPEG)
+  goal pictograms, ladder borders and badges, and per realm a background and map painting (JPEG)
   plus a ledge, mote and four block sprites (PNG with alpha).
 - Each realm's tokens.json holds its block tints and light colours; skin.json places its key light, shafts and
   motes.

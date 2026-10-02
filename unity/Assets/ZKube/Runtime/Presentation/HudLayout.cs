@@ -4,14 +4,14 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
-    // The Lumen board HUD, from the approved v2 wireframes: drawn in dp from the
-    // screen's top at 400 x 890 (compact at 360 x 640). The guardian leans on
-    // the board frame's own edge; above its head the three star sockets sit on
-    // a dark pill (the Daily puts its score there). The goal plates stack on the
-    // right in star order and end at the frame's top; the moves tablet sits on
-    // the left. Nothing enters the top inset: the drawing moves down only as far
-    // as the inset, the plates or the tablet need. Under the board: the NEXT ROW
-    // label, the tray, and the thumb row that BoardLayout places.
+    // The Lumen board HUD, from the approved v2 wireframes with the board first
+    // (DECISIONS 2026-10-02): the board takes the width and the header the
+    // height its cells leave. The guardian leans on the board frame's own edge;
+    // above its head the three star sockets sit on a dark pill (the Daily puts
+    // its score there). The goal plates stack on the right and end at the
+    // frame's top; the moves tablet sits on the left. Nothing enters the top
+    // inset. Under the board: the NEXT ROW label, the tray, and the thumb row
+    // that BoardLayout places.
     public sealed class HudLayout
     {
         public BoardLayout Layout;
@@ -33,10 +33,9 @@ namespace ZKube.Presentation
         public float BarDp;
         public float Density => Layout.Density;
 
-        // The wireframes' rows, dp from the drawing's top.
-        private const float RimTop = 222;
-        private const float StarTop = 28, CompactStarTop = 6;
-        private const float GuardianDp = 186, CompactGuardianDp = 150;
+        // The plates shrink to this share of their drawn size before the board's
+        // cells give way; the guardian is drawn at most this wide.
+        public const float HeaderFloorK = .75f, CompactFloorK = .6f, GuardianMaxDp = 150;
         // A compact screen gives the board priority: its cells are at least this.
         public const float MinCompactCellDp = 34;
         // The Earn caption's size, the Caption role's 11 dp, 10 on a compact screen.
@@ -107,17 +106,25 @@ namespace ZKube.Presentation
             // NEXT ROW sits in the gap between the frame and the tray, which grows with larger text.
             float labelPt = compact ? 10 : 11, label = H("NEXT ROW", plain.Frame.width, labelPt, SkinUi.Type.Label);
 
-            // A compact screen takes the header from what the board's rows at
-            // MinCompactCellDp leave: the plates shrink to 0.6 of their drawn size,
-            // then the guardian, as far as 72 dp.
-            float k = 1, guardianDp = GuardianDp, crownDp = 1.34f * 44;
-            if (compact)
-            {
-                float header = safe.height / d - new BoardLayout(safe, density, 1, earn * d, label * d).BelowHeader / d - 11 * MinCompactCellDp - 2;
-                k = Mathf.Clamp((header - 2 * 4) / (3 * 46), .6f, .8f);
-                crownDp = result.Campaign ? 1.34f * 44 * k : (58 + BestAboveDp) * k;
-                guardianDp = Mathf.Clamp((header - crownDp) / (ui.Art.GuardianRailY - CrownOverGuardian), 72, CompactGuardianDp);
-            }
+            // The board comes first: its cells take the width, and the header gets
+            // the height they leave. The plates scale between HeaderFloorK of their
+            // drawn size and 1, the guardian between 72 dp and GuardianMaxDp; any
+            // height past that opens above the header, over the painting. A
+            // compact screen lets its plates shrink to CompactFloorK, which keeps
+            // a 360 x 640 phone's cells at MinCompactCellDp.
+            float gap = compact ? 4 : 6, rail = ui.Art.GuardianRailY - CrownOverGuardian;
+            float below = new BoardLayout(safe, density, 1, earn * d, label * d).BelowHeader / d;
+            float Leaves(float cell) => safe.height / d - below - 11 * cell - 2;
+            float Stack(float scale) => 3 * 46 * scale + 2 * gap + 2;
+            float CrownDp(float scale) => result.Campaign ? 1.34f * 44 * scale : (58 + BestAboveDp) * scale;
+            float widestCell = BoardLayout.WidestCellDp(safe.width / d);
+            float floorK = compact ? CompactFloorK : HeaderFloorK;
+            float header = Mathf.Max(Leaves(widestCell), Stack(floorK));
+            // The plates grow with the header, reaching their drawn size only
+            // where the guardian also stands at its largest.
+            float full = Mathf.Max(Stack(1), 2 + CrownDp(1) + rail * GuardianMaxDp);
+            float k = Mathf.Lerp(floorK, 1, Mathf.InverseLerp(Stack(floorK), full, header));
+            float guardianDp = Mathf.Clamp((header - 2 - CrownDp(k)) / rail, 72, GuardianMaxDp);
             result.K = k;
 
             result.CountPt = Mathf.Max(18 * k, 14); result.MovesPt = 52 * k; result.LevelPt = 19; result.ScorePt = 38 * k;
@@ -132,7 +139,7 @@ namespace ZKube.Presentation
             float plateWidth = Mathf.Max(104 * k, 44 * k + countWidth + 6 * k);
             float countHeight = H("0/0", plateWidth * d, result.CountPt, SkinUi.Type.Display);
             result.BarDp = compact ? 4 : 6;
-            float plate = Mathf.Max(46 * k, 6 * k + countHeight + 2 * k + result.BarDp + 4 * k), gap = compact ? 4 : 6;
+            float plate = Mathf.Max(46 * k, 6 * k + countHeight + 2 * k + result.BarDp + 4 * k);
             float stack = 3 * plate + 2 * gap;
             // The numeral steps down only where the run's whole move budget would
             // not fit the drawn tablet (a Daily's 100 at larger text).
@@ -142,23 +149,24 @@ namespace ZKube.Presentation
             float moves = Mathf.Max(112 * k, MovesIconDp * k + H(budget, movesWidth * d, result.MovesPt, SkinUi.Type.Display) + 2 * k);
             float movesBelow = compact ? 28 * k : 18;
 
-            // The crown and the medal sit as drawn from the drawing's top, lower only
-            // as far as the inset needs; the plates and the tablet end at the frame.
-            float starRef = compact ? CompactStarTop : StarTop, star = 44 * k;
-            bool medal = !compact && result.Campaign;
+            // Everything above the board stands on the frame: the plates and the
+            // tablet end at it, the guardian leans on it and the crown sits over
+            // the guardian's head. The frame lowers only when a measured column
+            // (larger text) needs more than the header, or when wide plates
+            // would reach under the crown.
+            float star = 44 * k;
             float score = Mathf.Max(58 * k, 8 * k + H("0", 126 * k * d, result.ScorePt, SkinUi.Type.Display));
-            float crownTop = result.Campaign ? starRef - .1f * star : starRef - 6 * k - BestAboveDp * k, crownHeight = result.Campaign ? 1.34f * star : BestAboveDp * k + score;
-            float crownHalf = result.Campaign ? 1.5f * star + .28f * star + .18f * star : 94 * k, medalTop = 30;
-            float room = inset + 2, shift = Mathf.Max(0, room - (medal ? Mathf.Min(crownTop, medalTop) : crownTop));
-            // Compact: the crown, then the guardian's head under it, then the frame.
-            float rimRef = compact ? crownTop + crownHeight + (ui.Art.GuardianRailY - CrownOverGuardian) * guardianDp : RimTop;
-            crownTop += shift; medalTop += shift;
-            // The frame: as drawn, or lower when a column would reach the inset,
-            // or when wide plates or a tall tablet would reach under the crown or the medal.
+            float crownHeight = result.Campaign ? 1.34f * star : BestAboveDp * k + score;
+            float crownHalf = result.Campaign ? 1.5f * star + .28f * star + .18f * star : 94 * k;
             float plateRight = safe.xMax - 8 * d;
-            float rim = Mathf.Max(rimRef + shift, Mathf.Max(room + stack, room + moves + movesBelow));
-            if (plateRight - plateWidth * d < safe.center.x + crownHalf * d) rim = Mathf.Max(rim, crownTop + crownHeight + gap + stack);
-            if (medal) rim = Mathf.Max(rim, medalTop + 46 + gap + moves + movesBelow);
+            bool underCrown = plateRight - plateWidth * d < safe.center.x + crownHalf * d;
+            float column = Mathf.Max(crownHeight + rail * guardianDp, underCrown ? crownHeight + gap + stack : 0);
+            float room = inset + 2;
+            float rim = Mathf.Max(inset + header, room + Mathf.Max(column, Mathf.Max(stack, moves + movesBelow)));
+            float crownTop = rim - column;
+            // The level medal stands over the moves tablet where the header leaves it room.
+            float medalTop = rim - movesBelow - moves - gap - 46;
+            bool medal = !compact && result.Campaign && medalTop >= room;
             float top = drawing.yMax;
             float Y(float dpFromTop) => top - dpFromTop * d;
 

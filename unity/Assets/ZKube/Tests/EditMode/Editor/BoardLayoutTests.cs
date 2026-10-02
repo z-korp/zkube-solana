@@ -27,9 +27,10 @@ namespace ZKube.Editor.Tests
         }
         [Test] public void TheSeekerDrawingHasItsApprovedGeometry()
         {
-            // The v2 HUD is drawn at 400 x 890 dp: 47 dp cells, the frame at 8, 222
-            // (384 x 478), the tray 26 dp under it (59 dp) and the thumb row 14 dp
-            // under the tray, spread over the frame's 384 dp.
+            // At 400 x 890 dp under the default 222 dp header the cells take the
+            // width (DECISIONS 2026-10-02): 48 dp cells, the frame 4 dp in from each
+            // side at 4, 222 (392 x 488), the tray 26 dp under it (60 dp) and the
+            // thumb row 14 dp under the tray, spread over the frame's 392 dp.
             var layout = new BoardLayout(new Rect(0, 0, 1200, 2670), 3);
             float Top(float y) => (2670 - y) / 3;
             Rect Dp(Rect r) => new Rect(r.x / 3, Top(r.yMax), r.width / 3, r.height / 3);
@@ -38,16 +39,16 @@ namespace ZKube.Editor.Tests
                 Assert.AreEqual(expected.x, actual.x, .05f, "x " + actual); Assert.AreEqual(expected.y, actual.y, .05f, "y " + actual);
                 Assert.AreEqual(expected.width, actual.width, .05f, "width " + actual); Assert.AreEqual(expected.height, actual.height, .05f, "height " + actual);
             }
-            float X(float dp) => 8 + dp * 384 / BoardLayout.RowDp;
+            float X(float dp) => 4 + dp * 392 / BoardLayout.RowDp;
             Assert.IsFalse(layout.Compact);
-            Assert.AreEqual(47, layout.Cell / 3, .001f);
-            Near(new Rect(8, 222, 384, 478), Dp(layout.Rim));
-            Near(new Rect(8, 726, 384, 59), Dp(layout.Tray));
-            Near(new Rect(X(2), 802, 44, 44), Dp(layout.PauseFace));
-            Near(new Rect(X(54), 799, 170, 50), Dp(layout.EarnPanel));
-            Near(new Rect(X(234), 794, 60, 60), Dp(layout.GuardianButton));
-            Near(new Rect(X(306), 794, 60, 60), Dp(layout.RerollButton));
-            Near(new Rect(12, 226, 376, 470), Dp(layout.Board));
+            Assert.AreEqual(48, layout.Cell / 3, .001f);
+            Near(new Rect(4, 222, 392, 488), Dp(layout.Rim));
+            Near(new Rect(4, 736, 392, 60), Dp(layout.Tray));
+            Near(new Rect(X(2), 813, 44, 44), Dp(layout.PauseFace));
+            Near(new Rect(X(54), 810, 170, 50), Dp(layout.EarnPanel));
+            Near(new Rect(X(234), 805, 60, 60), Dp(layout.GuardianButton));
+            Near(new Rect(X(306), 805, 60, 60), Dp(layout.RerollButton));
+            Near(new Rect(8, 226, 384, 480), Dp(layout.Board));
         }
         [TestCase(320, 568, 1)] [TestCase(430, 854, 1)] [TestCase(1080, 2262, 3)] [TestCase(1024, 768, 1)]
         public void LayoutFitsSafeAreaAndSeparates48DpControls(int width, int height, float density)

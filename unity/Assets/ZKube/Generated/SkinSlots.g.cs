@@ -149,7 +149,6 @@ namespace ZKube.Core.Generated
         public const string LadderBorder4 = "ladder-border-4";
         public const string LadderBadge4 = "ladder-badge-4";
         public const string Background = "background";
-        public const string HudBackground = "hud-background";
         public const string Map = "map";
         public const string Mote = "mote";
         public const string Ledge = "ledge";

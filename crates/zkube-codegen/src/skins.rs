@@ -195,7 +195,7 @@ pub const REALM_TOKENS: [&str; 6] = [
 ];
 
 /// Opaque realm paintings, stored as JPEG; the build re-encodes them anyway.
-pub const REALM_PAINTINGS: [&str; 3] = ["background", "hud-background", "map"];
+pub const REALM_PAINTINGS: [&str; 2] = ["background", "map"];
 
 /// Realm pieces drawn stretched; their borders are skin-wide in skin.json.
 pub const REALM_STRETCH_SLOTS: [&str; 1] = ["ledge"];
@@ -211,7 +211,7 @@ pub const REALM_NODE_SLOTS: [&str; 5] = [
 ];
 
 pub fn realm_slots() -> Vec<String> {
-    let mut slots: Vec<String> = ["background", "hud-background", "map", "mote"]
+    let mut slots: Vec<String> = ["background", "map", "mote"]
         .into_iter()
         .chain(REALM_STRETCH_SLOTS)
         .chain(REALM_NODE_SLOTS)
@@ -576,7 +576,7 @@ mod tests {
         assert_eq!(realm["borders"]["ledge"], json!([8, 8, 8, 8]));
 
         assert_eq!(realm["images"]["map"], "/assets/skins/test/realm-2/map.jpg");
-        for slot in ["block-3", "hud-background", "ledge"] {
+        for slot in ["block-3", "map", "ledge"] {
             let path = root.join("assets/skins/test/realm-2").join(slot_file(slot));
             fs::remove_file(&path).unwrap();
             let error = render(&root, &listed(), 2).unwrap_err();
@@ -719,7 +719,7 @@ mod tests {
         }
         assert!(source.contains("ButtonPrimaryPressed = \"button-primary-pressed\""));
         assert!(source.contains("TextOnPrimary = \"text-on-primary\""));
-        assert!(source.contains("HudBackground = \"hud-background\""));
+        assert!(!source.contains("hud-background"));
         for width in 1..=BLOCK_WIDTHS {
             assert!(
                 REALM_TOKENS.contains(&format!("block-tint-{width}").as_str()),
