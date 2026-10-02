@@ -19,8 +19,10 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
 use std::{io::Write, str::FromStr};
 
-const NOW: i64 = 1_788_912_000;
-const DAY: u32 = (NOW / zkube_core::SECONDS_PER_DAY) as u32;
+/// 07:00 UTC on 9 September 2026: the instant day 20,705 opens.
+const NOW: i64 = 1_788_937_200;
+const DAY: u32 = 20_705;
+const _: () = assert!(NOW == DAY as i64 * zkube_core::SECONDS_PER_DAY + zkube_core::DAY_START_OFFSET);
 const RUN_ID: u64 = 9_007_199_254_740_993;
 
 fn owner() -> Pubkey {

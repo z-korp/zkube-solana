@@ -5,6 +5,9 @@ import { KEEPER_LIMITS, MAX_TRANSACTION_COMPUTE_UNITS, keeperComputeUnitLimit, r
 import { ZKUBE_PROGRAM_ID, cadenceFundingPda, type KeeperOperation } from "../src/arcadeChain.js";
 import type { DailySnapshot } from "../src/arcadeReconciliation.js";
 import { CADENCE_FUNDING_TWO_DAY_LAMPORTS } from "../src/protocolVersions.generated.js";
+import { dailyWindow } from "../src/zkubeCore.js";
+// The instant a day opens; the core owns the boundary (07:00 UTC).
+const opens = (day: number) => dailyWindow(day).opensAt;
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -25,7 +28,7 @@ function pass(count = 7) {
   };
   const input = {
     connection: connection as unknown as Connection, keeper, writeEnabled: true,
-    now: () => 20_700 * 86_400_000,
+    now: () => opens(20_700) * 1_000,
     protocolSnapshot: { paused: true, launchDayId: 20_700, suspendedUntilDay: 0, lastPreparedDay: 20_701, dailies: [], runs: [],
       closedArenaPlayers: Array.from({ length: count }, () => ({ dayId: 20_699,
         owner: Keypair.generate().publicKey, rentPayer: keeper.publicKey })) },
@@ -99,8 +102,8 @@ it("keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_r
     const log = vi.fn();
     const result = await runKeeperPass({ ...input, log,
       protocolSnapshot: { ...input.protocolSnapshot, paused: false, lastPreparedDay: 20_700, dailies: [{
-        dayId: 20_700, status: "open", finalizedAt: 0, runsCloseAt: 20_700 * 86_400 + 86_340,
-        recoveryDeadlineAt: 20_700 * 86_400 + 107_940, entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n,
+        dayId: 20_700, status: "open", finalizedAt: 0, runsCloseAt: opens(20_700) + 86_340,
+        recoveryDeadlineAt: opens(20_700) + 107_940, entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n,
         predecessorDayId: 20_699, predecessorRolloverRequired: false, predecessorRolloverApplied: true, claimsExpired: false,
       } satisfies DailySnapshot] },
       protocolMaterializer: { materialize: async ({ operation }: { operation: KeeperOperation }) => {

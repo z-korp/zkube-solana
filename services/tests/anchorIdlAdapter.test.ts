@@ -21,6 +21,9 @@ import {
   type KeeperPlanContext,
 } from "../src/arcadeChain.js";
 import { discoverReconciliation } from "../src/arcadeReconciliation.js";
+import { dailyWindow } from "../src/zkubeCore.js";
+// The instant a day opens; the core owns the boundary (07:00 UTC).
+const opens = (day: number) => dailyWindow(day).opensAt;
 
 const DAY = 20_651;
 const RUN_ID = 42n;
@@ -41,7 +44,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       daily.dayId = dayId;
       values.set(arenaDailyPda(dayId).toBase58(), await coder.encode("arenaDaily", daily));
     }
-    const adapter = await AnchorKeeperAdapter.create({ nowUnix: DAY * 86_400, launchDayId: DAY,
+    const adapter = await AnchorKeeperAdapter.create({ nowUnix: opens(DAY), launchDayId: DAY,
       connection: { getAccountInfo: async (address: PublicKey) => {
         const data = values.get(address.toBase58());
         return data ? { data, owner: ZKUBE_PROGRAM_ID, executable: false, lamports: 1_000_000_000 } : null;
@@ -77,7 +80,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     const decode = (name: string, row: { data: string }) => coder.decode(name, Buffer.from(row.data, "base64"));
     const { day, runId } = fixtures.plans.inputs;
     const owner = new PublicKey(fixtures.plans.inputs.owner);
-    const closesAt = day * 86_400 + 86_340;
+    const closesAt = opens(day) + 86_340;
     const protocol = decode("protocolConfig", fixtures.plans.accounts.protocol);
     protocol.lastPreparedDay = day;
     const daily = decode("arenaDaily", fixtures.plans.accounts.daily);
@@ -273,7 +276,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
 async function createAdapter(): Promise<AnchorKeeperAdapter> {
   return AnchorKeeperAdapter.create({
     connection: {} as Connection,
-    nowUnix: DAY * 86_400, launchDayId: DAY,
+    nowUnix: opens(DAY), launchDayId: DAY,
   });
 }
 function arcade(

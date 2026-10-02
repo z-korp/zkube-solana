@@ -216,6 +216,11 @@ pub const OPERATIONS: &[Operation] = &[
         name: "BoardOrder",
         fields: fields![LeftMetric: U64, LeftTime: Bytes(8), LeftOwner: Bytes(32), RightMetric: U64, RightTime: Bytes(8), RightOwner: Bytes(32)],
     },
+    Operation {
+        id: 29,
+        name: "DayAt",
+        fields: fields![Timestamp: Bytes(8)],
+    },
 ];
 
 /// One registry drives safe Rust indexing and generated managed layout.
@@ -524,6 +529,12 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
                 .map_err(|_| BoundaryError::InvalidEncoding)?;
             Ok(encode_campaign_progress(stars))
         }
+        // The day an instant belongs to: the core's one day boundary.
+        29 => zkube_core::day_id_at(i64::from_le_bytes(
+            b("Timestamp").try_into().expect("timestamp"),
+        ))
+        .map(|day| day.to_le_bytes().to_vec())
+        .map_err(|_| BoundaryError::InvalidEncoding),
         28 => {
             let order = zkube_core::compare_board_entries(
                 input.u64("LeftMetric"),

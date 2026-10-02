@@ -83,8 +83,13 @@ namespace ZKube.Integration.Client
 
 
         internal static long ValidateClock(long timestamp)
-        { if (timestamp < 0 || timestamp / 86400 > uint.MaxValue) throw new ArgumentOutOfRangeException("now"); return timestamp; }
-        internal static uint CurrentDay(long timestamp) => checked((uint)(timestamp / 86400));
+        { CurrentDay(timestamp); return timestamp; }
+        // The core owns which day an instant belongs to (days turn at 07:00 UTC).
+        internal static uint CurrentDay(long timestamp)
+        {
+            try { return NativeEngine.DayAt(timestamp); }
+            catch (NativeEngineException) { throw new ArgumentOutOfRangeException("now"); }
+        }
         internal static string DailyStatus(JObject daily, long timestamp, DailyInfo window = null)
         {
             window ??= NativeEngine.Daily((uint)daily["day_id"]);

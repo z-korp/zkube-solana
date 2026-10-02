@@ -56,7 +56,7 @@ namespace ZKube.Integration.Presentation
             shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
             views = gameObject.AddComponent<PageViews>(); InitializeViews();
             initialized = true;
-            observedDay = now() / 86400;
+            observedDay = Today;
             _ = RefreshOverview();
         }
         private void InitializeViews() => views.Initialize(this, shell, "Arcade", "arena", textScale, Density);
@@ -192,7 +192,7 @@ namespace ZKube.Integration.Presentation
             if (dirty && !presenting && shell.Root.activeSelf) StartCoroutine(Render());
             if (Busy || browsingCampaign || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
                 sharedPage.HasValue) return;
-            long timestamp = now(), day = timestamp / 86400;
+            long timestamp = now(), day = Today;
             long? freeze = publicRead != null && publicRead.IsCurrent ? publicRead.Value.FreezesAt : null;
             if (day != observedDay || (freeze.HasValue && timestamp >= freeze.Value && freezeAttempt != freeze.Value))
             { observedDay = day; if (freeze.HasValue && timestamp >= freeze.Value) freezeAttempt = freeze.Value; _ = RefreshOverview(); }
@@ -296,7 +296,7 @@ namespace ZKube.Integration.Presentation
             .ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
         private static string Utc(long seconds) => seconds > DateTimeOffset.MaxValue.ToUnixTimeSeconds() ? "a date outside the calendar" :
             DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("d MMM · HH:mm", CultureInfo.InvariantCulture) + " UTC";
-        private uint Today => checked((uint)(now() / 86400));
+        private uint Today => NativeEngine.DayAt(now());
         private byte TodayRealm => dailyRead != null && dailyRead.IsCurrent ? dailyRead.Value.Lobby.Realm :
             publicRead != null && publicRead.IsCurrent ? publicRead.Value.Realm : NativeEngine.Daily(Today).Realm;
     }

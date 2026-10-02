@@ -17,6 +17,9 @@ import {
 } from "./launchPlanner.js";
 import { quoteLaunch } from "./operatorPlan.js";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
+import { dailyWindow } from "../../services/src/zkubeCore.js";
+// The instant a day opens; the core owns the boundary (07:00 UTC).
+const opens = (day: number) => dailyWindow(day).opensAt;
 
 const LOADER = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
 describe("read-only paused bootstrap and launch planner", () => {
@@ -38,7 +41,7 @@ describe("read-only paused bootstrap and launch planner", () => {
       teamDestination: team.toBase58(),
       replayDomainHex: canonicalDevnetReplayDomainHex(),
       launchDayId: 100,
-      launchCutoffUnixTimestamp: 100 * 86_400 + 3_600,
+      launchCutoffUnixTimestamp: opens(100) + 3_600,
       deployedProgramDataSha256,
       programAllocationBytes: allocationBytes,
       programUpgradeAuthority: upgradeAuthority.toBase58(),
@@ -86,7 +89,7 @@ describe("read-only paused bootstrap and launch planner", () => {
       teamDestination: team.toBase58(),
       replayDomainHex: canonicalDevnetReplayDomainHex(),
       launchDayId: 100,
-      launchCutoffUnixTimestamp: 100 * 86_400 + 3_600,
+      launchCutoffUnixTimestamp: opens(100) + 3_600,
       deployedProgramDataSha256: createHash("sha256")
         .update(Buffer.alloc(allocationBytes))
         .digest("hex"),
@@ -143,7 +146,7 @@ function launchConnection(args: {
       return null;
     },
     getSlot: async () => 1,
-    getBlockTime: async () => args.observedUnixTimestamp ?? 100 * 86_400 + 100,
+    getBlockTime: async () => args.observedUnixTimestamp ?? opens(100) + 100,
     getMultipleAccountsInfo: async (addresses: PublicKey[]) => addresses.map(address =>
       address.equals(ZKUBE_PROGRAM_ID) ? account(program, true, LOADER, 1) :
       address.equals(programDataAddress) ? account(programData, false, LOADER, 1_000_000) : null),

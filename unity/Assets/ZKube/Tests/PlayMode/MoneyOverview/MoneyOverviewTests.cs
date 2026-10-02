@@ -210,7 +210,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
             for (int i = 0; i < 5; i++) yield return null;
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
-            environment.AdvanceClock((environment.Clock() / 86400 + 1) * 86400 - environment.Clock());
+            environment.AdvanceClock((long)ZKube.Core.NativeEngine.Daily(ZKube.Core.NativeEngine.DayAt(environment.Clock()) + 1).OpensAt - environment.Clock());
             yield return null; yield return Idle();
             StringAssert.Contains("Today's Daily is not available", Text("Daily facts"));
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));

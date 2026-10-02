@@ -33,8 +33,8 @@ namespace ZKube.Integration.Client
         internal static async Task<DailyEntryObservation> Read(AccountBindings accounts, TransactionPlanner planner,
             SolanaRpcTransport rpc, string owner, long timestamp, CancellationToken token)
         {
-            if (timestamp < 0 || timestamp / 86400 >= uint.MaxValue) throw new ArgumentOutOfRangeException(nameof(timestamp));
-            var value = new DailyEntryObservation { Day = checked((uint)(timestamp / 86400)), ObservedAt = timestamp };
+            var value = new DailyEntryObservation { Day = PublicDailyQuery.CurrentDay(timestamp), ObservedAt = timestamp };
+            if (value.Day == uint.MaxValue) throw new ArgumentOutOfRangeException(nameof(timestamp));
             var first = await rpc.ReadAccounts(rpc.Base, new[] { planner.Player(owner), planner.ProtocolAddress,
                 planner.Daily(value.Day), planner.CreditVaultAddress }, cancellation: token).ConfigureAwait(false);
             value.Slot = first.Slot;
@@ -74,8 +74,8 @@ namespace ZKube.Integration.Client
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(lease.Cancellation, cancellation);
             var token = linked.Token;
             long timestamp = now();
-            if (timestamp < 0 || timestamp / 86400 >= uint.MaxValue) throw new ArgumentOutOfRangeException("now");
-            uint day = checked((uint)(timestamp / 86400));
+            uint day = PublicDailyQuery.CurrentDay(timestamp);
+            if (day == uint.MaxValue) throw new ArgumentOutOfRangeException("now");
             async Task<DailyEntryReadiness> Observe()
             {
                 token.ThrowIfCancellationRequested();
@@ -96,7 +96,7 @@ namespace ZKube.Integration.Client
                 var after = PlayerPlanSnapshot.Decode(accounts, last.Envelope, lease.Owner);
                 if (after.DailyRunId != 0) return new DailyEntryReadiness("resume", day, after.Kredits);
                 long completedAt = now();
-                if (after.NextRunId != player.NextRunId || after.Kredits != player.Kredits || completedAt / 86400 != day ||
+                if (after.NextRunId != player.NextRunId || after.Kredits != player.Kredits || PublicDailyQuery.CurrentDay(completedAt) != day ||
                     await journal.Load(lease.Owner).ConfigureAwait(false) != null)
                     return new DailyEntryReadiness("changed", day, kredits: after.Kredits);
                 var finalWindow = observation.Assess(accounts, completedAt);

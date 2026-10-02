@@ -41,7 +41,7 @@ namespace ZKube.Integration.Presentation
             if (ResultAvailable("Daily") && lastResult.Day == result.Value.Lobby.DayId)
                 lastResult.Streak = (uint?)result.Value.Lobby.Profile.Fields?["entry_streak_days"];
             var value = result.Value.Lobby; long timestamp = now();
-            dailyRefreshAt = checked(((long)value.DayId + 1) * 86400);
+            dailyRefreshAt = (long)NativeEngine.Daily(checked(value.DayId + 1)).OpensAt;
             if (value.PotLamports.HasValue)
             {
                 var window = NativeEngine.Daily(value.DayId);

@@ -11,7 +11,7 @@ ship it as two Android games: walletless **zKube: Realms**, and **zKube: Arena**
 
 | Game | Package | Store | Identity | What's in it |
 | --- | --- | --- | --- | --- |
-| zKube: Realms | com.zkorp.zkube.store | Google Play | Walletless; the Google Play Games account names the player, and play needs no sign-in | 100-level Campaign with a purchase policy on realms 4–10, and a local UTC Daily. ARM64 and x86_64 AAB without money assemblies or wallet plugins |
+| zKube: Realms | com.zkorp.zkube.store | Google Play | Walletless; the Google Play Games account names the player, and play needs no sign-in | 100-level Campaign with a purchase policy on realms 4–10, and a local Daily that turns over at 07:00 UTC. ARM64 and x86_64 AAB without money assemblies or wallet plugins |
 | zKube: Arena | com.zkorp.zkube | Solana dApp Store, Seeker | The connected Solana address, through the Kotlin Mobile Wallet Adapter plugin | Free Campaign whose stars are saved on chain, and the paid Arcade Daily. ARM64 APK |
 
 Both share the Campaign, the Unity pages and board, and the Lumen skin. The original Starknet release, zKube:

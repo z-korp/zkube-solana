@@ -54,7 +54,25 @@ fn daily_vectors() -> Vec<Value> {
 }
 
 fn protocol_query_vectors() -> Vec<Value> {
-    let queries = [
+    // The day an instant belongs to, on both sides of the 07:00 UTC boundary
+    // and at the first and last instants that have a day.
+    let last = zkube_core::daily_window(u32::MAX).0 + zkube_core::SECONDS_PER_DAY - 1;
+    let mut queries = [
+        zkube_core::DAY_START_OFFSET,
+        1_790_924_399,
+        1_790_924_400,
+        last,
+    ]
+    .into_iter()
+    .map(|timestamp: i64| {
+        (
+            29,
+            vec![("Timestamp", timestamp.to_le_bytes().to_vec())],
+            zkube_core::day_id_at(timestamp).unwrap().to_le_bytes().to_vec(),
+        )
+    })
+    .collect::<Vec<_>>();
+    queries.extend([
         (
             13,
             vec![("Level", vec![10]), ("Tier", vec![7])],
@@ -73,7 +91,7 @@ fn protocol_query_vectors() -> Vec<Value> {
             vec![("Tier", vec![4])],
             zkube_core::ladder_tier_floor(4).to_le_bytes().to_vec(),
         ),
-    ];
+    ]);
     queries.into_iter().map(|(operation, fields, expected)| {
         let mut request = Request::new(operation);
         for (name, bytes) in fields { request.put(name, &bytes); }

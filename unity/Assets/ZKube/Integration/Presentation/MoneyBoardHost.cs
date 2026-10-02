@@ -233,7 +233,7 @@ namespace ZKube.Integration.Presentation
             if (Current(generation) && Terminal() && settled)
                 ResultClosed?.Invoke(new ResultPageView { HasResult = true, ProductName = Application.productName,
                     Mode = board.Session.Daily ? "Daily" : "Campaign", Realm = board.Session.RealmId,
-                    Day = run == null ? 0 : checked((uint)(run.DeadlineAt / 86400)),
+                    Day = run == null ? 0 : NativeEngine.DayAt(run.DeadlineAt),
                     ObjectiveKind = board.Session.Daily ? board.Session.Rules.ObjectiveKind : board.Session.Rules.PrimaryKind,
                     ObjectiveValue = board.Session.Daily ? board.Session.Rules.ObjectiveValue : board.Session.Rules.PrimaryValue,
                     Score = board.Session.Daily ? board.State.DailyScore : board.State.Score,

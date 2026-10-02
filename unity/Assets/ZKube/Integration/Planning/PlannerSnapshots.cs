@@ -73,7 +73,9 @@ namespace ZKube.Integration.Planning
         public static DailyEntryAssessment Inspect(AccountBindings bindings, AccountEnvelope protocol,
             AccountEnvelope current, AccountEnvelope following, AccountEnvelope vault, uint dayId, long now)
         {
-            if (now < 0 || now / 86400 != dayId) throw new ArgumentOutOfRangeException(nameof(now));
+            // The day is the core's: the caller's day must be the one this instant belongs to.
+            var bounds = NativeEngine.Daily(dayId);
+            if (now < (long)bounds.OpensAt || NativeEngine.DayAt(now) != dayId) throw new ArgumentOutOfRangeException(nameof(now));
             if (protocol == null) return new DailyEntryAssessment("missing-protocol");
             var config = bindings.ProtocolConfig(protocol);
             if ((bool)config["paused"]) return new DailyEntryAssessment("paused");

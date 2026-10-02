@@ -460,7 +460,7 @@ fn sbf_authority_deposit_rejects_zero_finalized_and_noncanonical_periods() {
 
 /// When the fixtures' finalized Dailies sealed: at their own close.
 fn finalized_at(day_id: u32) -> i64 {
-    i64::from(day_id) * zkube_core::SECONDS_PER_DAY + zkube_core::DAILY_RUN_CLOSE_OFFSET
+    zkube_core::daily_window(day_id).1
 }
 
 fn board_address(daily: Pubkey, kind: DailyBoardKind) -> (Pubkey, u8) {
@@ -1278,7 +1278,7 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
         (anchor_lang::system_program::ID, system_program_account()),
     ];
     let mut runtime = mollusk();
-    runtime.sysvars.clock.unix_timestamp = i64::from(missing_day + 5) * zkube_core::SECONDS_PER_DAY;
+    runtime.sysvars.clock.unix_timestamp = day_window(missing_day + 5).unwrap().0;
     let result = runtime.process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     let after: ArenaDaily = decode(resulting_account(&result, &missing));
@@ -1593,7 +1593,7 @@ fn sbf_first_deposit_funds_and_activates_the_first_daily() {
         (anchor_lang::system_program::ID, system_program_account()),
     ];
     let mut runtime = mollusk();
-    runtime.sysvars.clock.unix_timestamp = i64::from(today) * zkube_core::SECONDS_PER_DAY + 1;
+    runtime.sysvars.clock.unix_timestamp = day_window(today).unwrap().0 + 1;
     let result = runtime.process_instruction(&instruction, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
     let protocol_after: ProtocolConfig = decode(resulting_account(&result, &protocol));
@@ -1642,7 +1642,7 @@ fn sbf_expiry_rolls_exact_unclaimed_prizes_into_the_next_unopened_daily() {
         ..PoolLedger::default()
     };
     let expiry_at = finalized_at(day_id) + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
-    let current_day = u32::try_from(expiry_at / zkube_core::SECONDS_PER_DAY).unwrap();
+    let current_day = zkube_core::day_id_at(expiry_at).unwrap();
     let following_day = current_day + 1;
     let (following, following_state) = daily_fixture(following_day, PeriodStatus::Open, true);
     arcade_state.last_daily_id = day_id;

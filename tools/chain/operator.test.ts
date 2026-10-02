@@ -12,6 +12,9 @@ import { executeBundle } from "./operatorRuntime.js";
 import { checkFreshTransaction, checkLaunchWindow, observeDeposits } from "./operatorState.js";
 import { deriveProtocolConfigPda } from "./pdas.js";
 import { executeTransaction, fingerprint, loadPinnedKeypair, publicTransaction, type TransactionReceipt } from "./operatorTransaction.js";
+import { dailyWindow } from "../../services/src/zkubeCore.js";
+// The instant a day opens; the core owns the boundary (07:00 UTC).
+const opens = (day: number) => dailyWindow(day).opensAt;
 
 vi.mock("node:crypto", async original => ({ ...await original<typeof import("node:crypto")>(), verify: vi.fn(() => true) }));
 vi.mock("node:fs", async original => {
@@ -211,7 +214,7 @@ describe("one operator plan and execution pipeline", () => {
     const day = daily.dayId;
     protocol.authority = payer; protocol.launchDayId = day - 1; protocol.suspendedUntilDay = 0;
     daily.status = { open: {} };
-    const calls = { ...state.calls, getSlot: vi.fn(async () => 1), getBlockTime: vi.fn(async () => day * 86400 + 60),
+    const calls = { ...state.calls, getSlot: vi.fn(async () => 1), getBlockTime: vi.fn(async () => opens(day) + 60),
       getAccountInfo: vi.fn(async (address: PublicKey) => {
         const name = address.equals(deriveProtocolConfigPda()) ? "protocolConfig" : "arenaDaily";
         return state.info(await accountCoder.encode(name, name === "protocolConfig" ? protocol : daily), false, ZKUBE_PROGRAM_ID);
@@ -222,9 +225,9 @@ describe("one operator plan and execution pipeline", () => {
     await checkFreshTransaction(connection, bundle, 0);
     daily.ledger.seededLamports = daily.ledger.seededLamports.addn(1);
     await expect(checkFreshTransaction(connection, bundle, 0)).rejects.toThrow("Seeded balances changed");
-    calls.getBlockTime.mockResolvedValue(day * 86400 + 86340);
+    calls.getBlockTime.mockResolvedValue(opens(day) + 86340);
     await expect(checkFreshTransaction(connection, bundle, 0)).rejects.toThrow("not open for funding");
-    await expect(checkLaunchWindow(connection, { kind: "launch", input: { launchCutoffUnixTimestamp: day * 86400 } } as never))
+    await expect(checkLaunchWindow(connection, { kind: "launch", input: { launchCutoffUnixTimestamp: opens(day) } } as never))
       .rejects.toThrow("launch cutoff has expired");
   });
 

@@ -60,7 +60,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(Adapter.OpenDaily()); yield return Idle();
             Set("dailyRead", null); Set("failure", "Could not refresh. Try again."); Redraw(); yield return Words("No connection");
             yield return Wait(Adapter.OpenDaily()); yield return Idle();
-            long now = environment.Clock(); environment.AdvanceClock((now / 86400 + 1) * 86400 - 60 - now); yield return null;
+            long now = environment.Clock(); environment.AdvanceClock((long)ZKube.Core.NativeEngine.Daily(ZKube.Core.NativeEngine.DayAt(now)).FreezesAt - now); yield return null;
             yield return Words("Entries closed");
             yield return EndScenario();
 

@@ -35,7 +35,7 @@ namespace ZKube.Integration.Presentation
 
         public Task OpenRewards(uint? day = null) => Run(async (epoch, token) => {
             if (identity.Owner == null) return;
-            uint today = checked((uint)(now() / 86400));
+            uint today = Today;
             uint selected = day ?? today;
             if (selected > today) throw new ArgumentOutOfRangeException(nameof(day));
             CloseProductViews(); browsingRewards = true; rewardDay = selected; boardKind = null; boardPage = 0;
@@ -86,7 +86,7 @@ namespace ZKube.Integration.Presentation
             PageAction(label, () => _ = OpenRewards((uint)(rewardDay + step)), () => PageAvailable() && !Busy);
         // The days either side, and the ladder total at the line's end.
         private PanelBlock Days(MoneyRewardState state) => PanelBlock.Bar("Ladder total", null, NumberFit.Figure(state.Profile.LadderPoints), "ladder points", true,
-            rewardDay > 0 ? DayAction("Earlier day", -1) : null, rewardDay < now() / 86400 ? DayAction("Later day", 1) : null);
+            rewardDay > 0 ? DayAction("Earlier day", -1) : null, rewardDay < Today ? DayAction("Later day", 1) : null);
 
         // The day's two boards, each with your position and payout and its claim,
         // or why there is none; the guardian speaks for a day with nothing to show.

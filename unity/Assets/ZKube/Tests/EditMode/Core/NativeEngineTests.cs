@@ -118,6 +118,24 @@ namespace ZKube.Core.Tests
             }
         }
 
+        [Test] public void EveryDayRunsFromSevenUtcToSevenUtc()
+        {
+            // The core owns the boundary; both products read their day from it.
+            foreach (uint day in new uint[] { 0, 1, 20705, uint.MaxValue })
+            {
+                long opens = (long)NativeEngine.Daily(day).OpensAt;
+                Assert.That(opens % 86400, Is.EqualTo(7 * 3600));
+                Assert.That(NativeEngine.DayAt(opens), Is.EqualTo(day));
+                Assert.That(NativeEngine.DayAt(opens + 86399), Is.EqualTo(day));
+                if (day > 0) Assert.That(NativeEngine.DayAt(opens - 1), Is.EqualTo(day - 1));
+                if (day < uint.MaxValue) Assert.That(NativeEngine.DayAt(opens + 86400), Is.EqualTo(day + 1));
+            }
+            // 2026-10-02 06:59:59 UTC is still the day that opened on the 1st.
+            Assert.That(NativeEngine.DayAt(1790924400), Is.EqualTo(NativeEngine.DayAt(1790924399) + 1));
+            foreach (long outside in new[] { -1L, 0L, 7 * 3600 - 1L, long.MaxValue })
+                Assert.Throws<NativeEngineException>(() => NativeEngine.DayAt(outside));
+        }
+
         [Test] public void RemainingNativeQueriesMatchRustFixtureVectors()
         {
             foreach (var vector in NativeFixtures.Data.protocolQueries)

@@ -12,11 +12,14 @@ describe("generated Node zkube-core boundary", () => {
     for (const day of [0, 1, 20_000, 0xffff_ffff]) {
       const window = dailyWindow(day);
       expect(dayIdAt(BigInt(window.opensAt))).toBe(day);
+      // Every day opens at 07:00 UTC, and the second before belongs to the day before.
+      expect(window.opensAt % 86_400).toBe(25_200);
+      if (day > 0) expect(dayIdAt(BigInt(window.opensAt - 1))).toBe(day - 1);
       expect(window.runsCloseAt - window.opensAt).toBe(86_340);
       expect(window.recoveryDeadlineAt - window.runsCloseAt).toBe(21_600);
     }
     expect(() => dayIdAt(-1n)).toThrow();
-    expect(() => dayIdAt(0x1_0000_0000n * 86_400n)).toThrow();
+    expect(() => dayIdAt(0x1_0000_0000n * 86_400n + 25_200n)).toThrow();
     expect(scheduledDailyWindow(10, 20)).toEqual({ first: 20, following: 21 });
     expect(nextScheduledDaily(10, 20)).toBe(20);
     expect(nextScheduledDaily(20, 20)).toBe(21);

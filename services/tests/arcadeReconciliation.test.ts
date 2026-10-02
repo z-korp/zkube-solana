@@ -5,7 +5,6 @@ import {
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RUN_CLOSE_OFFSET,
-  SECONDS_PER_DAY,
 } from "../src/arcadeChain.js";
 import {
   discoverReconciliation,
@@ -13,14 +12,17 @@ import {
   type ProtocolSnapshot,
 } from "../src/arcadeReconciliation.js";
 import { KEEPER_PLAN_INSTRUCTION } from "../src/arcadeChain.js";
+import { dailyWindow, dayIdAt } from "../src/zkubeCore.js";
+// The instant a day opens; the core owns the boundary (07:00 UTC).
+const opens = (day: number) => dailyWindow(day).opensAt;
 
 const DAY = 20_651;
-const NOW = DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
+const NOW = opens(DAY) + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
 
 describe("v5 Daily keeper reconciliation", () => {
   it("keeper_preparation_advances_past_archived_days_and_keeps_the_recent_window", () => {
     const current = daily(DAY, "open");
-    const plans = discoverReconciliation({ nowUnix: DAY * SECONDS_PER_DAY + 1,
+    const plans = discoverReconciliation({ nowUnix: opens(DAY) + 1,
       snapshot: snapshot({ launchDayId: DAY - 200, dailies: [current],
         archiveState: { lastDailyId: DAY - 1 },
         closedArenaPlayers: [85, 84].map(age => ({ dayId: DAY - age,
@@ -44,7 +46,7 @@ describe("v5 Daily keeper reconciliation", () => {
           { ...daily(DAY, "funding"), predecessorRolloverRequired: true },
         ],
       }),
-      nowUnix: DAY * SECONDS_PER_DAY + 1,
+      nowUnix: opens(DAY) + 1,
     });
     expect(plans.map(({ operation }) => operation)).toEqual([
       "activate_arena_daily",
@@ -65,7 +67,7 @@ describe("v5 Daily keeper reconciliation", () => {
           predecessorRolloverApplied: false,
         }],
       }),
-      nowUnix: 88 * SECONDS_PER_DAY + 1,
+      nowUnix: opens(88) + 1,
     });
     const preparation = plans.find(({ operation }) =>
       operation === "prepare_arena_daily");
@@ -186,7 +188,7 @@ describe("v5 Daily keeper reconciliation", () => {
       .toBe("archive_arena_daily");
     const afterClaims = finalized.finalizedAt +
       DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
-    const expiryTarget = Math.floor(afterClaims / SECONDS_PER_DAY) + 1;
+    const expiryTarget = dayIdAt(BigInt(afterClaims)) + 1;
     const committed = snapshot({
       ...base,
       dailies: [finalized, daily(expiryTarget, "open")],
@@ -215,7 +217,7 @@ describe("v5 Daily keeper reconciliation", () => {
     const tipDaily = daily(DAY + 1, "finalized");
     const afterClaims = oldDaily.finalizedAt +
       DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
-    const expiryTarget = Math.floor(afterClaims / SECONDS_PER_DAY) + 1;
+    const expiryTarget = dayIdAt(BigInt(afterClaims)) + 1;
     const plans = discoverReconciliation({
       snapshot: snapshot({
         launchDayId: DAY,
@@ -239,7 +241,7 @@ describe("v5 Daily keeper reconciliation", () => {
 
   it("archives only the next Daily of the chain, never a later sealed one", () => {
     const archive = (lastDailyId: number, candidates: number[]) => discoverReconciliation({
-      nowUnix: (DAY + 3) * SECONDS_PER_DAY,
+      nowUnix: opens(DAY + 3),
       snapshot: snapshot({ launchDayId: DAY,
         dailies: [daily(DAY, "finalized"), daily(DAY + 1, "finalized"), daily(DAY + 2, "finalized")],
         archiveState: { lastDailyId },
@@ -267,7 +269,7 @@ describe("v5 Daily keeper reconciliation", () => {
       .toBeUndefined();
 
     // After an outage the next preparation is today's, not the missed days.
-    const late = discoverReconciliation({ nowUnix: (DAY + 5) * SECONDS_PER_DAY + 1,
+    const late = discoverReconciliation({ nowUnix: opens(DAY + 5) + 1,
       snapshot: snapshot({ paused: false, launchDayId: DAY - 9, dailies: [resolved] }) });
     expect(late.find(({ operation }) => operation === "prepare_arena_daily")?.context)
       .toEqual({ followingDayId: DAY + 5 });
@@ -276,7 +278,7 @@ describe("v5 Daily keeper reconciliation", () => {
   it("forwards a suspended Daily nobody entered, even after early activation", () => {
     const resumed = { ...daily(DAY + 4, "open"), entriesPaid: 0n, entriesScored: 0n,
       predecessorDayId: DAY + 1, predecessorRolloverApplied: false };
-    const skips = (suspended: DailySnapshot) => discoverReconciliation({ nowUnix: (DAY + 1) * SECONDS_PER_DAY + 1,
+    const skips = (suspended: DailySnapshot) => discoverReconciliation({ nowUnix: opens(DAY + 1) + 1,
       snapshot: snapshot({ paused: false, launchDayId: DAY, suspendedUntilDay: DAY + 4,
         dailies: [suspended, resumed] }) })
       .filter(({ operation }) => operation === "skip_suspended_arena_daily").map(({ context }) => context);
@@ -321,10 +323,10 @@ function daily(
     dayId,
     status,
     finalizedAt: status === "finalized"
-      ? dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET
+      ? opens(dayId) + DAILY_RUN_CLOSE_OFFSET
       : 0,
-    runsCloseAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
-    recoveryDeadlineAt: dayId * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET,
+    runsCloseAt: opens(dayId) + DAILY_RUN_CLOSE_OFFSET,
+    recoveryDeadlineAt: opens(dayId) + DAILY_RECOVERY_DEADLINE_OFFSET,
     entriesPaid: status === "funding" ? 0n : 2n,
     entriesScored: status === "funding" ? 0n : 2n,
     entriesExpired: 0n,
@@ -347,7 +349,7 @@ function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
     widthCount: payoutCount,
     cursor: payoutCount,
     sealed: true,
-    sealedAt: dayId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
+    sealedAt: opens(dayId) + DAILY_RUN_CLOSE_OFFSET,
     claimedLamports: 0n,
     claimedCount: 0,
     capacityLimited: false,
@@ -367,8 +369,8 @@ function arcadeRun(
     arenaPlayerExists: true,
     lifecycle,
     location,
-    runsCloseAt: DAY * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET,
-    recoveryDeadlineAt: DAY * SECONDS_PER_DAY + DAILY_RECOVERY_DEADLINE_OFFSET,
+    runsCloseAt: opens(DAY) + DAILY_RUN_CLOSE_OFFSET,
+    recoveryDeadlineAt: opens(DAY) + DAILY_RECOVERY_DEADLINE_OFFSET,
     reservationActive: true,
   };
 }
@@ -378,7 +380,7 @@ function candidate(cadenceId: number, committed: boolean, closeEligible: boolean
     cadenceId,
     claimsExpired: closeEligible,
     committed,
-    closeEligibleAt: cadenceId * SECONDS_PER_DAY + DAILY_RUN_CLOSE_OFFSET +
+    closeEligibleAt: opens(cadenceId) + DAILY_RUN_CLOSE_OFFSET +
       DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   };
 }

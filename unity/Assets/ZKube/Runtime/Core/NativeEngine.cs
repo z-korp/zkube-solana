@@ -78,6 +78,12 @@ namespace ZKube.Core
         public static DailyInfo Daily(uint day) => DailyInfo.Decode(
             Call(NativeOperation.Daily, NativeRequest.Daily(day)));
 
+        // The day an instant belongs to. The core owns the boundary (07:00 UTC),
+        // so nothing here divides a timestamp by the length of a day. An instant
+        // before the first day, or past the last, is rejected.
+        public static uint DayAt(long timestamp) => BitConverter.ToUInt32(
+            Call(NativeOperation.DayAt, NativeRequest.DayAt(BitConverter.GetBytes(timestamp))), 0);
+
         public static int CompareBoardEntries(ulong leftMetric, long leftTime, byte[] leftOwner,
             ulong rightMetric, long rightTime, byte[] rightOwner)
         {

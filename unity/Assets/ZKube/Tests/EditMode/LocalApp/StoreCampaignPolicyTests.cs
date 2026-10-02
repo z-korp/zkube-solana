@@ -24,9 +24,27 @@ namespace ZKube.Local.App.Tests
             Assert.That(paidStore.CampaignLock(4), Is.EqualTo("stars"));
         }
 
+        [Test] public void TheLocalDailyTurnsOverAtSevenUtcWithTheCore()
+        {
+            long opens = (long)ZKube.Core.NativeEngine.Daily(20705).OpensAt, clock = opens - 1;
+            var client = new StoreRunClient(new LocalProductStore(), () => clock);
+            // One second before 07:00 UTC it is still yesterday's Daily.
+            Assert.That(client.Today().DayId, Is.EqualTo(20704u));
+            Assert.That(client.Today().FreezesAt, Is.EqualTo(opens));
+            clock = opens;
+            var today = client.Today();
+            Assert.That(today.DayId, Is.EqualTo(20705u));
+            Assert.That(today.OpensAt, Is.EqualTo(opens));
+            Assert.That(today.OpensAt % 86400, Is.EqualTo(7 * 3600));
+            Assert.That(today.FreezesAt, Is.EqualTo((long)ZKube.Core.NativeEngine.Daily(20706).OpensAt));
+            Assert.That(today.Realm, Is.EqualTo(ZKube.Core.NativeEngine.Daily(20705).Realm));
+            // A clock set before the first day still gets a Daily.
+            clock = 0; Assert.That(client.Today().DayId, Is.Zero);
+        }
+
         [Test] public void LocalDailyBoardUsesTheCoreSelectedRealm()
         {
-            var client = new StoreRunClient(new LocalProductStore(), () => 20705L * 86400);
+            var client = new StoreRunClient(new LocalProductStore(), () => (long)ZKube.Core.NativeEngine.Daily(20705).OpensAt);
             var daily = client.StartDaily();
             Assert.That(new LocalBoardActionProvider(client, daily).Bind().RealmId, Is.EqualTo(client.Today().Realm));
         }

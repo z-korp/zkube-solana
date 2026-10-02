@@ -25,7 +25,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return OpenDailyPage();
             StringAssert.Contains("Prize pool", DailyText());
-            StringAssert.Contains("23:59 UTC", DailyText());
+            StringAssert.Contains("06:59 UTC", DailyText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit" || button.name == "Confirm 1 Kredit"), Is.False);
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(), Is.Empty);
@@ -76,7 +76,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator FreezeRefreshesTheDailyPageAndKeepsSavedResultRecoveryAvailable()
         {
             yield return OpenDailyPage();
-            long now = environment.Clock(); environment.AdvanceClock((now / 86400 + 1) * 86400 - 60 - now);
+            long now = environment.Clock(); environment.AdvanceClock((long)ZKube.Core.NativeEngine.Daily(ZKube.Core.NativeEngine.DayAt(now)).FreezesAt - now);
             yield return null; yield return Idle(); yield return null;
             StringAssert.Contains("Entries closed", DailyText());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);

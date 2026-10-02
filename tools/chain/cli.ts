@@ -28,6 +28,7 @@ Launch inputs: ZKUBE_CLUSTER=devnet, ZKUBE_DEPLOYER_PUBLIC_KEY,
   ZKUBE_LAUNCH_CUTOFF_UNIX, ZKUBE_DEPLOYED_PROGRAM_DATA_SHA256,
   ZKUBE_PROGRAM_ALLOCATION_BYTES, ZKUBE_PROGRAM_UPGRADE_AUTHORITY,
   ZKUBE_KEEPER_RELEASE_FINGERPRINT.
+  A day opens at 07:00 UTC; the launch cutoff must fall inside the launch day's entry window.
 Execution requires ZKUBE_APPROVAL=<printed fingerprint>. Signer file mappings:
   ZKUBE_SIGNER_PATHS='{"<approved public key>":"<existing keypair path>"}'.
 Activation also requires ZKUBE_KEEPER_STAGED_RELEASE_FINGERPRINT.

@@ -22,7 +22,7 @@ import {
   deriveCreditVaultPda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
-import { SECONDS_PER_DAY, DAILY_RUN_CLOSE_OFFSET } from "../../services/src/protocolVersions.generated.js";
+import { dailyWindow } from "../../services/src/zkubeCore.js";
 import { createReadOnlyWallet } from "./readOnlyWallet.js";
 import type { TransactionPlan } from "./program.js";
 import { SOLANA_DEVNET_GENESIS_HASH, ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
@@ -277,17 +277,14 @@ function assertLaunchWindow(
   cutoffUnixTimestamp: number,
   observedUnixTimestamp: number,
 ): void {
-  const opensAt = multiplySafe(dayId, SECONDS_PER_DAY, "launch day clock");
-  const runsCloseAt = sumSafe(
-    [opensAt, DAILY_RUN_CLOSE_OFFSET],
-    "run freeze",
-  );
+  // The core owns when a day opens and when its runs close.
+  const { opensAt, runsCloseAt } = dailyWindow(dayId);
   if (
     !Number.isSafeInteger(cutoffUnixTimestamp) ||
     cutoffUnixTimestamp <= opensAt ||
     cutoffUnixTimestamp > runsCloseAt
   ) {
-    throw new Error("launch cutoff must be inside that UTC day's entry window");
+    throw new Error("launch cutoff must be inside that day's entry window");
   }
   if (observedUnixTimestamp > cutoffUnixTimestamp) {
     throw new Error("launch approval window has already closed");

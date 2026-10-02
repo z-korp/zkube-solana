@@ -40,7 +40,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             try
             {
                 var shown = await flow.RefreshDaily(); Assert.That(shown.Value.Entry.Ready, Is.True);
-                env.Now = (env.Now / 86400 + 1) * 86400 - 60;
+                env.Now = (long)NativeEngine.Daily(NativeEngine.DayAt(env.Now)).FreezesAt;
                 try { await flow.StartDailyRun(); Assert.Fail("Expected the fresh freeze gate"); }
                 catch (InvalidOperationException error) { StringAssert.Contains("frozen", error.Message); }
                 Assert.That(env.Http.SentTransactions, Is.Empty); Assert.That(env.Native.OwnerPrompts, Is.Zero);

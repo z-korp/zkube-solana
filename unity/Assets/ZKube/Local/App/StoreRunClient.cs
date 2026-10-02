@@ -16,7 +16,8 @@ namespace ZKube.Local.App
         public LocalDaily Today()
         {
             long time = now();
-            uint day = checked((uint)Math.Max(0, time / 86400));
+            // A clock set before the first day still gets a Daily: day zero.
+            uint day = time < (long)NativeEngine.Daily(0).OpensAt ? 0 : NativeEngine.DayAt(time);
             var pair = NativeEngine.Daily(day);
             return new LocalDaily(day, pair.Realm, pair.Kind, pair.Value);
         }

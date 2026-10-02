@@ -137,7 +137,7 @@ spending approval.
   changes. `AFinishedDailyGoesToThePlatformLeaderboardOnlyWhenSignedIn` and
   `ASignedOutDailySubmitsNothingAndShowsNoLeaderboard` guard both.
 - **Campaign is free and optional on Arena:** one shared local client plays it in both products. Realms
-  alone overlays the realm purchase policy and adds a local UTC Daily.
+  alone overlays the realm purchase policy and adds a local Daily on the same day as Arena's.
   `store_gate_is_a_store_identity_policy_over_shared_progression`,
   `money_identity_cannot_start_a_local_daily` and
   `test_money_metadata_excludes_the_local_daily_and_store_policy` guard the split.
@@ -366,8 +366,13 @@ boards and claims never read it.
 Program account sizes, versions and rent come from their Rust owners and codegen.
 `target_accounts_fit_normal_solana_account_limits`, `account_sizes_and_maximum_board_rent_are_explicit` and
 `fresh_bootstrap_interface_is_locked` pin the interface. Daily content and timestamps derive from day ID; an
-ActiveRun retains its rules snapshot. `daily_window_is_derived_at_epoch_and_u32_day_bounds` and
-`DailyWindowUsesTheCoreAcrossTheFullDayRange` guard clocks. Authority rotation and team destination changes
+ActiveRun retains its rules snapshot. One day boundary serves both products: day D runs from 07:00 UTC to 07:00
+UTC the next day, which is midnight at UTC-7, the daily reset of Google Play Games leaderboards. The core owns
+which day an instant belongs to and when a day opens; the program, the keeper, the operator's launch window and
+both clients ask it and never divide a timestamp themselves.
+`every_day_runs_from_seven_utc_to_seven_utc`, `daily_window_is_derived_at_epoch_and_u32_day_bounds`,
+`keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits`, `EveryDayRunsFromSevenUtcToSevenUtc`,
+`DailyWindowUsesTheCoreAcrossTheFullDayRange` and `TheLocalDailyTurnsOverAtSevenUtcWithTheCore` guard clocks. Authority rotation and team destination changes
 require a program upgrade; the interface lock excludes runtime setters. `initialize_protocol` runs once and only
 with the signature of the program's upgrade authority, read from the loader's ProgramData, beside the governance
 authority it names; `an_untrusted_initializer_cannot_claim_the_protocol` guards the bootstrap.
@@ -601,7 +606,8 @@ keeper authority. The approval boundary above applies to every execution.
   `operator_plan_saves_one_public_bundle_without_loading_a_signer`,
   `deployment_instruction_bytes_and_accounts_match_the_rust_loader` and
   `operator_cli_options_and_exact_amounts_fail_closed` guard planning and the fresh-bootstrap scope.
-- **Launch plan:** plan launch binds deployed program, keeper, day and cutoff; it quotes paused
+- **Launch plan:** plan launch binds deployed program, keeper, day and cutoff. ZKUBE_LAUNCH_DAY_ID is the core's
+  day, which opens at 07:00 UTC, and the cutoff must fall inside that day's entry window; it quotes paused
   protocol/vault initialization signed by the upgrade authority, cadence funding, two Daily preparations and atomic seed/unpause/activation.
   `plans the full fresh bootstrap and one atomic launch transaction`,
   `operator_release_checks_devnet_and_programdata` and `refuses planning after the exact launch cutoff`

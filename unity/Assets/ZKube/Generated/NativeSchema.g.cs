@@ -112,6 +112,7 @@ namespace ZKube.Core.Generated
         public const uint CampaignRules = 25;
         public const uint RecordLocalCampaignResult = 26;
         public const uint BoardOrder = 28;
+        public const uint DayAt = 29;
     }
     public static class NativeRequest
     {
@@ -291,6 +292,13 @@ namespace ZKube.Core.Generated
             NativeWire.Write(bytes, 50, 8, RightMetric);
             NativeWire.Copy(RightTime, bytes, 58, 8);
             NativeWire.Copy(RightOwner, bytes, 66, 32);
+            return bytes;
+        }
+        public static byte[] DayAt(byte[] Timestamp)
+        {
+            var bytes = new byte[10];
+            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
+            NativeWire.Copy(Timestamp, bytes, 2, 8);
             return bytes;
         }
     }
