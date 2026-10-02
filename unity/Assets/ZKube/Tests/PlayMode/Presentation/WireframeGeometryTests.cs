@@ -446,6 +446,9 @@ namespace ZKube.Tests.Presentation
                         (5, SkinSlots.MapNodeLocked), (9, SkinSlots.MapNodeLocked), (10, SkinSlots.MapNodeGuardian) })
                         Assert.AreEqual(art.SkinRealm(slot).name.Replace("(Clone)", ""), Slot(level), "Level " + level + " wears " + slot);
                     Assert.AreNotEqual(art.SkinRealm(SkinSlots.MapNodeOpen), art.SkinRealm(SkinSlots.MapNodeDone), "Done is its own piece");
+                    TMP_Text Number(int level) => root.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Trial " + level + " number");
+                    Assert.AreEqual(art.Token(SkinTokens.TextOnPrimary), Number(1).color, "A done node's number is dark on its light face");
+                    Assert.AreEqual(art.Token(SkinTokens.Text), Number(4).color, "The current node's number keeps the light ink");
                     var pulse = Face(4).GetComponent<SkinPulse>();
                     Assert.IsNotNull(pulse, "The current node pulses");
                     Assert.IsTrue(root.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Trial ") && image.name.EndsWith(" node"))

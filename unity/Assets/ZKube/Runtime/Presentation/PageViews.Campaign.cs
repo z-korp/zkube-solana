@@ -179,7 +179,8 @@ namespace ZKube.Presentation
 
         // One level, in its realm's own node set. Locked: dark stone with a
         // lock. Open: the glowstone with its number. Done: its own settled
-        // stone, its stars under it. Current: larger, its cream rim, pulsing in
+        // stone, gold-rimmed and pale, its number in the dark ink and its stars
+        // under it. Current: larger, its cream rim, pulsing in
         // its breathing light (reduced motion: the light alone). The guardian,
         // the realm's boss: its portrait in its own ring, nearly twice a node,
         // in the realm's breathing glow over a wider halo, dimmed with a lock
@@ -226,7 +227,9 @@ namespace ZKube.Presentation
                     rect, hit.transform);
                 if (lit) face.gameObject.AddComponent<SkinPulse>();
                 if (open || done)
-                    ui.Label(name + " number", Number(value.Realm, trial.Level), rect, size * .37f / d, SkinTokens.Text, lit ? face.transform : hit.transform,
+                    // A done node's face is light: its number takes the dark ink.
+                    ui.Label(name + " number", Number(value.Realm, trial.Level), rect, size * .37f / d, done && !lit ? SkinTokens.TextOnPrimary : SkinTokens.Text,
+                        lit ? face.transform : hit.transform,
                         SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
                 else Tinted(name + " lock", SkinSlots.IconLock, Scaled(rect, .46f), SkinTokens.TextMuted, hit.transform);
             }
