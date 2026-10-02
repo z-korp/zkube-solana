@@ -55,7 +55,6 @@ namespace ZKube.Tests.MoneyOverview
             {
                 var product = new LocalProductStore(_ => null, (_, __) => { });
                 var runs = new StoreRunClient(product, environment.Clock);
-                product.Write(state => { state.Name = "Local player"; return state; });
                 var attempt = runs.StartDaily(); runs.Act(attempt.View.RunId, new LocalRunAction(LocalActionKind.Finish));
                 billing = new CampaignBilling(new PageStore(),
                     () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);

@@ -13,7 +13,7 @@ namespace ZKube.Local.Tests
         public void LocalProductRoundTripPreservesProgressAndSavedRun()
         {
             var state = new LocalProductState {
-                Name = "Mira 🚀", CampaignPrice = "€4.99", CampaignOwned = true,
+                CampaignPrice = "€4.99 🚀", CampaignOwned = true,
                 Stars = Enumerable.Range(0, 100).Select(i => (byte)(i % 4)).ToArray(),
                 WornEmblem = 7, Streak = 12, BestDailyScore = 9000,
                 DailyAttempt = new LocalDailyAttempt { DayId = 20705, DailyScore = 840, ObjectiveTotal = 13, Tier = 4, Finished = true },
@@ -33,21 +33,22 @@ namespace ZKube.Local.Tests
             Assert.That(restored.CampaignRun.Actions[0].Destination, Is.EqualTo(3));
             Assert.That(restored.DailyAttempt.ObjectiveTotal, Is.EqualTo(13));
         }
-        [TestCase(null)]
-        [TestCase("{}")]
-        [TestCase("{\"version\":1,\"name\":\"   \"}")]
-        public void MissingOrBlankNamesUseTheDefault(string json) =>
-            Assert.That(LocalProductCodec.Decode(json).Name, Is.EqualTo(LocalProductCodec.DefaultName));
+        // The platform account names the player; a save written when it kept a name still reads, without one.
+        [Test] public void AnEarlierSavesNameIsReadPastAndNeverWritten()
+        {
+            var restored = LocalProductCodec.Decode("{\"version\":1,\"name\":\"Mira\",\"streak\":3}");
+            Assert.That(restored.Streak, Is.EqualTo(3));
+            Assert.That(LocalProductCodec.Encode(restored), Does.Not.Contain("name").And.Not.Contain("Mira"));
+        }
 
         [Test]
         public void WritesNormalizeThroughTheSameVersionedKey()
         {
             string savedKey = null, saved = null;
             var store = new LocalProductStore(key => null, (key, value) => { savedKey = key; saved = value; });
-            store.Write(current => { current.Name = "  Mira  "; current.Stars = new byte[] { 9, 2 }; current.WornEmblem = 99; current.CampaignPrice = "  €0.99  "; return current; });
+            store.Write(current => { current.Stars = new byte[] { 9, 2 }; current.WornEmblem = 99; current.CampaignPrice = "  €0.99  "; return current; });
             Assert.That(savedKey, Is.EqualTo(LocalProductCodec.StorageKey));
             var reloaded = new LocalProductStore(key => { Assert.That(key, Is.EqualTo(savedKey)); return saved; });
-            Assert.That(reloaded.Read.Name, Is.EqualTo("Mira"));
             Assert.That(reloaded.Read.Stars.Length, Is.EqualTo(100));
             Assert.That(reloaded.Read.Stars.Take(3), Is.EqualTo(new byte[] { 3, 2, 0 }));
             Assert.That(reloaded.Read.WornEmblem, Is.EqualTo(12), "The last emblem, World Perfect");
@@ -57,17 +58,17 @@ namespace ZKube.Local.Tests
         public void StorageFailurePropagatesAfterNormalizedMemoryUpdate()
         {
             var store = new LocalProductStore(write: (_, __) => throw new IOException("disk-full"));
-            Assert.Throws<IOException>(() => store.Write(current => { current.Name = "  Kept  "; return current; }));
-            Assert.That(store.Read.Name, Is.EqualTo("Kept"));
+            Assert.Throws<IOException>(() => store.Write(current => { current.CampaignPrice = "  €0.99  "; return current; }));
+            Assert.That(store.Read.CampaignPrice, Is.EqualTo("€0.99"));
             var memory = new LocalProductStore();
-            Assert.That(memory.Write(current => { current.Name = "Memory"; return current; }).Name, Is.EqualTo("Memory"));
+            Assert.That(memory.Write(current => { current.CampaignPrice = "€1.99"; return current; }).CampaignPrice, Is.EqualTo("€1.99"));
         }
         [Test] public void MoneySaveContainsOnlyCampaignDataAndDailyMetricsRemainNumbers()
         {
             string saved = null;
             var store = new LocalProductStore(write: (_, value) => saved = value, owner: "connected-owner");
             store.Write(state => {
-                state.Name = "Store name"; state.CampaignOwned = true; state.Streak = 8;
+                state.CampaignOwned = true; state.Streak = 8;
                 state.DailyAttempt = new LocalDailyAttempt { DayId = 20000, ObjectiveTotal = 123 };
                 state.Stars[0] = 3; state.CampaignWritePending = true; return state;
             });

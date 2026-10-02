@@ -44,10 +44,17 @@ def _identity(toolchain, name):
     abis(toolchain, profile)
     if not isinstance(profile['productName'], str) or not profile['productName'].strip():
         raise RuntimeError('Android identity requires a display name')
-    if profile.get('locks'):
-        lock_path = PurePosixPath(profile['locks'])
-        if lock_path.is_absolute() or '..' in lock_path.parts:
-            raise RuntimeError('Android lock directory must stay within the Unity project')
+    # Every identity builds against its own reviewed dependency locks.
+    lock_path = PurePosixPath(profile['locks'])
+    if lock_path.is_absolute() or '..' in lock_path.parts:
+        raise RuntimeError('Android lock directory must stay within the Unity project')
+    # An identity's own Maven dependencies (the store's Play Games) are exact coordinates.
+    for coordinate in profile.get('dependencies', []):
+        if not re.fullmatch(r'[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+', coordinate):
+            raise RuntimeError('Android identity dependencies must use exact Maven coordinates')
+    # The Play Games project is the owner's; empty until there is one.
+    if not re.fullmatch(r'|[0-9]{6,20}', profile.get('playGamesAppId', '')):
+        raise RuntimeError("The Play Games app ID is its project's number")
     if not isinstance(profile['excludedAssemblies'], list):
         raise RuntimeError('Android identity requires excluded assemblies')
     brand = PurePosixPath(profile['brand'])
@@ -617,8 +624,6 @@ def main():
     if args.action == "fixtures":
         fixtures(args.fixture_action)
         return
-    if args.action == "locks" and args.identity != "money":
-        parser.error("locks applies only to the money identity")
     if args.production and args.action != "android":
         parser.error("--production requires android")
     if args.production:
@@ -724,7 +729,7 @@ def main():
                 execute(editor, target, "ZKube.Editor.ZKubeBuild.BuildAndroid",
                         dict(env, ZKUBE_EXPORT_LOCKS="1", ZKUBE_UNITY_APK=str(export)), OUTPUT / "locks.log")
                 regenerate_locks(export, android, profile, env)
-            print("Money application dependency locks regenerated")
+            print(f"{profile['productName']} dependency locks regenerated")
             return
         started = datetime.now(timezone.utc).isoformat()
         before = source_snapshot() if args.action == "android" else None

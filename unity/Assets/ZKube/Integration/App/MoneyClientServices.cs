@@ -22,8 +22,10 @@ namespace ZKube.Integration.App
         public string BaseUri { get; }
         public string RouterUri { get; }
         public string ExpectedGenesis { get; }
-        public MoneyConnectionConfig(string baseUri, string routerUri, string expectedGenesis)
-        { BaseUri = baseUri; RouterUri = routerUri; ExpectedGenesis = expectedGenesis; }
+        // A mainnet endpoint for the Seeker ID a profile shows; none shows addresses.
+        public string NameUri { get; }
+        public MoneyConnectionConfig(string baseUri, string routerUri, string expectedGenesis, string nameUri = null)
+        { BaseUri = baseUri; RouterUri = routerUri; ExpectedGenesis = expectedGenesis; NameUri = nameUri; }
         internal void Validate()
         {
             if (string.IsNullOrWhiteSpace(BaseUri) || string.IsNullOrWhiteSpace(RouterUri) || string.IsNullOrWhiteSpace(ExpectedGenesis))
@@ -62,6 +64,7 @@ namespace ZKube.Integration.App
         public DailyEntryReadinessQuery EntryReadiness { get; }
         public PublicDailyQuery PublicDaily { get; }
         public EconomyClient Economy { get; }
+        public SeekerNames Seeker { get; }
 
         public MoneyClientServices(string solanaJson, string sessionJson, MoneyConnectionConfig config,
             IJsonRpcHttp http, INativeWalletTransport native, IPublicClientStore storage, Func<long> now,
@@ -97,6 +100,7 @@ namespace ZKube.Integration.App
             EntryReadiness = new DailyEntryReadinessQuery(Identity, SessionLifecycle, Accounts, Planner, Rpc, Journal, now);
             PublicDaily = new PublicDailyQuery(Accounts, Planner, Rpc, now);
             Economy = new EconomyClient(Identity, SessionAccess, Products, Planner, Journal, Executor, Reconciler);
+            Seeker = new SeekerNames(http, config.NameUri);
         }
         private Task AcceptOwnerChange(string owner)
         {

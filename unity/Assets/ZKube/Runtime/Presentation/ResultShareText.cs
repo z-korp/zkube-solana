@@ -9,10 +9,10 @@ namespace ZKube.Presentation
             string realm, string objective, ulong objectiveTotal, ulong score, ulong? streak,
             CultureInfo culture = null)
         {
-            if (product == null || mode == null || player == null || guardian == null ||
+            if (product == null || mode == null || guardian == null ||
                 realm == null || objective == null) throw new ArgumentNullException("Result is incomplete");
             var format = culture ?? CultureInfo.CurrentCulture;
-            return product + " · " + mode + "\n" + player + " faced " + guardian + " in " + realm + ". " +
+            return product + " · " + mode + "\n" + (string.IsNullOrEmpty(player) ? "Faced " : player + " faced ") + guardian + " in " + realm + ". " +
                 objective + ": " + objectiveTotal.ToString("N0", format) + ". Score: " +
                 score.ToString("N0", format) + "." + (streak.HasValue ? " " + streak.Value.ToString(CultureInfo.InvariantCulture) + " day streak." : "");
         }

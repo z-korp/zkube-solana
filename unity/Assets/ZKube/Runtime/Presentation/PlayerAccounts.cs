@@ -1,0 +1,29 @@
+using System.Threading.Tasks;
+using UnityEngine;
+
+namespace ZKube.Presentation
+{
+    // The platform's player account a walletless product shows on its profile:
+    // its display name and its avatar, if it has one.
+    public sealed class PlayerAccount
+    {
+        public string Name;
+        public Texture2D Avatar;
+    }
+
+    // A platform's player accounts, behind one interface per platform: Google
+    // Play Games on Android, Game Center on iOS when that build exists. Nothing
+    // waits for it and nothing needs it: signed out, refused or unavailable is
+    // no account, and the game plays on without one.
+    public interface IPlayerAccounts
+    {
+        // The signed-in player, or null. It never throws.
+        Task<PlayerAccount> SignIn();
+    }
+
+    // Where no platform account exists (the Editor, a desktop player).
+    public sealed class NoPlayerAccounts : IPlayerAccounts
+    {
+        public Task<PlayerAccount> SignIn() => Task.FromResult<PlayerAccount>(null);
+    }
+}

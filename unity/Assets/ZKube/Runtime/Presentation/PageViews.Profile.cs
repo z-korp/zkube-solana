@@ -13,23 +13,17 @@ namespace ZKube.Presentation
     // The Profile and Settings pages.
     public sealed partial class PageViews
     {
-        public const int NameLimit = 24;
-        private bool editingName;
-
         // The profile, as the wireframe draws it: the title, the wearer's card
-        // (the worn emblem, the name, edited in place where the identity allows
-        // it, and what is worn, or the ladder standing, a tap on which chooses
-        // the border; Edit name or the records on its right), the three stat
-        // tiles and the guardian emblems in a card. The identity's own lines
-        // and actions (borders, saving) follow.
+        // (the worn emblem, the player's name where the identity has one, and
+        // what is worn, or the ladder standing, a tap on which chooses the
+        // border; the records on its right), the three stat tiles and the
+        // guardian emblems in a card, a tap on an unlocked one wearing it. The
+        // identity's own lines and actions (borders, saving) follow.
         private void Profile(ProfilePageView value)
         {
             var kit = Kit;
-            if (value.ChangeName == null) editingName = false;
-            if (savedName != value.Name) { savedName = value.Name; editedName = value.Name; }
             var pieces = new List<Piece> { kit.Title("Profile", null) };
             pieces.Add(WearerCard(value, kit));
-            if (editingName) { Compose(pieces.ToArray()); NameEditor(value); return; }
             pieces.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
                 ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
                 ("Daily streak", SkinSlots.IconClock, Days(value.Streak))));
@@ -55,23 +49,24 @@ namespace ZKube.Presentation
         }
 
         // The wearer: the worn emblem in its ring (72u, or 76u in the ladder
-        // border where there is a ladder), the name, or its field while
-        // editing, and what is worn; Edit name or the records on the right.
+        // border where there is a ladder); the player's name where the identity
+        // has one (a platform account's, led by its round avatar, or the
+        // Arena's Seeker ID or address), and what is worn; the records on the
+        // right. An identity without a name shows the emblem and what is worn.
         private Piece WearerCard(ProfilePageView value, ScreenKit kit)
         {
-            float d = ui.Density, u = kit.U; var inside = kit.Inside();
+            float u = kit.U; var inside = kit.Inside();
             float face = (value.Tier.HasValue ? Step(76, 60) : Step(72, 56)) * u;
-            var edit = value.ChangeName == null ? null
-                : new PageAction { Name = "Edit name", Label = "Edit name", Invoke = () => { editingName = true; editedName = value.Name; Redraw(); } };
-            var action = editingName ? null : edit ?? value.Records;
-            ScreenKit.Side? side = action == null ? (ScreenKit.Side?)null : Quiet(inside, action);
+            ScreenKit.Side? side = value.Records == null ? (ScreenKit.Side?)null : Quiet(inside, value.Records);
             float text = inside.Width - face - 12 * u - (side.HasValue ? side.Value.Width + 12 * u : 0);
             string worn = value.Standing ?? value.Worn;
-            float nameHeight = editingName ? 48 * d : inside.Block(value.Name, text, inside.CaptionDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+            float avatar = value.Avatar == null || value.Name == null ? 0 : 24 * u, lead = avatar == 0 ? 0 : avatar + 6 * u;
+            float nameHeight = value.Name == null ? 0 : Mathf.Max(avatar, inside.Block(value.Name, text - lead, inside.CaptionDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading));
             float wornHeight = inside.Block(worn, text, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
-            return kit.Card(null, new[] { new Piece(Mathf.Max(face, nameHeight + wornHeight), rect => {
+            float block = nameHeight + wornHeight;
+            return kit.Card(null, new[] { new Piece(Mathf.Max(face, block), rect => {
                 // Where there is a ladder, a tap on the row chooses the border.
-                if (value.ChooseBorder != null && !editingName)
+                if (value.ChooseBorder != null)
                 {
                     var hit = ui.Rect<Image>(value.ChooseBorder.Name ?? value.ChooseBorder.Label, rect, shell.Page);
                     hit.color = Color.clear; hit.raycastTarget = true;
@@ -80,76 +75,25 @@ namespace ZKube.Presentation
                 }
                 ui.Medallion("Worn emblem", new Rect(rect.x, rect.center.y - face / 2, face, face), EmblemArt(value.Emblem), shell.Page,
                     value.Tier.HasValue ? SkinSlots.LadderBorder(value.Tier.Value) : SkinSlots.GuardianFrame);
-                float x = rect.x + face + 12 * u, top = rect.center.y + (nameHeight + wornHeight) / 2;
-                var nameRect = new Rect(x, top - nameHeight, text, nameHeight);
-                if (editingName) NameField(nameRect);
-                else inside.Text("Name text", value.Name, nameRect, inside.CaptionDp, SkinTokens.Text, SkinUi.Type.Caption, ScreenKit.CaptionLeading,
-                    TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+                float x = rect.x + face + 12 * u, top = rect.center.y + block / 2;
+                if (value.Name != null)
+                {
+                    if (avatar > 0)
+                    {
+                        // The account's picture, round, as the platform shows it.
+                        var round = ui.Pill("Player avatar", new Rect(x, top - nameHeight / 2 - avatar / 2, avatar, avatar), shell.Page, Color.white);
+                        round.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+                        var picture = ui.Rect<RawImage>("Player avatar picture", SkinUi.ScreenRect(round.rectTransform), round.transform);
+                        picture.texture = value.Avatar; picture.raycastTarget = false;
+                    }
+                    inside.Text("Name text", value.Name, new Rect(x + lead, top - nameHeight, text - lead, nameHeight), inside.CaptionDp, SkinTokens.Text, SkinUi.Type.Caption,
+                        ScreenKit.CaptionLeading, TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+                }
                 if (wornHeight > 0)
-                    inside.Text(value.Standing != null ? "Standing line" : "Worn", worn, new Rect(x, top - nameHeight - wornHeight, text, wornHeight), inside.SmallDp,
+                    inside.Text(value.Standing != null ? "Standing line" : "Worn", worn, new Rect(x, top - block, text, wornHeight), inside.SmallDp,
                         SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left);
                 if (side.HasValue) side.Value.Draw(new Rect(rect.xMax - side.Value.Width, rect.center.y - side.Value.Height / 2, side.Value.Width, side.Value.Height));
             }) }, "Wearer card");
-        }
-
-        // The name's field while editing, in the wearer card: a visible caret in
-        // the accent light.
-        private void NameField(Rect rect)
-        {
-            float d = ui.Density;
-            var row = ui.Piece("Player name", SkinSlots.ListRow, rect, shell.Page);
-            row.raycastTarget = true;
-            ui.Label("Name cue", "Editing", new Rect(rect.xMax - 8 * d - ui.TextWidth("Editing", 13, SkinUi.Type.Caption), rect.y,
-                ui.TextWidth("Editing", 13, SkinUi.Type.Caption), rect.height), 13, SkinTokens.Accent, row.transform, SkinUi.Type.Caption, TextAlignmentOptions.Right);
-            var field = row.gameObject.AddComponent<TMP_InputField>(); field.characterLimit = NameLimit;
-            var area = ui.Rect<RectMask2D>("Text area", new Rect(rect.x + 12 * d, rect.y, rect.width - 32 * d - ui.TextWidth("Editing", 13, SkinUi.Type.Caption),
-                rect.height), row.transform);
-            var label = ui.Label("Name text", "", SkinUi.ScreenRect(area.rectTransform), 20, SkinTokens.Text, area.transform, SkinUi.Type.Number,
-                TextAlignmentOptions.Left);
-            label.textWrappingMode = TextWrappingModes.NoWrap;
-            field.textViewport = area.rectTransform; field.textComponent = label; field.text = editedName;
-            field.customCaretColor = true; field.caretColor = ui.Art.Token(SkinTokens.Accent);
-            field.caretWidth = Mathf.Max(2, Mathf.RoundToInt(2 * d)); field.caretBlinkRate = .85f;
-            field.selectionColor = SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .35f);
-            nameField = field;
-        }
-        private TMP_InputField nameField;
-
-        // Editing: Save appears once the name differs from the saved one, then
-        // what the name is for, and a preview of it as a shared result shows it.
-        private void NameEditor(ProfilePageView value)
-        {
-            float d = ui.Density;
-            var field = nameField;
-            var slot = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top);
-            var save = Pill(slot, new PageAction { Label = "Save name", Invoke = () => { editingName = false; value.ChangeName(field.text); } }, true, null, 24);
-            var saveGroup = save.transform.parent.GetChild(save.transform.GetSiblingIndex() - 1);
-            column.Top = slot.Top;
-            // The helper text keeps the cards' text margin, 24 dp inside the column.
-            var helper = new PageColumn(ui, shell.Page, actions, column.Left + 24 * d, column.Width - 48 * d, column.Top);
-            helper.Typed("Name purpose", "Your name appears on this device and on the results you share.", SkinUi.Type.Caption, 16, SkinTokens.Text, 42,
-                TextAlignmentOptions.Left);
-            column.Top = helper.Top;
-            var card = column.Card("Name preview card", null, 24, 25, 24);
-            card.Typed("Name preview heading", "Name preview", SkinUi.Type.Caption, 12, SkinTokens.TextMuted, 16, TextAlignmentOptions.Left);
-            var preview = card.Typed("Name preview", editedName, SkinUi.Type.Title, 27, SkinTokens.Text, 12, TextAlignmentOptions.Left);
-            card.Typed("Name preview product", Application.productName + " · Daily", SkinUi.Type.Caption, 15, SkinTokens.Objective, 0,
-                TextAlignmentOptions.Left);
-            column = card.End(52);
-            var limit = column.Typed("Name limit", "Names can use up to " + NameLimit + " characters.", SkinUi.Type.Caption, 13, SkinTokens.TextMuted, 16);
-            Shade(SkinUi.ScreenRect(limit.rectTransform), ui.TextWidth(limit.text, 13, SkinUi.Type.Caption), shell.Page);
-            limit.transform.SetAsLastSibling();
-            void Changed(string text)
-            {
-                editedName = text; preview.text = text;
-                bool changed = text != savedName;
-                save.gameObject.SetActive(changed); saveGroup.gameObject.SetActive(changed);
-            }
-            field.onValueChanged.AddListener(Changed);
-            field.onSubmit.AddListener(text => actions.Run(() => { editingName = false; value.ChangeName(text); }));
-            Changed(field.text);
-            back = new PageAction { Invoke = () => { editingName = false; Redraw(); } };
-            field.ActivateInputField();
         }
 
         // The guardian emblems in a card (.grid4): how an emblem is won, 10u

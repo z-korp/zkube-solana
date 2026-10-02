@@ -15,6 +15,7 @@ namespace ZKube.Editor
     internal static class ZKubeStoreBillingBuild
     {
         private const string PackagePath = "Packages/com.unity.purchasing/";
+        private const string StoreAndroidPath = "Assets/ZKube/Local/Android/";
         [Serializable] private sealed class AssemblyDefinition { public string name; }
         internal static void ConfigurePlugins()
         {
@@ -22,7 +23,9 @@ namespace ZKube.Editor
             // SessionState switch before injecting Google Billing into Gradle.
             // Reapply for every identity; managed exclusion alone is insufficient.
             SessionState.SetBool("SelfDeclaredAndroidDependenciesDisabled:com.unity.purchasing", ZKubeBuild.Identity.name != "store");
-            foreach (var path in AssetDatabase.GetAllAssetPaths().Where(path => path.StartsWith(PackagePath, StringComparison.Ordinal)))
+            // The store's own Java (the Play Games bridge) compiles against the store's dependencies only.
+            foreach (var path in AssetDatabase.GetAllAssetPaths().Where(path => path.StartsWith(PackagePath, StringComparison.Ordinal) ||
+                path.StartsWith(StoreAndroidPath, StringComparison.Ordinal)))
                 if (AssetImporter.GetAtPath(path) is PluginImporter plugin)
                     plugin.SetIncludeInBuildDelegate(delegate { return ZKubeBuild.Identity.name == "store"; });
         }

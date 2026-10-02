@@ -80,8 +80,9 @@ class StaticTests(unittest.TestCase):
         store = identity(self.toolchain, 'store')
         self.assertEqual(('com.zkorp.zkube', 'apk', ['arm64-v8a']), (money['package'], money['format'], money['abis']))
         self.assertEqual(['aarch64-linux-android', 'x86_64-linux-android'], [a['rustTarget'] for a in abis(self.toolchain, store)])
-        self.assertIn('locks', money)
-        self.assertNotIn('locks', store)
+        self.assertNotEqual(money['locks'], store['locks'], 'Each identity builds against its own locks')
+        self.assertNotIn('dependencies', money)
+        self.assertEqual(['com.google.android.gms:play-services-games-v2'], [value.rsplit(':', 1)[0] for value in store['dependencies']])
 
     def test_each_package_stages_only_its_own_icon_and_splash(self):
         staged = {}
@@ -146,6 +147,11 @@ class StaticTests(unittest.TestCase):
         self.toolchain['androidIdentities'][0]['abis'] = ['arm64-v8a']
         self.toolchain['androidIdentities'][0]['locks'] = '../money-locks'
         with self.assertRaises(RuntimeError): identity(self.toolchain, 'money')
+        store = self.toolchain['androidIdentities'][1]
+        store['dependencies'] = ['com.google.android.gms:play-services-games-v2:+']
+        with self.assertRaisesRegex(RuntimeError, 'exact Maven coordinates'): identity(self.toolchain, 'store')
+        store['dependencies'] = []; store['playGamesAppId'] = 'my-project'
+        with self.assertRaisesRegex(RuntimeError, 'Play Games app ID'): identity(self.toolchain, 'store')
 
 
     def test_display_name_checks_reject_wrong_missing_and_localized_names(self):

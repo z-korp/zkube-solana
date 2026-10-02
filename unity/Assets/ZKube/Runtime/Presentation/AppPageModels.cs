@@ -120,8 +120,11 @@ namespace ZKube.Presentation
 
     public sealed class ProfilePageView
     {
+        // The player's name where the identity has one (a platform account's
+        // display name, the Arena's Seeker ID or address) and its avatar; what
+        // is worn, and a notice.
         public string Name, Worn, Notice;
-        public Action<string> ChangeName;
+        public UnityEngine.Texture2D Avatar;
         // The realm behind the page, and the worn emblem (0 when none is worn).
         public byte Realm, Emblem;
         // The worn ladder tier, whose border rings the medallion and whose badge

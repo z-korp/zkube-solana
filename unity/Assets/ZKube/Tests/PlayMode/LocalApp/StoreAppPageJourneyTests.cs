@@ -21,6 +21,14 @@ namespace ZKube.Tests
 {
     public sealed class StoreAppPageJourneyTests
     {
+        // The platform's player accounts, as a test sets them: signed out until Player is set.
+        private sealed class Accounts : IPlayerAccounts
+        {
+            public PlayerAccount Player;
+            public Exception Failure;
+            public Task<PlayerAccount> SignIn() => Failure != null ? Task.FromException<PlayerAccount>(Failure) : Task.FromResult(Player);
+        }
+        private Accounts accounts;
         private sealed class Driver : ICampaignStoreDriver
         {
             public event Action<string> ProductFetched;
@@ -70,7 +78,8 @@ namespace ZKube.Tests
             runs = new StoreRunClient(product, () => 20705L * 86400);
             billing = new CampaignBilling(new Driver(), () => new CampaignBillingAnswer(product.Read.CampaignOwned, product.Read.CampaignPrice, CampaignBillingStatus.Updated), runs.ApplyCampaignEntitlement);
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
-            app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board);
+            accounts = new Accounts();
+            app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board, accounts);
             // Every guardian has greeted unless a test asks for the first visit.
             greeted = ~0; Greet(app);
             yield return Page(StorePage.Home);
@@ -111,14 +120,6 @@ namespace ZKube.Tests
             app.GetComponentsInChildren<Image>().Where(image => image.name == "Guardian portrait").All(image => image.enabled && image.sprite != null);
         private IEnumerator Page(StorePage page) => Wait(() => app != null && app.Flow.Page == page && PageDrawn(), "Page did not become ready: " + page);
         private IEnumerator BoardReady() => Wait(() => board != null && ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy, "Board did not become ready: " + "Board is still busy or loading");
-        private IEnumerator NamePlayer()
-        {
-            Click(app, "Profile"); yield return Page(StorePage.Profile);
-            Click(app, "Edit name"); yield return null;
-            var field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
-            Click(app, "Save name"); yield return Page(StorePage.Profile);
-            Click(app, "Home"); yield return Page(StorePage.Home);
-        }
         private IEnumerator EndRun()
         {
             Click(board.View, "Pause"); Click(board.View, "End run");
@@ -170,30 +171,42 @@ namespace ZKube.Tests
             }
         }
 
-        [UnityTest] public IEnumerator StoreStartsWithDefaultNameAndEditsItInProfile()
+        // Realms names its player from the platform account (Google Play Games on
+        // Android): signed in, the profile shows the account's name and avatar,
+        // and a shared result carries the name; signed out, refused or failing,
+        // it shows the emblem alone. There is no name to edit, and play never
+        // waits for the sign-in.
+        [UnityTest] public IEnumerator StoreShowsThePlayerAccountAndPlaysWithoutIt()
         {
-            Assert.That(product.Read.Name, Is.EqualTo(LocalProductCodec.DefaultName));
-            Assert.That(FindButton(app, "Play today").interactable, Is.True);
-            var leases = (System.Collections.IDictionary)typeof(BoardArt).GetField("atlasLoads", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-            var common = leases["ZKube/Atlases/common"];
+            Assert.That(FindButton(app, "Play today").interactable, Is.True, "Play is open before any sign-in answers");
             Click(app, "Profile"); yield return Page(StorePage.Profile);
-            Click(app, "Edit name"); yield return null;
-            var field = app.GetComponentInChildren<TMP_InputField>(); field.onSubmit.Invoke(" \t ");
-            yield return Page(StorePage.Profile);
-            Assert.That(product.Read.Name, Is.EqualTo(LocalProductCodec.DefaultName));
-            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Enter a name"), Is.True);
-            Click(app, "Edit name"); yield return null;
-            field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
-            Click(app, "Save name"); yield return Page(StorePage.Profile);
-            Assert.That(product.Read.Name, Is.EqualTo("Page tester"));
+            Assert.That(app.ProfilePage().Name, Is.Null);
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Name text"), Is.False, "Signed out, the profile shows no name");
+            Assert.That(app.GetComponentsInChildren<Image>().Count(image => image.name == "Worn emblem"), Is.EqualTo(1), "The emblem stands alone");
+            Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null);
+            Assert.That(Buttons().Any(button => button.name.EndsWith(" name")), Is.False, "There is no name to edit");
+            Assert.That(app.ResultPage().PlayerName, Is.Null);
+            // The platform signs the player in.
+            var avatar = new Texture2D(8, 8);
+            accounts.Player = new PlayerAccount { Name = "Mira of the Reef", Avatar = avatar };
+            var signIn = app.Flow.SignIn(); yield return Wait(() => signIn.IsCompleted, "The sign-in did not answer"); yield return Page(StorePage.Profile);
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name text").text, Is.EqualTo("Mira of the Reef"));
+            Assert.That(app.GetComponentsInChildren<RawImage>().Single(image => image.name == "Player avatar picture").texture, Is.SameAs(avatar));
+            Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null, "Nor a name to edit once signed in");
+            Assert.That(app.ResultPage().PlayerName, Is.EqualTo("Mira of the Reef"));
+            Assert.That(LocalProductCodec.Encode(product.Read), Does.Not.Contain("name"), "The save keeps no name");
+            // A sign-in that fails leaves no account and the game playable.
+            accounts.Player = null; accounts.Failure = new InvalidOperationException("Play Games is unavailable");
+            signIn = app.Flow.SignIn(); yield return Wait(() => signIn.IsCompleted, "The failed sign-in did not answer"); yield return Page(StorePage.Profile);
+            Assert.That(app.Flow.Account, Is.Null); Assert.That(app.Flow.Error, Is.Null);
             Click(app, "Home"); yield return Page(StorePage.Home);
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
-            Assert.That(leases["ZKube/Atlases/common"], Is.SameAs(common));
+            UnityEngine.Object.Destroy(avatar);
         }
         // A finished run holds on the board for a moment, then its result page opens.
         [UnityTest] public IEnumerator PageButtonBindsLocalBoardAndTerminalOpensTheResultPage()
         {
-            yield return NamePlayer(); byte realm = runs.Today().Realm;
+            byte realm = runs.Today().Realm;
             Click(app, "Play today"); yield return BoardReady();
             Assert.That(board.Session.RealmId, Is.EqualTo(realm)); Assert.That(ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId, Is.EqualTo(realm));
             Assert.That(product.Read.DailyAttempt.DayId, Is.EqualTo(runs.Today().DayId));
@@ -239,23 +252,6 @@ namespace ZKube.Tests
             var track = SkinUi.ScreenRect((RectTransform)slider.transform.Find(name + " track"));
             slider.OnPointerDown(new PointerEventData(EventSystem.current) { position = new Vector2(track.x + track.width * fraction, track.center.y) });
         }
-        // The name is edited in place: Save appears only once it differs, the
-        // preview follows it, and saving closes the editor.
-        [UnityTest] public IEnumerator ProfileEditsTheNameInPlaceAndOffersSaveOnlyAfterAChange()
-        {
-            Click(app, "Profile"); yield return Page(StorePage.Profile);
-            Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null);
-            Click(app, "Edit name"); yield return null;
-            Assert.That(Buttons().Any(button => button.name == "Save name"), Is.False, "Nothing to save yet");
-            var field = app.GetComponentInChildren<TMP_InputField>(); field.text = "River"; yield return null;
-            Assert.That(FindButton(app, "Save name").interactable, Is.True);
-            Assert.That(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name preview").text, Is.EqualTo("River"),
-                "The preview shows the new name");
-            Click(app, "Save name"); yield return Page(StorePage.Profile);
-            Assert.That(product.Read.Name, Is.EqualTo("River"));
-            Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null);
-            Assert.That(FindButton(app, "Edit name").interactable, Is.True);
-        }
         // Every emblem is shown; only an unlocked one can be worn, and wearing it
         // is said beside the name.
         [UnityTest] public IEnumerator EmblemGridShowsEveryEmblemAndWearsOnlyUnlockedOnes()
@@ -273,7 +269,7 @@ namespace ZKube.Tests
         private string[] Texts() => app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy).Select(text => text.text).ToArray();
         [UnityTest] public IEnumerator CampaignPageHasAuthoredNodesAndRealPreviewHandler()
         {
-            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             var nodes = Nodes(); Assert.That(nodes.Length, Is.EqualTo(10));
             AssertNodeCaptions(nodes);
             // Dragging empty map space must reach the ScrollRect as dragging a
@@ -301,7 +297,7 @@ namespace ZKube.Tests
         }
         [UnityTest] public IEnumerator CampaignRunOpensItsResultAndRetryReplaysTheSameLevel()
         {
-            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Trial 1"); yield return Page(StorePage.Level);
             // The preview words every goal from its constraint and shows its target
             // (there is no progress yet) under the guardian's line for the level, in
@@ -401,7 +397,7 @@ namespace ZKube.Tests
         // its rule and what the bonus does. A tap continues, and it does not return.
         [UnityTest] public IEnumerator FirstVisitToARealmGreetsOnceWithTheLineAndTheRule()
         {
-            greeted = 0; yield return NamePlayer();
+            greeted = 0; 
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             var catalog = PageCatalog.Load(); var rule = catalog.Rule(1);
             var talk = app.GetComponentInChildren<GuardianTalk>(); talk.Complete();
@@ -424,7 +420,7 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator MapPrimaryPlaysTheCurrentLevelAndUnavailableArrowsAreNotDrawn()
         {
             product.Write(state => { state.Stars[0] = 3; state.Stars[1] = 2; return state; });
-            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Assert.That(Buttons().Any(button => button.name == "Previous"), Is.False);
             Assert.That(FindButton(app, "Next").interactable, Is.True);
             Click(app, "Play level 3"); yield return Page(StorePage.Level);
@@ -503,7 +499,7 @@ namespace ZKube.Tests
         // store cannot be reached, with a retry in its place.
         [UnityTest] public IEnumerator LockedRealmsSayWhyAndOfferTheWayForward()
         {
-            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Next"); yield return Page(StorePage.Campaign);
             Assert.That(app.Flow.Realm, Is.EqualTo(2));
             Assert.That(Nodes(), Is.Empty);
@@ -532,7 +528,7 @@ namespace ZKube.Tests
         // Reduced motion shows the end state at once.
         [UnityTest] public IEnumerator ResultEntranceIsSkippableAndReducedMotionShowsTheEndState()
         {
-            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Trial 1"); yield return Page(StorePage.Level);
             Click(app, "Play"); yield return BoardReady();
             typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
@@ -559,7 +555,7 @@ namespace ZKube.Tests
             var level = Protocol.Realms[0].Levels[0];
             var goals = new CampaignGoals { Points = Protocol.CampaignTargets[0], PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1],
                 PrimaryCount = level.Primary[2], SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] };
-            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Trial 1"); yield return Page(StorePage.Level);
             Click(app, "Play"); yield return BoardReady();
             Image[] Crown() => Enumerable.Range(1, 3).Select(i => app.GetComponentsInChildren<Image>().Last(image => image.name == "Result star " + i)).ToArray();
@@ -601,7 +597,7 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator DailyResultShowsTheScoreObjectiveAndStreakWithSharing()
         {
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
-            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
+            Click(app, "Play today"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
             var today = runs.Today(); var catalog = PageCatalog.Load();
             var texts = Texts();
@@ -742,7 +738,6 @@ namespace ZKube.Tests
             app.Flow.SelectRealm(2); yield return Words(StorePage.Campaign, "Realm closed by stars");
             app.Flow.SelectRealm(4); yield return Words(StorePage.Campaign, "Realm closed by the purchase");
             app.Flow.Show(StorePage.Profile); yield return Words(StorePage.Profile, "Profile");
-            Click(app, "Edit name"); yield return null; ZKube.Tests.Presentation.PageText.AssertPlayerWords(app, "Name editing");
             app.Flow.Show(StorePage.Settings); yield return Words(StorePage.Settings, "Settings");
             var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
             app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 168, StarSources = 7, EndReason = 1, Goals = goals });
@@ -750,7 +745,7 @@ namespace ZKube.Tests
             app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = 1, EndReason = 2, Goals = goals });
             yield return Words(StorePage.Result, "Level lost");
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
-            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
+            Click(app, "Play today"); yield return BoardReady();
             yield return EndRun(); yield return Words(StorePage.Result, "Daily result");
             app.Flow.Show(StorePage.Home); yield return Words(StorePage.Home, "Home after today's run");
         }
@@ -758,7 +753,7 @@ namespace ZKube.Tests
         // after a Campaign run's result page.
         [UnityTest] public IEnumerator ViewResultOpensTodaysDailyResultAfterACampaignResult()
         {
-            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
+            Click(app, "Play today"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(app.ResultPage().Mode, Is.EqualTo("Daily"));
             app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
@@ -1026,11 +1021,6 @@ namespace ZKube.Tests
                     app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " profile");
-                    Touch("Edit name", phone + " profile");
-                    // The whole profile, Edit name included, stands above the tabs without scrolling.
-                    var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
-                    Assert.That(SkinUi.ScreenRect((RectTransform)FindButton(app, "Edit name").transform).yMin, Is.GreaterThanOrEqualTo(tabs.yMax - .5f),
-                        phone + " profile: Edit name is in view");
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " profile");
                     app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
@@ -1060,7 +1050,6 @@ namespace ZKube.Tests
                 Assert.That(shell.Scrim.enabled, Is.EqualTo(scrim), at + (scrim ? " is drawn over the painting" : " shows the painting"));
             }
             IEnumerator Settled(StorePage page) { yield return Page(page); yield return new WaitForSecondsRealtime(1); }
-            yield return NamePlayer();
             app.Flow.Show(StorePage.Home); yield return Settled(StorePage.Home); Painted("Home", SkinSlots.Background, false);
             app.Flow.Show(StorePage.Campaign); yield return Settled(StorePage.Campaign); Painted("Map", SkinSlots.Map, false);
             app.Flow.Preview(1); yield return Settled(StorePage.Level); Painted("Preview", SkinSlots.Map, true);
@@ -1097,7 +1086,6 @@ namespace ZKube.Tests
                     }
                     finally { UnityEngine.Object.Destroy(texture); }
                 }
-                yield return NamePlayer();
                 app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
                 app.Flow.Preview(1); yield return Page(StorePage.Level);
                 yield return TopThird("Tiki preview", .160f);
@@ -1130,24 +1118,12 @@ namespace ZKube.Tests
                 Click(app, "Back to map"); yield return Page(StorePage.Campaign);
             }
         }
-        // Settings is the fourth tab and Home has no gear; the profile's name row
-        // has the stat rows' width and a visible caret; settings toggles carry
+        // Settings is the fourth tab and Home has no gear; settings toggles carry
         // no On or Off words beside them.
-        [UnityTest] public IEnumerator SettingsIsATabNameRowMatchesAndTogglesSpeakForThemselves()
+        [UnityTest] public IEnumerator SettingsIsATabAndTogglesSpeakForThemselves()
         {
             Assert.That(app.GetComponentsInChildren<Image>().Any(image => image.name == "Settings icon"), Is.False, "Home has no settings gear");
             Assert.That(FindButton(app, "Settings").transform.IsChildOf(app.GetComponent<PageShell>().Chrome), Is.True, "Settings is a tab");
-            app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
-            Click(app, "Edit name"); yield return null;
-            var field = app.GetComponentInChildren<TMP_InputField>();
-            // The name is edited in place, in the wearer's card.
-            var wearer = SkinUi.ScreenRect(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wearer card").rectTransform);
-            var at = SkinUi.ScreenRect((RectTransform)field.transform);
-            Assert.That(wearer.Contains(at.min) && wearer.Contains(at.max), Is.True, "The field sits in the wearer card");
-            Assert.That(field.customCaretColor, Is.True); Assert.That(field.caretColor.a, Is.GreaterThan(.9f)); Assert.That(field.caretWidth, Is.GreaterThanOrEqualTo(2));
-            var purpose = SkinUi.ScreenRect(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name purpose").rectTransform);
-            var preview = SkinUi.ScreenRect(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name preview").rectTransform);
-            Assert.That(purpose.xMin, Is.EqualTo(preview.xMin).Within(.5f), "The helper text keeps the cards' text margin");
             app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
             foreach (var row in new[] { "Haptics", "Reduced motion" })
                 Assert.That(app.GetComponentsInChildren<TMP_Text>().Where(text => text.name.StartsWith(row)).Select(text => text.text),
@@ -1196,7 +1172,7 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator RealmPagesAndEmblemDisposalPreserveTheInactiveBoardsAtlas()
         {
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
-            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
+            Click(app, "Play today"); yield return BoardReady();
             var retainedArt = (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
             yield return EndRun(); yield return Page(StorePage.Result);
             var leases = (System.Collections.IDictionary)typeof(BoardArt).GetField("atlasLoads", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
@@ -1227,7 +1203,7 @@ namespace ZKube.Tests
         }
         [UnityTest] public IEnumerator NavigationDuringAssetLoadPublishesOnlyTheLatestPageAndDisposalStopsLateWork()
         {
-            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Next"); Assert.That(PageDrawn(), Is.False); yield return null;
             Assert.That((bool)typeof(StoreAppAdapter).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app), Is.True);
             // Same public navigation command that page buttons dispatch, while
@@ -1242,7 +1218,7 @@ namespace ZKube.Tests
         [UnityTest] public IEnumerator AcceptedSaveFailureIsVisibleAcrossRecoveryAndResultExit()
         {
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
-            yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady(); failSave = true;
+            Click(app, "Play today"); yield return BoardReady(); failSave = true;
             Click(board.View, "Pause"); Click(board.View, "End run"); yield return null; Click(board.View, "End run");
             yield return Wait(() => board.RecoveryRequired && !board.Busy, "Expected recovery after accepted save failure");
             yield return Wait(() => WarningVisible, "Unsaved overlay was not shown over the board");
@@ -1252,7 +1228,7 @@ namespace ZKube.Tests
         }
         [UnityTest] public IEnumerator SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount()
         {
-            yield return NamePlayer(); Click(app, "Settings"); yield return Page(StorePage.Settings);
+            Click(app, "Settings"); yield return Page(StorePage.Settings);
             // The channel's row switches it; the kit slider sets its level.
             Click(app, "Music switch"); yield return Page(StorePage.Settings);
             Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));

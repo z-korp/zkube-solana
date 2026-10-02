@@ -121,8 +121,14 @@ spending approval.
   `test_both_package_manifests_use_the_identity_contract` and
   `test_metadata_rejects_every_money_assembly_and_tests` guard the identity contract.
 - **Identity:** a connected Solana address identifies an Arena player, without embedded wallets or recovery
-  codes. Realms starts with Player, editable in Profile. `money_campaign_needs_an_address_and_no_session`
-  and `StoreStartsWithDefaultNameAndEditsItInProfile` guard immediate Campaign play and local naming.
+  codes. Its profile shows the address's Seeker ID (its .skr name) when one resolves, else the shortened
+  address: a cached display read from mainnet that never gates play and that no money path reads. Realms shows
+  the platform player account, Google Play Games on Android behind one interface for other platforms, with no
+  name to edit; signed out or refused, the profile shows the emblem alone and everything stays playable.
+  `money_campaign_needs_an_address_and_no_session`, `StoreShowsThePlayerAccountAndPlaysWithoutIt`,
+  `SeekerIdsResolveFromTheirSkrRecordsOncePerAddress` and
+  `SeekerLookupsNeverThrowAndShowNothingWhenTheyCannotResolve` guard immediate Campaign play, the account and
+  the lookup.
 - **Campaign is free and optional on Arena:** one shared local client plays it in both products. Realms
   alone overlays the realm purchase policy and adds a local UTC Daily.
   `store_gate_is_a_store_identity_policy_over_shared_progression`,
@@ -463,7 +469,8 @@ progress and eligibility, while one Daily query supplies content and time.
 pointer boundary and atomic output.
 
 The root assets directory is authoritative. unity/toolchain.json owns identity metadata;
-unity/tools/build.py owns imports, fixtures, builds and money dependency locks.
+unity/tools/build.py owns imports, fixtures, builds and each identity's dependency locks (the store's carry
+its one own dependency, Play Games, named in unity/toolchain.json).
 `test_money_lock_update_requires_both_resolved_modules` guards lock replacement. Services and tools/chain
 share one workspace and configuration; `workspace_has_one_dependency_and_configuration_owner`,
 `keeper_and_operator_share_chain_identity_and_launch_day_bounds` and

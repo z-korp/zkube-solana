@@ -40,7 +40,7 @@ namespace ZKube.Tests.Presentation
             public DailyPageView Daily;
             public DailyPageView DailyPage() => Daily;
             public ProfilePageView ProfilePage() => new ProfilePageView { Name = "Player", Realm = 1, Emblem = 1, Worn = "Wearing Mako’s emblem", Stars = 3,
-                Streak = 1, BestDailyScore = 1240, ChangeName = _ => { },
+                Streak = 1, BestDailyScore = 1240,
                 Emblems = ProfileEmblems.All.Where(emblem => emblem.Id != 0).Select(emblem => new ProfileChoiceView { Id = emblem.Id, Realm = emblem.Realm,
                     Name = emblem.Name, Detail = emblem.Id == 1 ? "Worn" : null, Available = emblem.Id <= 3 }).ToArray() };
             public SettingsPageView SettingsPage()
@@ -175,6 +175,8 @@ namespace ZKube.Tests.Presentation
                 Dump(page, pieces);
                 yield return Captures.Snap(shell, "wireframe " + page);
                 if (page.StartsWith("greet")) Match(page, pieces, shell.ScreenArea, 1.1f, "guardians", "talk");
+                // The platform account names the player (DECISIONS 2026-10-02): the wireframe's quiet button is gone.
+                else if (page == "profile") Match(page, pieces, shell.ScreenArea, 1.1f, "titles", "cards", "stats", "tabs");
                 else Match(page, pieces, shell.ScreenArea, 1.1f);
             }
             source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
@@ -205,7 +207,6 @@ namespace ZKube.Tests.Presentation
             yield return Page("dres", () => views.Render(AppPage.Result));
             AssertButtonKinds(root.transform, "dres", new[] { "Share" }, new string[0]);
             yield return Page("profile", () => views.Render(AppPage.Profile));
-            AssertButtonKinds(root.transform, "profile", new string[0], new[] { "Edit name" });
             yield return Page("settings", () => views.Render(AppPage.Settings));
             AssertButtonKinds(root.transform, "settings", new string[0], new[] { "Restore purchases" });
             greeted = 0;

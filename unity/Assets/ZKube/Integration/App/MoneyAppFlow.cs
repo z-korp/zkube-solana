@@ -78,6 +78,8 @@ namespace ZKube.Integration.App
         public MoneyRead<PublicDaily> Public { get { lock (gate) return publicValue; } }
         public MoneyRead<MoneyOwnerState> Owner { get { lock (gate) return ownerValue; } }
         public MoneyAppFlow(MoneyClientServices services) { this.services = services ?? throw new ArgumentNullException(nameof(services)); }
+        // What an address's profile shows of its Seeker: a display read that never fails.
+        public Task<ZKube.Integration.Transport.SeekerProfile> Seeker(string owner) => services.Seeker.Resolve(owner);
 
         public Task<MoneyRead<PublicDaily>> RefreshPublic(CancellationToken cancellation = default) => Track(async () => {
             var read = BeginRead(true, cancellation);

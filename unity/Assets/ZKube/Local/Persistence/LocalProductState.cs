@@ -38,7 +38,6 @@ namespace ZKube.Local
     public sealed class LocalProductState
     {
         public int Version { get; set; } = LocalProductCodec.Version;
-        public string Name { get; set; } = LocalProductCodec.DefaultName;
         public byte[] Stars { get; set; } = new byte[100];
         public LocalDailyAttempt DailyAttempt { get; set; }
         public ulong Streak { get; set; }
@@ -54,7 +53,6 @@ namespace ZKube.Local
     {
         public const string StorageKey = "zkube:local-product:v1";
         public const int Version = 1;
-        public const string DefaultName = "Player";
 
         public static LocalProductState Decode(string json)
         {
@@ -66,12 +64,9 @@ namespace ZKube.Local
             var stars = new byte[100];
             if (parsed["stars"] is JArray array)
                 for (int i = 0; i < Math.Min(array.Count, stars.Length); i++) stars[i] = (byte)Math.Min(3UL, Nonnegative(array[i]));
-            string name;
-            try { name = NormalizeName(parsed["name"]?.Type == JTokenType.String ? (string)parsed["name"] : null); }
-            catch (ArgumentException) { name = DefaultName; }
             string price = parsed["campaignPrice"]?.Type == JTokenType.String ? ((string)parsed["campaignPrice"]).Trim() : null;
             return new LocalProductState {
-                Name = name, Stars = stars, DailyAttempt = Attempt(parsed["dailyAttempt"] as JObject),
+                Stars = stars, DailyAttempt = Attempt(parsed["dailyAttempt"] as JObject),
                 Streak = Nonnegative(parsed["streak"]),
                 BestDailyScore = Nonnegative(parsed["bestDailyScore"]), WornEmblem = (uint)Math.Min(ZKube.Presentation.ProfileEmblems.Last, Nonnegative(parsed["wornEmblem"])),
                 CampaignOwned = parsed["campaignOwned"]?.Type == JTokenType.Boolean && (bool)parsed["campaignOwned"],
@@ -91,7 +86,6 @@ namespace ZKube.Local
             if (!campaignOnly)
             {
                 var attempt = state.DailyAttempt;
-                document["name"] = state.Name;
                 document["dailyAttempt"] = attempt == null ? JValue.CreateNull() : new JObject {
                     ["dayId"] = attempt.DayId, ["dailyScore"] = attempt.DailyScore,
                     ["objectiveTotal"] = attempt.ObjectiveTotal, ["tier"] = attempt.Tier, ["finished"] = attempt.Finished,
@@ -123,13 +117,6 @@ namespace ZKube.Local
                 return run;
             }
             catch (JsonException error) { throw new FormatException("Saved Campaign run is malformed", error); }
-        }
-
-        public static string NormalizeName(string value)
-        {
-            string normalized = Slice((value ?? "").Trim(), 24);
-            if (normalized.Length == 0) throw new ArgumentException("Enter a name");
-            return normalized;
         }
 
         private static LocalDailyAttempt Attempt(JObject value)

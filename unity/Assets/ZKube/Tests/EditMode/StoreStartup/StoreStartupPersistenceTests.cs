@@ -24,18 +24,18 @@ namespace ZKube.Local.App.Tests
         [Test] public void FlushedProductPublicationReplacesWholeDocumentAndClearsStalePending()
         {
             Assert.IsNull(AtomicProductFile.Read(ProductPath));
-            var first = new LocalProductState { Name = "First", BestDailyScore = 12 };
-            var second = new LocalProductState { Name = "Second", BestDailyScore = 34, CampaignOwned = true };
+            var first = new LocalProductState { BestDailyScore = 12 };
+            var second = new LocalProductState { BestDailyScore = 34, CampaignOwned = true };
             AtomicProductFile.Write(ProductPath, LocalProductCodec.Encode(first));
             File.WriteAllText(ProductPath + ".pending", "interrupted partial JSON");
-            Assert.AreEqual("First", Product().Read.Name, "Restart reads only the published file");
+            Assert.AreEqual(12, Product().Read.BestDailyScore, "Restart reads only the published file");
             AtomicProductFile.Write(ProductPath, LocalProductCodec.Encode(second));
-            Assert.AreEqual("Second", Product().Read.Name); Assert.AreEqual(34, Product().Read.BestDailyScore);
+            Assert.AreEqual(34, Product().Read.BestDailyScore);
             Assert.IsTrue(Product().Read.CampaignOwned); Assert.IsFalse(File.Exists(ProductPath + ".pending"));
         }
         [Test] public void FailedPendingWritePreservesPreviouslyPublishedProduct()
         {
-            var original = LocalProductCodec.Encode(new LocalProductState { Name = "Saved", BestDailyScore = 22 });
+            var original = LocalProductCodec.Encode(new LocalProductState { BestDailyScore = 22 });
             AtomicProductFile.Write(ProductPath, original); Directory.CreateDirectory(ProductPath + ".pending");
             Assert.Catch(() => AtomicProductFile.Write(ProductPath, "replacement"));
             Assert.AreEqual(original, AtomicProductFile.Read(ProductPath));

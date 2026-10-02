@@ -37,6 +37,7 @@ namespace ZKube.Integration.Presentation
             var read = await Flow.RefreshProfile(token);
             if (!Current(epoch) || !browsingProfile) return;
             profileRead = read; economyReadbackNeeded = false; pageNotice = null;
+            _ = ShowSeeker(identity.Owner);
             selectedEmblem = read.Value.Identity.StoredEmblem; selectedBorder = read.Value.Profile.WornTier;
             if (profileView == ProfileView.Selection) profileView = ProfileView.Main;
             if (read.Value.PreviousOperation != null) ShowReceipt(read.Value.PreviousOperation, identity.Owner);
@@ -85,7 +86,7 @@ namespace ZKube.Integration.Presentation
                 actions.Add(PageAction("Wear the automatic emblem", () => SelectProfileEmblem(0),
                     () => ProfileEditable() && worn.CanWear(0, selectedBorder), "Emblem 0"));
             return new ProfilePageView {
-                Name = Short(player.Owner), Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
+                Name = SeekerName(player.Owner), Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
                 Standing = EmblemDefinition(worn.DisplayedEmblem).Name + (worn.StoredEmblem == 0 && worn.DisplayedEmblem != 0 ? " (automatic)" : "") + " · " +
                     TierDefinition(player.WornTier).Name + " · " + NumberFit.Figure(player.LadderPoints) + " ladder points",
                 Records = PageAction("Records", () => ShowProfile(ProfileView.Records), () => PageAvailable() && !Busy, "Your records"),
@@ -100,6 +101,21 @@ namespace ZKube.Integration.Presentation
                         Available = choice.Earned, CanSelect = () => ProfileEditable() && profileRead.Value.Identity.CanWear(id, selectedBorder),
                         Select = () => SelectProfileEmblem(id) };
                 }).ToArray() };
+        }
+        // The profile shows the address's Seeker ID once it resolves, and the
+        // shortened address until then and when it has none. The lookup runs
+        // beside the page: nothing waits for it and nothing but this name reads it.
+        private ZKube.Integration.Transport.SeekerProfile seeker;
+        private string seekerOwner;
+        private string SeekerName(string owner) => (seekerOwner == owner ? seeker?.Name : null) ?? Short(owner);
+        private async Task ShowSeeker(string owner)
+        {
+            if (owner == null || seekerOwner == owner) return;
+            seekerOwner = owner; seeker = null;
+            var found = await Flow.Seeker(owner);
+            if (this == null || seekerOwner != owner) return;
+            seeker = found;
+            if (browsingProfile && profileRead != null) Present();
         }
         public void SelectProfileEmblem(byte emblem)
         {

@@ -27,6 +27,7 @@ namespace ZKube.Local.App
         private bool loading, dirty, lastBusy, lastUnsaved;
         private uint lastDay;
         private LocalProductState lastProduct;
+        private PlayerAccount lastAccount;
         private Rect lastSafe;
         private Vector2Int lastSize;
         private Exception lastFulfillment;
@@ -37,11 +38,12 @@ namespace ZKube.Local.App
         private Coroutine outcome;
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
-        public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController)
+        public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController,
+            IPlayerAccounts accounts = null)
         {
             if (Flow != null) throw new InvalidOperationException("Store app was already initialized");
             board = boardController ?? throw new ArgumentNullException(nameof(boardController));
-            Flow = new StoreAppFlow(product, runs, billing);
+            Flow = new StoreAppFlow(product, runs, billing, accounts);
             if (EventSystem.current == null || EventSystem.current.transform.IsChildOf(board.transform))
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");
             shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
@@ -60,7 +62,7 @@ namespace ZKube.Local.App
             warning.text = UnsavedWarning;
             Stretch(warning.rectTransform, 14);
             warningRoot.SetActive(false); Refresh();
-            _ = Flow.RefreshBilling();
+            _ = Flow.RefreshBilling(); _ = Flow.SignIn();
         }
         private void Update()
         {
@@ -69,10 +71,10 @@ namespace ZKube.Local.App
             var today = Flow.Today.DayId;
             bool busy = Flow.Billing.Busy;
             if (!ReferenceEquals(lastProduct, Flow.Product.Read) || lastDay != today || lastBusy != busy ||
-                lastUnsaved != Flow.Unsaved || lastSafe != Screen.safeArea || lastSize != new Vector2Int(Screen.width, Screen.height) ||
+                lastUnsaved != Flow.Unsaved || !ReferenceEquals(lastAccount, Flow.Account) || lastSafe != Screen.safeArea || lastSize != new Vector2Int(Screen.width, Screen.height) ||
                 !ReferenceEquals(lastFulfillment, Flow.Billing.LastFulfillmentError))
             {
-                lastProduct = Flow.Product.Read; lastDay = today; lastBusy = busy; lastUnsaved = Flow.Unsaved;
+                lastProduct = Flow.Product.Read; lastAccount = Flow.Account; lastDay = today; lastBusy = busy; lastUnsaved = Flow.Unsaved;
                 lastSafe = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height);
                 lastFulfillment = Flow.Billing.LastFulfillmentError; Refresh();
             }
@@ -210,7 +212,8 @@ namespace ZKube.Local.App
         {
             var state = Flow.Product.Read;
             var worn = ProfileEmblems.All.FirstOrDefault(emblem => emblem.Id != 0 && emblem.Id == state.WornEmblem);
-            return new ProfilePageView { Name = state.Name, ChangeName = Flow.SetName, Realm = WornRealm, Emblem = worn?.Id ?? 0,
+            // The platform account names the player; without one the profile shows the emblem alone.
+            return new ProfilePageView { Name = Flow.Account?.Name, Avatar = Flow.Account?.Avatar, Realm = WornRealm, Emblem = worn?.Id ?? 0,
                 Worn = worn == null ? null : "Wearing " + worn.Name + (worn.Realm != 0 ? "’s emblem" : ""),
                 Stars = state.Stars.Sum(value => (int)value), Streak = state.Streak, BestDailyScore = state.BestDailyScore,
                 Emblems = ProfileEmblems.All.Where(emblem => emblem.Id != 0).Select(emblem => {
@@ -229,7 +232,7 @@ namespace ZKube.Local.App
         {
             var outcome = Flow.LastCampaign;
             if (outcome != null)
-                return new ResultPageView { ProductName = Application.productName, Mode = "Campaign", PlayerName = Flow.Product.Read.Name,
+                return new ResultPageView { ProductName = Application.productName, Mode = "Campaign", PlayerName = Flow.Account?.Name,
                     HasResult = true, ShowStars = true, Realm = outcome.Realm, Level = outcome.Level, Score = outcome.Score,
                     StarSources = outcome.StarSources, EndReason = outcome.EndReason, MovesLeft = outcome.MovesLeft,
                     PrimaryProgress = outcome.PrimaryProgress, Goals = outcome.Goals,
@@ -239,7 +242,7 @@ namespace ZKube.Local.App
                     Retry = Action("Retry", Flow.Retry) };
             var attempt = Flow.Product.Read.DailyAttempt;
             var pair = attempt == null ? null : NativeEngine.Daily(attempt.DayId);
-            return new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Product.Read.Name,
+            return new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Account?.Name,
                 HasResult = attempt != null, Realm = pair?.Realm ?? 1, Day = attempt?.DayId ?? 0,
                 ObjectiveKind = pair?.Kind ?? 0, ObjectiveValue = pair?.Value ?? 0,
                 Score = attempt?.DailyScore ?? 0,

@@ -19,6 +19,22 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingProfile, Is.True);
             Assert.That(environment.SentSignature, Is.Null);
         }
+        // The profile names its player by the shortened address until the
+        // address's Seeker ID resolves, then by the ID. The lookup runs beside
+        // the page: the profile is drawn and usable before it answers.
+        [UnityTest] public IEnumerator TheProfileShowsTheSeekerIdWithoutWaitingForIt()
+        {
+            yield return PrepareProfilePage("profile-success");
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
+            string owner = environment.Owner;
+            Assert.That(Text("Name text"), Is.EqualTo(owner.Substring(0, 4) + "…" + owner.Substring(owner.Length - 4)), "Without a Seeker ID, the shortened address");
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Your records" && button.interactable), Is.True);
+            // The lookup's answer for this address arrives.
+            Set("seekerOwner", owner); Set("seeker", new ZKube.Integration.Transport.SeekerProfile { Name = "alice.skr" });
+            yield return Wait(controller.OpenProfile()); yield return Idle();
+            Assert.That(Text("Name text"), Is.EqualTo("alice.skr"));
+            Assert.That(environment.SentSignature, Is.Null, "Showing a name sends nothing");
+        }
         [UnityTest] public IEnumerator FeaturedIdentityRequiresAnExplicitWearAndShowsConfirmedReadback() => WearProfile("profile-success", 8, 3);
         [UnityTest] public IEnumerator AutomaticCanBeRestoredWithItsSelectedBorder() => WearProfile("profile-auto", 0, 0);
         [UnityTest] public IEnumerator ChangingOnlyTheBorderKeepsAutomaticStored() => WearProfile("profile-border-only", 0, 3);

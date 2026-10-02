@@ -21,7 +21,9 @@ namespace ZKube.Local.App
                 runs.ApplyCampaignEntitlement);
             var board = new GameObject("Store board", typeof(BoardController)).GetComponent<BoardController>();
             board.transform.SetParent(transform, false);
-            gameObject.AddComponent<StoreAppAdapter>().Initialize(product, runs, billing, board);
+            // The platform's player account: Google Play Games on an Android device, none elsewhere.
+            IPlayerAccounts accounts = Application.platform == RuntimePlatform.Android ? new PlayGamesAccounts() : (IPlayerAccounts)new NoPlayerAccounts();
+            gameObject.AddComponent<StoreAppAdapter>().Initialize(product, runs, billing, board, accounts);
         }
         public override Task Close() { billing?.Dispose(); billing = null; return Task.CompletedTask; }
     }

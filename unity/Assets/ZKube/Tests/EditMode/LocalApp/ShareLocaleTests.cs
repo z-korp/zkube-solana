@@ -26,5 +26,9 @@ namespace ZKube.Tests
                 Is.EqualTo(Application.productName + " · Daily\nA faced Mako in Tiki. Combo: 1. Score: 1_234_567. 1 day streak."));
             Assert.That(culture.NumberFormat.NumberGroupSeparator, Is.EqualTo("_"));
         }
+        // A player without a platform account shares the result without a name.
+        [Test] public void AResultWithoutAPlayerNameSharesWithoutOne() =>
+            Assert.That(ResultShareText.Build("zKube: Realms", "Daily", null, "Mako", "Tiki", "Combo", 1, 12, null, CultureInfo.InvariantCulture),
+                Is.EqualTo("zKube: Realms · Daily\nFaced Mako in Tiki. Combo: 1. Score: 12."));
     }
 }

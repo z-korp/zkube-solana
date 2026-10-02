@@ -15,6 +15,7 @@ namespace ZKube.Editor
         public int callbackOrder => 100;
         public const string LaunchTheme = "ZKubeLaunchTheme";
         public const string LaunchWindowClass = "com.zkorp.zkube.launch.LaunchWindow";
+        public const string PlayGamesAppId = "com.google.android.gms.games.APP_ID";
 
         public void OnPostGenerateGradleAndroidProject(string path)
         {
@@ -36,8 +37,25 @@ namespace ZKube.Editor
             else
             {
                 // A reused export must not retain the previous identity's wallet closure.
-                File.WriteAllText(gradlePath, gradle.Replace(include, ""));
+                gradle = gradle.Replace(include, "");
+                File.WriteAllText(gradlePath, gradle);
                 if (File.Exists(walletGradle)) File.Delete(walletGradle);
+            }
+            // The identity's own dependencies (the store's Play Games), as exact coordinates.
+            const string identityInclude = "apply from: 'zkube-identity.gradle'";
+            var identityGradle = Path.Combine(path, "zkube-identity.gradle");
+            var own = identity.dependencies ?? Array.Empty<string>();
+            if (own.Any(value => !Regex.IsMatch(value, @"^[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$")))
+                throw new BuildFailedException("Identity dependencies must use exact Maven coordinates");
+            if (own.Length != 0)
+            {
+                File.WriteAllText(identityGradle, "dependencies {\n" + string.Join("\n", own.Select(value => "    implementation '" + value + "'")) + "\n}\n");
+                if (!gradle.Contains(identityInclude)) File.AppendAllText(gradlePath, "\n" + identityInclude + "\n");
+            }
+            else
+            {
+                File.WriteAllText(gradlePath, File.ReadAllText(gradlePath).Replace(identityInclude, ""));
+                if (File.Exists(identityGradle)) File.Delete(identityGradle);
             }
             File.WriteAllText(Path.GetFullPath(Path.Combine(path, "../zkube-identity.json")),
                 JsonUtility.ToJson(identity, true));
@@ -50,18 +68,13 @@ namespace ZKube.Editor
                 var modulePath = Path.GetFullPath(Path.Combine(path, "..", module));
                 var moduleGradle = Path.Combine(modulePath, "build.gradle");
                 const string lockInclude = "apply from: 'zkube-dependencies.gradle'";
-                if (identity.name == "store")
-                {
-                    File.WriteAllText(moduleGradle, File.ReadAllText(moduleGradle).Replace(lockInclude, ""));
-                    foreach (var retired in new[] { "gradle.lockfile", "zkube-dependencies.gradle" })
-                        if (File.Exists(Path.Combine(modulePath, retired))) File.Delete(Path.Combine(modulePath, retired));
-                    continue;
-                }
                 var lockPath = Path.Combine(identity.locks, module, "gradle.lockfile");
                 var exportedLock = Path.Combine(modulePath, "gradle.lockfile");
-                if (!File.Exists(lockPath))
+                // Only the export that writes an identity's first locks may run without them.
+                if (File.Exists(lockPath)) File.Copy(lockPath, exportedLock, true);
+                else if (Environment.GetEnvironmentVariable("ZKUBE_EXPORT_LOCKS") != "1")
                     throw new BuildFailedException("Missing reviewed Android dependency lock: " + lockPath);
-                File.Copy(lockPath, exportedLock, true);
+                else if (File.Exists(exportedLock)) File.Delete(exportedLock);
                 File.Copy("NativeAndroid/unity-dependencies.gradle",
                     Path.Combine(modulePath, "zkube-dependencies.gradle"), true);
                 if (!File.ReadAllText(moduleGradle).Contains(lockInclude))
@@ -77,6 +90,24 @@ namespace ZKube.Editor
             XNamespace android = "http://schemas.android.com/apk/res/android";
             application.SetAttributeValue(android + "allowBackup", "false");
             application.SetAttributeValue(android + "label", UnityEditor.PlayerSettings.productName);
+            manifest.Save(manifestPath);
+            // Play Games reads its project from the manifest. Until the owner has
+            // one the app carries none, and the bridge reports no account.
+            var meta = application.Elements("meta-data").Where(node => (string)node.Attribute(android + "name") == PlayGamesAppId).ToArray();
+            foreach (var node in meta) node.Remove();
+            var strings = Path.GetFullPath(Path.Combine(path, "../launcher/src/main/res/values/zkube_play_games.xml"));
+            if (File.Exists(strings)) File.Delete(strings);
+            if (!string.IsNullOrEmpty(identity.playGamesAppId))
+            {
+                if (!Regex.IsMatch(identity.playGamesAppId, "^[0-9]{6,20}$")) throw new BuildFailedException("The Play Games app ID is its project's number");
+                var appId = new XElement("meta-data");
+                appId.SetAttributeValue(android + "name", PlayGamesAppId);
+                appId.SetAttributeValue(android + "value", "@string/zkube_play_games_app_id");
+                application.Add(appId);
+                Directory.CreateDirectory(Path.GetDirectoryName(strings));
+                File.WriteAllText(strings, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n" +
+                    "  <string name=\"zkube_play_games_app_id\" translatable=\"false\">" + identity.playGamesAppId + "</string>\n</resources>\n");
+            }
             manifest.Save(manifestPath);
 
             // UnityPlayer reads this separate Java startup-overlay flag. The

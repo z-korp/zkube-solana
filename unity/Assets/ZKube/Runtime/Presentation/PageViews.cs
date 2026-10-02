@@ -38,7 +38,6 @@ namespace ZKube.Presentation
         private DailyPageView countdownView;
         private long countdownSecond = -1;
         private double lastMusic = AudioPolicy.ToggleOnLevel, lastEffects = AudioPolicy.ToggleOnLevel;
-        private string editedName, savedName;
         private bool reducedMotion;
         private byte shownRealm;
         public AppPage? Shown { get; private set; }
@@ -87,7 +86,6 @@ namespace ZKube.Presentation
             bool entering = Shown != page;
             reducedMotion = source.SettingsPage().ReducedMotion;
             if (page == AppPage.Settings && entering) { lastMusic = AudioPolicy.ToggleOnLevel; lastEffects = AudioPolicy.ToggleOnLevel; }
-            if (page != AppPage.Profile) { editedName = null; savedName = null; editingName = false; }
             Shown = page; shownPanel = null;
             // The previous kit stays with the page drawn from it; the shell releases it.
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
@@ -365,7 +363,7 @@ namespace ZKube.Presentation
         }
         // A card's first row: the portrait, 12u from the caption (a name and a
         // line), with under drawn 4u below them (the Daily's clock) and side on
-        // the right (the Campaign's stars, the profile's Edit name).
+        // the right (the Campaign's stars).
         private Piece PortraitRow(ScreenKit inside, string name, float portraitU, Action<Image> portrait, string title, string line, ScreenKit.Side? under,
             ScreenKit.Side? side)
         {

@@ -28,6 +28,10 @@ namespace ZKube.Local.App
         public readonly LocalProductStore Product;
         public readonly StoreRunClient Runs;
         public readonly CampaignBilling Billing;
+        private readonly ZKube.Presentation.IPlayerAccounts accounts;
+        // The platform's signed-in player, or null: the profile shows its name
+        // and avatar, and nothing else depends on it.
+        public ZKube.Presentation.PlayerAccount Account { get; private set; }
         private readonly Dictionary<string, LocalBoardActionProvider> providers = new Dictionary<string, LocalBoardActionProvider>();
         private CancellationTokenSource pageWait = new CancellationTokenSource();
         private long generation;
@@ -46,8 +50,9 @@ namespace ZKube.Local.App
         public bool Unsaved { get; private set; }
         public event Action Changed;
         public event Action<LocalBoardActionProvider> BoardOpened;
-        public StoreAppFlow(LocalProductStore product, StoreRunClient runs, CampaignBilling billing)
+        public StoreAppFlow(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, ZKube.Presentation.IPlayerAccounts accounts = null)
         {
+            this.accounts = accounts ?? new ZKube.Presentation.NoPlayerAccounts();
             Product = product ?? throw new ArgumentNullException(nameof(product));
             Runs = runs ?? throw new ArgumentNullException(nameof(runs));
             Billing = billing ?? throw new ArgumentNullException(nameof(billing));
@@ -86,11 +91,16 @@ namespace ZKube.Local.App
             if (page == StorePage.Board || page == StorePage.Level || page == StorePage.Result) throw new ArgumentException("Use the bound page action");
             Navigate(page);
         }
-        public void SetName(string name)
+        // Asks the platform who is playing. Play never waits for it, and a
+        // refusal or a failure leaves the profile without a name.
+        public async Task SignIn()
         {
             Check();
-            try { Write(state => state.Name = LocalProductCodec.NormalizeName(name)); Changed?.Invoke(); }
-            catch (Exception error) { Error = error.Message; Changed?.Invoke(); }
+            ZKube.Presentation.PlayerAccount account = null;
+            try { account = await accounts.SignIn(); }
+            catch (Exception) { }
+            if (disposed) return;
+            Account = account; Changed?.Invoke();
         }
         public void SelectRealm(byte realm)
         {

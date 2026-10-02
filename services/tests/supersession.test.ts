@@ -21,6 +21,8 @@ const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
   { pattern: /board changed|swipe again/i, trees: [UNITY],
     reversal: "A stale queued swipe is dropped without a notice" },
+  { pattern: /Edit name|Save name|Name preview|Names can use up to|name starts as Player|editable in Profile|Your name appears on this device/i, trees: AUTHORED,
+    reversal: "The platform player account replaces the editable name" },
   { pattern: /\bElo\b|keeper-computed rating|K-factor/i, trees: AUTHORED,
     reversal: "The cumulative log-rank ladder replaced ratings" },
   { pattern: /full run is what finishes|every change ends with `NO_DNA=1 \.\/validate\.sh` green/i, trees: DOCUMENTS,
@@ -57,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Rerolls use a capped inventory with perfect-clear grants" },
   { pattern: /Combo Meter|\bcascade\b|Exact-1|seven families|\bEndless\b/i, trees: [UNITY],
     reversal: "Constraint copy uses the shared line, combo and streak vocabulary" },
-  { pattern: /canonical deployed binding|zkube-v4-launch|exactly 17 transactions|archive contract|volume contract|quarantine gates closure/i, trees: AUTHORED,
-    reversal: "Fresh bootstrap and the on-chain root replace the abandoned release" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

@@ -27,7 +27,6 @@ namespace ZKube.Presentation
             Retire();
             bool entering = Shown.HasValue || shownPanel?.Key != page.Key;
             reducedMotion = source.SettingsPage().ReducedMotion;
-            editedName = null; savedName = null; editingName = false;
             Shown = null; shownPanel = page;
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();

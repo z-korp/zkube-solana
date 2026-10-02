@@ -48,6 +48,11 @@
         "arm64-v8a",
         "x86_64"
       ],
+      "locks": "NativeAndroid/store-locks",
+      "dependencies": [
+        "com.google.android.gms:play-services-games-v2:22.1.0"
+      ],
+      "playGamesAppId": "",
       "productName": "zKube: Realms",
       "brand": "assets/brand/realms",
       "excludedAssemblies": [
