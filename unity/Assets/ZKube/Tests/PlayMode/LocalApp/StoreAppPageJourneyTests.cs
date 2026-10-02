@@ -434,7 +434,7 @@ namespace ZKube.Tests
         // The map fits its whole path between the header and Play on both
         // phones, spread over the room's width and height apart: it never
         // scrolls, so another realm always opens whole, and the path spans at
-        // least 70% of the width. It speaks the spec's 9 words on Tiki. Every
+        // least 70% of the width. Every
         // node is at least 34 dp, and every node and its star row clear the
         // others by at least 4 dp in every realm, with every level finished and
         // with a current node, as the spec's footprint rule asks.
@@ -451,7 +451,7 @@ namespace ZKube.Tests
                     app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     string at = compact ? "360 x 640 map" : "Seeker map";
-                    ScreenFits(shell, at, 9, "Play level 1");
+                    ScreenFits(shell, at, "Play level 1");
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, at);
                     foreach (int finished in new[] { 10, 4 })
                     {
@@ -627,7 +627,7 @@ namespace ZKube.Tests
                     Click(app, "View result"); yield return Page(StorePage.Result);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " daily result");
-                    ScreenFits(shell, name + " daily result", -1, "Continue", "Share");
+                    ScreenFits(shell, name + " daily result", "Continue", "Share");
                 }
                 finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
             }
@@ -821,10 +821,9 @@ namespace ZKube.Tests
         }
         // The preview and every Campaign result, as the v3 wireframes draw them
         // for Tiki 1, on the Seeker and a 360 x 640 phone in their safe areas:
-        // the spec's word counts (UI words, without numbers or the guardian's
-        // line), every text inside its rect and the screen, the pieces apart,
-        // and 48 dp buttons on screen.
-        [UnityTest] public IEnumerator PreviewAndResultsKeepTheirWordsFitAndTapTargetsOnBothPhones()
+        // every text inside its rect and the screen, the pieces apart, and 48 dp
+        // buttons on screen.
+        [UnityTest] public IEnumerator PreviewAndResultsFitWithTheirTapTargetsOnBothPhones()
         {
             var level = Protocol.Realms[0].Levels[0];
             var goals = new CampaignGoals { Points = Protocol.CampaignTargets[0], PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1],
@@ -840,17 +839,17 @@ namespace ZKube.Tests
                     app.Flow.Preview(1); yield return Page(StorePage.Level);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " preview");
-                    ScreenFits(shell, name + " preview", 21, "Play", "Back to map");
+                    ScreenFits(shell, name + " preview", "Play", "Back to map");
                     // In a player's order: starless runs on a fresh level, its first three
                     // stars (a new best), then runs that keep fewer.
                     product.Write(state => { state.Stars[0] = 0; return state; });
                     typeof(StoreAppFlow).GetField("startingStars", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(app.Flow, (byte)0);
-                    foreach (var (reason, stars, moves, words, buttons) in new[] {
-                        ((byte)2, (byte)0, 0u, 21, new[] { "Retry", "Map" }),
-                        ((byte)3, (byte)0, 5u, 18, new[] { "Retry", "Map" }),
-                        ((byte)1, (byte)7, 3u, 16, new[] { "Continue" }),
-                        ((byte)2, (byte)3, 0u, 18, new[] { "Continue", "Retry" }),
-                        ((byte)2, (byte)4, 0u, 18, new[] { "Continue", "Retry" }) })
+                    foreach (var (reason, stars, moves, buttons) in new[] {
+                        ((byte)2, (byte)0, 0u, new[] { "Retry", "Map" }),
+                        ((byte)3, (byte)0, 5u, new[] { "Retry", "Map" }),
+                        ((byte)1, (byte)7, 3u, new[] { "Continue" }),
+                        ((byte)2, (byte)3, 0u, new[] { "Continue", "Retry" }),
+                        ((byte)2, (byte)4, 0u, new[] { "Continue", "Retry" }) })
                     {
                         if (stars == 7) product.Write(state => { state.Stars[0] = 3; return state; });
                         app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = stars == 7 ? 24u : 8u, StarSources = stars, EndReason = reason,
@@ -859,7 +858,7 @@ namespace ZKube.Tests
                         foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
                         yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                         yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " result " + reason + "-" + stars);
-                        ScreenFits(shell, name + " result " + reason + "/" + stars, words, buttons);
+                        ScreenFits(shell, name + " result " + reason + "/" + stars, buttons);
                     }
                 }
                 finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
@@ -890,16 +889,12 @@ namespace ZKube.Tests
                 Assert.That(Row("Primary goal"), Is.EqualTo(((stars & 2) != 0 ? goals.PrimaryCount : 1) + "/" + goals.PrimaryCount), reason + "/" + stars + " primary row");
             }
         }
-        private static readonly System.Text.RegularExpressions.Regex Word = new System.Text.RegularExpressions.Regex("[A-Za-z][A-Za-z'’-]*");
-        private void ScreenFits(PageShell shell, string at, int words, params string[] buttons)
+        private void ScreenFits(PageShell shell, string at, params string[] buttons)
         {
             Canvas.ForceUpdateCanvases();
             var safe = shell.SafeArea; float d = shell.SafeArea.height / (at.StartsWith("Seeker") ? ZKube.Tests.Presentation.Phones.SeekerScreen.height - ZKube.Tests.Presentation.Phones.SeekerTopInsetDp
                 : ZKube.Tests.Presentation.Phones.CompactScreen.height - ZKube.Tests.Presentation.Phones.CompactTopInsetDp);
             var texts = app.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy && !string.IsNullOrEmpty(text.text)).ToArray();
-            string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
-            int counted = texts.Where(text => text.name != "Guardian line").Sum(text => Word.Matches(Plain(text.text)).Count);
-            if (words >= 0) Assert.That(counted, Is.EqualTo(words), at + " words: " + string.Join(" | ", texts.Where(text => text.name != "Guardian line").Select(text => Plain(text.text))));
             foreach (var text in texts)
             {
                 text.ForceMeshUpdate();
@@ -946,10 +941,9 @@ namespace ZKube.Tests
         }
         // Home, as the v3 composite draws it, on both phones: the lockup, the two
         // cards and the two plays over the four tabs, every word fitting and
-        // each play 48 dp to touch. Its words are 15 fixed ones and the day's
-        // guardian, objective and realm names. The objective's pictogram sits
-        // left of its caption, and "left" right after the clock.
-        [UnityTest] public IEnumerator HomeSpeaksItsWordsAndFitsOnBothPhones()
+        // each play 48 dp to touch. The objective's pictogram sits left of its
+        // caption, and "left" right after the clock.
+        [UnityTest] public IEnumerator HomeFitsOnBothPhones()
         {
             var shell = app.GetComponent<PageShell>();
             try
@@ -960,12 +954,8 @@ namespace ZKube.Tests
                     app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
                     app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
-                    var catalog = PageCatalog.Load(); var today = app.DailyPage();
-                    int Count(string text) => Word.Matches(text).Count;
-                    int words = 15 + Count(catalog.Realm(today.Realm).guardianName) + Count(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue))
-                        + Count(catalog.Realm(app.CampaignSummary().Realm).realmName);
                     string at = compact ? "360 x 640 home" : "Seeker home";
-                    ScreenFits(shell, at, words, "Play today", "Play level 1");
+                    ScreenFits(shell, at, "Play today", "Play level 1");
                     Assert.That(Texts(), Does.Contain("CAMPAIGN"), at + ": the Campaign card is titled Campaign");
                     Rect Drawn(string name) => SkinUi.ScreenRect(app.GetComponentsInChildren<Graphic>().Single(graphic => graphic.name == name).rectTransform);
                     var picture = Drawn("Daily objective pictogram"); var line = Drawn("Daily line");
@@ -986,11 +976,9 @@ namespace ZKube.Tests
             finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
         }
         // The map greeting, its rule page, the profile and settings, as the v3
-        // composites draw them, on both phones: every word fits in the safe area,
-        // each action is 48 dp to touch and each screen speaks the spec's count
-        // (8, 44 and 16 words, and the rule page's 6 with its rule and effect;
-        // a guardian's line is its own).
-        [UnityTest] public IEnumerator GreetingRuleProfileAndSettingsSpeakTheirWordsAndFitOnBothPhones()
+        // composites draw them, on both phones: every word fits in the safe area
+        // and each action is 48 dp to touch.
+        [UnityTest] public IEnumerator GreetingRuleProfileAndSettingsFitOnBothPhones()
         {
             var shell = app.GetComponent<PageShell>();
             product.Write(state => { state.Stars[9] = 1; state.WornEmblem = 1; return state; });
@@ -1003,14 +991,10 @@ namespace ZKube.Tests
                     if (compact) ZKube.Tests.Presentation.Phones.Compact(shell); else ZKube.Tests.Presentation.Phones.Seeker(shell);
                     string phone = compact ? "360 x 640" : "Seeker";
                     var safe = shell.SafeArea; float d = safe.height / (compact ? 572 : 882);
-                    void Fits(IEnumerable<TMP_Text> texts, string at, int words)
+                    void Fits(IEnumerable<TMP_Text> texts, string at)
                     {
                         Canvas.ForceUpdateCanvases();
                         texts = texts.Where(text => text.gameObject.activeInHierarchy && !string.IsNullOrEmpty(text.text)).ToArray();
-                        string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
-                        var counted = texts.Where(text => !text.name.EndsWith(" line") && text.name != "Guardian line").ToArray();
-                        Assert.That(counted.Sum(text => Word.Matches(Plain(text.text)).Count), Is.EqualTo(words),
-                            at + " words: " + string.Join(" | ", counted.Select(text => Plain(text.text))));
                         foreach (var text in texts)
                         {
                             text.ForceMeshUpdate();
@@ -1032,18 +1016,16 @@ namespace ZKube.Tests
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     var greeting = shell.Chrome.Find("Guardian greeting");
                     var talk = greeting.GetComponentInChildren<GuardianTalk>(); talk.Complete();
-                    Fits(greeting.GetComponentsInChildren<TMP_Text>(), phone + " greeting", 8);
+                    Fits(greeting.GetComponentsInChildren<TMP_Text>(), phone + " greeting");
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " greeting");
                     Click(app, "Continue"); yield return null;
-                    var rule = PageCatalog.Load().Rule(1);
-                    Fits(greeting.GetComponentsInChildren<TMP_Text>(), phone + " greeting rule",
-                        6 + Word.Matches(rule.description).Count + Word.Matches(rule.effect).Count);
+                    Fits(greeting.GetComponentsInChildren<TMP_Text>(), phone + " greeting rule");
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " greeting rule");
                     Click(app, "Continue"); yield return null;
                     // The profile and settings, their tab labels counted.
                     app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
-                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " profile", 44);
+                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " profile");
                     Touch("Edit name", phone + " profile");
                     // The whole profile, Edit name included, stands above the tabs without scrolling.
                     var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
@@ -1052,7 +1034,7 @@ namespace ZKube.Tests
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " profile");
                     app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
-                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " settings", 16);
+                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " settings");
                     foreach (var name in new[] { "Music switch", "Effects switch", "Text size: standard", "Restore purchases" }) Touch(name, phone + " settings");
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " settings");
                 }

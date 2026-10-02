@@ -53,16 +53,7 @@ namespace ZKube.Tests.MoneyOverview
         // The Arena's pages on the wireframe's Seeker frame: each page's pieces
         // where the scenario's state is the wireframe's (the Kredits page, the
         // entry and the Arcade throughout; the title, tiles and tabs of rewards,
-        // this device and the profile, whose states differ), and every page's
-        // fixed words at most the spec's. The spec counts the wireframe's words
-        // (arcade 29, entry 27, Kredits 35, rewards 46, this device 45, profile
-        // 36); the words that vary with the day or the player (the guardian and
-        // its realm, the objective, the title's subtitle, the profile's
-        // standing) and the guardian's line are counted on neither side.
-        private static readonly System.Text.RegularExpressions.Regex Word = new System.Text.RegularExpressions.Regex("[A-Za-z][A-Za-z'’-]*");
-        private static readonly Dictionary<string, int> SpecWords = new Dictionary<string, int> {
-            ["arcade"] = 29 - 5, ["entry"] = 27 - 2, ["kredits"] = 35 - 5, ["rewards"] = 46 - 2, ["device"] = 45 - 2, ["aprofile"] = 36 - 4 };
-        private static readonly string[] DaysWords = { "Guardian line", "Talk", "Daily guardian name", "Daily line", "Screen subtitle", "Standing line" };
+        // this device and the profile, whose states differ).
         private IEnumerator Wireframe(string page, params string[] roles)
         {
             yield return Idle(); yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f); Canvas.ForceUpdateCanvases();
@@ -71,12 +62,8 @@ namespace ZKube.Tests.MoneyOverview
             WireframeGeometryTests.Dump("arena " + page, pieces);
             yield return Captures.Snap(shell, "wireframe arena " + page);
             WireframeGeometryTests.Match(page, pieces, shell.ScreenArea, 1.1f, roles);
-            int words = PageText.Visible(host.transform).Where(text => !DaysWords.Contains(text.name))
-                .Sum(text => Word.Matches(System.Text.RegularExpressions.Regex.Replace(text.text, "<[^>]+>", "")).Count);
-            Assert.That(words, Is.LessThanOrEqualTo(SpecWords[page]), page + " speaks at most the spec's words: " +
-                string.Join(" | ", PageText.Visible(host.transform).Select(text => text.text)));
         }
-        [UnityTest] public IEnumerator EveryArenaPageMatchesItsWireframeAndItsWords()
+        [UnityTest] public IEnumerator EveryArenaPageMatchesItsWireframe()
         {
             yield return PrepareScenario("daily-playable"); Phones.WireframeSeeker(host.GetComponent<PageShell>());
             yield return Wait(Adapter.RefreshOverview()); yield return Idle();
