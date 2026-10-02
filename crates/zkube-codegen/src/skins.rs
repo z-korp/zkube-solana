@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 /// UI pieces drawn stretched; each declares its stretch border in skin.json.
-pub const UI_STRETCH_SLOTS: [&str; 34] = [
+pub const UI_STRETCH_SLOTS: [&str; 35] = [
     "panel",
     "plate",
     "dialog",
@@ -32,9 +32,11 @@ pub const UI_STRETCH_SLOTS: [&str; 34] = [
     "counter-track",
     "counter-fill",
     "counter-fill-done",
-    // The board HUD: the opaque goal plate, the moves tablet calm, warm and
-    // ember, the Earn panel, a goal's tap bubble and a pictogram's value chip.
+    // The board HUD: the opaque goal plate, the bonus tablet's face while its
+    // power is armed, the moves tablet calm, warm and ember, the Earn panel, a
+    // goal's tap bubble and a pictogram's value chip.
     "goal-plate",
+    "tablet-armed",
     "moves-calm",
     "moves-warm",
     "moves-ember",

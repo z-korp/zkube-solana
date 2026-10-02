@@ -26,6 +26,7 @@ namespace ZKube.Core.Generated
         public const string CounterFill = "counter-fill";
         public const string CounterFillDone = "counter-fill-done";
         public const string GoalPlate = "goal-plate";
+        public const string TabletArmed = "tablet-armed";
         public const string MovesCalm = "moves-calm";
         public const string MovesWarm = "moves-warm";
         public const string MovesEmber = "moves-ember";

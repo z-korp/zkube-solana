@@ -2155,6 +2155,16 @@
             32,
             32
           ],
+          "image": "/assets/skins/lumen/ui/tablet-armed.png",
+          "slot": "tablet-armed"
+        },
+        {
+          "border": [
+            32,
+            32,
+            32,
+            32
+          ],
           "image": "/assets/skins/lumen/ui/moves-calm.png",
           "slot": "moves-calm"
         },

@@ -54,8 +54,8 @@ namespace ZKube.Presentation.Tests
         {
             var view = board.View;
             Assert.AreEqual(chosen, view.BonusChosen, at);
-            Assert.AreEqual(chosen, Piece("Guardian action glow").enabled, at + ": the glow");
-            Assert.AreEqual(chosen, Piece("Guardian action chosen").enabled, at + ": the lit face");
+            Assert.That(Piece("Guardian action").sprite.name, Does.StartWith(chosen ? SkinSlots.TabletArmed : SkinSlots.GoalPlate), at + ": the tablet's face");
+            Assert.IsFalse(view.GetComponentsInChildren<Image>(true).Any(image => image.name == "Guardian action glow" || image.name == "Guardian action chosen"), at + ": no glow stand-in");
             Assert.AreEqual(chosen ? prompt : "", view.PromptText, at);
             // The prompt and its cancel stand in the Earn panel beside the tablet; nothing sits on the board's top.
             var words = Label("Bonus prompt");
@@ -79,8 +79,8 @@ namespace ZKube.Presentation.Tests
             }
         }
 
-        // Each guardian's bonus: a tap on its tablet selects it (a gold glow and a
-        // lit face) and shows its prompt; both stay through a redraw of the board
+        // Each guardian's bonus: a tap on its tablet selects it (its armed
+        // face) and shows its prompt; both stay through a redraw of the board
         // and a cleared notice, which lost the old prompt; a second tap puts it
         // back, and using it clears both.
         [UnityTest] public IEnumerator ChoosingABonusSelectsItsButtonAndShowsItsPrompt()
@@ -147,8 +147,7 @@ namespace ZKube.Presentation.Tests
                     Assert.IsTrue(cancel.xMax <= view.Layout.GuardianButton.xMin + .5f, at + ": the cancel clears the tablet");
                     foreach (string other in new[] { "Tap a block to break it", "Tap a size to clear it" })
                         Assert.LessOrEqual(words.GetPreferredValues(other, words.rectTransform.rect.width, float.PositiveInfinity).y, words.rectTransform.rect.height + .5f, at + ": '" + other + "' fits too");
-                    Assert.IsTrue(view.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian action glow").enabled, at);
-                    Assert.IsTrue(view.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian action chosen").enabled, at);
+                    Assert.That(view.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian action").sprite.name, Does.StartWith(SkinSlots.TabletArmed), at);
                     var full = view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Reroll action label");
                     Assert.AreEqual("3/3", full.text, at);
                     if (text == 1) { yield return null; yield return ZKube.Tests.Presentation.Captures.Snap(screen, "bonus-chosen-" + phone); }

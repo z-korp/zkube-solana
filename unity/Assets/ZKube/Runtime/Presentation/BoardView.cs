@@ -33,7 +33,7 @@ namespace ZKube.Presentation
         private readonly Image[] stars = new Image[3], starHalos = new Image[3], starRings = new Image[3];
         private readonly GoalPlate[] plates = new GoalPlate[3];
         private SkinTablet guardianTablet, rerollTablet;
-        private Image guardianGlow, guardianWash;
+        private Image armedFace;
         private TMP_Text prompt;
         private GameObject promptCancel;
         private readonly List<GameObject> earnParts = new List<GameObject>();
@@ -303,17 +303,9 @@ namespace ZKube.Presentation
             var face = Layout.PauseFace; float inner = face.width * 10 / BoardLayout.PauseDp;
             ui.Piece("Pause icon", SkinSlots.IconPause, new Rect(face.x + inner, face.y + inner, face.width - 2 * inner, face.height - 2 * inner), pause.transform);
             Earn(root);
-            // A chosen power stands on a gold glow, its face washed gold, until it is used or put back.
-            var chosen = Layout.GuardianButton; float around = .9f * chosen.width;
-            guardianGlow = ui.Rect<Image>("Guardian action glow", new Rect(chosen.x - around, chosen.y - around, chosen.width + 2 * around, chosen.height + 2 * around), root);
-            guardianGlow.sprite = art.SkinUi(SkinSlots.FxGlow); guardianGlow.raycastTarget = false;
-            guardianGlow.color = art.Token(SkinTokens.Accent); guardianGlow.enabled = false;
             guardianTablet = HudTablet("Guardian action", Layout.GuardianButton, owner.SelectGuardian, root);
             rerollTablet = HudTablet("Reroll action", Layout.RerollButton, owner.Reroll, root);
-            // (A tint only darkens the dark plate; the wash is light laid over it.)
-            guardianWash = ui.Piece("Guardian action chosen", SkinSlots.FxGlow, new Rect(chosen.x - .35f * chosen.width, chosen.y - .35f * chosen.height, 1.7f * chosen.width, 1.7f * chosen.height), guardianTablet.transform);
-            guardianWash.transform.SetAsFirstSibling();
-            guardianWash.color = art.Token(SkinTokens.Accent); guardianWash.enabled = false;
+            armedFace = guardianTablet.GetComponent<Image>();
 
             statusPlate = ui.Piece("Action status plate", SkinSlots.Plate, hud.Status, root);
             status = ui.Label("Action status", "", hud.Status, hud.StatusPt, SkinTokens.Text, root);
@@ -528,13 +520,13 @@ namespace ZKube.Presentation
             NeedsTextReflow = new[] { moves, score, objective, earnCaption }
                 .Any(label => label != null && label.gameObject.activeInHierarchy && label.GetPreferredValues(label.text, label.rectTransform.rect.width, float.PositiveInfinity).y > label.rectTransform.rect.height + .5f);
         }
-        // The armed guardian power: its tablet stands lit on a gold glow, the Earn
+        // The armed guardian power: its tablet wears its armed face, the Earn
         // panel beside it says what to tap, with a cancel, and the rows that can
         // be tapped pulse. All follow the controller's choice, through any redraw.
         public void Choose(bool chosen)
         {
             BonusChosen = chosen;
-            guardianGlow.enabled = chosen; guardianWash.enabled = chosen;
+            armedFace.sprite = art.SkinUi(chosen ? SkinSlots.TabletArmed : SkinSlots.GoalPlate);
             prompt.text = chosen ? BoardNotices.Prompt(owner.State.BonusType) : "";
             prompt.gameObject.SetActive(chosen); promptCancel.SetActive(chosen);
             foreach (var part in earnParts) part.SetActive(!chosen);
@@ -1455,8 +1447,6 @@ namespace ZKube.Presentation
                 foreach (var band in targetRows)
                     if (band != null && band.enabled) band.color = SkinUi.WithAlpha(art.Token(SkinTokens.Accent), TargetAlpha * pulse);
             }
-            if (guardianGlow != null && guardianGlow.enabled)
-                guardianGlow.color = SkinUi.WithAlpha(guardianGlow.color, owner.ReducedMotion ? 1 : .8f + .2f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f));
             if (owner != null && owner.State != null) Breathe(Time.unscaledTime);
             ShowTimeLeft();
             if (guardian == null) return;
