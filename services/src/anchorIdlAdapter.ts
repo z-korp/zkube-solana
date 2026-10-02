@@ -51,8 +51,6 @@ import { type ProtocolInstructionMaterializer } from "./arcadeChain.js";
 import { getDelegationStatus } from "./router.js";
 
 const MAX_PROGRAM_ACCOUNT_BYTES = 129_538;
-const MAX_DISCOVERED_PLAYER_STATES = 10_000;
-const MAX_DISCOVERED_ARENA_PLAYERS = 100_000;
 const MAX_RPC_ACCOUNT_BATCH = 100;
 interface RemainingAccountMeta {
   pubkey: PublicKey;
@@ -150,9 +148,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const firstDay = Math.max(launchDayId, today - KEEPER_RECENT_DAILY_CADENCES);
     const dailyIds = [...new Set([...range(firstDay, today), ...Object.values(scheduledDailyWindow(today, suspendedUntilDay))])];
     const dailies = await this.loadDailies(dailyIds, launchDayId);
-    const playerStates = await this.loadPlayerStates();
-    const runs = await this.loadRuns(playerStates, dailies);
-    const { sources: boardSources, closed: closedArenaPlayers } = await this.loadBoardSources(dailies);
+    const { sources: boardSources, closed: closedArenaPlayers, entered } = await this.loadBoardSources(dailies);
+    const runs = await this.loadRuns(await this.loadPlayerStates(entered), dailies);
     for (const daily of dailies) {
       const sources = boardSources.get(daily.snapshot.dayId) ?? {
         score: [],
@@ -442,8 +439,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async loadBoardSources(
     dailies: readonly LoadedDaily[],
   ): Promise<{ sources: Map<number, { score: BoardSourceSnapshot[]; theme: BoardSourceSnapshot[] }>;
-    closed: ClosedArenaPlayerSnapshot[] }> {
+    closed: ClosedArenaPlayerSnapshot[]; entered: PublicKey[] }> {
     const closed: ClosedArenaPlayerSnapshot[] = [];
+    // Owners with a paid run still on one of the recent Dailies.
+    const entered: PublicKey[] = [];
     const boardSources = new Map<number, {
       score: BoardSourceSnapshot[];
       theme: BoardSourceSnapshot[];
@@ -457,16 +456,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const liveDaily = new Map(
       dailies.map(({ snapshot }) => [snapshot.dayId, snapshot]),
     );
-    const discovered = await this.scanAccounts(
-      "arenaPlayer",
-      PROTOCOL_ACCOUNT_VERSION,
-      MAX_DISCOVERED_ARENA_PLAYERS,
-    );
+    const discovered = await this.scanAccounts("arenaPlayer", PROTOCOL_ACCOUNT_VERSION);
     for (const player of discovered) {
       const challenge = publicKey(player.value.challenge, "ArenaPlayer challenge");
       const owner = publicKey(player.value.player, "ArenaPlayer owner");
       const dayId = dayByAddress.get(challenge.toBase58());
       if (dayId === undefined) continue;
+      if (bigint(player.value.activePaidRunId, "ArenaPlayer active run id") !== 0n) entered.push(owner);
       if (!liveDaily.has(dayId)) {
         const rentPayer = publicKey(player.value.rentPayer, "ArenaPlayer rent payer");
         closed.push({ dayId, owner, rentPayer });
@@ -485,14 +481,24 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       sources.score.sort((left, right) => compareBoardSources("score", left, right));
       sources.theme.sort((left, right) => compareBoardSources("theme", left, right));
     }
-    return { sources: boardSources, closed };
+    return { sources: boardSources, closed, entered };
   }
 
-  private async loadPlayerStates(): Promise<PlayerStateRecord[]> {
-    const accounts = await this.scanAccounts(
+  /**
+   * The profiles that can hold a run: owners with a paid run on a recent
+   * Daily, and owners of run accounts on Base (prepared, copied back or
+   * orphaned). Runs are transient, so discovery grows with play in flight,
+   * never with the lifetime number of profiles.
+   */
+  private async loadPlayerStates(entered: readonly PublicKey[]): Promise<PlayerStateRecord[]> {
+    const baseRuns = await this.scanAccounts("activeRun", PROTOCOL_ACCOUNT_VERSION);
+    const owners = [...new Map([...entered,
+      ...baseRuns.map(({ value }) => publicKey(value.owner, "ActiveRun owner"))]
+      .map((owner) => [owner.toBase58(), owner])).values()];
+    const accounts = await this.loadKnown(
       "playerState",
+      owners.map((owner, id) => ({ id, address: playerStatePda(owner) })),
       PLAYER_STATE_ACCOUNT_VERSION,
-      MAX_DISCOVERED_PLAYER_STATES,
     );
     return accounts.map((loaded) => {
       const owner = publicKey(loaded.value.owner, "PlayerState owner");
@@ -534,11 +540,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
             true,
             dailyByAddress,
           ));
-        } catch (error) {
-          if (this.input.nowUnix <
-              dailyWindow(currentDayId(player.activeRunDeadlineAt)).recoveryDeadlineAt) {
-            throw error;
-          }
+        } catch {
+          // One unreachable run never stops the pass: it is carried as
+          // unavailable, deferred until its recovery deadline, and every
+          // other Daily and run is still served.
           const daily = dailyByAddress.get(player.activeRunDaily.toBase58());
           const cadence = daily
             ? { dayId: daily.dayId }
@@ -675,7 +680,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   private async scanAccounts(
     name: string,
     version: number | readonly number[],
-    maximum: number,
   ): Promise<LoadedAccount[]> {
     const discriminator = this.accountsCoder.accountDiscriminator(name);
     const accounts = await this.input.connection.getProgramAccounts(ZKUBE_PROGRAM_ID, {
@@ -684,9 +688,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         { memcmp: { offset: 0, bytes: base58(discriminator) } },
       ],
     });
-    if (accounts.length > maximum) {
-      throw new Error(`${name} discovery exceeded its fail-closed account bound`);
-    }
     return accounts.map(({ pubkey, account }) => this.decodeAccount(
       name,
       pubkey,

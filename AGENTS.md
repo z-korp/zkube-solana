@@ -533,9 +533,14 @@ reporting build identity`, `pins loaded secret material to the configured public
 fail-closed unless explicitly enabled` guard release identity. RPC checks cover Devnet, HTTPS, owner,
 bounded length, discriminator, version and field shape; plans stay in the recent cadence window. `requires
 the Devnet genesis and handles an unavailable RPC`, `requires HTTPS outside localhost`,
-`keeper_rpc_decoding_rejects_foreign_malformed_and_unbounded_accounts`, `rejects a Router owner mismatch
+`keeper_rpc_decoding_rejects_foreign_and_malformed_accounts`, `rejects a Router owner mismatch
 before using the ER` and `uses the fresh Router location for a write connection` guard transport and
 placement.
+
+Run discovery follows play in flight: the players of recent Dailies with a paid run, and run accounts on Base.
+It never reads the lifetime set of profiles and has no population ceiling. A run that cannot be read is carried
+as unavailable and deferred to its recovery deadline while every other Daily and run is served.
+`keeper_discovery_follows_play_in_flight_and_defers_one_unreachable_run` guards both.
 
 Every keeper message states its compute-unit limit: a first simulation under the transaction maximum sizes it,
 and the message carrying that limit is the one simulated again and relayed.

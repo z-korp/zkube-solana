@@ -4,6 +4,7 @@ import { BorshAccountsCoder, convertIdlToCamelCase, type Idl } from "@anchor-lan
 
 import { Keypair, PublicKey, SystemProgram, type Connection } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
+import BN from "bn.js";
 
 import {
   AnchorKeeperAdapter,
@@ -12,6 +13,8 @@ import {
   ZKUBE_PROGRAM_ID,
   KEEPER_PLAN_INSTRUCTION,
   arenaDailyPda,
+  arenaPlayerPda,
+  playerStatePda,
   cadenceFundingPda,
   protocolPda,
   type KeeperOperation,
@@ -49,7 +52,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     await expect(adapter.inspectLaunchState()).rejects.toThrow("missing");
   });
 
-  it("keeper_rpc_decoding_rejects_foreign_malformed_and_unbounded_accounts", async () => {
+  it("keeper_rpc_decoding_rejects_foreign_and_malformed_accounts", async () => {
     const fixture = JSON.parse(readFileSync(new URL("../../fixtures/program-unity-v1.json", import.meta.url), "utf8")).closedPlayer;
     const valid = { owner: new PublicKey(fixture.protocol.owner), executable: false,
       data: Buffer.from(fixture.protocol.data, "base64"), lamports: 1_000_000_000, rentEpoch: 0 };
@@ -66,7 +69,65 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       { ...valid, data: Buffer.alloc(129_538) }, { ...valid, data: valid.data.subarray(0, 9) }]) {
       await expect((await adapter(bad)).loadProtocolSnapshot()).rejects.toThrow();
     }
-    await expect((await adapter(valid, 10_001)).loadProtocolSnapshot()).rejects.toThrow("account bound");
+  });
+
+  it("keeper_discovery_follows_play_in_flight_and_defers_one_unreachable_run", async () => {
+    const fixtures = JSON.parse(readFileSync(new URL("../../fixtures/program-unity-v1.json", import.meta.url), "utf8"));
+    const coder = new BorshAccountsCoder(convertIdlToCamelCase(readIdl() as Idl));
+    const decode = (name: string, row: { data: string }) => coder.decode(name, Buffer.from(row.data, "base64"));
+    const { day, runId } = fixtures.plans.inputs;
+    const owner = new PublicKey(fixtures.plans.inputs.owner);
+    const closesAt = day * 86_400 + 86_340;
+    const protocol = decode("protocolConfig", fixtures.plans.accounts.protocol);
+    protocol.lastPreparedDay = day;
+    const daily = decode("arenaDaily", fixtures.plans.accounts.daily);
+    daily.entriesPaid = new BN(1);
+    const profile = decode("playerState", fixtures.plans.accounts.player);
+    profile.activeRunId = new BN(runId); profile.activeRunDaily = arenaDailyPda(day);
+    profile.activeRunDeadlineAt = new BN(closesAt);
+    const entrant = decode("arenaPlayer", fixtures.closedPlayer.player);
+    entrant.challenge = arenaDailyPda(day); entrant.player = owner;
+    entrant.paidEntries = 1; entrant.resolvedEntries = 0; entrant.activePaidRunId = new BN(runId);
+    const info = (data: Buffer) => ({ data, owner: ZKUBE_PROGRAM_ID, executable: false, lamports: 1_000_000_000, rentEpoch: 0 });
+    const entrantInfo = info(await coder.encode("arenaPlayer", entrant));
+    // Another 10,000 players of days outside the keeper's window, and any
+    // number of lifetime profiles, which discovery never asks for.
+    const unrelated = decode("arenaPlayer", fixtures.closedPlayer.player);
+    unrelated.challenge = arenaDailyPda(day - 200);
+    const unrelatedInfo = info(await coder.encode("arenaPlayer", unrelated));
+    const values = new Map([
+      [protocolPda().toBase58(), info(await coder.encode("protocolConfig", protocol))],
+      [arenaDailyPda(day).toBase58(), info(await coder.encode("arenaDaily", daily))],
+      [playerStatePda(owner).toBase58(), info(await coder.encode("playerState", profile))],
+      [arenaPlayerPda(arenaDailyPda(day), owner).toBase58(), entrantInfo],
+    ]);
+    const scanned: string[] = [];
+    const connection = {
+      getAccountInfo: async (address: PublicKey) => values.get(address.toBase58()) ?? null,
+      getMultipleAccountsInfo: async (addresses: PublicKey[]) =>
+        addresses.map((address) => values.get(address.toBase58()) ?? null),
+      getProgramAccounts: async (_program: PublicKey, options: { filters: Array<{ memcmp: { bytes: string } }> }) => {
+        const filter = options.filters[0]!.memcmp.bytes;
+        scanned.push(filter);
+        return filter !== coder.memcmp("arenaPlayer").bytes ? [] : [
+          { pubkey: arenaPlayerPda(arenaDailyPda(day), owner), account: entrantInfo },
+          ...Array.from({ length: 10_000 }, () => ({ pubkey: Keypair.generate().publicKey, account: unrelatedInfo })),
+        ];
+      },
+    } as unknown as Connection;
+    const plansAt = async (nowUnix: number) => {
+      const adapter = await AnchorKeeperAdapter.create({ connection, nowUnix, launchDayId: protocol.launchDayId,
+        fetcher: (async () => { throw new Error("Router unreachable"); }) as unknown as typeof fetch });
+      const snapshot = await adapter.loadProtocolSnapshot();
+      expect(snapshot.runs).toMatchObject([{ owner, runId: BigInt(runId), dayId: day,
+        lifecycle: "unavailable", location: "unavailable", reservationActive: true }]);
+      return discoverReconciliation({ snapshot, nowUnix }).map(({ operation }) => operation);
+    };
+
+    // The unreachable run waits for its recovery deadline; the next Daily is still prepared.
+    expect(await plansAt(fixtures.plans.inputs.now)).toEqual(["prepare_arena_daily"]);
+    expect(await plansAt(closesAt + 21_600)).toContain("expire_unresolved_arena_run");
+    expect(new Set(scanned)).toEqual(new Set([coder.memcmp("arenaPlayer").bytes, coder.memcmp("activeRun").bytes]));
   });
 
   it("a_closed_arena_player_returns_rent_to_its_payer", async () => {
