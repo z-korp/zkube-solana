@@ -26,7 +26,7 @@ export async function handleRequest(request: Request, bindings: ApiBindings): Pr
     if (request.method !== "GET") return json({ error: "not found" }, 404);
     if (url.pathname === "/v1/health") {
       const state = await syncState(bindings.db);
-      return json({ complete: modelComplete(state), caughtUpAt: state.caughtUpAt });
+      return json({ complete: modelComplete(state), caughtUpAt: state.caughtUpAt, unreadable: state.unreadable });
     }
     // /v1/days/<day>/boards/<score|theme>[/players/<wallet>]
     if (path[0] !== "v1" || path[1] !== "days" || path[3] !== "boards" || !/^\d{1,10}$/.test(path[2] ?? "") ||
@@ -71,7 +71,10 @@ async function webhook(request: Request, bindings: ApiBindings): Promise<Respons
     return payload.map(parseTransaction);
   });
   let ingested = 0;
-  for (const transaction of transactions) if (await ingestTransaction(bindings.db, transaction)) ingested += 1;
+  for (const transaction of transactions) {
+    // A delivery the model cannot interpret is left for the catch-up walk, which records it.
+    try { if (await ingestTransaction(bindings.db, transaction)) ingested += 1; } catch { /* the walk decides */ }
+  }
   return json({ ingested });
 }
 

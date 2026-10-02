@@ -2,11 +2,11 @@ import { CADENCE_FUNDING_TWO_DAY_LAMPORTS } from "./protocolVersions.generated.j
 import { utils } from "@anchor-lang/core";
 import {
   ComputeBudgetProgram,
+  Connection,
   Keypair,
   PublicKey,
   TransactionMessage,
   VersionedTransaction,
-  type Connection,
 } from "@solana/web3.js";
 
 import {
@@ -25,7 +25,7 @@ import {
 export const KEEPER_SCHEMA_VERSION = 1 as const;
 
 export const KEEPER_LIMITS = Object.freeze({
-  writes: 6, spendLamports: 100_000_000, reserveLamports: 100_000_000,
+  writes: 6, spendLamports: 100_000_000, reserveLamports: 100_000_000, reconciledWrites: 20,
 });
 
 /** The most compute one transaction may request. */
@@ -83,15 +83,29 @@ export interface KeeperPassResult {
   maximumSpendLamports: number;
 }
 
+/** One relayed write as the ledger keeps it. */
+export interface KeeperWrite {
+  operation: string;
+  /** Everything the write may spend: the keeper's own lamports and rent from cadence funding. */
+  lamports: number;
+  /** The part that leaves the keeper's wallet. */
+  payerLamports: number;
+  signature: string;
+  /** "base", or the rollup endpoint the write was relayed to. */
+  endpoint: string;
+  lastValidBlockHeight: number;
+}
+
 /**
  * The durable record of keeper writes. A write's spend is recorded before it
- * is relayed and settled only on a definite outcome, so a write whose
- * confirmation never arrived keeps counting against the next pass too.
+ * is relayed and stays reserved until its outcome is definite: it landed, or
+ * its blockhash is verifiably past and it never will. Elapsed time settles
+ * nothing.
  */
 export interface KeeperLedger {
-  unsettledLamports(nowUnix: number): Promise<number>;
-  reserve(write: { operation: string; lamports: number; signature: string; nowUnix: number }):
-  Promise<(outcome: "confirmed" | "failed") => Promise<void>>;
+  pending(): Promise<Array<KeeperWrite & { id: number }>>;
+  reserve(write: KeeperWrite): Promise<number>;
+  settle(id: number, outcome: "confirmed" | "failed" | "expired"): Promise<void>;
 }
 
 /** How often and how long a relayed write is polled for its outcome. */
@@ -108,6 +122,8 @@ export interface KeeperDependencies {
   protocolSnapshot?: ProtocolSnapshot;
   protocolMaterializer?: ProtocolInstructionMaterializer;
   resolveEphemeralConnection?: (plan: KeeperInstructionPlan) => Promise<Connection>;
+  /** Opens the endpoint an earlier write was relayed to, to learn its outcome. */
+  connect?: (endpoint: string) => Connection;
   log?: (event: KeeperLogEvent) => void;
 }
 
@@ -163,7 +179,25 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   let plannedWrites = 0;
   let failures = 0;
   let spentLamports = 0;
-  const unsettledLamports = writeEnabled ? await input.ledger?.unsettledLamports(nowUnix) ?? 0 : 0;
+  // Earlier writes whose outcome is still unknown count against this pass's
+  // ceiling, and their payer spend against the wallet floor, until settled.
+  let unsettledLamports = 0;
+  let unsettledPayerLamports = 0;
+  if (writeEnabled && input.ledger) {
+    const connect = input.connect ?? ((endpoint: string) => new Connection(endpoint, "confirmed"));
+    for (const [index, write] of (await input.ledger.pending()).entries()) {
+      // The oldest are asked about first; any beyond the limit wait for a
+      // later pass and count in full meanwhile.
+      const outcome = index >= KEEPER_LIMITS.reconciledWrites ? null : await (async () =>
+        earlierOutcome(write.endpoint === BASE_ENDPOINT ? input.connection : connect(write.endpoint), write))()
+        .catch(() => null);
+      if (outcome) await input.ledger.settle(write.id, outcome);
+      else {
+        unsettledLamports += write.lamports;
+        unsettledPayerLamports += write.payerLamports;
+      }
+    }
+  }
   let attemptedWrites = 0;
   let resolvedPlans = 0;
   for (const plan of plans) {
@@ -254,20 +288,26 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - unsettledLamports - spentLamports)) {
         throw new Error("keeper spend ceiling reached");
       }
-      if (before - payerPredicted < minimumBalanceLamports) {
+      if (before - payerPredicted - unsettledPayerLamports < minimumBalanceLamports) {
         throw new Error("keeper simulation crosses the reserve floor");
       }
       // Reserve the simulated spend before submission. An RPC timeout may still mean the write
       // landed, so its budget must never be reused during this pass.
       spentLamports += predicted;
-      const settle = await input.ledger?.reserve({ operation: plan.operation, lamports: predicted,
-        signature: utils.bytes.bs58.encode(transaction.signatures[0]!), nowUnix });
+      const reservation = await input.ledger?.reserve({ operation: plan.operation, lamports: predicted,
+        payerLamports: payerPredicted, signature: utils.bytes.bs58.encode(transaction.signatures[0]!),
+        endpoint: materialized.connection === "base" ? BASE_ENDPOINT : connection.rpcEndpoint,
+        lastValidBlockHeight: latest.lastValidBlockHeight });
+      // Until the cluster answers, the balance read for the next write may
+      // not show this one: its payer spend stays against the floor.
+      unsettledPayerLamports += payerPredicted;
       const signature = await connection.sendRawTransaction(transaction.serialize(), {
         maxRetries: 5,
         skipPreflight: materialized.connection === "ephemeral-rollup",
       });
       const error = await writeOutcome(connection, signature, input.wait ?? wait);
-      await settle?.(error === null ? "confirmed" : "failed");
+      unsettledPayerLamports -= payerPredicted;
+      if (reservation !== undefined) await input.ledger!.settle(reservation, error === null ? "confirmed" : "failed");
       if (error !== null) throw new Error(`confirmation failed: ${JSON.stringify(error)}`);
       writes += 1;
       log({
@@ -339,6 +379,25 @@ async function writeOutcome(
   throw new Error("the write's outcome is unknown");
 }
 
+const BASE_ENDPOINT = "base";
+
+/**
+ * What became of a write an earlier pass relayed: its landed result, or
+ * expired once finalized blocks have passed the last one that could hold it
+ * and the cluster still has no record of it. Otherwise nothing is known yet.
+ */
+async function earlierOutcome(
+  connection: Connection,
+  write: KeeperWrite,
+): Promise<"confirmed" | "failed" | "expired" | null> {
+  // The height is read first: a status read after it sees every block up to it.
+  const height = await connection.getBlockHeight("finalized");
+  const status = (await connection.getSignatureStatuses([write.signature], { searchTransactionHistory: true })).value[0];
+  if (status?.err) return "failed";
+  if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return "confirmed";
+  return !status && height > write.lastValidBlockHeight ? "expired" : null;
+}
+
 const wait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 async function requiredEphemeralConnection(
@@ -357,12 +416,18 @@ export function keeperKeypairFromEnv(
   const encoded = env.KEEPER_SECRET_KEY;
   if (!encoded) throw new Error("KEEPER_SECRET_KEY is not configured");
   const pinned = keeperPublicKeyFromEnv(env);
-  const parsed = JSON.parse(encoded) as unknown;
+  // A parser's error quotes what it read. Nothing of the secret may reach an
+  // error, so every decoding failure is this one message.
+  let parsed: unknown;
+  try { parsed = JSON.parse(encoded); } catch { parsed = undefined; }
   if (!Array.isArray(parsed) || parsed.length !== 64 ||
       !parsed.every((byte) => Number.isInteger(byte) && Number(byte) >= 0 && Number(byte) <= 255)) {
     throw new Error("KEEPER_SECRET_KEY must be a 64-byte JSON array");
   }
-  const keypair = Keypair.fromSecretKey(Uint8Array.from(parsed as number[]));
+  let keypair: Keypair;
+  try { keypair = Keypair.fromSecretKey(Uint8Array.from(parsed as number[])); } catch {
+    throw new Error("KEEPER_SECRET_KEY must be a 64-byte JSON array");
+  }
   if (!keypair.publicKey.equals(pinned)) {
     throw new Error("KEEPER_SECRET_KEY does not match ZKUBE_KEEPER_PUBLIC_KEY");
   }

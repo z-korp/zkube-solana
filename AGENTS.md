@@ -563,11 +563,16 @@ is only a courtesy.
 
 One Cloudflare Worker (services/src/worker, schema in services/worker/schema.sql) holds the public read model
 and the keeper over one D1 database. The read model ingests the program's Base transactions, by webhook and
-by a bounded catch-up walk that closes any gap, and records every scored run from the `RunScored` log a
+by a bounded catch-up walk that closes any gap. An instruction counts wherever it ran, sent directly or called
+by another program, and a Daily is known by its address, so a finalization is recorded however late it comes.
+A transaction the model cannot interpret is kept as unreadable: the walk goes past it and the model reports
+itself incomplete while one remains. It records every scored run from the `RunScored` log a
 consume writes, counted only while the zKube program is the one running: full standings and any wallet's rank, including ranks below the paying rows and days already
 closed. It is never an authority. The program's boards stay the leaderboard of record, claims read the chain,
-its answers say so, and a delivery adds only what the walk would. Whoever holds the webhook secret can add
-display rows and discovery hints and nothing else: no board, claim or keeper write reads them unverified. Its ranking is the core's board
+its answers say so, and an honest delivery adds only what the walk would. A delivery is not a proof: whoever
+holds the webhook secret, or the RPC the walk reads, can add or alter display rows and discovery hints, and
+nothing else. No board, claim or keeper write reads them unverified, and the ranks below a board's rows are
+display, not verified standings. Its ranking is the core's board
 order. `indexer_records_every_scored_run_and_ranks_each_wallets_best_on_both_boards`,
 `a_result_counts_only_when_the_zkube_program_logged_it`, `indexer_ranks_agree_with_the_core_board_order`,
 `ingesting_again_or_in_another_order_leaves_the_same_rows`,
@@ -615,18 +620,25 @@ placement.
 Run discovery follows play in flight: the players of recent Dailies with a paid run, and run accounts on Base.
 It never reads the lifetime set of profiles and has no population ceiling. A run that cannot be read is carried
 as unavailable and deferred to its recovery deadline while every other Daily and run is served.
-`keeper_discovery_follows_play_in_flight_and_defers_one_unreachable_run` guards both. A read model that has
-completed a catch-up walk within the last five minutes replaces the account scan with the addresses it names;
-each is read from the chain, and one that is closed, foreign or malformed is dropped. Otherwise the keeper
-scans. `discovery_hints_follow_entry_consume_and_close_and_are_withheld_until_the_model_is_complete` and
-`keeper_reads_hinted_accounts_from_the_chain_and_drops_every_hint_it_cannot_verify` guard the hints.
+`keeper_discovery_follows_play_in_flight_and_defers_one_unreachable_run` guards both. The keeper never treats
+the read model as complete. A model that finished a catch-up walk within the last five minutes only shortens a
+pass: the addresses it names are read from the chain, and one that is closed, foreign or malformed is dropped.
+Each Daily counts its own unresolved paid entries, each of which is one run in flight; when the hints reach
+fewer runs than a Daily counts, the keeper scans the chain in the same pass. It also scans at least once an hour
+whatever the model says, and whenever the model is incomplete or stale.
+`discovery_hints_follow_entry_consume_and_close_and_are_withheld_until_the_model_is_complete`,
+`keeper_reads_hinted_accounts_from_the_chain_and_drops_every_hint_it_cannot_verify` and
+`the_scheduled_pass_simulates_reserves_relays_and_settles_a_write_inside_the_worker` guard the hints, the
+count and the hourly scan.
 
 Every keeper message states its compute-unit limit: a first simulation under the transaction maximum sizes it,
 and the message carrying that limit is the one simulated again and relayed.
 `keeper_messages_carry_a_compute_budget_sized_from_simulation` guards the compiled message. A D1 lease admits
-one pass at a time. Each pass simulates before relay, records the simulated spend in D1 before the bytes
-leave, settles it only on a definite outcome, counts a write whose outcome never arrived against the next
-pass while it can still land, and enforces
+one pass at a time. Each pass simulates before relay and records the simulated spend in D1 before the bytes
+leave. A write stays reserved until its outcome is definite: the cluster reports it landed, or finalized blocks
+have passed the last one that could hold it and the cluster has no record of it. Elapsed time settles nothing.
+While reserved it counts against every later pass's spend ceiling, and its payer spend against the wallet's
+reserve floor. Each pass enforces
 the write count, the spend ceiling and the reserve floor from KEEPER_LIMITS; rent a write takes from cadence
 funding counts as spend. Each pass reports cadence funding against its worst case, two overlapping Dailies
 with full boards, which is also what the launch plan seeds; topping it up stays the owner's decision.
@@ -635,9 +647,16 @@ with full boards, which is also what the launch plan seeds; topping it up stays 
 `keeper_spend_is_reserved_even_when_confirmation_is_uncertain` and
 `keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_rent_as_spend` guard the limits
 and the report; `keeper_lease_admits_one_pass_at_a_time_and_only_a_dead_pass_loses_it`,
-`keeper_ledger_reserves_before_relay_and_an_unsettled_write_counts_against_the_next_pass` and
+`keeper_ledger_reserves_before_relay_and_an_unsettled_write_counts_until_its_outcome_is_definite`,
+`an_uncertain_write_holds_the_floor_for_the_rest_of_its_own_pass` and
 `the_scheduled_pass_simulates_reserves_relays_and_settles_a_write_inside_the_worker` guard the lease, the
 ledger and the pass in the Workers runtime.
+
+No secret reaches a log. A credential that cannot be decoded fails with one fixed message naming only its
+variable, and the Worker's single log sink removes every configured secret and cuts every URL down to its host.
+`a_credential_that_cannot_be_decoded_leaves_nothing_of_itself_in_the_error`,
+`no_secret_and_no_endpoint_path_or_query_reaches_a_log_line` and
+`a_malformed_credential_or_a_failing_endpoint_puts_no_secret_in_the_workers_log` guard it.
 
 ## Operator procedures
 
@@ -646,8 +665,13 @@ tools/chain/deployment/devnet-v4.json is historical evidence, not release input.
 `chain_entrypoints_load_offline_under_tsx` checks offline loading. No command grants mainnet or recurring
 keeper authority. The approval boundary above applies to every execution.
 
-- **Deploy plan:** NO_DNA=1 pnpm chain plan deploy --bundle build/chain/deploy.json quotes the frozen SBF
-  using public payer/buffer/authority addresses.
+- **Release build:** NO_DNA=1 pnpm chain build-release is the one way a release program is built: offline,
+  from a clean target, with the compiler, platform tools and options pinned in tools/chain/releaseBuild.ts, and
+  it records them beside the ELF under build/chain/release. A hash from any other build is not release evidence.
+  `release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it` guards the recipe.
+- **Deploy plan:** NO_DNA=1 pnpm chain plan deploy --bundle build/chain/deploy.json quotes that recorded build,
+  at the hash the owner reviewed (ZKUBE_SBF_SHA256), using public payer/buffer/authority addresses.
+  `a_deploy_plan_quotes_only_the_recorded_release_build_at_the_reviewed_hash`,
   `operator_plan_saves_one_public_bundle_without_loading_a_signer`,
   `deployment_instruction_bytes_and_accounts_match_the_rust_loader` and
   `operator_cli_options_and_exact_amounts_fail_closed` guard planning and the fresh-bootstrap scope.

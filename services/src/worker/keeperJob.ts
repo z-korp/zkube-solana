@@ -33,9 +33,8 @@ export interface KeeperJobEvent {
 
 /** Longer than any invocation can live, so only a dead pass loses its lease. */
 export const KEEPER_LEASE_SECONDS = 900;
-/** A relayed write can still land while its blockhash lives. */
-export const KEEPER_UNSETTLED_SECONDS = 150;
-
+/** The keeper discovers by scanning the chain at least this often, whatever the read model says. */
+export const KEEPER_SCAN_SECONDS = 3_600;
 export async function acquireKeeperLease(db: D1Like, holder: string, nowUnix: number): Promise<boolean> {
   const result = await db.prepare(`INSERT INTO keeper_lease (id, holder, expires_at) VALUES (1, ?1, ?2)
     ON CONFLICT (id) DO UPDATE SET holder = ?1, expires_at = ?2 WHERE keeper_lease.expires_at <= ?3`)
@@ -47,21 +46,35 @@ export async function releaseKeeperLease(db: D1Like, holder: string): Promise<vo
   await db.prepare("DELETE FROM keeper_lease WHERE holder = ?").bind(holder).run();
 }
 
-export function keeperLedger(db: D1Like, pass: string): KeeperLedger {
+export function keeperLedger(db: D1Like, pass: string, clock: () => number = () => Math.floor(Date.now() / 1_000)): KeeperLedger {
   return {
-    async unsettledLamports(nowUnix) {
-      const row = await db.prepare(`SELECT COALESCE(SUM(reserved_lamports), 0) AS lamports FROM keeper_writes
-        WHERE state = 'reserved' AND created_at > ?`).bind(nowUnix - KEEPER_UNSETTLED_SECONDS).first<{ lamports: number }>();
-      return row?.lamports ?? 0;
+    async pending() {
+      const open = await db.prepare(`SELECT id, operation, reserved_lamports, payer_lamports, signature, endpoint,
+        last_valid_block_height FROM keeper_writes WHERE state = 'reserved' ORDER BY id`).all<{ id: number;
+        operation: string; reserved_lamports: number; payer_lamports: number; signature: string; endpoint: string;
+        last_valid_block_height: number }>();
+      return open.results.map((row) => ({ id: row.id, operation: row.operation, lamports: row.reserved_lamports,
+        payerLamports: row.payer_lamports, signature: row.signature, endpoint: row.endpoint,
+        lastValidBlockHeight: row.last_valid_block_height }));
     },
     async reserve(write) {
-      const row = await db.prepare(`INSERT INTO keeper_writes (pass, operation, reserved_lamports, signature, state, created_at)
-        VALUES (?, ?, ?, ?, 'reserved', ?)`).bind(pass, write.operation, write.lamports, write.signature, write.nowUnix).run();
-      return async (outcome) => {
-        await db.prepare("UPDATE keeper_writes SET state = ? WHERE id = ?").bind(outcome, row.meta.last_row_id).run();
-      };
+      // Stamped when the write is made, not when its pass began.
+      const row = await db.prepare(`INSERT INTO keeper_writes (pass, operation, reserved_lamports, payer_lamports,
+        signature, endpoint, last_valid_block_height, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'reserved', ?)`)
+        .bind(pass, write.operation, write.lamports, write.payerLamports, write.signature, write.endpoint,
+          write.lastValidBlockHeight, clock()).run();
+      return row.meta.last_row_id;
+    },
+    async settle(id, outcome) {
+      await db.prepare("UPDATE keeper_writes SET state = ? WHERE id = ? AND state = 'reserved'").bind(outcome, id).run();
     },
   };
+}
+
+/** Whether this pass must scan the chain rather than start from hints. */
+export async function keeperScanDue(db: D1Like, nowUnix: number): Promise<boolean> {
+  const row = await db.prepare("SELECT scanned_at FROM keeper_scan WHERE id = 1").first<{ scanned_at: number }>();
+  return !row || nowUnix - row.scanned_at >= KEEPER_SCAN_SECONDS;
 }
 
 /** Writes are on only while the owner's stored approval names this exact release. */
@@ -99,12 +112,19 @@ export async function runKeeperJob(
 
     const routerEndpoint = variables.MAGICBLOCK_ROUTER_RPC ?? MAGICBLOCK_DEVNET_ROUTER_RPC;
     const firstDay = Math.max(release.record.launchDayId, dayIdAt(BigInt(nowUnix)) - KEEPER_RECENT_DAILY_CADENCES);
-    const discovery = await discoveryHints(env.db, nowUnix, firstDay);
+    // Hints only shorten a pass. The adapter checks them against the chain's
+    // own count of unresolved entries, and a full scan runs every hour anyway.
+    const discovery = await keeperScanDue(env.db, nowUnix) ? null : await discoveryHints(env.db, nowUnix, firstDay);
     const adapter = await AnchorKeeperAdapter.create({
       connection, nowUnix, routerEndpoint, launchDayId: release.record.launchDayId,
       ...(discovery ? { discovery } : {}),
     });
     if (await adapter.inspectLaunchState() === "staged_launch_ready") return event("staged_launch_ready", described);
+    const protocolSnapshot = await adapter.loadProtocolSnapshot();
+    if (adapter.discovered === "scan") {
+      await env.db.prepare(`INSERT INTO keeper_scan (id, scanned_at) VALUES (1, ?1)
+        ON CONFLICT (id) DO UPDATE SET scanned_at = ?1`).bind(nowUnix).run();
+    }
     const result = await runKeeperPass({
       connection,
       keeper: writeEnabled ? keeperKeypairFromEnv(variables) : { publicKey: keeperPublicKeyFromEnv(variables) },
@@ -112,14 +132,14 @@ export async function runKeeperJob(
       now: () => nowMilliseconds,
       traceId: pass,
       ledger: keeperLedger(env.db, pass),
-      protocolSnapshot: await adapter.loadProtocolSnapshot(),
+      protocolSnapshot,
       protocolMaterializer: adapter,
       resolveEphemeralConnection: (plan) => resolveEphemeralConnectionForPlan({
         plan, programId: ZKUBE_PROGRAM_ID, routerEndpoint,
       }),
       log,
     });
-    event(result.ok ? "pass_complete" : "pass_failed", { ...described, discovery: discovery ? "read_model" : "scan" });
+    event(result.ok ? "pass_complete" : "pass_failed", { ...described, discovery: adapter.discovered });
   } catch (error) {
     event("pass_failed", { error: (error instanceof Error ? error.message : String(error)).slice(0, 240) });
   } finally {

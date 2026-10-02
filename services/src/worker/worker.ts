@@ -8,7 +8,8 @@ import { handleRequest } from "./api.js";
 import { catchUp, jsonRpc } from "./catchUp.js";
 import type { D1Like } from "./d1.js";
 import { runKeeperJob } from "./keeperJob.js";
-import { SOLANA_ENDPOINT } from "../../../shared/chain.js";
+import { logLine } from "./log.js";
+import { SOLANA_DEVNET_GENESIS_HASH, SOLANA_ENDPOINT } from "../../../shared/chain.js";
 
 interface Env extends Record<string, unknown> {
   DB: D1Like;
@@ -16,7 +17,8 @@ interface Env extends Record<string, unknown> {
 }
 
 const text = (value: unknown) => typeof value === "string" && value.length > 0 ? value : undefined;
-const print = (event: unknown) => console.log(JSON.stringify(event));
+/** The values that must never appear in a log, whatever error carries them. */
+const SECRET_NAMES = ["KEEPER_SECRET_KEY", "WEBHOOK_SECRET", "SOLANA_DEVNET_RPC_URL"];
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
@@ -26,9 +28,13 @@ export default {
   async scheduled(_controller: unknown, env: Env): Promise<void> {
     const nowMilliseconds = Date.now();
     const variables = Object.fromEntries(Object.entries(env).map(([name, value]) => [name, text(value)]));
+    const secrets = SECRET_NAMES.map((name) => variables[name]);
+    const print = (event: unknown) => console.log(logLine(event, secrets));
     try {
-      const walked = await catchUp(env.DB, jsonRpc(variables.SOLANA_DEVNET_RPC_URL ?? SOLANA_ENDPOINT),
-        Math.floor(nowMilliseconds / 1_000));
+      const rpc = jsonRpc(variables.SOLANA_DEVNET_RPC_URL ?? SOLANA_ENDPOINT);
+      // The read model describes one cluster; another cluster's history is not ingested.
+      if (await rpc("getGenesisHash", []) !== SOLANA_DEVNET_GENESIS_HASH) throw new Error("RPC genesis does not match Devnet");
+      const walked = await catchUp(env.DB, rpc, Math.floor(nowMilliseconds / 1_000));
       print({ event: "indexer_catch_up", ok: true, ...walked });
     } catch (error) {
       print({ event: "indexer_catch_up", ok: false,

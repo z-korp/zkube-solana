@@ -92,6 +92,8 @@ export type KeeperLaunchState = "staged_launch_ready" | "active";
 
 /** Exact checked-in Anchor IDL decoder and instruction materializer. */
 export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
+  /** How the last snapshot found accounts: from verified hints, or by scanning the chain. */
+  discovered: "read_model" | "scan" = "scan";
   private readonly accountsCoder: BorshAccountsCoder;
   private readonly instructionCoder: BorshInstructionCoder;
 
@@ -136,8 +138,23 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const firstDay = Math.max(launchDayId, today - KEEPER_RECENT_DAILY_CADENCES);
     const dailyIds = [...new Set([...range(firstDay, today), ...Object.values(scheduledDailyWindow(today, suspendedUntilDay))])];
     const dailies = await this.loadDailies(dailyIds, launchDayId);
-    const { closable: closedArenaPlayers, entered } = await this.loadArenaPlayers(dailies);
-    const runs = await this.loadRuns(await this.loadPlayerStates(entered), dailies);
+    const discover = async (hints: AnchorKeeperAdapterInput["discovery"]) => {
+      const { closable, entered } = await this.loadArenaPlayers(dailies, hints);
+      return { closable, runs: await this.loadRuns(await this.loadPlayerStates(entered, hints), dailies) };
+    };
+    let found = await discover(this.input.discovery);
+    this.discovered = this.input.discovery ? "read_model" : "scan";
+    // A hint is never proof of absence. Each Daily counts its own unresolved
+    // paid entries, and each of those is one run in flight: if the hints
+    // reach fewer, something was entered out of their sight, and the chain
+    // is scanned instead.
+    if (this.input.discovery && dailies.some(({ snapshot }) =>
+      snapshot.entriesPaid - snapshot.entriesScored - snapshot.entriesExpired >
+        BigInt(found.runs.filter((run) => run.reservationActive && run.dayId === snapshot.dayId).length))) {
+      found = await discover(undefined);
+      this.discovered = "scan";
+    }
+    const { closable: closedArenaPlayers, runs } = found;
     const archive = this.archiveSnapshot(dailies, archiveRoot);
     return {
       paused,
@@ -392,6 +409,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
    */
   private async loadArenaPlayers(
     dailies: readonly LoadedDaily[],
+    hinted: AnchorKeeperAdapterInput["discovery"],
   ): Promise<{ closable: ClosedArenaPlayerSnapshot[]; entered: PublicKey[] }> {
     const closable: ClosedArenaPlayerSnapshot[] = [];
     const entered: PublicKey[] = [];
@@ -404,7 +422,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const liveDaily = new Map(
       dailies.map(({ snapshot }) => [snapshot.dayId, snapshot]),
     );
-    const hinted = this.input.discovery;
     const players = hinted
       ? await this.loadHinted("arenaPlayer", hinted.arenaPlayers, PROTOCOL_ACCOUNT_VERSION)
       : await this.scanAccounts("arenaPlayer", PROTOCOL_ACCOUNT_VERSION);
@@ -428,8 +445,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     return { closable, entered };
   }
 
-  private async loadPlayerStates(entered: readonly PublicKey[]): Promise<PlayerStateRecord[]> {
-    const runOwners = this.input.discovery?.runOwners ??
+  private async loadPlayerStates(
+    entered: readonly PublicKey[],
+    hinted: AnchorKeeperAdapterInput["discovery"],
+  ): Promise<PlayerStateRecord[]> {
+    const runOwners = hinted?.runOwners ??
       (await this.scanAccounts("activeRun", PROTOCOL_ACCOUNT_VERSION))
         .map(({ value }) => publicKey(value.owner, "ActiveRun owner"));
     const owners = [...new Map([...entered, ...runOwners]

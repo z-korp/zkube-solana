@@ -132,6 +132,24 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     expect(await plansAt(fixtures.plans.inputs.now)).toEqual(["prepare_arena_daily"]);
     expect(await plansAt(closesAt + 21_600)).toContain("expire_unresolved_arena_run");
     expect(new Set(scanned)).toEqual(new Set([coder.memcmp("arenaPlayer").bytes, coder.memcmp("activeRun").bytes]));
+
+    // Hints are checked against the Daily's own count of unresolved entries. Hints that reach the
+    // run are used as they are; hints that miss it (an entry made out of the read model's sight)
+    // send the keeper to the chain, and the run is found all the same.
+    const withHints = async (arenaPlayers: PublicKey[]) => {
+      scanned.length = 0;
+      const adapter = await AnchorKeeperAdapter.create({ connection, nowUnix: fixtures.plans.inputs.now,
+        launchDayId: protocol.launchDayId, discovery: { arenaPlayers, runOwners: [] },
+        fetcher: (async () => { throw new Error("Router unreachable"); }) as unknown as typeof fetch });
+      const snapshot = await adapter.loadProtocolSnapshot();
+      expect(snapshot.runs).toMatchObject([{ owner, runId: BigInt(runId), dayId: day, reservationActive: true }]);
+      return adapter.discovered;
+    };
+    expect(await withHints([arenaPlayerPda(arenaDailyPda(day), owner)])).toBe("read_model");
+    expect(scanned).toEqual([]);
+    expect(await withHints([])).toBe("scan");
+    expect(new Set(scanned)).toEqual(new Set([coder.memcmp("arenaPlayer").bytes, coder.memcmp("activeRun").bytes]));
+    expect(await withHints([Keypair.generate().publicKey])).toBe("scan");
   });
 
   it("keeper_reads_hinted_accounts_from_the_chain_and_drops_every_hint_it_cannot_verify", async () => {

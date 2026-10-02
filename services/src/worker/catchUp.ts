@@ -4,7 +4,7 @@
 
 import { ZKUBE_PROGRAM_ID } from "../arcadeChain.js";
 import type { D1Like } from "./d1.js";
-import { ingestTransaction, parseTransaction, syncState } from "./indexer.js";
+import { ingestTransaction, parseTransaction, recordUnreadable, syncState } from "./indexer.js";
 
 export const CATCH_UP_PAGE = 100;
 export const CATCH_UP_PAGES_PER_RUN = 2;
@@ -34,6 +34,7 @@ export function jsonRpc(endpoint: string, fetcher: typeof fetch = fetch): JsonRp
  * Walks at most a few pages of signatures toward the last complete point.
  * A full page means older history may still be missing: the walk records
  * where it stopped and the model reports itself incomplete until it closes.
+ * It never waits on one transaction it cannot read.
  */
 export async function catchUp(db: D1Like, rpc: JsonRpc, nowUnix: number): Promise<{ ingested: number; complete: boolean }> {
   let ingested = 0;
@@ -50,7 +51,13 @@ export async function catchUp(db: D1Like, rpc: JsonRpc, nowUnix: number): Promis
       const transaction = await rpc("getTransaction", [signature,
         { encoding: "json", commitment: "confirmed", maxSupportedTransactionVersion: 0 }]);
       if (transaction === null) throw new Error("a listed transaction is not available yet");
-      if (await ingestTransaction(db, parseTransaction(transaction))) ingested += 1;
+      // One transaction the model cannot interpret must not hold every later
+      // one back: it is kept as unreadable and the model stays incomplete.
+      try {
+        if (await ingestTransaction(db, parseTransaction(transaction))) ingested += 1;
+      } catch {
+        await recordUnreadable(db, signature, Number((transaction as { slot?: unknown }).slot) || 0);
+      }
     }
     const newest = state.gapTip ?? signatures[0] ?? state.tip;
     if (signatures.length < CATCH_UP_PAGE) {

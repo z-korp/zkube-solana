@@ -23,7 +23,7 @@ import {
   DISCOVERY_FRESH_SECONDS, discoveryHints, ingestTransaction, parseTransaction, rankOf, standings, syncState,
 } from "../src/worker/indexer.js";
 import {
-  KEEPER_LEASE_SECONDS, KEEPER_UNSETTLED_SECONDS, acquireKeeperLease, keeperLedger, keeperWritesApproved,
+  KEEPER_LEASE_SECONDS, KEEPER_SCAN_SECONDS, acquireKeeperLease, keeperLedger, keeperScanDue, keeperWritesApproved,
   releaseKeeperLease,
 } from "../src/worker/keeperJob.js";
 
@@ -38,7 +38,9 @@ const VERSION = "0b8a2f6e-3c1d-4e5f-9a7b-1c2d3e4f5a6b";
 const keeper = Keypair.generate();
 // The Worker runs on the real clock, so its release launches on the real day.
 const LAUNCH_DAY = dayIdAt(BigInt(Math.floor(Date.now() / 1_000)));
-const tables = ["transactions", "results", "finalized_days", "daily_players", "runs", "keeper_lease", "keeper_writes", "keeper_approval"];
+const tables = ["transactions", "results", "finalized_dailies", "daily_players", "runs", "keeper_lease", "keeper_writes",
+  "keeper_approval", "keeper_scan"];
+const MODEL = ["results", "finalized_dailies", "daily_players", "runs"];
 
 /** A fixture message as `getTransaction` returns it, with the given logs. */
 function confirmed(fixture: { message: string; decodedAccounts: { address: string; writable: boolean }[] },
@@ -69,6 +71,29 @@ function scoredLog(row: { dayId: number; runId: bigint; player: PublicKey; score
   data.writeUInt32LE(row.score, 52); data.writeBigUInt64LE(row.objectiveTotal, 56);
   data.writeBigInt64LE(BigInt(row.finalizedAt), 64);
   return `Program data: ${data.toString("base64")}`;
+}
+
+/**
+ * The same transaction with its zKube instructions called by another program
+ * instead of sent directly: they move to the inner instructions the runtime
+ * records, under a top-level call to a program already in the message.
+ */
+function viaCpi(transaction: ReturnType<typeof confirmed>) {
+  const keys = transaction.transaction.message.accountKeys;
+  const direct = transaction.transaction.message.instructions;
+  const own = direct.filter((call) => keys[call.programIdIndex] === PROGRAM);
+  // Any account that is not zKube stands for the calling program.
+  const caller = direct.find((call) => keys[call.programIdIndex] !== PROGRAM)?.programIdIndex ?? 0;
+  const others = direct.filter((call) => keys[call.programIdIndex] !== PROGRAM);
+  const callerKey = keys[caller]!;
+  return { ...transaction,
+    transaction: { ...transaction.transaction, message: { accountKeys: keys,
+      instructions: [...others, { programIdIndex: caller, accounts: [], data: "" }] } },
+    meta: { ...transaction.meta,
+      innerInstructions: [{ index: others.length, instructions: own.map((call) => ({ ...call, stackHeight: 2 })) }],
+      logMessages: [`Program ${callerKey} invoke [1]`,
+        ...transaction.meta.logMessages.map((line) => line.replace(" invoke [1]", " invoke [2]")),
+        `Program ${callerKey} success`] } };
 }
 
 const history = () => [
@@ -113,10 +138,10 @@ const emptyCluster: Cluster = (method) => method === "getGenesisHash" ? SOLANA_D
 let answer: Cluster = emptyCluster;
 let output = "";
 
-beforeAll(async () => {
-  execFileSync(process.execPath, [fileURLToPath(new URL("tools/build-worker.mjs", root))], { stdio: "pipe" });
+/** The Worker as it deploys, with these bindings over the test's own. */
+function workerOptions(bindings: Record<string, string>) {
   const directory = fileURLToPath(new URL("dist/worker/", root));
-  mf = new Miniflare({
+  return {
     modules: [
       { type: "ESModule", path: `${directory}worker.js` },
       { type: "CompiledWasm", path: `${directory}zkube_core_bg.wasm` },
@@ -130,7 +155,7 @@ beforeAll(async () => {
       WEBHOOK_SECRET, [setting(/\[version_metadata\]\nbinding = "(.+)"/)]: { id: VERSION },
       SOLANA_DEVNET_RPC_URL: "https://rpc.invalid/", MAGICBLOCK_ROUTER_RPC: "https://router.invalid/",
       ZKUBE_KEEPER_PUBLIC_KEY: keeper.publicKey.toBase58(), ZKUBE_LAUNCH_DAY_ID: String(LAUNCH_DAY),
-      KEEPER_SECRET_KEY: JSON.stringify([...keeper.secretKey]),
+      KEEPER_SECRET_KEY: JSON.stringify([...keeper.secretKey]), ...bindings,
     },
     // Every request the Worker makes lands here: nothing leaves the machine.
     outboundService: async (request: Request) => {
@@ -142,7 +167,12 @@ beforeAll(async () => {
       stdout.on("data", (chunk: Buffer) => { output += chunk.toString(); });
       stderr.on("data", (chunk: Buffer) => { output += chunk.toString(); });
     },
-  });
+  };
+}
+
+beforeAll(async () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL("tools/build-worker.mjs", root))], { stdio: "pipe" });
+  mf = new Miniflare(workerOptions({}));
   db = await mf.getD1Database("DB") as unknown as D1Like;
   const schema = readFileSync(new URL("services/worker/schema.sql", root), "utf8")
     .split("\n").filter((line) => !line.startsWith("--")).join("\n");
@@ -241,16 +271,16 @@ describe("read model", () => {
 
   it("ingesting_again_or_in_another_order_leaves_the_same_rows", async () => {
     await ingest(history());
-    const first = await dump(["results", "finalized_days", "daily_players", "runs"]);
+    const first = await dump(MODEL);
     await ingest(history());
-    expect(await dump(["results", "finalized_days", "daily_players", "runs"])).toEqual(first);
+    expect(await dump(MODEL)).toEqual(first);
     for (const table of tables) await db.prepare(`DELETE FROM ${table}`).run();
     await ingest(history().reverse());
-    expect(await dump(["results", "finalized_days", "daily_players", "runs"])).toEqual(first);
+    expect(await dump(MODEL)).toEqual(first);
     // A failed transaction changed nothing on chain, so it records nothing.
     await ingest([confirmed(fixtures.consume, "failed", NOW + 70, [fixtures.scored[0].log.replace("AQAAAAAAIAC", "CQAAAAAAIAC")],
       { InstructionError: [0, "Custom"] })]);
-    expect(await dump(["results", "finalized_days", "daily_players", "runs"])).toEqual(first);
+    expect(await dump(MODEL)).toEqual(first);
   });
 
   it("discovery_hints_follow_entry_consume_and_close_and_are_withheld_until_the_model_is_complete", async () => {
@@ -278,6 +308,63 @@ describe("read model", () => {
     expect((await discoveryHints(db, NOW + 90_000, DAY + 1))?.arenaPlayers).toEqual([]);
   });
 
+  it("discovery_and_results_count_an_instruction_however_it_was_invoked", async () => {
+    // Every lifecycle instruction is reached through another program: nothing is sent directly.
+    const nested = history().map(viaCpi);
+    for (const item of nested) {
+      expect(item.transaction.message.instructions.some((call) =>
+        item.transaction.message.accountKeys[call.programIdIndex] === PROGRAM)).toBe(false);
+    }
+    await catchUp(db, cluster(nested.slice(0, 1)).rpc, NOW + 20);
+    const direct = await (async () => {
+      const hints = await discoveryHints(db, NOW + 20, DAY);
+      return { players: hints?.arenaPlayers.map(String), owners: hints?.runOwners.map(String) };
+    })();
+    expect(direct.players).toHaveLength(1);
+    expect(direct.owners).toEqual([fixtures.scored[0].player]);
+    await catchUp(db, cluster(nested).rpc, NOW + 90_000);
+    const nestedRows = await dump(MODEL);
+    expect(nestedRows.results).toHaveLength(4);
+    expect(await discoveryHints(db, NOW + 90_000, DAY)).toEqual({ arenaPlayers: [], runOwners: [] });
+    // Direct or nested, the same history leaves the same rows.
+    for (const table of tables) await db.prepare(`DELETE FROM ${table}`).run();
+    await ingest(history());
+    const strip = (rows: Record<string, unknown>) => JSON.parse(JSON.stringify(rows)) as unknown;
+    expect(strip(await dump(MODEL))).toEqual(strip(nestedRows));
+  });
+
+  it("a_finalization_however_late_is_recorded_and_one_unreadable_transaction_never_stops_the_walk", async () => {
+    const all = history();
+    // The Daily's last run resolves a hundred days on: its finalization is as valid then as on the day.
+    const late = confirmed(fixtures.finalize, "late-finalize", NOW + 100 * 86_400);
+    // A transaction of the program this model cannot interpret: an entry naming too few accounts.
+    const broken = confirmed(fixtures.entry, "broken", NOW + 100 * 86_400 + 60);
+    const entry = broken.transaction.message.instructions.find((call) =>
+      broken.transaction.message.accountKeys[call.programIdIndex] === PROGRAM)!;
+    entry.accounts = entry.accounts.slice(0, 2);
+    const after = confirmed(fixtures.consume, "after", NOW + 100 * 86_400 + 120, [fixtures.scored[1].log]);
+    const { rpc, calls } = cluster([...all.slice(0, 4), late, broken, after]);
+    expect(await catchUp(db, rpc, NOW + 100 * 86_400 + 180)).toEqual({ ingested: 6, complete: true });
+    expect((await get(`/v1/days/${DAY}/boards/score`).then((response) => response.json()) as { final: boolean }).final).toBe(true);
+    // The walk went past it, kept it, and the model says it is not complete.
+    expect((await db.prepare("SELECT signature FROM transactions WHERE unreadable = 1").all()).results).toEqual([{ signature: "broken" }]);
+    expect((await db.prepare("SELECT run_id FROM results WHERE signature = 'after'").all()).results).toHaveLength(1);
+    expect(await syncState(db)).toMatchObject({ tip: "after", gapBefore: null, unreadable: 1 });
+    expect(await (await get("/v1/health")).json()).toMatchObject({ complete: false, unreadable: 1 });
+    expect(await discoveryHints(db, NOW + 100 * 86_400 + 180, DAY + 100)).toBeNull();
+    expect((await get(`/v1/days/${DAY}/boards/score`).then((response) => response.json()) as { complete: boolean }).complete).toBe(false);
+    // It is not fetched again, and a delivery of it by webhook is left to the walk as well.
+    calls.length = 0;
+    expect(await catchUp(db, rpc, NOW + 100 * 86_400 + 240)).toEqual({ ingested: 0, complete: true });
+    expect(calls).toEqual(["getSignaturesForAddress"]);
+    const delivered = await get("/v1/webhook", { method: "POST", headers: { authorization: WEBHOOK_SECRET },
+      body: JSON.stringify([{ ...broken, transaction: { ...broken.transaction, signatures: ["broken-again"] } }]) });
+    expect(await delivered.json()).toEqual({ ingested: 0 });
+    // Once read (here: removed and replayed correctly), the model is complete again.
+    await db.prepare("DELETE FROM transactions WHERE unreadable = 1").run();
+    expect(await (await get("/v1/health")).json()).toMatchObject({ complete: true, unreadable: 0 });
+  });
+
   it("catch_up_walks_bounded_pages_and_reports_itself_incomplete_until_the_gap_closes", async () => {
     const backlog = Array.from({ length: CATCH_UP_PAGE * CATCH_UP_PAGES_PER_RUN + 30 }, (_, index) =>
       confirmed(fixtures.finalize, `old-${index}`, NOW + 86_400 + index));
@@ -286,9 +373,9 @@ describe("read model", () => {
     expect(calls.filter((method) => method === "getSignaturesForAddress")).toHaveLength(CATCH_UP_PAGES_PER_RUN);
     expect((await syncState(db)).gapBefore).not.toBeNull();
     expect(await discoveryHints(db, NOW, DAY)).toBeNull();
-    expect(await (await get("/v1/health")).json()).toEqual({ complete: false, caughtUpAt: 0 });
+    expect(await (await get("/v1/health")).json()).toEqual({ complete: false, caughtUpAt: 0, unreadable: 0 });
     expect(await catchUp(db, rpc, NOW + 60)).toEqual({ ingested: 30, complete: true });
-    expect(await syncState(db)).toEqual({ tip: `old-${backlog.length - 1}`, gapBefore: null, gapTip: null, caughtUpAt: NOW + 60 });
+    expect(await syncState(db)).toEqual({ tip: `old-${backlog.length - 1}`, gapBefore: null, gapTip: null, caughtUpAt: NOW + 60, unreadable: 0 });
     // Caught up: one page, nothing to fetch, and new transactions extend the tip.
     calls.length = 0;
     expect(await catchUp(db, rpc, NOW + 120)).toEqual({ ingested: 0, complete: true });
@@ -337,10 +424,10 @@ describe("public surface", () => {
     const headers = { authorization: WEBHOOK_SECRET };
     expect(await (await get("/v1/webhook", { method: "POST", body, headers })).json()).toEqual({ ingested: 6 });
     expect(await (await get("/v1/webhook", { method: "POST", body, headers })).json()).toEqual({ ingested: 0 });
-    const delivered = await dump(["results", "finalized_days", "daily_players", "runs"]);
+    const delivered = await dump(MODEL);
     for (const table of tables) await db.prepare(`DELETE FROM ${table}`).run();
     await catchUp(db, cluster(history()).rpc, NOW);
-    expect(await dump(["results", "finalized_days", "daily_players", "runs"])).toEqual(delivered);
+    expect(await dump(MODEL)).toEqual(delivered);
     for (const malformed of ["{", "{}", JSON.stringify([{ slot: 1 }]), JSON.stringify(Array(101).fill(history()[0]))]) {
       expect((await get("/v1/webhook", { method: "POST", body: malformed, headers })).status).toBe(400);
     }
@@ -375,19 +462,19 @@ describe("keeper in the Worker", () => {
     }
     // No request made the Worker call a cluster, take the lease, record a write or store an approval.
     expect(outbound).toEqual([]);
-    expect(await dump(["keeper_lease", "keeper_writes", "keeper_approval"]))
-      .toEqual({ keeper_lease: [], keeper_writes: [], keeper_approval: [] });
+    expect(await dump(["keeper_lease", "keeper_writes", "keeper_approval", "keeper_scan"]))
+      .toEqual({ keeper_lease: [], keeper_writes: [], keeper_approval: [], keeper_scan: [] });
     expect(events().filter((event) => String(event.event).startsWith("keeper"))).toEqual([]);
     // The request path is not given the keeper at all.
     for (const file of ["api.ts", "indexer.ts"]) {
       const source = readFileSync(new URL(`services/src/worker/${file}`, root), "utf8");
-      expect(source).not.toMatch(/keeper_(lease|writes|approval)|keeperJob|keeperRelease|\/keeper\.js|KEEPER_SECRET_KEY|scheduled/);
+      expect(source).not.toMatch(/keeper_(lease|writes|approval|scan)|keeperJob|keeperRelease|\/keeper\.js|KEEPER_SECRET_KEY|scheduled/);
     }
     expect(setting(/^crons = (\[.+\])$/m)).toBe('["* * * * *"]');
     expect(wrangler).not.toMatch(/KEEPER_SECRET_KEY\s*=|WEBHOOK_SECRET\s*=|SOLANA_DEVNET_RPC_URL\s*=/);
     // The Cron Trigger is the one way in: the same Worker now reads the chain and reports its release.
     await scheduled();
-    expect(outbound.map(({ method }) => method)).toEqual(["getSignaturesForAddress", "getGenesisHash", "getAccountInfo"]);
+    expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash", "getSignaturesForAddress", "getGenesisHash", "getAccountInfo"]);
     expect(events().find((event) => event.event === "keeper_worker")).toEqual({ schemaVersion: 1, event: "keeper_worker",
       outcome: "bootstrap_pending", fingerprint: release.fingerprint, writeEnabled: false });
     expect((await dump(["keeper_lease"])).keeper_lease).toEqual([]);
@@ -453,12 +540,14 @@ describe("keeper in the Worker", () => {
         case "sendTransaction":
           relayed = VersionedTransaction.deserialize(Buffer.from(params[0] as string, "base64"));
           return utils.bytes.bs58.encode(relayed.signatures[0]!);
+        case "getBlockHeight": return 400;
         case "getSignatureStatuses": return value([{ slot: 9, confirmations: 1, err: null, confirmationStatus: "confirmed" }]);
         default: throw new Error(`unexpected RPC ${method}`);
       }
     };
     const release = keeperReleaseRecord({ keeperPublicKey: keeper.publicKey.toBase58(), workerVersionId: VERSION, launchDayId: LAUNCH_DAY });
-    const writes = () => db.prepare("SELECT operation, reserved_lamports, signature, state FROM keeper_writes").all();
+    const writes = () => db.prepare(`SELECT operation, reserved_lamports, payer_lamports, signature, endpoint,
+      last_valid_block_height, state FROM keeper_writes`).all();
 
     // Unapproved, the same pass only plans: no signature, no simulation, no relay, no ledger row.
     await scheduled();
@@ -466,6 +555,9 @@ describe("keeper in the Worker", () => {
     expect(outbound.map(({ method }) => method)).not.toContain("simulateTransaction");
     expect(relayed).toBeUndefined();
     expect((await writes()).results).toEqual([]);
+    // No scan has been recorded yet, so this pass scanned the chain and said so.
+    expect(events().find((event) => event.event === "keeper_worker")).toMatchObject({ discovery: "scan" });
+    expect(outbound.map(({ method }) => method)).toContain("getProgramAccounts");
 
     await db.prepare("INSERT INTO keeper_approval (id, fingerprint) VALUES (1, ?)").bind(release.fingerprint).run();
     outbound = []; output = "";
@@ -479,9 +571,53 @@ describe("keeper in the Worker", () => {
     expect(utils.bytes.bs58.encode(relayed!.signatures[0]!)).not.toBe(utils.bytes.bs58.encode(Buffer.alloc(64)));
     // Fee, simulated payer spend and the rent taken from cadence funding are all reserved, then settled.
     expect((await writes()).results).toEqual([{ operation: "prepare_arena_daily", reserved_lamports: 5_000 + 5_000 + 4_000_000,
-      signature: utils.bytes.bs58.encode(relayed!.signatures[0]!), state: "confirmed" }]);
+      payer_lamports: 5_000 + 5_000, signature: utils.bytes.bs58.encode(relayed!.signatures[0]!), endpoint: "base",
+      last_valid_block_height: 500, state: "confirmed" }]);
+    expect(outbound.map(({ method }) => method)).not.toContain("getProgramAccounts");
+    // An hour after the last scan the keeper scans again, whatever the read model says.
+    await db.prepare("UPDATE keeper_scan SET scanned_at = scanned_at - ?").bind(KEEPER_SCAN_SECONDS).run();
+    expect(await keeperScanDue(db, Math.floor(Date.now() / 1_000))).toBe(true);
+    outbound = []; output = "";
+    await scheduled();
+    expect(events().find((event) => event.event === "keeper_worker")).toMatchObject({ discovery: "scan" });
+    expect(outbound.map(({ method }) => method)).toContain("getProgramAccounts");
+    expect(await keeperScanDue(db, Math.floor(Date.now() / 1_000))).toBe(false);
     expect((await dump(["keeper_lease"])).keeper_lease).toEqual([]);
     expect(output).not.toContain(JSON.stringify([...keeper.secretKey]));
+  });
+
+  it("a_malformed_credential_or_a_failing_endpoint_puts_no_secret_in_the_workers_log", async () => {
+    const marker = "MARKER-7f3a9c";
+    const malformed = `[${[...keeper.secretKey].slice(0, 40).join(",")},"${marker}"`;
+    const rpc = `https://rpc.invalid/v2/${marker}-path?api-key=${marker}-query`;
+    await mf.setOptions(workerOptions({ KEEPER_SECRET_KEY: malformed, SOLANA_DEVNET_RPC_URL: rpc }));
+    try {
+      db = await mf.getD1Database("DB") as unknown as D1Like;
+      const release = keeperReleaseRecord({ keeperPublicKey: keeper.publicKey.toBase58(), workerVersionId: VERSION, launchDayId: LAUNCH_DAY });
+      await db.prepare("INSERT OR REPLACE INTO keeper_approval (id, fingerprint) VALUES (1, ?)").bind(release.fingerprint).run();
+      // A protocol exists, so the approved pass goes on to load its key; and the cluster then fails
+      // with an error that quotes the endpoint it was asked on.
+      const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL as unknown as Idl));
+      const protocol = coder.decode("protocolConfig", Buffer.from(programFixtures.plans.accounts.protocol.data, "base64"));
+      protocol.launchDayId = LAUNCH_DAY; protocol.lastPreparedDay = LAUNCH_DAY + 1;
+      const data = await coder.encode("protocolConfig", protocol);
+      answer = (method, params) => method === "getGenesisHash" ? SOLANA_DEVNET_GENESIS_HASH
+        : method === "getSignaturesForAddress" ? (() => { throw new Error(`upstream ${rpc} refused`); })()
+        : method === "getAccountInfo" && params[0] === protocolPda().toBase58()
+          ? { context: { slot: 1 }, value: { data: [data.toString("base64"), "base64"], executable: false, lamports: 1,
+            owner: PROGRAM, rentEpoch: 0, space: data.length } }
+        : method === "getProgramAccounts" ? [] : method === "getMultipleAccounts"
+          ? { context: { slot: 1 }, value: (params[0] as string[]).map(() => null) } : { context: { slot: 1 }, value: 1_000_000_000 };
+      await scheduled();
+      expect(events().find((event) => event.event === "keeper_worker")).toMatchObject({ outcome: "pass_failed",
+        error: "KEEPER_SECRET_KEY must be a 64-byte JSON array" });
+      expect(events().find((event) => event.event === "indexer_catch_up")).toMatchObject({ ok: false });
+      expect(output).not.toContain(marker);
+      for (let start = 0; start + 12 <= malformed.length; start += 6) expect(output).not.toContain(malformed.slice(start, start + 12));
+    } finally {
+      await mf.setOptions(workerOptions({}));
+      db = await mf.getD1Database("DB") as unknown as D1Like;
+    }
   });
 
   it("keeper_lease_admits_one_pass_at_a_time_and_only_a_dead_pass_loses_it", async () => {
@@ -490,8 +626,14 @@ describe("keeper in the Worker", () => {
     // A pass that holds the lease stops the Worker's own scheduled pass before it reads the chain.
     await db.prepare("UPDATE keeper_lease SET expires_at = ?").bind(Math.floor(Date.now() / 1_000) + 600).run();
     await scheduled();
-    expect(outbound.map(({ method }) => method)).toEqual(["getSignaturesForAddress"]);
+    expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash", "getSignaturesForAddress"]);
     expect(output).toContain('"outcome":"busy"');
+    // Another cluster's history is never ingested.
+    answer = (method) => method === "getGenesisHash" ? "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" : emptyCluster(method, []);
+    outbound = []; output = "";
+    await scheduled();
+    expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash"]);
+    expect(output).toContain("RPC genesis does not match Devnet");
     await db.prepare("UPDATE keeper_lease SET expires_at = ?").bind(NOW + KEEPER_LEASE_SECONDS).run();
     // Releasing someone else's lease does nothing; the holder's release frees it.
     await releaseKeeperLease(db, "second");
@@ -502,55 +644,122 @@ describe("keeper in the Worker", () => {
     expect((await dump(["keeper_lease"])).keeper_lease).toMatchObject([{ holder: "third" }]);
   });
 
-  it("keeper_ledger_reserves_before_relay_and_an_unsettled_write_counts_against_the_next_pass", async () => {
+  it("keeper_ledger_reserves_before_relay_and_an_unsettled_write_counts_until_its_outcome_is_definite", async () => {
     vi.spyOn(VersionedTransaction.prototype, "sign").mockImplementation(() => undefined);
     const order: string[] = [];
-    const writes = () => db.prepare("SELECT pass, operation, reserved_lamports, state FROM keeper_writes ORDER BY id").all();
+    const writes = () => db.prepare(`SELECT pass, operation, reserved_lamports, payer_lamports, endpoint,
+      last_valid_block_height, state, created_at FROM keeper_writes ORDER BY id`).all<Record<string, unknown>>();
+    const confirmedStatus = { value: [{ err: null, confirmationStatus: "confirmed" }] };
+    let balance = 1_000_000_000, payerSpend = 60_000_000, clock = NOW;
     const connection = {
-      getBalance: vi.fn().mockResolvedValue(1_000_000_000),
+      getBalance: vi.fn(async () => balance),
       getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: keeper.publicKey.toBase58(), lastValidBlockHeight: 500 }),
       getFeeForMessage: vi.fn().mockResolvedValue({ value: 5_000 }),
       simulateTransaction: vi.fn(async () => { order.push("simulate");
-        return { value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 940_000_000 }] } }; }),
+        return { value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: balance - payerSpend }] } }; }),
       sendRawTransaction: vi.fn(async () => {
         // The reservation is durable before the bytes leave.
         order.push(`send:${(await writes()).results.at(-1)!.state as string}`);
         return "signature";
       }),
-      getSignatureStatuses: vi.fn(async () => ({ value: [{ err: null, confirmationStatus: "confirmed" }] })),
+      getSignatureStatuses: vi.fn(async (): Promise<unknown> => confirmedStatus),
+      getBlockHeight: vi.fn(async () => 400),
     };
-    const pass = (traceId: string, nowUnix: number, log?: (event: unknown) => void) => runKeeperPass({
-      connection: connection as unknown as Connection, keeper, writeEnabled: true, now: () => nowUnix * 1_000,
-      traceId, ledger: keeperLedger(db, traceId), wait: async () => undefined, ...(log ? { log } : {}),
+    const pass = (traceId: string, log?: (event: unknown) => void) => runKeeperPass({
+      connection: connection as unknown as Connection, keeper, writeEnabled: true, now: () => NOW * 1_000,
+      traceId, ledger: keeperLedger(db, traceId, () => clock), wait: async () => undefined, ...(log ? { log } : {}),
       protocolSnapshot: { paused: true, launchDayId: DAY, suspendedUntilDay: 0, lastPreparedDay: DAY + 1, dailies: [], runs: [],
         closedArenaPlayers: [{ dayId: DAY - 1, owner: Keypair.generate().publicKey, rentPayer: keeper.publicKey }] },
       protocolMaterializer: { materialize: async () => [new TransactionInstruction({
         programId: ZKUBE_PROGRAM_ID, keys: [], data: Buffer.alloc(8) })] },
     });
+    const refusal = async (traceId: string) => {
+      const log = vi.fn(), sent = connection.sendRawTransaction.mock.calls.length;
+      expect(await pass(traceId, log)).toMatchObject({ writes: 0, operationFailures: 1 });
+      expect(connection.sendRawTransaction).toHaveBeenCalledTimes(sent);
+      return (log.mock.calls.map(([event]) => event as { error?: string }).find((event) => event.error))!.error;
+    };
     const spend = 60_005_000;
-    expect(await pass("confirmed", NOW)).toMatchObject({ writes: 1, spentLamports: spend });
+    expect(await pass("confirmed")).toMatchObject({ writes: 1, spentLamports: spend });
     expect(order).toEqual(["simulate", "simulate", "send:reserved"]);
-    // A write that landed and failed is settled; one whose outcome never arrived stays reserved.
-    connection.getSignatureStatuses.mockResolvedValueOnce({ value: [{ err: { InstructionError: [1, "Custom"] }, confirmationStatus: "confirmed" }] } as never);
-    expect(await pass("failed", NOW)).toMatchObject({ writes: 0, operationFailures: 1 });
+    // A write that landed and failed is settled; one whose outcome never arrived stays reserved,
+    // stamped when it was made rather than when its pass began.
+    connection.getSignatureStatuses.mockResolvedValueOnce({ value: [{ err: { InstructionError: [1, "Custom"] }, confirmationStatus: "confirmed" }] });
+    expect(await pass("failed")).toMatchObject({ writes: 0, operationFailures: 1 });
+    clock = NOW + 777;
     connection.getSignatureStatuses.mockRejectedValueOnce(new Error("timeout"));
-    expect(await pass("uncertain", NOW)).toMatchObject({ writes: 0, operationFailures: 1, spentLamports: spend });
+    expect(await pass("uncertain")).toMatchObject({ writes: 0, operationFailures: 1, spentLamports: spend });
     expect((await writes()).results).toEqual([
-      { pass: "confirmed", operation: "close_arena_player", reserved_lamports: spend, state: "confirmed" },
-      { pass: "failed", operation: "close_arena_player", reserved_lamports: spend, state: "failed" },
-      { pass: "uncertain", operation: "close_arena_player", reserved_lamports: spend, state: "reserved" },
+      { pass: "confirmed", operation: "close_arena_player", reserved_lamports: spend, payer_lamports: spend, endpoint: "base",
+        last_valid_block_height: 500, state: "confirmed", created_at: NOW },
+      { pass: "failed", operation: "close_arena_player", reserved_lamports: spend, payer_lamports: spend, endpoint: "base",
+        last_valid_block_height: 500, state: "failed", created_at: NOW },
+      { pass: "uncertain", operation: "close_arena_player", reserved_lamports: spend, payer_lamports: spend, endpoint: "base",
+        last_valid_block_height: 500, state: "reserved", created_at: NOW + 777 },
     ]);
-    // While that write can still land, its spend is taken from the next pass's ceiling: no relay.
+
+    // The cluster has no record of it and its blockhash may still be live: it counts against the
+    // next pass's ceiling, and no amount of elapsed time changes that.
     expect(KEEPER_LIMITS.spendLamports - spend).toBeLessThan(spend);
-    const sent = connection.sendRawTransaction.mock.calls.length;
+    connection.getSignatureStatuses.mockResolvedValue({ value: [null] });
+    for (const later of [NOW + 1, NOW + 151, NOW + 30 * 86_400]) {
+      clock = later;
+      expect(await refusal(`ceiling-${later}`)).toBe("keeper spend ceiling reached");
+    }
+    // It also counts against the wallet floor: a stale balance of 150m with 60m still out cannot
+    // take another 30m, which the ceiling would allow but which would end below the 100m floor.
+    balance = 150_000_000; payerSpend = 30_000_000;
+    expect(KEEPER_LIMITS.spendLamports - spend).toBeGreaterThanOrEqual(payerSpend + 5_000);
+    expect(balance - payerSpend).toBeGreaterThanOrEqual(KEEPER_LIMITS.reserveLamports);
+    expect(await refusal("floor")).toBe("keeper simulation crosses the reserve floor");
+    expect((await writes()).results.at(-1)).toMatchObject({ pass: "uncertain", state: "reserved" });
+
+    // Finalized blocks pass the last one that could hold it and the cluster still has no record:
+    // only then is it expired, and its spend released.
+    connection.getBlockHeight.mockResolvedValue(500);
+    expect(await refusal("still-live")).toBe("keeper simulation crosses the reserve floor");
+    connection.getBlockHeight.mockResolvedValue(501);
+    connection.getSignatureStatuses.mockResolvedValueOnce({ value: [null] }).mockResolvedValue(confirmedStatus);
+    expect(await pass("after-expiry")).toMatchObject({ writes: 1 });
+    expect((await writes()).results.map(({ pass: name, state }) => [name, state])).toEqual([["confirmed", "confirmed"],
+      ["failed", "failed"], ["uncertain", "expired"], ["after-expiry", "confirmed"]]);
+
+    // A write that did land is settled as confirmed by the next pass that asks, never expired,
+    // even though its blockhash is past.
+    balance = 1_000_000_000; payerSpend = 10_000_000;
+    connection.getSignatureStatuses.mockRejectedValueOnce(new Error("timeout"));
+    expect(await pass("landed-late")).toMatchObject({ writes: 0, operationFailures: 1 });
+    expect((await writes()).results.at(-1)).toMatchObject({ pass: "landed-late", state: "reserved" });
+    expect(await pass("reconciles")).toMatchObject({ writes: 1 });
+    expect((await writes()).results.slice(-2).map(({ pass: name, state }) => [name, state]))
+      .toEqual([["landed-late", "confirmed"], ["reconciles", "confirmed"]]);
+  });
+
+  it("an_uncertain_write_holds_the_floor_for_the_rest_of_its_own_pass", async () => {
+    vi.spyOn(VersionedTransaction.prototype, "sign").mockImplementation(() => undefined);
+    // Two closes in one pass. The first is relayed and never answers; the balance the second
+    // reads does not show it yet.
+    const connection = {
+      getBalance: vi.fn(async () => 150_000_000),
+      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: keeper.publicKey.toBase58(), lastValidBlockHeight: 500 }),
+      getFeeForMessage: vi.fn().mockResolvedValue({ value: 5_000 }),
+      simulateTransaction: vi.fn(async () => ({ value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 120_000_000 }] } })),
+      sendRawTransaction: vi.fn(async () => "signature"),
+      getSignatureStatuses: vi.fn(async () => ({ value: [null] })),
+      getBlockHeight: vi.fn(async () => 400),
+    };
     const log = vi.fn();
-    expect(await pass("next", NOW + 1, log)).toMatchObject({ writes: 0, operationFailures: 1 });
-    expect(log).toHaveBeenCalledWith(expect.objectContaining({ error: "keeper spend ceiling reached" }));
-    expect(connection.sendRawTransaction).toHaveBeenCalledTimes(sent);
-    expect(await pass("later", NOW + KEEPER_UNSETTLED_SECONDS)).toMatchObject({ writes: 1 });
-    // A poll that never reports an outcome leaves the reservation in place too.
-    connection.getSignatureStatuses.mockResolvedValue({ value: [null] } as never);
-    expect(await pass("silent", NOW + 1_000)).toMatchObject({ writes: 0, operationFailures: 1 });
-    expect((await writes()).results.at(-1)).toMatchObject({ pass: "silent", state: "reserved" });
+    const result = await runKeeperPass({
+      connection: connection as unknown as Connection, keeper, writeEnabled: true, now: () => NOW * 1_000, log,
+      ledger: keeperLedger(db, "one-pass", () => NOW), wait: async () => undefined,
+      protocolSnapshot: { paused: true, launchDayId: DAY, suspendedUntilDay: 0, lastPreparedDay: DAY + 1, dailies: [], runs: [],
+        closedArenaPlayers: [1, 2].map(() => ({ dayId: DAY - 1, owner: Keypair.generate().publicKey, rentPayer: keeper.publicKey })) },
+      protocolMaterializer: { materialize: async () => [new TransactionInstruction({
+        programId: ZKUBE_PROGRAM_ID, keys: [], data: Buffer.alloc(8) })] },
+    });
+    expect(result).toMatchObject({ writes: 0, operationFailures: 2 });
+    expect(connection.sendRawTransaction).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls.map(([event]) => (event as { error?: string }).error).filter(Boolean))
+      .toEqual(["the write's outcome is unknown", "keeper simulation crosses the reserve floor"]);
   });
 });
