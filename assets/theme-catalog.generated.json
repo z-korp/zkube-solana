@@ -5300,13 +5300,13 @@
       ],
       "guardian": {
         "face": [
-          0.140625,
-          0.052083333333333336,
-          0.6979166666666666,
-          0.625
+          0.3515625,
+          0.17317708333333334,
+          0.296875,
+          0.3111979166666667
         ],
-        "railFrontY": 0.8658854166666666,
-        "railY": 0.8333333333333334
+        "railFrontY": 0.7981770833333334,
+        "railY": 0.7877604166666666
       },
       "guardianLines": {
         "dailyGreeting": "The jungle offers the same gifts to all today. Use them wisely, others won't hesitate.",
