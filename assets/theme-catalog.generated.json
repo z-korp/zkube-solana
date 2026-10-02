@@ -3955,13 +3955,13 @@
       ],
       "guardian": {
         "face": [
-          0.19791666666666666,
-          0.078125,
-          0.609375,
-          0.6145833333333334
+          0.3020833333333333,
+          0.2747395833333333,
+          0.3958333333333333,
+          0.33984375
         ],
-        "railFrontY": 0.8658854166666666,
-        "railY": 0.8333333333333334
+        "railFrontY": 0.828125,
+        "railY": 0.8177083333333334
       },
       "guardianLines": {
         "dailyGreeting": "The storm rages equally for all today. Strike harder than your rivals.",
