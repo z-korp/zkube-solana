@@ -280,6 +280,37 @@ namespace ZKube.Tests.Presentation
             Phones.Clear(shell);
         }
 
+        // A page redrawn or replaced in place ends its entrance with it: a
+        // result's stars stop moving once another page is drawn over it.
+        [UnityTest] public IEnumerator APagesEntranceEndsWhenThePageIsReplacedInPlace()
+        {
+            root = new GameObject("Replaced entrance");
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Replaced entrance");
+            Phones.Seeker(shell);
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
+            source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Actions = new[] { new PageAction { Label = "Play today" } } };
+            source.Result = new ResultPageView { ProductName = "zKube", Mode = "Campaign", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
+                Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals,
+                Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+            bool reduced = AppPreferences.ReducedMotion; AppPreferences.SetReducedMotion(false);
+            try
+            {
+                foreach (var next in new[] { AppPage.Result, AppPage.Home })
+                {
+                    views.Render(AppPage.Result); yield return null;
+                    Assert.IsTrue(root.GetComponentsInChildren<PageSequence>().Any(sequence => sequence.Playing), "The result's stars are arriving");
+                    views.Render(next);
+                    // Any step still running on the old page's pieces would throw here.
+                    for (float end = Time.realtimeSinceStartup + .6f; Time.realtimeSinceStartup < end;) yield return null;
+                }
+                Assert.IsFalse(root.GetComponentsInChildren<PageSequence>().Any(sequence => sequence.Playing), "Home has no entrance of the result's left running");
+            }
+            finally { AppPreferences.SetReducedMotion(reduced); Phones.Clear(shell); }
+        }
+
         // Nothing a page draws is cropped by the screen top (DECISIONS
         // 2026-10-02): on the compact phone, the emulator's default and the
         // Seeker, every piece of every page, its title plate and header card

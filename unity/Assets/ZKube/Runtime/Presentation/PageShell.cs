@@ -117,7 +117,11 @@ namespace ZKube.Presentation
         {
             StopTransition();
             foreach (var layer in new[] { Chrome, Overlay, Page })
+            {
+                // A page's entrance ends with the page: its steps move pieces that are going.
+                foreach (var sequence in layer.GetComponents<PageSequence>()) { sequence.enabled = false; Destroy(sequence); }
                 foreach (Transform child in layer) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
+            }
             var previous = held; held = new List<Action>();
             if (Artwork != null) Hold(current);
             Release(previous);
