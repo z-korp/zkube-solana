@@ -1,7 +1,7 @@
 {
   "canvas_px": [
-    1536,
-    1536
+    768,
+    768
   ],
   "frame_names": [
     "idle",
@@ -18,31 +18,38 @@
   "representation": "full-frame-behind-rail",
   "body": "body.png",
   "paws": "paws.png",
-  "rail_y_px": 1280,
-  "rail_front_y_px": 1330,
+  "rail_y_px": 603,
+  "rail_front_y_px": 611,
+  "face_rect_px": [
+    217,
+    115,
+    334,
+    282
+  ],
   "paw_anchor_rects": [
     {
       "side": "left",
       "rect_px": [
-        153,
-        1240,
-        535,
-        160
+        66,
+        600,
+        253,
+        110
       ]
     },
     {
       "side": "right",
       "rect_px": [
-        849,
-        1240,
-        534,
-        160
+        449,
+        600,
+        258,
+        110
       ]
     }
   ],
   "draw_order": [
-    "selected full frame (except portrait)",
-    "rail or board frame",
+    "idle.png",
+    "selected frame inside face_rect_px",
+    "board frame",
     "contact shadow from paws alpha",
     "paws.png"
   ],
@@ -51,18 +58,12 @@
     "file": "portrait.png",
     "opening_to_canvas_ratio": 0.725,
     "opening_center_px": [
-      768,
-      768
+      384,
+      384
     ],
-    "opening_diameter_px": 1114
+    "opening_diameter_px": 556
   },
   "hud_width_dp": 168,
   "dialogue_width_dp": 180,
-  "body_motion": "none; only pixels inside the recorded face mask change",
-  "face_rect_px": [
-    424,
-    280,
-    720,
-    760
-  ]
+  "body_motion": "Fixed in the game frames; breathing preview supplied separately."
 }
