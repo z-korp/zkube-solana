@@ -193,10 +193,12 @@ function appendCadenceArchivePlan(
   if (!state) return;
   const ordered = [...(snapshot.archiveCandidates ?? [])]
     .sort((left, right) => left.cadenceId - right.cadenceId);
-  const nextArchiveId = state.lastDailyId === undefined ||
-      state.lastDailyId < snapshot.launchDayId
-    ? snapshot.launchDayId
-    : snapshot.dailies.find(({ predecessorDayId }) => predecessorDayId === state.lastDailyId)?.dayId;
+  // The program's rule: the member after the last one, or, before any, the
+  // one Daily from launch onward whose predecessor lies before launch.
+  const first = state.lastDailyId === undefined || state.lastDailyId < snapshot.launchDayId;
+  const nextArchiveId = snapshot.dailies.find(({ dayId, predecessorDayId }) => first
+    ? dayId >= snapshot.launchDayId && predecessorDayId < snapshot.launchDayId
+    : predecessorDayId === state.lastDailyId)?.dayId;
   const contextFor = (candidate: CadenceArchiveCandidate) => ({
 
     dayId: candidate.cadenceId,

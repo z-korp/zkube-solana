@@ -54,4 +54,6 @@ pub enum ErrorCode {
     InvalidEmblem,
     #[msg("The provided period is not the canonical current or successor period")]
     InvalidPeriod,
+    #[msg("This Daily has admitted every player it can size a board for")]
+    DailyFull,
 }

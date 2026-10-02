@@ -18,6 +18,8 @@ pub const ARENA_ENTRY_LAMPORTS: u64 = zkube_core::ARENA_ENTRY_LAMPORTS;
 /// The width rule remains authoritative below this ceiling and any narrowing
 /// is recorded in the immutable board header.
 pub const ARENA_BOARD_CAPACITY: usize = zkube_core::ARENA_BOARD_CAPACITY;
+/// Distinct players one Daily admits: the widest board the core sizes.
+pub const ARENA_DAILY_PLAYER_CAPACITY: u32 = zkube_core::ARENA_DAILY_PLAYER_CAPACITY;
 /// Rent a player's first entry of the day moves into each board: one row and
 /// its claim bit, rounded up to a byte.
 pub const ARENA_BOARD_FUNDED_ROW_BYTES: usize = ArenaBoardEntry::INIT_SPACE + 1;
@@ -1152,6 +1154,40 @@ mod tests {
             .unwrap();
         assert_eq!(archive.last_daily_id, launch_day + 9);
         assert_ne!(archive.daily_root, [0; 32]);
+    }
+
+    #[test]
+    fn the_first_root_member_is_the_first_daily_of_the_chain_from_launch() {
+        let launch_day = 20_000;
+        let fresh = ProtocolConfig {
+            launch_day_id: launch_day,
+            ..ProtocolConfig::default()
+        };
+        // The launch day was skipped while suspended: its successor took over
+        // its predecessor, a day before launch, and is the first member.
+        let mut skipped = fresh.clone();
+        assert!(skipped
+            .append_daily(launch_day + 4, launch_day + 3, [1; 32])
+            .is_err());
+        assert!(skipped
+            .append_daily(launch_day - 1, launch_day - 2, [1; 32])
+            .is_err());
+        skipped
+            .append_daily(launch_day + 3, launch_day - 1, [1; 32])
+            .unwrap();
+        // From then on the chain alone decides, as after an ordinary launch.
+        assert!(skipped
+            .append_daily(launch_day + 5, launch_day - 1, [2; 32])
+            .is_err());
+        skipped
+            .append_daily(launch_day + 4, launch_day + 3, [2; 32])
+            .unwrap();
+        // A Daily that still follows the launch day is not the first member.
+        let mut ordinary = fresh;
+        assert!(ordinary
+            .append_daily(launch_day + 1, launch_day, [1; 32])
+            .is_err());
+        ordinary.append_daily(launch_day, 0, [1; 32]).unwrap();
     }
 
     #[test]

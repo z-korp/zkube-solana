@@ -3539,6 +3539,11 @@ export type Solana = {
       "code": 6021,
       "name": "invalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
+    },
+    {
+      "code": 6022,
+      "name": "dailyFull",
+      "msg": "This Daily has admitted every player it can size a board for"
     }
   ],
   "types": [

@@ -205,10 +205,14 @@ spending approval.
   `finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent`,
   `consume_keeps_both_boards_sorted_at_capacity` and
   `full_board_finalization_stays_below_one_million_compute_units` guard width, allocation and compute.
-  Sizing starts from stored harmonic denominators, so a board hundreds of thousands of places wide finalizes in
-  one transaction with the same exact result as the rank-by-rank scan.
-  `stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan` and
-  `finalization_sizes_boards_far_wider_than_they_retain_in_one_transaction` guard the arithmetic and its compute.
+  Sizing searches stored harmonic denominators and then scans less than one stored step, with the same exact
+  result as the rank-by-rank scan. A Daily admits `ARENA_DAILY_PLAYER_CAPACITY` distinct players, the widest
+  field those denominators cover: a further new player is refused before a Kredit is spent, players already in
+  keep unlimited entries, and so every admitted field finalizes in one transaction. Raising it is a program
+  upgrade with a longer table. `stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan`,
+  `sizing_never_scans_more_than_one_stored_step_and_refuses_a_wider_field`,
+  `a_full_daily_admits_its_last_player_and_refuses_the_next` and
+  `finalization_sizes_a_full_daily_field_in_one_transaction` guard the arithmetic, the limit and its compute.
 - **One row per player per board:** retain that player's best qualifying run with unlimited paid entries.
   Ordering is metric descending, earliest finalized achievement, then wallet bytes.
   `board_order_uses_metric_then_time_then_owner_bytes`,
@@ -546,8 +550,12 @@ share one workspace and configuration; `workspace_has_one_dependency_and_configu
 
 ProtocolConfig advances a sequential result root from launch day. Its next member is exactly the Daily whose
 recorded predecessor is the last member; a skipped suspended Daily leaves that chain when its funding is
-forwarded, so a gap is one step and no finalized Daily can be passed over. Daily closure requires root coverage;
-`archive_is_strictly_sequential`, `the_result_root_cannot_pass_over_a_finalized_daily`, `archives only the next
+forwarded, so a gap is one step and no finalized Daily can be passed over. The first member is the one Daily
+from launch onward whose predecessor lies before launch: the launch day, or the day that took its place when a
+suspended launch day was skipped. Daily closure requires root coverage;
+`archive_is_strictly_sequential`, `the_first_root_member_is_the_first_daily_of_the_chain_from_launch`,
+`a_skipped_launch_daily_leaves_its_successor_as_the_first_root_member`,
+`the_result_root_cannot_pass_over_a_finalized_daily`, `archives only the next
 Daily of the chain, never a later sealed one` and
 `sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard it. The ledger is the archive. No
 notification service exists; a missed notification never changes a claim window, and any future notification

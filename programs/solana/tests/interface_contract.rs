@@ -93,11 +93,18 @@ fn every_program_capacity_has_an_sbf_test_at_its_maximum() {
             }
         }
     }
-    let guards = [(
-        "ARENA_BOARD_CAPACITY",
-        "finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent",
-        "consume_keeps_both_boards_sorted_at_capacity",
-    )];
+    let guards = [
+        (
+            "ARENA_BOARD_CAPACITY",
+            "finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent",
+            "consume_keeps_both_boards_sorted_at_capacity",
+        ),
+        (
+            "ARENA_DAILY_PLAYER_CAPACITY",
+            "a_full_daily_admits_its_last_player_and_refuses_the_next",
+            "finalization_sizes_a_full_daily_field_in_one_transaction",
+        ),
+    ];
     let mut actual = BTreeSet::new();
     capacities(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),

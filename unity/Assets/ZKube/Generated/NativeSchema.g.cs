@@ -57,6 +57,7 @@ namespace ZKube.Core.Generated
         ZeroWeight = 312,
         InvalidEntryPrice = 313,
         InvalidRank = 314,
+        FieldTooWide = 315,
     }
     public enum PresentationKind : byte
     {

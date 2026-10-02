@@ -460,6 +460,12 @@ pub fn handler_enter_arena<'info>(
             ctx.accounts.payer.key(),
             ctx.bumps.arena_player,
         ));
+        // The core sizes a board exactly for this many players and no more,
+        // so a full Daily refuses a new player before any Kredit is spent.
+        require!(
+            ctx.accounts.current_daily.unique_players < ARENA_DAILY_PLAYER_CAPACITY,
+            ErrorCode::DailyFull
+        );
         ctx.accounts.current_daily.unique_players = ctx
             .accounts
             .current_daily

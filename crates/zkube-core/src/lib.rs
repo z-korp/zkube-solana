@@ -75,6 +75,12 @@ pub const fn campaign_move_budget(level: u8, tier: u8) -> Option<u16> {
 /// Maximum retained rows in one payout board.
 pub const ARENA_BOARD_CAPACITY: usize = 1_536;
 
+/// Distinct players one Daily admits. A board's exact payout width is sized
+/// from stored denominators up to this many qualifiers, in bounded compute;
+/// the program refuses a further new player rather than accept a field it
+/// could not finalize in one transaction.
+pub const ARENA_DAILY_PLAYER_CAPACITY: u32 = 262_144;
+
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
 pub const PROTOCOL_ACCOUNT_VERSION: u8 = 7;
@@ -107,7 +113,7 @@ pub use ladder::{
 };
 
 pub use payouts::{
-    BoardWidth, DailyBoardPools, PAYOUT_WIDTH_TABLE_RANKS, PayoutError, PayoutPlan,
+    BoardWidth, DailyBoardPools, PayoutError, PayoutPlan,
     SOL_PAYOUT_UNIT_LAMPORTS, board_width,
     compare_board_entries, daily_board_pools, payout_for_rank, rank_weighted_payouts,
     sum_rank_payouts,

@@ -284,6 +284,7 @@ pub const STATUSES: &[(i32, &str)] = &[
     (312, "ZeroWeight"),
     (313, "InvalidEntryPrice"),
     (314, "InvalidRank"),
+    (315, "FieldTooWide"),
 ];
 
 #[must_use]
@@ -311,6 +312,7 @@ pub fn error_status(error: BoundaryError) -> i32 {
             P::ZeroWeight => 312,
             P::InvalidEntryPrice => 313,
             P::InvalidRank => 314,
+            P::FieldTooWide => 315,
             P::Overflow => 104,
         },
         BoundaryError::Run(e) => match e {

@@ -251,6 +251,16 @@ describe("v5 Daily keeper reconciliation", () => {
     expect(archive(DAY, [DAY, DAY + 2])).toEqual([]);
     expect(archive(DAY, [DAY, DAY + 1, DAY + 2])).toEqual([DAY + 1]);
     expect(archive(DAY + 1, [DAY, DAY + 1, DAY + 2])).toEqual([DAY + 2]);
+    // Nothing archived yet: the first member is the launch day, or, when a suspended launch
+    // day was skipped, the day that took its place in the chain.
+    expect(archive(DAY - 1, [DAY, DAY + 1])).toEqual([DAY]);
+    const skippedLaunch = discoverReconciliation({ nowUnix: opens(DAY + 3),
+      snapshot: snapshot({ launchDayId: DAY,
+        dailies: [{ ...daily(DAY + 1, "finalized"), predecessorDayId: DAY - 1 }, daily(DAY + 2, "finalized")],
+        archiveState: { lastDailyId: 0 },
+        archiveCandidates: [candidate(DAY + 1, false, false), candidate(DAY + 2, false, false)] }),
+    }).filter(({ operation }) => operation === "archive_arena_daily").map(({ context }) => context.dayId);
+    expect(skippedLaunch).toEqual([DAY + 1]);
   });
 
   it("follows the recorded funding edge and never prepares behind the last Daily", () => {

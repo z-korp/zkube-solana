@@ -8,10 +8,11 @@ const RANK_WEIGHT_SCALE: u64 = u64::MAX;
 
 /// Ranks between two stored harmonic denominators.
 const WIDTH_STEP: u32 = 256;
-/// The width scan starts from a stored denominator for every board up to
-/// this many places, so sizing costs the same at ten places or a quarter of a
-/// million. A wider board is still sized exactly, one rank at a time.
-pub const PAYOUT_WIDTH_TABLE_RANKS: u32 = WIDTH_STEP * 1_024;
+/// The width scan starts from a stored denominator for every field a Daily
+/// admits, so sizing costs the same at ten places or a quarter of a million:
+/// a search over the stored steps, then at most one step rank by rank.
+const PAYOUT_WIDTH_TABLE_RANKS: u32 = crate::ARENA_DAILY_PLAYER_CAPACITY;
+const _: () = assert!(PAYOUT_WIDTH_TABLE_RANKS % WIDTH_STEP == 0);
 
 /// `HARMONIC_DENOMINATORS[k]` is the sum of the weights of ranks
 /// `1..=(k + 1) * WIDTH_STEP`.
@@ -37,6 +38,8 @@ pub enum PayoutError {
     InvalidEntryPrice,
     InvalidRank,
     Overflow,
+    /// More qualifiers than a Daily admits.
+    FieldTooWide,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -107,6 +110,9 @@ pub fn board_width(
     if entry_price == 0 {
         return Err(PayoutError::InvalidEntryPrice);
     }
+    if qualified_winners > crate::ARENA_DAILY_PLAYER_CAPACITY {
+        return Err(PayoutError::FieldTooWide);
+    }
     if qualified_winners == 0 {
         return Ok(BoardWidth {
             winner_count: 0,
@@ -133,7 +139,7 @@ pub fn board_width(
             .is_some_and(|needed| wide_product(pool, RANK_WEIGHT_SCALE / u64::from(rank)) >= needed)
     };
     // Both bounds count stored steps, so they stay well inside u32 and usize.
-    let (mut low, mut high) = (0u32, qualified_winners.min(PAYOUT_WIDTH_TABLE_RANKS) / WIDTH_STEP);
+    let (mut low, mut high) = (0u32, qualified_winners / WIDTH_STEP);
     while low < high {
         let middle = low + (high - low).div_ceil(2);
         if last_place_pays(middle * WIDTH_STEP, HARMONIC_DENOMINATORS[middle as usize - 1]) {
@@ -498,7 +504,7 @@ mod tests {
     )] // Approximate pots only pick the cases; every comparison is exact.
     fn stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan() {
         // Entry price times width times the harmonic sum: pools that stop the
-        // width just inside, on and past stored steps, and past the table.
+        // width just inside, on and past stored steps, up to a full Daily.
         let pot = |width: u64| {
             let harmonic = (1..=width).map(|rank| 1.0 / rank as f64).sum::<f64>();
             (crate::ARENA_ENTRY_LAMPORTS as f64 * width as f64 * harmonic) as u64
@@ -518,10 +524,9 @@ mod tests {
             table - step - 1,
             table - 1,
             table,
-            table + 1_000,
         ] {
             for pool in [pot(width) - 1_000_000, pot(width), pot(width) + 1_000_000] {
-                for qualified in [width, width + 1, table + 3_000] {
+                for qualified in [width, (width + 1).min(table), table] {
                     let qualified = u32::try_from(qualified).unwrap();
                     let expected = reference_board_width(
                         pool,
@@ -546,12 +551,34 @@ mod tests {
         // The cases really do land on both sides of the stored steps.
         assert!(widths.iter().any(|width| width % WIDTH_STEP == 0));
         assert!(widths.iter().any(|width| width % WIDTH_STEP == WIDTH_STEP - 1));
-        assert!(widths.iter().any(|width| *width > PAYOUT_WIDTH_TABLE_RANKS));
+        assert!(widths.contains(&PAYOUT_WIDTH_TABLE_RANKS));
         for pool in [u64::MAX, u64::MAX / 3] {
-            let qualified = PAYOUT_WIDTH_TABLE_RANKS + 3_000;
+            let qualified = PAYOUT_WIDTH_TABLE_RANKS;
             assert_eq!(
                 board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, 1),
                 reference_board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, 1)
+            );
+        }
+    }
+
+    #[test]
+    fn sizing_never_scans_more_than_one_stored_step_and_refuses_a_wider_field() {
+        // Whatever the pool, the exact width is a stored step plus fewer
+        // ranks than one step, or the structural minimum.
+        for pool in [0, 1, 40_000_000, 1_000_000_000_000, u64::MAX / 2, u64::MAX] {
+            for qualified in [1, 4, 255, 256, 257, 100_000, crate::ARENA_DAILY_PLAYER_CAPACITY] {
+                let width = board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, SOL_PAYOUT_UNIT_LAMPORTS)
+                    .unwrap();
+                assert_eq!(
+                    Ok(width),
+                    reference_board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, SOL_PAYOUT_UNIT_LAMPORTS)
+                );
+            }
+        }
+        for qualified in [crate::ARENA_DAILY_PLAYER_CAPACITY + 1, u32::MAX] {
+            assert_eq!(
+                board_width(u64::MAX, qualified, crate::ARENA_ENTRY_LAMPORTS, SOL_PAYOUT_UNIT_LAMPORTS),
+                Err(PayoutError::FieldTooWide)
             );
         }
     }

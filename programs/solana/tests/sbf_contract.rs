@@ -2382,29 +2382,56 @@ fn full_board_finalization_stays_below_one_million_compute_units() {
 }
 
 #[test]
-fn finalization_sizes_boards_far_wider_than_they_retain_in_one_transaction() {
+fn finalization_sizes_a_full_daily_field_in_one_transaction() {
     // The payout width and its denominator are never capped: both boards pay
-    // across every qualifier while each retains only its capacity.
-    for count in [
-        zkube_core::PAYOUT_WIDTH_TABLE_RANKS,
-        zkube_core::PAYOUT_WIDTH_TABLE_RANKS + 2_000,
-    ] {
-        let fixture = finalize_board_capacity(count, u64::MAX / 2, PeriodStatus::Open, true, 0);
+    // across every qualifier a Daily admits while each retains only its
+    // capacity, whether the pool pays all of them or only some.
+    let count = ARENA_DAILY_PLAYER_CAPACITY;
+    for pool in [u64::MAX / 2, 60_000_000_000_000, 40_000_000_000] {
+        let fixture = finalize_board_capacity(count, pool, PeriodStatus::Open, true, 0);
         assert!(
             fixture.result.program_result.is_ok(),
             "{:?}",
             fixture.result.program_result
         );
         let board: ArenaBoard = decode(resulting_account(&fixture.result, &fixture.score_board));
-        assert_eq!(board.width_count, count);
-        assert_eq!(board.payout_count as usize, ARENA_BOARD_CAPACITY);
-        assert!(board.capacity_limited);
+        assert_eq!(board.width_count, fixture.plan.width_count);
+        assert_eq!(board.width_count == count, pool == u64::MAX / 2);
         assert!(
-            fixture.result.compute_units_consumed < 1_400_000,
-            "width {count} used {} CU",
+            fixture.result.compute_units_consumed < 700_000,
+            "pool {pool} used {} CU",
             fixture.result.compute_units_consumed
         );
     }
+}
+
+#[test]
+fn a_full_daily_admits_its_last_player_and_refuses_the_next() {
+    let mut world = World::new(20_710);
+    let mut daily: ArenaDaily = decode(&world.accounts[&world.daily]);
+    daily.unique_players = ARENA_DAILY_PLAYER_CAPACITY - 1;
+    let lamports = world.accounts[&world.daily].lamports;
+    world.accounts.insert(
+        world.daily,
+        serialized_account(&daily, 8 + ArenaDaily::INIT_SPACE, zkube::ID, lamports),
+    );
+    let (last, refused) = (Pubkey::new_unique(), Pubkey::new_unique());
+    world.player(last);
+    world.player(refused);
+    let entered = world.enter(last);
+    assert!(entered.program_result.is_ok(), "{:?}", entered.program_result);
+    let full: ArenaDaily = decode(&world.accounts[&world.daily]);
+    assert_eq!(full.unique_players, ARENA_DAILY_PLAYER_CAPACITY);
+    // The next new player is refused with nothing spent or created.
+    let before = world.accounts.clone();
+    assert!(world.enter(refused).program_result.is_err());
+    assert_eq!(world.accounts, before);
+    // A player already in plays on: the limit is players, not entries.
+    assert!(world.consume(last, 10, 1, 120).program_result.is_ok());
+    let again = world.enter(last);
+    assert!(again.program_result.is_ok(), "{:?}", again.program_result);
+    let after: ArenaDaily = decode(&world.accounts[&world.daily]);
+    assert_eq!((after.unique_players, after.entries_paid), (ARENA_DAILY_PLAYER_CAPACITY, 2));
 }
 
 #[test]
@@ -2917,6 +2944,107 @@ fn the_result_root_cannot_pass_over_a_finalized_daily() {
 }
 
 /// A small chain: accounts persist between instructions, as on a cluster.
+#[test]
+fn a_skipped_launch_daily_leaves_its_successor_as_the_first_root_member() {
+    let launch = 20_710;
+    let mut world = World::new(launch);
+    let mut root: ProtocolConfig = decode(&world.accounts[&world.protocol]);
+    root.launch_day_id = launch;
+    root.last_daily_id = 0;
+    root.suspended_until_day = launch + 1;
+    world.accounts.insert(
+        world.protocol,
+        program_account(&root, 8 + ProtocolConfig::INIT_SPACE),
+    );
+    let caller = Pubkey::new_unique();
+    world.accounts.insert(caller, system_account(ACCOUNT_LAMPORTS));
+    let skip = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::SkipSuspendedArenaDaily {
+            protocol: world.protocol,
+            suspended_daily: world.daily,
+            successor_daily: world.following,
+            score_board: board_address(world.daily, DailyBoardKind::Score).0,
+            theme_board: board_address(world.daily, DailyBoardKind::Theme).0,
+            cadence_funding: world.cadence_funding,
+            caller,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::SkipSuspendedArenaDaily {}.data(),
+    };
+    let skipped = world.run(&skip);
+    assert!(skipped.program_result.is_ok(), "{:?}", skipped.program_result);
+    assert_eq!(world.accounts[&world.daily].lamports, 0);
+
+    // The surviving day finalizes, and a later day follows it.
+    let mut survivor: ArenaDaily = decode(&world.accounts[&world.following]);
+    assert_eq!(survivor.predecessor_day, launch - 1);
+    survivor.status = PeriodStatus::Finalized;
+    survivor.finalized_at = finalized_at(launch + 1);
+    let (later_daily, later) = daily_fixture(launch + 2, PeriodStatus::Finalized, true);
+    let mut archive = Vec::new();
+    for (address, state) in [(world.following, survivor), (later_daily, later)] {
+        let lamports = world.accounts.get(&address).map_or(ACCOUNT_LAMPORTS, |account| account.lamports);
+        world.accounts.insert(
+            address,
+            serialized_account(&state, 8 + ArenaDaily::INIT_SPACE, zkube::ID, lamports),
+        );
+        let (score_board, _, score_account, _) =
+            board_fixture(address, state.day_id, DailyBoardKind::Score, 0, 0, &[], &[]);
+        let (theme_board, _, theme_account, _) =
+            board_fixture(address, state.day_id, DailyBoardKind::Theme, 0, 0, &[], &[]);
+        world.accounts.insert(score_board, score_account);
+        world.accounts.insert(theme_board, theme_account);
+        archive.push(anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts: zkube::accounts::ArchiveArenaDaily {
+                protocol: world.protocol,
+                arena_daily: address,
+                score_board,
+                theme_board,
+                caller,
+            }
+            .to_account_metas(None),
+            data: zkube::instruction::ArchiveArenaDaily {}.data(),
+        });
+    }
+    // The later day cannot be first; the survivor is, and then the chain continues.
+    assert!(world.run(&archive[1]).program_result.is_err());
+    let first = world.run(&archive[0]);
+    assert!(first.program_result.is_ok(), "{:?}", first.program_result);
+    let after: ProtocolConfig = decode(&world.accounts[&world.protocol]);
+    assert_eq!(after.last_daily_id, launch + 1);
+    assert!(world.run(&archive[0]).program_result.is_err());
+    assert!(world.run(&archive[1]).program_result.is_ok());
+
+    // Root coverage lets the survivor expire its claims and close like any other day.
+    let mut expired: ArenaDaily = decode(&world.accounts[&world.following]);
+    expired.claims_expired = true;
+    let lamports = world.accounts[&world.following].lamports;
+    world.accounts.insert(
+        world.following,
+        serialized_account(&expired, 8 + ArenaDaily::INIT_SPACE, zkube::ID, lamports),
+    );
+    world.runtime.sysvars.clock.unix_timestamp =
+        finalized_at(launch + 1) + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
+    let close = anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::CloseArenaDaily {
+            protocol: world.protocol,
+            arena_daily: world.following,
+            score_board: board_address(world.following, DailyBoardKind::Score).0,
+            theme_board: board_address(world.following, DailyBoardKind::Theme).0,
+            cadence_funding: world.cadence_funding,
+            caller,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::CloseArenaDaily {}.data(),
+    };
+    let closed = world.run(&close);
+    assert!(closed.program_result.is_ok(), "{:?}", closed.program_result);
+    assert_eq!(world.accounts[&world.following].lamports, 0);
+}
+
 struct World {
     runtime: Mollusk,
     accounts: std::collections::HashMap<Pubkey, Account>,
