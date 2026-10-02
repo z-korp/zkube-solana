@@ -30,7 +30,7 @@ class PortraitImports(unittest.TestCase):
         skins = json.loads((ROOT / 'assets/catalog.json').read_text())['skins']
         expected = {'assets/common/mark.png', 'assets/common/brand/realms.png', 'assets/common/brand/arena.png'}
         expected.update(f'assets/common/sounds/effects/{name}.mp3'
-                        for name in ('star', 'constraint-complete', 'victory', 'over'))
+                        for name in ('swipe', 'explode', 'bonus-activate', 'star', 'over', 'levelup', 'victory'))
         for realm in range(1, 11):
             expected.update(f'assets/theme-{realm}/{name}.png' for name in
                             ['background'] + [f'boss/{frame}' for frame in

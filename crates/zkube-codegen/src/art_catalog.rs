@@ -241,6 +241,20 @@ fn objective(theme: &zkube_core::DailyTheme) -> Value {
         "description": super::captions::caption(theme.kind, theme.value, 0)})
 }
 
+/// Every sound the board plays: its cue, as presentation code names it, and
+/// its clip under assets/common/sounds/effects. The clips are imported and the
+/// C# names emitted from this one list, so a played cue cannot lack its clip.
+/// The small win is the old client's level-up sting until its own is authored.
+pub const SOUND_CUES: [(&str, &str); 7] = [
+    ("Move", "swipe"),
+    ("LineBreak", "explode"),
+    ("Bonus", "bonus-activate"),
+    ("Star", "star"),
+    ("Loss", "over"),
+    ("SmallWin", "levelup"),
+    ("BigWin", "victory"),
+];
+
 pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<String, String> {
     let authored: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
     let realms = authored["realms"]
@@ -250,9 +264,9 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
         return Err("Art realm count disagrees with catalog".into());
     }
     let effects: serde_json::Map<String, Value> =
-        ["over", "victory", "star", "constraint-complete"]
+        SOUND_CUES
             .into_iter()
-            .map(|name| {
+            .map(|(_, name)| {
                 (
                     name.into(),
                     json!(format!("/assets/common/sounds/effects/{name}.mp3")),

@@ -632,7 +632,8 @@ namespace ZKube.Presentation
                         index++;
                     } while (index < events.Length && events[index].Kind == PresentationKind.BlockMoved && events[index].Payload[0] == reason);
                     index--;
-                    sound(reason == 0 ? "move" : "swipe");
+                    // The player's move has its sound, every time; falls are silent.
+                    if (reason == 0) sound(SoundCues.Move);
                     if (reason == 0) yield return Slide(targets, starts, reducedMotion ? 0 : .1f);
                     else yield return Fall(targets, starts, reducedMotion);
                     continue;
@@ -643,12 +644,12 @@ namespace ZKube.Presentation
                     var removed = blocks.Where(pair => after[pair.Key] == 0).ToArray();
                     if (item.Kind == PresentationKind.RowsCleared)
                     {
-                        sound("break"); clears++;
+                        sound(SoundCues.LineBreak); clears++;
                         yield return Clear(removed, clears, (uint)NativeWire.Read(item.Payload, 0, 2), reducedMotion);
                     }
                     else
                     {
-                        sound("bonus-activate");
+                        sound(SoundCues.Bonus);
                         yield return Dissolve(removed, reducedMotion);
                     }
                     SetBoard(after);

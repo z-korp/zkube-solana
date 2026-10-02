@@ -748,9 +748,12 @@
     }
   ],
   "effects": {
-    "constraint-complete": "/assets/common/sounds/effects/constraint-complete.mp3",
+    "bonus-activate": "/assets/common/sounds/effects/bonus-activate.mp3",
+    "explode": "/assets/common/sounds/effects/explode.mp3",
+    "levelup": "/assets/common/sounds/effects/levelup.mp3",
     "over": "/assets/common/sounds/effects/over.mp3",
     "star": "/assets/common/sounds/effects/star.mp3",
+    "swipe": "/assets/common/sounds/effects/swipe.mp3",
     "victory": "/assets/common/sounds/effects/victory.mp3"
   },
   "guardianRules": [

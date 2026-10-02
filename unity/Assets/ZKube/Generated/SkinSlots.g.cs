@@ -184,4 +184,15 @@ namespace ZKube.Core.Generated
         public const string LightGlow = "light-glow";
         public static string BlockTint(int width) => "block-tint-" + width;
     }
+
+    public static class SoundCues
+    {
+        public const string Move = "swipe";
+        public const string LineBreak = "explode";
+        public const string Bonus = "bonus-activate";
+        public const string Star = "star";
+        public const string Loss = "over";
+        public const string SmallWin = "levelup";
+        public const string BigWin = "victory";
+    }
 }

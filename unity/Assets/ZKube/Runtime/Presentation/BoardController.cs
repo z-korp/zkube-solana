@@ -363,8 +363,8 @@ namespace ZKube.Presentation
             View.Summary(State, Session, false);
             View.Celebrate(previousStars, State.LatchedStarSources, State.ComboCounter,
                 transition.Events.Any(e => e.Kind == PresentationKind.PerfectClear));
-            if (State.LatchedStarSources != previousStars) Sound("star");
-            else if ((Session.Daily ? State.DailyScore : State.Score) > previousScore) Sound("constraint-complete");
+            // One star sound for an action's newly earned stars; an ended run, which keeps none, earns none.
+            if (HudLayout.NewStars(previousStars, State.LatchedStarSources).Any()) Sound(SoundCues.Star);
             if (Haptics && Application.platform == RuntimePlatform.Android) Handheld.Vibrate();
         }
         private IEnumerator Animate(RunTransition transition, TaskCompletionSource<bool> completion)
@@ -426,7 +426,7 @@ namespace ZKube.Presentation
         {
             if (!IsTerminal()) return;
             bool completed = State.Phase == (byte)CorePhase.LevelComplete || State.EndReason == 1;
-            View.Terminal(completed); music.Pause(); if (playFeedback) Sound(completed ? "victory" : "over");
+            View.Terminal(completed); music.Pause(); if (playFeedback) Sound(ResultCue(Session, State));
             // The host shows the result; a board without one simply leaves.
             if (Host?.Terminal != null) Host.Terminal(this);
             else Host?.Exit?.Invoke();
@@ -511,8 +511,22 @@ namespace ZKube.Presentation
             if (music != null) music.volume = (float)MusicVolume;
             if (effects != null) effects.volume = (float)EffectsVolume;
         }
+        // The result's sound, by what the run kept: no stars is the loss, one or
+        // two a small win, three a big win (an ended Campaign run keeps none). A
+        // Daily has no stars: a new best is the big win, any other score the
+        // small one, and no score the loss.
+        public static string ResultCue(BoardSession session, RunSummary state)
+        {
+            if (session.Daily)
+                return state.DailyScore == 0 ? SoundCues.Loss : state.DailyScore > (session.DailyFacts?.Best ?? uint.MaxValue) ? SoundCues.BigWin : SoundCues.SmallWin;
+            int stars = state.EndReason == 3 ? 0 : HudLayout.StarCount(state.LatchedStarSources);
+            return stars == 3 ? SoundCues.BigWin : stars > 0 ? SoundCues.SmallWin : SoundCues.Loss;
+        }
+        // Every cue the board plays, muted or not, by its SoundCues name.
+        public event Action<string> SoundPlayed;
         private void Sound(string name)
         {
+            SoundPlayed?.Invoke(name);
             if (Muted || effects == null) return;
             if (!clips.TryGetValue(name, out var clip)) { clip = Resources.Load<AudioClip>("ZKube/Audio/common/sounds__effects__" + name); clips[name] = clip; }
             if (clip != null) effects.PlayOneShot(clip);

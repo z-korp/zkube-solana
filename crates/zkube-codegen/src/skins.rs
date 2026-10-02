@@ -484,8 +484,12 @@ pub fn csharp() -> String {
             pascal(token)
         );
     }
-    out +=
-        "        public static string BlockTint(int width) => \"block-tint-\" + width;\n    }\n}\n";
+    out += "        public static string BlockTint(int width) => \"block-tint-\" + width;\n    }\n\n\
+            \x20   public static class SoundCues\n    {\n";
+    for (cue, clip) in super::art_catalog::SOUND_CUES {
+        let _ = writeln!(out, "        public const string {cue} = \"{clip}\";");
+    }
+    out += "    }\n}\n";
     out
 }
 
