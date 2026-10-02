@@ -206,13 +206,14 @@ spending approval.
   `consume_keeps_both_boards_sorted_at_capacity` and
   `full_board_finalization_stays_below_one_million_compute_units` guard width, allocation and compute.
   Sizing searches stored harmonic denominators and then scans less than one stored step, with the same exact
-  result as the rank-by-rank scan. A Daily admits `ARENA_DAILY_PLAYER_CAPACITY` distinct players, the widest
-  field those denominators cover: a further new player is refused before a Kredit is spent, players already in
-  keep unlimited entries, and so every admitted field finalizes in one transaction. Raising it is a program
-  upgrade with a longer table. `stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan`,
-  `sizing_never_scans_more_than_one_stored_step_and_refuses_a_wider_field`,
-  `a_full_daily_admits_its_last_player_and_refuses_the_next` and
-  `finalization_sizes_a_full_daily_field_in_one_transaction` guard the arithmetic, the limit and its compute.
+  result as the rank-by-rank scan. `stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan` and
+  `sizing_never_scans_more_than_one_stored_step_and_refuses_a_wider_field` guard the arithmetic.
+- **Daily field:** a Daily admits at most `ARENA_DAILY_PLAYER_CAPACITY` (262,144) distinct players, the widest
+  field the stored denominators cover, so every admitted field finalizes within one transaction's compute limit.
+  The next new player that day is refused at entry before a Kredit is spent and can enter the next Daily;
+  players already in keep unlimited entries. The owner approved the limit on 2026-10-02; raising it is a program
+  upgrade with a longer table. `a_full_daily_admits_its_last_player_and_refuses_the_next` and
+  `finalization_sizes_a_full_daily_field_in_one_transaction` guard the limit and its compute.
 - **One row per player per board:** retain that player's best qualifying run with unlimited paid entries.
   Ordering is metric descending, earliest finalized achievement, then wallet bytes.
   `board_order_uses_metric_then_time_then_owner_bytes`,
