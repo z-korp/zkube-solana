@@ -436,8 +436,8 @@ namespace ZKube.Presentation
             float height = Mathf.Min(rect.height, 32 * Density), inset = 4 * Density;
             var track = new Rect(rect.xMax - 2 * height, rect.center.y - height / 2, 2 * height, height);
             Piece(name + " track", SkinSlots.ToggleTrack, track, hit.transform);
-            var on = Pill(name + " on", new Rect(track.x + inset, track.y + inset, track.width - 2 * inset, track.height - 2 * inset), hit.transform,
-                SkinToggle.OnTrack);
+            var on = Piece(name + " on", SkinSlots.SliderFill, new Rect(track.x + inset, track.y + inset, track.width - 2 * inset, track.height - 2 * inset),
+                hit.transform);
             var knob = Piece(name + " knob", SkinSlots.ToggleKnob, new Rect(track.x, track.y, height, height), hit.transform);
             var toggle = hit.gameObject.AddComponent<SkinToggle>();
             toggle.Bind(track, on, knob, value, changed);

@@ -213,7 +213,7 @@ namespace ZKube.Presentation
         // Settings, as the wireframe draws it: the title, the Sound card (a
         // slider per channel, whose name switches it off and back to the level
         // it had), the card of haptics, reduced motion and the text size, then
-        // the identity's own actions and where preferences are kept.
+        // the identity's own actions.
         private void Settings(SettingsPageView value, string[] notices)
         {
             var kit = Kit; var inside = kit.Inside();
@@ -227,12 +227,11 @@ namespace ZKube.Presentation
                 Tapped(inside.Row("Text size", null, "Text size", null, inside.Value("Text size value", current, SkinTokens.Text), true),
                     "Text size: " + (value.LargeText ? "larger" : "standard"), value.ToggleText) }, "Switches card"));
             if (value.Muted) pieces.Add(Buttons(kit, (new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, ScreenKit.Kind.Quiet, SkinSlots.IconSound)));
-            // The identity's own actions are quiet buttons over where preferences are kept.
+            // The identity's own actions are quiet buttons.
             if (value.Identity.Length != 0)
                 pieces.Add(value.Identity.All(block => block.Kind == PanelKind.Button)
                     ? Buttons(kit, value.Identity.Select(block => (block.Action, block.Primary == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet, block.Sprite)).ToArray())
                     : BlockPiece("Identity settings", value.Identity, kit));
-            pieces.Add(kit.Note("Preferences save on this device."));
             pieces.Add(Piece.Grow);
             Compose(pieces.ToArray());
         }

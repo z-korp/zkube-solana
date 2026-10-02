@@ -51,10 +51,9 @@ namespace ZKube.Presentation
     // An on/off switch built by SkinUi.Toggle; a tap flips it.
     public sealed class SkinToggle : MonoBehaviour, IPointerClickHandler
     {
-        // As the wireframe draws a switch: on is a teal track under a light knob,
-        // off a dim knob on the dark track. Gold is kept for what is earned.
-        public static readonly Color OnTrack = new Color(31 / 255f, 107 / 255f, 95 / 255f, 1), OnKnob = new Color(156 / 255f, 240 / 255f, 230 / 255f, 1),
-            OffKnob = new Color(143 / 255f, 166 / 255f, 178 / 255f, 1);
+        // On is the sound sliders' gold fill under the knob in its own light
+        // (DECISIONS 2026-10-02), off a dim knob on the dark track.
+        public static readonly Color OnKnob = Color.white, OffKnob = new Color(143 / 255f, 166 / 255f, 178 / 255f, 1);
         private Rect track;
         private Image knob, on;
         private Action<bool> changed;

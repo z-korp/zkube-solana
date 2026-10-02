@@ -973,7 +973,7 @@ namespace ZKube.Tests
         // The map greeting, its rule page, the profile and settings, as the v3
         // composites draw them, on both phones: every word fits in the safe area,
         // each action is 48 dp to touch and each screen speaks the spec's count
-        // (8, 44 and 21 words, and the rule page's 6 with its rule and effect;
+        // (8, 44 and 16 words, and the rule page's 6 with its rule and effect;
         // a guardian's line is its own).
         [UnityTest] public IEnumerator GreetingRuleProfileAndSettingsSpeakTheirWordsAndFitOnBothPhones()
         {
@@ -1037,7 +1037,7 @@ namespace ZKube.Tests
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " profile");
                     app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
-                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " settings", 21);
+                    Fits(app.GetComponentsInChildren<TMP_Text>(), phone + " settings", 16);
                     foreach (var name in new[] { "Music switch", "Effects switch", "Text size: standard", "Restore purchases" }) Touch(name, phone + " settings");
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, phone + " settings");
                 }

@@ -66,14 +66,16 @@ namespace ZKube.Presentation.Tests
             toggle.SetWithoutNotify(true); Assert.IsTrue(toggle.Value); Assert.AreEqual(2, reported.Count);
         }
 
-        // On is a teal track under a light knob; off, a dim knob on the dark track, never gold.
-        [Test] public void ASwitchReadsOnInTealAndOffAsADimKnob()
+        // On is the sound slider's gold fill under a lit knob; off, a dim knob on the dark track.
+        [Test] public void ASwitchReadsOnInTheSlidersGoldAndOffAsADimKnob()
         {
             var toggle = ui.Toggle("Sound", new Rect(0, 0, 300, 48), true, _ => { }, root.transform);
+            var slider = ui.Slider("Music", new Rect(0, 60, 300, 48), .5f, _ => { }, root.transform);
             float Luminance(Color c) => .2126f * c.r + .7152f * c.g + .0722f * c.b;
             var on = Part(toggle, "Sound on"); var knob = Part(toggle, "Sound knob");
-            Assert.IsTrue(on.enabled); Assert.AreEqual(SkinToggle.OnTrack, on.color);
-            Assert.Greater(on.color.g, on.color.r + .2f, "On is teal"); Assert.Greater(on.color.b, on.color.r + .2f, "On is teal, not gold");
+            Assert.IsTrue(on.enabled);
+            Assert.AreEqual(Part(slider, "Music fill bar").sprite, on.sprite, "On wears the sliders' gold fill");
+            Assert.AreEqual(Part(slider, "Music fill bar").color, on.color);
             Assert.AreEqual(SkinToggle.OnKnob, knob.color);
             float lit = Luminance(knob.color);
             toggle.SetWithoutNotify(false);
