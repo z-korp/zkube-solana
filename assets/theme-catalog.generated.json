@@ -4762,13 +4762,13 @@
       ],
       "guardian": {
         "face": [
-          0.28125,
-          0.09375,
-          0.4375,
-          0.609375
+          0.3671875,
+          0.23567708333333334,
+          0.265625,
+          0.2786458333333333
         ],
-        "railFrontY": 0.8658854166666666,
-        "railY": 0.8333333333333334
+        "railFrontY": 0.7981770833333334,
+        "railY": 0.7877604166666666
       },
       "guardianLines": {
         "dailyGreeting": "The same mosaic for all eyes today. See the pattern faster than anyone.",
