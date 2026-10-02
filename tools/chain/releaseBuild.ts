@@ -2,7 +2,7 @@
 // plan reads. A hash is evidence only for the exact compiler, tools and
 // options that produced it, so they are pinned here and travel with the ELF.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { sha256 } from "./chainRelease.js";
 
@@ -36,8 +36,12 @@ const cargo: RunCargo = (args, env, cwd) => execFileSync("cargo", [...args],
  * the pinned tools and only the recorded compiler inputs, offline, and records
  * what built it. A build whose compiler saw any other flags leaves no record.
  */
-export function buildRelease(root: string, run: RunCargo = cargo,
+export function buildRelease(given: string, run: RunCargo = cargo,
   inherited: Record<string, string | undefined> = process.env) {
+  // A checkout reached through a symlink is built where it really lives,
+  // which is where cargo looks for configuration: every path below is the
+  // real one, and the directories above both paths are checked.
+  const root = realpathSync(given);
   const env: Record<string, string> = { ...RELEASE_BUILD.environment,
     CARGO_TARGET_DIR: resolve(root, RELEASE_BUILD.targetDirectory) };
   for (const name of RELEASE_BUILD.inherited) {
@@ -51,9 +55,11 @@ export function buildRelease(root: string, run: RunCargo = cargo,
   // ELF without a trace here. None is read to decide which are harmless: the
   // release build runs only where no outside configuration exists.
   const outside = [resolve(env.HOME!, ".cargo")];
-  for (let directory = dirname(resolve(root)); ; directory = dirname(directory)) {
-    outside.push(resolve(directory, ".cargo"));
-    if (directory === dirname(directory)) break;
+  for (const start of new Set([resolve(given), root])) {
+    for (let directory = dirname(start); ; directory = dirname(directory)) {
+      outside.push(resolve(directory, ".cargo"));
+      if (directory === dirname(directory)) break;
+    }
   }
   for (const directory of outside) {
     for (const file of ["config.toml", "config"]) {

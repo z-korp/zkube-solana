@@ -123,13 +123,16 @@ namespace ZKube.Integration.Client.Runs
                 if (entry.Snapshot == null) throw new InvalidOperationException("Daily entry unavailable: " + entry.Status);
                 var claims = await EntryClaims(lease.Owner, observation.Day, token).ConfigureAwait(false);
                 var validator = await rpc.ClosestValidator(token).ConfigureAwait(false);
-                // The entry is offered with every due finalization, then with
-                // fewer, then on its own: the executor sends the most that fits,
-                // and a finished day never stands between a player and their run.
+                // Everything optional is dropped one step at a time: the due
+                // finalizations, oldest kept longest, then any claims, until the
+                // entry is alone. The executor sends the first size that fits and
+                // that its simulation accepts; a size the same as the next is offered once.
                 long at = now(); var due = observation.Cadence.Steps;
-                var sizes = Enumerable.Range(0, due.Count + 1).Select(dropped => planner.PrepareAndDelegate(
-                    planner.PrepareDaily(session.Actor, player, entry.Snapshot, claims, at, observation.Occupied, due.Take(due.Count - dropped)),
-                    session.Actor, validator.Identity)).ToArray();
+                TransactionPlan Size(IEnumerable<CadenceStep> steps, IEnumerable<ValidatedBoardReward> rewards) => planner.PrepareAndDelegate(
+                    planner.PrepareDaily(session.Actor, player, entry.Snapshot, rewards, at, observation.Occupied, steps), session.Actor, validator.Identity);
+                var sizes = Enumerable.Range(0, due.Count + 1).Select(dropped => Size(due.Take(due.Count - dropped), claims))
+                    .Append(Size(null, Array.Empty<ValidatedBoardReward>()))
+                    .GroupBy(size => size.Instructions.Count).Select(group => group.First()).ToArray();
                 // Persist the locator before any signing/send. A failed or
                 // expired preparation clears it only through fresh absence proof.
                 await markers.Save(new RunMarker(lease.Owner, player.NextRunId,

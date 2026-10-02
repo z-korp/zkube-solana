@@ -70,8 +70,12 @@ pub mod solana {
         instructions::arcade_instructions::handler_consume_arena_run(ctx)
     }
 
-    pub fn finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
-        instructions::arcade_instructions::handler_finalize_arena_daily(ctx)
+    pub fn finalize_arena_daily(
+        ctx: Context<FinalizeArenaDaily>,
+        day_id: u32,
+        following_day: u32,
+    ) -> Result<()> {
+        instructions::arcade_instructions::handler_finalize_arena_daily(ctx, day_id, following_day)
     }
 
     pub fn claim_daily_prize(

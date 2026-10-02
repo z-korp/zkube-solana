@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { parseOperatorArgs } from "./cli.js";
 import { RELEASE_BUILD, buildRelease, releaseArtifact, type RunCargo } from "./releaseBuild.js";
 
 const scratch = fileURLToPath(new URL("../../build/release-build-tests", import.meta.url));
+beforeEach(() => mkdirSync(scratch, { recursive: true }));
 afterEach(() => rmSync(scratch, { recursive: true, force: true }));
 
 const VERSIONS = `solana-cargo-build-sbf ${RELEASE_BUILD.cargoBuildSbf}\nplatform-tools ${RELEASE_BUILD.platformTools}\nrustc ${RELEASE_BUILD.rustc}\n`;
@@ -19,11 +20,12 @@ function tools(versions: string, output: Buffer, rustflags: readonly string[] = 
   const run: RunCargo = (args, env, cwd) => {
     calls.push({ args, env, cwd });
     if (args.includes("--version")) return versions;
-    // What cargo leaves behind: the ELF, and the fingerprint of the flags the compiler really got.
-    const fingerprint = `${scratch}/${RELEASE_BUILD.targetDirectory}/${RELEASE_BUILD.target}/release/.fingerprint/solana-0123456789abcdef`;
+    // What cargo leaves behind in the checkout it runs in: the ELF, and the fingerprint of the
+    // flags the compiler really got.
+    const fingerprint = `${cwd}/${RELEASE_BUILD.targetDirectory}/${RELEASE_BUILD.target}/release/.fingerprint/solana-0123456789abcdef`;
     mkdirSync(fingerprint, { recursive: true });
     writeFileSync(`${fingerprint}/lib-solana.json`, JSON.stringify({ rustc: 1, rustflags }));
-    writeFileSync(`${scratch}/${RELEASE_BUILD.artifact}`, output);
+    writeFileSync(`${cwd}/${RELEASE_BUILD.artifact}`, output);
     return "";
   };
   return { run, calls };
@@ -71,6 +73,31 @@ it("release_build_gives_the_compiler_only_the_recorded_inputs_and_refuses_any_ot
   mkdirSync(`${scratch}/.cargo`, { recursive: true });
   writeFileSync(`${scratch}/.cargo/config.toml`, "[net]\noffline = true\n");
   expect(buildRelease(scratch, tools(VERSIONS, elf(1)).run, inherited).sha256).toBe(hash(elf(1)));
+});
+
+it("a_checkout_reached_through_a_symlink_is_checked_and_built_where_it_really_lives", () => {
+  // The checkout lives in physical/; the build is given alias/, a symlink to it. Cargo runs in
+  // the real checkout and reads configuration above it, so that is checked as well as the
+  // directories above the path the build was given.
+  const physical = `${scratch}/physical/checkout`, alias = `${scratch}/alias/checkout`;
+  mkdirSync(physical, { recursive: true }); mkdirSync(dirname(alias), { recursive: true });
+  symlinkSync(physical, alias);
+  for (const path of [`${scratch}/physical/.cargo/config.toml`, `${scratch}/physical/.cargo/config`, `${scratch}/alias/.cargo/config.toml`]) {
+    for (const config of ["profile.release.opt-level = 1\nprofile.release.lto = false\n", ""]) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, config);
+      const refused = tools(VERSIONS, elf(1));
+      expect(() => buildRelease(alias, refused.run, inherited)).toThrow(`cargo configuration outside the repository: ${path}`);
+      expect(refused.calls).toHaveLength(0);
+      rmSync(path);
+    }
+  }
+  // With nothing outside, the build runs in the real checkout and records there.
+  const built = tools(VERSIONS, elf(4));
+  expect(buildRelease(alias, built.run, inherited).sha256).toBe(hash(elf(4)));
+  expect(built.calls.map(({ cwd }) => cwd)).toEqual([physical, physical]);
+  expect(built.calls.every(({ env }) => env.CARGO_TARGET_DIR === `${physical}/${RELEASE_BUILD.targetDirectory}`)).toBe(true);
+  expect(releaseArtifact(physical, hash(elf(4))).artifactSha256).toBe(hash(elf(4)));
 });
 
 it("release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it", () => {

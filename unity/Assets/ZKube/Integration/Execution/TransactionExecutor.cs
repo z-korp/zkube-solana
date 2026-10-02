@@ -54,34 +54,31 @@ namespace ZKube.Integration.Execution
                     await rpc.ResolveEr(planner.ActiveRun(plan.Owner, plan.RunId.Value)).ConfigureAwait(false);
                 var lease = await rpc.LatestBlockhash(endpoint, cancellation).ConfigureAwait(false);
                 bool fastEr = plan.Route == PlanRoute.ResolvedEr && !plan.OwnerSignatureRequired;
-                int chosen = 0;
-                for (; chosen < sizes.Count - 1; chosen++)
+                // Each size is compiled, priced and simulated once, largest first.
+                // A size that does not fit a packet or that its simulation
+                // rejects steps down to the next; the last is the intent alone.
+                byte[] transaction = null;
+                for (int index = 0; ; index++)
                 {
-                    byte[] candidate;
-                    try { candidate = SolanaWire.UnsignedTransaction(sizes[chosen].CompileMessage(lease.Blockhash)); }
-                    catch (Exception error) when (error is ArgumentException || error is FormatException) { continue; }
-                    foreach (var signer in signers) candidate = signer.PartialSign(candidate);
-                    if (fastEr || (await rpc.Simulate(endpoint, candidate, lease, cancellation).ConfigureAwait(false)).Succeeded) break;
-                }
-                plan = sizes[chosen];
-                var message = plan.CompileMessage(lease.Blockhash);
-                var transaction = SolanaWire.UnsignedTransaction(message);
-                var feeTask = rpc.FeeForMessage(endpoint, message, cancellation);
-                var balanceTask = rpc.Balance(endpoint, plan.FeePayer, cancellation);
-                var rentTask = plan.FeePayer == plan.Owner ? Task.FromResult(0UL) : rpc.RentFloor(endpoint, 0, cancellation);
-                await Task.WhenAll(feeTask, balanceTask, rentTask).ConfigureAwait(false);
-                ulong fee = feeTask.Result;
-                if (plan.FeePayer == plan.Owner && balanceTask.Result < fee)
-                    return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage");
-                try { plan.RequireDeviceFunding(balanceTask.Result, rentTask.Result, fee); }
-                catch (InvalidOperationException)
-                { return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill"); }
-
-                foreach (var signer in signers) transaction = signer.PartialSign(transaction);
-                if (!fastEr)
-                {
+                    plan = sizes[index]; bool last = index == sizes.Count - 1;
+                    byte[] message;
+                    try { message = plan.CompileMessage(lease.Blockhash); transaction = SolanaWire.UnsignedTransaction(message); }
+                    catch (Exception error) when (!last && (error is ArgumentException || error is FormatException)) { continue; }
+                    var feeTask = rpc.FeeForMessage(endpoint, message, cancellation);
+                    var balanceTask = rpc.Balance(endpoint, plan.FeePayer, cancellation);
+                    var rentTask = plan.FeePayer == plan.Owner ? Task.FromResult(0UL) : rpc.RentFloor(endpoint, 0, cancellation);
+                    await Task.WhenAll(feeTask, balanceTask, rentTask).ConfigureAwait(false);
+                    ulong fee = feeTask.Result;
+                    if (plan.FeePayer == plan.Owner && balanceTask.Result < fee)
+                        return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage");
+                    try { plan.RequireDeviceFunding(balanceTask.Result, rentTask.Result, fee); }
+                    catch (InvalidOperationException)
+                    { return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill"); }
+                    foreach (var signer in signers) transaction = signer.PartialSign(transaction);
+                    if (fastEr) break;
                     var simulation = await rpc.Simulate(endpoint, transaction, lease, cancellation).ConfigureAwait(false);
-                    if (!simulation.Succeeded) return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "simulation-rejected",
+                    if (simulation.Succeeded) break;
+                    if (last) return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "simulation-rejected",
                         chainError: simulation.ErrorJson);
                 }
                 cancellation.ThrowIfCancellationRequested();

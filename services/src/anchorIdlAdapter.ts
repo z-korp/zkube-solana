@@ -232,6 +232,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         break;
       case "finalize_arena_daily":
         accounts = { caller: keeper, protocol, ...boards(), followingDaily: following(), cadenceFunding };
+        args = { dayId: requiredNumber(c.dayId, "day id"), followingDay: requiredNumber(c.followingDayId, "following day id") };
         break;
       case "close_arena_daily":
         // The newest prepared Daily takes what was never claimed; a Daily

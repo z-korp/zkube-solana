@@ -1114,7 +1114,11 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
             caller,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FinalizeArenaDaily {}.data(),
+        data: zkube::instruction::FinalizeArenaDaily {
+            day_id,
+            following_day: day_id + 1,
+        }
+        .data(),
     };
     let mut late = mollusk();
     late.sysvars.clock.unix_timestamp = day_window(current_daily_state.day_id).unwrap().1;
@@ -2056,7 +2060,11 @@ fn finalize_board_capacity(
             caller,
         }
         .to_account_metas(None),
-        data: zkube::instruction::FinalizeArenaDaily {}.data(),
+        data: zkube::instruction::FinalizeArenaDaily {
+            day_id,
+            following_day: day_id + 1,
+        }
+        .data(),
     };
     let accounts = vec![
         (protocol, root),
@@ -2240,8 +2248,8 @@ fn finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent() {
                     - rent.minimum_balance(space))
         );
         // Finalizing again is a no-op: whoever comes second succeeds and
-        // nothing changes. It still checks its accounts: a Daily that is not
-        // the recorded successor rejects.
+        // nothing changes, whatever has happened to the successor since. It
+        // still checks its accounts: each must be the canonical one for its day.
         let again = Pubkey::new_unique();
         let mut accounts = result.resulting_accounts.clone();
         accounts.push((again, system_account(ACCOUNT_LAMPORTS)));
@@ -2250,24 +2258,31 @@ fn finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent() {
             stranger,
             program_account(&stranger_state, 8 + ArenaDaily::INIT_SPACE),
         ));
-        let repeat = |following_daily| anchor_lang::solana_program::instruction::Instruction {
-            program_id: zkube::ID,
-            accounts: zkube::accounts::FinalizeArenaDaily {
-                protocol: fixture.protocol,
-                arena_daily: *daily,
-                following_daily,
-                score_board: fixture.score_board,
-                theme_board: fixture.theme_board,
-                cadence_funding: *cadence_funding,
-                caller: again,
+        let finalized_day = 20_651;
+        let repeat = |following_day: u32, following_daily| {
+            anchor_lang::solana_program::instruction::Instruction {
+                program_id: zkube::ID,
+                accounts: zkube::accounts::FinalizeArenaDaily {
+                    protocol: fixture.protocol,
+                    arena_daily: *daily,
+                    following_daily,
+                    score_board: fixture.score_board,
+                    theme_board: fixture.theme_board,
+                    cadence_funding: *cadence_funding,
+                    caller: again,
+                }
+                .to_account_metas(None),
+                data: zkube::instruction::FinalizeArenaDaily {
+                    day_id: finalized_day,
+                    following_day,
+                }
+                .data(),
             }
-            .to_account_metas(None),
-            data: zkube::instruction::FinalizeArenaDaily {}.data(),
         };
         let mut later = mollusk();
         later.sysvars.clock.unix_timestamp = day_window(20_651).unwrap().1 + 86_400 * 9;
         let repeated = later.process_instruction(
-            &repeat(daily_fixture(20_652, PeriodStatus::Open, false).0),
+            &repeat(20_652, daily_fixture(20_652, PeriodStatus::Open, false).0),
             &accounts,
         );
         assert!(
@@ -2278,8 +2293,17 @@ fn finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent() {
         for (address, account) in &accounts {
             assert_eq!(resulting_account(&repeated, address), account);
         }
+        let elsewhere = later.process_instruction(&repeat(20_653, stranger), &accounts);
+        assert!(
+            elsewhere.program_result.is_ok(),
+            "{:?}",
+            elsewhere.program_result
+        );
+        for (address, account) in &accounts {
+            assert_eq!(resulting_account(&elsewhere, address), account);
+        }
         assert!(later
-            .process_instruction(&repeat(stranger), &accounts)
+            .process_instruction(&repeat(20_652, stranger), &accounts)
             .program_result
             .is_err());
     }
@@ -2513,19 +2537,23 @@ fn finalization_rejects_skipping_its_funding_successor() {
         let cadence_funding = Pubkey::find_program_address(&[CADENCE_FUNDING_SEED], &zkube::ID).0;
         let caller = Pubkey::new_unique();
         let (protocol, root) = root_fixture(day_id);
-        let finalize = |following_daily| anchor_lang::solana_program::instruction::Instruction {
+        let finalize = |following_day: u32| anchor_lang::solana_program::instruction::Instruction {
             program_id: zkube::ID,
             accounts: zkube::accounts::FinalizeArenaDaily {
                 protocol,
                 arena_daily: daily,
-                following_daily,
+                following_daily: daily_fixture(following_day, PeriodStatus::Open, false).0,
                 score_board: board(DailyBoardKind::Score),
                 theme_board: board(DailyBoardKind::Theme),
                 cadence_funding,
                 caller,
             }
             .to_account_metas(None),
-            data: zkube::instruction::FinalizeArenaDaily {}.data(),
+            data: zkube::instruction::FinalizeArenaDaily {
+                day_id,
+                following_day,
+            }
+            .data(),
         };
         let accounts = vec![
             (protocol, root),
@@ -2555,13 +2583,13 @@ fn finalization_rejects_skipping_its_funding_successor() {
         runtime.sysvars.clock.unix_timestamp = day_window(day_id).unwrap().1;
 
         // A later prepared Daily is not the successor: nothing moves.
-        let skipped = runtime.process_instruction(&finalize(later), &accounts);
+        let skipped = runtime.process_instruction(&finalize(day_id + 2), &accounts);
         assert!(skipped.program_result.is_err());
         for (key, original) in &accounts {
             assert_eq!(resulting_account(&skipped, key), original);
         }
 
-        let settled = runtime.process_instruction(&finalize(next), &accounts);
+        let settled = runtime.process_instruction(&finalize(day_id + 1), &accounts);
         assert!(
             settled.program_result.is_ok(),
             "{:?}",
@@ -2803,7 +2831,11 @@ impl World {
                 caller,
             }
             .to_account_metas(None),
-            data: zkube::instruction::FinalizeArenaDaily {}.data(),
+            data: zkube::instruction::FinalizeArenaDaily {
+                day_id: self.day_id,
+                following_day: self.day_id + 1,
+            }
+            .data(),
         };
         self.run(&instruction)
     }
@@ -3316,7 +3348,11 @@ impl Game {
                 caller: self.caller,
             }
             .to_account_metas(None),
-            data: zkube::instruction::FinalizeArenaDaily {}.data(),
+            data: zkube::instruction::FinalizeArenaDaily {
+                day_id: day,
+                following_day: following,
+            }
+            .data(),
         }
     }
 
@@ -4543,4 +4579,79 @@ fn the_largest_cadence_carrying_entry_fits_one_transaction() {
         let board: ArenaBoard = decode(game.board(day, DailyBoardKind::Score));
         assert_eq!(board.payout_count as usize, ARENA_BOARD_CAPACITY);
     }
+}
+
+#[test]
+fn an_optional_finalization_someone_else_already_made_never_fails_the_entry() {
+    // An entry carries a finalization that passed its simulation; before it
+    // lands, another sender finalizes that Daily and closes it, or finalizes
+    // and closes its successor. The finalization is then a no-op and the
+    // entry goes through, once.
+    for close_successor in [false, true] {
+        let day = 20_710;
+        let mut game = Game::launched(day, SEED);
+        let owner = Pubkey::new_unique();
+        game.player(owner);
+        game.at(day + 1, 60);
+        assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
+        game.at(day + 2, 60);
+        assert!(game.send(&[game.prepare(day + 2)]).program_result.is_ok());
+        let carried = [game.finalize(day, day + 1), game.enter(owner, day + 2)];
+        let total = game.total();
+        assert!(game
+            .send(&[game.finalize(day, day + 1)])
+            .program_result
+            .is_ok());
+        if close_successor {
+            assert!(game
+                .send(&[game.finalize(day + 1, day + 2)])
+                .program_result
+                .is_ok());
+            assert!(game
+                .send(&[game.close(day + 1, None)])
+                .program_result
+                .is_ok());
+        } else {
+            assert!(game.send(&[game.close(day, None)]).program_result.is_ok());
+        }
+        let root = game.root();
+        let entered = game.send(&carried);
+        assert!(
+            entered.program_result.is_ok(),
+            "close_successor={close_successor}: {:?}",
+            entered.program_result
+        );
+        assert_eq!(game.state(day + 2).entries_paid, 1);
+        let after = game.root();
+        assert_eq!(
+            (after.last_daily_id, after.daily_root),
+            (root.last_daily_id, root.daily_root)
+        );
+        assert_eq!(game.total(), total);
+    }
+
+    // The no-op is only for a day that really is done. A Daily that does not
+    // exist and the root has never held is not, and every account must still
+    // be the canonical one for the days named.
+    let day = 20_710;
+    let mut game = Game::launched(day, SEED);
+    game.at(day + 3, 60);
+    let before = game.accounts.clone();
+    assert!(game
+        .send(&[game.finalize(day + 1, day + 2)])
+        .program_result
+        .is_err());
+    let mut misnamed = game.finalize(day, day + 1);
+    misnamed.data = zkube::instruction::FinalizeArenaDaily {
+        day_id: day + 1,
+        following_day: day + 2,
+    }
+    .data();
+    assert!(game.send(&[misnamed]).program_result.is_err());
+    for index in [1, 2, 3, 4, 5] {
+        let mut forged = game.finalize(day, day + 1);
+        forged.accounts[index].pubkey = Pubkey::new_unique();
+        assert!(game.send(&[forged]).program_result.is_err());
+    }
+    assert_eq!(game.accounts, before);
 }

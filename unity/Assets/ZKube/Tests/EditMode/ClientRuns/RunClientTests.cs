@@ -169,10 +169,26 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var result = await env.Client.StartDaily();
                 Assert.That(result.Phase, Is.EqualTo("delegated"), "fitting " + fitting);
                 Assert.That(env.Http.Sent, Is.EqualTo(sent));
+                // Each size is simulated once, largest first, and steps down at once when rejected.
+                Assert.That(env.Http.Simulations, Is.EqualTo(3 - fitting));
                 Assert.That(env.Http.SentTransactions, Has.Count.EqualTo(1));
                 Assert.That(Convert.FromBase64String(env.Http.SentTransactions.Single()).Length, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
                 Assert.That(await env.Journal.Load(env.Owner), Is.Null);
             }
+        }
+
+        [Test]
+        public async Task AClaimItsSimulationRejectsStepsDownToTheEntryAlone()
+        {
+            // Proven claims ride the entry only when nothing else does; if the
+            // simulation rejects them anyway, the entry goes alone, never not at all.
+            var env = await Environment.Create(); env.Http.Prepare("daily"); env.Http.IncludeClaims = true;
+            env.Http.SimulationFits = names => !names.Contains("claim_daily_prize");
+            var result = await env.Client.StartDaily();
+            Assert.That(result.Phase, Is.EqualTo("delegated"));
+            Assert.That(env.Http.Sent, Is.EqualTo(new[] { "enter_arena", "delegate_active_run" }));
+            Assert.That(env.Http.Simulations, Is.EqualTo(2));
+            Assert.That(env.Http.SentTransactions, Has.Count.EqualTo(1));
         }
 
         [Test]
@@ -547,6 +563,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             public readonly List<JToken> Extra = new List<JToken>();
             public readonly HashSet<string> Hidden = new HashSet<string>();
             public Func<string[], bool> SimulationFits;
+            public int Simulations;
             public void Prepare(string mode) { player = Runs["initialPlayers"][mode]; States["daily"] = null; Delegated.Clear(); }
             public void ReplaceWithSuccessor(bool opening, bool delegated, string mode = "daily")
             {
@@ -613,6 +630,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                     case "getFeeForMessage": result = Context(new JValue(5000)); break;
                     case "getBalance": result = Context(new JValue((string)request["params"][0] == (string)plans["inputs"]["device"] ? ActualDeviceBalance : 1000000000UL)); break;
                     case "simulateTransaction":
+                        Simulations++;
                         var simulated = TransactionSignatures.Describe(Convert.FromBase64String((string)request["params"][0])).Instructions
                             .Where(ix => ix.ProgramId == protocol.ProgramId).Select(ix => protocol.DecodeInstruction(ix).Name).ToArray();
                         result = Context(new JObject { ["err"] = SimulationFits == null || SimulationFits(simulated) ? null :

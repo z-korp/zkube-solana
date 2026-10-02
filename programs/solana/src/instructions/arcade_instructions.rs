@@ -619,21 +619,24 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
 }
 
 #[derive(Accounts)]
+#[instruction(day_id: u32, following_day: u32)]
 pub struct FinalizeArenaDaily<'info> {
     #[account(mut, seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
-        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()], bump = following_daily.bump)]
-    pub following_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
-        constraint = score_board.bound_to(arena_daily.key(), DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
-    pub score_board: Box<Account<'info, ArenaBoard>>,
-    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump = theme_board.bump,
-        constraint = theme_board.bound_to(arena_daily.key(), DailyBoardKind::Theme) @ ErrorCode::InvalidOwner)]
-    pub theme_board: Box<Account<'info, ArenaBoard>>,
+    /// CHECK: The canonical Daily of `day_id`: waiting, finalized, or closed
+    /// after finalizing. Read in the handler.
+    #[account(mut, seeds = [ARENA_DAILY_SEED, day_id.to_le_bytes().as_ref()], bump)]
+    pub arena_daily: UncheckedAccount<'info>,
+    /// CHECK: The canonical Daily of `following_day`, read in the handler.
+    #[account(mut, seeds = [ARENA_DAILY_SEED, following_day.to_le_bytes().as_ref()], bump)]
+    pub following_daily: UncheckedAccount<'info>,
+    /// CHECK: The Daily's canonical Score board, read in the handler.
+    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump)]
+    pub score_board: UncheckedAccount<'info>,
+    /// CHECK: The Daily's canonical Theme board, read in the handler.
+    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump)]
+    pub theme_board: UncheckedAccount<'info>,
     /// CHECK: Canonical System-owned zero-data PDA; receives the rent the
     /// finalized boards no longer need.
     #[account(mut, seeds = [CADENCE_FUNDING_SEED], bump,
@@ -643,36 +646,75 @@ pub struct FinalizeArenaDaily<'info> {
     pub caller: Signer<'info>,
 }
 
-/// Finalizes a Daily by the clock alone. Anyone may send it: a winner's claim
-/// or the next day's first entry carries it, and a Daily already finalized is
-/// left as it is.
-pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
+/// One of this program's accounts, read by its owner and discriminator.
+fn load<T: AccountDeserialize>(info: &AccountInfo) -> Result<T> {
+    require_keys_eq!(*info.owner, crate::ID, ErrorCode::InvalidOwner);
+    T::try_deserialize(&mut &info.try_borrow_data()?[..])
+}
+
+fn store<T: AccountSerialize>(info: &AccountInfo, account: &T) -> Result<()> {
+    account.try_serialize(&mut &mut info.try_borrow_mut_data()?[..])
+}
+
+/// Finalizes a Daily by the clock alone. Anyone may send it: a winner's seal
+/// or the next day's first entry carries it. A Daily someone already
+/// finalized, and closed or not, is left as it is: the step is optional for
+/// whoever carries it, so being second never fails their transaction.
+pub fn handler_finalize_arena_daily(
+    ctx: Context<FinalizeArenaDaily>,
+    day_id: u32,
+    following_day: u32,
+) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
-    ctx.accounts
-        .arena_daily
-        .require_funding_successor(&ctx.accounts.following_daily)?;
-    if ctx.accounts.arena_daily.finalized() {
+    let source_info = ctx.accounts.arena_daily.to_account_info();
+    let successor_info = ctx.accounts.following_daily.to_account_info();
+    if *source_info.owner != crate::ID {
+        // Closed after finalizing: the result root holds every such day.
+        let root = &ctx.accounts.protocol;
+        require!(
+            root.launch_day_id != 0 && day_id >= root.launch_day_id && day_id <= root.last_daily_id,
+            ErrorCode::InvalidState
+        );
         return Ok(());
     }
-    let (_, closes_at, recovery_ends_at) = day_window(ctx.accounts.arena_daily.day_id)?;
+    let mut source: ArenaDaily = load(&source_info)?;
+    require!(
+        source.version == ACCOUNT_VERSION && source.day_id == day_id,
+        ErrorCode::InvalidVersion
+    );
+    // Finalized and still open for claims; its successor may be gone already.
+    if source.finalized() {
+        return Ok(());
+    }
+    let mut following: ArenaDaily = load(&successor_info)?;
+    require!(following.day_id == following_day, ErrorCode::InvalidPeriod);
+    source.require_funding_successor(&following)?;
+    let (_, closes_at, recovery_ends_at) = day_window(source.day_id)?;
     // Until the recovery deadline a run in flight can still score, so the
     // day waits for it. After it nothing can, and the day never waits on
     // anyone resolving an abandoned run.
     require!(
-        ctx.accounts.arena_daily.predecessor_rollover_applied
+        source.predecessor_rollover_applied
             && now >= closes_at
-            && (ctx.accounts.arena_daily.resolved() || now >= recovery_ends_at),
+            && (source.resolved() || now >= recovery_ends_at),
         ErrorCode::InvalidPeriod
     );
     require!(
-        !ctx.accounts.following_daily.predecessor_rollover_applied
-            && !ctx.accounts.following_daily.finalized(),
+        !following.predecessor_rollover_applied && !following.finalized(),
         ErrorCode::InvalidState
     );
-    let source_info = ctx.accounts.arena_daily.to_account_info();
-    let successor_info = ctx.accounts.following_daily.to_account_info();
-    let source = &mut ctx.accounts.arena_daily;
-    let settlement = source.settle_into(&mut ctx.accounts.following_daily, now)?;
+    let score_info = ctx.accounts.score_board.to_account_info();
+    let theme_info = ctx.accounts.theme_board.to_account_info();
+    let mut score_board: ArenaBoard = load(&score_info)?;
+    let mut theme_board: ArenaBoard = load(&theme_info)?;
+    require!(
+        score_board.bound_to(source_info.key(), DailyBoardKind::Score)
+            && theme_board.bound_to(source_info.key(), DailyBoardKind::Theme),
+        ErrorCode::InvalidOwner
+    );
+    let source = &mut source;
+
+    let settlement = source.settle_into(&mut following, now)?;
     require_spendable(&source_info, settlement.held_lamports)?;
     move_program_lamports(&source_info, &successor_info, settlement.forwarded_lamports)?;
     let pools = settlement.pools;
@@ -681,21 +723,22 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
     // was consumed. Keep the paying rows, add their claim bits, and return
     // the rent of everything else to cadence funding.
     let cadence = ctx.accounts.cadence_funding.to_account_info();
-    for (board, qualified, pool, plan) in [
+    for (board, info, qualified, pool, plan) in [
         (
-            &mut ctx.accounts.score_board,
+            &mut score_board,
+            &score_info,
             source.score_qualified_players,
             pools.score,
             score_plan,
         ),
         (
-            &mut ctx.accounts.theme_board,
+            &mut theme_board,
+            &theme_info,
             source.theme_qualified_players,
             pools.theme,
             theme_plan,
         ),
     ] {
-        let info = board.to_account_info();
         let retained = ArenaBoard::open_rows(info.data_len())?;
         require!(
             u32::try_from(retained).is_ok_and(|rows| rows
@@ -715,16 +758,19 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
             .lamports()
             .checked_sub(rent)
             .ok_or(ErrorCode::AccountingInvariant)?;
-        move_program_lamports(&info, &cadence, excess)?;
+        move_program_lamports(info, &cadence, excess)?;
+        store(info, &*board)?;
     }
+    store(&source_info, &*source)?;
+    store(&successor_info, &following)?;
     // Dailies finalize in the order of their chain, which is the order of the
     // result root: the day joins it here, with nothing left to archive.
     let result_hash = daily_result_hash(
         source,
-        &ctx.accounts.score_board,
-        &ctx.accounts.score_board.to_account_info(),
-        &ctx.accounts.theme_board,
-        &ctx.accounts.theme_board.to_account_info(),
+        &score_board,
+        &score_info,
+        &theme_board,
+        &theme_info,
     )?;
     ctx.accounts
         .protocol

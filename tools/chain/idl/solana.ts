@@ -1374,6 +1374,9 @@ export type Solana = {
         },
         {
           "name": "arenaDaily",
+          "docs": [
+            "after finalizing. Read in the handler."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -1394,9 +1397,8 @@ export type Solana = {
                 ]
               },
               {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
+                "kind": "arg",
+                "path": "dayId"
               }
             ]
           }
@@ -1423,9 +1425,8 @@ export type Solana = {
                 ]
               },
               {
-                "kind": "account",
-                "path": "following_daily.day_id",
-                "account": "arenaDaily"
+                "kind": "arg",
+                "path": "followingDay"
               }
             ]
           }
@@ -1542,7 +1543,16 @@ export type Solana = {
           "signer": true
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "dayId",
+          "type": "u32"
+        },
+        {
+          "name": "followingDay",
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "finishRun",

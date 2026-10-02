@@ -1368,6 +1368,9 @@
         },
         {
           "name": "arena_daily",
+          "docs": [
+            "after finalizing. Read in the handler."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -1388,9 +1391,8 @@
                 ]
               },
               {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
+                "kind": "arg",
+                "path": "day_id"
               }
             ]
           }
@@ -1417,9 +1419,8 @@
                 ]
               },
               {
-                "kind": "account",
-                "path": "following_daily.day_id",
-                "account": "ArenaDaily"
+                "kind": "arg",
+                "path": "following_day"
               }
             ]
           }
@@ -1536,7 +1537,16 @@
           "signer": true
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "day_id",
+          "type": "u32"
+        },
+        {
+          "name": "following_day",
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "finish_run",

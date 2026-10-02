@@ -58,7 +58,7 @@ namespace ZKube.Integration.Planning
             foreach (var step in list)
             {
                 var keys = Keys(step.Day); keys["following_daily"] = Daily(step.Following);
-                instructions.Add(Instruction("finalize_arena_daily", new JObject(), keys));
+                instructions.Add(Instruction("finalize_arena_daily", new JObject { ["day_id"] = step.Day, ["following_day"] = step.Following }, keys));
             }
             return instructions.AsReadOnly();
         }

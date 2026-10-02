@@ -161,13 +161,16 @@ spending approval.
   `a_day_with_an_abandoned_run_finalizes_on_the_first_claim_after_the_recovery_window` and
   `empty_dailies_are_bounded_finalize_empty_and_close_at_once` guard the program.
 - **Carried cadence:** an entry is offered with today's preparation and up to two due finalizations, then with
-  fewer, then on its own; the client sends the most that fits one packet and passes simulation at the limit it
-  states, so a finished day never makes an entry fail. A winner back on a quiet day seals days the same way,
-  then claims. The waiting Dailies are read forward from the result root, which names the last finalized day,
+  fewer, then without its optional claims; each size is simulated once at the limit it states, and the client
+  sends the first that fits one packet and passes. A finalization of a Daily someone else has already finalized,
+  closed or not, is a no-op that still requires the canonical accounts of the days it names, so a size that
+  passed its simulation cannot fail later for that. A winner back on a quiet day seals days the same way, then
+  claims. The waiting Dailies are read forward from the result root, which names the last finalized day,
   so a backlog of any length advances with every transaction.
   `the_largest_cadence_carrying_entry_fits_one_transaction` bounds each size the client can fall back to with
   room for delegation; `a_backlog_of_empty_dailies_finalizes_from_the_root_forward_whatever_its_length`,
-  `AnEntryCarriesOnlyTheFinalizationsItsSimulationAccepts`,
+  `an_optional_finalization_someone_else_already_made_never_fails_the_entry`,
+  `AnEntryCarriesOnlyTheFinalizationsItsSimulationAccepts`, `AClaimItsSimulationRejectsStepsDownToTheEntryAlone`,
   `AWinnerSealsOnlyAsManyFinishedDaysAsFitOneTransaction`, `ABacklogOfAnyLengthIsReadFromTheRootForward`,
   `TheLargestCadenceCarryingEntryFitsOnePacket`, `TheCadenceIsReadFromTheChainOfPreparedDailiesOldestFirst` and
   `AWinnerBackOnAQuietDayFinalizesTheirDayThemselves` guard the program and the client.
@@ -719,10 +722,12 @@ keeper authority. The approval boundary above applies to every execution.
   from the repository root and a clean target, with the compiler, platform tools, options, locked dependencies
   and compiler flags pinned in tools/chain/releaseBuild.ts. The build inherits only PATH and HOME, so no flag,
   wrapper, profile or target override reaches the compiler; it refuses to run where any cargo configuration
-  exists outside the repository, whatever that file says, and it checks cargo's own fingerprint of the flags the compiler received before it records
-  anything under build/chain/release. A hash from any other build is not release evidence.
-  `release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it` and
-  `release_build_gives_the_compiler_only_the_recorded_inputs_and_refuses_any_other_flag_set` guard the recipe.
+  exists outside the repository, whatever that file says, above the checkout's real path and the path it was
+  given alike, and it builds in the real checkout. It checks cargo's own fingerprint of the flags the compiler
+  received before it records anything under build/chain/release. A hash from any other build is not release
+  evidence. `release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it`,
+  `release_build_gives_the_compiler_only_the_recorded_inputs_and_refuses_any_other_flag_set` and
+  `a_checkout_reached_through_a_symlink_is_checked_and_built_where_it_really_lives` guard the recipe.
 - **Deploy plan:** NO_DNA=1 pnpm chain plan deploy --bundle build/chain/deploy.json quotes that recorded build,
   at the hash the owner reviewed (ZKUBE_SBF_SHA256), using public payer/buffer/authority addresses.
   `a_deploy_plan_quotes_only_the_recorded_release_build_at_the_reviewed_hash`,

@@ -212,7 +212,10 @@ pub fn indexer() -> Value {
         "finalize",
         validator(),
         vec![instruction(
-            solana::instruction::FinalizeArenaDaily {},
+            solana::instruction::FinalizeArenaDaily {
+                day_id: DAY,
+                following_day: DAY + 1,
+            },
             solana::accounts::FinalizeArenaDaily {
                 protocol: accounts::singleton(PROTOCOL_CONFIG_SEED),
                 arena_daily: daily,
