@@ -1,6 +1,7 @@
-import { Keypair, TransactionInstruction, VersionedTransaction, type Connection } from "@solana/web3.js";
+import { ComputeBudgetInstruction, ComputeBudgetProgram, Keypair, TransactionInstruction, TransactionMessage,
+  VersionedTransaction, type Connection } from "@solana/web3.js";
 import { afterEach, expect, it, vi } from "vitest";
-import { KEEPER_LIMITS, runKeeperPass } from "../src/keeper.js";
+import { KEEPER_LIMITS, MAX_TRANSACTION_COMPUTE_UNITS, keeperComputeUnitLimit, runKeeperPass } from "../src/keeper.js";
 import { ZKUBE_PROGRAM_ID, cadenceFundingPda, type KeeperOperation } from "../src/arcadeChain.js";
 import type { DailySnapshot } from "../src/arcadeReconciliation.js";
 
@@ -16,7 +17,7 @@ function pass(count = 7) {
     getFeeForMessage: vi.fn().mockResolvedValue({ value: 5_000 }),
     simulateTransaction: vi.fn(async () => {
       calls.push("simulate");
-      return { value: { err: null, accounts: [{ lamports: 999_995_000 }] } };
+      return { value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 999_995_000 }] } };
     }),
     sendRawTransaction: vi.fn(async () => { calls.push("send"); return "signature"; }),
     confirmTransaction: vi.fn(async () => { calls.push("confirm"); return { value: { err: null } }; }),
@@ -39,7 +40,7 @@ it("keeper_pass_reserves_write_slots_and_simulates_before_every_send", async () 
   const result = await runKeeperPass(input);
   expect(result.writes).toBe(KEEPER_LIMITS.writes);
   expect(result.backlog).toBe(1);
-  expect(calls).toEqual(Array.from({ length: KEEPER_LIMITS.writes }, () => ["simulate", "send", "confirm"]).flat());
+  expect(calls).toEqual(Array.from({ length: KEEPER_LIMITS.writes }, () => ["simulate", "simulate", "send", "confirm"]).flat());
   expect(connection.getBalance).toHaveBeenCalledTimes(1 + KEEPER_LIMITS.writes);
 });
 
@@ -60,8 +61,8 @@ it("keeper_simulation_failure_and_reserve_floor_prevent_relay", async () => {
     } as never);
     else {
       connection.getBalance.mockResolvedValue(180_000_000);
-      connection.simulateTransaction.mockResolvedValueOnce({
-        value: { err: null, accounts: [{ lamports: 99_000_000 }] },
+      connection.simulateTransaction.mockResolvedValue({
+        value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 99_000_000 }] },
       });
     }
     const log = vi.fn();
@@ -76,7 +77,7 @@ it("keeper_simulation_failure_and_reserve_floor_prevent_relay", async () => {
 it("keeper_spend_is_reserved_even_when_confirmation_is_uncertain", async () => {
   const { input, connection } = pass();
   connection.simulateTransaction.mockImplementation(async () => ({
-    value: { err: null, accounts: [{ lamports: 920_000_000 }] },
+    value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 920_000_000 }] },
   }));
   connection.confirmTransaction.mockRejectedValueOnce(new Error("timeout"));
   const result = await runKeeperPass(input);
@@ -90,7 +91,7 @@ it("keeper_board_rent_ceiling_bounds_the_sum_of_finalizations_in_one_pass", asyn
   const { input, connection } = pass(0);
   connection.getBalance.mockImplementation(async (address) => address.equals(cadenceFundingPda()) ? 5_000_000_000 : 1_000_000_000);
   connection.simulateTransaction.mockImplementation(async () => ({
-    value: { err: null, accounts: [{ lamports: 999_995_000 }, { lamports: 4_000_000_000 }] },
+    value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 999_995_000 }, { lamports: 4_000_000_000 }] },
   }));
   const dailies: DailySnapshot[] = [20_698, 20_699, 20_700, 20_701].map(dayId => ({
     dayId, status: dayId < 20_700 ? "open" : "funding", finalizedAt: 0,
@@ -137,4 +138,30 @@ it("keeper_board_writes_stop_at_the_separate_pass_limit", async () => {
   expect(result.writes).toBe(KEEPER_LIMITS.boardWrites);
   expect(result.backlog).toBe(1);
   expect(connection.sendRawTransaction).toHaveBeenCalledTimes(32);
+});
+
+it("keeper_messages_carry_a_compute_budget_sized_from_simulation", async () => {
+  // Full-board finalization measured 958,510 units; the 200,000 default cannot run it.
+  for (const [consumed, expected] of [[958_510, 1_203_138], [6_398, 12_998], [1_390_000, MAX_TRANSACTION_COMPUTE_UNITS]] as const) {
+    const { input, connection } = pass(1);
+    const simulated: VersionedTransaction[] = [];
+    connection.simulateTransaction.mockImplementation((async (transaction: VersionedTransaction) => {
+      simulated.push(transaction);
+      return { value: { err: null, unitsConsumed: consumed, accounts: [{ lamports: 999_995_000 }] } };
+    }) as never);
+    expect((await runKeeperPass(input)).writes).toBe(1);
+    const limits = simulated.map(transaction => {
+      const instructions = TransactionMessage.decompile(transaction.message).instructions;
+      expect(instructions).toHaveLength(2);
+      expect(instructions[0]!.programId.equals(ComputeBudgetProgram.programId)).toBe(true);
+      return ComputeBudgetInstruction.decodeSetComputeUnitLimit(instructions[0]!).units;
+    });
+    expect(limits).toEqual([MAX_TRANSACTION_COMPUTE_UNITS, expected]);
+    expect(expected).toBeGreaterThan(consumed);
+    // The relayed bytes are the simulated message with the sized limit.
+    expect(Buffer.from((connection.sendRawTransaction.mock.calls as unknown as [Uint8Array][])[0]![0]))
+      .toEqual(Buffer.from(simulated[1]!.serialize()));
+  }
+  expect(() => keeperComputeUnitLimit(0)).toThrow("compute consumption");
+  expect(() => keeperComputeUnitLimit(MAX_TRANSACTION_COMPUTE_UNITS + 1)).toThrow("compute consumption");
 });

@@ -202,6 +202,10 @@ spending approval.
   `bounded_payout_plan_keeps_the_full_width_and_denominator`,
   `cadence_funding_creates_exact_boards_through_the_full_capacity` and
   `full_board_finalization_stays_below_one_million_compute_units` guard width, allocation and compute.
+  Sizing starts from stored harmonic denominators, so a board hundreds of thousands of places wide finalizes in
+  one transaction with the same exact result as the rank-by-rank scan.
+  `stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan` and
+  `finalization_sizes_boards_far_wider_than_they_retain_in_one_transaction` guard the arithmetic and its compute.
 - **One row per player per board:** retain that player's best qualifying run with unlimited paid entries.
   Ordering is metric descending, earliest finalized achievement, then wallet bytes.
   `board_order_uses_metric_then_time_then_owner_bytes` and
@@ -533,7 +537,10 @@ the Devnet genesis and handles an unavailable RPC`, `requires HTTPS outside loca
 before using the ER` and `uses the fresh Router location for a write connection` guard transport and
 placement.
 
-The loop simulates before relay, reserves simulated spend even after uncertain confirmation, and enforces
+Every keeper message states its compute-unit limit: a first simulation under the transaction maximum sizes it,
+and the message carrying that limit is the one simulated again and relayed.
+`keeper_messages_carry_a_compute_budget_sized_from_simulation` guards the compiled message. The loop simulates
+before relay, reserves simulated spend even after uncertain confirmation, and enforces
 general writes, board writes, aggregate recyclable board rent and reserve floor from KEEPER_LIMITS.
 `keeper_pass_reserves_write_slots_and_simulates_before_every_send`,
 `keeper_simulation_failure_and_reserve_floor_prevent_relay`,

@@ -108,7 +108,8 @@ pub use ladder::{
 };
 
 pub use payouts::{
-    BoardWidth, DailyBoardPools, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS, board_width,
+    BoardWidth, DailyBoardPools, PAYOUT_WIDTH_TABLE_RANKS, PayoutError, PayoutPlan,
+    SOL_PAYOUT_UNIT_LAMPORTS, board_width,
     compare_board_entries, daily_board_pools, payout_for_rank, rank_weighted_payouts,
     sum_rank_payouts,
 };

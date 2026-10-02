@@ -6,6 +6,30 @@ pub(crate) const MIN_BOARD_PAYOUT_PLACES: u32 = 4;
 // Its common scale cancels during normalization.
 const RANK_WEIGHT_SCALE: u64 = u64::MAX;
 
+/// Ranks between two stored harmonic denominators.
+const WIDTH_STEP: u32 = 256;
+/// The width scan starts from a stored denominator for every board up to
+/// this many places, so sizing costs the same at ten places or a quarter of a
+/// million. A wider board is still sized exactly, one rank at a time.
+pub const PAYOUT_WIDTH_TABLE_RANKS: u32 = WIDTH_STEP * 1_024;
+
+/// `HARMONIC_DENOMINATORS[k]` is the sum of the weights of ranks
+/// `1..=(k + 1) * WIDTH_STEP`.
+#[allow(long_running_const_eval)]
+static HARMONIC_DENOMINATORS: [u128; (PAYOUT_WIDTH_TABLE_RANKS / WIDTH_STEP) as usize] = {
+    let mut table = [0u128; (PAYOUT_WIDTH_TABLE_RANKS / WIDTH_STEP) as usize];
+    let mut denominator = 0u128;
+    let mut rank = 1u32;
+    while rank <= PAYOUT_WIDTH_TABLE_RANKS {
+        denominator += (RANK_WEIGHT_SCALE / rank as u64) as u128;
+        if rank % WIDTH_STEP == 0 {
+            table[(rank / WIDTH_STEP - 1) as usize] = denominator;
+        }
+        rank += 1;
+    }
+    table
+};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PayoutError {
     InvalidWholeUnit,
@@ -100,7 +124,31 @@ pub fn board_width(
     let minimum_units = entry_price.div_ceil(whole_unit);
     let minimum_price = minimum_units.checked_mul(whole_unit);
     let mut winner_count = minimum;
-    for rank in minimum + 1..=qualified_winners {
+    // Last-place payouts never rise with rank, so every rank up to the
+    // furthest stored denominator that still pays the entry price is in. The
+    // scan below then finds the exact width from there.
+    let last_place_pays = |rank: u32, denominator: u128| {
+        minimum_price
+            .and_then(|price| checked_scale(denominator, price))
+            .is_some_and(|needed| wide_product(pool, RANK_WEIGHT_SCALE / u64::from(rank)) >= needed)
+    };
+    let (mut low, mut high) = (
+        0,
+        (qualified_winners.min(PAYOUT_WIDTH_TABLE_RANKS) / WIDTH_STEP) as usize,
+    );
+    while low < high {
+        let middle = low + (high - low).div_ceil(2);
+        if last_place_pays(middle as u32 * WIDTH_STEP, HARMONIC_DENOMINATORS[middle - 1]) {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+    if low > 0 {
+        winner_count = low as u32 * WIDTH_STEP;
+        denominator = HARMONIC_DENOMINATORS[low - 1];
+    }
+    for rank in winner_count + 1..=qualified_winners {
         let weight = rank_weight(rank)?;
         let candidate_denominator = denominator
             .checked_add(u128::from(weight))
@@ -442,6 +490,67 @@ mod tests {
             .ok_or(PayoutError::Overflow)?;
         let units = u128::from(pool) * u128::from(weight) / divisor;
         u64::try_from(units * u128::from(unit)).map_err(|_| PayoutError::Overflow)
+    }
+
+    #[test]
+    fn stored_denominators_size_wide_boards_exactly_as_the_rank_by_rank_scan() {
+        // Entry price times width times the harmonic sum: pools that stop the
+        // width just inside, on and past stored steps, and past the table.
+        let pot = |width: u64| {
+            let harmonic = (1..=width).map(|rank| 1.0 / rank as f64).sum::<f64>();
+            (crate::ARENA_ENTRY_LAMPORTS as f64 * width as f64 * harmonic) as u64
+        };
+        let table = u64::from(PAYOUT_WIDTH_TABLE_RANKS);
+        let step = u64::from(WIDTH_STEP);
+        let mut widths = std::vec::Vec::new();
+        for width in [
+            5,
+            step - 1,
+            step,
+            step + 1,
+            2 * step,
+            7 * step + 3,
+            1_536,
+            9_267,
+            table - step - 1,
+            table - 1,
+            table,
+            table + 1_000,
+        ] {
+            for pool in [pot(width) - 1_000_000, pot(width), pot(width) + 1_000_000] {
+                for qualified in [width, width + 1, table + 3_000] {
+                    let qualified = u32::try_from(qualified).unwrap();
+                    let expected = reference_board_width(
+                        pool,
+                        qualified,
+                        crate::ARENA_ENTRY_LAMPORTS,
+                        SOL_PAYOUT_UNIT_LAMPORTS,
+                    );
+                    assert_eq!(
+                        board_width(
+                            pool,
+                            qualified,
+                            crate::ARENA_ENTRY_LAMPORTS,
+                            SOL_PAYOUT_UNIT_LAMPORTS
+                        ),
+                        expected,
+                        "pool={pool}, qualified={qualified}"
+                    );
+                    widths.push(expected.unwrap().winner_count);
+                }
+            }
+        }
+        // The cases really do land on both sides of the stored steps.
+        assert!(widths.iter().any(|width| width % WIDTH_STEP == 0));
+        assert!(widths.iter().any(|width| width % WIDTH_STEP == WIDTH_STEP - 1));
+        assert!(widths.iter().any(|width| *width > PAYOUT_WIDTH_TABLE_RANKS));
+        for pool in [u64::MAX, u64::MAX / 3] {
+            let qualified = PAYOUT_WIDTH_TABLE_RANKS + 3_000;
+            assert_eq!(
+                board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, 1),
+                reference_board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, 1)
+            );
+        }
     }
 
     #[test]

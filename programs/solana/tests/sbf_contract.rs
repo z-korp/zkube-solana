@@ -1899,7 +1899,8 @@ fn finalize_board_capacity(
     state.entries_paid = u64::from(count);
     state.entries_scored = u64::from(count);
     state.unique_players = count;
-    assert_eq!(board_payout_plan(pool / 2, count).unwrap().count, count);
+    let plan = board_payout_plan(pool / 2, count).unwrap();
+    assert_eq!(plan.width_count, count);
     let score_board = Pubkey::find_program_address(
         &[
             ARENA_BOARD_SEED,
@@ -1965,7 +1966,7 @@ fn finalize_board_capacity(
     let result = runtime.process_instruction(&instruction, &accounts);
     println!(
         "count={count}, bytes={}, CU={}, result={:?}",
-        ArenaBoard::account_space(count).unwrap(),
+        ArenaBoard::account_space(plan.count).unwrap(),
         result.compute_units_consumed,
         result.program_result
     );
@@ -1998,6 +1999,32 @@ fn full_board_finalization_stays_below_one_million_compute_units() {
         assert!(
             fixture.result.compute_units_consumed < 1_000_000,
             "full-board finalization used {} CU for pool {pool}",
+            fixture.result.compute_units_consumed
+        );
+    }
+}
+
+#[test]
+fn finalization_sizes_boards_far_wider_than_they_retain_in_one_transaction() {
+    // The payout width and its denominator are never capped: both boards pay
+    // across every qualifier while each retains only its capacity.
+    for count in [
+        zkube_core::PAYOUT_WIDTH_TABLE_RANKS,
+        zkube_core::PAYOUT_WIDTH_TABLE_RANKS + 2_000,
+    ] {
+        let fixture = finalize_board_capacity(count, u64::MAX / 2, PeriodStatus::Open, true, 0);
+        assert!(
+            fixture.result.program_result.is_ok(),
+            "{:?}",
+            fixture.result.program_result
+        );
+        let board: ArenaBoard = decode(resulting_account(&fixture.result, &fixture.score_board));
+        assert_eq!(board.width_count, count);
+        assert_eq!(board.payout_count as usize, ARENA_BOARD_CAPACITY);
+        assert!(board.capacity_limited);
+        assert!(
+            fixture.result.compute_units_consumed < 1_400_000,
+            "width {count} used {} CU",
             fixture.result.compute_units_consumed
         );
     }

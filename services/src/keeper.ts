@@ -3,6 +3,7 @@ import { MAX_BOARD_RENT_LAMPORTS } from "./protocolVersions.generated.js";
 import { randomUUID } from "node:crypto";
 
 import {
+  ComputeBudgetProgram,
   Keypair,
   PublicKey,
   TransactionMessage,
@@ -26,6 +27,23 @@ import {
 export const KEEPER_LIMITS = Object.freeze({
   writes: 6, boardWrites: 32, spendLamports: 100_000_000, reserveLamports: 100_000_000,
 });
+
+/** The most compute one transaction may request. */
+export const MAX_TRANSACTION_COMPUTE_UNITS = 1_400_000;
+
+/**
+ * The one owner of a keeper transaction's compute budget: what the
+ * instructions used under the transaction maximum, plus a quarter for state
+ * that moves before the send. An ordinary 200,000-unit default cannot run a
+ * wide finalization, so every keeper message states its limit.
+ */
+export function keeperComputeUnitLimit(unitsConsumed: number): number {
+  if (!Number.isSafeInteger(unitsConsumed) || unitsConsumed <= 0 ||
+      unitsConsumed > MAX_TRANSACTION_COMPUTE_UNITS) {
+    throw new Error("simulation reported no usable compute consumption");
+  }
+  return Math.min(MAX_TRANSACTION_COMPUTE_UNITS, Math.ceil(unitsConsumed * 1.25) + 5_000);
+}
 
 export interface KeeperLogEvent {
   schemaVersion: typeof KEEPER_SCHEMA_VERSION;
@@ -166,11 +184,19 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
         ? await connection.getBalance(cadenceFundingPda(), "confirmed")
         : 0;
       const latest = await connection.getLatestBlockhash("confirmed");
-      const transaction = new VersionedTransaction(new TransactionMessage({
+      const compile = (units: number) => new VersionedTransaction(new TransactionMessage({
         payerKey: input.keeper.publicKey,
         recentBlockhash: latest.blockhash,
-        instructions: [...materialized.instructions!],
+        instructions: [ComputeBudgetProgram.setComputeUnitLimit({ units }), ...materialized.instructions!],
       }).compileToV0Message());
+      // Size the budget under the transaction maximum, then simulate and
+      // send the exact message that carries the sized limit.
+      const sizing = await connection.simulateTransaction(
+        compile(MAX_TRANSACTION_COMPUTE_UNITS), { sigVerify: false });
+      if (sizing.value.err) {
+        throw new Error(`simulation failed: ${JSON.stringify(sizing.value.err)}`);
+      }
+      const transaction = compile(keeperComputeUnitLimit(sizing.value.unitsConsumed ?? 0));
       transaction.sign([requiredKeeperSigner(input.keeper)]);
       const simulation = await connection.simulateTransaction(transaction, {
         sigVerify: true,
