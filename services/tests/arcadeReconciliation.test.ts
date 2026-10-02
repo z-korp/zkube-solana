@@ -5,392 +5,152 @@ import {
   DAILY_RECOVERY_DEADLINE_OFFSET,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   DAILY_RUN_CLOSE_OFFSET,
+  KEEPER_PLAN_INSTRUCTION,
 } from "../src/arcadeChain.js";
 import {
   discoverReconciliation,
   type DailySnapshot,
   type ProtocolSnapshot,
 } from "../src/arcadeReconciliation.js";
-import { KEEPER_PLAN_INSTRUCTION } from "../src/arcadeChain.js";
-import { dailyWindow, dayIdAt } from "../src/zkubeCore.js";
+import { dailyWindow } from "../src/zkubeCore.js";
 // The instant a day opens; the core owns the boundary (07:00 UTC).
 const opens = (day: number) => dailyWindow(day).opensAt;
 
 const DAY = 20_651;
-const NOW = opens(DAY) + DAILY_RECOVERY_DEADLINE_OFFSET + 1;
+const closes = (day: number) => opens(day) + DAILY_RUN_CLOSE_OFFSET;
+const recoveryEnds = (day: number) => opens(day) + DAILY_RECOVERY_DEADLINE_OFFSET;
+const plansOf = (snapshotOverrides: Partial<ProtocolSnapshot>, nowUnix: number) =>
+  discoverReconciliation({ snapshot: snapshot(snapshotOverrides), nowUnix });
+const of = (plans: ReturnType<typeof discoverReconciliation>, operation: string) =>
+  plans.filter((plan) => plan.operation === operation).map(({ context }) => context);
 
-describe("v5 Daily keeper reconciliation", () => {
-  it("keeper_preparation_advances_past_archived_days_and_keeps_the_recent_window", () => {
-    const current = daily(DAY, "open");
-    const plans = discoverReconciliation({ nowUnix: opens(DAY) + 1,
-      snapshot: snapshot({ launchDayId: DAY - 200, dailies: [current],
-        archiveState: { lastDailyId: DAY - 1 },
-        closedArenaPlayers: [85, 84].map(age => ({ dayId: DAY - age,
-          owner: Keypair.generate().publicKey, rentPayer: Keypair.generate().publicKey })),
-      }),
-    });
-    expect(plans.find(plan => plan.operation === "prepare_arena_daily")?.context)
-      .toEqual({ followingDayId: DAY + 1 });
-    expect(plans.filter(plan => plan.operation === "close_arena_player").map(plan => plan.context.dayId))
-      .toEqual([DAY - 84]);
+describe("backstop keeper reconciliation", () => {
+  it("keeper_backstop_prepares_only_the_one_daily_the_program_lets_anyone_prepare", () => {
+    // Today's Daily, once: an entry would prepare it too, and whoever comes second changes nothing.
+    expect(of(plansOf({ dailies: [daily(DAY - 3)] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([{ dayId: DAY }]);
+    expect(of(plansOf({ dailies: [daily(DAY)] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([]);
+    // Days nobody played are never prepared afterwards: only today's can be.
+    expect(of(plansOf({ dailies: [daily(DAY - 9)] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([{ dayId: DAY }]);
+    // During a suspension the one preparable day is the first after it, where a finished day's money goes.
+    const suspended = { suspendedUntilDay: DAY + 4, dailies: [daily(DAY - 1)] };
+    expect(of(plansOf(suspended, opens(DAY) + 1), "prepare_arena_daily")).toEqual([{ dayId: DAY + 4 }]);
+    expect(of(plansOf({ ...suspended, dailies: [daily(DAY - 1), { ...daily(DAY + 4), predecessorDayId: DAY - 1 }] },
+      opens(DAY) + 1), "prepare_arena_daily")).toEqual([]);
+    // Before launch the operator's own transaction prepares the first Daily.
+    expect(of(plansOf({ launchDayId: 0, dailies: [] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([]);
   });
 
-  it("prepares and activates only Daily successors", () => {
-    const plans = discoverReconciliation({
-      snapshot: snapshot({
-        paused: false,
-        launchDayId: DAY - 1,
-        dailies: [
-          { ...daily(DAY - 1, "finalized"), predecessorRolloverRequired: false,
-            predecessorRolloverApplied: false },
-          { ...daily(DAY, "funding"), predecessorRolloverRequired: true },
-        ],
-      }),
-      nowUnix: opens(DAY) + 1,
-    });
-    expect(plans.map(({ operation }) => operation)).toEqual([
-      "activate_arena_daily",
-      "prepare_arena_daily",
-    ]);
+  it("keeper_finalizes_by_the_clock_once_the_day_has_a_successor", () => {
+    const played = { ...daily(DAY), entriesPaid: 3n, entriesScored: 2n };
+    const resolved = { ...played, entriesExpired: 1n };
+    const next = { ...daily(DAY + 3), predecessorDayId: DAY, predecessorRolloverApplied: false };
+    const finalization = (dailies: DailySnapshot[], nowUnix: number) =>
+      of(plansOf({ dailies }, nowUnix), "finalize_arena_daily");
+    const expected = [{ dayId: DAY, followingDayId: DAY + 3 }];
+    // Resolved: as soon as its window has closed. The successor is the Daily prepared after it, days later.
+    expect(finalization([resolved, next], closes(DAY) - 1)).toEqual([]);
+    expect(finalization([resolved, next], closes(DAY))).toEqual(expected);
+    // A run still in flight holds it only until the recovery deadline, never longer.
+    expect(finalization([played, next], recoveryEnds(DAY) - 1)).toEqual([]);
+    expect(finalization([played, next], recoveryEnds(DAY))).toEqual(expected);
+    // No successor yet: nothing to finalize into. The same pass prepares today's Daily, which becomes it.
+    expect(finalization([resolved], opens(DAY + 3) + 1)).toEqual([]);
+    expect(of(plansOf({ dailies: [resolved] }, opens(DAY + 3) + 1), "prepare_arena_daily")).toEqual([{ dayId: DAY + 3 }]);
+    // A later Daily that names another predecessor is not its successor, and a day whose own
+    // predecessor has not finalized into it waits its turn.
+    expect(finalization([resolved, { ...next, predecessorDayId: DAY + 1 }], closes(DAY))).toEqual([]);
+    expect(finalization([{ ...resolved, predecessorRolloverApplied: false }, next], closes(DAY))).toEqual([]);
+    expect(finalization([{ ...resolved, finalizedAt: closes(DAY) }, next], closes(DAY) + 9)).toEqual([]);
   });
 
-  it("routes a suspended period into the first resumed Daily", () => {
-    const lastPaidDay = 87;
-    const plans = discoverReconciliation({
-      snapshot: snapshot({
-        paused: false,
-        launchDayId: lastPaidDay,
-        suspendedUntilDay: 95,
-        dailies: [{
-          ...daily(lastPaidDay, "open"),
-          predecessorRolloverRequired: false,
-          predecessorRolloverApplied: false,
-        }],
-      }),
-      nowUnix: opens(88) + 1,
-    });
-    const preparation = plans.find(({ operation }) =>
-      operation === "prepare_arena_daily");
-    expect(preparation?.context).toMatchObject({
-      followingDayId: 95,
-    });
-    expect(plans.some(({ context }) => {
-      const dayId = typeof context?.dayId === "number" ? context.dayId : undefined;
-      return dayId !== undefined && dayId >= 88 && dayId <= 94;
-    })).toBe(false);
+  it("keeper_closes_a_daily_that_paid_nothing_at_once_and_the_others_after_their_claim_window", () => {
+    const finalizedAt = closes(DAY) + 60;
+    const empty = { ...daily(DAY), finalizedAt };
+    const paid = { ...empty, payoutLamports: 5_000_000n };
+    const newest = { ...daily(DAY + 40), predecessorDayId: DAY };
+    const closure = (dailies: DailySnapshot[], nowUnix: number) => of(plansOf({ dailies }, nowUnix), "close_arena_daily");
+    // Nothing to claim: it closes at once, and needs no destination.
+    expect(closure([empty, newest], finalizedAt + 1)).toEqual([{ dayId: DAY }]);
+    // Winners have thirty days from the finalization; then what they left moves into the newest prepared Daily.
+    expect(closure([paid, newest], finalizedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS)).toEqual([]);
+    expect(closure([paid, newest], finalizedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1))
+      .toEqual([{ dayId: DAY, followingDayId: DAY + 40 }]);
+    // With no running Daily to receive it, the close waits: nothing is lost by waiting.
+    expect(closure([paid], opens(DAY + 40))).toEqual([]);
+    expect(closure([paid, { ...newest, finalizedAt: 1, payoutLamports: 1n }],
+      opens(DAY + 41) + DAILY_REWARD_CLAIM_WINDOW_SECONDS)).toEqual([]);
   });
 
-  it("routes terminal Arcade runs by location", () => {
-    const baseOwner = Keypair.generate().publicKey;
-    const arcadeOwner = Keypair.generate().publicKey;
-    const plans = discoverReconciliation({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [daily(DAY, "open")],
-        runs: [
-          { ...arcadeRun(baseOwner, "terminal", "base"), runId: 1n },
-          arcadeRun(arcadeOwner, "terminal", "ephemeral_rollup"),
-        ],
-      }),
-      nowUnix: NOW,
+  it("keeper_settles_abandoned_runs_by_state_and_location_and_expires_none", () => {
+    const run = (lifecycle: "playing" | "terminal" | "unavailable" | "prepared",
+      location: "base" | "ephemeral_rollup" | "unavailable", reservationActive = true) => ({
+      owner: Keypair.generate().publicKey, rentPayer: Keypair.generate().publicKey, runId: 2n, dayId: DAY,
+      arenaPlayerExists: true, lifecycle, location, runsCloseAt: closes(DAY), recoveryDeadlineAt: recoveryEnds(DAY),
+      reservationActive,
     });
-    expect(plans.map(({ operation }) => operation)
-      .filter((operation) => operation.includes("run") || operation === "commit_run"))
-      .toEqual([
-      "consume_arena_run",
-      "commit_run",
-    ]);
+    const operations = (runs: ReturnType<typeof run>[], nowUnix: number) =>
+      plansOf({ dailies: [daily(DAY)], runs }, nowUnix).map(({ operation }) => operation)
+        .filter((operation) => operation.endsWith("_run"));
+    // While the day runs, a run in play is left alone; a finished one is brought back and consumed.
+    expect(operations([run("playing", "ephemeral_rollup")], closes(DAY) - 1)).toEqual([]);
+    expect(operations([run("terminal", "ephemeral_rollup"), run("terminal", "base")], closes(DAY) - 1))
+      .toEqual(["commit_run", "consume_arena_run"]);
+    // After the close an abandoned run is finished at its last accepted state, so it still scores.
+    expect(operations([run("playing", "ephemeral_rollup")], closes(DAY))).toEqual(["finish_run"]);
+    // Past the recovery deadline nothing is expired: the day finalizes by the clock, and any run
+    // back on Base is only closed. One that cannot be reached is left for its player's next entry.
+    expect(operations([run("prepared", "base"), run("playing", "base", false), run("unavailable", "unavailable")],
+      recoveryEnds(DAY))).toEqual(["consume_arena_run", "consume_arena_run"]);
+    expect(operations([run("prepared", "base")], recoveryEnds(DAY) - 1)).toEqual([]);
+    const parked = plansOf({ dailies: [daily(DAY)], runs: [run("playing", "base", false)] }, recoveryEnds(DAY));
+    expect(of(parked, "consume_arena_run")[0]).toMatchObject({ includeArenaPlayer: false });
   });
 
-  it("selects every recovery operation from run state and location", () => {
-    const plans = discoverReconciliation({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [daily(DAY, "open")],
-        runs: [
-          arcadeRun(Keypair.generate().publicKey, "terminal", "ephemeral_rollup"),
-          { ...arcadeRun(Keypair.generate().publicKey, "terminal", "base"), runId: 4n },
-          arcadeRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
-          arcadeRun(Keypair.generate().publicKey, "unavailable", "unavailable"),
-          {
-            ...arcadeRun(Keypair.generate().publicKey, "playing", "base"),
-            runId: 5n,
-            reservationActive: false,
-          },
-        ],
-      }),
-      nowUnix: NOW,
-    });
-    const runOperations = new Set([
-      "finish_run",
-      "expire_unresolved_arena_run",
-      "commit_run",
-      "consume_arena_run",
-    ]);
-    const runPlans = plans.filter(({ operation }) => runOperations.has(operation));
-    expect(new Set(runPlans.map(({ operation }) => operation))).toEqual(runOperations);
+  it("keeper_works_only_inside_its_recent_window", () => {
+    const players = [85, 84, 1].map((age) => ({ dayId: DAY - age,
+      owner: Keypair.generate().publicKey, rentPayer: Keypair.generate().publicKey }));
+    const plans = plansOf({ launchDayId: DAY - 200, dailies: [daily(DAY), { ...daily(DAY - 90), finalizedAt: 1 }],
+      closedArenaPlayers: players }, opens(DAY) + 1);
+    expect(of(plans, "close_arena_player").map(({ dayId }) => dayId)).toEqual([DAY - 84, DAY - 1]);
+    expect(of(plans, "close_arena_daily")).toEqual([]);
   });
 
-  it("finishes reachable ER state and expires unavailable arcade state", () => {
-    const plans = discoverReconciliation({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [daily(DAY, "open")],
-        runs: [
-          arcadeRun(Keypair.generate().publicKey, "playing", "ephemeral_rollup"),
-          arcadeRun(Keypair.generate().publicKey, "unavailable", "unavailable"),
-        ],
-      }),
-      nowUnix: NOW,
-    });
-    expect(plans.map(({ operation }) => operation)
-      .filter((operation) => operation === "finish_run" ||
-        operation === "expire_unresolved_arena_run")).toEqual([
-      "finish_run",
-      "expire_unresolved_arena_run",
-    ]);
-  });
-
-  it("plans conserved Daily payout and successor rollover", () => {
-    const owners = [Keypair.generate().publicKey, Keypair.generate().publicKey];
-    const settled = daily(DAY, "open", owners);
-    const plans = discoverReconciliation({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [settled, daily(DAY + 1, "funding")],
-      }),
-      nowUnix: NOW,
-    });
-    const finalization = plans.find(({ operation }) =>
-      operation === "finalize_arena_daily");
-    expect(finalization?.context).toMatchObject({
-
-      dayId: DAY,
-      followingDayId: DAY + 1,
-
-
-    });
-  });
-
-  it("archives sequentially and closes only a committed Daily", () => {
-    const finalized = daily(DAY, "finalized");
-    const base = snapshot({
-      launchDayId: DAY,
-      dailies: [finalized],
-      archiveState: {
-
-        lastDailyId: DAY - 1,
-
-      },
-      archiveCandidates: [candidate(DAY, false, false)],
-    });
-    expect(discoverReconciliation({ snapshot: base, nowUnix: NOW })[0]?.operation)
-      .toBe("archive_arena_daily");
-    const afterClaims = finalized.finalizedAt +
-      DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
-    const expiryTarget = dayIdAt(BigInt(afterClaims)) + 1;
-    const committed = snapshot({
-      ...base,
-      dailies: [finalized, daily(expiryTarget, "open")],
-      archiveState: {
-        ...base.archiveState!,
-        lastDailyId: DAY,
-
-      },
-      archiveCandidates: [candidate(DAY, true, false)],
-    });
-    expect(discoverReconciliation({ snapshot: committed, nowUnix: afterClaims })[0]?.operation)
-      .toBe("expire_daily_claims");
-    const expiredDaily = { ...finalized, claimsExpired: true };
-    const expired = snapshot({
-      ...committed,
-      dailies: [expiredDaily, daily(expiryTarget, "open")],
-      archiveCandidates: [candidate(DAY, true, true)],
-    });
-    expect(discoverReconciliation({ snapshot: expired, nowUnix: afterClaims })[0]?.operation)
-      .toBe("close_arena_daily");
-  });
-
-  it("expires an older committed Daily after the archive tip advances", () => {
-    const owner = Keypair.generate().publicKey;
-    const oldDaily = daily(DAY, "finalized", [owner]);
-    const tipDaily = daily(DAY + 1, "finalized");
-    const afterClaims = oldDaily.finalizedAt +
-      DAILY_REWARD_CLAIM_WINDOW_SECONDS + 1;
-    const expiryTarget = dayIdAt(BigInt(afterClaims)) + 1;
-    const plans = discoverReconciliation({
-      snapshot: snapshot({
-        launchDayId: DAY,
-        dailies: [oldDaily, tipDaily, daily(expiryTarget, "open")],
-        archiveState: {
-
-          lastDailyId: DAY + 1,
-
-        },
-        archiveCandidates: [
-          candidate(DAY, true, false),
-          candidate(DAY + 1, true, false),
-        ],
-      }),
-      nowUnix: afterClaims,
-    });
-
-    expect(plans.find(({ operation }) => operation === "expire_daily_claims")?.context)
-      .toMatchObject({ dayId: DAY });
-  });
-
-  it("archives only the next Daily of the chain, never a later sealed one", () => {
-    const archive = (lastDailyId: number, candidates: number[]) => discoverReconciliation({
-      nowUnix: opens(DAY + 3),
-      snapshot: snapshot({ launchDayId: DAY,
-        dailies: [daily(DAY, "finalized"), daily(DAY + 1, "finalized"), daily(DAY + 2, "finalized")],
-        archiveState: { lastDailyId },
-        archiveCandidates: candidates.map(dayId => candidate(dayId, dayId <= lastDailyId, false)) }),
-    }).filter(({ operation }) => operation === "archive_arena_daily").map(({ context }) => context.dayId);
-    // DAY + 1 is not sealed yet: DAY + 2 waits rather than passing over it.
-    expect(archive(DAY, [DAY, DAY + 2])).toEqual([]);
-    expect(archive(DAY, [DAY, DAY + 1, DAY + 2])).toEqual([DAY + 1]);
-    expect(archive(DAY + 1, [DAY, DAY + 1, DAY + 2])).toEqual([DAY + 2]);
-    // Nothing archived yet: the first member is the launch day, or, when a suspended launch
-    // day was skipped, the day that took its place in the chain.
-    expect(archive(DAY - 1, [DAY, DAY + 1])).toEqual([DAY]);
-    const skippedLaunch = discoverReconciliation({ nowUnix: opens(DAY + 3),
-      snapshot: snapshot({ launchDayId: DAY,
-        dailies: [{ ...daily(DAY + 1, "finalized"), predecessorDayId: DAY - 1 }, daily(DAY + 2, "finalized")],
-        archiveState: { lastDailyId: 0 },
-        archiveCandidates: [candidate(DAY + 1, false, false), candidate(DAY + 2, false, false)] }),
-    }).filter(({ operation }) => operation === "archive_arena_daily").map(({ context }) => context.dayId);
-    expect(skippedLaunch).toEqual([DAY + 1]);
-  });
-
-  it("follows the recorded funding edge and never prepares behind the last Daily", () => {
-    const resolved = { ...daily(DAY, "open"), predecessorRolloverApplied: true };
-    const plan = (dailies: DailySnapshot[], overrides: Partial<ProtocolSnapshot> = {}) =>
-      discoverReconciliation({ nowUnix: NOW,
-        snapshot: snapshot({ paused: false, launchDayId: DAY - 9, dailies, ...overrides }) });
-    const finalization = (plans: ReturnType<typeof plan>) =>
-      plans.find(({ operation }) => operation === "finalize_arena_daily")?.context;
-
-    // The successor is the Daily prepared after it, across a gap of days.
-    expect(finalization(plan([resolved, { ...daily(DAY + 3, "funding"), predecessorDayId: DAY }])))
-      .toEqual({ dayId: DAY, followingDayId: DAY + 3 });
-    // A later Daily that names another predecessor is not a successor.
-    expect(finalization(plan([resolved, { ...daily(DAY + 2, "funding"), predecessorDayId: DAY + 1 }])))
-      .toBeUndefined();
-
-    // After an outage the next preparation is today's, not the missed days.
-    const late = discoverReconciliation({ nowUnix: opens(DAY + 5) + 1,
-      snapshot: snapshot({ paused: false, launchDayId: DAY - 9, dailies: [resolved] }) });
-    expect(late.find(({ operation }) => operation === "prepare_arena_daily")?.context)
-      .toEqual({ followingDayId: DAY + 5 });
-  });
-
-  it("forwards a suspended Daily nobody entered, even after early activation", () => {
-    const resumed = { ...daily(DAY + 4, "open"), entriesPaid: 0n, entriesScored: 0n,
-      predecessorDayId: DAY + 1, predecessorRolloverApplied: false };
-    const skips = (suspended: DailySnapshot) => discoverReconciliation({ nowUnix: opens(DAY + 1) + 1,
-      snapshot: snapshot({ paused: false, launchDayId: DAY, suspendedUntilDay: DAY + 4,
-        dailies: [suspended, resumed] }) })
-      .filter(({ operation }) => operation === "skip_suspended_arena_daily").map(({ context }) => context);
-    const opened = { ...daily(DAY + 1, "open"), entriesPaid: 0n, entriesScored: 0n };
-    expect(skips(opened)).toEqual([{ dayId: DAY + 1, followingDayId: DAY + 4 }]);
-    expect(skips(daily(DAY + 1, "funding"))).toEqual([{ dayId: DAY + 1, followingDayId: DAY + 4 }]);
-    // A started competition settles through finalization instead, and a day
-    // still waiting for its own predecessor waits.
-    expect(skips({ ...opened, entriesPaid: 1n })).toEqual([]);
-    expect(skips({ ...opened, predecessorRolloverApplied: false })).toEqual([]);
-  });
-
-  it("keeps monetary, archive, and cleanup ordering stable", () => {
-    expect(KEEPER_PLAN_INSTRUCTION.finalize_arena_daily.priority)
-      .toBeLessThan(KEEPER_PLAN_INSTRUCTION.archive_arena_daily.priority);
-    expect(KEEPER_PLAN_INSTRUCTION.archive_arena_daily.priority)
-      .toBeLessThan(KEEPER_PLAN_INSTRUCTION.expire_daily_claims.priority);
-    expect(KEEPER_PLAN_INSTRUCTION.expire_daily_claims.priority)
-      .toBeLessThan(KEEPER_PLAN_INSTRUCTION.close_arena_daily.priority);
+  it("keeps cadence, recovery and cleanup ordering stable", () => {
+    const order = ["prepare_arena_daily", "finish_run", "commit_run", "consume_arena_run", "finalize_arena_daily",
+      "close_arena_daily", "close_arena_player"] as const;
+    expect(Object.keys(KEEPER_PLAN_INSTRUCTION)).toEqual([...order]);
+    expect(order.map((operation) => KEEPER_PLAN_INSTRUCTION[operation].priority)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    // A run is consumed before its day finalizes, so a finished run still scores.
+    expect(KEEPER_PLAN_INSTRUCTION.consume_arena_run.priority).toBeLessThan(KEEPER_PLAN_INSTRUCTION.finalize_arena_daily.priority);
   });
 });
 
 function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
   return {
-    paused: true,
-    launchDayId: DAY,
+    paused: false,
+    launchDayId: DAY - 30,
     suspendedUntilDay: 0,
     lastPreparedDay: Math.max(0, ...(overrides.dailies ?? []).map(({ dayId }) => dayId)),
     dailies: [],
     runs: [],
-    archiveCandidates: [],
     ...overrides,
   };
 }
 
-function daily(
-  dayId: number,
-  status: DailySnapshot["status"],
-  owners: readonly PublicKey[] = [],
-): DailySnapshot {
+/** A running Daily nobody has entered, with its predecessor already finalized into it. */
+function daily(dayId: number): DailySnapshot {
   return {
     dayId,
-    status,
-    finalizedAt: status === "finalized"
-      ? opens(dayId) + DAILY_RUN_CLOSE_OFFSET
-      : 0,
-    runsCloseAt: opens(dayId) + DAILY_RUN_CLOSE_OFFSET,
-    recoveryDeadlineAt: opens(dayId) + DAILY_RECOVERY_DEADLINE_OFFSET,
-    entriesPaid: status === "funding" ? 0n : 2n,
-    entriesScored: status === "funding" ? 0n : 2n,
+    finalizedAt: 0,
+    runsCloseAt: closes(dayId),
+    recoveryDeadlineAt: recoveryEnds(dayId),
+    entriesPaid: 0n,
+    entriesScored: 0n,
     entriesExpired: 0n,
     predecessorDayId: dayId - 1,
-    predecessorRolloverRequired: dayId !== DAY,
-    predecessorRolloverApplied: dayId !== DAY,
-    claimsExpired: false,
-    ...(status === "finalized" ? {
-      scoreBoard: board("score", owners.length, dayId),
-      themeBoard: board("theme", 0, dayId),
-    } : {}),
-
+    predecessorRolloverApplied: true,
+    payoutLamports: 0n,
   };
 }
 
-function board(kind: "score" | "theme", payoutCount: number, dayId: number) {
-  return {
-    kind,
-    payoutCount,
-    widthCount: payoutCount,
-    cursor: payoutCount,
-    sealed: true,
-    sealedAt: opens(dayId) + DAILY_RUN_CLOSE_OFFSET,
-    claimedLamports: 0n,
-    claimedCount: 0,
-    capacityLimited: false,
-  };
-}
-
-function arcadeRun(
-  owner: PublicKey,
-  lifecycle: "playing" | "terminal" | "unavailable",
-  location: "base" | "ephemeral_rollup" | "unavailable",
-) {
-  return {
-    owner,
-    rentPayer: Keypair.generate().publicKey,
-    runId: 2n,
-    dayId: DAY,
-    arenaPlayerExists: true,
-    lifecycle,
-    location,
-    runsCloseAt: opens(DAY) + DAILY_RUN_CLOSE_OFFSET,
-    recoveryDeadlineAt: opens(DAY) + DAILY_RECOVERY_DEADLINE_OFFSET,
-    reservationActive: true,
-  };
-}
-
-function candidate(cadenceId: number, committed: boolean, closeEligible: boolean) {
-  return {
-    cadenceId,
-    claimsExpired: closeEligible,
-    committed,
-    closeEligibleAt: opens(cadenceId) + DAILY_RUN_CLOSE_OFFSET +
-      DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-  };
-}
+export type { PublicKey };

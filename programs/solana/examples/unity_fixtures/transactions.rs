@@ -194,7 +194,6 @@ pub fn indexer() -> Value {
                 player_state: accounts::player_address(),
                 current_daily: daily,
                 arena_player: accounts::participant_address(DAY),
-                following_daily: accounts::daily_address(DAY + 1),
                 score_board: boards::address(DAY, DailyBoardKind::Score),
                 theme_board: boards::address(DAY, DailyBoardKind::Theme),
                 cadence_funding: accounts::singleton(CADENCE_FUNDING_SEED),
@@ -215,6 +214,7 @@ pub fn indexer() -> Value {
         vec![instruction(
             solana::instruction::FinalizeArenaDaily {},
             solana::accounts::FinalizeArenaDaily {
+                protocol: accounts::singleton(PROTOCOL_CONFIG_SEED),
                 arena_daily: daily,
                 following_daily: accounts::daily_address(DAY + 1),
                 score_board: boards::address(DAY, DailyBoardKind::Score),
@@ -239,7 +239,11 @@ pub fn indexer() -> Value {
         )],
         false,
     );
-    let scored = |player: Pubkey, run_id: u64, score: u32, objective_total: u64, finalized_at: i64| {
+    let scored = |player: Pubkey,
+                  run_id: u64,
+                  score: u32,
+                  objective_total: u64,
+                  finalized_at: i64| {
         let event = RunScored {
             day_id: DAY,
             run_id,
@@ -256,13 +260,13 @@ pub fn indexer() -> Value {
             "finalizedAt": finalized_at})
     };
     json!({"entry": entry, "consume": consume(device()), "finalize": finalize,
-        "closePlayer": close_player,
-        "scored": [
-            scored(owner(), RUN_ID, 40, 3, NOW + 60),
-            scored(validator(), 7, 90, 0, NOW + 120),
-            scored(device(), 8, 40, 9, NOW + 30),
-            scored(owner(), RUN_ID + 1, 75, 1, NOW + 300),
-        ]})
+    "closePlayer": close_player,
+    "scored": [
+        scored(owner(), RUN_ID, 40, 3, NOW + 60),
+        scored(validator(), 7, 90, 0, NOW + 120),
+        scored(device(), 8, 40, 9, NOW + 30),
+        scored(owner(), RUN_ID + 1, 75, 1, NOW + 300),
+    ]})
 }
 
 pub fn claim(day: u32, kind: DailyBoardKind) -> Value {

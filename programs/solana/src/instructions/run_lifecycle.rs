@@ -1014,8 +1014,12 @@ mod tests {
                 .any(|window| window == needle)
         };
         assert!(contains(run.as_ref()));
-        assert!(!contains(ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID.as_ref()));
-        assert!(!contains(ephemeral_rollups_sdk::consts::MAGIC_PROGRAM_ID.as_ref()));
+        assert!(!contains(
+            ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID.as_ref()
+        ));
+        assert!(!contains(
+            ephemeral_rollups_sdk::consts::MAGIC_PROGRAM_ID.as_ref()
+        ));
         let callback = crate::accounts::FulfillRowVrf {
             active_run: run,
             vrf_program_identity: Pubkey::new_unique(),

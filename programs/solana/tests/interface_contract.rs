@@ -7,8 +7,22 @@ fn idl() -> serde_json::Value {
 #[test]
 fn fresh_bootstrap_interface_is_locked() {
     let idl = idl();
-    assert_eq!(idl["instructions"].as_array().unwrap().len(), 29);
+    assert_eq!(idl["instructions"].as_array().unwrap().len(), 24);
     assert_eq!(idl["accounts"].as_array().unwrap().len(), 7);
+    // The cadence that rides on players' transactions needs none of these.
+    for removed in [
+        "activate_arena_daily",
+        "skip_suspended_arena_daily",
+        "archive_arena_daily",
+        "expire_daily_claims",
+        "expire_unresolved_arena_run",
+    ] {
+        assert!(idl["instructions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|instruction| instruction["name"] != removed));
+    }
 }
 
 #[test]
@@ -24,7 +38,9 @@ fn no_instruction_accepts_a_board_row() {
             .iter()
             .any(|account| {
                 account["writable"] == true
-                    && account["name"].as_str().is_some_and(|name| name.ends_with("_board"))
+                    && account["name"]
+                        .as_str()
+                        .is_some_and(|name| name.ends_with("_board"))
             });
         for argument in instruction["args"].as_array().unwrap() {
             let kind = argument["type"].to_string();
@@ -32,7 +48,12 @@ fn no_instruction_accepts_a_board_row() {
             // An instruction that can write a board takes at most which board
             // and which position: never data to put on it.
             assert!(
-                !writes_a_board || ["\"u32\"", "\"u64\"", "{\"defined\":{\"name\":\"DailyBoardKind\"}}"]
+                !writes_a_board
+                    || [
+                        "\"u32\"",
+                        "\"u64\"",
+                        "{\"defined\":{\"name\":\"DailyBoardKind\"}}"
+                    ]
                     .contains(&kind.as_str()),
                 "{} takes {kind}",
                 instruction["name"]

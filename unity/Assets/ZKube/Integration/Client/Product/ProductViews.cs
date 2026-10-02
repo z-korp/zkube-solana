@@ -120,9 +120,11 @@ namespace ZKube.Integration.Client
     {
         public uint DayId { get; }
         public string DailyStatus { get; }
+        // The day is over and unsealed: any player's transaction can finalize it.
+        public bool Finalizable { get; }
         public PrizeBoard Score { get; }
         public PrizeBoard Theme { get; }
-        internal DailyBoards(uint day, string status, PrizeBoard score, PrizeBoard theme)
-        { DayId = day; DailyStatus = status; Score = score; Theme = theme; }
+        internal DailyBoards(uint day, string status, bool finalizable, PrizeBoard score, PrizeBoard theme)
+        { DayId = day; DailyStatus = status; Finalizable = finalizable; Score = score; Theme = theme; }
     }
 }

@@ -17,11 +17,14 @@ namespace ZKube.Integration.Planning
         public bool OwnerSignatureRequired { get; }
         public ulong PostFeeReserveLamports { get; }
         public ulong? RunId { get; }
+        public uint ComputeUnitLimit { get; }
         public bool VersionZero => Route == PlanRoute.Base || OwnerSignatureRequired;
 
         internal TransactionPlan(PlanRoute route, string owner, string payer,
-            IEnumerable<SolanaInstruction> instructions, ulong reserve = 0, ulong? runId = null)
+            IEnumerable<SolanaInstruction> instructions, ulong reserve = 0, ulong? runId = null,
+            uint computeUnitLimit = PlanningConstants.ComputeUnitLimit)
         {
+            ComputeUnitLimit = computeUnitLimit;
             SolanaAddress.Bytes(owner); SolanaAddress.Bytes(payer);
             var list = instructions.ToArray();
             if (list.Length == 0) throw new ArgumentException("Empty transaction plan");
@@ -39,7 +42,7 @@ namespace ZKube.Integration.Planning
             if (VersionZero)
             {
                 var limit = new byte[5]; limit[0] = 2;
-                NativeWire.Write(limit, 1, 4, PlanningConstants.ComputeUnitLimit);
+                NativeWire.Write(limit, 1, 4, ComputeUnitLimit);
                 var price = new byte[9]; price[0] = 3;
                 NativeWire.Write(price, 1, 8, PlanningConstants.ComputeUnitPrice);
                 instructions.InsertRange(0, new[] {

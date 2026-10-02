@@ -25,7 +25,9 @@ import {
 export const KEEPER_SCHEMA_VERSION = 1 as const;
 
 export const KEEPER_LIMITS = Object.freeze({
-  writes: 6, spendLamports: 100_000_000, reserveLamports: 100_000_000, reconciledWrites: 20,
+  // The backstop's largest write prepares a Daily and its two board headers,
+  // about 0.0052 SOL of cadence rent; everything else is a fee.
+  writes: 6, spendLamports: 10_000_000, reserveLamports: 20_000_000, reconciledWrites: 20,
 });
 
 /** The most compute one transaction may request. */

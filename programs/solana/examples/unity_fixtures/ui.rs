@@ -96,7 +96,6 @@ pub fn scenarios() -> Value {
 fn claim_daily(day: u32, variant: &str) -> Value {
     let mut daily = accounts::daily(day);
     if variant != "unsealed" {
-        daily.status = PeriodStatus::Finalized;
         daily.finalized_at = match variant {
             "deadline" => NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS,
             "expired" => NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS - 1,

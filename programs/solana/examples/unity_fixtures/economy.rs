@@ -7,7 +7,6 @@ pub fn finalized(day: u32) -> Value {
 
 pub fn finalized_at(day: u32, at: i64) -> Value {
     let mut daily = accounts::daily(day);
-    daily.status = PeriodStatus::Finalized;
     daily.finalized_at = at;
     daily.score_qualified_players = 1;
     daily.theme_qualified_players = 1;
@@ -21,12 +20,51 @@ pub fn finalized_at(day: u32, at: i64) -> Value {
         8 + ArenaDaily::INIT_SPACE,
     )
 }
+// Yesterday's played Daily and today's, the moment before and the moment
+// after the program finalizes yesterday into today, and the protocol on a
+// quiet day when today's Daily does not exist yet.
+fn cadence() -> Value {
+    let row = |daily: &ArenaDaily| {
+        envelope(
+            accounts::daily_address(daily.day_id),
+            daily,
+            8 + ArenaDaily::INIT_SPACE,
+        )
+    };
+    let mut yesterday = accounts::daily(DAY - 1);
+    yesterday.ledger.seeded_lamports = 2_000_000_000;
+    yesterday.ledger.rollover_in_lamports = 123_456_789;
+    yesterday.entries_paid = 7;
+    yesterday.entries_scored = 6;
+    yesterday.unique_players = 5;
+    yesterday.score_qualified_players = 5;
+    yesterday.theme_qualified_players = 3;
+    yesterday.ledger.next_pot_lamports = 7 * zkube_core::ENTRY_DAILY_LAMPORTS;
+    let mut today = accounts::daily(DAY);
+    today.predecessor_rollover_applied = false;
+    today.ledger.seeded_lamports = 50_000_000;
+    today.entries_paid = 2;
+    today.ledger.next_pot_lamports = 2 * zkube_core::ENTRY_DAILY_LAMPORTS;
+    let (mut finalized, mut received) = (yesterday.clone(), today.clone());
+    let settlement = finalized.settle_into(&mut received, NOW).unwrap();
+    assert!(
+        settlement.score.paid_lamports > 0
+            && settlement.forwarded_lamports > yesterday.ledger.next_pot_lamports
+    );
+    let mut quiet = accounts::protocol();
+    quiet.last_prepared_day = DAY - 1;
+    json!({"yesterday": row(&yesterday), "today": row(&today),
+        "yesterdayFinalized": row(&finalized), "todayReceived": row(&received),
+        "forwarded": settlement.forwarded_lamports.to_string(),
+        "quietProtocol": envelope(accounts::singleton(PROTOCOL_CONFIG_SEED), &quiet, 8 + ProtocolConfig::INIT_SPACE)})
+}
+
 pub fn scenarios() -> Value {
     let day = DAY - 4;
     let old = DAY - 200;
     json!({"team": {"address": validator().to_string(), "owner": Pubkey::default().to_string(),
         "executable": false, "data": ""},
-        "claimDaily": finalized(day), "claimedBoard": boards::board(day, DailyBoardKind::Score, true, true, owner()),
+        "cadence": cadence(), "claimDaily": finalized(day), "claimedBoard": boards::board(day, DailyBoardKind::Score, true, true, owner()),
         "claim": transactions::claim(day, DailyBoardKind::Score), "oldDay": old, "oldDaily": finalized(old),
         "oldDailyExpired": finalized_at(old, NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS - 1),
         "oldScore": boards::board(old, DailyBoardKind::Score, false, true, owner()),

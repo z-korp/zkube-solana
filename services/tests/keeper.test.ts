@@ -14,8 +14,9 @@ import {
 
 describe("keeper bounds", () => {
   it("pins reserve and spend limits", () => {
-    expect(KEEPER_LIMITS.reserveLamports).toBe(100_000_000);
-    expect(KEEPER_LIMITS.spendLamports).toBe(100_000_000);
+    // A backstop that pays fees and one Daily's rent a pass needs no more.
+    expect(KEEPER_LIMITS.reserveLamports).toBe(20_000_000);
+    expect(KEEPER_LIMITS.spendLamports).toBe(10_000_000);
     expect(keeperSpendWithinLimit(100_000_000, 100_000_000)).toBe(true);
     expect(keeperSpendWithinLimit(100_000_001, 100_000_000)).toBe(false);
   });

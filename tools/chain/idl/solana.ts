@@ -14,75 +14,6 @@ export type Solana = {
   },
   "instructions": [
     {
-      "name": "activateArenaDaily",
-      "discriminator": [
-        119,
-        214,
-        15,
-        122,
-        237,
-        1,
-        96,
-        197
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "applyBonus",
       "discriminator": [
         50,
@@ -172,149 +103,6 @@ export type Solana = {
           }
         }
       ]
-    },
-    {
-      "name": "archiveArenaDaily",
-      "discriminator": [
-        145,
-        28,
-        86,
-        204,
-        154,
-        22,
-        173,
-        217
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaDaily",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "scoreBoard",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  99,
-                  111,
-                  114,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "themeBoard",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  104,
-                  101,
-                  109,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
     },
     {
       "name": "claimDailyPrize",
@@ -575,6 +363,40 @@ export type Solana = {
                   109,
                   101
                 ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "newestDaily",
+          "docs": [
+            "The newest prepared Daily, which receives what was never claimed.",
+            "Needed only when something is left to move."
+          ],
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "newest_daily.day_id",
+                "account": "arenaDaily"
               }
             ]
           }
@@ -1324,35 +1146,6 @@ export type Solana = {
           }
         },
         {
-          "name": "followingDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "following_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
           "name": "scoreBoard",
           "writable": true,
           "pda": {
@@ -1546,20 +1339,21 @@ export type Solana = {
       ]
     },
     {
-      "name": "expireDailyClaims",
+      "name": "finalizeArenaDaily",
       "discriminator": [
-        68,
-        234,
-        33,
-        180,
-        137,
-        221,
-        235,
-        146
+        97,
+        122,
+        29,
+        186,
+        227,
+        13,
+        141,
+        179
       ],
       "accounts": [
         {
           "name": "protocol",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -1578,266 +1372,6 @@ export type Solana = {
             ]
           }
         },
-        {
-          "name": "arenaDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "scoreBoard",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  99,
-                  111,
-                  114,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "themeBoard",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  104,
-                  101,
-                  109,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "followingDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "following_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "expireUnresolvedArenaRun",
-      "discriminator": [
-        39,
-        183,
-        178,
-        83,
-        131,
-        219,
-        138,
-        63
-      ],
-      "accounts": [
-        {
-          "name": "playerState",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaPlayer",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "owner"
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "finalizeArenaDaily",
-      "discriminator": [
-        97,
-        122,
-        29,
-        186,
-        227,
-        13,
-        141,
-        179
-      ],
-      "accounts": [
         {
           "name": "arenaDaily",
           "writable": true,
@@ -3117,208 +2651,6 @@ export type Solana = {
           "type": "bool"
         }
       ]
-    },
-    {
-      "name": "skipSuspendedArenaDaily",
-      "discriminator": [
-        13,
-        245,
-        212,
-        165,
-        9,
-        246,
-        74,
-        113
-      ],
-      "accounts": [
-        {
-          "name": "protocol",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  111,
-                  116,
-                  111,
-                  99,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "suspendedDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "suspended_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "successorDaily",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "successor_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "scoreBoard",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "suspendedDaily"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  99,
-                  111,
-                  114,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "themeBoard",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "suspendedDaily"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  104,
-                  101,
-                  109,
-                  101
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "cadenceFunding",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  97,
-                  100,
-                  101,
-                  110,
-                  99,
-                  101,
-                  95,
-                  102,
-                  117,
-                  110,
-                  100,
-                  105,
-                  110,
-                  103
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
     }
   ],
   "accounts": [
@@ -3885,18 +3217,10 @@ export type Solana = {
             "type": "u32"
           },
           {
-            "name": "status",
-            "type": {
-              "defined": {
-                "name": "periodStatus"
-              }
-            }
-          },
-          {
             "name": "predecessorDay",
             "docs": [
-              "The Daily prepared before this one. Entry backing, finalization",
-              "rollover and suspended funding reach this Daily only from that day."
+              "The Daily prepared before this one. Its entries' prize share and its",
+              "rollover reach this Daily only from that day, when it finalizes."
             ],
             "type": "u32"
           },
@@ -3948,13 +3272,6 @@ export type Solana = {
           {
             "name": "themeQualifiedPlayers",
             "type": "u32"
-          },
-          {
-            "name": "claimsExpired",
-            "docs": [
-              "Set exactly once after the claim window and unclaimed transfer."
-            ],
-            "type": "bool"
           },
           {
             "name": "bump",
@@ -4177,23 +3494,6 @@ export type Solana = {
       }
     },
     {
-      "name": "periodStatus",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "funding"
-          },
-          {
-            "name": "open"
-          },
-          {
-            "name": "finalized"
-          }
-        ]
-      }
-    },
-    {
       "name": "playerState",
       "type": {
         "kind": "struct",
@@ -4351,6 +3651,9 @@ export type Solana = {
           },
           {
             "name": "entryLamports",
+            "docs": [
+              "The prize share of the entries of the Daily before this one."
+            ],
             "type": "u64"
           },
           {
@@ -4363,6 +3666,14 @@ export type Solana = {
           },
           {
             "name": "rolloverOutLamports",
+            "type": "u64"
+          },
+          {
+            "name": "nextPotLamports",
+            "docs": [
+              "The prize share of this Daily's own entries. It waits here, outside",
+              "this Daily's pot, and moves to the next Daily at finalization."
+            ],
             "type": "u64"
           }
         ]

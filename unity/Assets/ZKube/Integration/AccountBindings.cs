@@ -78,7 +78,7 @@ namespace ZKube.Integration
             if (kind != "score" && kind != "theme") throw new FormatException("Invalid board kind");
             if (envelope == null) return null;
             if (daily == null || (uint)daily["day_id"] != dayId) throw new FormatException("Board has no matching Daily");
-            bool sealedBoard = ((JObject)daily["status"]).Properties().Single().Name == "Finalized";
+            bool sealedBoard = Planning.DailyCadence.Finalized(daily);
             long sealedAt = sealedBoard ? (long)daily["finalized_at"] : 0;
             int headerBytes = FixedAccountBytes("ArenaBoard");
             var entryType = new JObject { ["defined"] = new JObject { ["name"] = "ArenaBoardEntry" } };

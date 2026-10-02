@@ -1,8 +1,8 @@
 import { PublicKey, SystemProgram, type Connection } from "@solana/web3.js";
-import { dayIdAt, dailyWindow, scheduledDailyWindow } from "../../services/src/zkubeCore.js";
+import { dayIdAt, dailyWindow } from "../../services/src/zkubeCore.js";
 import { ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 import { CADENCE_FUNDING_SEED_LAMPORTS, LAUNCH_DAILY_SEED_LAMPORTS } from "./adminClient.js";
-import { accountCoder, chainTime, readAccount, programDataAddress } from "./chainRelease.js";
+import { chainTime, readAccount, programDataAddress } from "./chainRelease.js";
 import { deriveArenaDailyPda, deriveCadenceFundingPda, deriveCreditVaultPda, deriveProtocolConfigPda } from "./pdas.js";
 import { type Operation, type OperatorBundle } from "./operatorPlan.js";
 
@@ -22,16 +22,17 @@ export async function readGovernance(connection: Connection, authority: string, 
 
 export async function observeDeposits(connection: Connection, authority: string, launchDayId: number,
   requested: Array<{ selector: string; lamports: string }>) {
-  const protocol = await readGovernance(connection, authority, launchDayId);
+  await readGovernance(connection, authority, launchDayId);
   const now = await chainTime(connection);
-  const window = scheduledDailyWindow(dayIdAt(BigInt(now)), protocol.suspendedUntilDay);
+  // A deposit joins the pot of the day it is made on: today's Daily, which
+  // exists once someone has entered it or prepared it.
+  const today = dayIdAt(BigInt(now));
   const deposits = [];
   for (const request of requested) {
-    const dayId = request.selector === "current" ? window.first : request.selector === "following"
-      ? window.following : Number(request.selector);
-    if (dayId !== window.first && dayId !== window.following) throw new Error("Top-up targets the current or following scheduled Daily");
+    const dayId = request.selector === "current" ? today : Number(request.selector);
+    if (dayId !== today) throw new Error("Top-up targets today's Daily");
     const { value } = await readAccount(connection, "arenaDaily", deriveArenaDailyPda(dayId));
-    if (value.dayId !== dayId || !("funding" in value.status || "open" in value.status) ||
+    if (value.dayId !== dayId || !value.finalizedAt.isZero() ||
         now >= dailyWindow(dayId).runsCloseAt) throw new Error("Top-up Daily is not open for funding");
     const seededBefore = value.ledger.seededLamports.toString();
     if (BigInt(seededBefore) + BigInt(request.lamports) > 0xffff_ffff_ffff_ffffn) throw new Error("Seeded ledger would overflow");
@@ -71,28 +72,20 @@ export async function checkFreshTransaction(connection: Connection, bundle: Oper
   }
   const vault = await readAccount(connection, "creditVault", deriveCreditVaultPda());
   if (!vault.value.availablePrizeLamports.isZero()) throw new Error("Staged Kredit vault is not empty");
-  for (const dayId of [input.launchDayId, input.launchDayId + 1]) {
-    const { value } = await readAccount(connection, "arenaDaily", deriveArenaDailyPda(dayId));
-    const ledger = value.ledger;
-    if (value.dayId !== dayId || !("funding" in value.status) || value.predecessorRolloverApplied ||
-        [ledger.seededLamports, ledger.entryLamports, ledger.rolloverInLamports,
-          ledger.payoutLamports, ledger.rolloverOutLamports].some(amount => !amount.isZero())) {
-      throw new Error("Staged Daily differs from the approved launch");
-    }
+  // The launch Daily is prepared by the launch transaction itself: nothing is staged for it.
+  if (await connection.getAccountInfo(deriveArenaDailyPda(input.launchDayId), "confirmed")) {
+    throw new Error("The launch Daily already exists");
   }
   const funding = await connection.getAccountInfo(deriveCadenceFundingPda(), "confirmed");
-  // Each prepared Daily took its own rent and its two empty boards' from cadence funding.
-  const rent = await connection.getMinimumBalanceForRentExemption(accountCoder.size("arenaDaily"), "confirmed") +
-    2 * await connection.getMinimumBalanceForRentExemption(accountCoder.size("arenaBoard"), "confirmed");
   if (!funding || funding.executable || !funding.owner.equals(SystemProgram.programId) || funding.data.length ||
-      funding.lamports !== CADENCE_FUNDING_SEED_LAMPORTS - 2 * rent) throw new Error("Staged cadence funding differs from approval");
+      funding.lamports !== CADENCE_FUNDING_SEED_LAMPORTS) throw new Error("Staged cadence funding differs from approval");
 }
 
 export async function checkLaunchResult(connection: Connection, operation: Operation): Promise<void> {
   if (operation.kind !== "launch") return;
   const protocol = await readGovernance(connection, operation.input.authority, operation.input.launchDayId);
   const { value } = await readAccount(connection, "arenaDaily", deriveArenaDailyPda(operation.input.launchDayId));
-  if (protocol.paused || !("open" in value.status) ||
+  if (protocol.paused || !value.predecessorRolloverApplied || !value.finalizedAt.isZero() ||
       value.ledger.seededLamports.toString() !== String(LAUNCH_DAILY_SEED_LAMPORTS)) {
     throw new Error("The approved launch did not become active");
   }

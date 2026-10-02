@@ -83,7 +83,7 @@ pub const ARENA_DAILY_PLAYER_CAPACITY: u32 = 262_144;
 
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
-pub const PROTOCOL_ACCOUNT_VERSION: u8 = 7;
+pub const PROTOCOL_ACCOUNT_VERSION: u8 = 8;
 pub const PLAYER_STATE_ACCOUNT_VERSION: u8 = 4;
 pub const ARCADE_DAILY_RESULT_HASH_DOMAIN: &str = "zkube-arcade-daily-result-v5";
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -113,17 +113,15 @@ pub use ladder::{
 };
 
 pub use payouts::{
-    BoardWidth, DailyBoardPools, PayoutError, PayoutPlan,
-    SOL_PAYOUT_UNIT_LAMPORTS, board_width,
+    BoardWidth, DailyBoardPools, PayoutError, PayoutPlan, SOL_PAYOUT_UNIT_LAMPORTS, board_width,
     compare_board_entries, daily_board_pools, payout_for_rank, rank_weighted_payouts,
     sum_rank_payouts,
 };
 
 pub use periods::{
     DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_RUN_CLOSE_OFFSET, DAY_START_OFFSET, PeriodError,
-    RUN_RECOVERY_SECONDS,
-    SECONDS_PER_DAY, daily_is_scheduled, daily_window, day_id_at, next_scheduled_daily,
-    scheduled_daily_window,
+    RUN_RECOVERY_SECONDS, SECONDS_PER_DAY, daily_is_scheduled, daily_window, day_id_at,
+    preparable_daily,
 };
 
 pub use presentation::{NoPresentation, PresentationEvent, PresentationObserver};

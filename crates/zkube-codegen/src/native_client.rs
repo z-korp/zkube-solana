@@ -246,6 +246,11 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             "ClaimWindowSeconds",
             DAILY_REWARD_CLAIM_WINDOW_SECONDS as u64,
         ),
+        // How long after its close a Daily waits for a run still in flight.
+        (
+            "RunRecoverySeconds",
+            zkube_core::RUN_RECOVERY_SECONDS as u64,
+        ),
         // What a device holds at once to enter and delegate a first run of
         // the day, the part that returns when the daily player closes, and
         // the floor of the device's own account.

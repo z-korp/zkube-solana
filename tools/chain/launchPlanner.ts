@@ -12,7 +12,6 @@ import {
   buildAtomicArcadeLaunchPlan,
   buildSeedCadenceFundingPlan,
   buildInitializeProtocolPlan,
-  buildPrepareLaunchPeriodPlans,
 } from "./adminClient.js";
 import { LAUNCH_DAILY_SEED_LAMPORTS } from "./adminClient.js";
 import { assertDevnetRelease, accountCoder, OPERATOR_RESERVE_LAMPORTS, devnetEndpoint } from "./chainRelease.js";
@@ -297,7 +296,6 @@ function bootstrapTargetAccounts(dayId: number): PublicKey[] {
     deriveCreditVaultPda(),
     deriveCadenceFundingPda(),
     deriveArenaDailyPda(dayId),
-    deriveArenaDailyPda(dayId + 1),
   ];
 }
 
@@ -452,13 +450,6 @@ export async function launchTransactionPlans(input: LaunchSettings, upgradeAutho
       connection,
       authority: wallet,
     }),
-  );
-  plans.push(
-    ...(await buildPrepareLaunchPeriodPlans({
-      connection,
-      authority: wallet,
-      dayId: input.launchDayId,
-    })),
   );
   plans.push(
     await buildAtomicArcadeLaunchPlan({

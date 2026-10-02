@@ -6,7 +6,6 @@ import {
   buildAtomicArcadeLaunchPlan,
   buildSeedCadenceFundingPlan,
   buildInitializeProtocolPlan,
-  buildPrepareLaunchPeriodPlans,
   buildSetArenaSuspensionPlan,
   buildDepositArenaDailyPlan,
 } from "./adminClient.js";
@@ -83,27 +82,7 @@ describe("authority initialization client", () => {
       pubkey.equals(deriveCadenceFundingPda()))).toBe(true);
   });
 
-  it("prepares current and following Daily separately", async () => {
-    const authority = createReadOnlyWallet(Keypair.generate().publicKey);
-    const plans = await buildPrepareLaunchPeriodPlans({
-      connection: {} as Connection,
-      authority,
-      dayId: 100,
-
-    });
-
-    expect(plans.map(({ label }) => label)).toEqual([
-      "Prepare Daily 100",
-      "Prepare Daily 101",
-    ]);
-    expect(
-      plans[0]?.transaction.instructions[0]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveArenaDailyPda(100)),
-      ),
-    ).toBe(true);
-  });
-
-  it("keeps seed, unpause, and Daily activation in one ordered transaction", async () => {
+  it("prepares the launch Daily, seeds it and unpauses in one ordered transaction", async () => {
     const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const plan = await buildAtomicArcadeLaunchPlan({
       connection: {} as Connection,
@@ -111,13 +90,17 @@ describe("authority initialization client", () => {
       dayId: 100,
     });
 
+    // Prepare, seed, unpause: nothing is staged for the Daily and nothing activates it.
     expect(plan.transaction.instructions).toHaveLength(3);
-    expect(plan.label).toBe("Atomically seed 1 SOL and launch Arcade");
-    expect(
-      plan.transaction.instructions[0]?.keys.some(({ pubkey }) =>
-        pubkey.equals(deriveArenaDailyPda(100)),
-      ),
-    ).toBe(true);
+    expect(plan.label).toBe("Atomically prepare the launch Daily, seed 1 SOL and launch Arcade");
+    const [prepare, seed, unpause] = plan.transaction.instructions;
+    for (const instruction of [prepare, seed]) {
+      expect(instruction?.keys.some(({ pubkey }) => pubkey.equals(deriveArenaDailyPda(100)))).toBe(true);
+    }
+    expect(prepare?.keys.some(({ pubkey }) => pubkey.equals(deriveCadenceFundingPda()))).toBe(true);
+    expect(unpause?.keys).toHaveLength(2);
+    expect(plan.transaction.instructions.some((instruction) =>
+      instruction.keys.some(({ pubkey }) => pubkey.equals(deriveArenaDailyPda(101))))).toBe(false);
   });
 
   it("routes a chosen amount to the exact selected prize-pool PDA", async () => {

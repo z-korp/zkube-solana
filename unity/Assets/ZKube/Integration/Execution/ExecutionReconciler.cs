@@ -47,6 +47,17 @@ namespace ZKube.Integration.Execution
             var first = protocol.DecodeInstruction(calls[0]);
             if (first.Name == "initialize_player") return ReconcileSession(evidence, calls);
             if (calls.Any(call => call.ProgramId != protocol.ProgramId)) return Task.FromResult(false);
+            // The cadence a transaction carries first is permissionless and a
+            // no-op when already done: it leaves nothing of the owner's to accept.
+            int cadence = calls.Select(protocol.DecodeInstruction)
+                .TakeWhile(i => i.Name == "prepare_arena_daily" || i.Name == "finalize_arena_daily").Count();
+            if (cadence > 0)
+            {
+                if (!evidence.Pending.IsBase || cadence > 1 + DailyCadence.MaximumSteps) return Task.FromResult(false);
+                if (cadence == calls.Length) return Task.FromResult(true);
+                calls = calls.Skip(cadence).ToArray(); first = protocol.DecodeInstruction(calls[0]);
+                if (first.Name != "enter_arena") return Task.FromResult(false);
+            }
             switch (first.Name)
             {
                 case "purchase_kredits":

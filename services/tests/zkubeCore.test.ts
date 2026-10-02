@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  dailyWindow, dayIdAt, scheduledDailyWindow, nextScheduledDaily,
+  dailyWindow, dayIdAt, preparableDaily,
   compareBoardEntries,
 } from "../src/zkubeCore.js";
 
@@ -20,10 +20,10 @@ describe("generated Node zkube-core boundary", () => {
     }
     expect(() => dayIdAt(-1n)).toThrow();
     expect(() => dayIdAt(0x1_0000_0000n * 86_400n + 25_200n)).toThrow();
-    expect(scheduledDailyWindow(10, 20)).toEqual({ first: 20, following: 21 });
-    expect(nextScheduledDaily(10, 20)).toBe(20);
-    expect(nextScheduledDaily(20, 20)).toBe(21);
-    expect(() => scheduledDailyWindow(0xffff_ffff, 0)).toThrow();
+    expect(preparableDaily(10, 1, 20)).toBe(20);
+    expect(preparableDaily(20, 1, 20)).toBe(20);
+    expect(preparableDaily(10, 0, 20)).toBe(10);
+    expect(preparableDaily(0xffff_ffff, 1, 0)).toBe(0xffff_ffff);
     const a = new Uint8Array(32), b = new Uint8Array(32).fill(255);
     expect(compareBoardEntries(0xffff_ffff_ffff_ffffn, 9, b, 0n, 0, a)).toBe(-1);
     expect(compareBoardEntries(10n, -1, b, 10n, 1, a)).toBe(-1);

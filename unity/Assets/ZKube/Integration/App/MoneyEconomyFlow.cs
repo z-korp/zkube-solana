@@ -72,6 +72,9 @@ namespace ZKube.Integration.App
             return ChangeEconomy(token => services.Economy.Claim(day, kind, token), cancellation);
         }
 
+        public Task<MoneyRead<ExecutionResult>> SettleDailies(CancellationToken cancellation = default) =>
+            ChangeEconomy(token => services.Economy.SettleDailies(token), cancellation);
+
         // Shared owner lifetime and receipt publication; a second tap rejects
         // immediately instead of queuing a second wallet approval or claim.
         private Task<MoneyRead<ExecutionResult>> ChangeEconomy(Func<CancellationToken, Task<ExecutionResult>> change, CancellationToken cancellation)

@@ -62,12 +62,23 @@ namespace ZKube.Integration.Client
             long timestamp = Clock(); uint day = CurrentDay(timestamp);
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress,
                 addresses.Daily(day), addresses.Player(lease.Owner) }, cancellation: token).ConfigureAwait(false);
+            var before = await PublicDailyQuery.Predecessor(accounts, addresses, rpc, day, read.Accounts[0].Envelope,
+                read.Accounts[1].Envelope, read.Slot, token).ConfigureAwait(false);
             var projection = PublicDailyQuery.Decode(accounts, day, Clock(),
-                read.Accounts[0].Envelope, read.Accounts[1].Envelope);
+                read.Accounts[0].Envelope, read.Accounts[1].Envelope, before);
             var profile = Profile(lease.Owner, read.Accounts[2]);
             return new DailyLobby(day, projection.Status, projection.Suspended, projection.ProtocolPaused,
                 projection.Realm, projection.ObjectiveKind, projection.ObjectiveValue, projection.PotLamports,
                 profile);
+        });
+
+        // What a transaction sent now would prepare and finalize.
+        public Task<MoneyRead<CadenceObservation>> Cadence(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            long timestamp = Clock(); uint day = CurrentDay(timestamp);
+            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress, addresses.Daily(day) }, cancellation: token).ConfigureAwait(false);
+            return await CadenceObservation.Read(accounts, addresses, rpc,
+                read.Accounts[0].Envelope == null ? null : accounts.ProtocolConfig(read.Accounts[0].Envelope),
+                read.Accounts[1].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[1].Envelope, day), day, timestamp, read.Slot, token).ConfigureAwait(false);
         });
 
         // Explicit day reads have no discovery lookback restriction: an old
@@ -77,7 +88,7 @@ namespace ZKube.Integration.Client
             var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score"), addresses.Board(day, "theme") }, cancellation: token).ConfigureAwait(false);
             var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
             string dailyStatus = daily == null ? "missing" : DailyStatus(daily, timestamp);
-            return new DailyBoards(day, dailyStatus,
+            return new DailyBoards(day, dailyStatus, daily != null && !DailyCadence.Finalized(daily) && DailyCadence.WindowDone(daily, timestamp),
                 await WithPublicStandings(day, Board(day, "score", read.Accounts[1].Envelope, daily, lease.Owner, timestamp), lease.Owner, token).ConfigureAwait(false),
                 await WithPublicStandings(day, Board(day, "theme", read.Accounts[2].Envelope, daily, lease.Owner, timestamp), lease.Owner, token).ConfigureAwait(false));
         });
@@ -136,7 +147,7 @@ namespace ZKube.Integration.Client
             bool expired = timestamp > expiry;
             var rows = board.Rows.Select(row => new PrizeRow(row, kind, payouts[row.Position])).ToArray();
             var yours = rows.SingleOrDefault(row => row.Record.Player == owner);
-            string claim = daily == null ? "unavailable" : expired || (bool)daily["claims_expired"] ? "expired"
+            string claim = daily == null ? "unavailable" : expired ? "expired"
                 : yours == null ? "no-placement" : yours.Record.Claimed ? "claimed" : "claimable";
             return new PrizeBoard(kind, expired ? "expired" : rows.Length == 0 ? "empty" : "sealed", claim, expiry, rows, owner, board);
         }
@@ -147,7 +158,7 @@ namespace ZKube.Integration.Client
             // from accounted payouts+rollover, never the remaining claim balance.
             if (daily != null)
             {
-                if (!string.Equals(((JObject)daily["status"]).Properties().Single().Name, "Finalized", StringComparison.OrdinalIgnoreCase))
+                if (!DailyCadence.Finalized(daily))
                     throw new FormatException("Prize board requires its finalized Daily");
                 var ledger = daily["ledger"];
                 var funded = new BigInteger((ulong)ledger["payout_lamports"]) + (ulong)ledger["rollover_out_lamports"];

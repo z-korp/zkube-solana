@@ -135,7 +135,7 @@ namespace ZKube.Integration.Presentation
         private static string PublicStatus(string value) => value switch {
             "missing-config" => "Daily service unavailable", "missing-daily" => "Today's Daily is not available",
             "suspended" => "Daily is suspended", "paused" => "Daily play is paused", "not-open" => "Opens later today",
-            "funding" => "Daily is being prepared", "open" => "Daily is open", "frozen" => "Entries are closed",
+            "open" => "Daily is open", "frozen" => "Entries are closed",
             "finalized" => "Daily complete", _ => "Daily status unavailable"
         };
         private static string SessionText(SessionAssessment value)

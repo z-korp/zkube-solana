@@ -37,8 +37,9 @@ and distribution review.
 - **Ladder:** integer log-rank points for placing and a flat credit for qualifying. They pay no SOL and never
   decay.
 - **Execution:** runs play on a MagicBlock ephemeral rollup with VRF and settle on Solana. Replay commitments let
-  anyone recompute a result. A keeper handles cadence and recovery under separately approved limits, and a
-  public read model serves the full standings without any authority over them.
+  anyone recompute a result. Players' own transactions prepare and finalize each Daily; a keeper is only a
+  backstop for cleanup and abandoned runs under separately approved limits, and a public read model serves the
+  full standings without any authority over them.
 
 Campaign plays locally in both games and never touches money. On Arena, the packed star array on chain is the
 player's save, synchronized across their devices; stars grant no SOL, entries or prize eligibility.

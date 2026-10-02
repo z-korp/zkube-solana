@@ -45,31 +45,14 @@ export function dayIdAt(timestamp) {
 }
 
 /**
- * @param {number} day
+ * @param {number} today
+ * @param {number} launch
  * @param {number} suspended
  * @returns {number}
  */
-export function nextScheduledDaily(day, suspended) {
-    const ret = wasm.nextScheduledDaily(day, suspended);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return ret[0] >>> 0;
-}
-
-/**
- * @param {number} day
- * @param {number} suspended
- * @returns {Uint32Array}
- */
-export function scheduledDailyWindow(day, suspended) {
-    const ret = wasm.scheduledDailyWindow(day, suspended);
-    if (ret[3]) {
-        throw takeFromExternrefTable0(ret[2]);
-    }
-    var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
-    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-    return v1;
+export function preparableDaily(today, launch, suspended) {
+    const ret = wasm.preparableDaily(today, launch, suspended);
+    return ret >>> 0;
 }
 function __wbg_get_imports() {
     const import0 = {
@@ -99,11 +82,6 @@ function getArrayI64FromWasm0(ptr, len) {
     return getBigInt64ArrayMemory0().subarray(ptr / 8, ptr / 8 + len);
 }
 
-function getArrayU32FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
-}
-
 let cachedBigInt64ArrayMemory0 = null;
 function getBigInt64ArrayMemory0() {
     if (cachedBigInt64ArrayMemory0 === null || cachedBigInt64ArrayMemory0.byteLength === 0) {
@@ -115,14 +93,6 @@ function getBigInt64ArrayMemory0() {
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return decodeText(ptr, len);
-}
-
-let cachedUint32ArrayMemory0 = null;
-function getUint32ArrayMemory0() {
-    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
-        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
-    }
-    return cachedUint32ArrayMemory0;
 }
 
 let cachedUint8ArrayMemory0 = null;
@@ -167,7 +137,6 @@ function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
     cachedBigInt64ArrayMemory0 = null;
-    cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;

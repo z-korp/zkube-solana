@@ -44,10 +44,17 @@ namespace ZKube.Integration.Planning
         public ulong NextRunId { get; }
         public ulong DailyRunId { get; }
         public ulong Kredits { get; }
+        public long RunDeadlineAt { get; }
+        // A run its player never settled stops being able to score at its
+        // recovery deadline; the program then retires it at the next entry.
+        public bool RunRetired(long now) => DailyRunId != 0 &&
+            now >= checked(RunDeadlineAt + (long)ZKube.Core.Generated.Protocol.RunRecoverySeconds);
+        public bool SlotFree(long now) => DailyRunId == 0 || RunRetired(now);
         private PlayerPlanSnapshot(string owner, JObject fields)
         {
             Owner = owner; NextRunId = (ulong)fields["next_run_id"];
             DailyRunId = (ulong)fields["active_run_id"]; Kredits = (ulong)fields["kredit_balance"];
+            RunDeadlineAt = (long)fields["active_run_deadline_at"];
             if (NextRunId == 0 || NextRunId <= DailyRunId)
                 throw new ArgumentException("Invalid monotonic run ID sequence");
         }
@@ -58,41 +65,37 @@ namespace ZKube.Integration.Planning
     public sealed class DailyEntrySnapshot
     {
         public uint DayId { get; }
-        public uint FollowingDayId { get; }
-        private DailyEntrySnapshot(uint day, uint following) { DayId = day; FollowingDayId = following; }
+        // Today's Daily does not exist yet: this entry prepares it first.
+        public bool PrepareToday { get; }
+        private DailyEntrySnapshot(uint day, bool prepare) { DayId = day; PrepareToday = prepare; }
         public static DailyEntrySnapshot Decode(AccountBindings bindings, AccountEnvelope protocol,
-            AccountEnvelope current, AccountEnvelope following, AccountEnvelope vault, uint dayId, long now)
+            AccountEnvelope current, AccountEnvelope vault, uint dayId, long now)
         {
-            var result = Inspect(bindings, protocol, current, following, vault, dayId, now);
+            var result = Inspect(bindings, protocol, current, vault, dayId, now);
             if (result.Snapshot == null) throw new InvalidOperationException("Daily entry unavailable: " + result.Status);
             return result.Snapshot;
         }
 
         // The read-only UI assessment and submission use the same bounded account
         // preconditions. Malformed accounts throw; absence and closed windows are states.
+        // A Daily is open by the clock: one that nobody has entered yet simply
+        // does not exist, and the first entry prepares it.
         public static DailyEntryAssessment Inspect(AccountBindings bindings, AccountEnvelope protocol,
-            AccountEnvelope current, AccountEnvelope following, AccountEnvelope vault, uint dayId, long now)
+            AccountEnvelope current, AccountEnvelope vault, uint dayId, long now)
         {
             // The day is the core's: the caller's day must be the one this instant belongs to.
-            var bounds = NativeEngine.Daily(dayId);
-            if (now < (long)bounds.OpensAt || NativeEngine.DayAt(now) != dayId) throw new ArgumentOutOfRangeException(nameof(now));
+            var window = NativeEngine.Daily(dayId);
+            if (now < (long)window.OpensAt || NativeEngine.DayAt(now) != dayId) throw new ArgumentOutOfRangeException(nameof(now));
             if (protocol == null) return new DailyEntryAssessment("missing-protocol");
             var config = bindings.ProtocolConfig(protocol);
+            if ((uint)config["launch_day_id"] == 0) return new DailyEntryAssessment("missing-daily");
             if ((bool)config["paused"]) return new DailyEntryAssessment("paused");
-            uint suspension = (uint)config["suspended_until_day"];
-            if (dayId < suspension) return new DailyEntryAssessment("suspended");
-            if (current == null) return new DailyEntryAssessment("missing-daily");
-            var daily = bindings.ArenaDaily(current, dayId);
-            if (((JObject)daily["status"]).Properties().Single().Name != "Open") return new DailyEntryAssessment("closed");
-            var window = NativeEngine.Daily(dayId);
-            if (now < (long)window.OpensAt) return new DailyEntryAssessment("not-open");
+            if (dayId < (uint)config["suspended_until_day"]) return new DailyEntryAssessment("suspended");
+            if (current != null && DailyCadence.Finalized(bindings.ArenaDaily(current, dayId))) return new DailyEntryAssessment("closed");
             if (now >= (long)window.FreezesAt) return new DailyEntryAssessment("frozen");
-            uint followingDay = Math.Max(checked(dayId + 1), suspension);
-            if (following == null) return new DailyEntryAssessment("missing-receiver");
-            bindings.ArenaDaily(following, followingDay);
             if (vault == null) return new DailyEntryAssessment("missing-vault");
             bindings.CreditVault(vault);
-            return new DailyEntryAssessment("ready", new DailyEntrySnapshot(dayId, followingDay));
+            return new DailyEntryAssessment("ready", new DailyEntrySnapshot(dayId, current == null));
         }
     }
 

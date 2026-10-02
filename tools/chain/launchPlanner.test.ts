@@ -55,13 +55,16 @@ describe("read-only paused bootstrap and launch planner", () => {
 
     );
 
-    expect(plan.payload.transactions).toHaveLength(5);
-    expect(plan.payload.transactions[4]?.instructions).toHaveLength(3);
+    // Initialization, cadence funding, then one transaction that prepares
+    // the launch Daily, seeds it and unpauses. Nothing is staged ahead for the
+    // Daily, and nothing activates it.
+    expect(plan.payload.transactions).toHaveLength(3);
+    expect(plan.payload.transactions[2]?.instructions).toHaveLength(3);
     const coder = new BorshInstructionCoder(convertIdlToCamelCase(IDL));
     expect(plan.payload.transactions.map(transaction => transaction.instructions.map(instruction =>
       instruction.program === SystemProgram.programId.toBase58() ? "transfer" : coder.decode(Buffer.from(instruction.data, "base64"))?.name)))
-      .toEqual([["initializeProtocol"], ["transfer"], ["prepareArenaDaily"], ["prepareArenaDaily"],
-        ["depositArenaDaily", "setProtocolPause", "activateArenaDaily"]]);
+      .toEqual([["initializeProtocol"], ["transfer"],
+        ["prepareArenaDaily", "depositArenaDaily", "setProtocolPause"]]);
     // Only the program's upgrade authority can bootstrap its protocol.
     expect(plan.payload.transactions[0]!.instructions[0]!.accounts.filter(account => account.signer)
       .map(account => account.address).sort()).toEqual([authority.toBase58(), upgradeAuthority.toBase58()].sort());
@@ -69,7 +72,7 @@ describe("read-only paused bootstrap and launch planner", () => {
     if (operation.kind !== "launch") throw new Error("Expected launch plan");
     // The launch pot, and cadence funding for two overlapping Dailies with full boards.
     expect(operation.costs.seedLamports).toBe(1_000_000_000 + CADENCE_FUNDING_TWO_DAY_LAMPORTS);
-    expect(operation.costs.transactionCount).toBe(5);
+    expect(operation.costs.transactionCount).toBe(3);
     expect(plan.fingerprint).toMatch(/^[0-9a-f]{64}$/);
 
   });

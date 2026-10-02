@@ -31,6 +31,8 @@ export interface KeeperJobEvent {
   error?: string;
 }
 
+/** The Cron Trigger that runs the keeper pass; services/worker/wrangler.toml declares it beside the walk's. */
+export const KEEPER_CRON = "*/10 * * * *";
 /** Longer than any invocation can live, so only a dead pass loses its lease. */
 export const KEEPER_LEASE_SECONDS = 900;
 /** The keeper discovers by scanning the chain at least this often, whatever the read model says. */

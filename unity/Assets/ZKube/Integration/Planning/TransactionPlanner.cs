@@ -37,8 +37,41 @@ namespace ZKube.Integration.Planning
             var instruction = protocol.Instruction(name, args, keys);
             return remaining == null ? instruction : new SolanaInstruction(instruction.ProgramId, instruction.Accounts.Concat(remaining), instruction.Data);
         }
-        private TransactionPlan Plan(PlannerActor actor, PlanRoute route, IEnumerable<SolanaInstruction> instructions, ulong reserve = 0, ulong? runId = null) =>
-            new TransactionPlan(route, actor.Owner, actor.Signer, instructions, reserve, runId);
+        private TransactionPlan Plan(PlannerActor actor, PlanRoute route, IEnumerable<SolanaInstruction> instructions, ulong reserve = 0, ulong? runId = null,
+            uint computeUnitLimit = PlanningConstants.ComputeUnitLimit) =>
+            new TransactionPlan(route, actor.Owner, actor.Signer, instructions, reserve, runId, computeUnitLimit);
+
+        // The cadence a player's transaction carries: prepare a Daily that
+        // does not exist yet, then finalize finished ones, oldest first. Each is
+        // permissionless and a no-op if someone already did it, so being second
+        // costs nothing. Cadence funding pays every rent; the signer pays only the fee.
+        public IReadOnlyList<SolanaInstruction> Cadence(string caller, uint? prepareDay, IEnumerable<CadenceStep> steps)
+        {
+            var instructions = new List<SolanaInstruction>();
+            Dictionary<string, string> Keys(uint day) => new Dictionary<string, string> {
+                ["protocol"] = ProtocolAddress, ["arena_daily"] = Daily(day), ["score_board"] = Board(day, "score"),
+                ["theme_board"] = Board(day, "theme"), ["cadence_funding"] = CadenceFundingAddress, ["caller"] = caller };
+            if (prepareDay.HasValue)
+                instructions.Add(Instruction("prepare_arena_daily", new JObject { ["day_id"] = prepareDay.Value }, Keys(prepareDay.Value)));
+            var list = (steps ?? Enumerable.Empty<CadenceStep>()).ToArray();
+            if (list.Length > DailyCadence.MaximumSteps) throw new ArgumentException("Too many finalizations for one transaction");
+            foreach (var step in list)
+            {
+                var keys = Keys(step.Day); keys["following_daily"] = Daily(step.Following);
+                instructions.Add(Instruction("finalize_arena_daily", new JObject(), keys));
+            }
+            return instructions.AsReadOnly();
+        }
+
+        // The cadence alone, for a winner who comes back before anyone has
+        // played again: it finalizes their day so that they can claim.
+        public TransactionPlan SettleDailies(PlannerActor actor, uint? prepareDay, IEnumerable<CadenceStep> steps)
+        {
+            var instructions = Cadence(actor.Signer, prepareDay, steps);
+            if (instructions.Count == 0) throw new InvalidOperationException("No Daily is due");
+            return Plan(actor, PlanRoute.Base, instructions, PlanningConstants.SettlementReserveLamports,
+                computeUnitLimit: PlanningConstants.CadenceComputeUnitLimit);
+        }
 
         public TransactionPlan Purchase(string owner, uint count, string teamDestination)
         {
@@ -95,10 +128,10 @@ namespace ZKube.Integration.Planning
             return candidates.AsReadOnly();
         }
 
-        private static void RequireFreeSlot(PlannerActor actor, PlayerPlanSnapshot player, AccountEnvelope occupied)
+        private static void RequireFreeSlot(PlannerActor actor, PlayerPlanSnapshot player, AccountEnvelope occupied, long now)
         {
             if (player == null || player.Owner != actor.Owner) throw new ArgumentException("Missing matching player state");
-            if (player.DailyRunId != 0) throw new InvalidOperationException("Resume the active run in this slot");
+            if (!player.SlotFree(now)) throw new InvalidOperationException("Resume the active run in this slot");
             if (occupied != null) throw new InvalidOperationException("Run ID is already occupied; reconcile before preparation");
             if (player.NextRunId == ulong.MaxValue) throw new InvalidOperationException("Run ID sequence exhausted");
         }
@@ -113,23 +146,28 @@ namespace ZKube.Integration.Planning
         }
 
         public TransactionPlan PrepareDaily(PlannerActor actor, PlayerPlanSnapshot player, DailyEntrySnapshot daily,
-            IEnumerable<ValidatedBoardReward> rewards, long now, AccountEnvelope occupied = null)
+            IEnumerable<ValidatedBoardReward> rewards, long now, AccountEnvelope occupied = null, IEnumerable<CadenceStep> finalize = null)
         {
-            RequireFreeSlot(actor, player, occupied);
+            RequireFreeSlot(actor, player, occupied, now);
             if (player.Kredits < 1) throw new InvalidOperationException("Buy a Kredit before entering Daily");
-            var claims = SelectEntryClaims(rewards, actor.Owner, daily.DayId, now);
+            var cadence = Cadence(actor.Signer, daily.PrepareToday ? daily.DayId : (uint?)null, finalize);
+            // When a cadence step is due the entry carries it and leaves the
+            // optional claims out: they go in their own transaction, as they always can.
+            var claims = cadence.Count != 0 ? Array.Empty<ValidatedBoardReward>() : SelectEntryClaims(rewards, actor.Owner, daily.DayId, now);
             var keys = ActorAccounts(actor);
             keys["protocol"] = ProtocolAddress;
             keys["player_state"] = Player(actor.Owner); keys["current_daily"] = Daily(daily.DayId);
-            keys["following_daily"] = Daily(daily.FollowingDayId); keys["arena_player"] = ArenaPlayer(Daily(daily.DayId), actor.Owner);
+            keys["arena_player"] = ArenaPlayer(Daily(daily.DayId), actor.Owner);
             keys["credit_vault"] = CreditVaultAddress; keys["active_run"] = ActiveRun(actor.Owner, player.NextRunId);
             // A first entry of the day moves a row's rent into each of today's boards from cadence funding.
             keys["score_board"] = Board(daily.DayId, "score"); keys["theme_board"] = Board(daily.DayId, "theme");
             keys["cadence_funding"] = CadenceFundingAddress;
-            var instructions = claims.SelectMany(c => Claim(actor, c.DayId, c.Kind, c.Position).Instructions)
+            var instructions = cadence.Concat(claims.SelectMany(c => Claim(actor, c.DayId, c.Kind, c.Position).Instructions))
                 .Concat(new[] { Instruction("enter_arena", new JObject { ["run_id"] = player.NextRunId }, keys) });
-            return Plan(actor, PlanRoute.Base, instructions, runId: player.NextRunId);
+            return Plan(actor, PlanRoute.Base, instructions, runId: player.NextRunId, computeUnitLimit: CadenceLimit(cadence));
         }
+        private static uint CadenceLimit(IEnumerable<SolanaInstruction> cadence) =>
+            cadence.Any() ? PlanningConstants.CadenceComputeUnitLimit : PlanningConstants.ComputeUnitLimit;
 
         public TransactionPlan Delegate(PlannerActor actor, ulong runId, string validator)
         {
@@ -149,7 +187,8 @@ namespace ZKube.Integration.Planning
                 actor.SessionToken != sessions.Derive(actor.Owner, actor.Signer, protocol.ProgramId))
                 throw new ArgumentException("Prepare and delegate do not share one device boundary");
             var delegated = Delegate(actor, prepared.RunId.Value, validator);
-            return Plan(actor, PlanRoute.Base, prepared.Instructions.Concat(delegated.Instructions), PlanningConstants.SettlementReserveLamports, prepared.RunId);
+            return Plan(actor, PlanRoute.Base, prepared.Instructions.Concat(delegated.Instructions), PlanningConstants.SettlementReserveLamports, prepared.RunId,
+                prepared.ComputeUnitLimit);
         }
 
         public TransactionPlan RunAction(PlannerActor actor, RunPlanSnapshot run, string action, byte[] seed = null,

@@ -54,14 +54,6 @@ pub mod solana {
         instructions::arcade_instructions::handler_prepare_arena_daily(ctx, day_id)
     }
 
-    pub fn activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<()> {
-        instructions::arcade_instructions::handler_activate_arena_daily(ctx)
-    }
-
-    pub fn skip_suspended_arena_daily(ctx: Context<SkipSuspendedArenaDaily>) -> Result<()> {
-        instructions::arcade_instructions::handler_skip_suspended_arena_daily(ctx)
-    }
-
     pub fn deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u64) -> Result<()> {
         instructions::arcade_instructions::handler_deposit_arena_daily(ctx, lamports)
     }
@@ -78,10 +70,6 @@ pub mod solana {
         instructions::arcade_instructions::handler_consume_arena_run(ctx)
     }
 
-    pub fn expire_unresolved_arena_run(ctx: Context<ExpireUnresolvedArenaRun>) -> Result<()> {
-        instructions::arcade_instructions::handler_expire_unresolved_arena_run(ctx)
-    }
-
     pub fn finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
         instructions::arcade_instructions::handler_finalize_arena_daily(ctx)
     }
@@ -92,14 +80,6 @@ pub mod solana {
         position: u32,
     ) -> Result<()> {
         instructions::arcade_instructions::handler_claim_daily_prize(ctx, board, position)
-    }
-
-    pub fn archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()> {
-        instructions::arcade_instructions::handler_archive_arena_daily(ctx)
-    }
-
-    pub fn expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()> {
-        instructions::arcade_instructions::handler_expire_daily_claims(ctx)
     }
 
     pub fn close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> {

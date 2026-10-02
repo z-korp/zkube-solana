@@ -142,7 +142,10 @@ pub fn board_width(
     let (mut low, mut high) = (0u32, qualified_winners / WIDTH_STEP);
     while low < high {
         let middle = low + (high - low).div_ceil(2);
-        if last_place_pays(middle * WIDTH_STEP, HARMONIC_DENOMINATORS[middle as usize - 1]) {
+        if last_place_pays(
+            middle * WIDTH_STEP,
+            HARMONIC_DENOMINATORS[middle as usize - 1],
+        ) {
             low = middle;
         } else {
             high = middle - 1;
@@ -550,7 +553,11 @@ mod tests {
         }
         // The cases really do land on both sides of the stored steps.
         assert!(widths.iter().any(|width| width % WIDTH_STEP == 0));
-        assert!(widths.iter().any(|width| width % WIDTH_STEP == WIDTH_STEP - 1));
+        assert!(
+            widths
+                .iter()
+                .any(|width| width % WIDTH_STEP == WIDTH_STEP - 1)
+        );
         assert!(widths.contains(&PAYOUT_WIDTH_TABLE_RANKS));
         for pool in [u64::MAX, u64::MAX / 3] {
             let qualified = PAYOUT_WIDTH_TABLE_RANKS;
@@ -566,18 +573,41 @@ mod tests {
         // Whatever the pool, the exact width is a stored step plus fewer
         // ranks than one step, or the structural minimum.
         for pool in [0, 1, 40_000_000, 1_000_000_000_000, u64::MAX / 2, u64::MAX] {
-            for qualified in [1, 4, 255, 256, 257, 100_000, crate::ARENA_DAILY_PLAYER_CAPACITY] {
-                let width = board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, SOL_PAYOUT_UNIT_LAMPORTS)
-                    .unwrap();
+            for qualified in [
+                1,
+                4,
+                255,
+                256,
+                257,
+                100_000,
+                crate::ARENA_DAILY_PLAYER_CAPACITY,
+            ] {
+                let width = board_width(
+                    pool,
+                    qualified,
+                    crate::ARENA_ENTRY_LAMPORTS,
+                    SOL_PAYOUT_UNIT_LAMPORTS,
+                )
+                .unwrap();
                 assert_eq!(
                     Ok(width),
-                    reference_board_width(pool, qualified, crate::ARENA_ENTRY_LAMPORTS, SOL_PAYOUT_UNIT_LAMPORTS)
+                    reference_board_width(
+                        pool,
+                        qualified,
+                        crate::ARENA_ENTRY_LAMPORTS,
+                        SOL_PAYOUT_UNIT_LAMPORTS
+                    )
                 );
             }
         }
         for qualified in [crate::ARENA_DAILY_PLAYER_CAPACITY + 1, u32::MAX] {
             assert_eq!(
-                board_width(u64::MAX, qualified, crate::ARENA_ENTRY_LAMPORTS, SOL_PAYOUT_UNIT_LAMPORTS),
+                board_width(
+                    u64::MAX,
+                    qualified,
+                    crate::ARENA_ENTRY_LAMPORTS,
+                    SOL_PAYOUT_UNIT_LAMPORTS
+                ),
                 Err(PayoutError::FieldTooWide)
             );
         }

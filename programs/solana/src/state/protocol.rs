@@ -188,10 +188,9 @@ impl PlayerState {
             daily != Pubkey::default() && deadline_at > 0,
             ErrorCode::InvalidState
         );
-        require!(
-            self.active_run_id == 0 && self.orphan_run_id == 0,
-            ErrorCode::ActiveRunExists
-        );
+        // An expired run parked as the orphan does not hold the slot: its
+        // player plays on while its rollup copy waits to be closed.
+        require!(self.active_run_id == 0, ErrorCode::ActiveRunExists);
         self.allocate_run_id(run_id)?;
         self.active_run_id = run_id;
         self.active_run_daily = daily;
@@ -504,11 +503,17 @@ mod tests {
         assert!(player.release_arcade_run(2).is_err());
         player.expire_arcade_run(1).unwrap();
         assert_eq!(player.orphan_run_id, 1);
-        assert!(player.reserve_arcade_run(2, daily, 1_000).is_err());
-        player.release_orphan(1).unwrap();
+        // The parked run does not hold the slot: its player plays on. A
+        // second run cannot be parked until the first is closed.
         player.reserve_arcade_run(2, daily, 1_000).unwrap();
-        player.release_arcade_run(2).unwrap();
-        assert_eq!(player.next_run_id, 3);
+        assert!(player.expire_arcade_run(2).is_err());
+        player.release_orphan(1).unwrap();
+        assert!(player.release_orphan(1).is_err());
+        player.expire_arcade_run(2).unwrap();
+        player.release_orphan(2).unwrap();
+        player.reserve_arcade_run(3, daily, 1_000).unwrap();
+        player.release_arcade_run(3).unwrap();
+        assert_eq!(player.next_run_id, 4);
     }
 
     #[test]

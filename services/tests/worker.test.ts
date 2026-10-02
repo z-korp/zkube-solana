@@ -23,7 +23,7 @@ import {
   DISCOVERY_FRESH_SECONDS, discoveryHints, ingestTransaction, parseTransaction, rankOf, standings, syncState,
 } from "../src/worker/indexer.js";
 import {
-  KEEPER_LEASE_SECONDS, KEEPER_SCAN_SECONDS, acquireKeeperLease, keeperLedger, keeperScanDue, keeperWritesApproved,
+  KEEPER_CRON, KEEPER_LEASE_SECONDS, KEEPER_SCAN_SECONDS, acquireKeeperLease, keeperLedger, keeperScanDue, keeperWritesApproved,
   releaseKeeperLease,
 } from "../src/worker/keeperJob.js";
 
@@ -531,10 +531,13 @@ describe("public surface", () => {
 });
 
 describe("keeper in the Worker", () => {
-  const scheduled = async () => {
+  const trigger = async (cron: string) => {
     const worker = await mf.getWorker() as unknown as { scheduled(options: { cron: string }): Promise<unknown> };
-    await worker.scheduled({ cron: "* * * * *" });
+    await worker.scheduled({ cron });
   };
+  // The Worker's two Cron Triggers: the read model's walk, and the backstop keeper's pass.
+  const walk = () => trigger("* * * * *");
+  const scheduled = () => trigger(KEEPER_CRON);
   const events = () => output.split("\n").filter((line) => line.startsWith("{")).map((line) => JSON.parse(line) as Record<string, unknown>);
 
   it("a_fetch_cannot_start_a_keeper_pass_reach_the_key_or_change_the_write_switch", async () => {
@@ -566,11 +569,15 @@ describe("keeper in the Worker", () => {
       const source = readFileSync(new URL(`services/src/worker/${file}`, root), "utf8");
       expect(source).not.toMatch(/keeper_(lease|writes|approval|scan)|keeperJob|keeperRelease|\/keeper\.js|KEEPER_SECRET_KEY|scheduled/);
     }
-    expect(setting(/^crons = (\[.+\])$/m)).toBe('["* * * * *"]');
+    expect(JSON.parse(setting(/^crons = (\[.+\])$/m))).toEqual(["* * * * *", KEEPER_CRON]);
     expect(wrangler).not.toMatch(/KEEPER_SECRET_KEY\s*=|WEBHOOK_SECRET\s*=|SOLANA_DEVNET_RPC_URL\s*=/);
-    // The Cron Trigger is the one way in: the same Worker now reads the chain and reports its release.
+    // The Cron Triggers are the one way in: the same Worker now reads the chain and reports its release.
+    await walk();
+    expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash", "getSignaturesForAddress"]);
+    expect(events().filter((event) => String(event.event).startsWith("keeper"))).toEqual([]);
+    outbound = [];
     await scheduled();
-    expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash", "getSignaturesForAddress", "getGenesisHash", "getAccountInfo"]);
+    expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash", "getAccountInfo"]);
     expect(events().find((event) => event.event === "keeper_worker")).toEqual({ schemaVersion: 1, event: "keeper_worker",
       outcome: "bootstrap_pending", fingerprint: release.fingerprint, writeEnabled: false });
     expect((await dump(["keeper_lease"])).keeper_lease).toEqual([]);
@@ -604,11 +611,13 @@ describe("keeper in the Worker", () => {
   });
 
   it("the_scheduled_pass_simulates_reserves_relays_and_settles_a_write_inside_the_worker", async () => {
-    // Launch day, open and funded, with tomorrow not yet prepared: one plan, prepare_arena_daily.
+    // Launch day prepared, then a suspension: the day it ends is the one Daily anyone can prepare,
+    // and nobody has yet. One plan: prepare_arena_daily.
     const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL as unknown as Idl));
     const decode = (name: string, row: { data: string }) => coder.decode(name, Buffer.from(row.data, "base64"));
     const protocol = decode("protocolConfig", programFixtures.plans.accounts.protocol);
     protocol.launchDayId = LAUNCH_DAY; protocol.lastPreparedDay = LAUNCH_DAY; protocol.lastDailyId = 0;
+    protocol.suspendedUntilDay = LAUNCH_DAY + 3;
     const daily = decode("arenaDaily", programFixtures.plans.accounts.daily);
     daily.dayId = LAUNCH_DAY; daily.predecessorDay = 0;
     const account = (data: Buffer, owner = ZKUBE_PROGRAM_ID, lamports = 1_000_000_000) => ({
@@ -656,6 +665,7 @@ describe("keeper in the Worker", () => {
     expect(outbound.map(({ method }) => method)).toContain("getProgramAccounts");
 
     await db.prepare("INSERT INTO keeper_approval (id, fingerprint) VALUES (1, ?)").bind(release.fingerprint).run();
+    await walk();
     outbound = []; output = "";
     await scheduled();
     expect(events().find((event) => event.event === "keeper_operation")).toMatchObject({ operation: "prepare_arena_daily", ok: true, writes: 1 });
@@ -704,6 +714,7 @@ describe("keeper in the Worker", () => {
             owner: PROGRAM, rentEpoch: 0, space: data.length } }
         : method === "getProgramAccounts" ? [] : method === "getMultipleAccounts"
           ? { context: { slot: 1 }, value: (params[0] as string[]).map(() => null) } : { context: { slot: 1 }, value: 1_000_000_000 };
+      await walk();
       await scheduled();
       expect(events().find((event) => event.event === "keeper_worker")).toMatchObject({ outcome: "pass_failed",
         error: "KEEPER_SECRET_KEY must be a 64-byte JSON array" });
@@ -722,12 +733,12 @@ describe("keeper in the Worker", () => {
     // A pass that holds the lease stops the Worker's own scheduled pass before it reads the chain.
     await db.prepare("UPDATE keeper_lease SET expires_at = ?").bind(Math.floor(Date.now() / 1_000) + 600).run();
     await scheduled();
-    expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash", "getSignaturesForAddress"]);
+    expect(outbound).toEqual([]);
     expect(output).toContain('"outcome":"busy"');
     // Another cluster's history is never ingested.
     answer = (method) => method === "getGenesisHash" ? "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" : emptyCluster(method, []);
     outbound = []; output = "";
-    await scheduled();
+    await walk();
     expect(outbound.map(({ method }) => method)).toEqual(["getGenesisHash"]);
     expect(output).toContain("RPC genesis does not match Devnet");
     await db.prepare("UPDATE keeper_lease SET expires_at = ?").bind(NOW + KEEPER_LEASE_SECONDS).run();
@@ -746,7 +757,7 @@ describe("keeper in the Worker", () => {
     const writes = () => db.prepare(`SELECT pass, operation, reserved_lamports, payer_lamports, endpoint,
       last_valid_block_height, state, created_at FROM keeper_writes ORDER BY id`).all<Record<string, unknown>>();
     const confirmedStatus = { value: [{ err: null, confirmationStatus: "confirmed" }] };
-    let balance = 1_000_000_000, payerSpend = 60_000_000, clock = NOW;
+    let balance = 1_000_000_000, payerSpend = 6_000_000, clock = NOW;
     const connection = {
       getBalance: vi.fn(async () => balance),
       getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: keeper.publicKey.toBase58(), lastValidBlockHeight: 500 }),
@@ -775,7 +786,7 @@ describe("keeper in the Worker", () => {
       expect(connection.sendRawTransaction).toHaveBeenCalledTimes(sent);
       return (log.mock.calls.map(([event]) => event as { error?: string }).find((event) => event.error))!.error;
     };
-    const spend = 60_005_000;
+    const spend = 6_005_000;
     expect(await pass("confirmed")).toMatchObject({ writes: 1, spentLamports: spend });
     expect(order).toEqual(["simulate", "simulate", "send:reserved"]);
     // A write that landed and failed is settled; one whose outcome never arrived stays reserved,
@@ -809,9 +820,9 @@ describe("keeper in the Worker", () => {
       clock = later;
       expect(await refusal(`ceiling-${later}`)).toBe("keeper spend ceiling reached");
     }
-    // It also counts against the wallet floor: a stale balance of 150m with 60m still out cannot
-    // take another 30m, which the ceiling would allow but which would end below the 100m floor.
-    balance = 150_000_000; payerSpend = 30_000_000;
+    // It also counts against the wallet floor: a stale balance of 27m with 6m still out cannot
+    // take another 3m, which the ceiling would allow but which would end below the 20m floor.
+    balance = 27_000_000; payerSpend = 3_000_000;
     expect(KEEPER_LIMITS.spendLamports - spend).toBeGreaterThanOrEqual(payerSpend + 5_000);
     expect(balance - payerSpend).toBeGreaterThanOrEqual(KEEPER_LIMITS.reserveLamports);
     expect(await refusal("floor")).toBe("keeper simulation crosses the reserve floor");
@@ -829,7 +840,7 @@ describe("keeper in the Worker", () => {
 
     // A write that did land is settled as confirmed by the next pass that asks, never expired,
     // even though its blockhash is past.
-    balance = 1_000_000_000; payerSpend = 10_000_000;
+    balance = 1_000_000_000; payerSpend = 2_000_000;
     connection.getSignatureStatuses.mockRejectedValueOnce(new Error("timeout"));
     expect(await pass("landed-late")).toMatchObject({ writes: 0, operationFailures: 1 });
     expect((await writes()).results.at(-1)).toMatchObject({ pass: "landed-late", state: "reserved" });
@@ -844,7 +855,7 @@ describe("keeper in the Worker", () => {
       getBalance: vi.fn(async () => 1_000_000_000),
       getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: keeper.publicKey.toBase58(), lastValidBlockHeight: 500 }),
       getFeeForMessage: vi.fn().mockResolvedValue({ value: 5_000 }),
-      simulateTransaction: vi.fn(async () => ({ value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 940_000_000 }] } })),
+      simulateTransaction: vi.fn(async () => ({ value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 994_000_000 }] } })),
       sendRawTransaction: vi.fn(async () => "signature"),
       // Every poll of this pass sees the failure at processed only.
       getSignatureStatuses: vi.fn(async () => ({ value: [{ err: { InstructionError: [0, "Custom"] }, confirmationStatus: "processed" }] })),
@@ -879,10 +890,10 @@ describe("keeper in the Worker", () => {
     // Two closes in one pass. The first is relayed and never answers; the balance the second
     // reads does not show it yet.
     const connection = {
-      getBalance: vi.fn(async () => 150_000_000),
+      getBalance: vi.fn(async () => 27_000_000),
       getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: keeper.publicKey.toBase58(), lastValidBlockHeight: 500 }),
       getFeeForMessage: vi.fn().mockResolvedValue({ value: 5_000 }),
-      simulateTransaction: vi.fn(async () => ({ value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 120_000_000 }] } })),
+      simulateTransaction: vi.fn(async () => ({ value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 23_000_000 }] } })),
       sendRawTransaction: vi.fn(async () => "signature"),
       getSignatureStatuses: vi.fn(async () => ({ value: [null] })),
       getBlockHeight: vi.fn(async () => 400),

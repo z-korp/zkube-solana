@@ -31,28 +31,26 @@ const RUN_ID = 42n;
 type ProtocolOperation = KeeperOperation;
 
 describe("exact v5 Anchor IDL keeper adapter", () => {
-  it("staged_launch_ready_requires_the_paused_protocol_and_both_unfunded_days", async () => {
+  it("staged_launch_ready_requires_the_paused_protocol_and_no_launch_daily", async () => {
     const fixture = JSON.parse(readFileSync(new URL("../../fixtures/program-unity-v1.json", import.meta.url), "utf8"));
     const coder = new BorshAccountsCoder(convertIdlToCamelCase(readIdl() as Idl));
     const protocol = coder.decode("protocolConfig", Buffer.from(fixture.plans.accounts.protocol.data, "base64"));
     protocol.paused = true; protocol.launchDayId = 0;
-    const daily = coder.decode("arenaDaily", Buffer.from(fixture.plans.accounts.daily.data, "base64"));
-    daily.status = { funding: {} }; daily.predecessorRolloverApplied = false;
-    for (const key of Object.keys(daily.ledger)) daily.ledger[key] = daily.ledger[key].sub(daily.ledger[key]);
     const values = new Map<string, Buffer>([[protocolPda().toBase58(), await coder.encode("protocolConfig", protocol)]]);
-    for (const dayId of [DAY, DAY + 1]) {
-      daily.dayId = dayId;
-      values.set(arenaDailyPda(dayId).toBase58(), await coder.encode("arenaDaily", daily));
-    }
     const adapter = await AnchorKeeperAdapter.create({ nowUnix: opens(DAY), launchDayId: DAY,
       connection: { getAccountInfo: async (address: PublicKey) => {
         const data = values.get(address.toBase58());
         return data ? { data, owner: ZKUBE_PROGRAM_ID, executable: false, lamports: 1_000_000_000 } : null;
       } } as unknown as Connection,
     });
+    // The launch transaction prepares its own Daily: a staged protocol has none.
     expect(await adapter.inspectLaunchState()).toBe("staged_launch_ready");
-    values.delete(arenaDailyPda(DAY + 1).toBase58());
-    await expect(adapter.inspectLaunchState()).rejects.toThrow("missing");
+    values.set(arenaDailyPda(DAY).toBase58(), Buffer.from(fixture.plans.accounts.daily.data, "base64"));
+    await expect(adapter.inspectLaunchState()).rejects.toThrow("incomplete or active");
+    values.delete(arenaDailyPda(DAY).toBase58());
+    protocol.paused = false;
+    values.set(protocolPda().toBase58(), await coder.encode("protocolConfig", protocol));
+    await expect(adapter.inspectLaunchState()).rejects.toThrow("incomplete or active");
   });
 
   it("keeper_rpc_decoding_rejects_foreign_and_malformed_accounts", async () => {
@@ -128,9 +126,10 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       return discoverReconciliation({ snapshot, nowUnix }).map(({ operation }) => operation);
     };
 
-    // The unreachable run waits for its recovery deadline; the next Daily is still prepared.
-    expect(await plansAt(fixtures.plans.inputs.now)).toEqual(["prepare_arena_daily"]);
-    expect(await plansAt(closesAt + 21_600)).toContain("expire_unresolved_arena_run");
+    // The unreachable run stops nothing: today's Daily exists, so nothing is due, and the next day's
+    // Daily is still prepared. Nothing expires the run: its Daily finalizes by the clock.
+    expect(await plansAt(fixtures.plans.inputs.now)).toEqual([]);
+    expect(await plansAt(closesAt + 21_600)).toEqual(["prepare_arena_daily"]);
     expect(new Set(scanned)).toEqual(new Set([coder.memcmp("arenaPlayer").bytes, coder.memcmp("activeRun").bytes]));
 
     // Hints are checked against the Daily's own count of unresolved entries. Hints that reach the
@@ -232,38 +231,16 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     const keeper = Keypair.generate().publicKey;
     const owner = Keypair.generate().publicKey;
     const cases: Array<[ProtocolOperation, KeeperPlanContext, string]> = [
-      ["prepare_arena_daily", {
-        dayId: DAY,
-        followingDayId: DAY + 1,
-
-      }, "prepare_arena_daily"],
-      ["activate_arena_daily", {
-        dayId: DAY,
-
-      }, "activate_arena_daily"],
-      ["skip_suspended_arena_daily", {
-        dayId: DAY,
-        followingDayId: DAY + 1,
-
-      }, "skip_suspended_arena_daily"],
+      ["prepare_arena_daily", { dayId: DAY }, "prepare_arena_daily"],
       ["finish_run", arcade(owner), "finish_run"],
       ["commit_run", arcade(owner), "commit_run"],
       ["consume_arena_run", arcade(owner), "consume_arena_run"],
-      ["expire_unresolved_arena_run", arcade(owner),
-        "expire_unresolved_arena_run"],
-      ["finalize_arena_daily", {
-        dayId: DAY,
-        followingDayId: DAY + 1,
-      }, "finalize_arena_daily"],
-      ["expire_daily_claims", {
-        dayId: DAY,
-        followingDayId: DAY + 1,
-      }, "expire_daily_claims"],
-      ["archive_arena_daily", { dayId: DAY }, "archive_arena_daily"],
+      ["finalize_arena_daily", { dayId: DAY, followingDayId: DAY + 1 }, "finalize_arena_daily"],
       ["close_arena_daily", { dayId: DAY }, "close_arena_daily"],
-      ["close_arena_player", { dayId: DAY, owner, rentRecipient: keeper,
-      }, "close_arena_player"],
+      ["close_arena_daily", { dayId: DAY, followingDayId: DAY + 40 }, "close_arena_daily"],
+      ["close_arena_player", { dayId: DAY, owner, rentRecipient: keeper }, "close_arena_player"],
     ];
+    expect(new Set(cases.map(([operation]) => operation))).toEqual(new Set(Object.keys(KEEPER_PLAN_INSTRUCTION)));
     const idl = readIdl();
     for (const [operation, context, expectedName] of cases) {
       expect(KEEPER_PLAN_INSTRUCTION[operation].instruction).toBe(expectedName);

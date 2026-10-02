@@ -73,8 +73,6 @@ namespace ZKube.Integration.App.Tests
             if (!scenario.Contains("missing-session") && !scenario.StartsWith("session-enable") &&
                 scenario != "session-owner-decline" && scenario != "session-fee-shortage" && scenario != "session-failed-enable")
                 await ReadySession();
-            if (scenario == "daily-playable")
-            { Http.Add(Plans["accounts"]["following"]); return; }
             if (scenario.StartsWith("profile-"))
             {
                 Http.Add(scenario == "profile-fresh" ? Ui["fresh"] : scenario == "profile-auto" ? Ui["profiles"][0]["player"] : Ui["profile"]);

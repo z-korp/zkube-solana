@@ -67,9 +67,10 @@ it("keeper_simulation_failure_and_reserve_floor_prevent_relay", async () => {
       value: { err: { InstructionError: [0, "InvalidArgument"] }, accounts: [] },
     } as never);
     else {
-      connection.getBalance.mockResolvedValue(180_000_000);
+      // Within the pass ceiling, but it would leave the wallet under its floor.
+      connection.getBalance.mockResolvedValue(25_000_000);
       connection.simulateTransaction.mockResolvedValue({
-        value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 99_000_000 }] },
+        value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 19_000_000 }] },
       });
     }
     const log = vi.fn();
@@ -84,13 +85,13 @@ it("keeper_simulation_failure_and_reserve_floor_prevent_relay", async () => {
 it("keeper_spend_is_reserved_even_when_confirmation_is_uncertain", async () => {
   const { input, connection } = pass();
   connection.simulateTransaction.mockImplementation(async () => ({
-    value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 920_000_000 }] },
+    value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 993_000_000 }] },
   }));
   connection.getSignatureStatuses.mockRejectedValueOnce(new Error("timeout"));
   const result = await runKeeperPass(input);
   expect(result.writes).toBe(0);
   expect(connection.sendRawTransaction).toHaveBeenCalledTimes(1);
-  expect(result.spentLamports).toBe(80_005_000);
+  expect(result.spentLamports).toBe(7_005_000);
   expect(result.backlog).toBe(1);
 });
 
@@ -104,10 +105,11 @@ it("keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_r
     }));
     const log = vi.fn();
     const result = await runKeeperPass({ ...input, log,
-      protocolSnapshot: { ...input.protocolSnapshot, paused: false, lastPreparedDay: 20_700, dailies: [{
-        dayId: 20_700, status: "open", finalizedAt: 0, runsCloseAt: opens(20_700) + 86_340,
-        recoveryDeadlineAt: opens(20_700) + 107_940, entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n,
-        predecessorDayId: 20_699, predecessorRolloverRequired: false, predecessorRolloverApplied: true, claimsExpired: false,
+      // Yesterday's Daily is the newest prepared: the backstop prepares today's.
+      protocolSnapshot: { ...input.protocolSnapshot, paused: false, launchDayId: 20_690, lastPreparedDay: 20_699, dailies: [{
+        dayId: 20_699, finalizedAt: 0, runsCloseAt: opens(20_699) + 86_340,
+        recoveryDeadlineAt: opens(20_699) + 107_940, entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n,
+        predecessorDayId: 20_698, predecessorRolloverApplied: true, payoutLamports: 0n,
       } satisfies DailySnapshot] },
       protocolMaterializer: { materialize: async ({ operation }: { operation: KeeperOperation }) => {
         expect(operation).toBe("prepare_arena_daily");

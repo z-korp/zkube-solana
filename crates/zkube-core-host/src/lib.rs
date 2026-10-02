@@ -209,16 +209,9 @@ mod wasm {
         let (opens, closes, recovery) = zkube_core::daily_window(day);
         vec![opens, closes, recovery]
     }
-    #[wasm_bindgen(js_name = scheduledDailyWindow)]
-    pub fn js_scheduled_daily_window(day: u32, suspended: u32) -> Result<Vec<u32>, JsError> {
-        let (first, following) = zkube_core::scheduled_daily_window(day, suspended)
-            .map_err(|_| JsError::new("scheduled day overflows u32"))?;
-        Ok(vec![first, following])
-    }
-    #[wasm_bindgen(js_name = nextScheduledDaily)]
-    pub fn js_next_scheduled_daily(day: u32, suspended: u32) -> Result<u32, JsError> {
-        zkube_core::next_scheduled_daily(day, suspended)
-            .map_err(|_| JsError::new("scheduled day overflows u32"))
+    #[wasm_bindgen(js_name = preparableDaily)]
+    pub fn js_preparable_daily(today: u32, launch: u32, suspended: u32) -> u32 {
+        zkube_core::preparable_daily(today, launch, suspended)
     }
     #[wasm_bindgen(js_name = compareBoardEntries)]
     pub fn js_compare_board_entries(

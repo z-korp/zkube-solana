@@ -71,7 +71,6 @@ pub fn daily(day: u32) -> ArenaDaily {
     ArenaDaily {
         version: ACCOUNT_VERSION,
         day_id: day,
-        status: PeriodStatus::Open,
         predecessor_day: day - 1,
         predecessor_rollover_applied: true,
         rules_hash: zkube_core::daily_rules_hash(
@@ -89,7 +88,6 @@ pub fn daily(day: u32) -> ArenaDaily {
         unique_players: 0,
         score_qualified_players: 0,
         theme_qualified_players: 0,
-        claims_expired: false,
         bump: pda(&[ARENA_DAILY_SEED, &day.to_le_bytes()]).1,
     }
 }
@@ -116,6 +114,7 @@ pub fn protocol() -> ProtocolConfig {
         paused: false,
         bump: pda(&[PROTOCOL_CONFIG_SEED]).1,
         launch_day_id: DAY - 100,
+        last_prepared_day: DAY,
         ..ProtocolConfig::default()
     }
 }
@@ -133,7 +132,6 @@ pub fn scenarios() -> Value {
         "protocol": envelope(singleton(PROTOCOL_CONFIG_SEED), &protocol, 8 + ProtocolConfig::INIT_SPACE),
         "credit": envelope(singleton(CREDIT_VAULT_SEED), &credit, 8 + CreditVault::INIT_SPACE),
         "daily": envelope(daily_address(DAY), &daily(DAY), 8 + ArenaDaily::INIT_SPACE),
-        "following": envelope(daily_address(DAY + 1), &daily(DAY + 1), 8 + ArenaDaily::INIT_SPACE),
         "player": envelope(player_address(), &player(0, RUN_ID), 8 + PlayerState::INIT_SPACE),
         "session": session(NOW + 604_800), "expiredSession": session(NOW - 1),
     })

@@ -1,16 +1,15 @@
 import { PublicKey } from "@solana/web3.js";
 
 import {
+  DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   KEEPER_RECENT_DAILY_CADENCES,
   assertSafeTimestamp,
   currentDayId,
-  nextScheduledDaily,
   keeperPlan,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
-import { dailyWindow, scheduledDailyWindow } from "./zkubeCore.js";
+import { preparableDaily } from "./zkubeCore.js";
 
-export type PeriodStatus = "funding" | "open" | "finalized";
 export type RunLifecycle =
   | "prepared"
   | "delegated"
@@ -22,7 +21,7 @@ export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
 
 export interface DailySnapshot {
   dayId: number;
-  status: PeriodStatus;
+  /** Zero while the Daily runs; the program keeps no other status. */
   finalizedAt: number;
   runsCloseAt: number;
   recoveryDeadlineAt: number;
@@ -31,9 +30,9 @@ export interface DailySnapshot {
   entriesExpired: bigint;
   /** The Daily prepared before this one: its only funding predecessor. */
   predecessorDayId: number;
-  predecessorRolloverRequired: boolean;
   predecessorRolloverApplied: boolean;
-  claimsExpired: boolean;
+  /** What its boards pay in total; zero until it finalizes. */
+  payoutLamports: bigint;
 }
 
 export interface RunSnapshot {
@@ -51,17 +50,6 @@ export interface RunSnapshot {
   reservationActive: boolean;
 }
 
-export interface ArcadeRootSnapshot {
-  lastDailyId?: number;
-}
-
-export interface CadenceArchiveCandidate {
-  cadenceId: number;
-  claimsExpired: boolean;
-  committed: boolean;
-  closeEligibleAt: number;
-}
-
 export interface ClosedArenaPlayerSnapshot {
   dayId: number;
   owner: PublicKey;
@@ -72,104 +60,63 @@ export interface ProtocolSnapshot {
   paused: boolean;
   launchDayId: number;
   suspendedUntilDay: number;
-  /** Preparation only moves forward from this day. */
+  /** The newest prepared Daily; preparation only moves forward from it. */
   lastPreparedDay: number;
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
   closedArenaPlayers?: readonly ClosedArenaPlayerSnapshot[];
-  archiveState?: ArcadeRootSnapshot;
-  archiveCandidates?: readonly CadenceArchiveCandidate[];
 }
 
-/** Selects the next cadence work from decoded state. */
+/**
+ * The backstop's work. Players' own transactions carry the cadence that
+ * play and payout need: an entry prepares its day and a claim finalizes it.
+ * These plans do the same steps a little earlier, close what nobody is
+ * waiting on, and settle runs their players walked away from.
+ */
 export function discoverReconciliation(args: {
   snapshot: ProtocolSnapshot;
   nowUnix: number;
 }): KeeperInstructionPlan[] {
   assertSafeTimestamp(args.nowUnix);
+  const { snapshot, nowUnix } = args;
   const plans: KeeperInstructionPlan[] = [];
-  const today = currentDayId(args.nowUnix);
+  const today = currentDayId(nowUnix);
   const oldestKeeperDay = Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES);
-  const dailyById = new Map(args.snapshot.dailies.map((daily) => [daily.dayId, daily]));
-  const successorOf = (daily: DailySnapshot) =>
-    args.snapshot.dailies.find(({ predecessorDayId }) => predecessorDayId === daily.dayId);
-  appendCadenceArchivePlan(
-    plans,
-    args.snapshot,
-    today,
-    args.nowUnix,
-  );
+  const newest = snapshot.dailies.find(({ dayId }) => dayId === snapshot.lastPreparedDay);
 
-  if (!args.snapshot.paused) {
-    const activationCurrent = scheduledDailyWindow(today, args.snapshot.suspendedUntilDay).first;
-    const activationFollowing = nextScheduledDaily(
-      activationCurrent,
-      args.snapshot.suspendedUntilDay,
-    );
-    for (const daily of args.snapshot.dailies) {
-      if (daily.dayId < args.snapshot.suspendedUntilDay) {
-        // A suspended Daily nobody entered forwards its funding along its
-        // one edge, once its own predecessor has settled into it.
-        const successor = successorOf(daily);
-        if ((daily.status === "funding" || daily.status === "open") && daily.entriesPaid === 0n &&
-            daily.predecessorRolloverApplied && successor && successor.status !== "finalized" &&
-            !successor.predecessorRolloverApplied) {
-          plans.push(keeperPlan("skip_suspended_arena_daily", {
-            dayId: daily.dayId,
-            followingDayId: successor.dayId,
-          }));
-        }
-      } else if (daily.status !== "funding") {
-        continue;
-      } else if (daily.dayId === activationCurrent &&
-          args.nowUnix < dailyWindow(today).runsCloseAt) {
-        plans.push(keeperPlan("activate_arena_daily", {
-          dayId: daily.dayId,
-        }));
-      } else if (daily.dayId === activationFollowing) {
-        plans.push(keeperPlan("activate_arena_daily", {
-          dayId: daily.dayId,
-        }));
-      }
-    }
+  // The one Daily the program lets anyone prepare: today's, or during a
+  // suspension the first day after it.
+  const preparable = preparableDaily(today, snapshot.launchDayId, snapshot.suspendedUntilDay);
+  if (snapshot.launchDayId > 0 && snapshot.lastPreparedDay < preparable) {
+    plans.push(keeperPlan("prepare_arena_daily", { dayId: preparable }));
   }
 
-  const missingDay = firstMissingScheduledCadence(
-    Math.max(oldestKeeperDay, (args.snapshot.archiveState?.lastDailyId ?? -1) + 1,
-      args.snapshot.lastPreparedDay + 1,
-      scheduledDailyWindow(today, args.snapshot.suspendedUntilDay).first),
-    nextScheduledDaily(today, args.snapshot.suspendedUntilDay),
-    dailyById,
-  );
-  // Preparation deliberately ignores `paused`: the staged launch initializes
-  // the protocol paused and still needs its cadences prepared, and stopping
-  // day spend is suspension's job — an unscheduled day is never missing.
-  if (missingDay !== undefined && missingDay > args.snapshot.launchDayId &&
-      missingDay >= oldestKeeperDay) {
-    plans.push(keeperPlan("prepare_arena_daily", {
-      followingDayId: missingDay,
-    }));
+  for (const run of snapshot.runs) {
+    if (run.dayId !== undefined && run.dayId >= oldestKeeperDay) appendRunPlan(plans, run, nowUnix);
   }
 
-  for (const run of args.snapshot.runs) {
-    if (run.dayId !== undefined && run.dayId >= oldestKeeperDay) {
-      appendRunPlan(plans, run, args.nowUnix);
-    }
-  }
-
-  for (const daily of args.snapshot.dailies) {
+  for (const daily of snapshot.dailies) {
     if (daily.dayId < oldestKeeperDay) continue;
-    const resolved = daily.entriesScored + daily.entriesExpired;
-    appendFinalizationPlan(
-      plans,
-      daily,
-      args.nowUnix >= daily.runsCloseAt && resolved === daily.entriesPaid &&
-        (!daily.predecessorRolloverRequired || daily.predecessorRolloverApplied),
-      successorOf(daily)?.dayId,
-    );
+    const successor = snapshot.dailies.find(({ predecessorDayId }) => predecessorDayId === daily.dayId);
+    if (daily.finalizedAt === 0) {
+      // The program's rule: the window has closed, and every entry is
+      // resolved or the recovery deadline has passed.
+      const resolved = daily.entriesScored + daily.entriesExpired === daily.entriesPaid;
+      if (successor && successor.finalizedAt === 0 && daily.predecessorRolloverApplied &&
+          nowUnix >= daily.runsCloseAt && (resolved || nowUnix >= daily.recoveryDeadlineAt)) {
+        plans.push(keeperPlan("finalize_arena_daily", { dayId: daily.dayId, followingDayId: successor.dayId }));
+      }
+    } else if (daily.payoutLamports === 0n) {
+      // It paid nothing: there is no claim to wait for.
+      plans.push(keeperPlan("close_arena_daily", { dayId: daily.dayId }));
+    } else if (nowUnix > daily.finalizedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS &&
+        newest && newest.finalizedAt === 0 && newest.dayId !== daily.dayId) {
+      // What was never claimed moves into the newest prepared Daily.
+      plans.push(keeperPlan("close_arena_daily", { dayId: daily.dayId, followingDayId: newest.dayId }));
+    }
   }
 
-  for (const player of [...(args.snapshot.closedArenaPlayers ?? [])].sort((left, right) =>
+  for (const player of [...(snapshot.closedArenaPlayers ?? [])].sort((left, right) =>
     left.dayId - right.dayId || Buffer.compare(left.owner.toBuffer(), right.owner.toBuffer()))) {
     if (player.dayId < oldestKeeperDay) continue;
     plans.push(keeperPlan("close_arena_player", {
@@ -177,63 +124,8 @@ export function discoverReconciliation(args: {
     }));
   }
 
-  return plans.filter(({ operation, context }) => {
-    const day = operation === "prepare_arena_daily" ? context.followingDayId : context.dayId;
-    return day !== undefined && day >= oldestKeeperDay && day <= scheduledDailyWindow(today, args.snapshot.suspendedUntilDay).following;
-  });
-}
-
-function appendCadenceArchivePlan(
-  plans: KeeperInstructionPlan[],
-  snapshot: ProtocolSnapshot,
-  today: number,
-  nowUnix: number,
-): void {
-  const state = snapshot.archiveState;
-  if (!state) return;
-  const ordered = [...(snapshot.archiveCandidates ?? [])]
-    .sort((left, right) => left.cadenceId - right.cadenceId);
-  // The program's rule: the member after the last one, or, before any, the
-  // one Daily from launch onward whose predecessor lies before launch.
-  const first = state.lastDailyId === undefined || state.lastDailyId < snapshot.launchDayId;
-  const nextArchiveId = snapshot.dailies.find(({ dayId, predecessorDayId }) => first
-    ? dayId >= snapshot.launchDayId && predecessorDayId < snapshot.launchDayId
-    : predecessorDayId === state.lastDailyId)?.dayId;
-  const contextFor = (candidate: CadenceArchiveCandidate) => ({
-
-    dayId: candidate.cadenceId,
-  });
-  const nextArchive = ordered.find((candidate) =>
-    !candidate.committed && candidate.cadenceId === nextArchiveId
-  );
-  if (nextArchive && nextArchive.cadenceId <= today) {
-    plans.push(keeperPlan(
-      "archive_arena_daily",
-      contextFor(nextArchive),
-    ));
-  }
-
-  for (const candidate of ordered) {
-    if (!candidate.committed || candidate.cadenceId > today) continue;
-    const context = contextFor(candidate);
-    if (!candidate.claimsExpired && nowUnix > candidate.closeEligibleAt) {
-      const followingDayId = nextScheduledDaily(
-        today,
-        snapshot.suspendedUntilDay,
-      );
-      const following = snapshot.dailies.find(({ dayId }) => dayId === followingDayId);
-      const daily = snapshot.dailies.find(({ dayId }) => dayId === candidate.cadenceId);
-      if ((following?.status === "funding" || following?.status === "open") &&
-          daily?.status === "finalized") {
-        plans.push(keeperPlan("expire_daily_claims", {
-          ...context,
-          followingDayId,
-        }));
-      }
-    } else if (candidate.claimsExpired && nowUnix > candidate.closeEligibleAt) {
-      plans.push(keeperPlan("close_arena_daily", context));
-    }
-  }
+  return plans.filter(({ context }) =>
+    context.dayId !== undefined && context.dayId >= oldestKeeperDay && context.dayId <= preparable);
 }
 
 function appendRunPlan(
@@ -241,10 +133,6 @@ function appendRunPlan(
   run: RunSnapshot,
   nowUnix: number,
 ): void {
-  const inProgress = ["prepared", "delegated", "awaiting_vrf", "playing"]
-    .includes(run.lifecycle);
-  const forceFinishEligible = ["delegated", "awaiting_vrf", "playing"]
-    .includes(run.lifecycle);
   const context = {
     dayId: run.dayId,
     owner: run.owner,
@@ -252,61 +140,24 @@ function appendRunPlan(
     runId: run.runId,
     includeArenaPlayer: run.arenaPlayerExists,
   } as const;
+  const pastRecovery = run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt;
 
-  if (forceFinishEligible &&
+  if (["delegated", "awaiting_vrf", "playing"].includes(run.lifecycle) &&
       run.location === "ephemeral_rollup" && run.runsCloseAt !== undefined &&
       nowUnix >= run.runsCloseAt) {
     plans.push(keeperPlan("finish_run", context));
-    return;
-  }
-  if (run.reservationActive &&
-      (inProgress || run.lifecycle === "unavailable") &&
-      run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt) {
-    plans.push(keeperPlan("expire_unresolved_arena_run", {
-      ...context,
-      includeArenaPlayer: true,
-    }));
     return;
   }
   if (run.lifecycle === "terminal" && run.location === "ephemeral_rollup") {
     plans.push(keeperPlan("commit_run", context));
     return;
   }
-  if (run.reservationActive && run.lifecycle === "terminal" && run.location === "base") {
-    plans.push(keeperPlan(
-      "consume_arena_run",
-      context,
-    ));
-    return;
+  if (run.location !== "base") return;
+  // A finished run back on Base is consumed: scored while its recovery
+  // window is open. Past it, any run on Base is only closed, its slot freed
+  // and its rent returned; nothing has to expire it first.
+  if ((run.reservationActive && run.lifecycle === "terminal") || pastRecovery) {
+    plans.push(keeperPlan("consume_arena_run", pastRecovery && !run.reservationActive
+      ? { ...context, includeArenaPlayer: false } : context));
   }
-  if (!run.reservationActive && run.location === "base" &&
-      run.recoveryDeadlineAt !== undefined && nowUnix >= run.recoveryDeadlineAt) {
-    plans.push(keeperPlan("consume_arena_run", { ...context, includeArenaPlayer: false }));
-  }
-}
-
-function appendFinalizationPlan(
-  plans: KeeperInstructionPlan[],
-  daily: DailySnapshot,
-  ready: boolean,
-  successorDayId: number | undefined,
-): void {
-  if (!ready || daily.status === "finalized" ||
-      successorDayId === undefined) return;
-  plans.push(keeperPlan("finalize_arena_daily", {
-
-    dayId: daily.dayId,
-    followingDayId: successorDayId,
-  }));
-}
-
-function firstMissingScheduledCadence<T>(
-  first: number,
-  lastInclusive: number,
-  values: ReadonlyMap<number, T>,
-): number | undefined {
-  for (let id = first; id <= lastInclusive; id += 1) {
-    if (!values.has(id)) return id;
-  }
-  return undefined;
 }

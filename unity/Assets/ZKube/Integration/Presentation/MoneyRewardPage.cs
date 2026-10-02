@@ -79,6 +79,28 @@ namespace ZKube.Integration.Presentation
                 rewardRead.Value.Session.Funding == "ready" && board?.ClaimStatus == "claimable" && board.Yours != null &&
                 board.ExpiresAt.HasValue && now() <= board.ExpiresAt.Value;
         }
+        private bool CanSealResults() => browsingRewards && !Busy && !sessionActionPending && !economyActionPending && !paused && !detached &&
+            isActiveAndEnabled && rewardRead != null && rewardRead.IsCurrent && rewardRead.Value.Pending == null && rewardRead.Value.Boards.Finalizable &&
+            rewardRead.Value.Session.Current && rewardRead.Value.Session.Funding == "ready";
+        public Task SealResults()
+        {
+            if (!CanSealResults()) return Task.CompletedTask;
+            return Run(async (epoch, token) => {
+                economyActionPending = true; Present();
+                try
+                {
+                    var result = await Flow.SettleDailies(token);
+                    if (!Current(epoch)) return;
+                    ShowReceipt(result.Value, identity.Owner);
+                    await RefreshRewardPage(epoch, token);
+                }
+                finally
+                {
+                    economyActionPending = false;
+                    if (Current(epoch)) Present(); else economyReadbackNeeded = true;
+                }
+            });
+        }
         // A board by its name on this day.
         private string RewardName(string kind) => MoneyText.Board(kind, catalog, rewardDay);
 
@@ -113,7 +135,11 @@ namespace ZKube.Integration.Presentation
             {
                 blocks.Add(PanelBlock.Talk("This board has not been sealed yet. Rewards open after its results are finalized.", "idle"));
                 blocks.Add(PanelBlock.Title("Results pending"));
-                blocks.Add(PanelBlock.Button(PageAction("Refresh results", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true));
+                // The day is over: this player's own transaction seals it, with no one else to wait for.
+                if (CanSealResults())
+                    blocks.Add(PanelBlock.Button(PageAction("Seal results", () => _ = SealResults(), CanSealResults), true));
+                else
+                    blocks.Add(PanelBlock.Button(PageAction("Refresh results", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true));
                 blocks.Add(Days(state));
                 page.Blocks = blocks.ToArray();
                 return page;

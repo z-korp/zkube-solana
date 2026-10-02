@@ -74,8 +74,8 @@ export function parseOperatorArgs(args: string[]) {
 }
 
 export function parseDeposit(value: string): { selector: string; lamports: string } {
-  const match = /^daily:(current|following|\d+):(.+)$/.exec(value);
-  if (!match) throw new Error("Top-up format is daily:<current|following|day>:<amount>SOL or lamports");
+  const match = /^daily:(current|\d+):(.+)$/.exec(value);
+  if (!match) throw new Error("Top-up format is daily:<current|day>:<amount>SOL or lamports");
   const sol = /^(0|[1-9]\d*)(?:\.(\d{1,9}))?SOL$/i.exec(match[2]!);
   const raw = /^([1-9]\d*)lamports$/i.exec(match[2]!);
   if (!sol && !raw) throw new Error("Amount requires an explicit SOL or lamports suffix");

@@ -212,7 +212,8 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
             environment.AdvanceClock((long)ZKube.Core.NativeEngine.Daily(ZKube.Core.NativeEngine.DayAt(environment.Clock()) + 1).OpensAt - environment.Clock());
             yield return null; yield return Idle();
-            StringAssert.Contains("Today's Daily is not available", Text("Daily facts"));
+            // Nobody has entered the new day yet: it has no account and is open by the clock.
+            StringAssert.Contains("Daily is open", Text("Daily facts"));
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));
             for (int i = 0; i < 5; i++) yield return null;
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));

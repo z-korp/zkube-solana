@@ -3,7 +3,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::protocol::{PlayerState, ProtocolConfig, ACCOUNT_VERSION};
+use crate::state::protocol::{PlayerState, ACCOUNT_VERSION};
 
 pub const CADENCE_FUNDING_SEED: &[u8] = b"cadence_funding";
 pub const CREDIT_VAULT_SEED: &[u8] = b"credit_vault";
@@ -67,22 +67,16 @@ impl CreditVault {
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
-pub enum PeriodStatus {
-    #[default]
-    Funding,
-    Open,
-    Finalized,
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
 pub struct PoolLedger {
     pub seeded_lamports: u64,
+    /// The prize share of the entries of the Daily before this one.
     pub entry_lamports: u64,
     pub rollover_in_lamports: u64,
     pub payout_lamports: u64,
     pub rollover_out_lamports: u64,
+    /// The prize share of this Daily's own entries. It waits here, outside
+    /// this Daily's pot, and moves to the next Daily at finalization.
+    pub next_pot_lamports: u64,
 }
 
 impl PoolLedger {
@@ -103,6 +97,14 @@ impl PoolLedger {
     pub fn add_entry(&mut self, lamports: u64) -> Result<()> {
         self.entry_lamports = self
             .entry_lamports
+            .checked_add(lamports)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        Ok(())
+    }
+
+    pub fn add_next_pot(&mut self, lamports: u64) -> Result<()> {
+        self.next_pot_lamports = self
+            .next_pot_lamports
             .checked_add(lamports)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
         Ok(())
@@ -314,13 +316,12 @@ impl ArenaBoard {
 }
 
 #[account]
-#[derive(Default, InitSpace)]
+#[derive(Debug, Default, InitSpace, PartialEq, Eq)]
 pub struct ArenaDaily {
     pub version: u8,
     pub day_id: u32,
-    pub status: PeriodStatus,
-    /// The Daily prepared before this one. Entry backing, finalization
-    /// rollover and suspended funding reach this Daily only from that day.
+    /// The Daily prepared before this one. Its entries' prize share and its
+    /// rollover reach this Daily only from that day, when it finalizes.
     pub predecessor_day: u32,
     pub predecessor_rollover_applied: bool,
     pub rules_hash: [u8; 32],
@@ -332,12 +333,56 @@ pub struct ArenaDaily {
     pub unique_players: u32,
     pub score_qualified_players: u32,
     pub theme_qualified_players: u32,
-    /// Set exactly once after the claim window and unclaimed transfer.
-    pub claims_expired: bool,
     pub bump: u8,
 }
 
 impl ArenaDaily {
+    /// A Daily has no status to set: it is open while the clock is inside its
+    /// window, and finalized once it carries the time it was.
+    pub fn finalized(&self) -> bool {
+        self.finalized_at != 0
+    }
+
+    /// Finalizes this Daily's money: unresolved entries count as expired, the
+    /// pot that reached it from before is split into what its boards pay and
+    /// what they do not, and the successor receives the rest together with
+    /// this Daily's own entries' share, which was never in its pot.
+    pub fn settle_into(&mut self, successor: &mut ArenaDaily, now: i64) -> Result<DailySettlement> {
+        self.entries_expired = self
+            .entries_paid
+            .checked_sub(self.entries_scored)
+            .ok_or(ErrorCode::AccountingInvariant)?;
+        let pool = self.ledger.available_lamports()?;
+        let next_pot = self.ledger.next_pot_lamports;
+        let pools = daily_board_pools(pool, self.theme_qualified_players);
+        let score = board_payout_plan(pools.score, self.score_qualified_players)?;
+        let theme = board_payout_plan(pools.theme, self.theme_qualified_players)?;
+        let paid = score
+            .paid_lamports
+            .checked_add(theme.paid_lamports)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        let rollover = score
+            .rollover_lamports
+            .checked_add(theme.rollover_lamports)
+            .ok_or(ErrorCode::ArithmeticOverflow)?;
+        self.ledger.settle(paid, rollover)?;
+        successor.ledger.add_rollover(rollover)?;
+        successor.ledger.add_entry(next_pot)?;
+        successor.predecessor_rollover_applied = true;
+        self.finalized_at = now;
+        Ok(DailySettlement {
+            pools,
+            score,
+            theme,
+            forwarded_lamports: rollover
+                .checked_add(next_pot)
+                .ok_or(ErrorCode::ArithmeticOverflow)?,
+            held_lamports: pool
+                .checked_add(next_pot)
+                .ok_or(ErrorCode::ArithmeticOverflow)?,
+        })
+    }
+
     /// A first qualification on a board is exactly one transition per player,
     /// per board, per day, so the flat ladder credit rides it rather than
     /// carrying its own idempotence marker. It is never per entry: further
@@ -383,15 +428,6 @@ impl ArenaDaily {
             ErrorCode::InvalidPeriod
         );
         Ok(())
-    }
-
-    /// A suspended Daily nobody entered forwards its funding instead of
-    /// running, once its own predecessor has settled into it.
-    pub fn skippable(&self, suspended_until_day: u32) -> bool {
-        !zkube_core::daily_is_scheduled(self.day_id, suspended_until_day)
-            && matches!(self.status, PeriodStatus::Funding | PeriodStatus::Open)
-            && self.entries_paid == 0
-            && self.predecessor_rollover_applied
     }
 
     pub fn resolved(&self) -> bool {
@@ -488,6 +524,17 @@ pub enum BestRow {
     First,
     /// A better row replaced the one given here.
     Improved(ArenaBoardEntry),
+}
+
+/// What finalizing a Daily decided: each board's pool and plan, what the
+/// account held for it, and what moves to its successor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailySettlement {
+    pub pools: DailyBoardPools,
+    pub score: BoardPayoutPlan,
+    pub theme: BoardPayoutPlan,
+    pub forwarded_lamports: u64,
+    pub held_lamports: u64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -702,10 +749,7 @@ pub fn validate_finalized_board_binding(
     board_data_len: usize,
     kind: DailyBoardKind,
 ) -> Result<()> {
-    require!(
-        daily.status == PeriodStatus::Finalized,
-        ErrorCode::InvalidState
-    );
+    require!(daily.finalized(), ErrorCode::InvalidState);
     board.validate(daily_key, kind, board_data_len)?;
     let pool = daily
         .ledger
@@ -827,18 +871,6 @@ pub fn day_id_at(timestamp: i64) -> Result<u32> {
     zkube_core::day_id_at(timestamp).map_err(|_| error!(ErrorCode::InvalidPeriod))
 }
 
-/// The first two eligible Dailies around a wall-clock day.
-pub fn scheduled_daily_window(config: &ProtocolConfig, day_id: u32) -> Result<(u32, u32)> {
-    zkube_core::scheduled_daily_window(day_id, config.suspended_until_day)
-        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
-}
-
-/// The first scheduled Daily that has not opened yet at `day_id`.
-pub fn next_scheduled_daily(config: &ProtocolConfig, day_id: u32) -> Result<u32> {
-    zkube_core::next_scheduled_daily(day_id, config.suspended_until_day)
-        .map_err(|_| error!(ErrorCode::ArithmeticOverflow))
-}
-
 pub fn day_window(day_id: u32) -> Result<(i64, i64, i64)> {
     Ok(zkube_core::daily_window(day_id))
 }
@@ -846,10 +878,7 @@ pub fn day_window(day_id: u32) -> Result<(i64, i64, i64)> {
 /// Rewards stay claimable for the claim window from the Daily's finalization,
 /// which is when both of its boards seal.
 pub fn daily_claim_deadline(daily: &ArenaDaily) -> Result<i64> {
-    require!(
-        daily.status == PeriodStatus::Finalized && daily.finalized_at > 0,
-        ErrorCode::BoardIncomplete
-    );
+    require!(daily.finalized(), ErrorCode::BoardIncomplete);
     daily
         .finalized_at
         .checked_add(zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS)
@@ -866,10 +895,7 @@ pub fn daily_result_hash(
     theme_board: &ArenaBoard,
     theme_info: &AccountInfo<'_>,
 ) -> Result<[u8; 32]> {
-    require!(
-        daily.status == PeriodStatus::Finalized,
-        ErrorCode::BoardIncomplete
-    );
+    require!(daily.finalized(), ErrorCode::BoardIncomplete);
     let mut bytes = Vec::new();
     daily.version.serialize(&mut bytes)?;
     daily.day_id.serialize(&mut bytes)?;
@@ -1011,6 +1037,7 @@ impl FirstEntryAccounts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::protocol::ProtocolConfig;
 
     #[test]
     fn first_entry_accounts_are_the_real_account_and_delegation_sizes() {
@@ -1071,16 +1098,17 @@ mod tests {
     fn one_claim_clock_runs_from_the_dailys_finalization() {
         let finalized_at = 1_800_000_000;
         let mut daily = ArenaDaily {
-            status: PeriodStatus::Finalized,
             finalized_at,
             ..ArenaDaily::default()
         };
+        assert!(daily.finalized());
         assert_eq!(
             daily_claim_deadline(&daily).unwrap(),
             finalized_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
         );
         // A Daily that is still running has no claim window yet.
-        daily.status = PeriodStatus::Open;
+        daily.finalized_at = 0;
+        assert!(!daily.finalized());
         assert!(daily_claim_deadline(&daily).is_err());
     }
 
@@ -1109,15 +1137,6 @@ mod tests {
             assert!(source
                 .require_funding_successor(&daily(day - 1, day))
                 .is_err());
-            // Only a suspended day nobody entered forwards its funding.
-            assert!(source.skippable(day + 1));
-            assert!(!source.skippable(day));
-            assert!(!source.skippable(0));
-            assert!(!ArenaDaily {
-                status: PeriodStatus::Finalized,
-                ..source.clone()
-            }
-            .skippable(day + 1));
         }
         let mut protocol = ProtocolConfig::default();
         assert_eq!(protocol.record_prepared_daily(7).unwrap(), 0);
@@ -1145,7 +1164,10 @@ mod tests {
         assert!(archive
             .append_daily(launch_day + 2, launch_day + 1, [3; 32])
             .is_err());
-        assert_eq!((archive.last_daily_id, archive.daily_root), (launch_day, root));
+        assert_eq!(
+            (archive.last_daily_id, archive.daily_root),
+            (launch_day, root)
+        );
         archive
             .append_daily(launch_day + 1, launch_day, [2; 32])
             .unwrap();
@@ -1366,7 +1388,10 @@ mod tests {
             BestRow::Kept
         );
         assert_eq!(player.score_best.replay_hash, [1; 32]);
-        let better = ArenaBoardEntry { score: 101, ..worse };
+        let better = ArenaBoardEntry {
+            score: 101,
+            ..worse
+        };
         assert_eq!(
             player.record_score(DailyBoardKind::Score, better),
             BestRow::Improved(best)
@@ -1379,10 +1404,10 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, 84);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 137);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 143);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 129);
+        assert_eq!(daily_bytes.len(), 135);
         assert_eq!(ArenaBoard::HEADER_SIZE, 112);
         assert_eq!(ArenaBoard::open_space(1_536).unwrap(), 129_136);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_328);

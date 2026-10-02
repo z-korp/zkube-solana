@@ -32,7 +32,8 @@ export async function rebuildTransactions(operation: Operation, release: Release
     if (funding) result.push({ label: funding.label, payer: funding.feePayer, transaction: funding.transaction,
       spend: costs.authorityFundingLamports + costs.teamFundingLamports });
     const plans = await launchTransactionPlans(input, new PublicKey(release.upgradeAuthority), connection);
-    const spends = [costs.accountRentLamports, CADENCE_FUNDING_SEED_LAMPORTS, 0, 0, LAUNCH_DAILY_SEED_LAMPORTS];
+    // Initialization, cadence funding, then the one atomic launch transaction.
+    const spends = [costs.accountRentLamports, CADENCE_FUNDING_SEED_LAMPORTS, LAUNCH_DAILY_SEED_LAMPORTS];
     result.push(...plans.map((plan, index) => ({ label: plan.label, payer: plan.feePayer,
       transaction: plan.transaction, spend: spends[index]! })));
     return result;

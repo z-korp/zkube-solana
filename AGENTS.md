@@ -107,12 +107,12 @@ spending approval.
 | Area | Source status and guard |
 | --- | --- |
 | Core | One deterministic Rust engine at 1.0.0; `one_run_drives_campaign_and_daily` |
-| Interface | 29 instructions, 7 account types; `fresh_bootstrap_interface_is_locked` |
+| Interface | 24 instructions, 7 account types; `fresh_bootstrap_interface_is_locked` |
 | Accounts | Generated versions and bounded layouts; `target_accounts_fit_normal_solana_account_limits` |
 | Campaign | Local play and synchronized reported stars; `record_campaign_stars_is_idempotent_and_touches_no_other_field` |
 | Arcade | Prepaid entries and Score/Theme boards; `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` |
 | Settlement | Boards sorted as runs are consumed, sealed at finalization, idempotent claims; `no_caller_can_choose_board_rows` |
-| Keeper | Twelve permissionless plan instructions, run from the Worker's Cron Trigger, writes disabled pending approval; `keeper_allowlist_is_exactly_its_plans` |
+| Keeper | A backstop of seven permissionless plan instructions, run every ten minutes from the Worker's Cron Trigger, writes disabled pending approval; `keeper_allowlist_is_exactly_its_plans` |
 | Read model | Full standings and discovery hints in the same Worker, never an authority; `indexer_ranks_agree_with_the_core_board_order` |
 
 ## Product truth and locked rules
@@ -151,23 +151,36 @@ spending approval.
   authored dates or content accounts. A seeded without-replacement draw uses absolute day IDs; neither
   operator nor VRF chooses a pair. `daily_draw_is_reproducible_from_seed_and_day` guards independent
   recomputation.
+- **Cadence:** play and payout never wait for a keeper. A Daily exists only for a day somebody entered, plus
+  the launch day: the day's first transaction prepares it, and a repeat is a no-op. A Daily has no status: the
+  clock opens and closes its window, and it is finalized once it records when. Anyone finalizes it once its
+  window has closed and every entry is resolved, or six hours later whatever is unresolved, which then counts
+  as expired. An entry carries today's preparation and up to two due finalizations ahead of itself; a winner
+  back on a quiet day sends the same steps alone, then claims.
+  `prepare_makes_only_todays_daily_once_and_a_repeat_is_a_checked_no_op`,
+  `a_quiet_week_resolves_from_the_first_transaction_whoever_sends_it`,
+  `a_day_with_an_abandoned_run_finalizes_on_the_first_claim_after_the_recovery_window`,
+  `empty_dailies_are_bounded_finalize_empty_and_close_at_once`,
+  `the_largest_cadence_carrying_entry_fits_one_transaction`, `TheLargestCadenceCarryingEntryFitsOnePacket`,
+  `TheCadenceIsReadFromTheChainOfPreparedDailiesOldestFirst` and
+  `AWinnerBackOnAQuietDayFinalizesTheirDayThemselves` guard the program and the client.
 - **Suspension:** governance may suspend Dailies instantly for any duration. Paid entry rejects on a suspended
-  day, including one already Open, before any Kredit, vault or pot change. A suspended Daily nobody entered
-  forwards its funding once, after its own predecessor has settled into it and whether or not it was activated
-  early, without spending a Kredit or remapping later days.
-  `a_suspended_day_is_skipped_once_and_its_funding_reaches_the_next_scheduled_day`,
-  `an_early_opened_daily_still_carries_suspended_funding_across_the_gap`,
+  day, including one already entered, before any Kredit, vault or pot change. No Daily is prepared for a
+  suspended day. A prepared Daily nobody entered finalizes empty and sends everything it holds to the next
+  prepared Daily, once, without spending a Kredit or remapping later days.
+  `a_seeded_launch_day_suspended_before_any_entry_finalizes_empty_and_its_seed_moves_on`,
+  `only_todays_daily_or_the_first_after_a_suspension_can_be_prepared`,
   `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` and
   `suspension_window_handles_gaps_and_u32_limits` guard that behavior.
 - **Funding edge:** preparation only moves forward, and each Daily records the Daily prepared before it. Entry
-  backing, finalization rollover and suspended funding reach a Daily only from that recorded predecessor; a
-  later suspension change never remaps an edge, and no caller chooses a successor.
+  backing and finalization rollover reach a Daily only from that recorded predecessor; a later suspension
+  change never remaps an edge, and no caller chooses a successor.
   `the_funding_edge_is_the_recorded_predecessor_whatever_the_suspension`,
-  `finalization_rejects_skipping_its_funding_successor` and `follows the recorded funding edge and never
-  prepares behind the last Daily` guard the program and the keeper.
+  `finalization_rejects_skipping_its_funding_successor` and
+  `keeper_backstop_prepares_only_the_one_daily_the_program_lets_anyone_prepare` guard the program and the keeper.
 - **No future-content panel:** the app shows the current challenge and suspension notice, without previewing
-  the following day's pair. `keeps reversed models out of authored source` guards the retired copy; the
-  keeper can still prepare its account.
+  the following day's pair. `keeps reversed models out of authored source` guards the retired copy; nothing
+  prepares a later day's account.
 - **One difficulty table:** Campaign tier and Daily pressure draw from the same generated tier weights; no
   account or snapshot stores another copy. `CampaignAndDailyQueriesUseTheRustProgressionAndCatalogOwners`
   and codegen check the boundary.
@@ -224,13 +237,18 @@ spending approval.
   spending stays within that owner-set cap. `entry_split_is_exact_and_static` and
   `OneKreditButtonUsesTheOwnerPurchaseAndConfirmedBalance` guard accounting and purchase presentation.
 - **Money routing:** purchase sends the operator share directly to the pinned team address; the vault holds
-  prize money only. Spending funds the following paid Daily, never the competing pot.
-  `purchase_kredits_pays_the_protocol_destination_directly` and
-  `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` guard both transitions.
-- **Entry resolution:** every paid entry becomes scored or expired, with no refund path. Settlement does not
-  delay the next prepared Daily's opening. `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths`
-  and `keeper_preparation_advances_past_archived_days_and_keeps_the_recent_window` guard lifecycle and
-  preparation.
+  prize money only. Spending never joins the competing pot: it waits in the Daily it was spent on and moves
+  to the next prepared Daily when its own finalizes. The lobby shows a Daily's pot together with what the Daily
+  before it still has to send, so the figure does not move when that Daily finalizes.
+  `purchase_kredits_pays_the_protocol_destination_directly`,
+  `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths`,
+  `lamports_are_conserved_and_a_days_waiting_share_reaches_exactly_one_later_pot` and
+  `TheLobbyPotDoesNotJumpWhenTheDailyBeforeItFinalizes` guard the transitions and the figure.
+- **Entry resolution:** every paid entry becomes scored or expired, with no refund path. A run still
+  unresolved six hours after its window can no longer score: finalization counts it expired, its owner's next
+  entry retires it, and consuming it only releases the slot and returns its rent, once. Settlement never delays
+  the next Daily. `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` and
+  `a_day_with_an_abandoned_run_finalizes_on_the_first_claim_after_the_recovery_window` guard the lifecycle.
 - **Boards:** global ranking has one owner, the program. Preparation creates both boards empty. Consuming a
   scored run is their only writer: it moves the player's earlier row up, inserts a new row, or at capacity
   drops the last row or leaves the result out, so the rows always equal a full sort of every qualifier's best.
@@ -241,7 +259,7 @@ spending approval.
 - **Board rent:** cadence funding pays it all and gets it all back. A player's first entry of the day moves
   one row and claim bit of rent into each board, before the Kredit is spent, so an accepted entry always has
   room for its result and consume needs no payer. Finalization returns what the paying rows do not need; closing
-  the Daily, or skipping a suspended one, returns the rest.
+  the Daily returns the rest.
   `board_rows_never_exceed_the_row_rent_their_entrants_paid` and
   `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` guard the invariant and the refusal.
 - **Claims:** an explicit position is checked against its sealed board and payout is recomputed. A claim of
@@ -249,18 +267,22 @@ spending approval.
   not finalized has no sealed board and rejects; `ladder_points_are_credited_once_per_claim` guards
   successful, failed and no-op outcomes.
 - **Claim window:** both boards seal when their Daily is finalized, and rewards remain claimable for thirty
-  days from that one moment. After the window and archival, unclaimed money expires into the next pot, not
-  revenue. `one_claim_clock_runs_from_the_dailys_finalization`, `ladder_points_are_credited_once_per_claim` and
-  `sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard claims and root-gated closure.
-- **Composed entry:** prepend at most two claims proven claimable by the client's reads, then entry in the
-  same transaction. Stale claimed/expired positions are no-ops, without preflight or retry.
+  days from that one moment. Closing the Daily after the window moves unclaimed money into the newest pot, not
+  revenue; a Daily that paid nothing closes at once. `one_claim_clock_runs_from_the_dailys_finalization`,
+  `ladder_points_are_credited_once_per_claim` and
+  `closing_a_daily_moves_what_was_never_claimed_into_the_newest_pot_and_returns_only_rent` guard claims and
+  closure.
+- **Composed entry:** an entry carries the cadence that is due ahead of itself. When none is due it prepends at
+  most two claims proven claimable by the client's reads; when some is, the optional claims wait for their own
+  transaction. Stale claimed/expired positions are no-ops, without preflight or retry.
   `EntryComposesAtMostTwoProvenClaimsAndNoOpClaimsNeverRetry`,
+  `AnEntryCarryingCadenceLeavesItsOptionalClaimsOut`,
   `ArcadePreparesDelegatesAndRequestsOpeningVrfWithUnavailableOptionalClaims` and
   `ClaimRejectsWrongBoardOwnerThenUsesClaimedBitmapOrFreshArchivalAbsence` guard entry and explicit
   recovery.
 - **Protocol economics:** terms are core constants, emitted once. Authority seeding and later deposits use
   the same instruction; `entry_split_is_exact_and_static` and
-  `sbf_first_deposit_funds_and_activates_the_first_daily` guard those boundaries.
+  `sbf_first_deposit_funds_and_launches_the_first_daily` guard those boundaries.
 - **Ladder:** cumulative integer log-rank points pay no money, never decay and run on no timer. They use
   each board's qualified field and accumulate a permanent highest tier.
   `committed_ladder_vectors_match_integer_ln` and
@@ -433,8 +455,8 @@ consume can touch a finalized Daily, so nothing can bring it back or repeat its 
 `a_closed_run_returns_rent_to_its_payer`, `a_closed_arena_player_returns_rent_to_its_payer` and
 `a_closed_daily_player_cannot_come_back_on_a_finalized_or_archived_day` guard refunds and revival.
 The cadence signer pays rent only for a Daily and its two boards, at preparation and at a player's first
-entry; it is not a general fee sponsor. `sbf_cadence_funding_can_prepare_a_missing_post_launch_daily` guards
-preparation.
+entry; it is not a general fee sponsor.
+`prepare_makes_only_todays_daily_once_and_a_repeat_is_a_checked_no_op` guards preparation.
 
 Base, Router and resolved ER connections stay separate, and each endpoint is HTTPS unless it is this machine;
 `AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. Resolve
@@ -552,16 +574,13 @@ share one workspace and configuration; `workspace_has_one_dependency_and_configu
 
 ### Keeper and archival
 
-ProtocolConfig advances a sequential result root from launch day. Its next member is exactly the Daily whose
-recorded predecessor is the last member; a skipped suspended Daily leaves that chain when its funding is
-forwarded, so a gap is one step and no finalized Daily can be passed over. The first member is the one Daily
-from launch onward whose predecessor lies before launch: the launch day, or the day that took its place when a
-suspended launch day was skipped. Daily closure requires root coverage;
+ProtocolConfig advances a sequential result root from launch day, and finalization appends its Daily to it.
+The next member is exactly the Daily whose recorded predecessor is the last member, and a Daily finalizes only
+after that predecessor has, so no Daily can be passed over. The first member is the one Daily from launch
+onward whose predecessor lies before launch. A Daily closes only once finalized, so the root covers it.
 `archive_is_strictly_sequential`, `the_first_root_member_is_the_first_daily_of_the_chain_from_launch`,
-`a_skipped_launch_daily_leaves_its_successor_as_the_first_root_member`,
-`the_result_root_cannot_pass_over_a_finalized_daily`, `archives only the next
-Daily of the chain, never a later sealed one` and
-`sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard it. The ledger is the archive. No
+`finalization_rejects_skipping_its_funding_successor` and
+`closing_a_daily_moves_what_was_never_claimed_into_the_newest_pot_and_returns_only_rent` guard it. The ledger is the archive. No
 notification service exists; a missed notification never changes a claim window, and any future notification
 is only a courtesy.
 
@@ -602,16 +621,21 @@ The keeper pass runs only from the Worker's Cron Trigger. The request path is ha
 webhook secret alone: no request can start a pass, reach the key or change the write switch.
 `a_fetch_cannot_start_a_keeper_pass_reach_the_key_or_change_the_write_switch` guards that boundary.
 
-Cadence prepares, activates or calls `skip_suspended_arena_daily`, finalizes, archives, expires claims and
-closes Daily/player accounts. Last-resort recovery finishes deadline runs, commits, consumes or expires
-unreachable runs. All twelve instructions are permissionless; `keeper_allowlist_is_exactly_its_plans`,
-`an_expired_orphan_closes_without_period_accounts` and
-`a_missed_funding_day_finalizes_after_its_window_and_rollover` guard those plans. Governance stays with the
-owner; a keeper outage does not remove player claim authority.
+The keeper is a backstop: nothing a player does waits for it. Its seven plans prepare the one Daily the
+program lets anyone prepare, finalize, close Daily and player accounts and, for runs nobody came back to,
+finish at the deadline, commit and consume. All seven instructions are permissionless and each is a no-op or a
+checked rejection when a player's transaction got there first; `keeper_allowlist_is_exactly_its_plans`,
+`an_expired_orphan_closes_without_period_accounts`,
+`a_missed_funding_day_finalizes_after_its_window_and_rollover`,
+`keeper_finalizes_by_the_clock_once_the_day_has_a_successor`,
+`keeper_closes_a_daily_that_paid_nothing_at_once_and_the_others_after_their_claim_window` and
+`keeper_settles_abandoned_runs_by_state_and_location_and_expires_none` guard those plans. With the keeper off,
+an abandoned run's rent waits in its account for its owner, and a finished Daily's rent and unclaimed money
+wait for whoever closes it; no entry, result or claim waits. Governance stays with the owner.
 
 Instruction name, connection and priority have one metadata owner. The core owns day, suspension, pair
 decoding and board ordering through WASM/native exports; `materializes every surviving keeper protocol
-operation`, `keeps monetary, archive, and cleanup ordering stable`,
+operation`, `keeps cadence, recovery and cleanup ordering stable`,
 `pair_decode_covers_the_product_and_rejects_outside_indices`,
 `board_order_uses_metric_then_time_then_owner_bytes`,
 `keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits` and
@@ -694,12 +718,13 @@ keeper authority. The approval boundary above applies to every execution.
   `operator_cli_options_and_exact_amounts_fail_closed` guard planning and the fresh-bootstrap scope.
 - **Launch plan:** plan launch binds deployed program, keeper, day and cutoff. ZKUBE_LAUNCH_DAY_ID is the core's
   day, which opens at 07:00 UTC, and the cutoff must fall inside that day's entry window; it quotes paused
-  protocol/vault initialization signed by the upgrade authority, cadence funding, two Daily preparations and atomic seed/unpause/activation.
+  protocol/vault initialization signed by the upgrade authority, cadence funding, and one atomic transaction that
+  prepares the launch Daily, seeds it and unpauses.
   `plans the full fresh bootstrap and one atomic launch transaction`,
   `operator_release_checks_devnet_and_programdata` and `refuses planning after the exact launch cutoff`
   guard ordering, release verification and cutoff.
 - **Top-up plan:** plan top-up uses the public launch bundle and explicit SOL/lamports amounts through the
-  program deposit path. `operator_top_up_rejects_seeded_balance_drift_and_a_closed_window` and `routes a
+  program deposit path, into today's Daily only. `operator_top_up_rejects_seeded_balance_drift_and_a_closed_window` and `routes a
   chosen amount to the exact selected prize-pool PDA` guard target and drift.
 - **Suspension plan:** plan set-suspension uses the pinned authority and chosen day; `sets the explicit
   suspension boundary and seeds cadence funding` guards the instruction.
@@ -719,7 +744,7 @@ keeper authority. The approval boundary above applies to every execution.
   deployment needs its own approval and always starts planning only: each pass logs its release fingerprint.
   Review that read-only pass, then separately approve enablement by storing the fingerprint in the
   keeper_approval row; deleting the row stops writes at the next pass.
-  `staged_launch_ready_requires_the_paused_protocol_and_both_unfunded_days` and `keeps writes fail-closed unless
+  `staged_launch_ready_requires_the_paused_protocol_and_no_launch_daily` and `keeps writes fail-closed unless
   explicitly enabled` guard that order.
 
 ### Gate G1 — physical-device wallet compatibility

@@ -14,8 +14,7 @@ use session_keys::SessionTokenV2;
 #[instruction(day_id: u32)]
 pub struct PrepareArenaDaily<'info> {
     #[account(mut, seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = day_id > protocol.last_daily_id @ ErrorCode::InvalidPeriod)]
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
 
     /// CHECK: Canonical Daily PDA allocated and serialized by this instruction.
@@ -37,14 +36,29 @@ pub struct PrepareArenaDaily<'info> {
 }
 
 pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32) -> Result<()> {
+    let daily_info = ctx.accounts.arena_daily.to_account_info();
+    // A Daily that already exists is left exactly as it is: whoever prepares
+    // it second, in the same block or a later one, succeeds and changes
+    // nothing. The seeds above still tie all three accounts to `day_id`.
+    if *daily_info.owner == crate::ID {
+        let existing = ArenaDaily::try_deserialize(&mut &daily_info.try_borrow_data()?[..])?;
+        require!(
+            existing.version == ACCOUNT_VERSION
+                && existing.day_id == day_id
+                && *ctx.accounts.score_board.owner == crate::ID
+                && *ctx.accounts.theme_board.owner == crate::ID,
+            ErrorCode::InvalidOwner
+        );
+        return Ok(());
+    }
     let today = day_id_at(Clock::get()?.unix_timestamp)?;
     require!(
-        prepare_period_is_allowed(
-            day_id,
-            today,
-            ctx.accounts.protocol.launch_day_id,
-            ctx.accounts.protocol.suspended_until_day,
-        ),
+        day_id
+            == zkube_core::preparable_daily(
+                today,
+                ctx.accounts.protocol.launch_day_id,
+                ctx.accounts.protocol.suspended_until_day,
+            ),
         ErrorCode::InvalidPeriod
     );
     let content = zkube_core::daily_pair_with::<SolanaSha256>(day_id);
@@ -59,7 +73,6 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
     let daily = ArenaDaily {
         version: ACCOUNT_VERSION,
         day_id,
-        status: PeriodStatus::Funding,
         predecessor_day: ctx.accounts.protocol.record_prepared_daily(day_id)?,
         predecessor_rollover_applied: false,
         rules_hash,
@@ -71,10 +84,8 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         unique_players: 0,
         score_qualified_players: 0,
         theme_qualified_players: 0,
-        claims_expired: false,
         bump: ctx.bumps.arena_daily,
     };
-    let daily_info = ctx.accounts.arena_daily.to_account_info();
     create_cadence_account(
         &ctx.accounts.cadence_funding.to_account_info(),
         ctx.bumps.cadence_funding,
@@ -106,7 +117,12 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
             &ctx.accounts.cadence_funding.to_account_info(),
             ctx.bumps.cadence_funding,
             &info,
-            &[ARENA_BOARD_SEED, daily_info.key.as_ref(), kind.seed(), &[bump]],
+            &[
+                ARENA_BOARD_SEED,
+                daily_info.key.as_ref(),
+                kind.seed(),
+                &[bump],
+            ],
             ArenaBoard::HEADER_SIZE,
             ArenaBoard::HEADER_SIZE,
             &ctx.accounts.system_program.to_account_info(),
@@ -121,111 +137,6 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         }
         .try_serialize(&mut &mut info.try_borrow_mut_data()?[..])?;
     }
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct ActivateArenaDaily<'info> {
-    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
-        constraint = !protocol.paused @ ErrorCode::ProtocolPaused)]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-
-    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
-        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState)]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    pub caller: Signer<'info>,
-}
-
-pub fn handler_activate_arena_daily(ctx: Context<ActivateArenaDaily>) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp;
-    let current = day_id_at(now)?;
-    require!(
-        ctx.accounts.arena_daily.day_id >= ctx.accounts.protocol.suspended_until_day,
-        ErrorCode::DailyNotScheduled
-    );
-    let scheduled = scheduled_daily_window(&ctx.accounts.protocol, current)?;
-    require!(
-        ctx.accounts.arena_daily.day_id == scheduled.0
-            || ctx.accounts.arena_daily.day_id == scheduled.1,
-        ErrorCode::InvalidPeriod
-    );
-    ctx.accounts.arena_daily.status = PeriodStatus::Open;
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct SkipSuspendedArenaDaily<'info> {
-    #[account(
-        seeds = [PROTOCOL_CONFIG_SEED],
-        bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        mut,
-        close = cadence_funding,
-        seeds = [ARENA_DAILY_SEED, suspended_daily.day_id.to_le_bytes().as_ref()],
-        bump = suspended_daily.bump,
-        constraint = suspended_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub suspended_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(
-        mut,
-        seeds = [ARENA_DAILY_SEED, successor_daily.day_id.to_le_bytes().as_ref()],
-        bump = successor_daily.bump,
-        constraint = matches!(successor_daily.status, PeriodStatus::Funding | PeriodStatus::Open) @ ErrorCode::InvalidState,
-        constraint = !successor_daily.predecessor_rollover_applied @ ErrorCode::InvalidState
-    )]
-    pub successor_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, close = cadence_funding,
-        seeds = [ARENA_BOARD_SEED, suspended_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
-        constraint = score_board.bound_to(suspended_daily.key(), DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
-    pub score_board: Box<Account<'info, ArenaBoard>>,
-    #[account(mut, close = cadence_funding,
-        seeds = [ARENA_BOARD_SEED, suspended_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump = theme_board.bump,
-        constraint = theme_board.bound_to(suspended_daily.key(), DailyBoardKind::Theme) @ ErrorCode::InvalidOwner)]
-    pub theme_board: Box<Account<'info, ArenaBoard>>,
-    /// CHECK: Canonical recyclable cadence-rent destination.
-    #[account(
-        mut,
-        seeds = [CADENCE_FUNDING_SEED],
-        bump,
-        owner = system_program::ID @ ErrorCode::InvalidOwner,
-        constraint = cadence_funding.data_is_empty() @ ErrorCode::InvalidOwner
-    )]
-    pub cadence_funding: UncheckedAccount<'info>,
-    pub caller: Signer<'info>,
-}
-
-pub fn handler_skip_suspended_arena_daily(ctx: Context<SkipSuspendedArenaDaily>) -> Result<()> {
-    require!(
-        ctx.accounts
-            .suspended_daily
-            .skippable(ctx.accounts.protocol.suspended_until_day),
-        ErrorCode::DailyNotScheduled
-    );
-    ctx.accounts
-        .suspended_daily
-        .require_funding_successor(&ctx.accounts.successor_daily)?;
-    let rollover = ctx.accounts.suspended_daily.ledger.funded_lamports()?;
-    require_spendable(&ctx.accounts.suspended_daily.to_account_info(), rollover)?;
-    move_program_lamports(
-        &ctx.accounts.suspended_daily.to_account_info(),
-        &ctx.accounts.successor_daily.to_account_info(),
-        rollover,
-    )?;
-    ctx.accounts.successor_daily.ledger.rollover_in_lamports = ctx
-        .accounts
-        .successor_daily
-        .ledger
-        .rollover_in_lamports
-        .checked_add(rollover)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    ctx.accounts.successor_daily.predecessor_rollover_applied = true;
-    // The skipped day leaves the chain: its successor now follows its
-    // predecessor, which is the order the result root archives in.
-    ctx.accounts.successor_daily.predecessor_day = ctx.accounts.suspended_daily.predecessor_day;
     Ok(())
 }
 
@@ -254,35 +165,20 @@ pub fn handler_deposit_arena_daily(ctx: Context<DepositArenaDaily>, lamports: u6
     let current = day_id_at(now)?;
     require!(lamports > 0, ErrorCode::InvalidState);
     let launches = ctx.accounts.protocol.launch_day_id == 0;
+    // The pot a deposit joins is always the day's own: today's Daily, before
+    // it finalizes. The first deposit launches the protocol on it.
+    require!(
+        ctx.accounts.arena_daily.day_id == current
+            && !ctx.accounts.arena_daily.finalized()
+            && now < day_window(current)?.1,
+        ErrorCode::InvalidPeriod
+    );
     if launches {
         require!(ctx.accounts.protocol.paused, ErrorCode::InvalidState);
         require!(
-            ctx.accounts.arena_daily.day_id == current,
-            ErrorCode::InvalidPeriod
-        );
-        require!(
-            ctx.accounts.arena_daily.ledger.funded_lamports()? == 0,
-            ErrorCode::InvalidState
-        );
-        require!(
-            ctx.accounts.arena_daily.status == PeriodStatus::Funding
+            ctx.accounts.arena_daily.ledger.funded_lamports()? == 0
                 && !ctx.accounts.arena_daily.predecessor_rollover_applied,
             ErrorCode::InvalidState
-        );
-    } else {
-        require!(
-            scheduled_daily_window(&ctx.accounts.protocol, current).is_ok_and(
-                |(first, following)| ctx.accounts.arena_daily.day_id == first
-                    || ctx.accounts.arena_daily.day_id == following
-            ),
-            ErrorCode::InvalidPeriod
-        );
-        require!(
-            matches!(
-                ctx.accounts.arena_daily.status,
-                PeriodStatus::Funding | PeriodStatus::Open
-            ) && now < day_window(ctx.accounts.arena_daily.day_id)?.1,
-            ErrorCode::InvalidPeriod
         );
     }
     transfer_from_signer(
@@ -387,8 +283,6 @@ pub struct EnterArena<'info> {
     #[account(init_if_needed, payer = payer, space = 8 + ArenaPlayer::INIT_SPACE,
         seeds = [ARENA_PLAYER_SEED, current_daily.key().as_ref(), owner_authority.key().as_ref()], bump)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
-    #[account(mut, seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()], bump = following_daily.bump,)]
-    pub following_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [ARENA_BOARD_SEED, current_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
         constraint = score_board.bound_to(current_daily.key(), DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
     pub score_board: Box<Account<'info, ArenaBoard>>,
@@ -440,19 +334,29 @@ pub fn handler_enter_arena<'info>(
         zkube_core::daily_is_scheduled(day_id, ctx.accounts.protocol.suspended_until_day),
         ErrorCode::DailyNotScheduled
     );
-    ctx.accounts
-        .current_daily
-        .require_funding_successor(&ctx.accounts.following_daily)?;
+    // A Daily is open when the clock is inside its window. Nothing opens it,
+    // and nothing can enter one that has finalized.
     require!(
-        ctx.accounts.current_daily.status == PeriodStatus::Open
-            && matches!(
-                ctx.accounts.following_daily.status,
-                PeriodStatus::Funding | PeriodStatus::Open
-            )
-            && now >= day_window(ctx.accounts.current_daily.day_id)?.0
-            && now < day_window(ctx.accounts.current_daily.day_id)?.1,
+        now >= day_window(day_id)?.0
+            && now < day_window(day_id)?.1
+            && !ctx.accounts.current_daily.finalized(),
         ErrorCode::InvalidPeriod
     );
+    // A run the player never settled stops being able to score at its
+    // recovery deadline. Their next entry retires it: no one has to expire it.
+    let stale = ctx.accounts.player_state.active_run_id;
+    if stale != 0 {
+        require!(
+            now >= ctx
+                .accounts
+                .player_state
+                .active_run_deadline_at
+                .checked_add(STUCK_RUN_RECOVERY_SECONDS)
+                .ok_or(ErrorCode::ArithmeticOverflow)?,
+            ErrorCode::ActiveRunExists
+        );
+        ctx.accounts.player_state.expire_arcade_run(stale)?;
+    }
     if ctx.accounts.arena_player.version == 0 {
         ctx.accounts.arena_player.set_inner(ArenaPlayer::initialize(
             ctx.accounts.current_daily.key(),
@@ -521,18 +425,20 @@ pub fn handler_enter_arena<'info>(
         &ctx.accounts.credit_vault.to_account_info(),
         split.next_daily_lamports,
     )?;
+    // The prize share waits in today's Daily, outside today's pot, and moves
+    // to the next Daily when this one finalizes.
     move_program_lamports(
         &ctx.accounts.credit_vault.to_account_info(),
-        &ctx.accounts.following_daily.to_account_info(),
+        &ctx.accounts.current_daily.to_account_info(),
         split.next_daily_lamports,
     )?;
     ctx.accounts
         .credit_vault
         .record_spend(split.next_daily_lamports)?;
     ctx.accounts
-        .following_daily
+        .current_daily
         .ledger
-        .add_entry(split.next_daily_lamports)?;
+        .add_next_pot(split.next_daily_lamports)?;
     ctx.accounts.current_daily.entries_paid = ctx
         .accounts
         .current_daily
@@ -617,6 +523,25 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
     if ctx.accounts.player_state.orphan_run_id == active.run_id {
         return ctx.accounts.player_state.release_orphan(active.run_id);
     }
+    // Past its recovery deadline a run can no longer score, and its Daily
+    // counts it expired when it finalizes. Consuming it then only frees the
+    // player's slot and returns the run's rent, once: the account closes.
+    if Clock::get()?.unix_timestamp
+        >= active
+            .deadline_at
+            .checked_add(STUCK_RUN_RECOVERY_SECONDS)
+            .ok_or(ErrorCode::ArithmeticOverflow)?
+    {
+        require!(
+            ctx.accounts.player_state.arcade_reservation_matches(
+                active.run_id,
+                active.daily_challenge,
+                active.deadline_at,
+            ),
+            ErrorCode::InvalidRunId
+        );
+        return ctx.accounts.player_state.release_arcade_run(active.run_id);
+    }
     let daily = ctx
         .accounts
         .arena_daily
@@ -653,10 +578,7 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
             finalized_at: active.finished_at,
             replay_hash: active.replay_hash,
         };
-        require!(
-            daily.status != PeriodStatus::Finalized,
-            ErrorCode::InvalidState
-        );
+        require!(!daily.finalized(), ErrorCode::InvalidState);
         let changes =
             daily.record_scored_entry(player, &mut ctx.accounts.player_state, candidate)?;
         emit!(RunScored {
@@ -674,7 +596,12 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
                 BestRow::Improved(previous) => Some(previous),
             };
             let board = board.as_ref().ok_or(ErrorCode::InvalidState)?;
-            retain_board_row(&board.to_account_info(), kind, previous.as_ref(), &candidate)?;
+            retain_board_row(
+                &board.to_account_info(),
+                kind,
+                previous.as_ref(),
+                &candidate,
+            )?;
         }
         daily.entries_scored = daily
             .entries_scored
@@ -689,48 +616,14 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
 }
 
 #[derive(Accounts)]
-pub struct ExpireUnresolvedArenaRun<'info> {
-    #[account(mut, seeds = [PLAYER_STATE_SEED, owner.key().as_ref()], bump = player_state.bump,
-        constraint = player_state.owner == owner.key() @ ErrorCode::Unauthorized,
-        constraint = player_state.schema_valid() @ ErrorCode::InvalidVersion)]
-    pub player_state: Box<Account<'info, PlayerState>>,
-    #[account(mut, address = player_state.active_run_daily,
-        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_PLAYER_SEED, arena_daily.key().as_ref(), owner.key().as_ref()], bump = arena_player.bump,
-        constraint = arena_player.player == owner.key() @ ErrorCode::Unauthorized)]
-    pub arena_player: Box<Account<'info, ArenaPlayer>>,
-    /// CHECK: Wallet identity pinned by PlayerState.
-    pub owner: UncheckedAccount<'info>,
-    pub caller: Signer<'info>,
-}
-
-pub fn handler_expire_unresolved_arena_run(ctx: Context<ExpireUnresolvedArenaRun>) -> Result<()> {
-    require!(
-        Clock::get()?.unix_timestamp
-            >= ctx
-                .accounts
-                .player_state
-                .active_run_deadline_at
-                .checked_add(STUCK_RUN_RECOVERY_SECONDS)
-                .ok_or(ErrorCode::ArithmeticOverflow)?,
-        ErrorCode::InvalidPeriod
-    );
-    let run_id = ctx.accounts.player_state.active_run_id;
-    require!(run_id != 0, ErrorCode::InvalidRunId);
-    let player = &mut ctx.accounts.arena_player;
-    require!(player.active_paid_run_id == run_id, ErrorCode::InvalidRunId);
-    ctx.accounts.arena_daily.record_expired_entry(player)?;
-    player.active_paid_run_id = 0;
-    ctx.accounts.player_state.expire_arcade_run(run_id)
-}
-
-#[derive(Accounts)]
 pub struct FinalizeArenaDaily<'info> {
-    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump)]
+    #[account(mut, seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    #[account(mut, seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()], bump = arena_daily.bump,
+        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(mut, seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()], bump = following_daily.bump,
-        constraint = !following_daily.predecessor_rollover_applied @ ErrorCode::InvalidState)]
+    #[account(mut, seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()], bump = following_daily.bump)]
     pub following_daily: Box<Account<'info, ArenaDaily>>,
     #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
         constraint = score_board.bound_to(arena_daily.key(), DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
@@ -747,54 +640,40 @@ pub struct FinalizeArenaDaily<'info> {
     pub caller: Signer<'info>,
 }
 
+/// Finalizes a Daily by the clock alone. Anyone may send it: a winner's claim
+/// or the next day's first entry carries it, and a Daily already finalized is
+/// left as it is.
 pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
-    require!(
-        matches!(
-            ctx.accounts.arena_daily.status,
-            PeriodStatus::Open | PeriodStatus::Funding
-        ) && ctx.accounts.arena_daily.predecessor_rollover_applied
-            && now >= day_window(ctx.accounts.arena_daily.day_id)?.1
-            && ctx.accounts.arena_daily.resolved(),
-        ErrorCode::InvalidPeriod
-    );
     ctx.accounts
         .arena_daily
         .require_funding_successor(&ctx.accounts.following_daily)?;
-    let pool = ctx.accounts.arena_daily.ledger.available_lamports()?;
-    let pools = daily_board_pools(pool, ctx.accounts.arena_daily.theme_qualified_players);
-    let score_plan = board_payout_plan(
-        pools.score,
-        ctx.accounts.arena_daily.score_qualified_players,
-    )?;
-    let theme_plan = board_payout_plan(
-        pools.theme,
-        ctx.accounts.arena_daily.theme_qualified_players,
-    )?;
+    if ctx.accounts.arena_daily.finalized() {
+        return Ok(());
+    }
+    let (_, closes_at, recovery_ends_at) = day_window(ctx.accounts.arena_daily.day_id)?;
+    // Until the recovery deadline a run in flight can still score, so the
+    // day waits for it. After it nothing can, and the day never waits on
+    // anyone resolving an abandoned run.
+    require!(
+        ctx.accounts.arena_daily.predecessor_rollover_applied
+            && now >= closes_at
+            && (ctx.accounts.arena_daily.resolved() || now >= recovery_ends_at),
+        ErrorCode::InvalidPeriod
+    );
+    require!(
+        !ctx.accounts.following_daily.predecessor_rollover_applied
+            && !ctx.accounts.following_daily.finalized(),
+        ErrorCode::InvalidState
+    );
     let source_info = ctx.accounts.arena_daily.to_account_info();
     let successor_info = ctx.accounts.following_daily.to_account_info();
     let source = &mut ctx.accounts.arena_daily;
-    let successor = &mut ctx.accounts.following_daily;
-    require_spendable(&source_info, pool)?;
-    require!(!source.claims_expired, ErrorCode::InvalidState);
-    let paid_lamports = score_plan
-        .paid_lamports
-        .checked_add(theme_plan.paid_lamports)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let rollover_lamports = score_plan
-        .rollover_lamports
-        .checked_add(theme_plan.rollover_lamports)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    require!(
-        paid_lamports.checked_add(rollover_lamports) == Some(pool),
-        ErrorCode::AccountingInvariant
-    );
-    move_program_lamports(&source_info, &successor_info, rollover_lamports)?;
-    source.ledger.settle(paid_lamports, rollover_lamports)?;
-    successor.ledger.add_rollover(rollover_lamports)?;
-    successor.predecessor_rollover_applied = true;
-    source.status = PeriodStatus::Finalized;
-    source.finalized_at = now;
+    let settlement = source.settle_into(&mut ctx.accounts.following_daily, now)?;
+    require_spendable(&source_info, settlement.held_lamports)?;
+    move_program_lamports(&source_info, &successor_info, settlement.forwarded_lamports)?;
+    let pools = settlement.pools;
+    let (score_plan, theme_plan) = (settlement.score, settlement.theme);
     // The boards are already complete: every scored run was placed when it
     // was consumed. Keep the paying rows, add their claim bits, and return
     // the rent of everything else to cadence funding.
@@ -835,7 +714,18 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
             .ok_or(ErrorCode::AccountingInvariant)?;
         move_program_lamports(&info, &cadence, excess)?;
     }
-    Ok(())
+    // Dailies finalize in the order of their chain, which is the order of the
+    // result root: the day joins it here, with nothing left to archive.
+    let result_hash = daily_result_hash(
+        source,
+        &ctx.accounts.score_board,
+        &ctx.accounts.score_board.to_account_info(),
+        &ctx.accounts.theme_board,
+        &ctx.accounts.theme_board.to_account_info(),
+    )?;
+    ctx.accounts
+        .protocol
+        .append_daily(source.day_id, source.predecessor_day, result_hash)
 }
 
 #[derive(Accounts)]
@@ -846,7 +736,7 @@ pub struct ClaimDailyPrize<'info> {
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
         constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
+        constraint = arena_daily.finalized() @ ErrorCode::InvalidState
     )]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(
@@ -900,8 +790,7 @@ pub fn handler_claim_daily_prize(
         ctx.accounts.owner_authority.key(),
         position,
     )?;
-    if ctx.accounts.arena_daily.claims_expired
-        || now > daily_claim_deadline(&ctx.accounts.arena_daily)?
+    if now > daily_claim_deadline(&ctx.accounts.arena_daily)?
         || board_bitmap_is_set(&board_info, &ctx.accounts.arena_board, prize.position)?
     {
         return Ok(());
@@ -943,181 +832,6 @@ pub fn handler_claim_daily_prize(
 }
 
 #[derive(Accounts)]
-pub struct ExpireDailyClaims<'info> {
-    #[account(
-        seeds = [PROTOCOL_CONFIG_SEED],
-        bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        mut,
-        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
-        bump = arena_daily.bump,
-        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState,
-        constraint = protocol.last_daily_id >= arena_daily.day_id @ ErrorCode::InvalidState
-    )]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()],
-        bump = score_board.bump,
-        constraint = score_board.arena_daily == arena_daily.key() @ ErrorCode::InvalidOwner,
-        constraint = score_board.kind == DailyBoardKind::Score @ ErrorCode::InvalidOwner
-    )]
-    pub score_board: Box<Account<'info, ArenaBoard>>,
-    #[account(
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Theme.seed()],
-        bump = theme_board.bump,
-        constraint = theme_board.arena_daily == arena_daily.key() @ ErrorCode::InvalidOwner,
-        constraint = theme_board.kind == DailyBoardKind::Theme @ ErrorCode::InvalidOwner
-    )]
-    pub theme_board: Box<Account<'info, ArenaBoard>>,
-    #[account(
-        mut,
-        seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()],
-        bump = following_daily.bump,
-        constraint = following_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = matches!(following_daily.status, PeriodStatus::Funding | PeriodStatus::Open) @ ErrorCode::InvalidState
-    )]
-    pub following_daily: Box<Account<'info, ArenaDaily>>,
-    pub caller: Signer<'info>,
-}
-
-pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()> {
-    require!(
-        !ctx.accounts.arena_daily.claims_expired,
-        ErrorCode::InvalidState
-    );
-    let score_info = ctx.accounts.score_board.to_account_info();
-    let theme_info = ctx.accounts.theme_board.to_account_info();
-    validate_finalized_board_binding(
-        &ctx.accounts.arena_daily,
-        ctx.accounts.arena_daily.key(),
-        &ctx.accounts.score_board,
-        score_info.data_len(),
-        DailyBoardKind::Score,
-    )?;
-    validate_finalized_board_binding(
-        &ctx.accounts.arena_daily,
-        ctx.accounts.arena_daily.key(),
-        &ctx.accounts.theme_board,
-        theme_info.data_len(),
-        DailyBoardKind::Theme,
-    )?;
-    require!(
-        ctx.accounts.score_board.claimed_lamports <= ctx.accounts.score_board.paid_lamports
-            && ctx.accounts.theme_board.claimed_lamports <= ctx.accounts.theme_board.paid_lamports,
-        ErrorCode::BoardIncomplete
-    );
-    let now = Clock::get()?.unix_timestamp;
-    require!(
-        now > daily_claim_deadline(&ctx.accounts.arena_daily)?,
-        ErrorCode::InvalidState
-    );
-    let current_day = day_id_at(now)?;
-    require!(
-        ctx.accounts.following_daily.day_id
-            == next_scheduled_daily(&ctx.accounts.protocol, current_day)?,
-        ErrorCode::InvalidPeriod
-    );
-    let claimed = ctx
-        .accounts
-        .score_board
-        .claimed_lamports
-        .checked_add(ctx.accounts.theme_board.claimed_lamports)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    let expired = ctx
-        .accounts
-        .arena_daily
-        .ledger
-        .payout_lamports
-        .checked_sub(claimed)
-        .ok_or(ErrorCode::AccountingInvariant)?;
-    require!(
-        claimed.checked_add(expired).and_then(
-            |value| value.checked_add(ctx.accounts.arena_daily.ledger.rollover_out_lamports)
-        ) == Some(ctx.accounts.arena_daily.ledger.funded_lamports()?),
-        ErrorCode::AccountingInvariant
-    );
-    let source = ctx.accounts.arena_daily.to_account_info();
-    let successor = ctx.accounts.following_daily.to_account_info();
-    require_spendable(&source, expired)?;
-    move_program_lamports(&source, &successor, expired)?;
-    ctx.accounts.following_daily.ledger.add_rollover(expired)?;
-    ctx.accounts.arena_daily.claims_expired = true;
-    Ok(())
-}
-
-#[derive(Accounts)]
-pub struct ArchiveArenaDaily<'info> {
-    #[account(
-        mut,
-        seeds = [PROTOCOL_CONFIG_SEED],
-        bump = protocol.bump,
-        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
-    )]
-    pub protocol: Box<Account<'info, ProtocolConfig>>,
-    #[account(
-        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
-        bump = arena_daily.bump,
-        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
-    )]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()],
-        bump = score_board.bump,
-        constraint = score_board.arena_daily == arena_daily.key() @ ErrorCode::InvalidOwner,
-        constraint = score_board.kind == DailyBoardKind::Score @ ErrorCode::InvalidOwner
-    )]
-    pub score_board: Box<Account<'info, ArenaBoard>>,
-    #[account(
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Theme.seed()],
-        bump = theme_board.bump,
-        constraint = theme_board.arena_daily == arena_daily.key() @ ErrorCode::InvalidOwner,
-        constraint = theme_board.kind == DailyBoardKind::Theme @ ErrorCode::InvalidOwner
-    )]
-    pub theme_board: Box<Account<'info, ArenaBoard>>,
-    pub caller: Signer<'info>,
-}
-
-pub fn handler_archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()> {
-    require!(ctx.accounts.arena_daily.resolved(), ErrorCode::InvalidState);
-    let score_info = ctx.accounts.score_board.to_account_info();
-    let theme_info = ctx.accounts.theme_board.to_account_info();
-    validate_finalized_board_binding(
-        &ctx.accounts.arena_daily,
-        ctx.accounts.arena_daily.key(),
-        &ctx.accounts.score_board,
-        score_info.data_len(),
-        DailyBoardKind::Score,
-    )?;
-    validate_finalized_board_binding(
-        &ctx.accounts.arena_daily,
-        ctx.accounts.arena_daily.key(),
-        &ctx.accounts.theme_board,
-        theme_info.data_len(),
-        DailyBoardKind::Theme,
-    )?;
-    let result_hash = daily_result_hash(
-        &ctx.accounts.arena_daily,
-        &ctx.accounts.score_board,
-        &score_info,
-        &ctx.accounts.theme_board,
-        &theme_info,
-    )?;
-    ctx.accounts
-        .protocol
-        .append_daily(
-            ctx.accounts.arena_daily.day_id,
-            ctx.accounts.arena_daily.predecessor_day,
-            result_hash,
-        )?;
-    Ok(())
-}
-
-#[derive(Accounts)]
 pub struct CloseArenaDaily<'info> {
     #[account(
         seeds = [PROTOCOL_CONFIG_SEED],
@@ -1131,8 +845,7 @@ pub struct CloseArenaDaily<'info> {
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
         constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState,
-        constraint = protocol.last_daily_id >= arena_daily.day_id @ ErrorCode::InvalidState
+        constraint = arena_daily.finalized() @ ErrorCode::InvalidState
     )]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(
@@ -1153,6 +866,17 @@ pub struct CloseArenaDaily<'info> {
         constraint = theme_board.kind == DailyBoardKind::Theme @ ErrorCode::InvalidOwner
     )]
     pub theme_board: Box<Account<'info, ArenaBoard>>,
+    /// The newest prepared Daily, which receives what was never claimed.
+    /// Needed only when something is left to move.
+    #[account(
+        mut,
+        seeds = [ARENA_DAILY_SEED, newest_daily.day_id.to_le_bytes().as_ref()],
+        bump = newest_daily.bump,
+        constraint = newest_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
+        constraint = newest_daily.day_id == protocol.last_prepared_day @ ErrorCode::InvalidPeriod,
+        constraint = !newest_daily.finalized() @ ErrorCode::InvalidState
+    )]
+    pub newest_daily: Option<Box<Account<'info, ArenaDaily>>>,
     /// CHECK: The only destination for cadence-account rent. It is a
     /// canonical System-owned zero-data PDA and exposes no withdrawal path.
     #[account(
@@ -1166,6 +890,9 @@ pub struct CloseArenaDaily<'info> {
     pub caller: Signer<'info>,
 }
 
+/// Closes a finalized Daily and its boards once its claim window has passed,
+/// or at once when it paid nothing. What was never claimed moves into the
+/// newest prepared Daily's pot; only rent returns to cadence funding.
 pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
     let daily = &ctx.accounts.arena_daily;
     let score_info = ctx.accounts.score_board.to_account_info();
@@ -1185,11 +912,33 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
         DailyBoardKind::Theme,
     )?;
     require!(
-        daily.resolved()
-            && daily.claims_expired
-            && Clock::get()?.unix_timestamp > daily_claim_deadline(daily)?,
+        daily.ledger.payout_lamports == 0
+            || Clock::get()?.unix_timestamp > daily_claim_deadline(daily)?,
         ErrorCode::InvalidState
     );
+    let claimed = ctx
+        .accounts
+        .score_board
+        .claimed_lamports
+        .checked_add(ctx.accounts.theme_board.claimed_lamports)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    let unclaimed = daily
+        .ledger
+        .payout_lamports
+        .checked_sub(claimed)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    if unclaimed > 0 {
+        let source = ctx.accounts.arena_daily.to_account_info();
+        let newest = ctx
+            .accounts
+            .newest_daily
+            .as_mut()
+            .ok_or(ErrorCode::InvalidState)?;
+        require_keys_neq!(newest.key(), source.key(), ErrorCode::InvalidState);
+        require_spendable(&source, unclaimed)?;
+        move_program_lamports(&source, &newest.to_account_info(), unclaimed)?;
+        newest.ledger.add_rollover(unclaimed)?;
+    }
     Ok(())
 }
 
@@ -1200,9 +949,7 @@ pub struct CloseArenaPlayer<'info> {
     pub arena_daily: UncheckedAccount<'info>,
     #[account(mut, close = rent_recipient,
         seeds = [ARENA_PLAYER_SEED, arena_player.challenge.as_ref(), arena_player.player.as_ref()], bump = arena_player.bump,
-        constraint = arena_player.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_player.active_paid_run_id == 0 @ ErrorCode::ActiveRunExists,
-        constraint = arena_player.resolved() @ ErrorCode::InvalidState)]
+        constraint = arena_player.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     /// CHECK: Exact original payer persisted on the closing account.
     #[account(mut, address = arena_player.rent_payer @ ErrorCode::InvalidOwner)]
@@ -1218,13 +965,14 @@ pub fn handler_close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> 
     );
     // Boards are complete at finalization and never read this account
     // again, and no entry or consume can touch a finalized Daily, so nothing
-    // can bring the account back or repeat its qualifying credit.
+    // can bring the account back or repeat its qualifying credit. A run of
+    // its player still unresolved then was counted expired by the clock.
     let account = ctx.accounts.arena_daily.to_account_info();
     let closed =
         *account.owner == system_program::ID && account.data_is_empty() && !account.executable;
     let finalized = *account.owner == crate::ID
         && ArenaDaily::try_deserialize(&mut &account.try_borrow_data()?[..])
-            .is_ok_and(|daily| daily.status == PeriodStatus::Finalized);
+            .is_ok_and(|daily| daily.finalized());
     require!(closed || finalized, ErrorCode::InvalidState);
     Ok(())
 }
@@ -1333,48 +1081,9 @@ fn validate_wallet(account: &AccountInfo<'_>, expected: Pubkey) -> Result<()> {
     Ok(())
 }
 
-fn prepare_period_is_allowed(
-    requested: u32,
-    current: u32,
-    launch: u32,
-    suspended_until_day: u32,
-) -> bool {
-    if requested < suspended_until_day {
-        return false;
-    }
-    let first = current.max(suspended_until_day);
-    let Some(following) = first.checked_add(1) else {
-        return false;
-    };
-    let in_live_window = requested <= current || requested == first || requested == following;
-    if launch > 0 {
-        requested >= launch && in_live_window
-    } else {
-        requested == first || requested == following
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn launched_period_preparation_can_rebuild_only_bounded_history() {
-        assert!(prepare_period_is_allowed(100, 104, 100, 0));
-        assert!(prepare_period_is_allowed(104, 104, 100, 0));
-        assert!(prepare_period_is_allowed(105, 104, 100, 0));
-        assert!(!prepare_period_is_allowed(99, 104, 100, 0));
-        assert!(!prepare_period_is_allowed(106, 104, 100, 0));
-        assert!(!prepare_period_is_allowed(105, 104, 100, 106));
-    }
-
-    #[test]
-    fn prelaunch_preparation_remains_current_or_successor_only() {
-        assert!(prepare_period_is_allowed(104, 104, 0, 0));
-        assert!(prepare_period_is_allowed(105, 104, 0, 0));
-        assert!(!prepare_period_is_allowed(103, 104, 0, 0));
-        assert!(!prepare_period_is_allowed(106, 104, 0, 0));
-    }
 
     #[test]
     fn campaign_and_daily_share_guardian_rules() {

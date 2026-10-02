@@ -9,9 +9,9 @@ find_additional_modules = true
 base_dir = "../../dist/worker"
 rules = [{ type = "CompiledWasm", globs = ["**/*.wasm"], fallthrough = false }]
 
-# The only way into the keeper pass and the catch-up walk.
+# The only way into the catch-up walk (every minute) and the backstop keeper's pass (every ten).
 [triggers]
-crons = ["* * * * *"]
+crons = ["* * * * *", "*/10 * * * *"]
 
 # The deployed version's ID is the keeper release's identity.
 [version_metadata]

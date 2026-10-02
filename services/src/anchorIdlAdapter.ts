@@ -17,7 +17,6 @@ import {
 import {
   KEEPER_PLAN_INSTRUCTION,
   KEEPER_RECENT_DAILY_CADENCES,
-  DAILY_REWARD_CLAIM_WINDOW_SECONDS,
   PLAYER_STATE_ACCOUNT_VERSION,
   PROTOCOL_ACCOUNT_VERSION,
   ZKUBE_PROGRAM_ID,
@@ -33,16 +32,13 @@ import {
   type KeeperOperation,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
-import { dailyWindow, scheduledDailyWindow } from "./zkubeCore.js";
+import { dailyWindow, preparableDaily } from "./zkubeCore.js";
 import {
   type DailySnapshot,
-  type PeriodStatus,
   type ProtocolSnapshot,
   type RunLifecycle,
   type RunSnapshot,
-  type ArcadeRootSnapshot,
   type ClosedArenaPlayerSnapshot,
-  type CadenceArchiveCandidate,
 } from "./arcadeReconciliation.js";
 import { type ProtocolInstructionMaterializer } from "./arcadeChain.js";
 import { getDelegationStatus } from "./router.js";
@@ -132,12 +128,13 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       "suspended-until day",
     );
     const paused = boolean(protocol.value.paused, "protocol pause state");
-    const archiveRoot = { lastDailyId: u32(protocol.value.lastDailyId, "last Daily id") };
 
     const today = currentDayId(this.input.nowUnix);
     const firstDay = Math.max(launchDayId, today - KEEPER_RECENT_DAILY_CADENCES);
-    const dailyIds = [...new Set([...range(firstDay, today), ...Object.values(scheduledDailyWindow(today, suspendedUntilDay))])];
-    const dailies = await this.loadDailies(dailyIds, launchDayId);
+    // A Daily exists only for a day somebody entered, so most of these
+    // addresses are empty. The last is the one day that can be prepared now.
+    const dailyIds = [...new Set([...range(firstDay, today), preparableDaily(today, launchDayId, suspendedUntilDay)])];
+    const dailies = await this.loadDailies(dailyIds);
     const discover = async (hints: AnchorKeeperAdapterInput["discovery"]) => {
       const { closable, entered } = await this.loadArenaPlayers(dailies, hints);
       return { closable, runs: await this.loadRuns(await this.loadPlayerStates(entered, hints), dailies) };
@@ -155,7 +152,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       this.discovered = "scan";
     }
     const { closable: closedArenaPlayers, runs } = found;
-    const archive = this.archiveSnapshot(dailies, archiveRoot);
     return {
       paused,
       launchDayId,
@@ -164,43 +160,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       dailies: dailies.map(({ snapshot }) => snapshot),
       runs,
       closedArenaPlayers,
-      ...(archive ? {
-        archiveState: archive.state,
-        archiveCandidates: archive.candidates,
-      } : {}),
-    };
-  }
-
-  private archiveSnapshot(dailies: readonly LoadedDaily[], state: ArcadeRootSnapshot): {
-    state: ArcadeRootSnapshot;
-    candidates: CadenceArchiveCandidate[];
-  } {
-    const lastDailyId = state.lastDailyId!;
-    const candidates: CadenceArchiveCandidate[] = [];
-    for (const daily of dailies) {
-      if (daily.snapshot.status !== "finalized") continue;
-      candidates.push(this.archiveCandidate({
-        cadenceId: daily.snapshot.dayId,
-        period: daily.snapshot,
-        lastCadenceId: lastDailyId,
-      }));
-    }
-    return { state, candidates };
-  }
-
-  private archiveCandidate(input: {
-    cadenceId: number;
-    period: DailySnapshot;
-    lastCadenceId: number;
-  }): CadenceArchiveCandidate {
-    const committed = input.cadenceId <= input.lastCadenceId;
-    // Both boards seal with their Daily, so its finalization is the one claim clock.
-    const closeEligibleAt = input.period.finalizedAt + DAILY_REWARD_CLAIM_WINDOW_SECONDS;
-    return {
-      cadenceId: input.cadenceId,
-      claimsExpired: input.period.claimsExpired,
-      committed,
-      closeEligibleAt,
     };
   }
 
@@ -221,35 +180,16 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       throw new Error("paused launch carrier is incomplete or active");
     }
 
-    await this.loadStagedLaunchPeriods(this.input.launchDayId);
+    // The launch transaction prepares its own Daily: a staged protocol has none.
+    if (await this.input.connection.getAccountInfo(arenaDailyPda(this.input.launchDayId), "confirmed")) {
+      throw new Error("paused launch carrier is incomplete or active");
+    }
     return "staged_launch_ready";
   }
 
   private requireReleaseLaunchDay(launchDayId: number): void {
     if (launchDayId !== this.input.launchDayId) {
       throw new Error("Arcade launch day does not match keeper release");
-    }
-  }
-
-  private async loadStagedLaunchPeriods(launchDayId: number): Promise<void> {
-    for (const dayId of [launchDayId, launchDayId + 1]) {
-      const daily = await this.loadRequired(
-        "arenaDaily",
-        arenaDailyPda(dayId),
-        PROTOCOL_ACCOUNT_VERSION,
-      );
-      this.requireUnfundedPeriod(daily.value, "ArenaDaily");
-    }
-  }
-
-  private requireUnfundedPeriod(
-    value: Record<string, unknown>,
-    label: string,
-  ): void {
-    if (periodStatus(value.status, `${label} status`) !== "funding" ||
-        boolean(value.predecessorRolloverApplied, `${label} predecessor flag`) ||
-        array(Object.values(record(value.ledger, label)), label).reduce<bigint>((sum, value) => sum + bigint(value, label), 0n) !== 0n) {
-      throw new Error(`${label} staged funding state is invalid`);
     }
   }
 
@@ -272,16 +212,8 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const remaining: RemainingAccountMeta[] = [];
     switch (input.operation) {
       case "prepare_arena_daily":
-        accounts = { caller: keeper, protocol, arenaDaily: following(), cadenceFunding, systemProgram,
-          scoreBoard: arenaBoardPda(following(), "score"), themeBoard: arenaBoardPda(following(), "theme") };
-        args = { dayId: c.followingDayId };
-        break;
-      case "activate_arena_daily":
-        accounts = { caller: keeper, protocol, arenaDaily: daily() };
-        break;
-      case "skip_suspended_arena_daily":
-        accounts = { caller: keeper, protocol, suspendedDaily: daily(), successorDaily: following(), cadenceFunding,
-          scoreBoard: arenaBoardPda(daily(), "score"), themeBoard: arenaBoardPda(daily(), "theme") };
+        accounts = { caller: keeper, protocol, ...boards(), cadenceFunding, systemProgram };
+        args = { dayId: c.dayId };
         break;
       case "finish_run":
         accounts = { actor: keeper, activeRun: activeRun(), ownerAuthority: owner(), sessionToken: ZKUBE_PROGRAM_ID };
@@ -298,21 +230,14 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
           themeBoard: c.includeArenaPlayer ? arenaBoardPda(daily(), "theme") : ZKUBE_PROGRAM_ID,
           rentRecipient: requireRentRecipient(c.rentRecipient) };
         break;
-      case "expire_unresolved_arena_run":
-        accounts = { caller: keeper, playerState: playerStatePda(owner()), arenaDaily: daily(),
-          arenaPlayer: arenaPlayerPda(daily(), owner()), owner: owner(), systemProgram };
-        break;
       case "finalize_arena_daily":
-        accounts = { caller: keeper, ...boards(), followingDaily: following(), cadenceFunding };
-        break;
-      case "expire_daily_claims":
-        accounts = { caller: keeper, protocol, ...boards(), followingDaily: following() };
-        break;
-      case "archive_arena_daily":
-        accounts = { caller: keeper, protocol, ...boards() };
+        accounts = { caller: keeper, protocol, ...boards(), followingDaily: following(), cadenceFunding };
         break;
       case "close_arena_daily":
-        accounts = { caller: keeper, protocol, ...boards(), cadenceFunding };
+        // The newest prepared Daily takes what was never claimed; a Daily
+        // that paid nothing closes without one.
+        accounts = { caller: keeper, protocol, ...boards(), cadenceFunding,
+          newestDaily: c.followingDayId === undefined ? ZKUBE_PROGRAM_ID : following() };
         break;
       case "close_arena_player":
         accounts = { caller: keeper, arenaDaily: daily(), arenaPlayer: arenaPlayerPda(daily(), owner()),
@@ -362,7 +287,6 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
 
   private async loadDailies(
     ids: readonly number[],
-    launchDayId: number,
   ): Promise<LoadedDaily[]> {
     const loaded = await this.loadKnown(
       "arenaDaily",
@@ -373,15 +297,12 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     for (const item of loaded) {
       const dayId = u32(item.value.dayId, "ArenaDaily day id");
       const { runsCloseAt, recoveryDeadlineAt } = dailyWindow(dayId);
-      const status = periodStatus(item.value.status, "ArenaDaily status");
       const finalizedAt = signedTimestamp(
         item.value.finalizedAt,
         "ArenaDaily finalization",
       );
-      const claimsExpired = boolean(item.value.claimsExpired, "ArenaDaily claim expiry");
       const snapshot: DailySnapshot = {
         dayId,
-        status,
         finalizedAt,
         runsCloseAt,
         recoveryDeadlineAt,
@@ -389,12 +310,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         entriesScored: bigint(item.value.entriesScored, "ArenaDaily scored entries"),
         entriesExpired: bigint(item.value.entriesExpired, "ArenaDaily expired entries"),
         predecessorDayId: u32(item.value.predecessorDay, "ArenaDaily predecessor day"),
-        predecessorRolloverRequired: dayId !== launchDayId,
         predecessorRolloverApplied: boolean(
           item.value.predecessorRolloverApplied,
           "ArenaDaily predecessor flag",
         ),
-        claimsExpired,
+        payoutLamports: bigint(record(item.value.ledger, "ArenaDaily ledger").payoutLamports, "ArenaDaily payout"),
       };
       output.push({ loaded: item, snapshot });
     }
@@ -430,14 +350,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       const owner = publicKey(player.value.player, "ArenaPlayer owner");
       const dayId = dayByAddress.get(challenge.toBase58());
       if (dayId === undefined) continue;
-      if (bigint(player.value.activePaidRunId, "ArenaPlayer active run id") !== 0n) {
-        entered.push(owner);
-        continue;
-      }
+      // A run in flight is followed until it is closed, whatever its day.
+      if (bigint(player.value.activePaidRunId, "ArenaPlayer active run id") !== 0n) entered.push(owner);
+      // Once its Daily is finalized (or gone) nothing reads this account again.
       const daily = liveDaily.get(dayId);
-      if ((!daily || daily.status === "finalized") &&
-          u32(player.value.resolvedEntries, "ArenaPlayer resolved entries") ===
-            u32(player.value.paidEntries, "ArenaPlayer paid entries")) {
+      if (!daily || daily.finalizedAt !== 0) {
         closable.push({ dayId, owner,
           rentPayer: publicKey(player.value.rentPayer, "ArenaPlayer rent payer") });
       }
@@ -726,14 +643,6 @@ function instructionRecord(idl: Idl, name: string): {
     .find((value) => value.name === name);
   if (!instruction) throw new Error(`Anchor IDL instruction ${name} is missing`);
   return { accounts: array(instruction.accounts, `${name} accounts`) };
-}
-
-function periodStatus(value: unknown, label: string): PeriodStatus {
-  const variant = enumVariant(value, label);
-  if (variant !== "funding" && variant !== "open" && variant !== "finalized") {
-    throw new Error(`${label} is invalid`);
-  }
-  return variant;
 }
 
 function runLifecycle(value: unknown, label: string): RunLifecycle {

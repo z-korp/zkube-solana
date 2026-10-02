@@ -10,7 +10,7 @@ import {
   PROTOCOL_ACCOUNT_VERSION,
   SECONDS_PER_DAY,
 } from "./protocolVersions.generated.js";
-import { dayIdAt, nextScheduledDaily as coreNextScheduledDaily } from "./zkubeCore.js";
+import { dayIdAt } from "./zkubeCore.js";
 
 export {
   DAILY_RUN_CLOSE_OFFSET,
@@ -27,17 +27,12 @@ export const DAILY_RECOVERY_DEADLINE_OFFSET =
 export const KEEPER_RECENT_DAILY_CADENCES = 84;
 export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
   prepare_arena_daily: { instruction: "prepare_arena_daily", connection: "base", priority: 0 },
-  activate_arena_daily: { instruction: "activate_arena_daily", connection: "base", priority: 1 },
-  skip_suspended_arena_daily: { instruction: "skip_suspended_arena_daily", connection: "base", priority: 2 },
-  finalize_arena_daily: { instruction: "finalize_arena_daily", connection: "base", priority: 8 },
-  archive_arena_daily: { instruction: "archive_arena_daily", connection: "base", priority: 10 },
-  expire_daily_claims: { instruction: "expire_daily_claims", connection: "base", priority: 11 },
-  close_arena_daily: { instruction: "close_arena_daily", connection: "base", priority: 12 },
-  close_arena_player: { instruction: "close_arena_player", connection: "base", priority: 14 },
-  finish_run: { instruction: "finish_run", connection: "ephemeral-rollup", priority: 3 },
-  commit_run: { instruction: "commit_run", connection: "ephemeral-rollup", priority: 4 },
-  consume_arena_run: { instruction: "consume_arena_run", connection: "base", priority: 6 },
-  expire_unresolved_arena_run: { instruction: "expire_unresolved_arena_run", connection: "base", priority: 7 },
+  finish_run: { instruction: "finish_run", connection: "ephemeral-rollup", priority: 1 },
+  commit_run: { instruction: "commit_run", connection: "ephemeral-rollup", priority: 2 },
+  consume_arena_run: { instruction: "consume_arena_run", connection: "base", priority: 3 },
+  finalize_arena_daily: { instruction: "finalize_arena_daily", connection: "base", priority: 4 },
+  close_arena_daily: { instruction: "close_arena_daily", connection: "base", priority: 5 },
+  close_arena_player: { instruction: "close_arena_player", connection: "base", priority: 6 },
 } as const);
 
 export type KeeperOperation = keyof typeof KEEPER_PLAN_INSTRUCTION;
@@ -110,15 +105,6 @@ export const arenaPlayerPda = (daily: PublicKey, owner: PublicKey) =>
   derivePda("arena_player", daily.toBytes(), owner.toBytes());
 export const activeRunPda = (owner: PublicKey, runId: bigint) =>
   derivePda("run", Buffer.from("active"), owner.toBytes(), u64(runId));
-
-export function nextScheduledDaily(
-  dayId: number,
-  suspendedUntilDay: number,
-): number {
-  assertCadenceId(dayId, "day id");
-  assertCadenceId(suspendedUntilDay, "suspended-until day");
-  return coreNextScheduledDaily(dayId, suspendedUntilDay);
-}
 
 export function u32(value: number): Buffer {
   assertCadenceId(value, "cadence id");

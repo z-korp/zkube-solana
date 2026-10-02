@@ -111,15 +111,19 @@ namespace ZKube.Integration.Client.Runs
             Operate(cancellation, async (lease, token) => {
                 await RequireNoPending(lease, token).ConfigureAwait(false);
                 var prior = await Observe(lease, token).ConfigureAwait(false);
-                if (prior.Marker != null) throw new InvalidOperationException("Recover the run already occupying the Arcade slot");
                 var observation = await DailyEntryObservation.Read(accounts, planner, rpc, lease.Owner, now(), token).ConfigureAwait(false);
                 var player = observation.Player ?? throw new InvalidOperationException("Initialize the player before entering Daily");
+                // A run past its recovery deadline can no longer score and the
+                // entry retires it; any other run in the slot is recovered first.
+                if (prior.Marker != null && !player.RunRetired(observation.ObservedAt))
+                    throw new InvalidOperationException("Recover the run already occupying the Arcade slot");
                 receipts?.Bind(planner.ActiveRun(lease.Owner, player.NextRunId));
                 using var session = await sessions.Load(lease).ConfigureAwait(false);
                 var entry = observation.Assess(accounts, observation.ObservedAt);
                 if (entry.Snapshot == null) throw new InvalidOperationException("Daily entry unavailable: " + entry.Status);
                 var claims = await EntryClaims(lease.Owner, observation.Day, token).ConfigureAwait(false);
-                var prepared = planner.PrepareDaily(session.Actor, player, entry.Snapshot, claims, now(), observation.Occupied);
+                var prepared = planner.PrepareDaily(session.Actor, player, entry.Snapshot, claims, now(), observation.Occupied,
+                    observation.Cadence.Steps);
                 var validator = await rpc.ClosestValidator(token).ConfigureAwait(false);
                 var plan = planner.PrepareAndDelegate(prepared, session.Actor, validator.Identity);
                 // Persist the locator before any signing/send. A failed or

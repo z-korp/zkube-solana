@@ -17,7 +17,7 @@ namespace ZKube.Tests.ProductReads
             var sealedCase=e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="score"&&(string)row["variant"]=="sealed");
             var source=(JObject)sealedCase["envelope"];
             var finalized=e.Accounts.ArenaDaily(Envelope(sealedCase["daily"]),day);
-            var running=e.Accounts.ArenaDaily(Envelope(PatchAccount(sealedCase["daily"],"ArenaDaily",("status",new byte[]{1}),("finalized_at",Number(0,8)))),day);
+            var running=e.Accounts.ArenaDaily(Envelope(PatchAccount(sealedCase["daily"],"ArenaDaily",("finalized_at",Number(0,8)))),day);
             var read=e.Accounts.ArenaBoard(Envelope(source),finalized,day,"score");
             Assert.That(read.Sealed,Is.True); Assert.That(read.SealedAt,Is.EqualTo((long)finalized["finalized_at"]));
             foreach(var bad in new[]{
@@ -52,7 +52,7 @@ namespace ZKube.Tests.ProductReads
             var sealedCase=e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="score"&&(string)row["variant"]=="sealed");
             var source=(JObject)sealedCase["envelope"];
             var finalized=e.Accounts.ArenaDaily(Envelope(sealedCase["daily"]),day);
-            var running=e.Accounts.ArenaDaily(Envelope(PatchAccount(sealedCase["daily"],"ArenaDaily",("status",new byte[]{1}),("finalized_at",Number(0,8)))),day);
+            var running=e.Accounts.ArenaDaily(Envelope(PatchAccount(sealedCase["daily"],"ArenaDaily",("finalized_at",Number(0,8)))),day);
             var valid=TwoRows(e,source); Assert.That(e.Accounts.ArenaBoard(Envelope(valid),finalized,day,"score").Rows.Count,Is.EqualTo(2));
             var badTime=PatchBoardRow(e,valid,1,"score",Number(10,4)); badTime=PatchBoardRow(e,badTime,1,"finalized_at",Number(1,8));
             var badWallet=PatchBoardRow(e,valid,0,"player",ZKube.Integration.SolanaAddress.Bytes(PublicOwner(255)));
@@ -86,7 +86,7 @@ namespace ZKube.Tests.ProductReads
             }
             e.Http.Put(board);
             foreach(var bad in new[]{PatchAccount(daily,"ArenaDaily",("score_qualified_players",Number(2,4))),
-                PatchAccount(daily,"ArenaDaily",("ledger.payout_lamports",Number(2000000002,8))),PatchAccount(daily,"ArenaDaily",("status",new byte[]{1}))}) {
+                PatchAccount(daily,"ArenaDaily",("ledger.payout_lamports",Number(2000000002,8))),PatchAccount(daily,"ArenaDaily",("finalized_at",Number(0,8)))}) {
                 e.Http.Put(bad); await ZKube.Integration.Tests.AsyncAssert.Throws<FormatException>(async()=>{await e.Queries.SettledBoards(day);});
             }
             e.Http.Remove(daily); Assert.That((await e.Queries.SettledBoards(day)).Value.Score.ClaimStatus,Is.EqualTo("unavailable"));

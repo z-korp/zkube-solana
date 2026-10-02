@@ -42,6 +42,21 @@ namespace ZKube.Integration.Client
             return await executor.Execute(planner.SetFeaturedIdentity(session.Actor, emblem, frame),
                 "set-featured-identity", new[] { session.Signer }, reconciler, linked.Token).ConfigureAwait(false);
         }
+        // A winner back before anyone has played again finalizes the finished
+        // Dailies themselves, oldest first; the claim follows on the sealed board.
+        public async Task<ExecutionResult> SettleDailies(CancellationToken cancellation = default)
+        {
+            var lease = identity.Lease();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(lease.Cancellation, cancellation);
+            linked.Token.ThrowIfCancellationRequested();
+            if (await journal.Load(lease.Owner).ConfigureAwait(false) != null)
+                return ExecutionResult.Rejected("settle-daily", "pending-transaction-exists");
+            using var session = await sessions.Load(lease).ConfigureAwait(false);
+            var cadence = (await products.Cadence(linked.Token).ConfigureAwait(false)).Value;
+            if (cadence.Steps.Count == 0) throw new InvalidOperationException("No Daily is ready to finalize");
+            return await executor.Execute(planner.SettleDailies(session.Actor, cadence.PrepareDay, cadence.Steps), "settle-daily",
+                new[] { session.Signer }, reconciler, linked.Token).ConfigureAwait(false);
+        }
         public async Task<ExecutionResult> Claim(uint day, string kind, CancellationToken cancellation = default)
         {
             var lease = identity.Lease();

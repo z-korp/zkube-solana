@@ -110,41 +110,11 @@ export async function buildSeedCadenceFundingPlan(args: {
   );
 }
 
-/** One account-creation transaction per cadence keeps every plan packet-safe. */
-export async function buildPrepareLaunchPeriodPlans(args: {
-  connection: Connection;
-  authority: WalletLike;
-  dayId: number;
-}): Promise<TransactionPlan[]> {
-  assertU32(args.dayId, "dayId");
-  const program = zkubeProgram(args.connection, args.authority);
-  const plans: TransactionPlan[] = [];
-  for (const dayId of [args.dayId, args.dayId + 1]) {
-    assertU32(dayId, "dayId");
-    const instruction = await program.methods
-      .prepareArenaDaily(dayId)
-      .accountsPartial({
-        protocol: deriveProtocolConfigPda(),
-        arenaDaily: deriveArenaDailyPda(dayId),
-        cadenceFunding: deriveCadenceFundingPda(),
-        caller: args.authority.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction();
-    plans.push(
-      basePlan(
-        `Prepare Daily ${dayId}`,
-            args.authority.publicKey,
-        [instruction],
-      ),
-    );
-  }
-  return plans;
-}
-
 /**
- * The first funding, unpause, and current Daily activation share one
- * transaction. Any failed instruction rolls the entire launch back.
+ * The launch day's Daily is prepared, seeded and the protocol unpaused in one
+ * transaction: any failed instruction rolls the entire launch back. Only
+ * today's Daily can be prepared, so it cannot be staged a day ahead, and a
+ * Daily is open by the clock: nothing activates it.
  */
 export async function buildAtomicArcadeLaunchPlan(args: {
   connection: Connection;
@@ -153,6 +123,16 @@ export async function buildAtomicArcadeLaunchPlan(args: {
 }): Promise<TransactionPlan> {
   assertU32(args.dayId, "dayId");
   const program = zkubeProgram(args.connection, args.authority);
+  const prepare = await program.methods
+    .prepareArenaDaily(args.dayId)
+    .accountsPartial({
+      protocol: deriveProtocolConfigPda(),
+      arenaDaily: deriveArenaDailyPda(args.dayId),
+      cadenceFunding: deriveCadenceFundingPda(),
+      caller: args.authority.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
   const seed = await program.methods
     .depositArenaDaily(new BN(LAUNCH_DAILY_SEED_LAMPORTS))
     .accountsPartial({
@@ -169,18 +149,10 @@ export async function buildAtomicArcadeLaunchPlan(args: {
       authority: args.authority.publicKey,
     })
     .instruction();
-  const activateDaily = await program.methods
-    .activateArenaDaily()
-    .accountsPartial({
-      protocol: deriveProtocolConfigPda(),
-      arenaDaily: deriveArenaDailyPda(args.dayId),
-      caller: args.authority.publicKey,
-    })
-    .instruction();
   return basePlan(
-    "Atomically seed 1 SOL and launch Arcade",
+    "Atomically prepare the launch Daily, seed 1 SOL and launch Arcade",
     args.authority.publicKey,
-    [seed, unpause, activateDaily],
+    [prepare, seed, unpause],
   );
 }
 

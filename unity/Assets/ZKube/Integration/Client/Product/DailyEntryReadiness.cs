@@ -26,9 +26,11 @@ namespace ZKube.Integration.Client
         internal PlayerPlanSnapshot Player;
         internal AccountEnvelope Occupied;
         internal bool DailyPlayerExists;
-        private AccountEnvelope protocol, current, following, vault;
+        // The finished Dailies this entry can finalize on its way, oldest first.
+        internal CadenceObservation Cadence = new CadenceObservation();
+        private AccountEnvelope protocol, current, vault;
         internal DailyEntryAssessment Assess(AccountBindings accounts, long now) =>
-            DailyEntrySnapshot.Inspect(accounts, protocol, current, following, vault, Day, now);
+            DailyEntrySnapshot.Inspect(accounts, protocol, current, vault, Day, now);
 
         internal static async Task<DailyEntryObservation> Read(AccountBindings accounts, TransactionPlanner planner,
             SolanaRpcTransport rpc, string owner, long timestamp, CancellationToken token)
@@ -41,20 +43,26 @@ namespace ZKube.Integration.Client
             value.protocol = first.Accounts[1].Envelope; value.current = first.Accounts[2].Envelope; value.vault = first.Accounts[3].Envelope;
             if (first.Accounts[0].Envelope == null) return value;
             value.Player = PlayerPlanSnapshot.Decode(accounts, first.Accounts[0].Envelope, owner);
-            if (value.Player.DailyRunId != 0) return value;
-            uint next = value.protocol == null ? checked(value.Day + 1) :
-                Math.Max(checked(value.Day + 1), (uint)accounts.ProtocolConfig(value.protocol)["suspended_until_day"]);
-            var second = await rpc.ReadAccounts(rpc.Base, new[] { planner.Daily(next),
+            if (!value.Player.SlotFree(timestamp)) return value;
+            var second = await rpc.ReadAccounts(rpc.Base, new[] {
                 planner.ActiveRun(owner, value.Player.NextRunId), planner.ArenaPlayer(planner.Daily(value.Day), owner) },
                 minContextSlot: first.Slot, cancellation: token).ConfigureAwait(false);
-            value.following = second.Accounts[0].Envelope; value.Occupied = second.Accounts[1].Envelope;
-            value.DailyPlayerExists = second.Accounts[2].Envelope != null; value.Slot = second.Slot;
+            value.Occupied = second.Accounts[0].Envelope;
+            value.DailyPlayerExists = second.Accounts[1].Envelope != null; value.Slot = second.Slot;
+            // Nothing is prepared ahead: the entry needs only today's Daily. A
+            // suspended or paused day is not entered, so nothing is carried for it.
+            if (value.protocol != null && value.Assess(accounts, timestamp).Snapshot != null)
+            {
+                value.Cadence = await CadenceObservation.Read(accounts, planner, rpc, accounts.ProtocolConfig(value.protocol),
+                    value.current == null ? null : accounts.ArenaDaily(value.current, value.Day), value.Day, timestamp, value.Slot, token).ConfigureAwait(false);
+                value.Slot = Math.Max(value.Slot, value.Cadence.Slot);
+            }
             return value;
         }
     }
 
     // Finite observation only. No claims scan, signature, key creation, mutation or
-    // following-day content. The executor repeats all submission checks later.
+    // later-day content. The executor repeats all submission checks later.
     public sealed class DailyEntryReadinessQuery
     {
         private readonly ClientIdentity identity;
@@ -83,7 +91,7 @@ namespace ZKube.Integration.Client
                 var observation = await DailyEntryObservation.Read(accounts, planner, rpc, lease.Owner, timestamp, token).ConfigureAwait(false);
                 var player = observation.Player;
                 if (player == null) return new DailyEntryReadiness("missing-player", day);
-                if (player.DailyRunId != 0) return new DailyEntryReadiness("resume", day, player.Kredits);
+                if (!player.SlotFree(timestamp)) return new DailyEntryReadiness("resume", day, player.Kredits);
                 var entry = observation.Assess(accounts, timestamp);
                 if (entry.Snapshot == null) return new DailyEntryReadiness(entry.Status, day, kredits: player.Kredits);
                 if (observation.Occupied != null) return new DailyEntryReadiness("run-address-occupied", day, kredits: player.Kredits);
@@ -94,7 +102,7 @@ namespace ZKube.Integration.Client
                 var last = await rpc.ReadAccount(rpc.Base, planner.Player(lease.Owner), minContextSlot: observation.Slot, cancellation: token).ConfigureAwait(false);
                 if (last.Envelope == null) return new DailyEntryReadiness("changed", day);
                 var after = PlayerPlanSnapshot.Decode(accounts, last.Envelope, lease.Owner);
-                if (after.DailyRunId != 0) return new DailyEntryReadiness("resume", day, after.Kredits);
+                if (!after.SlotFree(timestamp)) return new DailyEntryReadiness("resume", day, after.Kredits);
                 long completedAt = now();
                 if (after.NextRunId != player.NextRunId || after.Kredits != player.Kredits || PublicDailyQuery.CurrentDay(completedAt) != day ||
                     await journal.Load(lease.Owner).ConfigureAwait(false) != null)

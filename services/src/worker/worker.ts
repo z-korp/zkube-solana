@@ -7,7 +7,7 @@
 import { handleRequest } from "./api.js";
 import { catchUp, jsonRpc } from "./catchUp.js";
 import type { D1Like } from "./d1.js";
-import { runKeeperJob } from "./keeperJob.js";
+import { KEEPER_CRON, runKeeperJob } from "./keeperJob.js";
 import { logLine } from "./log.js";
 import { SOLANA_DEVNET_GENESIS_HASH, SOLANA_ENDPOINT } from "../../../shared/chain.js";
 
@@ -25,11 +25,18 @@ export default {
     return handleRequest(request, { db: env.DB, webhookSecret: text(env.WEBHOOK_SECRET) });
   },
 
-  async scheduled(_controller: unknown, env: Env): Promise<void> {
+  // Two Cron Triggers: the read model's catch-up every minute, and the
+  // backstop keeper's pass every ten. Nothing the keeper does is urgent: an
+  // entry prepares its own day and a claim finalizes it.
+  async scheduled(controller: { cron?: string }, env: Env): Promise<void> {
     const nowMilliseconds = Date.now();
     const variables = Object.fromEntries(Object.entries(env).map(([name, value]) => [name, text(value)]));
     const secrets = SECRET_NAMES.map((name) => variables[name]);
     const print = (event: unknown) => console.log(logLine(event, secrets));
+    if (controller.cron === KEEPER_CRON) {
+      await runKeeperJob({ db: env.DB, workerVersionId: text(env.CF_VERSION_METADATA?.id), variables }, nowMilliseconds, print);
+      return;
+    }
     try {
       const rpc = jsonRpc(variables.SOLANA_DEVNET_RPC_URL ?? SOLANA_ENDPOINT);
       // The read model describes one cluster; another cluster's history is not ingested.
@@ -40,6 +47,5 @@ export default {
       print({ event: "indexer_catch_up", ok: false,
         error: (error instanceof Error ? error.message : String(error)).slice(0, 240) });
     }
-    await runKeeperJob({ db: env.DB, workerVersionId: text(env.CF_VERSION_METADATA?.id), variables }, nowMilliseconds, print);
   },
 };
