@@ -69,7 +69,7 @@ namespace ZKube.Presentation.Tests
                 Assert.AreEqual(theme.guardianName.ToUpperInvariant(), Label("Guardian name").text, at);
                 Assert.AreEqual(theme.guardianTitle, Label("Guardian title").text, at);
                 StringAssert.Contains("LilitaOne", Label("Guardian name").font.name);
-                Assert.AreEqual("boss__greeting", Sprite("Calm realm guardian").sprite.name.Replace("(Clone)", ""), at + ": the guardian greets the player");
+                Assert.AreEqual("greeting", board.View.GuardianFace, at + ": the guardian greets the player");
                 Assert.AreEqual(1, played.Count(cue => cue == SoundCues.BossIntro), at + ": the intro sound, once");
                 Assert.AreSame(Track(theme, "boss"), Music.clip, at + ": the guardian's own track");
                 Assert.IsNotNull(Music.clip);
@@ -93,7 +93,7 @@ namespace ZKube.Presentation.Tests
                 for (float end = Time.realtimeSinceStartup + 3.2f; Time.realtimeSinceStartup < end;)
                 { float a = Sprite("Guardian aura").color.a; low = Mathf.Min(low, a); high = Mathf.Max(high, a); yield return null; }
                 Assert.Greater(high - low, .05f, "The aura breathes");
-                StringAssert.IsMatch("^boss__(idle|blink)$", Sprite("Calm realm guardian").sprite.name.Replace("(Clone)", ""));
+                StringAssert.IsMatch("^(idle|blink)$", board.View.GuardianFace);
                 evidence.LoadCampaign(theme.realmId, 9); yield return Ready();
                 Assert.AreSame(Track(theme, "level"), Music.clip, "Back on level 9 the level track returns");
                 Assert.IsFalse(board.View.Boss);

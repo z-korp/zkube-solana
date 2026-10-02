@@ -417,6 +417,12 @@ ledge with the mouth flapping, then rests on the moment's mood; reduced motion s
 `TheGuardianLeansOnTheRailOverTheBox` guard frames, lines and placement. Daily objectives take their words
 from the constraint caption owner; `every_daily_objective_uses_its_constraint_caption` guards the pair.
 
+A guardian is always drawn as its idle frame; a blink, talk or mood frame lays only its face over it, the
+rectangle contact.json records, so every frame shares idle's body pixels on the board, the talk scene and the
+pages. `EveryFrameOfEveryGuardianRendersInTheSameBoxAsIdle` guards the drawing and
+`EveryGuardianFrameMatchesIdleOutsideItsRecordedFace` the art. The codegen owns the board's sound cues and
+imports their clips; `EverySoundCueHasItsImportedClip` guards the pair.
+
 The player renders in gamma colour space: the approved art and its soft alpha were composed that way, and
 linear blending darkened near-transparent edges. `ThePlayerBlendsInGammaSpaceAsTheArtIsApproved` pins it.
 Preparation clears the font engine's uninitialised kerning-pair flags, which otherwise dropped Label tracking

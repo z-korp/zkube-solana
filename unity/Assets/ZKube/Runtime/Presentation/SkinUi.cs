@@ -37,6 +37,27 @@ namespace ZKube.Presentation
         // Callers that only distinguish display text get numbers and plain text.
         private static Type Role(bool display) => display ? Type.Number : Type.Body;
 
+        // Shows a guardian frame on an image of its square canvas: idle, with only
+        // the frame's face laid over it (see BoardArt.Face).
+        public const string GuardianFaceName = "Guardian face";
+        public static void GuardianFrame(BoardArt art, Image body, string frame)
+        {
+            body.sprite = art.Sprite(BoardArt.GuardianIdle);
+            var face = art.Face(frame);
+            var found = body.transform.Find(GuardianFaceName);
+            if (found == null && face == null) return;
+            var patch = found != null ? found.GetComponent<Image>() : new GameObject(GuardianFaceName, typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+            if (found == null)
+            {
+                patch.transform.SetParent(body.transform, false); patch.raycastTarget = false;
+                var cut = art.GuardianFace; var rect = patch.rectTransform;
+                rect.anchorMin = new Vector2(cut.x, 1 - cut.yMax); rect.anchorMax = new Vector2(cut.xMax, 1 - cut.y);
+                rect.offsetMin = rect.offsetMax = Vector2.zero;
+            }
+            patch.enabled = face != null;
+            if (face != null) patch.sprite = face;
+        }
+
         public Image Piece(string name, string slot, Rect rect, Transform parent, float borderScale = 1)
         {
             var image = Rect<Image>(name, rect, parent);

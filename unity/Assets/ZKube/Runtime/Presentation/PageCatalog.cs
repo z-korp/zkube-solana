@@ -75,7 +75,9 @@ namespace ZKube.Presentation
             public string Stars(int stars) => stars >= 3 ? threeStar : stars == 2 ? twoStar : oneStar;
         }
         // Where the guardian's paws rest, as fractions of its square canvas from the top.
-        [Serializable] public sealed class GuardianContact { public float railY, railFrontY; }
+        // face is the only region a frame differs from idle in: x, y, width and
+        // height as fractions of the canvas from its top left.
+        [Serializable] public sealed class GuardianContact { public float railY, railFrontY; public float[] face; }
         public static PageCatalog Load()
         {
             if (cached != null) return cached;

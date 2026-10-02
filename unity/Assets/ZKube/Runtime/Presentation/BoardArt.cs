@@ -48,6 +48,34 @@ namespace ZKube.Presentation
         public PageCatalog.RealmLight Light { get; private set; }
         // The guardian's rail line, a fraction of its canvas from the top.
         public float GuardianRailY { get; private set; }
+        // Guardian continuity (one owner): the guardian is always drawn as its
+        // idle frame, and a mood, blink or talk frame adds only its face, the
+        // rectangle the art records, over it. Every frame then shares idle's
+        // body texels, so no frame can differ from idle outside the face,
+        // whatever the texture codec does to each frame's own copy of the body.
+        // GuardianFace is that rectangle, in fractions of the canvas from its
+        // top left.
+        public const string GuardianIdle = "boss__idle";
+        public Rect GuardianFace { get; private set; }
+        // The face of a frame as its own sprite, cut from the frame where it is packed; null for idle.
+        public Sprite Face(string frame)
+        {
+            if (frame == "idle") return null;
+            string key = "face:" + frame;
+            if (!sprites.TryGetValue(key, out var face))
+            {
+                var whole = Sprite("boss__" + frame); var packed = whole.textureRect;
+                var cut = new Rect(packed.x + Mathf.Round(GuardianFace.x * packed.width), packed.y + Mathf.Round((1 - GuardianFace.yMax) * packed.height),
+                    Mathf.Round(GuardianFace.width * packed.width), Mathf.Round(GuardianFace.height * packed.height));
+                face = UnityEngine.Sprite.Create(whole.texture, cut, new Vector2(.5f, .5f), whole.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+                face.name = "boss__" + frame;
+                sprites.Add(key, face);
+            }
+            return face;
+        }
+        // Where the face lies inside a rectangle the whole canvas is drawn in (y up).
+        public Rect FaceIn(Rect canvas) => new Rect(canvas.x + GuardianFace.x * canvas.width, canvas.y + (1 - GuardianFace.yMax) * canvas.height,
+            GuardianFace.width * canvas.width, GuardianFace.height * canvas.height);
         public string LevelMusicResource { get; private set; }
         // The guardian's own track and title, for its level.
         public string BossMusicResource { get; private set; }
@@ -67,6 +95,10 @@ namespace ZKube.Presentation
                 ?? throw new InvalidOperationException("Imported realm level music is missing");
             if (theme.guardian == null || !(theme.guardian.railY > 0 && theme.guardian.railY < 1))
                 throw new InvalidOperationException("Imported guardian has no rail line");
+            var face = theme.guardian.face;
+            if (face == null || face.Length != 4 || !(face[2] > 0 && face[3] > 0 && face[0] >= 0 && face[1] >= 0 && face[0] + face[2] <= 1 && face[1] + face[3] <= 1))
+                throw new InvalidOperationException("Imported guardian has no face rectangle");
+            GuardianFace = new Rect(face[0], face[1], face[2], face[3]);
             var boss = theme.audio.SingleOrDefault(value => value.context == "boss")
                 ?? throw new InvalidOperationException("Imported realm guardian music is missing");
             RealmId = realmId; ThemeId = theme.id; GuardianName = theme.guardianName; LevelMusicResource = music.resource;

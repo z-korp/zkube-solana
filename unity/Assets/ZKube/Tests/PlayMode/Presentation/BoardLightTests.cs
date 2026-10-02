@@ -54,7 +54,7 @@ namespace ZKube.Presentation.Tests
 
         [Test] public void TheKeyLightFallsOnlyOnThePaintingAndTheGuardian()
         {
-            var lit = new[] { "Realm background", "Calm realm guardian", "Guardian paws" };
+            var lit = new[] { "Realm background", "Calm realm guardian", SkinUi.GuardianFaceName, "Guardian paws" };
             foreach (var sprite in board.View.GetComponentsInChildren<SpriteRenderer>(true))
                 Assert.AreEqual(lit.Contains(sprite.name) ? BoardLight.Lit : BoardLight.Unlit, sprite.sharedMaterial, sprite.name);
             var key = board.View.Lighting.Key;

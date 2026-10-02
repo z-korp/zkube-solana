@@ -271,12 +271,12 @@ namespace ZKube.Presentation.Tests
                     { float a = Piece("Pressure frame").color.a; low = Mathf.Min(low, a); high = Mathf.Max(high, a); yield return null; }
                     Assert.Greater(high - low, .3f, at + ": the frame pulses");
                     Assert.AreEqual(level == 2 ? 1 : .9f, high, .08f, at + ": its strength");
-                    Assert.AreEqual("boss__" + BoardView.PressureFace, Guardian().sprite.name.Replace("(Clone)", "").Replace("boss__blink", "boss__" + BoardView.PressureFace), at + ": the guardian is worried");
+                    Assert.AreEqual(BoardView.PressureFace, board.View.GuardianFace.Replace("blink", BoardView.PressureFace), at + ": the guardian is worried");
                 }
                 else
                 {
                     yield return Seconds(.2f);
-                    Assert.AreEqual("boss__idle", Guardian().sprite.name.Replace("(Clone)", "").Replace("boss__blink", "boss__idle"), at + ": the guardian is calm");
+                    Assert.AreEqual("idle", board.View.GuardianFace.Replace("blink", "idle"), at + ": the guardian is calm");
                 }
             }
             // Reduced motion holds the tint.
@@ -327,11 +327,14 @@ namespace ZKube.Presentation.Tests
             Assert.IsTrue(flight == null, "The star has landed");
             Assert.AreEqual(SkinSlots.StarLit, star.sprite.name.Replace("(Clone)", ""));
             Assert.Greater(star.rectTransform.localScale.x, 1.05f, "A newly earned star ignites in its socket");
-            Assert.AreEqual("boss__celebrate", Guardian().sprite.name.Replace("(Clone)", ""));
+            Assert.AreEqual("celebrate", board.View.GuardianFace);
+            Assert.AreEqual("boss__idle", Guardian().sprite.name.Replace("(Clone)", ""), "The body stays the idle frame");
+            var face = board.View.GetComponentsInChildren<SpriteRenderer>().Single(sprite => sprite.name == SkinUi.GuardianFaceName);
+            Assert.IsTrue(face.enabled); Assert.AreEqual("boss__celebrate", face.sprite.name);
             yield return Seconds(1);
             Assert.AreEqual(Vector3.one, star.rectTransform.localScale);
             Assert.AreEqual(origin, star.rectTransform.anchoredPosition);
-            Assert.AreEqual("boss__idle", Guardian().sprite.name.Replace("(Clone)", ""));
+            Assert.AreEqual("idle", board.View.GuardianFace); Assert.IsFalse(face.enabled, "The calm face is the idle frame alone");
 
             // A later goal's star flies from its own plate to the next empty socket.
             board.View.Celebrate(1, 5, 0, false);

@@ -142,7 +142,7 @@ namespace ZKube.Presentation
         private void Show(string frame)
         {
             if (Face == frame) return;
-            Face = frame; guardian.sprite = art.Sprite("boss__" + frame);
+            Face = frame; SkinUi.GuardianFrame(art, guardian, frame);
         }
 
         private void Update()

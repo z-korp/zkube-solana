@@ -27,7 +27,7 @@ namespace ZKube.Presentation
         private Canvas canvas;
         private Transform boardRoot;
         private Camera boardCamera;
-        private SpriteRenderer guardian, paws, pawsShadow;
+        private SpriteRenderer guardian, guardianPatch, paws, pawsShadow;
         private Image statusPlate, movesFace, movesGlow;
         private TMP_Text score, objective, moves, status, earnCaption;
         private readonly Image[] stars = new Image[3], starHalos = new Image[3], starRings = new Image[3];
@@ -103,14 +103,17 @@ namespace ZKube.Presentation
             Boss = HudLayout.BossLevel(owner.Session);
             if (Boss)
             {
-                guardianAura = NewSprite("Guardian aura", art.SkinUi(SkinSlots.FxGlow), -17);
+                guardianAura = NewSprite("Guardian aura", art.SkinUi(SkinSlots.FxGlow), -18);
                 float aura = 1.9f * hud.Guardian.width;
                 Size(guardianAura, new Rect(hud.Guardian.center.x - aura / 2, hud.Guardian.y + hud.Guardian.height * .62f - aura / 2, aura, aura));
                 guardianAura.color = SkinUi.WithAlpha(art.Token(SkinTokens.Accent), AuraAlpha);
             }
-            guardian = NewSprite("Calm realm guardian", art.Sprite("boss__idle"), -16);
+            // The guardian is its idle frame; a mood or a blink lays only its face over it.
+            guardian = NewSprite("Calm realm guardian", art.Sprite(BoardArt.GuardianIdle), -17);
             Size(guardian, hud.Guardian);
             guardian.sharedMaterial = BoardLight.Lit;
+            guardianPatch = NewSprite(SkinUi.GuardianFaceName, null, -16);
+            guardianPatch.sharedMaterial = BoardLight.Lit; guardianPatch.enabled = false;
             var backlight = NewSprite("Board backlight", art.SkinUi(SkinSlots.FxGlow), -15);
             Size(backlight, new Rect(Layout.Rim.x - 12 * d, Layout.Rim.y - 24 * d, Layout.Rim.width + 24 * d, Layout.Rim.height + 48 * d));
             var rim = Boss ? art.Token(SkinTokens.Accent) : key;
@@ -1279,13 +1282,17 @@ namespace ZKube.Presentation
             var head = new Vector2(hud.Guardian.center.x, hud.Guardian.y + hud.Guardian.height * .62f);
             Effects.Behind(slot, head, Layout.Cell, tint, 192 * Layout.Density / Layout.Cell * hud.Guardian.width / (168 * Layout.Density), seconds, alpha);
         }
-        // The guardian rests on the rim: frames only change its face, so its
-        // body and paws never move. It blinks every few seconds, cheers for a
+        // The guardian rests on the rim: frames only change its face (drawn over
+        // the idle body), so its body and paws never move or change. It blinks every few seconds, cheers for a
         // moment, then returns to its calm face unless the run has ended.
         private void Face(string frame)
         {
             if (guardianFace == frame) return;
-            guardianFace = frame; guardian.sprite = art.Sprite("boss__" + frame);
+            guardianFace = frame;
+            var face = art.Face(frame);
+            guardianPatch.enabled = face != null;
+            if (face == null) return;
+            guardianPatch.sprite = face; Size(guardianPatch, art.FaceIn(hud.Guardian));
         }
         // In the last three moves the unearned sockets breathe, 1.2 s a breath,
         // and the ember tablet's glow pulses each second. Reduced motion holds them.

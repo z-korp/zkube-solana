@@ -58,5 +58,11 @@
   },
   "hud_width_dp": 168,
   "dialogue_width_dp": 180,
-  "body_motion": "none; only pixels inside the recorded face mask change"
+  "body_motion": "none; only pixels inside the recorded face mask change",
+  "face_rect_px": [
+    480,
+    512,
+    584,
+    656
+  ]
 }

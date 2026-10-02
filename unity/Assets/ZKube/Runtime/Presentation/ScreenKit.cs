@@ -342,7 +342,7 @@ namespace ZKube.Presentation
                 var cardRect = new Rect(rect.x, rect.y, rect.width, card.Height);
                 var canvas = new Rect(rect.center.x - c / 2, rect.yMax - c, c, c);
                 var body = Ui.Rect<Image>("Screen guardian", canvas, Parent);
-                body.sprite = Ui.Art.Sprite("boss__" + frame); body.preserveAspect = true; body.raycastTarget = false;
+                body.preserveAspect = true; body.raycastTarget = false; SkinUi.GuardianFrame(Ui.Art, body, frame);
                 card.Draw(cardRect);
                 var paws = Ui.Rect<Image>("Screen guardian paws", canvas, Parent);
                 paws.sprite = Ui.Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;

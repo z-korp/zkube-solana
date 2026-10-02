@@ -86,9 +86,14 @@ struct GuardianContact {
     paws: String,
     rail_y_px: u32,
     rail_front_y_px: u32,
+    /// The only region a frame may differ from idle in: x, y, width, height
+    /// from the canvas's top left.
+    face_rect_px: [u32; 4],
 }
 
-/// Where the guardian's paws rest, as fractions of its square canvas from the top.
+/// Where the guardian's paws rest and where its face changes, as fractions of
+/// its square canvas from the top left. The client draws idle and lays only a
+/// frame's face over it, so every frame shares idle's body pixels.
 fn guardian_contact(root: &Path, id: &str) -> Result<Value, String> {
     let path = root.join(format!("assets/{id}/boss/contact.json"));
     let text = std::fs::read_to_string(&path)
@@ -109,10 +114,16 @@ fn guardian_contact(root: &Path, id: &str) -> Result<Value, String> {
             path.display()
         ));
     }
+    let [x, y, face_width, face_height] = contact.face_rect_px;
+    if face_width == 0 || face_height == 0 || x + face_width > width || y + face_height > height {
+        return Err(format!(
+            "{} must place face_rect_px inside its canvas",
+            path.display()
+        ));
+    }
     let fraction = |y: u32| f64::from(y) / f64::from(height);
-    Ok(
-        json!({"railY": fraction(contact.rail_y_px), "railFrontY": fraction(contact.rail_front_y_px)}),
-    )
+    Ok(json!({"railY": fraction(contact.rail_y_px), "railFrontY": fraction(contact.rail_front_y_px),
+        "face": [fraction(x), fraction(y), fraction(face_width), fraction(face_height)]}))
 }
 
 fn theme(source: &Value, root: &Path) -> Result<Value, String> {
@@ -363,16 +374,20 @@ mod tests {
             |contact: Value| std::fs::write(dir.join("contact.json"), contact.to_string()).unwrap();
         let good = json!({"canvas_px": [1536, 1536], "frame_names": GUARDIAN_FRAMES,
             "representation": "full-frame-behind-rail", "paws": "paws.png",
-            "rail_y_px": 1280, "rail_front_y_px": 1330, "hud_width_dp": 168});
+            "rail_y_px": 1280, "rail_front_y_px": 1330, "hud_width_dp": 168,
+            "face_rect_px": [384, 192, 768, 576]});
         write(good.clone());
         let contact = guardian_contact(&root, "theme-1").unwrap();
         assert_eq!(contact["railY"], json!(1280.0 / 1536.0));
         assert_eq!(contact["railFrontY"], json!(1330.0 / 1536.0));
+        assert_eq!(contact["face"], json!([0.25, 0.125, 0.5, 0.375]));
         for (field, value) in [
             ("frame_names", json!(["idle"])),
             ("canvas_px", json!([1536, 1024])),
             ("rail_y_px", json!(1536)),
             ("representation", json!("head-layers")),
+            ("face_rect_px", json!([1000, 192, 768, 576])),
+            ("face_rect_px", json!([384, 192, 0, 576])),
         ] {
             let mut bad = good.clone();
             bad[field] = value;
