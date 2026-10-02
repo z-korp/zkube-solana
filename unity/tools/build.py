@@ -56,11 +56,12 @@ def _identity(toolchain, name):
     return profile
 
 
-# Each product's launcher icon (adaptive layers and the legacy icon) and splash,
-# staged for the selected identity only, so a package carries its own brand.
+# Each product's launcher icon (adaptive layers and the legacy icon), its splash
+# scene and the lockup the loading screen draws over it, staged for the selected
+# identity only, so a package carries its own brand.
 SIGNING = ("ZKUBE_ANDROID_KEYSTORE", "ZKUBE_ANDROID_KEYSTORE_PASS", "ZKUBE_ANDROID_KEY_ALIAS", "ZKUBE_ANDROID_KEY_PASS")
 BRAND_FILES = {"icon-foreground.png": "IconForeground.png", "icon-background.png": "IconBackground.png",
-               "icon.png": "Icon.png", "splash.jpg": "Resources/ZKube/Splash.jpg"}
+               "icon.png": "Icon.png", "splash.jpg": "Resources/ZKube/Splash.jpg", "wordmark.png": "Resources/ZKube/Wordmark.png"}
 
 
 def stage_brand(profile, directory):

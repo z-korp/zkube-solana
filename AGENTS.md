@@ -433,13 +433,15 @@ at random between checkouts; `EveryGeneratedFontSpacesEveryKerningPair` guards e
 Compact-phone page tests run in the measured device safe areas of Tests/PlayMode/Presentation/Phones.cs
 (360 x 572 and 417 x 882 dp), as `EveryPagesLastPieceScrollsAboveTheTabBarOnACompactPhone` does.
 
-Each product's icon layers, legacy icon and splash come from the brand directory its identity names in
-unity/toolchain.json, and build.py stages only that product's files. The launch window draws the splash until
-Unity's first frame, the launch screen continues it pixel-aligned and a veil opens on the first page; startup
-then releases the window's splash. `test_each_package_stages_only_its_own_icon_and_splash`,
-`test_each_package_launch_window_carries_its_own_splash`,
-`TheSplashSitsWhereTheLaunchWindowDrawsItWithTheLoadingLineUnderItsLockup` and
-`TheSegmentSweepsUntilTheFirstPageThenAVeilClosesAndOpensOnThePage` guard identity, geometry and handover.
+Each product's icon layers, legacy icon, splash scene and lockup come from the brand directory its identity names
+in unity/toolchain.json, and build.py stages only that product's files. The splash is a full scene without words.
+The launch window draws it until Unity's first frame, the launch screen continues it pixel-aligned and brings it
+to life (the scene breathes in a slow zoom, motes rise, the lockup rises in and the loading line sweeps under it;
+reduced motion holds them still), and a veil opens on the first page; startup then releases the window's splash.
+`test_each_package_stages_only_its_own_icon_and_splash`, `test_each_package_launch_window_carries_its_own_splash`,
+`TheSplashSitsWhereTheLaunchWindowDrawsItWithTheLoadingLineUnderItsLockup`,
+`TheSceneBreathesItsMotesRiseAndItsLockupRisesIn` and
+`TheSegmentSweepsUntilTheFirstPageThenAVeilClosesAndOpensOnThePage` guard identity, geometry, motion and handover.
 
 Store saves derive Daily content from day and keep numeric metrics; money saves carry Campaign only.
 `MoneySaveContainsOnlyCampaignDataAndDailyMetricsRemainNumbers`,

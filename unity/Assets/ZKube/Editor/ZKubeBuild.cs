@@ -244,21 +244,22 @@ namespace ZKube.Editor
         }
 
         public const string Brand = "Assets/ZKube/Branding/Generated/";
-        // Icons import uncompressed at their own size; the splash is a sprite
-        // the launch screen loads from Resources before any realm art.
+        // Icons import uncompressed at their own size; the splash scene and the
+        // lockup drawn over it are sprites the launch screen loads from Resources
+        // before any realm art.
         private static void ImportBrand()
         {
-            foreach (var name in new[] { "IconBackground.png", "IconForeground.png", "Icon.png", "Resources/ZKube/Splash.jpg" })
+            foreach (var name in new[] { "IconBackground.png", "IconForeground.png", "Icon.png", "Resources/ZKube/Splash.jpg", "Resources/ZKube/Wordmark.png" })
             {
                 AssetDatabase.ImportAsset(Brand + name, ImportAssetOptions.ForceSynchronousImport);
                 var importer = AssetImporter.GetAtPath(Brand + name) as TextureImporter
                     ?? throw new InvalidOperationException("Missing staged brand file " + name);
-                bool splash = name.EndsWith(".jpg");
-                importer.textureType = splash ? TextureImporterType.Sprite : TextureImporterType.Default;
+                bool splash = name.EndsWith(".jpg"), sprite = name.StartsWith("Resources/");
+                importer.textureType = sprite ? TextureImporterType.Sprite : TextureImporterType.Default;
                 importer.textureShape = TextureImporterShape.Texture2D;
-                importer.spriteImportMode = splash ? SpriteImportMode.Single : SpriteImportMode.None;
+                importer.spriteImportMode = sprite ? SpriteImportMode.Single : SpriteImportMode.None;
                 importer.mipmapEnabled = false; importer.alphaIsTransparency = !splash;
-                importer.maxTextureSize = splash ? 4096 : 512;
+                importer.maxTextureSize = splash ? 4096 : sprite ? 1024 : 512;
                 importer.textureCompression = splash ? TextureImporterCompression.Compressed : TextureImporterCompression.Uncompressed;
                 importer.SaveAndReimport();
             }
