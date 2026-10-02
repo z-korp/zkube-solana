@@ -1,8 +1,6 @@
 {
   "commonImages": {
-    "mark": "/assets/common/mark.png",
-    "wordmark-arena": "/assets/common/brand/arena.png",
-    "wordmark-realms": "/assets/common/brand/realms.png"
+    "mark": "/assets/common/mark.png"
   },
   "constraintCaptions": [
     {
@@ -897,7 +895,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-1/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-1/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-1/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-1/mote.png"
+            "mote": "/assets/skins/lumen/realm-1/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-1/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-1/wordmark-realms.png"
           },
           "light": {
             "moteDp": 5.0,
@@ -988,7 +988,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-2/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-2/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-2/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-2/mote.png"
+            "mote": "/assets/skins/lumen/realm-2/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-2/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-2/wordmark-realms.png"
           },
           "light": {
             "moteDp": 4.0,
@@ -1079,7 +1081,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-3/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-3/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-3/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-3/mote.png"
+            "mote": "/assets/skins/lumen/realm-3/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-3/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-3/wordmark-realms.png"
           },
           "light": {
             "moteDp": 12.0,
@@ -1170,7 +1174,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-4/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-4/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-4/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-4/mote.png"
+            "mote": "/assets/skins/lumen/realm-4/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-4/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-4/wordmark-realms.png"
           },
           "light": {
             "moteDp": 12.0,
@@ -1261,7 +1267,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-5/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-5/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-5/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-5/mote.png"
+            "mote": "/assets/skins/lumen/realm-5/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-5/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-5/wordmark-realms.png"
           },
           "light": {
             "moteDp": 28.0,
@@ -1352,7 +1360,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-6/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-6/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-6/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-6/mote.png"
+            "mote": "/assets/skins/lumen/realm-6/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-6/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-6/wordmark-realms.png"
           },
           "light": {
             "moteDp": 9.0,
@@ -1443,7 +1453,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-7/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-7/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-7/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-7/mote.png"
+            "mote": "/assets/skins/lumen/realm-7/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-7/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-7/wordmark-realms.png"
           },
           "light": {
             "moteDp": 12.0,
@@ -1534,7 +1546,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-8/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-8/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-8/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-8/mote.png"
+            "mote": "/assets/skins/lumen/realm-8/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-8/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-8/wordmark-realms.png"
           },
           "light": {
             "moteDp": 12.0,
@@ -1625,7 +1639,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-9/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-9/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-9/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-9/mote.png"
+            "mote": "/assets/skins/lumen/realm-9/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-9/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-9/wordmark-realms.png"
           },
           "light": {
             "moteDp": 7.0,
@@ -1716,7 +1732,9 @@
             "map-node-guardian": "/assets/skins/lumen/realm-10/map-node-guardian.png",
             "map-node-locked": "/assets/skins/lumen/realm-10/map-node-locked.png",
             "map-node-open": "/assets/skins/lumen/realm-10/map-node-open.png",
-            "mote": "/assets/skins/lumen/realm-10/mote.png"
+            "mote": "/assets/skins/lumen/realm-10/mote.png",
+            "wordmark-arena": "/assets/skins/lumen/realm-10/wordmark-arena.png",
+            "wordmark-realms": "/assets/skins/lumen/realm-10/wordmark-realms.png"
           },
           "light": {
             "moteDp": 12.0,

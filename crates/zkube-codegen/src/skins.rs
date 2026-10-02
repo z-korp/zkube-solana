@@ -209,11 +209,16 @@ pub const REALM_NODE_SLOTS: [&str; 5] = [
     "map-node-guardian",
 ];
 
+/// Each realm's colourway of the product wordmarks, drawn at their own aspect
+/// ratio: Home wears the one of the day's Daily realm.
+pub const REALM_WORDMARK_SLOTS: [&str; 2] = ["wordmark-realms", "wordmark-arena"];
+
 pub fn realm_slots() -> Vec<String> {
     let mut slots: Vec<String> = ["background", "map", "mote"]
         .into_iter()
         .chain(REALM_STRETCH_SLOTS)
         .chain(REALM_NODE_SLOTS)
+        .chain(REALM_WORDMARK_SLOTS)
         .map(str::to_owned)
         .collect();
     slots.extend((1..=BLOCK_WIDTHS).map(|width| format!("block-{width}")));

@@ -398,8 +398,9 @@ are shared across settings and board controls, checked by
 
 Skins live in assets/skins/<id>/ and are listed in assets/catalog.json; Lumen is the only skin and the first is
 the default. The codegen owns the slot and token list, emits it to C# and rejects a missing or unknown slot for
-the UI or any realm. Each realm owns its block tints, light colours, ledge rail and map node set, and skin.json
-places its key light, shafts and motes; paintings are JPEG and every piece with alpha is PNG. Ladder borders and
+the UI or any realm. Each realm owns its block tints, light colours, ledge rail, map node set and its colourway
+of the two product wordmarks (Home wears the day's Daily realm's), and skin.json places its key light, shafts and
+motes; paintings are JPEG and every piece with alpha is PNG. Ladder borders and
 badges derive from the core's tier count. build.py gives each skin UI kit and skin realm its own atlas with the
 authored stretch borders. `every_skin_fills_every_ui_and_realm_slot`,
 `every_realm_declares_its_own_block_tints_and_light`, `every_realm_places_its_key_light_shafts_and_motes`,

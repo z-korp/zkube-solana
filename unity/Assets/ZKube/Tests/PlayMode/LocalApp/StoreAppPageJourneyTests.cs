@@ -344,7 +344,10 @@ namespace ZKube.Tests
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             Assert.That(Texts(), Does.Contain("Realm 3 of 10 · Level 21"));
-            Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite.name, Does.StartWith("brand__realms"));
+            // The lockup wears the colours of the day's Daily realm.
+            var art = app.GetComponent<PageShell>().Artwork;
+            Assert.That(art.RealmId, Is.EqualTo(app.DailyPage().Realm));
+            Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite, Is.EqualTo(art.SkinRealm("wordmark-realms")));
             Click(app, "Play level 21"); yield return Page(StorePage.Level);
             Assert.That(app.Flow.Realm, Is.EqualTo(3)); Assert.That(app.Flow.Level, Is.EqualTo(1));
         }
@@ -943,8 +946,9 @@ namespace ZKube.Tests
         }
         // Home, as the v3 composite draws it, on both phones: the lockup, the two
         // cards and the two plays over the four tabs, every word fitting and
-        // each play 48 dp to touch. The spec's 25 words are its 20 fixed words
-        // and the day's guardian, objective and realm names.
+        // each play 48 dp to touch. Its words are 15 fixed ones and the day's
+        // guardian, objective and realm names. The objective's pictogram sits
+        // left of its caption, and "left" right after the clock.
         [UnityTest] public IEnumerator HomeSpeaksItsWordsAndFitsOnBothPhones()
         {
             var shell = app.GetComponent<PageShell>();
@@ -958,10 +962,21 @@ namespace ZKube.Tests
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     var catalog = PageCatalog.Load(); var today = app.DailyPage();
                     int Count(string text) => Word.Matches(text).Count;
-                    int words = 20 + Count(catalog.Realm(today.Realm).guardianName) + Count(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue))
+                    int words = 15 + Count(catalog.Realm(today.Realm).guardianName) + Count(catalog.ObjectiveName(today.ObjectiveKind, today.ObjectiveValue))
                         + Count(catalog.Realm(app.CampaignSummary().Realm).realmName);
                     string at = compact ? "360 x 640 home" : "Seeker home";
                     ScreenFits(shell, at, words, "Play today", "Play level 1");
+                    Assert.That(Texts(), Does.Contain("CAMPAIGN"), at + ": the Campaign card is titled Campaign");
+                    Rect Drawn(string name) => SkinUi.ScreenRect(app.GetComponentsInChildren<Graphic>().Single(graphic => graphic.name == name).rectTransform);
+                    var picture = Drawn("Daily objective pictogram"); var line = Drawn("Daily line");
+                    Assert.That(picture.xMax, Is.LessThanOrEqualTo(line.xMin), at + ": the pictogram is left of its caption");
+                    Assert.That(picture.yMin < line.yMax && picture.yMax > line.yMin, Is.True, at + ": the pictogram and its caption share a line");
+                    var number = app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Daily countdown number");
+                    var left = app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Daily countdown words");
+                    number.ForceMeshUpdate();
+                    float gap = SkinUi.ScreenRect(left.rectTransform).xMin - (SkinUi.ScreenRect(number.rectTransform).xMin + number.textBounds.max.x);
+                    float d = shell.SafeArea.height / (compact ? 572 : 882);
+                    Assert.That(gap / d, Is.InRange(2f, 9f), at + ": \"left\" sits right after the clock");
                     var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
                     Assert.That(SkinUi.ScreenRect((RectTransform)FindButton(app, "Play today").transform).yMin, Is.GreaterThanOrEqualTo(tabs.yMax), at + ": the plays sit above the tabs");
                     Assert.That(shell.Chrome.GetComponentInChildren<SkinTabBar>().GetComponentsInChildren<Button>().Length, Is.EqualTo(4), at + ": four tabs");

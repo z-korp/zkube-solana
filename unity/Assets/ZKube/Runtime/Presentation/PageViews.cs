@@ -262,7 +262,7 @@ namespace ZKube.Presentation
                 var inside = kit.Inside();
                 string stars = summary.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">/" + summary.Levels * 3 + "</color>";
                 var count = inside.Beside(10, inside.Icon("Campaign stars icon", SkinSlots.StarLit, 24), inside.Value("Campaign stars", stars));
-                pieces.Add(kit.Card("Campaign · ten realms of ten levels", new[] {
+                pieces.Add(kit.Card("Campaign", new[] {
                     PortraitRow(inside, "Campaign", Step(60, 48), image => Portrait(summary.Realm, image), campaign.realmName, "Realm " + summary.Realm + " of " + Protocol.Realms.Length + (level == null ? "" : " · Level " + level), null, count),
                     Buttons(inside, (play, ScreenKit.Kind.Quiet, play == summary.Map ? SkinSlots.IconMap : SkinSlots.IconPlay)) }, "Campaign card"));
             }
@@ -278,47 +278,61 @@ namespace ZKube.Presentation
             if (pendingPortraits.Count == 0) return;
             StartCoroutine(LoadPortraits(pendingPortraits.ToList(), epoch)); pendingPortraits.Clear();
         }
-        // Today's Daily card: the guardian's portrait beside its name and the
-        // objective, then the objective's pictogram and the clock chip; once the
-        // attempt is used, that and the count to the next Daily. rows follow
-        // (the Arena's prize pool), then the card's buttons.
+        // Today's Daily card: the guardian's portrait beside its name, the
+        // objective's pictogram left of its caption, and the clock chip under
+        // them; once the attempt is used, that and the count to the next Daily.
+        // rows follow (the Arena's prize pool), then the card's buttons.
         private Piece DailyCard(ScreenKit kit, DailyPageView value, string title, long? clock, bool used, Piece[] rows, Piece buttons)
         {
             float u = kit.U; var inside = kit.Inside();
+            // The day's own guardian, whatever realm the page's art is from.
+            float face = (value.Arcade == null ? Step(76, 60) : Step(72, 56)) * inside.U, room = inside.Width - face - 12 * inside.U;
+            string caption = catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue);
+            ScreenKit.Side? objective = null;
             var under = new List<ScreenKit.Side>();
             if (used) under.Add(inside.Word("Daily used", "Today’s attempt is used", inside.CaptionDp, SkinTokens.Text));
-            else if (value.ObjectiveKind != 0)
+            if (!used && value.ObjectiveKind != 0)
             {
                 var goal = catalog.Goal(value.ObjectiveKind, value.ObjectiveValue);
-                under.Add(inside.Pictogram("Daily objective", goal.Pictogram(RealmBonus(value.Realm)), goal.chip, value.Arcade == null ? 26 : 24));
+                var picture = inside.Pictogram("Daily objective", goal.Pictogram(RealmBonus(value.Realm)), goal.chip, value.Arcade == null ? 26 : 24);
+                // The caption takes the room beside its pictogram, on as many lines as it needs.
+                float width = Mathf.Min(inside.TextWidth(caption, inside.SmallDp, SkinUi.Type.Caption) + 2, room - picture.Width - 8 * inside.U);
+                float height = inside.Block(caption, width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+                objective = inside.Beside(8, picture, new ScreenKit.Side(width, height, rect => inside.Text("Daily line", caption, rect, inside.SmallDp,
+                    SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left)));
+                caption = null;
             }
             if (clock.HasValue)
             {
                 // The chip holds the widest the clock can read; the page's clock updates its words.
-                string shown = used ? NextDaily(clock.Value) : DayClock(clock.Value), widest = System.Text.RegularExpressions.Regex.Replace(shown, "[0-9]", "8");
+                // The clock's digits keep one width, so "left" sits right after them whatever the time.
+                clockEm = (inside.TextWidth("88", 16 * inside.K, SkinUi.Type.Display) - inside.TextWidth("8", 16 * inside.K, SkinUi.Type.Display)) /
+                    (16 * inside.K * ui.Scale * ui.Density);
+                string shown = used ? NextDaily(clock.Value) : Tabular(DayClock(clock.Value)), widest = System.Text.RegularExpressions.Regex.Replace(
+                    used ? shown : DayClock(clock.Value), "[0-9]", "8");
                 var chip = used ? inside.Chip("Next Daily", SkinSlots.IconClock, 18, null, widest) : inside.Chip("Daily countdown", SkinSlots.IconClock, 18, widest, "left");
                 under.Add(new ScreenKit.Side(chip.Width, chip.Height, rect => {
                     chip.Draw(rect);
                     var text = shell.Page.GetComponentsInChildren<TMP_Text>().Last(label => label.name == (used ? "Next Daily words" : "Daily countdown number"));
-                    text.text = shown;
+                    text.richText = true; text.text = shown;
                     if (used) nextDaily = text; else if (value.Arcade?.Headline == null) countdown = text;
                 }));
             }
             if (value.Arcade?.Headline != null) under.Add(inside.Word("Daily headline", value.Arcade.Headline, inside.SmallDp, SkinTokens.Text));
-            // The day's own guardian, whatever realm the page's art is from. Its
-            // line's parts sit side by side where they fit beside the portrait,
-            // else one under another.
-            float face = (value.Arcade == null ? Step(76, 60) : Step(72, 56)) * inside.U, room = inside.Width - face - 12 * inside.U;
+            // Under the name: the objective, then the clock and what else the day
+            // says, side by side where they fit beside the portrait, else one
+            // under another.
             ScreenKit.Side? line = null;
             if (under.Count != 0) { line = inside.Beside(8, under.ToArray()); if (line.Value.Width > room) line = inside.Over(4, under.ToArray()); }
-            var portrait = PortraitRow(inside, "Daily", face / inside.U, image => Portrait(value.Realm, image), title,
-                catalog.ObjectiveName(value.ObjectiveKind, value.ObjectiveValue), line, null);
+            if (objective.HasValue) line = line.HasValue ? inside.Over(4, objective.Value, line.Value) : objective;
+            var portrait = PortraitRow(inside, "Daily", face / inside.U, image => Portrait(value.Realm, image), title, caption, line, null);
             return kit.Card("Today’s Daily", new[] { portrait }.Concat(rows).Append(buttons), "Daily card");
         }
-        // The product's painted lockup in its 200u box.
+        // The product's painted lockup in its 200u box, in the colours of the
+        // page's realm: on Home, the day's Daily realm.
         private Piece Lockup(ScreenKit kit, float heightU)
         {
-            var mark = ui.Art.Sprite("common/brand__" + brand);
+            var mark = ui.Art.SkinRealm("wordmark-" + brand);
             float width = 200 * kit.U, height = heightU * kit.U;
             return new Piece(height, rect => {
                 var wordmark = ui.Rect<Image>("Wordmark", new Rect(rect.center.x - width / 2, rect.y, width, height), shell.Page);
@@ -472,7 +486,7 @@ namespace ZKube.Presentation
                 if (now != countdownSecond)
                 {
                     countdownSecond = now;
-                    if (countdown != null) countdown.text = DayClock(countdownView.ClosesAt - now);
+                    if (countdown != null) countdown.text = Tabular(DayClock(countdownView.ClosesAt - now));
                     if (nextDaily != null) nextDaily.text = NextDaily(countdownView.NextOpensAt - now);
                     if (nextDailyResult != null) nextDailyResult.text = UsedLine(countdownView.NextOpensAt - now);
                 }
@@ -481,6 +495,10 @@ namespace ZKube.Presentation
         }
 
         private static string NextDaily(long seconds) => "Next Daily in " + DayClock(seconds);
+        // A clock whose digits each take the widest digit's width (clockEm, in ems).
+        private float clockEm;
+        private string Tabular(string clock) => System.Text.RegularExpressions.Regex.Replace(clock, "[0-9]+",
+            "<mspace=" + clockEm.ToString("0.###", CultureInfo.InvariantCulture) + "em>$0</mspace>");
         // A countdown to 00:00 UTC, when the day closes and the next Daily opens:
         // at most 23:59:59, even at the day's first second.
         public static string DayClock(long seconds) => Clock(HudLayout.DayCountdown(seconds));

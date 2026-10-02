@@ -156,6 +156,8 @@ namespace ZKube.Core.Generated
         public const string MapNodeCurrent = "map-node-current";
         public const string MapNodeDone = "map-node-done";
         public const string MapNodeGuardian = "map-node-guardian";
+        public const string WordmarkRealms = "wordmark-realms";
+        public const string WordmarkArena = "wordmark-arena";
         public const int BlockWidths = 4;
         public static string Block(int width) => "block-" + width;
         public const int LadderTiers = 5;
