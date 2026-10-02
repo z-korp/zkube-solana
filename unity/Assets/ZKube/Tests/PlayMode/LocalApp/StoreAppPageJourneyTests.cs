@@ -415,6 +415,49 @@ namespace ZKube.Tests
                 finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
             }
         }
+        // The longest realm name sits on one line wherever a Campaign page draws
+        // it: Home's card, the map's header, the level preview and the pause sheet.
+        [UnityTest] public IEnumerator TheLongestRealmNameStaysOnOneLineOnEveryCampaignPageAndPhone()
+        {
+            var catalog = PageCatalog.Load();
+            byte realm = (byte)Enumerable.Range(1, Protocol.Realms.Length).OrderByDescending(id => catalog.Realm((byte)id).realmName.Length).First();
+            string name = catalog.Realm(realm).realmName;
+            int levels = Protocol.CampaignTargets.Length;
+            product.Write(state => { for (int i = 0; i < (realm - 1) * levels; i++) state.Stars[i] = 3; state.CampaignOwned = true; return state; });
+            Assert.That(app.Flow.FurthestRealm, Is.EqualTo(realm));
+            var shell = app.GetComponent<PageShell>();
+            void OneLine(string at, Component page = null)
+            {
+                var drawn = ZKube.Tests.Presentation.PageText.Visible(page ?? app).Where(text => text.text.Contains(name)).ToArray();
+                Assert.That(drawn, Is.Not.Empty, at + " draws " + name);
+                foreach (var text in drawn)
+                {
+                    text.ForceMeshUpdate();
+                    Assert.That(text.textInfo.lineCount, Is.EqualTo(1), at + ": " + text.name + " wraps \"" + text.text + "\"");
+                    Assert.That(text.preferredWidth, Is.LessThanOrEqualTo(text.rectTransform.rect.width + 1), at + ": " + text.name + " overflows \"" + text.text + "\"");
+                }
+            }
+            foreach (var (phone, size) in new (System.Action<PageShell>, string)[] {
+                (value => ZKube.Tests.Presentation.Phones.Compact(value), "360 x 640"), (value => ZKube.Tests.Presentation.Phones.EmulatorDefault(value), "emulator default"),
+                (value => ZKube.Tests.Presentation.Phones.Seeker(value), "Seeker") })
+            {
+                phone(shell);
+                try
+                {
+                    app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+                    app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home); OneLine(size + " Home");
+                    app.Flow.SelectRealm(realm); yield return Page(StorePage.Campaign); OneLine(size + " map");
+                    app.Flow.Preview(realm, 1); yield return Page(StorePage.Level); OneLine(size + " preview");
+                    app.Flow.PlayCampaign(); yield return BoardReady();
+                    Click(board.View, "Pause"); yield return null; OneLine(size + " pause", board.View);
+                    Click(board.View, "End run"); yield return null; Click(board.View, "End run");
+                    yield return Wait(() => !board.Busy && board.State.Phase == (byte)CorePhase.Finished, "Run did not end");
+                    yield return Page(StorePage.Result);
+                    app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+                }
+                finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+            }
+        }
         // At the larger text size on a 360 x 640 phone (its safe area as the
         // device reports it), Home is taller than the space between the
         // wordmark's top and the tab bar; it scrolls, and every panel and action

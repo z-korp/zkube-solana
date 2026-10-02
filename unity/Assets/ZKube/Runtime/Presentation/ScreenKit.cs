@@ -141,6 +141,12 @@ namespace ZKube.Presentation
         }
         public Piece Space(float heightU) => new Piece(heightU * U, null);
 
+        // A title too wide for its room shrinks toward 20u before it wraps.
+        public float TitleFit(string title, float room)
+        {
+            float wide = TextWidth(title, TitleDp, SkinUi.Type.Display);
+            return wide > room ? Mathf.Max(20 * K, TitleDp * room / wide) : TitleDp;
+        }
         // A screen's title (.t3): the 28u title at 1.05 and the subtitle under it
         // 2u down at 1.3, centred; the plate is drawn 6u outside the words, so
         // the layout keeps the wireframe's box.
@@ -148,10 +154,7 @@ namespace ZKube.Presentation
         public Piece Title(string title, string subtitle, string subtitleToken = SkinTokens.TextMuted, string icon = null, float? room = null)
         {
             float u = U, space = Mathf.Min(room ?? float.PositiveInfinity, width) - 32 * u, iconSize = icon == null ? 0 : 30 * u, lead = icon == null ? 0 : iconSize + 6 * u;
-            float titleDp = TitleDp;
-            // A title too wide for its plate shrinks toward 20u before it wraps.
-            float wide = TextWidth(title, titleDp, SkinUi.Type.Display) + lead;
-            if (wide > space) titleDp = Mathf.Max(20 * K, titleDp * space / wide);
+            float titleDp = TitleFit(title, space - lead);
             float titleWidth = Mathf.Min(space, TextWidth(title, titleDp, SkinUi.Type.Display) + lead);
             float subtitleWidth = subtitle == null ? 0 : Mathf.Min(space, TextWidth(subtitle, SubtitleDp, SkinUi.Type.Caption));
             float inner = Mathf.Max(titleWidth, subtitleWidth);

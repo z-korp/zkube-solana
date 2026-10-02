@@ -71,7 +71,8 @@ namespace ZKube.Presentation
                 inside.Value("Map stars", value.Stars + "<color=#" + ColorUtility.ToHtmlStringRGB(ui.Art.Token(SkinTokens.TextMuted)) + ">" + total + "</color>"));
             bool previous = value.Previous != null && value.Previous.Enabled, next = value.Next != null && value.Next.Enabled;
             float text = inside.Width - (previous ? back + 10 * u : 0) - stars.Width - 10 * u - (next ? back + 10 * u : 0);
-            float titleHeight = inside.Block(name, text, inside.TitleDp, SkinUi.Type.Display, ScreenKit.TitleLeading);
+            float titleDp = inside.TitleFit(name, text - 1);
+            float titleHeight = inside.Block(name, text, titleDp, SkinUi.Type.Display, ScreenKit.TitleLeading);
             float placeHeight = inside.Block(place, text, inside.SubtitleDp, SkinUi.Type.Caption, ScreenKit.NoteLeading);
             float block = titleHeight + 2 * u + placeHeight;
             // The back button's 48 dp reach may spill into the card's padding; the row keeps the wireframe's 38u.
@@ -81,7 +82,7 @@ namespace ZKube.Presentation
                 if (next) { HeaderButton(value.Next, new Rect(right - back, rect.center.y - back / 2, back, back), SkinSlots.IconBack, true); right -= back + 10 * u; }
                 stars.Draw(new Rect(right - stars.Width, rect.center.y - stars.Height / 2, stars.Width, stars.Height));
                 float top = rect.center.y + block / 2;
-                inside.Text("Map title", name, new Rect(left, top - titleHeight, text, titleHeight), inside.TitleDp, SkinTokens.Text, SkinUi.Type.Display,
+                inside.Text("Map title", name, new Rect(left, top - titleHeight, text, titleHeight), titleDp, SkinTokens.Text, SkinUi.Type.Display,
                     ScreenKit.TitleLeading, TextAlignmentOptions.Left);
                 inside.Text("Map place", place, new Rect(left, top - block, text, placeHeight), inside.SubtitleDp, SkinTokens.TextMuted, SkinUi.Type.Caption,
                     ScreenKit.NoteLeading, TextAlignmentOptions.Left);

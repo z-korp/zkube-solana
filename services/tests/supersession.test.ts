@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /\bTribal\b/i, trees: AUTHORED,
+    reversal: "Realm 9 is Serengeti" },
   { pattern: /board changed|swipe again/i, trees: [UNITY],
     reversal: "A stale queued swipe is dropped without a notice" },
   { pattern: /Edit name|Save name|Name preview|Names can use up to|name starts as Player|editable in Profile|Your name appears on this device/i, trees: AUTHORED,
@@ -57,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Campaign stars latch independently from score and constraints" },
   { pattern: /exactly one reroll|once-per-run reroll|carries one reroll/i, trees: AUTHORED,
     reversal: "Rerolls use a capped inventory with perfect-clear grants" },
-  { pattern: /Combo Meter|\bcascade\b|Exact-1|seven families|\bEndless\b/i, trees: [UNITY],
-    reversal: "Constraint copy uses the shared line, combo and streak vocabulary" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {
