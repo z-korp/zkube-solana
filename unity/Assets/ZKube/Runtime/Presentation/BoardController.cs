@@ -393,8 +393,8 @@ namespace ZKube.Presentation
             if (queued.HasValue)
             {
                 var action = queued.Value; queued = null;
+                // A swipe queued against a board that has since moved on is dropped without a word.
                 if (HostInputEnabled && !paused && !recoveryRequired && State.Phase == (byte)CorePhase.Playing && queuedGrid.SequenceEqual(State.Grid)) Submit(action);
-                else View.Status(BoardNotices.Text(BoardNotice.Changed));
                 queuedGrid = null;
             }
         }

@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /board changed|swipe again/i, trees: [UNITY],
+    reversal: "A stale queued swipe is dropped without a notice" },
   { pattern: /\bElo\b|keeper-computed rating|K-factor/i, trees: AUTHORED,
     reversal: "The cumulative log-rank ladder replaced ratings" },
   { pattern: /full run is what finishes|every change ends with `NO_DNA=1 \.\/validate\.sh` green/i, trees: DOCUMENTS,
@@ -57,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Constraint copy uses the shared line, combo and streak vocabulary" },
   { pattern: /canonical deployed binding|zkube-v4-launch|exactly 17 transactions|archive contract|volume contract|quarantine gates closure/i, trees: AUTHORED,
     reversal: "Fresh bootstrap and the on-chain root replace the abandoned release" },
-  { pattern: /\bsim[_-]harness\b|\bapex-reachable\b|\bboard-divergence\b|\bacceptance digest\b/i, trees: AUTHORED,
-    reversal: "The retired balance harness supplies no product or operator authority" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

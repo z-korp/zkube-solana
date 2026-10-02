@@ -353,7 +353,7 @@ namespace ZKube.Presentation.Tests
             held.Release.SetResult(true); yield return Wait(() => !board.Busy);
             Assert.AreEqual(action + 1, board.State.ActionCounter);
             Assert.AreEqual(moves + 1, board.State.Moves);
-            StringAssert.Contains("Board changed", board.View.StatusText);
+            Assert.IsEmpty(board.View.StatusText, "The stale swipe is dropped without a notice");
             Assert.IsTrue(ZKube.Tests.Presentation.BoardTestState.Settled(board.View, board.State.Grid));
         }
         [UnityTest] public IEnumerator AnimationEnabledEndsWithEverySpriteAtItsNativeCell()
