@@ -436,7 +436,8 @@ namespace ZKube.Presentation
         {
             if (PresentationInitialized && Session != null && recoveryRequired) { ShowRecovery(); return; }
             if (!PresentationInitialized || Session == null || IsTerminal()) return;
-            paused = true; queued = null; CancelDrag(); music.Pause();
+            // The music plays on through a pause.
+            paused = true; queued = null; CancelDrag();
             pauseDialog?.Close();
             pauseDialog = PauseDialog.Pause(View, art, State, Session, Resume, PauseRows(), () => {
                 pauseDialog?.Close();
@@ -493,7 +494,7 @@ namespace ZKube.Presentation
         {
             Muted = value; AppPreferences.SetMuted(value);
             if (effects != null) effects.mute = value;
-            if (music != null) { music.mute = value; if (!value && !paused && music.clip != null && !music.isPlaying) music.Play(); }
+            if (music != null) { music.mute = value; if (!value && music.clip != null && !music.isPlaying) music.Play(); }
         }
         public void SetMusicVolume(double value)
         {

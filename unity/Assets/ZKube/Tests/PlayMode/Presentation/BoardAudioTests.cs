@@ -58,12 +58,17 @@ namespace ZKube.Presentation.Tests
             Assert.IsTrue(Music.mute); Assert.IsTrue(Effects.mute);
             Assert.AreEqual(actions, board.State.ActionCounter, "Audio preferences cannot submit a run action");
         }
-        [UnityTest] public IEnumerator PausedVolumeChangesDoNotRestartMusicAndRealmSwitchKeepsPreferences()
+        // DECISIONS 2026-10-02: the music keeps playing through a pause.
+        [UnityTest] public IEnumerator PauseKeepsTheMusicPlayingAndRealmSwitchKeepsPreferences()
         {
             evidence.Load("realm-8-daily"); yield return Ready();
-            board.SetMuted(false); board.Pause();
+            board.SetMuted(false); yield return null;
+            Assert.IsTrue(Music.isPlaying);
+            board.Pause();
             board.SetMusicVolume(.53); board.SetEffectsVolume(.19); yield return null;
-            Assert.IsTrue(board.Paused); Assert.IsFalse(Music.isPlaying);
+            Assert.IsTrue(board.Paused); Assert.IsTrue(Music.isPlaying, "A pause does not stop the music");
+            board.Resume(); yield return null;
+            Assert.IsTrue(Music.isPlaying); board.Pause();
             board.SetMuted(true); evidence.Load("realm-2-daily"); yield return Ready();
             Assert.AreEqual(2, ZKube.Tests.Presentation.BoardTestState.Art(board).RealmId);
             Assert.AreEqual(.53f, Music.volume); Assert.AreEqual(.19f, Effects.volume);

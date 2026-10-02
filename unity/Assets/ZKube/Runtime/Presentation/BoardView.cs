@@ -928,7 +928,10 @@ namespace ZKube.Presentation
         {
             if (modal != null) { modal.SetActive(false); Destroy(modal); }
             modal = null;
-            if (modalShield != null) { modalShield.color = Color.clear; modalShield.raycastTarget = false; }
+            if (modalShield == null) return;
+            modalShield.color = Color.clear; modalShield.raycastTarget = false;
+            var scene = modalShield.GetComponentInChildren<PausedScene>(true);
+            if (scene != null) { scene.gameObject.SetActive(false); Destroy(scene.gameObject); }
         }
         public void Terminal(bool completed)
         {

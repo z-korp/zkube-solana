@@ -175,6 +175,8 @@ namespace ZKube.Presentation.Tests
                                     .Concat(buttons.Where(button => !button.name.Contains(":")).Select(button => WorldRect((RectTransform)button.transform))).ToArray();
                                 Apart(pieces, at);
                                 Assert.AreEqual(SkinSlots.IconFlag, images.Single(image => image.name == "Dialog End run icon").sprite.name.Replace("(Clone)", ""), at);
+                                // The scene's capture takes this frame; the dialog shows from the next.
+                                if (scale == 1) yield return null;
                                 if (scale == 1) yield return ZKube.Tests.Presentation.Captures.Snap(screen, (fixture.Contains("daily") ? "daily" : "tiki") + "-"
                                     + (confirm ? "endconfirm" : "pause") + "-" + (name == "Seeker" ? "seeker" : "compact"));
                             }
@@ -183,6 +185,35 @@ namespace ZKube.Presentation.Tests
                         }
                 board.View.gameObject.SetActive(true);
             }
+        }
+        // DECISIONS 2026-10-02: the game stays visible behind the pause, blurred.
+        // One capture of the board, softened, sits under a scrim that lets it
+        // through; the end-run confirm keeps the same capture, and resuming
+        // removes it.
+        [UnityTest] public IEnumerator ThePauseAndItsConfirmShowTheGameSoftenedBehindThem()
+        {
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
+            var shield = board.View.GetComponentsInChildren<Image>(true).Single(image => image.name == "Modal input shield");
+            board.Pause();
+            Assert.IsTrue(shield.raycastTarget, "The shield takes taps from the first frame");
+            yield return null; yield return null;
+            var scene = shield.GetComponentInChildren<PausedScene>();
+            Assert.IsTrue(scene.Ready, "The game was captured");
+            var picture = scene.GetComponent<RawImage>();
+            Assert.IsTrue(picture.enabled); Assert.AreSame(scene.Texture, picture.texture);
+            Assert.Less(scene.Texture.width, Screen.width, "The capture is softened by downsampling");
+            Assert.AreEqual(PausedScene.ScrimAlpha, shield.color.a, .001f, "The scrim lets the game through");
+            Assert.AreEqual(0, scene.transform.GetSiblingIndex(), "The scene lies under the dialog");
+            Assert.AreEqual(1, shield.GetComponentInChildren<PauseDialog>().GetComponent<CanvasGroup>().alpha);
+            var captured = scene.Texture;
+            evidence.Click("Dialog End run"); yield return null;
+            Assert.AreEqual("End run dialog", shield.GetComponentInChildren<PauseDialog>().name);
+            Assert.AreSame(captured, shield.GetComponentInChildren<PausedScene>().Texture, "The confirm stands over the same scene");
+            Assert.AreEqual(1, shield.GetComponentInChildren<PauseDialog>().GetComponent<CanvasGroup>().alpha);
+            evidence.Click("Dialog Keep playing"); yield return null;
+            Assert.IsFalse(board.Paused);
+            Assert.IsNull(shield.GetComponentInChildren<PausedScene>(), "Resuming removes the capture");
+            Assert.AreEqual(0, shield.color.a);
         }
         [UnityTest] public IEnumerator EveryCatalogGoalFitsTheCampaignHudOnTheSeekerAndA360x640Phone()
         {
