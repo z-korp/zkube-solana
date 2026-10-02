@@ -681,8 +681,8 @@ keeper authority. The approval boundary above applies to every execution.
 - **Release build:** NO_DNA=1 pnpm chain build-release is the one way a release program is built: offline,
   from the repository root and a clean target, with the compiler, platform tools, options, locked dependencies
   and compiler flags pinned in tools/chain/releaseBuild.ts. The build inherits only PATH and HOME, so no flag,
-  wrapper, profile or target override reaches the compiler; it refuses a user-level cargo configuration that
-  sets any, and it checks cargo's own fingerprint of the flags the compiler received before it records
+  wrapper, profile or target override reaches the compiler; it refuses to run where any cargo configuration
+  exists outside the repository, whatever that file says, and it checks cargo's own fingerprint of the flags the compiler received before it records
   anything under build/chain/release. A hash from any other build is not release evidence.
   `release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it` and
   `release_build_gives_the_compiler_only_the_recorded_inputs_and_refuses_any_other_flag_set` guard the recipe.

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, it } from "vitest";
 import { parseOperatorArgs } from "./cli.js";
@@ -50,17 +51,25 @@ it("release_build_gives_the_compiler_only_the_recorded_inputs_and_refuses_any_ot
       .toThrow("compiler flags differ from the pinned build configuration");
     expect(() => releaseArtifact(scratch, hash(elf(3)))).toThrow("No release build found");
   }
-  // A user-level cargo configuration that sets flags, profiles or targets is refused before building.
-  mkdirSync(`${home}/.cargo`, { recursive: true });
-  for (const config of ['[build]\nrustflags = ["-C", "opt-level=2"]\n', "[profile.release]\nopt-level = 1\n",
-    '[target.sbpf-solana-solana]\nlinker = "x"\n']) {
-    writeFileSync(`${home}/.cargo/config.toml`, config);
-    const refused = tools(VERSIONS, elf(1));
-    expect(() => buildRelease(scratch, refused.run, inherited)).toThrow("cargo configuration outside the repository");
-    expect(refused.calls).toHaveLength(0);
+  // Any cargo configuration outside the repository is refused before building, whatever it says:
+  // flags, a profile as a table or as dotted keys, a target, an environment table, or nothing at all.
+  const outside = [`${home}/.cargo/config.toml`, `${home}/.cargo/config`, `${scratch}/../.cargo/config.toml`];
+  for (const path of outside) {
+    for (const config of ['[build]\nrustflags = ["-C", "opt-level=2"]\n', "[profile.release]\nopt-level = 1\n",
+      "profile.release.opt-level = 1\nprofile.release.lto = false\n", '[target.sbpf-solana-solana]\nlinker = "x"\n',
+      '[env]\nRUSTFLAGS = "-C opt-level=2"\n', '[alias]\nb = "build"\n', ""]) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, config);
+      const refused = tools(VERSIONS, elf(1));
+      expect(() => buildRelease(scratch, refused.run, inherited)).toThrow("cargo configuration outside the repository");
+      expect(refused.calls).toHaveLength(0);
+      rmSync(path);
+    }
   }
-  // One that only names a registry mirror or an alias does not change the ELF.
-  writeFileSync(`${home}/.cargo/config.toml`, '[alias]\nb = "build"\n[net]\noffline = true\n');
+  rmSync(`${scratch}/../.cargo`, { recursive: true, force: true });
+  // The repository's own configuration is source, built and reviewed with the rest.
+  mkdirSync(`${scratch}/.cargo`, { recursive: true });
+  writeFileSync(`${scratch}/.cargo/config.toml`, "[net]\noffline = true\n");
   expect(buildRelease(scratch, tools(VERSIONS, elf(1)).run, inherited).sha256).toBe(hash(elf(1)));
 });
 

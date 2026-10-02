@@ -3,7 +3,7 @@
 // options that produced it, so they are pinned here and travel with the ELF.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { sha256 } from "./chainRelease.js";
 
 export const RELEASE_BUILD = Object.freeze({
@@ -45,12 +45,21 @@ export function buildRelease(root: string, run: RunCargo = cargo,
     if (!value) throw new Error(`Release build needs ${name}`);
     env[name] = value;
   }
-  // Cargo also reads a configuration beside the user's toolchain. One that
-  // sets flags, a profile or a target would change the ELF without a trace here.
-  for (const file of ["config.toml", "config"]) {
-    const path = resolve(env.HOME!, ".cargo", file);
-    if (existsSync(path) && /rustflags|^\s*\[(profile|target|build)\b/m.test(readFileSync(path, "utf8"))) {
-      throw new Error("Release build refuses a cargo configuration outside the repository that sets flags, profiles or targets");
+  // Cargo merges every configuration file it finds above the repository and
+  // beside the user's toolchain, and any key in one (a flag, a profile by
+  // table or by dotted key, a target, an environment variable) can change the
+  // ELF without a trace here. None is read to decide which are harmless: the
+  // release build runs only where no outside configuration exists.
+  const outside = [resolve(env.HOME!, ".cargo")];
+  for (let directory = dirname(resolve(root)); ; directory = dirname(directory)) {
+    outside.push(resolve(directory, ".cargo"));
+    if (directory === dirname(directory)) break;
+  }
+  for (const directory of outside) {
+    for (const file of ["config.toml", "config"]) {
+      if (existsSync(resolve(directory, file))) {
+        throw new Error(`Release build refuses a cargo configuration outside the repository: ${resolve(directory, file)}`);
+      }
     }
   }
   const versions = run(["build-sbf", "--version"], env, root);
