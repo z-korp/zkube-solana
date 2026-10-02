@@ -11,6 +11,8 @@ import {
   deriveCreditVaultPda,
   deriveProtocolConfigPda,
 } from "./pdas.js";
+import { programDataAddress } from "./chainRelease.js";
+import { ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 import { zkubeProgram, type TransactionPlan } from "./program.js";
 import type { WalletLike } from "./readOnlyWallet.js";
 import BN from "bn.js";
@@ -29,6 +31,7 @@ export interface ProtocolInitialization {
 export async function buildInitializeProtocolPlan(args: {
   connection: Connection;
   authority: WalletLike;
+  upgradeAuthority: PublicKey;
   config: ProtocolInitialization;
 }): Promise<TransactionPlan> {
   if (
@@ -56,6 +59,9 @@ export async function buildInitializeProtocolPlan(args: {
       creditVault: deriveCreditVaultPda(),
       teamDestination: args.config.teamDestination,
       authority: args.authority.publicKey,
+      upgradeAuthority: args.upgradeAuthority,
+      program: ZKUBE_PROGRAM_ID,
+      programData: programDataAddress(),
       systemProgram: SystemProgram.programId,
     })
     .instruction();

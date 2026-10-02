@@ -22,7 +22,7 @@ export async function executeBundle(source: string, options: {
     throw new Error("Activation requires the verified staged keeper release fingerprint");
   }
   const connection = options.connect(release.rpc);
-  const rebuilt = await rebuildTransactions(operation, connection);
+  const rebuilt = await rebuildTransactions(operation, bundle.payload.release, connection);
   if (rebuilt.length !== transactions.length) throw new Error("Transaction count differs from the approved plan");
   for (const [index, item] of rebuilt.entries()) {
     const plan = transactions[index]!;

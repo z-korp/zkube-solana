@@ -337,7 +337,9 @@ Program account sizes, versions and rent come from their Rust owners and codegen
 `fresh_bootstrap_interface_is_locked` pin the interface. Daily content and timestamps derive from day ID; an
 ActiveRun retains its rules snapshot. `daily_window_is_derived_at_epoch_and_u32_day_bounds` and
 `DailyWindowUsesTheCoreAcrossTheFullDayRange` guard clocks. Authority rotation and team destination changes
-require a program upgrade; the interface lock excludes runtime setters.
+require a program upgrade; the interface lock excludes runtime setters. `initialize_protocol` runs once and only
+with the signature of the program's upgrade authority, read from the loader's ProgramData, beside the governance
+authority it names; `an_untrusted_initializer_cannot_claim_the_protocol` guards the bootstrap.
 
 PlayerState keeps separate Score/Theme best paying rank, wins and rewards; non-paying places do not become
 profile records. Kredit balance, ladder total/highest tier, lifetime best daily score and streak remain
@@ -539,7 +541,7 @@ keeper authority. The approval boundary above applies to every execution.
   `deployment_instruction_bytes_and_accounts_match_the_rust_loader` and
   `operator_cli_options_and_exact_amounts_fail_closed` guard planning and the fresh-bootstrap scope.
 - **Launch plan:** plan launch binds deployed program, keeper, day and cutoff; it quotes paused
-  protocol/vault initialization, cadence funding, two Daily preparations and atomic seed/unpause/activation.
+  protocol/vault initialization signed by the upgrade authority, cadence funding, two Daily preparations and atomic seed/unpause/activation.
   `plans the full fresh bootstrap and one atomic launch transaction`,
   `operator_release_checks_devnet_and_programdata` and `refuses planning after the exact launch cutoff`
   guard ordering, release verification and cutoff.

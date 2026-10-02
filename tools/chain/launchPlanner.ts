@@ -191,7 +191,8 @@ export async function quoteLaunchCosts(
     );
   }
 
-  const plans = await launchTransactionPlans(input, connection);
+  const upgradeAuthority = new PublicKey(input.programUpgradeAuthority);
+  const plans = await launchTransactionPlans(input, upgradeAuthority, connection);
 
   const accountSpaces = [
     LAUNCH_ACCOUNT_SPACES.protocolConfig,
@@ -207,9 +208,13 @@ export async function quoteLaunchCosts(
     connection,
     authority,
   );
+  // Initialization carries the upgrade authority's signature as well when
+  // it is not the governance authority.
+  const signatures = plans.length +
+    (upgradeAuthority.equals(authority) ? 0 : 1);
   const maximumFeeLamports = multiplySafe(
     feePerTransactionLamports,
-    plans.length,
+    signatures,
     "bootstrap fees",
   );
   const seedLamports = sumSafe(
@@ -428,7 +433,7 @@ function multiplySafe(left: number, right: number, label: string): number {
   return value;
 }
 
-export async function launchTransactionPlans(input: LaunchSettings, connection: Connection): Promise<TransactionPlan[]> {
+export async function launchTransactionPlans(input: LaunchSettings, upgradeAuthority: PublicKey, connection: Connection): Promise<TransactionPlan[]> {
   const wallet = createReadOnlyWallet(new PublicKey(input.authority));
   const teamDestination = new PublicKey(input.teamDestination);
   const plans: TransactionPlan[] = [];
@@ -436,6 +441,7 @@ export async function launchTransactionPlans(input: LaunchSettings, connection: 
     await buildInitializeProtocolPlan({
       connection,
       authority: wallet,
+      upgradeAuthority,
       config: {
         teamDestination,
         replayDomain: Uint8Array.from(

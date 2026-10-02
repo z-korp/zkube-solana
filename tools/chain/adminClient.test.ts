@@ -17,14 +17,18 @@ import {
   deriveProtocolConfigPda,
 } from "./pdas.js";
 import { createReadOnlyWallet } from "./readOnlyWallet.js";
+import { programDataAddress } from "./chainRelease.js";
+import { ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 
 describe("authority initialization client", () => {
   it("initializes the lean protocol with its team destination", async () => {
     const authority = createReadOnlyWallet(Keypair.generate().publicKey);
     const keys = Array.from({ length: 8 }, () => Keypair.generate().publicKey);
+    const upgradeAuthority = Keypair.generate().publicKey;
     const plan = await buildInitializeProtocolPlan({
       connection: {} as Connection,
       authority,
+      upgradeAuthority,
       config: {
         teamDestination: keys[2],
 
@@ -37,6 +41,9 @@ describe("authority initialization client", () => {
     expect(accounts[1].pubkey.equals(deriveCreditVaultPda())).toBe(true);
     expect(accounts[2].pubkey.equals(keys[2])).toBe(true);
     expect(accounts[3].pubkey.equals(authority.publicKey)).toBe(true);
+    expect(accounts[4]).toMatchObject({ pubkey: upgradeAuthority, isSigner: true, isWritable: false });
+    expect(accounts[5].pubkey.equals(ZKUBE_PROGRAM_ID)).toBe(true);
+    expect(accounts[6].pubkey.equals(programDataAddress())).toBe(true);
   });
 
   it("rejects a zero team destination before protocol initialization", async () => {
@@ -45,6 +52,7 @@ describe("authority initialization client", () => {
       buildInitializeProtocolPlan({
         connection: {} as Connection,
         authority,
+        upgradeAuthority: authority.publicKey,
         config: {
           teamDestination: PublicKey.default,
 

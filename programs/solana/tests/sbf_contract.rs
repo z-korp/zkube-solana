@@ -2163,3 +2163,128 @@ fn an_expired_orphan_closes_without_period_accounts() {
         expected
     );
 }
+
+fn upgradeable_program_accounts(upgrade_authority: Option<Pubkey>) -> (Pubkey, Account, Account) {
+    use solana_loader_v3_interface::state::UpgradeableLoaderState;
+    let loader = Pubkey::from_str_const("BPFLoaderUpgradeab1e11111111111111111111111");
+    let program_data = Pubkey::find_program_address(&[zkube::ID.as_ref()], &loader).0;
+    let mut program = executable_program_account(loader);
+    program.data = bincode::serialize(&UpgradeableLoaderState::Program {
+        programdata_address: program_data,
+    })
+    .unwrap();
+    let data = Account {
+        lamports: ACCOUNT_LAMPORTS,
+        data: bincode::serialize(&UpgradeableLoaderState::ProgramData {
+            slot: 1,
+            upgrade_authority_address: upgrade_authority,
+        })
+        .unwrap(),
+        owner: loader,
+        executable: false,
+        rent_epoch: 0,
+    };
+    (program_data, program, data)
+}
+
+#[test]
+fn an_untrusted_initializer_cannot_claim_the_protocol() {
+    let upgrade_authority = Pubkey::new_unique();
+    let governance = Pubkey::new_unique();
+    let attacker = Pubkey::new_unique();
+    let team = Pubkey::new_unique();
+    let protocol = Pubkey::find_program_address(&[PROTOCOL_CONFIG_SEED], &zkube::ID).0;
+    let vault = Pubkey::find_program_address(&[CREDIT_VAULT_SEED], &zkube::ID).0;
+    let (program_data, program, data) = upgradeable_program_accounts(Some(upgrade_authority));
+    let instruction = |authority, signer, program_data| {
+        anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts: zkube::accounts::InitializeProtocol {
+                protocol,
+                credit_vault: vault,
+                team_destination: team,
+                authority,
+                upgrade_authority: signer,
+                program: zkube::ID,
+                program_data,
+                system_program: anchor_lang::system_program::ID,
+            }
+            .to_account_metas(None),
+            data: zkube::instruction::InitializeProtocol {
+                args: zkube::InitializeProtocolArgs {
+                    team_destination: team,
+                    replay_domain: [9; 32],
+                },
+            }
+            .data(),
+        }
+    };
+    let accounts = |program_data_key: Pubkey, data: Account| {
+        vec![
+            (protocol, system_account(0)),
+            (vault, system_account(0)),
+            (team, system_account(0)),
+            (governance, system_account(ACCOUNT_LAMPORTS)),
+            (attacker, system_account(ACCOUNT_LAMPORTS)),
+            (upgrade_authority, system_account(ACCOUNT_LAMPORTS)),
+            (zkube::ID, program.clone()),
+            (program_data_key, data),
+            (anchor_lang::system_program::ID, system_program_account()),
+        ]
+    };
+    let honest = accounts(program_data, data.clone());
+    let reject = |instruction, accounts: &Vec<(Pubkey, Account)>| {
+        let rejected = mollusk().process_instruction(&instruction, accounts);
+        assert!(rejected.program_result.is_err());
+        assert_eq!(resulting_account(&rejected, &protocol), &system_account(0));
+        assert_eq!(resulting_account(&rejected, &vault), &system_account(0));
+    };
+
+    // Any first signer, with every otherwise-correct account.
+    reject(instruction(attacker, attacker, program_data), &honest);
+    // The attacker's own ProgramData look-alike naming them as authority.
+    let forged = Pubkey::new_unique();
+    let (_, _, forged_data) = upgradeable_program_accounts(Some(attacker));
+    reject(
+        instruction(attacker, attacker, forged),
+        &accounts(forged, forged_data.clone()),
+    );
+    // The canonical address under a foreign owner.
+    let mut foreign = forged_data;
+    foreign.owner = anchor_lang::system_program::ID;
+    reject(
+        instruction(attacker, attacker, program_data),
+        &accounts(program_data, foreign),
+    );
+    // A program whose upgrade authority was renounced has no bootstrap signer.
+    let (_, _, renounced) = upgradeable_program_accounts(None);
+    reject(
+        instruction(attacker, attacker, program_data),
+        &accounts(program_data, renounced),
+    );
+
+    // The upgrade authority authorizes a separately chosen governance signer.
+    let initialized = mollusk().process_instruction(
+        &instruction(governance, upgrade_authority, program_data),
+        &honest,
+    );
+    assert!(
+        initialized.program_result.is_ok(),
+        "{:?}",
+        initialized.program_result
+    );
+    let state: ProtocolConfig = decode(resulting_account(&initialized, &protocol));
+    assert_eq!(state.authority, governance);
+    assert_eq!(state.team_destination, team);
+    assert!(state.paused);
+
+    // Initialization happens exactly once.
+    let mut again = honest.clone();
+    again[0].1 = resulting_account(&initialized, &protocol).clone();
+    again[1].1 = resulting_account(&initialized, &vault).clone();
+    let repeated = mollusk().process_instruction(
+        &instruction(governance, upgrade_authority, program_data),
+        &again,
+    );
+    assert!(repeated.program_result.is_err());
+}

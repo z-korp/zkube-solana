@@ -58,6 +58,9 @@ describe("read-only paused bootstrap and launch planner", () => {
       instruction.program === SystemProgram.programId.toBase58() ? "transfer" : coder.decode(Buffer.from(instruction.data, "base64"))?.name)))
       .toEqual([["initializeProtocol"], ["transfer"], ["prepareArenaDaily"], ["prepareArenaDaily"],
         ["depositArenaDaily", "setProtocolPause", "activateArenaDaily"]]);
+    // Only the program's upgrade authority can bootstrap its protocol.
+    expect(plan.payload.transactions[0]!.instructions[0]!.accounts.filter(account => account.signer)
+      .map(account => account.address).sort()).toEqual([authority.toBase58(), upgradeAuthority.toBase58()].sort());
     const operation = plan.payload.operation;
     if (operation.kind !== "launch") throw new Error("Expected launch plan");
     expect(operation.costs.seedLamports).toBe(1_500_000_000);

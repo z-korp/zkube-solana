@@ -2040,8 +2040,25 @@ export type Solana = {
         },
         {
           "name": "authority",
+          "docs": [
+            "Governance authority chosen by the upgrade authority; pays both rents."
+          ],
           "writable": true,
           "signer": true
+        },
+        {
+          "name": "upgradeAuthority",
+          "docs": [
+            "Only the program's upgrade authority may bootstrap its protocol."
+          ],
+          "signer": true
+        },
+        {
+          "name": "program",
+          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+        },
+        {
+          "name": "programData"
         },
         {
           "name": "systemProgram",

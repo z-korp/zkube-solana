@@ -35,8 +35,19 @@ pub struct InitializeProtocol<'info> {
         constraint = team_destination.data_is_empty() @ ErrorCode::InvalidOwner
     )]
     pub team_destination: UncheckedAccount<'info>,
+    /// Governance authority chosen by the upgrade authority; pays both rents.
     #[account(mut)]
     pub authority: Signer<'info>,
+    /// Only the program's upgrade authority may bootstrap its protocol.
+    pub upgrade_authority: Signer<'info>,
+    #[account(
+        constraint = program.programdata_address()? == Some(program_data.key()) @ ErrorCode::Unauthorized
+    )]
+    pub program: Program<'info, crate::program::Solana>,
+    #[account(
+        constraint = program_data.upgrade_authority_address == Some(upgrade_authority.key()) @ ErrorCode::Unauthorized
+    )]
+    pub program_data: Account<'info, ProgramData>,
     pub system_program: Program<'info, System>,
 }
 

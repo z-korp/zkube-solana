@@ -21,7 +21,7 @@ export interface OperatorBundle {
   receipts: Record<number, TransactionReceipt>;
 }
 
-export async function rebuildTransactions(operation: Operation, connection: Connection): Promise<PlannedTransaction[]> {
+export async function rebuildTransactions(operation: Operation, release: ReleaseBinding, connection: Connection): Promise<PlannedTransaction[]> {
   if (operation.kind === "deploy") return deploymentTransactions(operation.input);
   if (operation.kind === "launch") {
     const { input, costs } = operation;
@@ -31,7 +31,7 @@ export async function rebuildTransactions(operation: Operation, connection: Conn
       authorityFundingLamports: costs.authorityFundingLamports, teamFundingLamports: costs.teamFundingLamports });
     if (funding) result.push({ label: funding.label, payer: funding.feePayer, transaction: funding.transaction,
       spend: costs.authorityFundingLamports + costs.teamFundingLamports });
-    const plans = await launchTransactionPlans(input, connection);
+    const plans = await launchTransactionPlans(input, new PublicKey(release.upgradeAuthority), connection);
     const spends = [costs.accountRentLamports, CADENCE_FUNDING_SEED_LAMPORTS, 0, 0, LAUNCH_DAILY_SEED_LAMPORTS];
     result.push(...plans.map((plan, index) => ({ label: plan.label, payer: plan.feePayer,
       transaction: plan.transaction, spend: spends[index]! })));
@@ -59,7 +59,7 @@ export async function rebuildTransactions(operation: Operation, connection: Conn
 }
 
 export async function quoteBundle(operation: Operation, release: ReleaseBinding, connection: Connection): Promise<OperatorBundle> {
-  const rebuilt = await rebuildTransactions(operation, connection);
+  const rebuilt = await rebuildTransactions(operation, release, connection);
   const latest = await connection.getLatestBlockhash("confirmed");
   const feeBySignatures = new Map<number, number>();
   const transactions: PublicTransaction[] = [];
