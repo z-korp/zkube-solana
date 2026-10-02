@@ -367,9 +367,9 @@ impl Trajectory {
                 );
             }
         }
+        request.put("ComboCounter", &[run.engine.combo_counter]);
         request.put("MaxCombo", &[run.engine.max_combo]);
         request.put("Streak", &[run.engine.streak]);
-        request.put("ChargesEarned", &[run.engine.charges_earned]);
         request.put(
             "LevelLinesCleared",
             &run.engine.level_lines_cleared.to_le_bytes(),

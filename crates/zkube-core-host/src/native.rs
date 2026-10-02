@@ -79,7 +79,7 @@ pub const SNAPSHOT_FIELDS: &[Field] = fields![
 
 pub const SUMMARY_FIELDS: &[Field] = fields![
     Phase: U8, EndReason: U8, ScoreEligible: U8, BonusType: U8, BonusCharges: U8,
-    RerollCharges: U8, ComboCounter: U8, PrimaryProgress: U8,
+    RerollCharges: U8, ChargesEarned: U8, PrimaryProgress: U8,
     LatchedStarSources: U8, SecondaryProgress: U8,
     CurrentTier: U8, Moves: U16, ActionCounter: U32,
     LastVrfCounter: U32, Score: U32, DailyScore: U32, ObjectiveTotal: U64, PressureScore: U32,
@@ -827,7 +827,9 @@ pub fn encode_summary(run: Run) -> Vec<u8> {
     scalar!("BonusType", bonus_tag(run.engine.bonus));
     scalar!("BonusCharges", run.engine.bonus_charges);
     scalar!("RerollCharges", run.engine.reroll_charges);
-    scalar!("ComboCounter", run.engine.combo_counter);
+    // Guardian triggers so far, before the inventory cap: an earn at the cap
+    // raises this without raising BonusCharges.
+    scalar!("ChargesEarned", run.engine.charges_earned);
     scalar!("PrimaryProgress", run.engine.primary_progress);
     scalar!("LatchedStarSources", run.engine.latched_star_sources);
     scalar!("SecondaryProgress", run.engine.secondary_progress);

@@ -38,6 +38,17 @@ namespace ZKube.Core
             return events.ToArray();
         }
 
+        // The lines an action cleared: the rows its clear events name. The core
+        // pins this to its move report (shared_golden_engine_cases_match_rust_domain).
+        public static int LinesCleared(IEnumerable<PresentationEvent> events)
+        {
+            int lines = 0;
+            foreach (var e in events)
+                if (e.Kind == PresentationKind.RowsCleared)
+                    for (uint mask = (uint)NativeWire.Read(e.Payload, 0, 2); mask != 0; mask &= mask - 1) lines++;
+            return lines;
+        }
+
         // Applies explicit engine facts to the displayed board.
         // No collision test, gravity solver, line discovery or scoring lives here.
         public static byte[] ProjectBoard(byte[] initial, IEnumerable<PresentationEvent> events)

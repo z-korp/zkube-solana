@@ -23,7 +23,7 @@ namespace ZKube.Presentation
         [Serializable] public sealed class RealmLight { public float[] source; public int shafts; public float moteDp; public int moteDrift; }
         // Every goal the product shows, rendered by codegen: its sentence-case
         // caption, the chip's numbers and signs, how its progress is counted
-        // (fill, ring, pips, or none for Classic) and its pictogram slot for
+        // (fill, ring, bar, or none for Classic) and its pictogram slot for
         // each bonus in tag order.
         [Serializable] public sealed class ConstraintCaption
         {
@@ -133,7 +133,7 @@ namespace ZKube.Presentation
                 throw new FormatException("Generated constraint names are incomplete");
             // Codegen makes every pictogram a skin slot; an older import lacks them.
             if (constraintCaptions.Any(goal => goal.chip == null || goal.pictograms?.Length != (goal.kind == 0 ? 0 : 3) ||
-                    !new[] { "fill", "ring", "pips", "none" }.Contains(goal.counter)))
+                    !new[] { "fill", "ring", "bar", "none" }.Contains(goal.counter)))
                 throw new FormatException("Regenerate the catalog with its goal pictograms");
             if (guardianRules == null || guardianRules.Any(rule => string.IsNullOrEmpty(rule.name) || string.IsNullOrEmpty(rule.effect)))
                 throw new FormatException("Generated guardian descriptions are missing");

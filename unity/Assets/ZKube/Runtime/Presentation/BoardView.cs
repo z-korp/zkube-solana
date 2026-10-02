@@ -136,13 +136,13 @@ namespace ZKube.Presentation
         }
 
         // A goal plate: its pictogram and chip, and its counter as the catalog
-        // names it: a count over a fill bar, a ring, or pips for moves in a row.
+        // names it: a count over a fill bar, a ring, or a bar for moves in a row.
         private sealed class GoalPlate
         {
             public Rect Rect;
             public string Counter, Caption;
             public Image Pictogram, Track, Fill, Tick, Ring;
-            public Image[] Pips = Array.Empty<Image>();
+            public byte Required;
             public TMP_Text Count;
         }
         private string Muted => ColorUtility.ToHtmlStringRGB(art.Token(SkinTokens.TextMuted));
@@ -300,14 +300,15 @@ namespace ZKube.Presentation
                 plate.Ring = ui.Piece(name + " ring", SkinSlots.CounterRing, hud.In(rect, 61, 12, 22, 22), parent);
                 plate.Tick = ui.Piece(name + " tick", SkinSlots.Tick, hud.In(rect, 58, 9, 28, 28), parent);
             }
-            else if (counter == "pips")
+            else if (counter == "bar")
             {
-                // Pips 11 dp across fill in order; they share 56 dp however many there are.
-                int count = Math.Max(1, (int)required);
-                float pitch = Mathf.Min(18, 56f / count), size = Mathf.Min(11, pitch - 2);
-                plate.Pips = new Image[count];
-                for (int j = 0; j < count; j++)
-                    plate.Pips[j] = ui.Piece(name + " pip " + j, SkinSlots.CounterPip, hud.In(rect, 44 + 8 - size / 2 + j * pitch, 23 - size / 2, size, size), parent);
+                // Moves in a row: a bar across the plate's counter that fills
+                // a move at a time and empties when the row breaks.
+                plate.Required = Math.Max((byte)1, required);
+                var bar = new Rect(rect.x + 44 * k * d, rect.center.y - (hud.BarDp + 2) * d / 2, rect.width - 52 * k * d, (hud.BarDp + 2) * d);
+                plate.Track = ui.Piece(name + " track", SkinSlots.CounterTrack, bar, parent);
+                plate.Fill = ui.Piece(name + " fill", SkinSlots.CounterFill, bar, parent);
+                plate.Tick = ui.Piece(name + " tick", SkinSlots.Tick, hud.In(rect, 26, 2, 15, 15), parent);
             }
             return plate;
         }
@@ -321,16 +322,18 @@ namespace ZKube.Presentation
                 // A met goal reads its target, whatever the count behind it.
                 if (met) progress = target;
                 plate.Count.text = progress + "<color=#" + Muted + ">/" + target + "</color>";
-                float share = target == 0 ? 1 : Mathf.Clamp01((float)progress / target);
-                var bar = SkinUi.ScreenRect(plate.Track.rectTransform);
-                plate.Fill.enabled = share > 0;
-                plate.Fill.sprite = art.SkinUi(met ? SkinSlots.CounterFillDone : SkinSlots.CounterFill);
-                SkinUi.Place(plate.Fill.rectTransform, new Rect(bar.x, bar.y, Mathf.Max(bar.height, bar.width * share), bar.height), plate.Fill.transform.parent);
-                plate.Tick.enabled = met;
+                ShowBar(plate, target == 0 ? 1 : Mathf.Clamp01((float)progress / target), met);
             }
             if (plate.Counter == "ring") { plate.Ring.enabled = !met; plate.Tick.enabled = met; }
-            for (int j = 0; j < plate.Pips.Length; j++)
-                plate.Pips[j].sprite = art.SkinUi(met || (ulong)j < progress ? SkinSlots.CounterPipFilled : SkinSlots.CounterPip);
+            if (plate.Counter == "bar") ShowBar(plate, met ? 1 : Mathf.Clamp01((float)progress / plate.Required), met);
+        }
+        private void ShowBar(GoalPlate plate, float share, bool met)
+        {
+            var bar = SkinUi.ScreenRect(plate.Track.rectTransform);
+            plate.Fill.enabled = share > 0;
+            plate.Fill.sprite = art.SkinUi(met ? SkinSlots.CounterFillDone : SkinSlots.CounterFill);
+            SkinUi.Place(plate.Fill.rectTransform, new Rect(bar.x, bar.y, Mathf.Max(bar.height, bar.width * share), bar.height), plate.Fill.transform.parent);
+            plate.Tick.enabled = met;
         }
         // The Earn panel: the trigger pictogram, an arrow, the realm's bonus and
         // the rule's short caption.
@@ -447,121 +450,127 @@ namespace ZKube.Presentation
             status.text = text;
             if (statusPlate != null) statusPlate.enabled = !string.IsNullOrEmpty(text);
         }
-        public void ShowGains(uint scoreGain, ulong themeGain, byte combo, bool reducedMotion)
+        // Move feedback, shown once the move's blocks have settled (DECISIONS
+        // 2026-10-02). "+N" rises from just above the score plate while the
+        // score counts up, and the old client's callouts shout over the board's
+        // centre in the display face: "PERFECT" for a perfect clear and
+        // "COMBO ×N" for a move that cleared N lines, two or more. A perfect
+        // clear's reroll rises from its tablet, or the tablet says it is full.
+        public const int ComboLines = 2;
+        public static string ComboText(int lines) => lines >= ComboLines ? "COMBO ×" + lines : null;
+        public const float ComboSeconds = 1.6f, PerfectSeconds = 1.9f, PerfectDelay = .16f, GainSeconds = .9f, GainRiseDp = 22;
+        public const string FullNote = "Full";
+        public void ShowGains(uint scoreGain, ulong themeGain, int lines, bool reducedMotion, bool perfectClear = false, bool rerollGranted = false)
         {
-            if (scoreGain == 0 && themeGain == 0) return;
-            if (scoreGain > 0 && !reducedMotion) StartCoroutine(CountScore(scoreShown + scoreGain));
             float d = Layout.Density;
-            float y = Layout.Board.yMax - Layout.Cell;
-            float width = Layout.Board.width - 8 * d, lane = (width - 4 * d) / 2;
-            var scoreChip = scoreGain > 0 ? CueText("Accepted score chip", "+" + scoreGain, SkinTokens.Score, 26) : null;
-            // The objective's gain names the day's goal in the goal card's own words.
-            var themeChip = themeGain > 0 && objective != null ? CueText("Accepted theme chip", "+" + themeGain + " " + plates[1].Caption, SkinTokens.Objective, 16) : null;
-            // A chip whose words fit its lane wraps inside it; one with a word too
-            // long for the lane (a huge amount) gets a measured full-width row,
-            // preserving the requested font size instead of spilling into another cue.
-            bool stacked = new[] { scoreChip, themeChip }.Any(t => t != null && t.text.Split(' ').Any(word =>
-                t.GetPreferredValues(word, float.PositiveInfinity, float.PositiveInfinity).x + 4 * d > lane));
-            if (scoreChip != null)
+            if (scoreGain > 0)
             {
-                PlaceCue(scoreChip, Layout.Board.x + 4 * d, y, stacked ? width : lane);
-                if (stacked) y = scoreChip.rectTransform.anchoredPosition.y - 4 * d;
-                StartChip(scoreChip, score, reducedMotion || stacked);
+                if (!reducedMotion) StartCoroutine(CountScore(scoreShown + scoreGain));
+                var plate = hud.Campaign ? plates[0].Rect : hud.Crown;
+                // Over the plate's pictogram, so a header with no room above keeps its count readable.
+                Gain("Accepted score chip", "+" + scoreGain, new Vector2(plate.x + 26 * hud.K * d, plate.yMax + 2 * d), SkinTokens.Score, 22, reducedMotion);
             }
-            if (themeChip != null)
-            {
-                PlaceCue(themeChip, stacked ? Layout.Board.x + 4 * d : Layout.Board.center.x + 2 * d, y, stacked ? width : lane);
-                StartChip(themeChip, objective, reducedMotion || stacked);
-            }
-            if (combo > 1)
-            {
-                var label = CueText("Accepted combo", "COMBO ×" + combo, SkinTokens.Accent, 12);
-                float bottom = new[] { scoreChip, themeChip }.Where(t => t != null)
-                    .Min(t => t.rectTransform.anchoredPosition.y);
-                PlaceCue(label, Layout.Board.x + 4 * d, bottom - 4 * d, width);
-                StartCoroutine(HoldPerfectClear(label));
-            }
-        }
-        private void EarnedChip(string name, string value, Rect rect, TMP_Text destination, string token, float size, bool reducedMotion)
-        {
-            var label = CueText(name, value, token, size);
-            PlaceCue(label, Layout.Board.x + 4 * Layout.Density, rect.yMax, Layout.Board.width - 8 * Layout.Density);
-            StartChip(label, destination, reducedMotion);
+            // The objective's gain rises beside its plate, clear of the plate above it.
+            if (themeGain > 0 && objective != null)
+                Gain("Accepted theme chip", "+" + themeGain, new Vector2(plates[1].Rect.x, plates[1].Rect.center.y), SkinTokens.Objective, 18, reducedMotion, true);
+            string combo = ComboText(lines);
+            float centre = Layout.Board.center.y, apart = 30 * d * ui.Scale;
+            if (perfectClear)
+                Callout("Accepted perfect clear", "PERFECT", 46, SkinTokens.Accent, centre + (combo == null ? 0 : apart), PerfectDelay, PerfectSeconds, reducedMotion);
+            if (combo != null)
+                Callout("Accepted combo", combo, 38, SkinTokens.Text, centre - (perfectClear ? apart : 0), 0, ComboSeconds, reducedMotion);
+            if (!perfectClear) return;
+            var tablet = Layout.RerollButton;
+            if (rerollGranted) Gain("Accepted reroll chip", "+1", new Vector2(tablet.center.x, tablet.yMax + 2 * d), SkinTokens.Accent, 18, reducedMotion);
+            else Gain("Accepted reroll cap", FullNote, new Vector2(tablet.center.x, tablet.yMax + 2 * d), SkinTokens.Accent, 14, reducedMotion);
         }
         private TMP_Text CueText(string name, string value, string token, float size)
         {
-            var label = ui.Label(name, value, Rect.zero, size, token, canvas.transform, true);
-            // Side margins keep glyphs whose ink overhangs their advance inside the cue.
-            label.margin = new Vector4(2 * Layout.Density, 0, 2 * Layout.Density, 0);
+            var label = ui.Label(name, value, Rect.zero, size, token, canvas.transform, SkinUi.Type.Display);
+            label.enableWordWrapping = false;
             label.transform.SetSiblingIndex(modalShield.transform.GetSiblingIndex());
             return label;
         }
-        private void PlaceCue(TMP_Text label, float x, float top, float width)
+        // Places a cue with its pivot at its centre, so it scales and turns about it.
+        private void PlaceCue(TMP_Text label, Vector2 centre, float width)
         {
-            float height = Mathf.Ceil(label.GetPreferredValues(label.text, width, float.PositiveInfinity).y) + 4 * Layout.Density;
-            var rect = new Rect(x, Mathf.Clamp(top - height, Layout.Board.yMin + 4 * Layout.Density,
-                Layout.Board.yMax - height - 4 * Layout.Density), width, height);
-            SkinUi.Place(label.rectTransform, rect, canvas.transform);
+            float height = Mathf.Ceil(label.GetPreferredValues(label.text, float.PositiveInfinity, float.PositiveInfinity).y) + 4 * Layout.Density;
+            SkinUi.Place(label.rectTransform, new Rect(centre.x - width / 2, centre.y - height / 2, width, height), canvas.transform);
+            var rect = label.rectTransform; var shift = Vector2.Scale(rect.sizeDelta, new Vector2(.5f, .5f) - rect.pivot);
+            rect.pivot = new Vector2(.5f, .5f); rect.anchoredPosition += shift;
         }
-        private void StartChip(TMP_Text label, TMP_Text destination, bool reducedMotion)
+        // A small amount or note that rises from foot (its bottom centre; its
+        // right middle when beside) and fades. It stays inside the safe area.
+        // Reduced motion shows it in place and fades it.
+        private void Gain(string name, string value, Vector2 foot, string token, float size, bool reducedMotion, bool beside = false)
         {
-            var size = label.rectTransform.sizeDelta;
-            var target = (Vector2)destination.rectTransform.TransformPoint(destination.rectTransform.rect.center) - size / 2;
-            // Chips rise straight toward the HUD and keep their own lane.
-            target.x = label.rectTransform.anchoredPosition.x;
-            // The entire glyph allowance stays inside the board. Travel aims
-            // toward the readout but ends before entering its labels or keys.
-            float inset = 4 * Layout.Density;
-            target.x = Mathf.Clamp(target.x, Layout.Board.xMin + inset, Layout.Board.xMax - size.x - inset);
-            target.y = Mathf.Clamp(target.y, Layout.Board.yMin + inset, Layout.Board.yMax - size.y - inset);
-            StartCoroutine(TravelChip(label, target, reducedMotion));
+            float d = Layout.Density, rise = reducedMotion ? 0 : GainRiseDp * d;
+            var label = CueText(name, value, token, size);
+            var want = label.GetPreferredValues(value, float.PositiveInfinity, float.PositiveInfinity);
+            float width = Mathf.Ceil(want.x) + 8 * d, height = Mathf.Ceil(want.y) + 4 * d;
+            var frame = Layout.Frame;
+            float x = beside ? foot.x - width / 2 - 4 * d : foot.x, y = beside ? foot.y : foot.y + height / 2;
+            x = Mathf.Clamp(x, frame.xMin + width / 2 + 2 * d, frame.xMax - width / 2 - 2 * d);
+            y = Mathf.Min(y, frame.yMax - height / 2 - rise);
+            PlaceCue(label, new Vector2(x, y), width);
+            label.outlineWidth = .2f; label.outlineColor = CalloutInk;
+            StartCoroutine(RiseAndFade(label, rise));
         }
-        private static IEnumerator TravelChip(TMP_Text label, Vector2 target, bool reducedMotion)
+        private static IEnumerator RiseAndFade(TMP_Text label, float rise)
         {
             var origin = label.rectTransform.anchoredPosition;
-            // Reduced motion keeps the amount at its separate in-board origin.
-            // Authoritative totals and inventory counts remain unobstructed.
-            for (float elapsed = 0; elapsed < .9f; elapsed += Time.unscaledDeltaTime)
+            for (float elapsed = 0; elapsed < GainSeconds; elapsed += Time.unscaledDeltaTime)
             {
-                if (!reducedMotion)
-                    label.rectTransform.anchoredPosition = Vector2.Lerp(origin, target,
-                        Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.2f, .9f, elapsed)));
-                label.alpha = Mathf.Clamp01((.9f - elapsed) / (reducedMotion ? .2f : .45f));
+                float k = elapsed / GainSeconds;
+                label.rectTransform.anchoredPosition = origin + Vector2.up * rise * (1 - (1 - k) * (1 - k));
+                label.alpha = Mathf.Clamp01((GainSeconds - elapsed) / .35f);
                 yield return null;
             }
             Destroy(label.gameObject);
         }
-        private void PerfectClear(bool rerollGranted, bool reducedMotion)
+        // A callout: the word in the display face with a dark outline over a
+        // glow, never wider than the board. It punches in past its size, settles,
+        // holds, swells and leaves, turning a little as it goes, as the old
+        // client's did. Reduced motion fades it in and out in place.
+        private static readonly Color32 CalloutInk = new Color32(4, 14, 22, 255);
+        private static readonly (float at, float scale, float turn)[] Shout =
+            { (0, 0, -20), (.08f, 1.4f, 8), (.16f, 1.1f, -3), (.78f, 1.1f, 0), (.9f, 1.2f, 5), (1, 0, 15) };
+        private void Callout(string name, string value, float size, string token, float centreY, float delay, float seconds, bool reducedMotion)
         {
-            float d = Layout.Density;
-            float top = Layout.Board.center.y - Layout.Cell / 2 + 40 * d;
-            // Gains travel upward; their measured current lower edge and the
-            // stationary combo reserve room for the later clear observation.
-            // This also coordinates reduced-motion cues that stay at origin.
-            foreach (var cue in canvas.GetComponentsInChildren<TMP_Text>())
-                if (cue.name == "Accepted score chip" || cue.name == "Accepted theme chip" || cue.name == "Accepted combo")
-                    top = Mathf.Min(top, cue.rectTransform.anchoredPosition.y - 4 * d);
-            var title = CueText("Accepted perfect clear", "PERFECT CLEAR", SkinTokens.Accent, 25);
-            PlaceCue(title, Layout.Board.x + 4 * d, top, Layout.Board.width - 8 * d);
-            StartCoroutine(HoldPerfectClear(title));
-            var rect = new Rect(Layout.Board.x, title.rectTransform.anchoredPosition.y - 32 * d, Layout.Board.width, 28 * d);
-            if (rerollGranted)
-                EarnedChip("Accepted reroll chip", "+1 REROLL", rect, rerollTablet.Count, SkinTokens.Accent, 16, reducedMotion);
-            else
-            {
-                var full = CueText("Accepted reroll cap", "REROLLS FULL", SkinTokens.Text, 14);
-                PlaceCue(full, Layout.Board.x + 4 * d, rect.yMax, Layout.Board.width - 8 * d);
-                StartCoroutine(HoldPerfectClear(full));
-            }
+            float d = Layout.Density, width = Layout.Board.width - 16 * d;
+            var label = CueText(name, value, token, size);
+            float wide = label.GetPreferredValues(value, float.PositiveInfinity, float.PositiveInfinity).x;
+            if (wide > width / 1.4f) label.fontSize *= width / 1.4f / wide;
+            PlaceCue(label, new Vector2(Layout.Board.center.x, centreY), width);
+            label.outlineWidth = .22f; label.outlineColor = CalloutInk;
+            float tall = label.rectTransform.sizeDelta.y;
+            var glow = ui.Rect<Image>(name + " glow", new Rect(Layout.Board.center.x - 2.4f * tall, centreY - 1.1f * tall, 4.8f * tall, 2.2f * tall), canvas.transform);
+            glow.sprite = art.SkinUi(SkinSlots.FxGlow); glow.raycastTarget = false; glow.color = Color.clear;
+            glow.transform.SetSiblingIndex(label.transform.GetSiblingIndex());
+            StartCoroutine(Shouted(label, glow, art.Token(SkinTokens.Accent), delay, seconds, reducedMotion));
         }
-        private static IEnumerator HoldPerfectClear(TMP_Text label)
+        private static IEnumerator Shouted(TMP_Text label, Image glow, Color light, float delay, float seconds, bool reducedMotion)
         {
-            for (float elapsed = 0; elapsed < 1.1f; elapsed += Time.unscaledDeltaTime)
+            label.alpha = 0;
+            for (float waited = 0; waited < delay; waited += Time.unscaledDeltaTime) yield return null;
+            for (float elapsed = 0; elapsed < seconds && label != null; elapsed += Time.unscaledDeltaTime)
             {
-                label.alpha = Mathf.Clamp01((1.1f - elapsed) / .2f);
+                float k = elapsed / seconds, alpha;
+                if (reducedMotion) alpha = Mathf.Min(Mathf.Clamp01(elapsed / .12f), Mathf.Clamp01((seconds - elapsed) / .25f));
+                else
+                {
+                    int next = 1; while (next < Shout.Length - 1 && Shout[next].at < k) next++;
+                    var from = Shout[next - 1]; var to = Shout[next];
+                    float t = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(from.at, to.at, k)), scale = Mathf.Lerp(from.scale, to.scale, t);
+                    label.rectTransform.localScale = new Vector3(scale, scale, 1);
+                    label.rectTransform.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(from.turn, to.turn, t));
+                    alpha = Mathf.Min(Mathf.Clamp01(k / Shout[1].at), Mathf.Clamp01((1 - k) / (1 - Shout[4].at)));
+                }
+                label.alpha = alpha; glow.color = SkinUi.WithAlpha(light, .4f * alpha);
                 yield return null;
             }
-            Destroy(label.gameObject);
+            if (label != null) Destroy(label.gameObject);
+            if (glow != null) Destroy(glow.gameObject);
         }
         public static string ObjectiveName(byte kind, byte value, byte count = 0) => PageCatalog.Load().ObjectiveName(kind, value, count);
 
@@ -667,8 +676,7 @@ namespace ZKube.Presentation
                     SetBoard(PresentationTrace.ProjectBoard(DisplayGrid, new[] { item }));
                 else if (item.Kind == PresentationKind.PerfectClear)
                 {
-                    PerfectClear(item.Payload[0] == 1, reducedMotion);
-                    // The perfect clear bursts over the whole board.
+                    // The perfect clear bursts over the whole board; its callout follows the trace.
                     if (!reducedMotion) Effects.Burst(Layout.Board.center, Layout.Cell, art.Token(SkinTokens.Accent), 8 * PerfectClearScale / 2);
                 }
                 else if (item.Kind != PresentationKind.Terminal)
@@ -981,7 +989,7 @@ namespace ZKube.Presentation
         // plate to the next empty socket, left to right, and ignites there, and
         // the guardian celebrates a combo, a perfect clear or a star. Reduced
         // motion lights the socket and keeps the guardian's face, without movement.
-        public void Celebrate(byte previousStars, byte earnedStars, byte combo, bool perfectClear)
+        public void Celebrate(byte previousStars, byte earnedStars, int lines, bool perfectClear)
         {
             bool earned = false;
             if (hud.Campaign)
@@ -990,7 +998,7 @@ namespace ZKube.Presentation
                     earned = true;
                     if (!owner.ReducedMotion) StartCoroutine(Fly(goal, socket));
                 }
-            if (!earned && combo < 2 && !perfectClear || guardianFinal) return;
+            if (!earned && lines < ComboLines && !perfectClear || guardianFinal) return;
             Face("celebrate");
             guardianCheerUntil = Time.unscaledTime + GuardianCheer;
             if (!owner.ReducedMotion) GuardianPulse(SkinSlots.FxHalo, art.Token(SkinTokens.LightGlow), .9f, .28f);

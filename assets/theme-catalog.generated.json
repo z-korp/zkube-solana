@@ -277,7 +277,7 @@
     {
       "chip": "×3",
       "count": 3,
-      "counter": "pips",
+      "counter": "bar",
       "kind": 11,
       "pictograms": [
         "goal-streak",
@@ -290,7 +290,7 @@
     {
       "chip": "×5",
       "count": 5,
-      "counter": "pips",
+      "counter": "bar",
       "kind": 11,
       "pictograms": [
         "goal-streak",
@@ -303,7 +303,7 @@
     {
       "chip": "2+ ×2",
       "count": 2,
-      "counter": "pips",
+      "counter": "bar",
       "kind": 11,
       "pictograms": [
         "goal-streak",
@@ -2887,26 +2887,6 @@
           ],
           "image": "/assets/skins/lumen/ui/counter-ring.png",
           "slot": "counter-ring"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/lumen/ui/counter-pip.png",
-          "slot": "counter-pip"
-        },
-        {
-          "border": [
-            0,
-            0,
-            0,
-            0
-          ],
-          "image": "/assets/skins/lumen/ui/counter-pip-filled.png",
-          "slot": "counter-pip-filled"
         },
         {
           "border": [

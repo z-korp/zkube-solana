@@ -353,16 +353,20 @@ namespace ZKube.Presentation
             // back to this snapshot; it must never roll an accepted action back.
             if (!PresentationTrace.ProjectBoard(View.DisplayGrid, transition.Events).SequenceEqual(final.Grid))
                 throw new InvalidOperationException("Presentation trace differs from the native accepted board");
-            uint acceptedScore = Session.Daily ? State.DailyScore : State.Score;
-            View.ShowGains(acceptedScore > previousScore ? acceptedScore - previousScore : 0,
-                Session.Daily && State.ObjectiveTotal > previousTheme ? State.ObjectiveTotal - previousTheme : 0,
-                State.ComboCounter, ReducedMotion);
             var completion = new TaskCompletionSource<bool>();
             StartCoroutine(Animate(transition, completion));
             using (lifetime.Token.Register(() => completion.TrySetCanceled())) await completion.Task;
+            // The move's feedback follows its blocks: the gains, the count-up and
+            // the callouts start once the board has settled. The combo is this
+            // move's lines, as the core's trace lists them.
+            uint acceptedScore = Session.Daily ? State.DailyScore : State.Score;
+            int lines = PresentationTrace.LinesCleared(transition.Events);
+            var perfect = transition.Events.FirstOrDefault(e => e.Kind == PresentationKind.PerfectClear);
+            View.ShowGains(acceptedScore > previousScore ? acceptedScore - previousScore : 0,
+                Session.Daily && State.ObjectiveTotal > previousTheme ? State.ObjectiveTotal - previousTheme : 0,
+                lines, ReducedMotion, perfect != null, perfect != null && perfect.Payload[0] == 1);
             View.Summary(State, Session, false);
-            View.Celebrate(previousStars, State.LatchedStarSources, State.ComboCounter,
-                transition.Events.Any(e => e.Kind == PresentationKind.PerfectClear));
+            View.Celebrate(previousStars, State.LatchedStarSources, lines, perfect != null);
             // One star sound for an action's newly earned stars; an ended run, which keeps none, earns none.
             if (HudLayout.NewStars(previousStars, State.LatchedStarSources).Any()) Sound(SoundCues.Star);
             if (Haptics && Application.platform == RuntimePlatform.Android) Handheld.Vibrate();

@@ -104,8 +104,6 @@ namespace ZKube.Core.Generated
         public const string MultiplierRing = "multiplier-ring";
         public const string MultiplierRingFill = "multiplier-ring-fill";
         public const string CounterRing = "counter-ring";
-        public const string CounterPip = "counter-pip";
-        public const string CounterPipFilled = "counter-pip-filled";
         public const string Tick = "tick";
         public const string GoalAllWidths = "goal-all-widths";
         public const string GoalBonusBreaksHammer = "goal-bonus-breaks-hammer";

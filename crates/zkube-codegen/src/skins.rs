@@ -52,7 +52,7 @@ pub const UI_STRETCH_SLOTS: [&str; 34] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 70] = [
+pub const UI_FIXED_SLOTS: [&str; 68] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -136,11 +136,9 @@ pub const UI_FIXED_SLOTS: [&str; 70] = [
     // The Daily's multiplier capsule and the lit fill that runs round it.
     "multiplier-ring",
     "multiplier-ring-fill",
-    // A one-move goal's ring, the pips of moves in a row, and the tick of a
-    // met goal (also the ring once earned).
+    // A one-move goal's ring and the tick of a met goal (also the ring once
+    // earned).
     "counter-ring",
-    "counter-pip",
-    "counter-pip-filled",
     "tick",
 ];
 

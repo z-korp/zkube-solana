@@ -62,7 +62,7 @@ namespace ZKube.Presentation.Tests
                 string at = "kind " + goal[0] + " value " + goal[1] + " bonus " + bonus;
                 Assert.That(face.text, Is.Not.Empty, at);
                 if (goal[0] == 0) { Assert.AreEqual("none", face.counter, at); return; }
-                Assert.That(new[] { "fill", "ring", "pips" }, Does.Contain(face.counter), at);
+                Assert.That(new[] { "fill", "ring", "bar" }, Does.Contain(face.counter), at);
                 Assert.NotNull(art.SkinUi(face.Pictogram(bonus)), at);
             }
             foreach (var realm in ZKube.Core.Generated.Protocol.Realms)

@@ -2447,18 +2447,23 @@ mod tests {
             };
             let mut run = RunEngine::start(grid(&rows), fixture_row(&fixture["nextRow"])).unwrap();
             let movement = fixture["move"].as_array().unwrap();
+            let mut cleared = ClearedRows(0);
             let report = run
-                .play_move(
+                .play_run_move_observed(
                     0,
                     movement[0].as_u64().unwrap() as u8,
                     movement[1].as_u64().unwrap() as u8,
                     movement[2].as_u64().unwrap() as u8,
-                    level,
                     level_max_moves,
+                    Some(level),
                     guardian,
                     100,
+                    &mut cleared,
                 )
                 .unwrap();
+            // The move's trace carries its lines: the client's combo callout
+            // counts the rows its clear events name.
+            assert_eq!(cleared.0, report.lines_cleared, "{}", fixture["name"]);
             let expected = &fixture["expected"];
             assert_eq!(
                 run.phase,
@@ -2493,6 +2498,15 @@ mod tests {
                 run.latched_star_sources,
                 expected["latchedStarSources"].as_u64().unwrap() as u8
             );
+        }
+    }
+
+    struct ClearedRows(u8);
+    impl crate::PresentationObserver for ClearedRows {
+        fn observe(&mut self, event: crate::PresentationEvent) {
+            if let crate::PresentationEvent::RowsCleared { rows } = event {
+                self.0 += rows.count_ones() as u8;
+            }
         }
     }
 

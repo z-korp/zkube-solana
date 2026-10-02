@@ -80,13 +80,13 @@ pub fn chip(kind: ConstraintKind, value: u8, required: u8) -> String {
 }
 
 /// How a goal's progress is counted on its plate: a fill bar over the run, a
-/// ring for one move, or pips for moves in a row. Classic has no row.
+/// ring for one move, or a bar that fills and resets for moves in a row. Classic has no row.
 #[must_use]
 pub fn counter(kind: ConstraintKind) -> &'static str {
     match kind.class() {
         None => "none",
         Some(ConstraintClass::Cumulative) => "fill",
-        Some(ConstraintClass::Moment) if kind == ConstraintKind::Streak => "pips",
+        Some(ConstraintClass::Moment) if kind == ConstraintKind::Streak => "bar",
         Some(ConstraintClass::Moment) => "ring",
     }
 }
@@ -237,7 +237,7 @@ mod tests {
                 Some(ConstraintClass::Cumulative) => "fill",
                 Some(ConstraintClass::Moment) => {
                     if kind == ConstraintKind::Streak {
-                        "pips"
+                        "bar"
                     } else {
                         "ring"
                     }

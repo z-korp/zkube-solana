@@ -433,7 +433,7 @@ namespace ZKube.Core.Generated
         public byte BonusType { get; set; }
         public byte BonusCharges { get; set; }
         public byte RerollCharges { get; set; }
-        public byte ComboCounter { get; set; }
+        public byte ChargesEarned { get; set; }
         public byte PrimaryProgress { get; set; }
         public byte LatchedStarSources { get; set; }
         public byte SecondaryProgress { get; set; }
@@ -461,7 +461,7 @@ namespace ZKube.Core.Generated
                 BonusType = bytes[3],
                 BonusCharges = bytes[4],
                 RerollCharges = bytes[5],
-                ComboCounter = bytes[6],
+                ChargesEarned = bytes[6],
                 PrimaryProgress = bytes[7],
                 LatchedStarSources = bytes[8],
                 SecondaryProgress = bytes[9],

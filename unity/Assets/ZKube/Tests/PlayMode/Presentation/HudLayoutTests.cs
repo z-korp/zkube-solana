@@ -218,6 +218,50 @@ namespace ZKube.Presentation.Tests
             }
             finally { board.State.LatchedStarSources = saved; board.View.Summary(board.State, board.Session, true); }
         }
+        // DECISIONS 2026-10-02: a streak goal ("clear a line on N moves in a row")
+        // shows a bar that fills a move at a time and resets, not dots.
+        [UnityTest] public IEnumerator AStreakGoalShowsABarThatFillsAndResets()
+        {
+            evidence.Load("realm-8-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
+            var rules = board.Session.Rules; var state = board.State;
+            var saved = (rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount, state.SecondaryProgress, state.LatchedStarSources);
+            board.View.gameObject.SetActive(false);
+            var host = new GameObject("Streak view"); host.transform.SetParent(root.transform);
+            try
+            {
+                var streak = PageCatalog.Load().constraintCaptions.First(goal => goal.counter == "bar" && goal.count >= 3);
+                Assert.AreEqual(11, streak.kind, "Moves in a row are the bar's goal");
+                rules.SecondaryKind = streak.kind; rules.SecondaryValue = streak.value; rules.SecondaryCount = streak.count;
+                float n = streak.count;
+                var ui = new SkinUi(Art(), 1, 1);
+                var view = host.AddComponent<BoardView>();
+                view.Create(board, Art(), HudLayout.Build(ui, state, board.Session, new Rect(0, 0, 417, 882), 1, new Rect(0, 0, 417, 929)), ui);
+                Image Piece(string name) => view.GetComponentsInChildren<Image>(true).Single(image => image.name == name);
+                Assert.IsFalse(view.GetComponentsInChildren<Image>(true).Any(image => image.name.Contains(" pip")), "No dots");
+                float track = WorldRect(Piece("Secondary track").rectTransform).width;
+                Assert.IsTrue(Inside(view.Hud.Plates[2], WorldRect(Piece("Secondary track").rectTransform)), "The bar sits on its plate");
+                float Shown(byte progress, bool met)
+                {
+                    state.SecondaryProgress = progress; state.LatchedStarSources = (byte)(met ? 4 : 0);
+                    view.Summary(state, board.Session, true);
+                    var fill = Piece("Secondary fill");
+                    Assert.AreEqual(met, Piece("Secondary tick").enabled);
+                    return fill.enabled ? WorldRect(fill.rectTransform).width / track : 0;
+                }
+                Assert.AreEqual(0, Shown(0, false), "An empty bar before the first move");
+                Assert.AreEqual(1 / n, Shown(1, false), .02f); Assert.AreEqual(2 / n, Shown(2, false), .02f);
+                Assert.AreEqual(0, Shown(0, false), "A broken row empties the bar");
+                Assert.AreEqual(1 / n, Shown(1, false), .02f);
+                Assert.AreEqual(1, Shown(streak.count, true), .01f, "The met goal's bar is full, with its tick");
+                Assert.AreEqual(1, Shown(0, true), .01f, "A met goal stays full");
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(host);
+                (rules.SecondaryKind, rules.SecondaryValue, rules.SecondaryCount, state.SecondaryProgress, state.LatchedStarSources) = saved;
+                board.View.gameObject.SetActive(true);
+            }
+        }
         // DECISIONS 2026-10-02: the game stays visible behind the pause, blurred.
         // One capture of the board, softened, sits under a scrim that lets it
         // through; the end-run confirm keeps the same capture, and resuming
