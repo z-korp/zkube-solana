@@ -282,6 +282,9 @@ pub struct ArenaDaily {
     pub version: u8,
     pub day_id: u32,
     pub status: PeriodStatus,
+    /// The Daily prepared before this one. Entry backing, finalization
+    /// rollover and suspended funding reach this Daily only from that day.
+    pub predecessor_day: u32,
     pub predecessor_rollover_applied: bool,
     pub rules_hash: [u8; 32],
     pub finalized_at: i64,
@@ -325,6 +328,27 @@ impl ArenaDaily {
             let _ = player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
         }
         Ok(())
+    }
+
+    /// The one funding edge out of `self`: the Daily prepared directly after
+    /// it. Later suspension changes never remap an edge.
+    pub fn require_funding_successor(&self, successor: &ArenaDaily) -> Result<()> {
+        require!(
+            successor.version == ACCOUNT_VERSION
+                && successor.day_id > self.day_id
+                && successor.predecessor_day == self.day_id,
+            ErrorCode::InvalidPeriod
+        );
+        Ok(())
+    }
+
+    /// A suspended Daily nobody entered forwards its funding instead of
+    /// running, once its own predecessor has settled into it.
+    pub fn skippable(&self, suspended_until_day: u32) -> bool {
+        !zkube_core::daily_is_scheduled(self.day_id, suspended_until_day)
+            && matches!(self.status, PeriodStatus::Funding | PeriodStatus::Open)
+            && self.entries_paid == 0
+            && self.predecessor_rollover_applied
     }
 
     pub fn resolved(&self) -> bool {
@@ -872,6 +896,48 @@ mod tests {
     }
 
     #[test]
+    fn the_funding_edge_is_the_recorded_predecessor_whatever_the_suspension() {
+        let daily = |day_id, predecessor_day| ArenaDaily {
+            version: ACCOUNT_VERSION,
+            day_id,
+            predecessor_day,
+            predecessor_rollover_applied: true,
+            ..ArenaDaily::default()
+        };
+        for day in [5, 20_000, u32::MAX - 1] {
+            let source = daily(day, day - 1);
+            assert!(source
+                .require_funding_successor(&daily(day + 1, day))
+                .is_ok());
+            // A gap is one edge when the next Daily was prepared after it.
+            assert!(source
+                .require_funding_successor(&daily(u32::MAX, day))
+                .is_ok());
+            assert!(source
+                .require_funding_successor(&daily(u32::MAX, day - 1))
+                .is_err());
+            assert!(source.require_funding_successor(&source).is_err());
+            assert!(source
+                .require_funding_successor(&daily(day - 1, day))
+                .is_err());
+            // Only a suspended day nobody entered forwards its funding.
+            assert!(source.skippable(day + 1));
+            assert!(!source.skippable(day));
+            assert!(!source.skippable(0));
+            assert!(!ArenaDaily {
+                status: PeriodStatus::Finalized,
+                ..source.clone()
+            }
+            .skippable(day + 1));
+        }
+        let mut protocol = ProtocolConfig::default();
+        assert_eq!(protocol.record_prepared_daily(7).unwrap(), 0);
+        assert_eq!(protocol.record_prepared_daily(u32::MAX).unwrap(), 7);
+        assert!(protocol.record_prepared_daily(u32::MAX).is_err());
+        assert!(protocol.record_prepared_daily(8).is_err());
+    }
+
+    #[test]
     fn archive_is_strictly_sequential() {
         let launch_day = 20_000;
         let mut archive = ProtocolConfig {
@@ -1064,10 +1130,10 @@ mod tests {
     #[test]
     fn account_sizes_and_maximum_board_rent_are_explicit() {
         assert_eq!(ArenaBoardEntry::INIT_SPACE, 84);
-        assert_eq!(8 + ArenaDaily::INIT_SPACE, 133);
+        assert_eq!(8 + ArenaDaily::INIT_SPACE, 137);
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
-        assert_eq!(daily_bytes.len(), 125);
+        assert_eq!(daily_bytes.len(), 129);
         assert_eq!(ArenaBoard::INIT_SPACE, 116);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_340);
         assert_eq!(8 + ArenaPlayer::INIT_SPACE, 290);

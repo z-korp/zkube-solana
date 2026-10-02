@@ -2187,6 +2187,7 @@
       "accounts": [
         {
           "name": "protocol",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -3673,6 +3674,14 @@
             }
           },
           {
+            "name": "predecessor_day",
+            "docs": [
+              "The Daily prepared before this one. Entry backing, finalization",
+              "rollover and suspended funding reach this Daily only from that day."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "predecessor_rollover_applied",
             "type": "bool"
           },
@@ -4164,6 +4173,13 @@
           },
           {
             "name": "launch_day_id",
+            "type": "u32"
+          },
+          {
+            "name": "last_prepared_day",
+            "docs": [
+              "Highest prepared Daily; the next prepared Daily names it as predecessor."
+            ],
             "type": "u32"
           },
           {

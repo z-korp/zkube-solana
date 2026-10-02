@@ -48,6 +48,8 @@ export interface DailySnapshot {
   entriesPaid: bigint;
   entriesScored: bigint;
   entriesExpired: bigint;
+  /** The Daily prepared before this one: its only funding predecessor. */
+  predecessorDayId: number;
   predecessorRolloverRequired: boolean;
   predecessorRolloverApplied: boolean;
   claimsExpired: boolean;
@@ -93,6 +95,8 @@ export interface ProtocolSnapshot {
   paused: boolean;
   launchDayId: number;
   suspendedUntilDay: number;
+  /** Preparation only moves forward from this day. */
+  lastPreparedDay: number;
   dailies: readonly DailySnapshot[];
   runs: readonly RunSnapshot[];
   closedArenaPlayers?: readonly ClosedArenaPlayerSnapshot[];
@@ -110,6 +114,8 @@ export function discoverReconciliation(args: {
   const today = currentDayId(args.nowUnix);
   const oldestKeeperDay = Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES);
   const dailyById = new Map(args.snapshot.dailies.map((daily) => [daily.dayId, daily]));
+  const successorOf = (daily: DailySnapshot) =>
+    args.snapshot.dailies.find(({ predecessorDayId }) => predecessorDayId === daily.dayId);
   appendCadenceArchivePlan(
     plans,
     args.snapshot,
@@ -124,14 +130,20 @@ export function discoverReconciliation(args: {
       args.snapshot.suspendedUntilDay,
     );
     for (const daily of args.snapshot.dailies) {
-      if (daily.status !== "funding") continue;
       if (daily.dayId < args.snapshot.suspendedUntilDay) {
-        if (dailyById.has(args.snapshot.suspendedUntilDay)) {
+        // A suspended Daily nobody entered forwards its funding along its
+        // one edge, once its own predecessor has settled into it.
+        const successor = successorOf(daily);
+        if ((daily.status === "funding" || daily.status === "open") && daily.entriesPaid === 0n &&
+            daily.predecessorRolloverApplied && successor && successor.status !== "finalized" &&
+            !successor.predecessorRolloverApplied) {
           plans.push(keeperPlan("skip_suspended_arena_daily", {
             dayId: daily.dayId,
-            followingDayId: args.snapshot.suspendedUntilDay,
+            followingDayId: successor.dayId,
           }));
         }
+      } else if (daily.status !== "funding") {
+        continue;
       } else if (daily.dayId === activationCurrent &&
           args.nowUnix < dailyWindow(today).runsCloseAt) {
         plans.push(keeperPlan("activate_arena_daily", {
@@ -147,7 +159,8 @@ export function discoverReconciliation(args: {
 
   const missingDay = firstMissingScheduledCadence(
     Math.max(oldestKeeperDay, (args.snapshot.archiveState?.lastDailyId ?? -1) + 1,
-      scheduledDailyWindow(args.snapshot.launchDayId, args.snapshot.suspendedUntilDay).first),
+      args.snapshot.lastPreparedDay + 1,
+      scheduledDailyWindow(today, args.snapshot.suspendedUntilDay).first),
     nextScheduledDaily(today, args.snapshot.suspendedUntilDay),
     dailyById,
   );
@@ -175,9 +188,7 @@ export function discoverReconciliation(args: {
       daily,
       args.nowUnix >= daily.runsCloseAt && resolved === daily.entriesPaid &&
         (!daily.predecessorRolloverRequired || daily.predecessorRolloverApplied),
-      [...dailyById.keys()]
-        .filter((dayId) => dayId > daily.dayId)
-        .sort((left, right) => left - right)[0],
+      successorOf(daily)?.dayId,
     );
     appendBoardConstructionPlans(plans, daily);
   }

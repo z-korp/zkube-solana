@@ -109,6 +109,7 @@ fn protocol_fixture(
             paused,
             bump,
             launch_day_id: 32,
+            last_prepared_day: 32,
             last_daily_id: 31,
             ..ProtocolConfig::default()
         },
@@ -468,6 +469,7 @@ fn daily_fixture(
             version: ACCOUNT_VERSION,
             day_id,
             status,
+            predecessor_day: day_id - 1,
             predecessor_rollover_applied,
             rules_hash: [2; 32],
             finalized_at: 0,
@@ -771,6 +773,45 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
 
     let mut runtime = mollusk();
     runtime.sysvars.clock.unix_timestamp = day_window(current_daily_state.day_id).unwrap().1 - 1;
+
+    // Suspension stops paid entry at once, even on a Daily that is already
+    // Open, and before any Kredit, vault, pot or reservation changes.
+    let with_suspension = |until_day: u32| {
+        let mut suspended = accounts.clone();
+        let mut state = protocol_state.clone();
+        state.suspended_until_day = until_day;
+        suspended[0].1 = program_account(&state, 8 + ProtocolConfig::INIT_SPACE);
+        suspended
+    };
+    let suspended = with_suspension(day_id + 3);
+    let refused = runtime.process_instruction(&instruction, &suspended);
+    assert_eq!(
+        refused.program_result,
+        mollusk_svm::result::ProgramResult::Failure(
+            anchor_lang::error::Error::from(zkube::error::ErrorCode::DailyNotScheduled).into()
+        )
+    );
+    for (key, original) in &suspended {
+        assert_eq!(resulting_account(&refused, key), original);
+    }
+    let resumed = runtime.process_instruction(&instruction, &with_suspension(day_id));
+    assert!(resumed.program_result.is_ok(), "{:?}", resumed.program_result);
+
+    // Entry backing reaches only the Daily prepared directly after today's.
+    let (later_daily, later_daily_state) = daily_fixture(day_id + 2, PeriodStatus::Funding, false);
+    let mut skipping = instruction.clone();
+    skipping.accounts[4].pubkey = later_daily;
+    let mut skipping_accounts = accounts.clone();
+    skipping_accounts.push((
+        later_daily,
+        program_account(&later_daily_state, 8 + ArenaDaily::INIT_SPACE),
+    ));
+    let refused = runtime.process_instruction(&skipping, &skipping_accounts);
+    assert!(refused.program_result.is_err());
+    for (key, original) in &skipping_accounts {
+        assert_eq!(resulting_account(&refused, key), original);
+    }
+
     let result = runtime.process_instruction_chain(&instructions, &accounts);
     assert!(result.program_result.is_ok(), "{:?}", result.program_result);
 
@@ -1094,6 +1135,16 @@ fn sbf_cadence_funding_can_prepare_a_missing_post_launch_daily() {
     assert_eq!(after.day_id, missing_day);
     assert_eq!(after.status, PeriodStatus::Funding);
     assert!(!after.predecessor_rollover_applied);
+    assert_eq!(after.predecessor_day, protocol_state.launch_day_id);
+    let advanced: ProtocolConfig = decode(resulting_account(&result, &protocol));
+    assert_eq!(advanced.last_prepared_day, missing_day);
+    // Preparation only moves forward: no day at or below the last one.
+    let mut stale = accounts.clone();
+    stale[0].1 = resulting_account(&result, &protocol).clone();
+    assert!(runtime
+        .process_instruction(&instruction, &stale)
+        .program_result
+        .is_err());
     let realm = zkube_core::REALM_RULES[usize::from(realm_map_id - 1)];
     assert_eq!(
         after.rules_hash,
@@ -2286,5 +2337,164 @@ fn an_untrusted_initializer_cannot_claim_the_protocol() {
         &instruction(governance, upgrade_authority, program_data),
         &again,
     );
+    assert!(repeated.program_result.is_err());
+}
+
+#[test]
+fn finalization_rejects_skipping_its_funding_successor() {
+    for day_id in [20_651, u32::MAX - 2] {
+        let (daily, mut state) = daily_fixture(day_id, PeriodStatus::Open, true);
+        state.ledger.seeded_lamports = 5_000_000;
+        let (next, next_state) = daily_fixture(day_id + 1, PeriodStatus::Funding, false);
+        let (later, later_state) = daily_fixture(day_id + 2, PeriodStatus::Funding, false);
+        let board = |kind: DailyBoardKind| {
+            Pubkey::find_program_address(&[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()], &zkube::ID)
+                .0
+        };
+        let cadence_funding = Pubkey::find_program_address(&[CADENCE_FUNDING_SEED], &zkube::ID).0;
+        let caller = Pubkey::new_unique();
+        let finalize = |following_daily| anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts: zkube::accounts::FinalizeArenaDaily {
+                arena_daily: daily,
+                following_daily,
+                score_board: board(DailyBoardKind::Score),
+                theme_board: board(DailyBoardKind::Theme),
+                cadence_funding,
+                caller,
+                system_program: anchor_lang::system_program::ID,
+            }
+            .to_account_metas(None),
+            data: zkube::instruction::FinalizeArenaDaily {}.data(),
+        };
+        let accounts = vec![
+            (
+                daily,
+                serialized_account(
+                    &state,
+                    8 + ArenaDaily::INIT_SPACE,
+                    zkube::ID,
+                    ACCOUNT_LAMPORTS + 5_000_000,
+                ),
+            ),
+            (next, program_account(&next_state, 8 + ArenaDaily::INIT_SPACE)),
+            (later, program_account(&later_state, 8 + ArenaDaily::INIT_SPACE)),
+            (board(DailyBoardKind::Score), system_account(0)),
+            (board(DailyBoardKind::Theme), system_account(0)),
+            (cadence_funding, system_account(500_000_000)),
+            (caller, system_account(ACCOUNT_LAMPORTS)),
+            (anchor_lang::system_program::ID, system_program_account()),
+        ];
+        let mut runtime = mollusk();
+        runtime.sysvars.clock.unix_timestamp = day_window(day_id).unwrap().1;
+
+        // A later prepared Daily is not the successor: nothing moves.
+        let skipped = runtime.process_instruction(&finalize(later), &accounts);
+        assert!(skipped.program_result.is_err());
+        for (key, original) in &accounts {
+            assert_eq!(resulting_account(&skipped, key), original);
+        }
+
+        let settled = runtime.process_instruction(&finalize(next), &accounts);
+        assert!(settled.program_result.is_ok(), "{:?}", settled.program_result);
+        let successor: ArenaDaily = decode(resulting_account(&settled, &next));
+        assert!(successor.predecessor_rollover_applied);
+        assert_eq!(successor.ledger.rollover_in_lamports, 5_000_000);
+        let untouched: ArenaDaily = decode(resulting_account(&settled, &later));
+        assert!(!untouched.predecessor_rollover_applied);
+    }
+}
+
+#[test]
+fn an_early_opened_daily_still_carries_suspended_funding_across_the_gap() {
+    let caller = Pubkey::new_unique();
+    let (protocol, mut protocol_state) =
+        protocol_fixture(Pubkey::new_unique(), Pubkey::new_unique(), false);
+    let suspended_day = protocol_state.launch_day_id + 1;
+    let resumed_day = suspended_day + 3;
+    protocol_state.suspended_until_day = resumed_day;
+    let funded = 1_000_000;
+    let cadence_funding = Pubkey::find_program_address(&[CADENCE_FUNDING_SEED], &zkube::ID).0;
+    // Both ends were activated early, before governance suspended the gap.
+    let (source, mut source_state) = daily_fixture(suspended_day, PeriodStatus::Open, true);
+    source_state.ledger.entry_lamports = funded;
+    let (recipient, mut recipient_state) = daily_fixture(resumed_day, PeriodStatus::Open, false);
+    recipient_state.predecessor_day = suspended_day;
+    let (unrelated, mut unrelated_state) =
+        daily_fixture(resumed_day + 1, PeriodStatus::Funding, false);
+    unrelated_state.predecessor_day = resumed_day;
+    let skip = |successor_daily| anchor_lang::solana_program::instruction::Instruction {
+        program_id: zkube::ID,
+        accounts: zkube::accounts::SkipSuspendedArenaDaily {
+            protocol,
+            suspended_daily: source,
+            successor_daily,
+            cadence_funding,
+            caller,
+        }
+        .to_account_metas(None),
+        data: zkube::instruction::SkipSuspendedArenaDaily {}.data(),
+    };
+    let accounts = |source_state: &ArenaDaily| {
+        vec![
+            (
+                protocol,
+                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+            ),
+            (
+                source,
+                serialized_account(
+                    source_state,
+                    8 + ArenaDaily::INIT_SPACE,
+                    zkube::ID,
+                    ACCOUNT_LAMPORTS + funded,
+                ),
+            ),
+            (
+                recipient,
+                program_account(&recipient_state, 8 + ArenaDaily::INIT_SPACE),
+            ),
+            (
+                unrelated,
+                program_account(&unrelated_state, 8 + ArenaDaily::INIT_SPACE),
+            ),
+            (cadence_funding, system_account(ACCOUNT_LAMPORTS)),
+            (caller, system_account(ACCOUNT_LAMPORTS)),
+        ]
+    };
+    let reject = |instruction, accounts: Vec<(Pubkey, Account)>| {
+        let rejected = mollusk().process_instruction(&instruction, &accounts);
+        assert!(rejected.program_result.is_err());
+        for (key, original) in &accounts {
+            assert_eq!(resulting_account(&rejected, key), original);
+        }
+    };
+
+    // Not into a later Daily, not while a player's entry is on the day, and
+    // not before the day's own predecessor has settled into it.
+    reject(skip(unrelated), accounts(&source_state));
+    let mut entered = source_state.clone();
+    entered.entries_paid = 1;
+    reject(skip(recipient), accounts(&entered));
+    let mut unsettled = source_state.clone();
+    unsettled.predecessor_rollover_applied = false;
+    reject(skip(recipient), accounts(&unsettled));
+
+    let moved = mollusk().process_instruction(&skip(recipient), &accounts(&source_state));
+    assert!(moved.program_result.is_ok(), "{:?}", moved.program_result);
+    let after: ArenaDaily = decode(resulting_account(&moved, &recipient));
+    assert!(after.predecessor_rollover_applied);
+    assert_eq!(after.status, PeriodStatus::Open);
+    assert_eq!(after.ledger.rollover_in_lamports, funded);
+    assert_eq!(resulting_account(&moved, &source).lamports, 0);
+    assert_eq!(
+        resulting_account(&moved, &cadence_funding).lamports,
+        2 * ACCOUNT_LAMPORTS
+    );
+    assert_eq!(
+        resulting_account(&moved, &unrelated),
+        &program_account(&unrelated_state, 8 + ArenaDaily::INIT_SPACE)
+    );
+    let repeated = mollusk().process_instruction(&skip(recipient), &moved.resulting_accounts);
     assert!(repeated.program_result.is_err());
 }

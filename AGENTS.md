@@ -149,10 +149,20 @@ spending approval.
   authored dates or content accounts. A seeded without-replacement draw uses absolute day IDs; neither
   operator nor VRF chooses a pair. `daily_draw_is_reproducible_from_seed_and_day` guards independent
   recomputation.
-- **Suspension:** governance may suspend Dailies instantly for any duration. Prepaid funding crosses the gap
-  once to the first eligible prepared successor, without spending a Kredit or remapping later days.
-  `a_suspended_day_is_skipped_once_and_its_funding_reaches_the_next_scheduled_day` and
+- **Suspension:** governance may suspend Dailies instantly for any duration. Paid entry rejects on a suspended
+  day, including one already Open, before any Kredit, vault or pot change. A suspended Daily nobody entered
+  forwards its funding once, after its own predecessor has settled into it and whether or not it was activated
+  early, without spending a Kredit or remapping later days.
+  `a_suspended_day_is_skipped_once_and_its_funding_reaches_the_next_scheduled_day`,
+  `an_early_opened_daily_still_carries_suspended_funding_across_the_gap`,
+  `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` and
   `suspension_window_handles_gaps_and_u32_limits` guard that behavior.
+- **Funding edge:** preparation only moves forward, and each Daily records the Daily prepared before it. Entry
+  backing, finalization rollover and suspended funding reach a Daily only from that recorded predecessor; a
+  later suspension change never remaps an edge, and no caller chooses a successor.
+  `the_funding_edge_is_the_recorded_predecessor_whatever_the_suspension`,
+  `finalization_rejects_skipping_its_funding_successor` and `follows the recorded funding edge and never
+  prepares behind the last Daily` guard the program and the keeper.
 - **No future-content panel:** the app shows the current challenge and suspension notice, without previewing
   the following day's pair. `keeps reversed models out of authored source` guards the retired copy; the
   keeper can still prepare its account.

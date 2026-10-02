@@ -33,6 +33,8 @@ pub struct ProtocolConfig {
     /// Days below this absolute identifier are suspended; zero disables it.
     pub suspended_until_day: u32,
     pub launch_day_id: u32,
+    /// Highest prepared Daily; the next prepared Daily names it as predecessor.
+    pub last_prepared_day: u32,
     /// Last finalized Daily committed by the permanent result root.
     pub last_daily_id: u32,
     pub daily_root: [u8; 32],
@@ -40,6 +42,13 @@ pub struct ProtocolConfig {
 }
 
 impl ProtocolConfig {
+    /// Preparation is strictly increasing, so the prepared Dailies form one
+    /// chain. Returns the predecessor the new Daily records.
+    pub fn record_prepared_daily(&mut self, day_id: u32) -> Result<u32> {
+        require!(day_id > self.last_prepared_day, ErrorCode::InvalidPeriod);
+        Ok(core::mem::replace(&mut self.last_prepared_day, day_id))
+    }
+
     pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
         require!(
             self.launch_day_id > 0
@@ -627,7 +636,7 @@ mod tests {
             ActiveRun::INIT_SPACE,
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
-        assert_eq!(8 + ProtocolConfig::INIT_SPACE, 151);
+        assert_eq!(8 + ProtocolConfig::INIT_SPACE, 155);
         assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 206);
         assert_eq!(8 + ActiveRun::INIT_SPACE, 337);
     }

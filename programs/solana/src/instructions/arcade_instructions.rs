@@ -13,7 +13,7 @@ use session_keys::SessionTokenV2;
 #[derive(Accounts)]
 #[instruction(day_id: u32)]
 pub struct PrepareArenaDaily<'info> {
-    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
+    #[account(mut, seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
         constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = day_id > protocol.last_daily_id @ ErrorCode::InvalidPeriod)]
     pub protocol: Box<Account<'info, ProtocolConfig>>,
@@ -54,6 +54,7 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         version: ACCOUNT_VERSION,
         day_id,
         status: PeriodStatus::Funding,
+        predecessor_day: ctx.accounts.protocol.record_prepared_daily(day_id)?,
         predecessor_rollover_applied: false,
         rules_hash,
         finalized_at: 0,
@@ -128,14 +129,14 @@ pub struct SkipSuspendedArenaDaily<'info> {
         close = cadence_funding,
         seeds = [ARENA_DAILY_SEED, suspended_daily.day_id.to_le_bytes().as_ref()],
         bump = suspended_daily.bump,
-        constraint = suspended_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState
+        constraint = suspended_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub suspended_daily: Box<Account<'info, ArenaDaily>>,
     #[account(
         mut,
         seeds = [ARENA_DAILY_SEED, successor_daily.day_id.to_le_bytes().as_ref()],
         bump = successor_daily.bump,
-        constraint = successor_daily.status == PeriodStatus::Funding @ ErrorCode::InvalidState,
+        constraint = matches!(successor_daily.status, PeriodStatus::Funding | PeriodStatus::Open) @ ErrorCode::InvalidState,
         constraint = !successor_daily.predecessor_rollover_applied @ ErrorCode::InvalidState
     )]
     pub successor_daily: Box<Account<'info, ArenaDaily>>,
@@ -152,13 +153,15 @@ pub struct SkipSuspendedArenaDaily<'info> {
 }
 
 pub fn handler_skip_suspended_arena_daily(ctx: Context<SkipSuspendedArenaDaily>) -> Result<()> {
-    let threshold = ctx.accounts.protocol.suspended_until_day;
     require!(
-        threshold > 0
-            && ctx.accounts.suspended_daily.day_id < threshold
-            && ctx.accounts.successor_daily.day_id == threshold,
+        ctx.accounts
+            .suspended_daily
+            .skippable(ctx.accounts.protocol.suspended_until_day),
         ErrorCode::DailyNotScheduled
     );
+    ctx.accounts
+        .suspended_daily
+        .require_funding_successor(&ctx.accounts.successor_daily)?;
     let rollover = ctx.accounts.suspended_daily.ledger.funded_lamports()?;
     require_spendable(&ctx.accounts.suspended_daily.to_account_info(), rollover)?;
     move_program_lamports(
@@ -370,9 +373,16 @@ pub fn handler_enter_arena<'info>(
     let now = Clock::get()?.unix_timestamp;
     let day_id = day_id_at(now)?;
     require!(
-        ctx.accounts.current_daily.day_id == day_id && ctx.accounts.following_daily.day_id > day_id,
+        ctx.accounts.current_daily.day_id == day_id,
         ErrorCode::InvalidPeriod
     );
+    require!(
+        zkube_core::daily_is_scheduled(day_id, ctx.accounts.protocol.suspended_until_day),
+        ErrorCode::DailyNotScheduled
+    );
+    ctx.accounts
+        .current_daily
+        .require_funding_successor(&ctx.accounts.following_daily)?;
     require!(
         ctx.accounts.current_daily.status == PeriodStatus::Open
             && matches!(
@@ -627,10 +637,9 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
             && ctx.accounts.arena_daily.resolved(),
         ErrorCode::InvalidPeriod
     );
-    require!(
-        ctx.accounts.following_daily.day_id > ctx.accounts.arena_daily.day_id,
-        ErrorCode::InvalidPeriod
-    );
+    ctx.accounts
+        .arena_daily
+        .require_funding_successor(&ctx.accounts.following_daily)?;
     let pool = ctx.accounts.arena_daily.ledger.available_lamports()?;
     let pools = daily_board_pools(pool, ctx.accounts.arena_daily.theme_qualified_players);
     let score_plan = board_payout_plan(

@@ -167,6 +167,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       paused,
       launchDayId,
       suspendedUntilDay,
+      lastPreparedDay: u32(protocol.value.lastPreparedDay, "last prepared day"),
       dailies: dailies.map(({ snapshot }) => snapshot),
       runs,
       closedArenaPlayers,
@@ -406,6 +407,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
         entriesPaid: bigint(item.value.entriesPaid, "ArenaDaily paid entries"),
         entriesScored: bigint(item.value.entriesScored, "ArenaDaily scored entries"),
         entriesExpired: bigint(item.value.entriesExpired, "ArenaDaily expired entries"),
+        predecessorDayId: u32(item.value.predecessorDay, "ArenaDaily predecessor day"),
         predecessorRolloverRequired: dayId !== launchDayId,
         predecessorRolloverApplied: boolean(
           item.value.predecessorRolloverApplied,

@@ -237,6 +237,44 @@ describe("v5 Daily keeper reconciliation", () => {
       .toMatchObject({ dayId: DAY });
   });
 
+  it("follows the recorded funding edge and never prepares behind the last Daily", () => {
+    const resolved = { ...daily(DAY, "open"), predecessorRolloverApplied: true };
+    const plan = (dailies: DailySnapshot[], overrides: Partial<ProtocolSnapshot> = {}) =>
+      discoverReconciliation({ nowUnix: NOW,
+        snapshot: snapshot({ paused: false, launchDayId: DAY - 9, dailies, ...overrides }) });
+    const finalization = (plans: ReturnType<typeof plan>) =>
+      plans.find(({ operation }) => operation === "finalize_arena_daily")?.context;
+
+    // The successor is the Daily prepared after it, across a gap of days.
+    expect(finalization(plan([resolved, { ...daily(DAY + 3, "funding"), predecessorDayId: DAY }])))
+      .toEqual({ dayId: DAY, followingDayId: DAY + 3 });
+    // A later Daily that names another predecessor is not a successor.
+    expect(finalization(plan([resolved, { ...daily(DAY + 2, "funding"), predecessorDayId: DAY + 1 }])))
+      .toBeUndefined();
+
+    // After an outage the next preparation is today's, not the missed days.
+    const late = discoverReconciliation({ nowUnix: (DAY + 5) * SECONDS_PER_DAY + 1,
+      snapshot: snapshot({ paused: false, launchDayId: DAY - 9, dailies: [resolved] }) });
+    expect(late.find(({ operation }) => operation === "prepare_arena_daily")?.context)
+      .toEqual({ followingDayId: DAY + 5 });
+  });
+
+  it("forwards a suspended Daily nobody entered, even after early activation", () => {
+    const resumed = { ...daily(DAY + 4, "open"), entriesPaid: 0n, entriesScored: 0n,
+      predecessorDayId: DAY + 1, predecessorRolloverApplied: false };
+    const skips = (suspended: DailySnapshot) => discoverReconciliation({ nowUnix: (DAY + 1) * SECONDS_PER_DAY + 1,
+      snapshot: snapshot({ paused: false, launchDayId: DAY, suspendedUntilDay: DAY + 4,
+        dailies: [suspended, resumed] }) })
+      .filter(({ operation }) => operation === "skip_suspended_arena_daily").map(({ context }) => context);
+    const opened = { ...daily(DAY + 1, "open"), entriesPaid: 0n, entriesScored: 0n };
+    expect(skips(opened)).toEqual([{ dayId: DAY + 1, followingDayId: DAY + 4 }]);
+    expect(skips(daily(DAY + 1, "funding"))).toEqual([{ dayId: DAY + 1, followingDayId: DAY + 4 }]);
+    // A started competition settles through finalization instead, and a day
+    // still waiting for its own predecessor waits.
+    expect(skips({ ...opened, entriesPaid: 1n })).toEqual([]);
+    expect(skips({ ...opened, predecessorRolloverApplied: false })).toEqual([]);
+  });
+
   it("keeps monetary, archive, and cleanup ordering stable", () => {
     expect(KEEPER_PLAN_INSTRUCTION.finalize_arena_daily.priority)
       .toBeLessThan(KEEPER_PLAN_INSTRUCTION.archive_arena_daily.priority);
@@ -252,6 +290,7 @@ function snapshot(overrides: Partial<ProtocolSnapshot> = {}): ProtocolSnapshot {
     paused: true,
     launchDayId: DAY,
     suspendedUntilDay: 0,
+    lastPreparedDay: Math.max(0, ...(overrides.dailies ?? []).map(({ dayId }) => dayId)),
     dailies: [],
     runs: [],
     archiveCandidates: [],
@@ -275,6 +314,7 @@ function daily(
     entriesPaid: status === "funding" ? 0n : 2n,
     entriesScored: status === "funding" ? 0n : 2n,
     entriesExpired: 0n,
+    predecessorDayId: dayId - 1,
     predecessorRolloverRequired: dayId !== DAY,
     predecessorRolloverApplied: dayId !== DAY,
     claimsExpired: false,

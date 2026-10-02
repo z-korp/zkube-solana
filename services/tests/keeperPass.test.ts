@@ -24,7 +24,7 @@ function pass(count = 7) {
   const input = {
     connection: connection as unknown as Connection, keeper, writeEnabled: true,
     now: () => 20_700 * 86_400_000,
-    protocolSnapshot: { paused: true, launchDayId: 20_700, suspendedUntilDay: 0, dailies: [], runs: [],
+    protocolSnapshot: { paused: true, launchDayId: 20_700, suspendedUntilDay: 0, lastPreparedDay: 20_701, dailies: [], runs: [],
       closedArenaPlayers: Array.from({ length: count }, () => ({ dayId: 20_699,
         owner: Keypair.generate().publicKey, rentPayer: keeper.publicKey })) },
     protocolMaterializer: { materialize: async () => [new TransactionInstruction({
@@ -95,7 +95,7 @@ it("keeper_board_rent_ceiling_bounds_the_sum_of_finalizations_in_one_pass", asyn
   const dailies: DailySnapshot[] = [20_698, 20_699, 20_700, 20_701].map(dayId => ({
     dayId, status: dayId < 20_700 ? "open" : "funding", finalizedAt: 0,
     runsCloseAt: dayId * 86_400 + 86_340, recoveryDeadlineAt: dayId * 86_400 + 107_940,
-    entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n,
+    entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n, predecessorDayId: dayId - 1,
     predecessorRolloverRequired: true, predecessorRolloverApplied: true, claimsExpired: false,
   }));
   const log = vi.fn();
@@ -121,7 +121,7 @@ it("keeper_board_writes_stop_at_the_separate_pass_limit", async () => {
       dayId, status: finalized ? "finalized" : "funding", finalizedAt: finalized ? closes : 0,
       runsCloseAt: closes, recoveryDeadlineAt: closes + 21_600,
       entriesPaid: finalized ? 1n : 0n, entriesScored: finalized ? 1n : 0n, entriesExpired: 0n,
-      predecessorRolloverRequired: index !== 0, predecessorRolloverApplied: index !== 0 && dayId <= 20_700,
+      predecessorDayId: dayId - 1, predecessorRolloverRequired: index !== 0, predecessorRolloverApplied: index !== 0 && dayId <= 20_700,
       claimsExpired: false,
       ...(finalized ? {
         scoreBoard: { kind: "score" as const, cursor: 0, payoutCount: 1, sealed: false, sealedAt: 0 },

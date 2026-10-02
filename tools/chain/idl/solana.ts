@@ -2193,6 +2193,7 @@ export type Solana = {
       "accounts": [
         {
           "name": "protocol",
+          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -3679,6 +3680,14 @@ export type Solana = {
             }
           },
           {
+            "name": "predecessorDay",
+            "docs": [
+              "The Daily prepared before this one. Entry backing, finalization",
+              "rollover and suspended funding reach this Daily only from that day."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "predecessorRolloverApplied",
             "type": "bool"
           },
@@ -4170,6 +4179,13 @@ export type Solana = {
           },
           {
             "name": "launchDayId",
+            "type": "u32"
+          },
+          {
+            "name": "lastPreparedDay",
+            "docs": [
+              "Highest prepared Daily; the next prepared Daily names it as predecessor."
+            ],
             "type": "u32"
           },
           {

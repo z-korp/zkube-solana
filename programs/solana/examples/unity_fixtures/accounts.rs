@@ -72,6 +72,7 @@ pub fn daily(day: u32) -> ArenaDaily {
         version: ACCOUNT_VERSION,
         day_id: day,
         status: PeriodStatus::Open,
+        predecessor_day: day - 1,
         predecessor_rollover_applied: true,
         rules_hash: zkube_core::daily_rules_hash(
             day,
