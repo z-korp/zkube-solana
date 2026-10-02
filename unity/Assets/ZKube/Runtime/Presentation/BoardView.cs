@@ -393,6 +393,7 @@ namespace ZKube.Presentation
         }
         private uint movesLeft;
         private bool playing;
+        private int starsLit;
         public void Summary(RunSummary state, BoardSession session, bool available)
         {
             ShowScore(session.Daily ? state.DailyScore : state.Score);
@@ -410,9 +411,10 @@ namespace ZKube.Presentation
                 byte latched = state.LatchedStarSources;
                 ShowPlate(plates[1], state.PrimaryProgress, rules.PrimaryCount, (latched & 2) != 0);
                 ShowPlate(plates[2], state.SecondaryProgress, rules.SecondaryCount, (latched & 4) != 0);
+                starsLit = HudLayout.StarCount(latched);
                 for (int i = 0; i < 3; i++)
                 {
-                    bool earned = (latched & (1 << i)) != 0;
+                    bool earned = i < starsLit;
                     if (!flying[i]) stars[i].sprite = art.SkinUi(earned ? SkinSlots.StarLit : SkinSlots.StarSocket);
                     starHalos[i].enabled = earned && !flying[i];
                 }
@@ -974,19 +976,19 @@ namespace ZKube.Presentation
             Pop(score.rectTransform, 1.18f, .2f);
         }
 
-        // After an accepted action: each newly earned star flies from its plate
-        // to its socket and ignites there, and the guardian celebrates a combo,
-        // a perfect clear or a star. Reduced motion lights the socket and keeps
-        // the guardian's face, without movement.
+        // After an accepted action: each newly earned star flies from its goal's
+        // plate to the next empty socket, left to right, and ignites there, and
+        // the guardian celebrates a combo, a perfect clear or a star. Reduced
+        // motion lights the socket and keeps the guardian's face, without movement.
         public void Celebrate(byte previousStars, byte earnedStars, byte combo, bool perfectClear)
         {
             bool earned = false;
-            for (int i = 0; i < 3; i++)
-            {
-                if (!hud.Campaign || (earnedStars & (1 << i)) == 0 || (previousStars & (1 << i)) != 0) continue;
-                earned = true;
-                if (!owner.ReducedMotion) StartCoroutine(Fly(i));
-            }
+            if (hud.Campaign)
+                foreach (var (goal, socket) in HudLayout.NewStars(previousStars, earnedStars))
+                {
+                    earned = true;
+                    if (!owner.ReducedMotion) StartCoroutine(Fly(goal, socket));
+                }
             if (!earned && combo < 2 && !perfectClear || guardianFinal) return;
             Face("celebrate");
             guardianCheerUntil = Time.unscaledTime + GuardianCheer;
@@ -996,11 +998,11 @@ namespace ZKube.Presentation
         // the socket waits empty; it then lands, scaling 0.6, 1.15, 1 over 400 ms
         // with a flare, a ring and six sparks.
         public const float FlightSeconds = .45f;
-        private IEnumerator Fly(int index)
+        private IEnumerator Fly(int goal, int index)
         {
             var socket = stars[index].rectTransform;
             var to = SkinUi.ScreenRect(socket).center;
-            var from = SkinUi.ScreenRect(plates[index].Pictogram.rectTransform).center;
+            var from = SkinUi.ScreenRect(plates[goal].Pictogram.rectTransform).center;
             float d = Layout.Density, size = socket.rect.width;
             var gold = art.Token(SkinTokens.Accent);
             flying[index] = true;
@@ -1176,7 +1178,7 @@ namespace ZKube.Presentation
             float breath = still ? 1 : 1 - .45f * (.5f - .5f * Mathf.Cos(2 * Mathf.PI * now / 1.2f));
             for (int i = 0; i < 3 && stars[i] != null; i++)
             {
-                bool risk = playing && movesLeft > 0 && movesLeft <= 3 && !flying[i] && (owner.State.LatchedStarSources & (1 << i)) == 0;
+                bool risk = playing && movesLeft > 0 && movesLeft <= 3 && !flying[i] && i >= starsLit;
                 stars[i].color = SkinUi.WithAlpha(Color.white, risk ? breath : 1);
             }
             if (movesGlow != null && movesGlow.enabled)

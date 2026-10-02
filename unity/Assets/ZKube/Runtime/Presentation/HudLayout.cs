@@ -50,6 +50,16 @@ namespace ZKube.Presentation
         public Rect In(Rect owner, float x, float y, float width, float height) =>
             new Rect(owner.x + x * K * Density, owner.yMax - (y + height) * K * Density, width * K * Density, height * K * Density);
 
+        // Stars fill left to right whatever order the goals complete in
+        // (DECISIONS 2026-10-02): the lit sockets are the count of met goals.
+        public static int StarCount(byte sources) => (sources & 1) + (sources >> 1 & 1) + (sources >> 2 & 1);
+        // Each goal newly met between two states, with the socket its star fills.
+        public static System.Collections.Generic.IEnumerable<(int goal, int socket)> NewStars(byte previous, byte now)
+        {
+            int socket = StarCount(previous);
+            for (int goal = 0; goal < 3; goal++)
+                if ((now & 1 << goal) != 0 && (previous & 1 << goal) == 0) yield return (goal, socket++);
+        }
         // Campaign levels are numbered across realms.
         public static string LevelNumber(byte realm, byte level) =>
             ((realm - 1) * Protocol.CampaignTargets.Length + level).ToString(System.Globalization.CultureInfo.InvariantCulture);

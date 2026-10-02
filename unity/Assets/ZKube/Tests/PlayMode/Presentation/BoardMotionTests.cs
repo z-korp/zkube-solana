@@ -258,6 +258,14 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(origin, star.rectTransform.anchoredPosition);
             Assert.AreEqual("boss__idle", Guardian().sprite.name.Replace("(Clone)", ""));
 
+            // A later goal's star flies from its own plate to the next empty socket.
+            board.View.Celebrate(1, 5, 0, false);
+            yield return Seconds(.1f);
+            var second = board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Star 1 flight");
+            var plate = board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Goal plate 2 face");
+            Assert.Less(Vector2.Distance(second.rectTransform.position, plate.rectTransform.position), plate.rectTransform.rect.width, "It leaves the met goal's plate");
+            yield return Seconds(BoardView.FlightSeconds + 1);
+
             board.SetReducedMotion(true);
             board.View.Celebrate(0, 2, 0, false);
             yield return Seconds(.15f);

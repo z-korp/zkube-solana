@@ -51,7 +51,7 @@ namespace ZKube.Presentation.Tests
             for (int i = 0; i < 3; i++)
             {
                 var glyph = view.GetComponentsInChildren<Image>().Single(image => image.name == "Star " + i + " glyph");
-                bool earned = (board.State.LatchedStarSources & (1 << i)) != 0;
+                bool earned = i < HudLayout.StarCount(board.State.LatchedStarSources);
                 Assert.AreEqual(earned ? SkinSlots.StarLit : SkinSlots.StarSocket, SpriteName(glyph));
             }
         }
@@ -185,6 +185,38 @@ namespace ZKube.Presentation.Tests
                         }
                 board.View.gameObject.SetActive(true);
             }
+        }
+        // DECISIONS 2026-10-02: stars fill left, middle, right whatever order the
+        // goals complete in. In each of the six orders, the star a goal earns
+        // takes the next empty socket and the lit sockets are the first ones.
+        [UnityTest] public IEnumerator StarsFillLeftToRightInEveryCompletionOrder()
+        {
+            evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
+            byte saved = board.State.LatchedStarSources;
+            try
+            {
+                foreach (var order in new[] { new[] { 0, 1, 2 }, new[] { 0, 2, 1 }, new[] { 1, 0, 2 }, new[] { 1, 2, 0 }, new[] { 2, 0, 1 }, new[] { 2, 1, 0 } })
+                {
+                    byte latched = 0;
+                    for (int step = 0; step < 3; step++)
+                    {
+                        byte before = latched; latched |= (byte)(1 << order[step]);
+                        string at = "goals met in order " + string.Join(", ", order) + ", step " + step;
+                        CollectionAssert.AreEqual(new[] { (order[step], step) }, HudLayout.NewStars(before, latched).ToArray(), at);
+                        board.State.LatchedStarSources = latched; board.View.Summary(board.State, board.Session, true);
+                        for (int i = 0; i < 3; i++)
+                            Assert.AreEqual(i <= step ? SkinSlots.StarLit : SkinSlots.StarSocket,
+                                SpriteName(board.View.GetComponentsInChildren<Image>().Single(image => image.name == "Star " + i + " glyph")), at + ", socket " + i);
+                        // Each plate still ticks for its own goal.
+                        for (int goal = 1; goal < 3; goal++)
+                            Assert.AreEqual((latched & 1 << goal) != 0, board.View.GetComponentsInChildren<Image>()
+                                .Single(image => image.name == (goal == 1 ? "Theme" : "Secondary") + " tick").enabled, at + ", plate " + goal);
+                    }
+                }
+                CollectionAssert.AreEqual(new[] { (0, 0), (1, 1), (2, 2) }, HudLayout.NewStars(0, 7).ToArray(), "Three goals met by one action");
+                CollectionAssert.AreEqual(new[] { (0, 1), (2, 2) }, HudLayout.NewStars(2, 7).ToArray());
+            }
+            finally { board.State.LatchedStarSources = saved; board.View.Summary(board.State, board.Session, true); }
         }
         // DECISIONS 2026-10-02: the game stays visible behind the pause, blurred.
         // One capture of the board, softened, sits under a scrim that lets it
