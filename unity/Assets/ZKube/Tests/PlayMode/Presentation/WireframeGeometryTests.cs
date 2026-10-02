@@ -232,7 +232,7 @@ namespace ZKube.Tests.Presentation
             var daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "Play today" } } };
             var arcade = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
-                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 00:00 UTC" },
+                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 06:59 UTC" },
                 Blocks = new[] { PanelBlock.Bar("Kredit balance", SkinSlots.IconKredit, "3", "Kredits", false, new PageAction { Label = "Kredits" }, new PageAction { Label = "Rewards" }),
                     PanelBlock.Text("Arcade rule", "Your best run on each board counts.", SkinTokens.TextMuted) } };
             var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
@@ -330,7 +330,7 @@ namespace ZKube.Tests.Presentation
             var daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "Play today" } } };
             var arcade = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
-                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 00:00 UTC" } };
+                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 06:59 UTC" } };
             var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
                 Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
@@ -560,7 +560,7 @@ namespace ZKube.Tests.Presentation
                 {
                     source.Daily = new DailyPageView { Day = 20705, Realm = realm, ObjectiveKind = 1, ObjectiveValue = 3,
                         Actions = new[] { new PageAction { Label = arcade ? "Enter · 1 Kredit" : "Play today" } },
-                        Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 00:00 UTC" } : null };
+                        Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 06:59 UTC" } : null };
                     views.Render(AppPage.Home);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
                     var portrait = root.GetComponentsInChildren<Image>(true).Single(image => image.name == "Daily guardian");

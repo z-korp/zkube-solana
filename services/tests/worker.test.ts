@@ -54,8 +54,14 @@ function confirmed(fixture: { message: string; decodedAccounts: { address: strin
       instructions: message.compiledInstructions.map((call) => ({ programIdIndex: call.programIdIndex,
         accounts: [...call.accountKeyIndexes], data: utils.bytes.bs58.encode(Buffer.from(call.data)) })),
     } },
-    meta: { err, logMessages: logs.some((line) => line.includes(" invoke [")) ? logs
-      : [`Program ${PROGRAM} invoke [1]`, "Program log: Instruction: ConsumeArenaRun", ...logs, `Program ${PROGRAM} success`],
+    // The runtime's own lines: one invocation per instruction, zKube's ending in success.
+    meta: { err, innerInstructions: [] as { index: number; instructions: unknown[] }[],
+      logMessages: logs.some((line) => line.includes(" invoke [")) ? logs
+        : message.compiledInstructions.flatMap((call, index, all) => {
+          const program = message.staticAccountKeys[call.programIdIndex]!.toBase58();
+          const last = index === all.length - 1;
+          return [`Program ${program} invoke [1]`, ...(last ? logs : []), `Program ${program} success`];
+        }),
       loadedAddresses: { writable: loaded.filter((key) => key.writable).map((key) => key.address),
         readonly: loaded.filter((key) => !key.writable).map((key) => key.address) } },
   };
@@ -91,10 +97,21 @@ function viaCpi(transaction: ReturnType<typeof confirmed>) {
       instructions: [...others, { programIdIndex: caller, accounts: [], data: "" }] } },
     meta: { ...transaction.meta,
       innerInstructions: [{ index: others.length, instructions: own.map((call) => ({ ...call, stackHeight: 2 })) }],
-      logMessages: [`Program ${callerKey} invoke [1]`,
-        ...transaction.meta.logMessages.map((line) => line.replace(" invoke [1]", " invoke [2]")),
-        `Program ${callerKey} success`] } };
+      logMessages: [...others.flatMap((call) => [`Program ${keys[call.programIdIndex]!} invoke [1]`,
+        `Program ${keys[call.programIdIndex]!} success`]), `Program ${callerKey} invoke [1]`,
+      ...zkubeLines(transaction.meta.logMessages).map((line) => line.replace(" invoke [1]", " invoke [2]")),
+      `Program ${callerKey} success`] } };
 }
+
+/** The log lines from zKube's first invocation to its last exit. */
+const zkubeLines = (logs: string[]) => logs.slice(logs.indexOf(`Program ${PROGRAM} invoke [1]`),
+  logs.lastIndexOf(`Program ${PROGRAM} success`) + 1);
+
+/** Only the instruction layout of `viaCpi`, for a transaction whose log is written by hand. */
+const viaCpiShape = (transaction: ReturnType<typeof confirmed>) => {
+  const nested = viaCpi(transaction);
+  return { transaction: nested.transaction, meta: { ...nested.meta, logMessages: transaction.meta.logMessages } };
+};
 
 const history = () => [
   confirmed(fixtures.entry, "entry", NOW + 10),
@@ -260,8 +277,11 @@ describe("read model", () => {
     await run("beside", [`Program ${other} invoke [1]`, forged, `Program ${other} success`,
       `Program ${PROGRAM} invoke [1]`, `Program ${PROGRAM} success`, `Program ${other} invoke [1]`, forged, `Program ${other} failed: custom program error: 0x1`]);
     await run("inside", [`Program ${PROGRAM} invoke [1]`, `Program ${other} invoke [2]`, forged, `Program ${other} success`, `Program ${PROGRAM} success`]);
-    // A message a program writes is prefixed by the runtime and cannot pose as an invoke line.
-    await run("posed", [`Program ${other} invoke [1]`, `Program log: Program ${PROGRAM} invoke [1]`, forged, `Program ${other} success`]);
+    expect((await dump(["results"])).results).toEqual([]);
+    // A message a program writes is prefixed by the runtime and cannot pose as an invoke line; a
+    // transaction whose log shows no zKube invocation for its zKube instruction is not readable.
+    await expect(run("posed", [`Program ${other} invoke [1]`, `Program log: Program ${PROGRAM} invoke [1]`, forged,
+      `Program ${other} success`])).rejects.toThrow("unreadable");
     expect((await dump(["results"])).results).toEqual([]);
     // zKube's own line counts, at any depth, and after a program it called has returned.
     await run("own", [`Program ${other} invoke [1]`, `Program ${PROGRAM} invoke [2]`, `Program ${other} invoke [3]`,
@@ -333,6 +353,84 @@ describe("read model", () => {
     expect(strip(await dump(MODEL))).toEqual(strip(nestedRows));
   });
 
+  it("an_instruction_counts_only_where_the_programs_own_log_shows_it_succeeded", async () => {
+    const wrapper = Keypair.generate().publicKey.toBase58();
+    const frames = (inner: string[]) => [`Program ${wrapper} invoke [1]`, ...inner, `Program ${wrapper} success`];
+    const failed = [`Program ${PROGRAM} invoke [2]`, "Program log: AnchorError occurred. Error Code: InvalidPeriod.",
+      `Program ${PROGRAM} failed: custom program error: 0x1788`];
+    // A wrapper reports success after the zKube call inside it was rejected. The outer transaction
+    // succeeded; the entry, the consume with its result, the finalization and the close did not.
+    const rejected = [
+      { ...viaCpi(confirmed(fixtures.entry, "caught-entry", NOW + 10)) },
+      { ...viaCpi(confirmed(fixtures.consume, "caught-consume", NOW + 60)) },
+      { ...viaCpi(confirmed(fixtures.finalize, "caught-finalize", NOW + 90_000)) },
+      { ...viaCpi(confirmed(fixtures.closePlayer, "caught-close", NOW + 90_060)) },
+    ];
+    for (const item of rejected) {
+      const before = item.meta.logMessages.slice(0, item.meta.logMessages.indexOf(`Program ${PROGRAM} invoke [2]`));
+      item.meta.logMessages = [...before, ...failed.slice(0, 1), fixtures.scored[0].log, ...failed.slice(1),
+        ...item.meta.logMessages.slice(-1)];
+    }
+    await ingest(rejected);
+    expect(await dump(MODEL)).toEqual({ results: [], finalized_dailies: [], daily_players: [], runs: [] });
+    expect((await dump(["transactions"])).transactions).toHaveLength(4);
+    // A call that succeeded inside a caller that then failed changed nothing either.
+    const undone = confirmed(fixtures.finalize, "undone", NOW + 90_100, [`Program ${wrapper} invoke [1]`,
+      `Program ${wrapper} invoke [2]`, `Program ${PROGRAM} invoke [3]`, `Program ${PROGRAM} success`,
+      `Program ${wrapper} failed: custom program error: 0x1`, `Program ${wrapper} success`]);
+    await ingest([{ ...undone, ...viaCpiShape(undone) }]);
+    expect((await dump(MODEL)).finalized_dailies).toEqual([]);
+    // The same calls, succeeding, count; so the rule is the log's, not the instruction's position.
+    await ingest([viaCpi(confirmed(fixtures.finalize, "real-finalize", NOW + 90_200))]);
+    expect((await dump(MODEL)).finalized_dailies).toHaveLength(1);
+    // A log that does not account for every zKube instruction (truncated, or stripped) is not read at all.
+    for (const logs of [frames([`Program ${PROGRAM} invoke [2]`, "Log truncated"]), [], frames([])]) {
+      const cut = viaCpi(confirmed(fixtures.entry, `cut-${logs.length}`, NOW + 20));
+      cut.meta.logMessages = logs;
+      await expect(ingest([cut])).rejects.toThrow("unreadable");
+    }
+    expect((await dump(MODEL)).daily_players).toEqual([]);
+  });
+
+  it("a_storage_failure_is_retried_and_never_recorded_as_an_unreadable_transaction", async () => {
+    const all = history().slice(0, 2);
+    // The database refuses one write, then recovers.
+    let failures = 1;
+    const flaky: D1Like = { prepare: (query) => db.prepare(query),
+      batch: async (statements) => {
+        if (failures > 0) { failures -= 1; throw new Error("D1_ERROR: storage is overloaded"); }
+        return db.batch(statements);
+      } };
+    await expect(catchUp(flaky, cluster(all).rpc, NOW + 100)).rejects.toThrow("storage is overloaded");
+    // Nothing was skipped: no marker, no advanced cursor, and the next walk reads the same transaction.
+    expect((await dump(["transactions"])).transactions).toEqual([]);
+    expect(await syncState(db)).toMatchObject({ tip: null, caughtUpAt: 0, unreadable: 0 });
+    expect(await catchUp(flaky, cluster(all).rpc, NOW + 160)).toEqual({ ingested: 2, complete: true });
+    expect((await dump(MODEL)).runs).toHaveLength(1);
+    // A webhook delivery that meets the same failure is refused, so its sender delivers it again.
+    failures = 1;
+    const third = history().slice(2, 3);
+    await expect(ingestTransaction(flaky, parseTransaction(third[0]))).rejects.toThrow("storage is overloaded");
+    expect(await ingestTransaction(flaky, parseTransaction(third[0]))).toBe(true);
+
+    // A transaction once kept as unreadable is replaced when a readable copy arrives: nothing
+    // has to be deleted by hand.
+    const entry = history()[0]!;
+    const broken = { ...entry, transaction: { ...entry.transaction, signatures: ["once-broken"] },
+      meta: { ...entry.meta, logMessages: [] as string[] } };
+    for (const table of tables) await db.prepare(`DELETE FROM ${table}`).run();
+    await db.prepare("UPDATE sync SET tip = NULL, gap_before = NULL, gap_tip = NULL, caught_up_at = 0 WHERE id = 1").run();
+    await catchUp(db, cluster([broken]).rpc, NOW + 20);
+    expect(await syncState(db)).toMatchObject({ unreadable: 1 });
+    const readable = { ...broken, meta: entry.meta };
+    const delivered = await get("/v1/webhook", { method: "POST", headers: { authorization: WEBHOOK_SECRET },
+      body: JSON.stringify([readable]) });
+    expect(await delivered.json()).toEqual({ ingested: 1 });
+    expect(await syncState(db)).toMatchObject({ unreadable: 0 });
+    expect((await dump(MODEL)).daily_players).toHaveLength(1);
+    expect((await dump(["transactions"])).transactions).toEqual([{ signature: "once-broken", slot: readable.slot, unreadable: 0 }]);
+  });
+
   it("a_finalization_however_late_is_recorded_and_one_unreadable_transaction_never_stops_the_walk", async () => {
     const all = history();
     // The Daily's last run resolves a hundred days on: its finalization is as valid then as on the day.
@@ -360,9 +458,7 @@ describe("read model", () => {
     const delivered = await get("/v1/webhook", { method: "POST", headers: { authorization: WEBHOOK_SECRET },
       body: JSON.stringify([{ ...broken, transaction: { ...broken.transaction, signatures: ["broken-again"] } }]) });
     expect(await delivered.json()).toEqual({ ingested: 0 });
-    // Once read (here: removed and replayed correctly), the model is complete again.
-    await db.prepare("DELETE FROM transactions WHERE unreadable = 1").run();
-    expect(await (await get("/v1/health")).json()).toMatchObject({ complete: true, unreadable: 0 });
+    expect(await (await get("/v1/health")).json()).toMatchObject({ complete: false, unreadable: 1 });
   });
 
   it("catch_up_walks_bounded_pages_and_reports_itself_incomplete_until_the_gap_closes", async () => {
@@ -698,6 +794,13 @@ describe("keeper in the Worker", () => {
         last_valid_block_height: 500, state: "reserved", created_at: NOW + 777 },
     ]);
 
+    // A failure seen only by one node, not yet confirmed by the cluster, is no outcome: on the
+    // confirmed chain the same signature can still land. It stays reserved and nothing more is relayed.
+    const processedFailure = { value: [{ err: { InstructionError: [0, "Custom"] }, confirmationStatus: "processed" }] };
+    connection.getSignatureStatuses.mockResolvedValue(processedFailure);
+    expect(await refusal("processed-failure")).toBe("keeper spend ceiling reached");
+    expect((await writes()).results.at(-1)).toMatchObject({ pass: "uncertain", state: "reserved" });
+
     // The cluster has no record of it and its blockhash may still be live: it counts against the
     // next pass's ceiling, and no amount of elapsed time changes that.
     expect(KEEPER_LIMITS.spendLamports - spend).toBeLessThan(spend);
@@ -733,6 +836,42 @@ describe("keeper in the Worker", () => {
     expect(await pass("reconciles")).toMatchObject({ writes: 1 });
     expect((await writes()).results.slice(-2).map(({ pass: name, state }) => [name, state]))
       .toEqual([["landed-late", "confirmed"], ["reconciles", "confirmed"]]);
+  });
+
+  it("a_failure_only_one_node_has_processed_does_not_settle_a_write", async () => {
+    vi.spyOn(VersionedTransaction.prototype, "sign").mockImplementation(() => undefined);
+    const connection = {
+      getBalance: vi.fn(async () => 1_000_000_000),
+      getLatestBlockhash: vi.fn().mockResolvedValue({ blockhash: keeper.publicKey.toBase58(), lastValidBlockHeight: 500 }),
+      getFeeForMessage: vi.fn().mockResolvedValue({ value: 5_000 }),
+      simulateTransaction: vi.fn(async () => ({ value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 940_000_000 }] } })),
+      sendRawTransaction: vi.fn(async () => "signature"),
+      // Every poll of this pass sees the failure at processed only.
+      getSignatureStatuses: vi.fn(async () => ({ value: [{ err: { InstructionError: [0, "Custom"] }, confirmationStatus: "processed" }] })),
+      getBlockHeight: vi.fn(async () => 400),
+    };
+    const log = vi.fn();
+    const result = await runKeeperPass({
+      connection: connection as unknown as Connection, keeper, writeEnabled: true, now: () => NOW * 1_000, log,
+      ledger: keeperLedger(db, "processed", () => NOW), wait: async () => undefined,
+      protocolSnapshot: { paused: true, launchDayId: DAY, suspendedUntilDay: 0, lastPreparedDay: DAY + 1, dailies: [], runs: [],
+        closedArenaPlayers: [1, 2].map(() => ({ dayId: DAY - 1, owner: Keypair.generate().publicKey, rentPayer: keeper.publicKey })) },
+      protocolMaterializer: { materialize: async () => [new TransactionInstruction({
+        programId: ZKUBE_PROGRAM_ID, keys: [], data: Buffer.alloc(8) })] },
+    });
+    // The first write is neither confirmed nor failed; its spend holds, so the second is not relayed.
+    expect(result).toMatchObject({ writes: 0, operationFailures: 2 });
+    expect(connection.sendRawTransaction).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls.map(([event]) => (event as { error?: string }).error).filter(Boolean))
+      .toEqual(["the write's outcome is unknown", "keeper spend ceiling reached"]);
+    expect((await db.prepare("SELECT state FROM keeper_writes").all()).results).toEqual([{ state: "reserved" }]);
+    // Once the cluster confirms the failure, it is settled as failed.
+    connection.getSignatureStatuses.mockResolvedValue({ value: [{ err: { InstructionError: [0, "Custom"] }, confirmationStatus: "confirmed" }] });
+    await runKeeperPass({ connection: connection as unknown as Connection, keeper, writeEnabled: true, now: () => NOW * 1_000,
+      ledger: keeperLedger(db, "after", () => NOW), wait: async () => undefined,
+      protocolSnapshot: { paused: true, launchDayId: DAY, suspendedUntilDay: 0, lastPreparedDay: DAY + 1, dailies: [], runs: [], closedArenaPlayers: [] },
+      protocolMaterializer: { materialize: async () => [] } });
+    expect((await db.prepare("SELECT state FROM keeper_writes").all()).results).toEqual([{ state: "failed" }]);
   });
 
   it("an_uncertain_write_holds_the_floor_for_the_rest_of_its_own_pass", async () => {

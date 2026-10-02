@@ -7,7 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import type { D1Like } from "./d1.js";
 import {
-  MAX_PAGE_ROWS, MAX_WEBHOOK_TRANSACTIONS, dayIsFinal, ingestTransaction, modelComplete, parseTransaction, rankOf, standings,
+  MAX_PAGE_ROWS, MAX_WEBHOOK_TRANSACTIONS, UnreadableTransaction, dayIsFinal, ingestTransaction, modelComplete, parseTransaction, rankOf, standings,
   syncState, type BoardKind,
 } from "./indexer.js";
 
@@ -73,7 +73,9 @@ async function webhook(request: Request, bindings: ApiBindings): Promise<Respons
   let ingested = 0;
   for (const transaction of transactions) {
     // A delivery the model cannot interpret is left for the catch-up walk, which records it.
-    try { if (await ingestTransaction(bindings.db, transaction)) ingested += 1; } catch { /* the walk decides */ }
+    // A storage failure fails the delivery, so its sender delivers it again.
+    try { if (await ingestTransaction(bindings.db, transaction)) ingested += 1; }
+    catch (error) { if (!(error instanceof UnreadableTransaction)) throw error; }
   }
   return json({ ingested });
 }

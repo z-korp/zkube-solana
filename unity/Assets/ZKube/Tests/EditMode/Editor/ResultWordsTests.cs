@@ -19,7 +19,7 @@ namespace ZKube.Editor.Tests
             Assert.AreEqual(("Board full", "No stars kept · earn one to open Level 2", "icon-board-full", false), Words(2, 0, 4));
             Assert.AreEqual(("Run ended", "An ended run keeps no stars.", "icon-flag", false), Words(3, 0, 5));
         }
-        // The day closes and the next Daily opens at 00:00 UTC: no day clock,
+        // The day closes and the next Daily opens at 07:00 UTC: no day clock,
         // the pages' or the HUD's, reads 24 hours.
         [Test] public void EveryDayCountdownReadsAtMostOneSecondUnderADay()
         {

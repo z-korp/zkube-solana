@@ -30,9 +30,18 @@ export interface RawTransaction {
   meta: {
     err: unknown;
     logMessages: string[];
-    innerInstructions: { instructions: { programIdIndex: number; accounts: number[]; data: string }[] }[];
+    innerInstructions: { index: number; instructions: { programIdIndex: number; accounts: number[]; data: string }[] }[];
     loadedAddresses?: { writable: string[]; readonly: string[] };
   };
+}
+
+/**
+ * A transaction this model cannot interpret, whatever is tried again: its
+ * payload is not the documented shape, or its log does not account for its
+ * instructions. A storage failure is never this error: it is retried.
+ */
+export class UnreadableTransaction extends Error {
+  constructor(reason: string) { super(`unreadable transaction: ${reason}`); }
 }
 
 export const MAX_WEBHOOK_TRANSACTIONS = 100;
@@ -45,7 +54,7 @@ const PROGRAM = ZKUBE_PROGRAM_ID.toBase58();
 
 /** Rejects anything that is not the documented transaction shape. */
 export function parseTransaction(value: unknown): RawTransaction {
-  const fail = (): never => { throw new Error("transaction payload is malformed"); };
+  const fail = (): never => { throw new UnreadableTransaction("payload is malformed"); };
   const record = (item: unknown) => item !== null && typeof item === "object" && !Array.isArray(item)
     ? item as Record<string, unknown> : fail();
   const strings = (item: unknown, limit: number) => Array.isArray(item) && item.length <= limit &&
@@ -82,7 +91,11 @@ export function parseTransaction(value: unknown): RawTransaction {
       err: meta.err ?? null,
       logMessages: meta.logMessages === null || meta.logMessages === undefined ? [] : strings(meta.logMessages, 512),
       innerInstructions: (Array.isArray(inner) && inner.length <= 64 ? inner : fail())
-        .map((group) => ({ instructions: calls(record(group).instructions, 256) })),
+        .map((group) => {
+          const index = record(group).index;
+          if (!Number.isInteger(index) || Number(index) < 0 || Number(index) >= 64) fail();
+          return { index: Number(index), instructions: calls(record(group).instructions, 256) };
+        }),
       ...(loaded ? { loadedAddresses: { writable: strings(loaded.writable, 256), readonly: strings(loaded.readonly, 256) } } : {}),
     },
   };
@@ -90,59 +103,100 @@ export function parseTransaction(value: unknown): RawTransaction {
 
 /**
  * Records what one confirmed zKube transaction did. Ingesting the same
- * transaction again, or in another order, leaves the same rows. An
- * instruction counts wherever it ran: sent directly, or called by another
- * program.
+ * transaction again, or in another order, leaves the same rows, and a
+ * readable copy replaces a marker left when it could not be read.
+ *
+ * An instruction counts wherever it ran, sent directly or called by another
+ * program, and only where the runtime's log shows that call and every caller
+ * above it succeeding. The outer transaction's status says nothing about one
+ * inner call.
  */
 export async function ingestTransaction(db: D1Like, raw: RawTransaction): Promise<boolean> {
   const signature = raw.transaction.signatures[0]!;
-  if (await db.prepare("SELECT 1 FROM transactions WHERE signature = ?").bind(signature).first()) return false;
-  const statements: D1Statement[] = [
-    db.prepare("INSERT OR IGNORE INTO transactions (signature, slot) VALUES (?, ?)").bind(signature, raw.slot),
+  if (await db.prepare("SELECT 1 FROM transactions WHERE signature = ? AND unreadable = 0").bind(signature).first()) return false;
+  const statements = [
+    db.prepare(`INSERT INTO transactions (signature, slot, unreadable) VALUES (?1, ?2, 0)
+      ON CONFLICT (signature) DO UPDATE SET slot = ?2, unreadable = 0`).bind(signature, raw.slot),
+    ...interpret(db, raw, signature),
   ];
-  if (raw.meta.err === null) {
-    const keys = [...raw.transaction.message.accountKeys,
-      ...(raw.meta.loadedAddresses?.writable ?? []), ...(raw.meta.loadedAddresses?.readonly ?? [])];
-    for (const call of [...raw.transaction.message.instructions,
-      ...raw.meta.innerInstructions.flatMap((group) => group.instructions)]) {
-      if (keys[call.programIdIndex] !== PROGRAM) continue;
-      let decoded: ReturnType<BorshInstructionCoder["decode"]>;
-      try { decoded = instructions.decode(Buffer.from(utils.bytes.bs58.decode(call.data))); } catch { continue; }
-      if (!decoded) continue;
-      const account = (name: string) => {
-        const definition = IDL.instructions.find((item) => camel(item.name) === decoded!.name)!;
-        const index = definition.accounts.findIndex((item) => item.name === name);
-        const key = keys[call.accounts[index] ?? -1];
-        if (index < 0 || key === undefined) throw new Error("transaction payload is malformed");
-        return key;
-      };
-      statements.push(...instructionRows(db, decoded.name, account, raw));
-    }
-    for (const line of programData(raw.meta.logMessages)) {
-      let event: ReturnType<BorshEventCoder["decode"]>;
-      try { event = events.decode(line); } catch { continue; }
-      if (event?.name === "runScored") statements.push(scoredRow(db, event.data as Record<string, unknown>, signature, raw.slot));
-    }
-  }
   await db.batch(statements);
   return true;
 }
 
+/** Every row a transaction adds. It throws only UnreadableTransaction, and touches no storage. */
+function interpret(db: D1Like, raw: RawTransaction, signature: string): D1Statement[] {
+  if (raw.meta.err !== null) return [];
+  const statements: D1Statement[] = [];
+  const keys = [...raw.transaction.message.accountKeys,
+    ...(raw.meta.loadedAddresses?.writable ?? []), ...(raw.meta.loadedAddresses?.readonly ?? [])];
+  // Execution order: each top-level instruction, then what it called.
+  const executed = raw.transaction.message.instructions.flatMap((call, index) => [call,
+    ...raw.meta.innerInstructions.filter((group) => group.index === index).flatMap((group) => group.instructions)])
+    .filter((call) => keys[call.programIdIndex] === PROGRAM);
+  const invocations = programInvocations(raw.meta.logMessages);
+  if (invocations.length !== executed.length) {
+    throw new UnreadableTransaction("its log does not account for every zKube instruction");
+  }
+  for (const [index, call] of executed.entries()) {
+    if (!invocations[index]!.succeeded) continue;
+    let decoded: ReturnType<BorshInstructionCoder["decode"]>;
+    try { decoded = instructions.decode(Buffer.from(utils.bytes.bs58.decode(call.data))); } catch { continue; }
+    if (!decoded) continue;
+    const account = (name: string) => {
+      const definition = IDL.instructions.find((item) => camel(item.name) === decoded!.name)!;
+      const position = definition.accounts.findIndex((item) => item.name === name);
+      const key = keys[call.accounts[position] ?? -1];
+      if (position < 0 || key === undefined) throw new UnreadableTransaction("an instruction names too few accounts");
+      return key;
+    };
+    statements.push(...instructionRows(db, decoded.name, account, raw));
+  }
+  for (const line of invocations.filter(({ succeeded }) => succeeded).flatMap(({ data }) => data)) {
+    let event: ReturnType<BorshEventCoder["decode"]>;
+    try { event = events.decode(line); } catch { continue; }
+    if (event?.name === "runScored") {
+      try { statements.push(scoredRow(db, event.data as Record<string, unknown>, signature, raw.slot)); }
+      catch { throw new UnreadableTransaction("a result event is malformed"); }
+    }
+  }
+  return statements;
+}
+
 /**
- * The data lines the zKube program itself logged. Any program in the
- * transaction can log the same bytes, so a line counts only while zKube is
- * the program running: the runtime writes the invoke and exit lines, and no
- * program can forge them.
+ * Each zKube invocation the runtime logged, in the order it ran: whether it
+ * and every caller above it ended in success, and the data it logged itself.
+ * The runtime writes the invoke and exit lines and no program can forge them,
+ * so another program logging the same bytes, or reporting success over a
+ * rejected call, changes nothing here.
  */
-function programData(logs: readonly string[]): string[] {
-  const running: string[] = [], lines: string[] = [];
+function programInvocations(logs: readonly string[]): { succeeded: boolean; data: string[] }[] {
+  interface Frame { program: string; failed: boolean; own: { succeeded: boolean; data: string[] } | null }
+  const running: Frame[] = [], found: { succeeded: boolean; data: string[] }[] = [];
+  // A frame that fails undoes everything that ran inside it.
+  const undo: { succeeded: boolean }[][] = [];
   for (const line of logs) {
     const invoked = /^Program (\w+) invoke \[\d+\]$/.exec(line);
-    if (invoked) running.push(invoked[1]!);
-    else if (/^Program \w+ (success|failed)/.test(line)) running.pop();
-    else if (line.startsWith(EVENT_PREFIX) && running.at(-1) === PROGRAM) lines.push(line.slice(EVENT_PREFIX.length));
+    const exited = /^Program (\w+) (success|failed)/.exec(line);
+    if (invoked) {
+      const own = invoked[1] === PROGRAM ? { succeeded: false, data: [] } : null;
+      if (own) found.push(own);
+      running.push({ program: invoked[1]!, failed: false, own });
+      undo.push(own ? [own] : []);
+    } else if (exited && running.at(-1)?.program === exited[1]) {
+      const frame = running.pop()!, inside = undo.pop()!;
+      if (exited[2] === "success") {
+        if (frame.own) frame.own.succeeded = true;
+        undo.at(-1)?.push(...inside);
+      } else {
+        for (const call of inside) call.succeeded = false;
+      }
+    } else if (line.startsWith(EVENT_PREFIX) && running.at(-1)?.own) {
+      running.at(-1)!.own!.data.push(line.slice(EVENT_PREFIX.length));
+    }
   }
-  return lines;
+  // A call with no exit line is a log cut short: what it did is not known.
+  if (running.length > 0) throw new UnreadableTransaction("its log is cut short");
+  return found;
 }
 
 function instructionRows(db: D1Like, name: string, account: (name: string) => string, raw: RawTransaction): D1Statement[] {

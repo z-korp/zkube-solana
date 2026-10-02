@@ -58,19 +58,29 @@ describe("specification references", () => {
     const window = dailyWindow(20_705);
     const allowed = new Set([clock(window.opensAt), clock(window.runsCloseAt)]);
     expect(allowed).toEqual(new Set(["07:00", "06:59"]));
-    // The shared presentation layer and the tests of its copy belong to its
-    // owner: its stale lines are reported there rather than edited here.
-    const presentationOwned = ["unity/Assets/ZKube/Runtime/Presentation/", "unity/Assets/ZKube/Tests/PlayMode/Presentation/",
-      "unity/Assets/ZKube/Tests/EditMode/Editor/ResultWordsTests.cs",
-      "unity/Assets/ZKube/Tests/PlayMode/MoneyOverview/MoneyPlayableJourneyTests.cs"];
+    // Five files of the shared presentation layer still carry the old cut-off
+    // and belong to that layer's owner: the visible closing line, the test that
+    // asserts it, and three comments. Nothing else is exempt, and nothing new
+    // in these files is either: each is allowed exactly the stale times it has today.
+    const presentationOwned: Record<string, string[]> = {
+      "unity/Assets/ZKube/Runtime/Presentation/PageViews.Screens.cs": ["00:00"],
+      "unity/Assets/ZKube/Tests/PlayMode/MoneyOverview/MoneyPlayableJourneyTests.cs": ["00:00"],
+      "unity/Assets/ZKube/Runtime/Presentation/AppPageModels.cs": ["23:59"],
+      "unity/Assets/ZKube/Runtime/Presentation/HudLayout.cs": ["00:00"],
+      "unity/Assets/ZKube/Runtime/Presentation/PageViews.cs": ["00:00"],
+    };
     const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
       { cwd: ROOT, encoding: "utf8" }).split("\0")
-      .filter(file => /\.(?:md|rs|cs|ts|py|kt|mjs)$/.test(file) && !presentationOwned.some(prefix => file.startsWith(prefix)));
+      .filter(file => /\.(?:md|rs|cs|ts|py|kt|mjs)$/.test(file));
     const stray: string[] = [];
     for (const file of new Set(files)) {
       const source = readFileSync(join(ROOT, file), "utf8");
+      const left = [...(presentationOwned[file] ?? [])];
       for (const match of source.matchAll(/\b(\d{1,2}:\d{2})(?::\d{2})?\s*UTC\b/g)) {
-        if (!allowed.has(match[1]!.padStart(5, "0"))) stray.push(`${file}: ${match[0]}`);
+        const time = match[1]!.padStart(5, "0");
+        if (allowed.has(time)) continue;
+        if (left.includes(time)) left.splice(left.indexOf(time), 1);
+        else stray.push(`${file}: ${match[0]}`);
       }
     }
     expect(stray).toEqual([]);

@@ -380,8 +380,8 @@ both clients ask it and never divide a timestamp themselves.
 `keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits`, `EveryDayRunsFromSevenUtcToSevenUtc`,
 `DailyWindowUsesTheCoreAcrossTheFullDayRange` and `TheLocalDailyTurnsOverAtSevenUtcWithTheCore` guard clocks.
 Entries close at 06:59 UTC. A clock time in a document, a comment or a line of copy is one of the core's two,
-never another literal; `every_utc_clock_time_in_authored_text_is_the_cores_day_window` guards it outside the
-shared presentation layer. Authority rotation and team destination changes
+never another literal; `every_utc_clock_time_in_authored_text_is_the_cores_day_window` guards every tracked
+file, less five named presentation files that still carry the old cut-off. Authority rotation and team destination changes
 require a program upgrade; the interface lock excludes runtime setters. `initialize_protocol` runs once and only
 with the signature of the program's upgrade authority, read from the loader's ProgramData, beside the governance
 authority it names; `an_untrusted_initializer_cannot_claim_the_protocol` guards the bootstrap.
@@ -567,9 +567,12 @@ is only a courtesy.
 One Cloudflare Worker (services/src/worker, schema in services/worker/schema.sql) holds the public read model
 and the keeper over one D1 database. The read model ingests the program's Base transactions, by webhook and
 by a bounded catch-up walk that closes any gap. An instruction counts wherever it ran, sent directly or called
-by another program, and a Daily is known by its address, so a finalization is recorded however late it comes.
-A transaction the model cannot interpret is kept as unreadable: the walk goes past it and the model reports
-itself incomplete while one remains. It records every scored run from the `RunScored` log a
+by another program, and only where the runtime's own log shows that call and every caller above it succeeding:
+the outer transaction's status says nothing about one inner call. A Daily is known by its address, so a
+finalization is recorded however late it comes. A transaction the model cannot interpret is kept as
+unreadable: the walk goes past it, the model reports itself incomplete while one remains, and a readable copy
+replaces the marker. A storage failure is not that: the walk stops, advances nothing and reads the transaction
+again. It records every scored run from the `RunScored` log a
 consume writes, counted only while the zKube program is the one running: full standings and any wallet's rank, including ranks below the paying rows and days already
 closed. It is never an authority. The program's boards stay the leaderboard of record, claims read the chain,
 its answers say so, and an honest delivery adds only what the walk would. A delivery is not a proof: whoever
@@ -580,7 +583,9 @@ order. `indexer_records_every_scored_run_and_ranks_each_wallets_best_on_both_boa
 `a_result_counts_only_when_the_zkube_program_logged_it`, `indexer_ranks_agree_with_the_core_board_order`,
 `ingesting_again_or_in_another_order_leaves_the_same_rows`,
 `discovery_and_results_count_an_instruction_however_it_was_invoked`,
+`an_instruction_counts_only_where_the_programs_own_log_shows_it_succeeded`,
 `a_finalization_however_late_is_recorded_and_one_unreadable_transaction_never_stops_the_walk`,
+`a_storage_failure_is_retried_and_never_recorded_as_an_unreadable_transaction`,
 `catch_up_walks_bounded_pages_and_reports_itself_incomplete_until_the_gap_closes`,
 `public_reads_serve_full_standings_and_any_wallets_rank_without_claiming_authority` and
 `the_webhook_needs_its_secret_and_only_adds_what_catch_up_would` guard it.
@@ -640,8 +645,9 @@ Every keeper message states its compute-unit limit: a first simulation under the
 and the message carrying that limit is the one simulated again and relayed.
 `keeper_messages_carry_a_compute_budget_sized_from_simulation` guards the compiled message. A D1 lease admits
 one pass at a time. Each pass simulates before relay and records the simulated spend in D1 before the bytes
-leave. A write stays reserved until its outcome is definite: the cluster reports it landed, or finalized blocks
-have passed the last one that could hold it and the cluster has no record of it. Elapsed time settles nothing.
+leave. A write stays reserved until its outcome is definite: the cluster has confirmed that it landed, with
+success or failure, or finalized blocks have passed the last one that could hold it and the cluster has no
+record of it. Elapsed time settles nothing, and neither does a result only one node has processed.
 While reserved it counts against every later pass's spend ceiling, and its payer spend against the wallet's
 reserve floor. Each pass enforces
 the write count, the spend ceiling and the reserve floor from KEEPER_LIMITS; rent a write takes from cadence
@@ -653,7 +659,8 @@ with full boards, which is also what the launch plan seeds; topping it up stays 
 `keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_rent_as_spend` guard the limits
 and the report; `keeper_lease_admits_one_pass_at_a_time_and_only_a_dead_pass_loses_it`,
 `keeper_ledger_reserves_before_relay_and_an_unsettled_write_counts_until_its_outcome_is_definite`,
-`an_uncertain_write_holds_the_floor_for_the_rest_of_its_own_pass` and
+`an_uncertain_write_holds_the_floor_for_the_rest_of_its_own_pass`,
+`a_failure_only_one_node_has_processed_does_not_settle_a_write` and
 `the_scheduled_pass_simulates_reserves_relays_and_settles_a_write_inside_the_worker` guard the lease, the
 ledger and the pass in the Workers runtime.
 
@@ -671,9 +678,13 @@ tools/chain/deployment/devnet-v4.json is historical evidence, not release input.
 keeper authority. The approval boundary above applies to every execution.
 
 - **Release build:** NO_DNA=1 pnpm chain build-release is the one way a release program is built: offline,
-  from a clean target, with the compiler, platform tools and options pinned in tools/chain/releaseBuild.ts, and
-  it records them beside the ELF under build/chain/release. A hash from any other build is not release evidence.
-  `release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it` guards the recipe.
+  from the repository root and a clean target, with the compiler, platform tools, options, locked dependencies
+  and compiler flags pinned in tools/chain/releaseBuild.ts. The build inherits only PATH and HOME, so no flag,
+  wrapper, profile or target override reaches the compiler; it refuses a user-level cargo configuration that
+  sets any, and it checks cargo's own fingerprint of the flags the compiler received before it records
+  anything under build/chain/release. A hash from any other build is not release evidence.
+  `release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it` and
+  `release_build_gives_the_compiler_only_the_recorded_inputs_and_refuses_any_other_flag_set` guard the recipe.
 - **Deploy plan:** NO_DNA=1 pnpm chain plan deploy --bundle build/chain/deploy.json quotes that recorded build,
   at the hash the owner reviewed (ZKUBE_SBF_SHA256), using public payer/buffer/authority addresses.
   `a_deploy_plan_quotes_only_the_recorded_release_build_at_the_reviewed_hash`,

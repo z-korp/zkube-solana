@@ -4,7 +4,7 @@
 
 import { ZKUBE_PROGRAM_ID } from "../arcadeChain.js";
 import type { D1Like } from "./d1.js";
-import { ingestTransaction, parseTransaction, recordUnreadable, syncState } from "./indexer.js";
+import { UnreadableTransaction, ingestTransaction, parseTransaction, recordUnreadable, syncState } from "./indexer.js";
 
 export const CATCH_UP_PAGE = 100;
 export const CATCH_UP_PAGES_PER_RUN = 2;
@@ -47,15 +47,18 @@ export async function catchUp(db: D1Like, rpc: JsonRpc, nowUnix: number): Promis
     }]));
     // Oldest first, so an entry is recorded before the run it opens is consumed.
     for (const signature of [...signatures].reverse()) {
-      if (await db.prepare("SELECT 1 FROM transactions WHERE signature = ?").bind(signature).first()) continue;
+      if (await db.prepare("SELECT 1 FROM transactions WHERE signature = ? AND unreadable = 0").bind(signature).first()) continue;
       const transaction = await rpc("getTransaction", [signature,
         { encoding: "json", commitment: "confirmed", maxSupportedTransactionVersion: 0 }]);
       if (transaction === null) throw new Error("a listed transaction is not available yet");
       // One transaction the model cannot interpret must not hold every later
       // one back: it is kept as unreadable and the model stays incomplete.
+      // Any other failure (the database, above all) is not the transaction's:
+      // the walk stops here, advances nothing and reads it again next time.
       try {
         if (await ingestTransaction(db, parseTransaction(transaction))) ingested += 1;
-      } catch {
+      } catch (error) {
+        if (!(error instanceof UnreadableTransaction)) throw error;
         await recordUnreadable(db, signature, Number((transaction as { slot?: unknown }).slot) || 0);
       }
     }

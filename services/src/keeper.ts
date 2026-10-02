@@ -361,8 +361,8 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
 }
 
 /**
- * Polls a relayed write until the cluster reports its outcome: null when it
- * confirmed, its error when it landed and failed. Running out of polls is no
+ * Polls a relayed write until the cluster confirms its outcome: null when it
+ * succeeded, its error when it landed and failed. Running out of polls is no
  * outcome at all, and throws.
  */
 async function writeOutcome(
@@ -372,14 +372,25 @@ async function writeOutcome(
 ): Promise<unknown> {
   for (let poll = 0; poll < KEEPER_CONFIRMATION.polls; poll += 1) {
     const status = (await connection.getSignatureStatuses([signature])).value[0];
-    if (status?.err) return status.err;
-    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return null;
+    const outcome = clusterOutcome(status);
+    if (outcome) return outcome.err;
     await pause(KEEPER_CONFIRMATION.intervalMs);
   }
   throw new Error("the write's outcome is unknown");
 }
 
 const BASE_ENDPOINT = "base";
+
+/**
+ * The one reading of a signature status, for a write of this pass or an
+ * earlier one: an outcome exists only once the cluster has confirmed it. What
+ * a single node has processed, success or failure, can still be replaced by
+ * another result on the confirmed chain, and settles nothing.
+ */
+function clusterOutcome(status: { err: unknown; confirmationStatus?: string } | null | undefined): { err: unknown } | null {
+  return status && (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized")
+    ? { err: status.err ?? null } : null;
+}
 
 /**
  * What became of a write an earlier pass relayed: its landed result, or
@@ -393,8 +404,9 @@ async function earlierOutcome(
   // The height is read first: a status read after it sees every block up to it.
   const height = await connection.getBlockHeight("finalized");
   const status = (await connection.getSignatureStatuses([write.signature], { searchTransactionHistory: true })).value[0];
-  if (status?.err) return "failed";
-  if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return "confirmed";
+  const outcome = clusterOutcome(status);
+  if (outcome) return outcome.err ? "failed" : "confirmed";
+  // Seen by one node only, it is still neither landed nor gone.
   return !status && height > write.lastValidBlockHeight ? "expired" : null;
 }
 
