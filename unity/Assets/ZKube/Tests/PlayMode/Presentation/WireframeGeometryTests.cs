@@ -411,6 +411,54 @@ namespace ZKube.Tests.Presentation
             Phones.Clear(shell);
         }
 
+        // The map tells its nodes apart (DECISIONS 2026-10-02): locked, open,
+        // done and current each wear the realm's own piece, the current one
+        // pulses (and holds still under reduced motion), and the guardian is
+        // the boss: its own ring, nearly twice a node, in a breathing glow.
+        [UnityTest] public IEnumerator TheMapTellsItsNodesApartAndItsGuardianIsTheBoss()
+        {
+            root = new GameObject("Map nodes");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Map nodes");
+            Phones.Seeker(shell);
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var views = root.AddComponent<PageViews>(); views.Initialize(new Wireframe(), shell, "Home", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            bool reduced = AppPreferences.ReducedMotion;
+            try
+            {
+                foreach (bool still in new[] { false, true })
+                {
+                    AppPreferences.SetReducedMotion(still);
+                    views.Render(AppPage.Campaign); yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                    Image Face(int level) => root.GetComponentsInChildren<Image>().Single(image => image.name == "Trial " + level + " node" || image.name == "Trial " + level + " ring");
+                    string Slot(int level) => Face(level).sprite.name.Replace("(Clone)", "");
+                    // The wireframe's map: levels 1-3 done, 4 open and current, 5-9 locked, 10 the guardian.
+                    var art = shell.Artwork;
+                    foreach (var (level, slot) in new[] { (1, SkinSlots.MapNodeDone), (3, SkinSlots.MapNodeDone), (4, SkinSlots.MapNodeCurrent),
+                        (5, SkinSlots.MapNodeLocked), (9, SkinSlots.MapNodeLocked), (10, SkinSlots.MapNodeGuardian) })
+                        Assert.AreEqual(art.SkinRealm(slot).name.Replace("(Clone)", ""), Slot(level), "Level " + level + " wears " + slot);
+                    Assert.AreNotEqual(art.SkinRealm(SkinSlots.MapNodeOpen), art.SkinRealm(SkinSlots.MapNodeDone), "Done is its own piece");
+                    var pulse = Face(4).GetComponent<SkinPulse>();
+                    Assert.IsNotNull(pulse, "The current node pulses");
+                    Assert.IsTrue(root.GetComponentsInChildren<Image>().Where(image => image.name.StartsWith("Trial ") && image.name.EndsWith(" node"))
+                        .Count(image => image.GetComponent<SkinPulse>() != null) == 1, "Only the current node pulses");
+                    float least = 1;
+                    for (float end = Time.realtimeSinceStartup + SkinPulse.Seconds; Time.realtimeSinceStartup < end;) { least = Mathf.Min(least, pulse.Scale); yield return null; }
+                    if (still) Assert.AreEqual(1, least, "Reduced motion holds the current node still");
+                    else Assert.Less(least, .95f, "The current node pulses");
+                    Assert.IsNotNull(root.GetComponentsInChildren<Image>().Single(image => image.name == "Trial 4 glow").GetComponent<SkinGlow>(), "The current node keeps its light");
+                    float node = SkinUi.ScreenRect(Face(5).rectTransform).width, boss = SkinUi.ScreenRect(Face(10).rectTransform).width;
+                    Assert.GreaterOrEqual(boss / node, 1.85f, "The guardian is nearly twice a node");
+                    var light = root.GetComponentsInChildren<Image>().Single(image => image.name == "Trial 10 light").GetComponent<SkinGlow>();
+                    Assert.AreEqual(!still, light.Breathing, "The boss's glow breathes, except under reduced motion");
+                    Assert.AreEqual(3, root.GetComponentsInChildren<Image>().Count(image => image.name.StartsWith("Trial 10 star ")), "The boss shows its stars");
+                }
+            }
+            finally { AppPreferences.SetReducedMotion(reduced); Phones.Clear(shell); }
+        }
+
         // The Daily card shows the day's own guardian: its portrait, its name
         // and, on the Arcade, its realm all come from the Daily, in every realm,
         // whatever realm the page's painting is from.

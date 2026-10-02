@@ -89,11 +89,11 @@ namespace ZKube.Presentation
         }
 
         // Node sizes in dp: the glowstone 48 on the Seeker and 40 on a compact
-        // phone, the current one 1.1 and the guardian 1.6 times larger, stars a
-        // share of the glowstone under each finished node and the guardian. A
-        // crowded realm shrinks them, never below 34 dp, until every node and its
-        // star row clear the others by 4 dp.
-        public const float CurrentScale = 1.1f, GuardianScale = 1.6f, StarShare = .31f, GuardianStarShare = .38f, StarGapShare = .06f;
+        // phone, the current one 1.1 and the guardian, the realm's boss, 1.9
+        // times larger, stars a share of the glowstone under each finished node
+        // and the guardian. A crowded realm shrinks them, never below 34 dp,
+        // until every node and its star row clear the others by 4 dp.
+        public const float CurrentScale = 1.1f, GuardianScale = 1.9f, StarShare = .31f, GuardianStarShare = .42f, StarGapShare = .06f;
         public const float MinimumNodeDp = 34, ClearanceDp = 4;
 
         // The painting, the path and the nodes in the room between the header and
@@ -178,11 +178,13 @@ namespace ZKube.Presentation
         }
 
         // One level, in its realm's own node set. Locked: dark stone with a
-        // lock. Open or finished: the glowstone with its number, a finished one
-        // with its three stars under it. Current: larger, its cream rim,
-        // breathing. The guardian: its portrait in the portal ring with a soft
-        // halo, dimmed with a lock until it opens, its stars always under it.
-        // The touch area covers the node and its stars, at least 48 dp.
+        // lock. Open: the glowstone with its number. Done: its own settled
+        // stone, its stars under it. Current: larger, its cream rim, pulsing in
+        // its breathing light (reduced motion: the light alone). The guardian,
+        // the realm's boss: its portrait in its own ring, nearly twice a node,
+        // in the realm's breathing glow over a wider halo, dimmed with a lock
+        // until it opens, its larger stars always under it. The touch area
+        // covers the node and its stars, at least 48 dp.
         private void Node(CampaignPageView value, CampaignTrialView trial, Vector2 center, float normal, bool guardian, bool lit)
         {
             float d = ui.Density;
@@ -201,7 +203,9 @@ namespace ZKube.Presentation
             if (lit) ui.Glow(name + " glow", Scaled(rect, 1.7f), SkinUi.WithAlpha(ui.Art.Token(SkinTokens.Accent), .55f), hit.transform, reducedMotion ? 0 : HaloSeconds);
             if (guardian)
             {
-                ui.Glow(name + " light", Scaled(rect, 1.9f), new Color(189 / 255f, 243 / 255f, 1, .5f), hit.transform);
+                var boss = ui.Art.Token(SkinTokens.LightGlow);
+                ui.Glow(name + " halo", Scaled(rect, 2.3f), SkinUi.WithAlpha(boss, .35f), hit.transform);
+                ui.Glow(name + " light", Scaled(rect, 1.7f), SkinUi.WithAlpha(boss, open || done ? .7f : .4f), hit.transform, reducedMotion ? 0 : HaloSeconds);
                 // The portrait fills the portal ring's 176/256 opening; the ring is
                 // drawn over it in place of the medallion's own frame.
                 float face = size * 176f / 256f * 320f / 232f;
@@ -218,10 +222,11 @@ namespace ZKube.Presentation
             }
             else
             {
-                RealmPiece(name + " node", lit ? SkinSlots.MapNodeCurrent : done ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked,
+                var face = RealmPiece(name + " node", lit ? SkinSlots.MapNodeCurrent : done ? SkinSlots.MapNodeDone : open ? SkinSlots.MapNodeOpen : SkinSlots.MapNodeLocked,
                     rect, hit.transform);
+                if (lit) face.gameObject.AddComponent<SkinPulse>();
                 if (open || done)
-                    ui.Label(name + " number", Number(value.Realm, trial.Level), rect, size * .37f / d, SkinTokens.Text, hit.transform,
+                    ui.Label(name + " number", Number(value.Realm, trial.Level), rect, size * .37f / d, SkinTokens.Text, lit ? face.transform : hit.transform,
                         SkinUi.Type.Display).textWrappingMode = TextWrappingModes.NoWrap;
                 else Tinted(name + " lock", SkinSlots.IconLock, Scaled(rect, .46f), SkinTokens.TextMuted, hit.transform);
             }

@@ -216,6 +216,28 @@ namespace ZKube.Presentation
         private void OnDestroy() => Registry?.Remove(this);
     }
 
+    // A piece that pulses about its centre, between its full size and Low of
+    // it, once every Seconds; reduced motion holds it at its full size, where
+    // its light alone marks it.
+    public sealed class SkinPulse : MonoBehaviour
+    {
+        public const float Low = .9f, Seconds = 1.4f;
+        private RectTransform rect;
+        public float Scale { get; private set; } = 1;
+        private void Awake()
+        {
+            rect = (RectTransform)transform;
+            // About its centre: the kit places pieces from their lower-left corner.
+            var size = rect.rect.size; var pivot = rect.pivot;
+            rect.pivot = new Vector2(.5f, .5f); rect.anchoredPosition += Vector2.Scale(new Vector2(.5f, .5f) - pivot, size);
+        }
+        private void Update()
+        {
+            Scale = AppPreferences.ReducedMotion ? 1 : Mathf.Lerp(1, Low, .5f - .5f * Mathf.Cos(Time.unscaledTime * 2 * Mathf.PI / Seconds));
+            rect.localScale = new Vector3(Scale, Scale, 1);
+        }
+    }
+
     // A tablet built by SkinUi.Tablet. A charged power glows in the realm's key
     // light, breathing over 3 s, with a lit gold badge; an empty one keeps its
     // place unlit, its icon at 40% and a dimmed badge showing 0. Nothing is ever
