@@ -25,6 +25,7 @@ namespace ZKube.Integration.Client
         internal ulong Slot;
         internal PlayerPlanSnapshot Player;
         internal AccountEnvelope Occupied;
+        internal bool DailyPlayerExists;
         private AccountEnvelope protocol, current, following, vault;
         internal DailyEntryAssessment Assess(AccountBindings accounts, long now) =>
             DailyEntrySnapshot.Inspect(accounts, protocol, current, following, vault, Day, now);
@@ -44,8 +45,10 @@ namespace ZKube.Integration.Client
             uint next = value.protocol == null ? checked(value.Day + 1) :
                 Math.Max(checked(value.Day + 1), (uint)accounts.ProtocolConfig(value.protocol)["suspended_until_day"]);
             var second = await rpc.ReadAccounts(rpc.Base, new[] { planner.Daily(next),
-                planner.ActiveRun(owner, value.Player.NextRunId) }, minContextSlot: first.Slot, cancellation: token).ConfigureAwait(false);
-            value.following = second.Accounts[0].Envelope; value.Occupied = second.Accounts[1].Envelope; value.Slot = second.Slot;
+                planner.ActiveRun(owner, value.Player.NextRunId), planner.ArenaPlayer(planner.Daily(value.Day), owner) },
+                minContextSlot: first.Slot, cancellation: token).ConfigureAwait(false);
+            value.following = second.Accounts[0].Envelope; value.Occupied = second.Accounts[1].Envelope;
+            value.DailyPlayerExists = second.Accounts[2].Envelope != null; value.Slot = second.Slot;
             return value;
         }
     }
@@ -98,7 +101,11 @@ namespace ZKube.Integration.Client
                     return new DailyEntryReadiness("changed", day, kredits: after.Kredits);
                 var finalWindow = observation.Assess(accounts, completedAt);
                 if (finalWindow.Snapshot == null) return new DailyEntryReadiness(finalWindow.Status, day, kredits: after.Kredits);
-                return new DailyEntryReadiness(!session.Current ? "needs-session" : session.Funding != "ready" ? "needs-refill" : "ready",
+                // The device pays the entry's rent itself, so readiness is the
+                // real cost of this entry rather than fees alone.
+                bool funded = session.Funding == "ready" &&
+                    session.Balance >= DeviceFunding.EntryBalanceLamports(observation.DailyPlayerExists);
+                return new DailyEntryReadiness(!session.Current ? "needs-session" : !funded ? "needs-refill" : "ready",
                     day, kredits: after.Kredits, session: session);
             }
             var value = await Observe().ConfigureAwait(false);

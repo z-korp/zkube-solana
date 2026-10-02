@@ -111,11 +111,11 @@ namespace ZKube.Integration.App.Tests
                 }
                 if (scenario.Contains("refill") || scenario.EndsWith("-zero")) SetBalance((string)Plans["inputs"]["device"], 0);
                 if (scenario.Contains("refill"))
-                { after.Add(SystemAccount((string)Plans["inputs"]["device"], 5_000_000)); }
+                { after.Add(SystemAccount((string)Plans["inputs"]["device"], DeviceFunding.AllowanceLamports)); }
                 else if (!scenario.Contains("disable") && scenario != "session-current")
                 {
                     after.Add(Ui["renewedToken"]);
-                    after.Add(SystemAccount((string)Fixture("device")["inputs"]["device"], 5_000_000));
+                    after.Add(SystemAccount((string)Fixture("device")["inputs"]["device"], DeviceFunding.AllowanceLamports));
                 }
             }
         }

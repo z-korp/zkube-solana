@@ -76,7 +76,7 @@ fn renew(remaining: i64, balance: u64) -> Value {
         data: session_keys::instruction::CreateSessionV2 {
             top_up: Some(true),
             valid_until: Some(NOW + 604_500),
-            lamports: Some(5_000_000),
+            lamports: Some(transactions::device_allowance()),
         }
         .data(),
         accounts: session_keys::accounts::CreateSessionTokenV2 {

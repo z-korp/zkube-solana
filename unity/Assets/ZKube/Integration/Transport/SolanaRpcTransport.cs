@@ -273,9 +273,12 @@ namespace ZKube.Integration.Transport
             if (response["error"] != null || response["result"] == null) throw new FormatException("Missing JSON-RPC result");
             return response["result"];
         }
+        // One policy for Base, Router and every Router-resolved ER endpoint:
+        // HTTPS, except plain HTTP to this machine.
         private static Uri Endpoint(string value)
         {
-            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https") ||
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+                !(uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)) ||
                 !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment)) throw new FormatException("Invalid RPC endpoint");
             return uri;
         }

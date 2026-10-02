@@ -69,7 +69,7 @@ namespace ZKube.Integration.Presentation
                     ("Device disabled", "Disabled", SkinTokens.Text,
                         "This device can no longer spend Kredits or sign game actions. You can enable it again when ready.") :
                     ("Set up this device", "Not set up", SkinTokens.Text,
-                        "Your wallet funds a " + Sol(PlanningConstants.DeviceAllowanceLamports) +
+                        "Your wallet funds a " + Sol(DeviceFunding.AllowanceLamports) +
                         " fee allowance plus setup rent and fees. This device then spends your prepaid Kredits on Daily entries.");
             if (!session.Current)
                 return ("Renew authorization", "Renewal needed", SkinTokens.Text, session.TokenMayClose ?
@@ -77,7 +77,7 @@ namespace ZKube.Integration.Presentation
                     "Renew before playing. Your wallet replaces the current authorization with a new one for this device.");
             if (session.Funding != "ready")
                 return ("Fee allowance low", "Allowance low", SkinTokens.Text,
-                    "Refill the fee allowance to continue. Your wallet funds the " + Sol(PlanningConstants.DeviceAllowanceLamports) + " target and shows any fees.");
+                    "Refill the fee allowance to continue. Your wallet funds the " + Sol(DeviceFunding.AllowanceLamports) + " target and shows any fees.");
             return (session.Status == "expiring" ? "Session expires soon" : "Session active", session.Status == "expiring" ? "Expires soon" : "Session active",
                 SkinTokens.Positive, "This device signs game actions and spends your prepaid Kredits on Daily entries. Your wallet approves purchases and device changes.");
         }

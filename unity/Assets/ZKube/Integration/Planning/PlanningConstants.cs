@@ -4,7 +4,7 @@ namespace ZKube.Integration.Planning
     {
         public const uint ComputeUnitLimit = 400000U;
         public const uint ComputeUnitPrice = 1000U;
-        public const uint DeviceAllowanceLamports = 5000000U;
+        public const uint LargestKreditPack = 25U;
         public const uint SettlementReserveLamports = 5000U;
         public const uint SessionLifetimeSeconds = 604500U;
         public const uint ClaimLookbackDays = 30U;

@@ -203,14 +203,14 @@ namespace ZKube.Integration.Planning
         {
             var actor = PlannerActor.Wallet(owner); var keys = ActorAccounts(actor); keys["player_state"] = Player(owner);
             return Plan(actor, PlanRoute.Base, new[] { Instruction("initialize_player", new JObject(), keys),
-                sessions.Create(owner, device, owner, protocol.ProgramId, true, checked(now + PlanningConstants.SessionLifetimeSeconds), PlanningConstants.DeviceAllowanceLamports) });
+                sessions.Create(owner, device, owner, protocol.ProgramId, true, checked(now + PlanningConstants.SessionLifetimeSeconds), DeviceFunding.AllowanceLamports) });
         }
 
         public TransactionPlan RefillSession(string owner, string device, ulong balance)
         {
-            if (balance >= PlanningConstants.DeviceAllowanceLamports) throw new InvalidOperationException("Device signer does not need a refill");
+            if (balance >= DeviceFunding.AllowanceLamports) throw new InvalidOperationException("Device signer does not need a refill");
             return Plan(PlannerActor.Wallet(owner), PlanRoute.Base, new[] {
-                Transfer(owner, device, PlanningConstants.DeviceAllowanceLamports - balance), Transfer(device, owner, 0) });
+                Transfer(owner, device, DeviceFunding.AllowanceLamports - balance), Transfer(device, owner, 0) });
         }
 
         public TransactionPlan RenewSession(string owner, string device, long now, AccountEnvelope oldToken, ulong balance)

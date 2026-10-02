@@ -382,6 +382,15 @@ until acknowledgement, including after failure. `OneInstallKeyIsReusedAcrossWall
 `oneInstallKeyIsSavedBeforeUseAndReusedAfterRestart` and `failedDurableSaveReturnsNoUsableKey` guard native
 persistence.
 
+What the owner's wallet puts on a device has one owner. The program states the accounts a first entry of the
+day pays for, including the pinned delegation program's record, metadata and buffer; the codegen turns them
+into rents; the client's DeviceFunding adds its own fees and the delegation charge. The funded target is one
+first entry plus the run costs of the largest Kredit pack, and a device is ready to enter only when it holds
+the cost of that entry. `first_entry_accounts_are_the_real_account_and_delegation_sizes`,
+`sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` and
+`ADeviceThatCannotPayItsFirstEntryIsAskedToRefillBeforeEntering` guard the sizes, the real entry cost and
+the gate. The delegation charge is MagicBlock's published figure; a Devnet trial confirms it.
+
 Each run and ArenaPlayer returns rent to its stored payer, even from another device.
 `a_closed_run_returns_rent_to_its_payer` and `a_closed_arena_player_returns_rent_to_its_payer` guard
 refunds. `sbf_cadence_funding_can_prepare_a_missing_post_launch_daily` and
@@ -389,7 +398,9 @@ refunds. `sbf_cadence_funding_can_prepare_a_missing_post_launch_daily` and
 board rent is funded at finalization; construction adds no funding or extra write plan. The cadence signer
 is not a general fee sponsor.
 
-Base, Router and resolved ER connections stay separate. Resolve placement through `getDelegationStatus`.
+Base, Router and resolved ER connections stay separate, and each endpoint is HTTPS unless it is this machine;
+`AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. Resolve
+placement through `getDelegationStatus`.
 Preserve copied-back terminal state until consumption; deterministic expiry and orphan reservation permit
 cleanup without late scoring. Arcade has one durable slot and monotonic run IDs, guarded by
 `arcade_reservation_and_orphan_share_one_monotonic_run_sequence`.

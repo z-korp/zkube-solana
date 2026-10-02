@@ -12,6 +12,19 @@ pub fn instruction<T: InstructionData, A: ToAccountMetas>(data: T, accounts: A) 
     }
 }
 
+/// The client's funded device target, written out again on this side so the
+/// plans agree byte for byte: the device's rent floor, a first entry of the
+/// day, and the run costs of the largest Kredit pack, up to 0.001 SOL.
+pub fn device_allowance() -> u64 {
+    let fee = 5_000 + 400_000 * 1_000 / 1_000_000;
+    let run_cost = 2 * fee + 300_000;
+    (anchor_lang::prelude::Rent::default().minimum_balance(0)
+        + solana::state::FirstEntryAccounts::sizes().peak_rent()
+        + 25 * run_cost)
+        .div_ceil(zkube_core::SOL_PAYOUT_UNIT_LAMPORTS)
+        * zkube_core::SOL_PAYOUT_UNIT_LAMPORTS
+}
+
 pub fn message(id: &str, payer: Pubkey, instructions: Vec<Instruction>, versioned: bool) -> Value {
     let mut instructions = instructions;
     if versioned {
@@ -93,7 +106,7 @@ pub fn scenarios() -> Vec<Value> {
         "session-refill-0",
         owner(),
         vec![
-            transfer(owner(), device(), 5_000_000),
+            transfer(owner(), device(), device_allowance()),
             transfer(device(), owner(), 0),
         ],
         true,

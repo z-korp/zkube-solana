@@ -246,6 +246,22 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             "ClaimWindowSeconds",
             DAILY_REWARD_CLAIM_WINDOW_SECONDS as u64,
         ),
+        // What a device holds at once to enter and delegate a first run of
+        // the day, the part that returns when the daily player closes, and
+        // the floor of the device's own account.
+        (
+            "FirstEntryPeakRentLamports",
+            zkube_program::state::FirstEntryAccounts::sizes().peak_rent(),
+        ),
+        (
+            "ArenaPlayerRentLamports",
+            zkube_program::state::FirstEntryAccounts::sizes().arena_player_rent(),
+        ),
+        ("PayoutUnitLamports", zkube_core::SOL_PAYOUT_UNIT_LAMPORTS),
+        (
+            "SystemAccountRentLamports",
+            anchor_lang::prelude::Rent::default().minimum_balance(0),
+        ),
     ] {
         writeln!(output, "        public const ulong {name} = {value}UL;").unwrap();
     }

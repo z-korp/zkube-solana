@@ -62,7 +62,7 @@ namespace ZKube.Integration.App.Tests
         {
             Native.Seed = Enumerable.Repeat((byte)2, 32).ToArray(); var row = Plans["accounts"]["session"]; var token = Services.Tokens.Decode(Envelope(row));
             await ZKube.Integration.Tests.TestBootstrap.SeedSession(Services.Sessions, Owner, (string)Plans["inputs"]["device"], (string)row["address"], token.ValidUntil);
-            Http.Add(row); Http.Add(new JObject { ["address"] = Plans["inputs"]["device"], ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["lamports"] = 5000000, ["data"] = "" });
+            Http.Add(row); Http.Add(new JObject { ["address"] = Plans["inputs"]["device"], ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["lamports"] = DeviceFunding.AllowanceLamports, ["data"] = "" });
         }
         public void AssertReadOnly() => Assert.That(Http.Requests.Any(x => new[] { "sendTransaction", "simulateTransaction", "getLatestBlockhash" }.Contains((string)x["method"])), Is.False);
         public sealed class FakeHttp

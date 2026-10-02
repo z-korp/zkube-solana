@@ -827,9 +827,86 @@ pub fn maximum_board_rent_lamports() -> u64 {
     )
 }
 
+/// Sizes of the accounts a device pays for when it sends a player's first
+/// entry of a Daily and delegates the run in the same transaction. The buffer
+/// exists only inside that transaction; the record and metadata are the
+/// pinned delegation program's, for this run's seeds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FirstEntryAccounts {
+    pub arena_player: usize,
+    pub active_run: usize,
+    pub delegation_buffer: usize,
+    pub delegation_record: usize,
+    pub delegation_metadata: usize,
+}
+
+impl FirstEntryAccounts {
+    pub fn sizes() -> Self {
+        use crate::state::protocol::{ActiveRun, ACTIVE_RUN_SEED};
+        use ephemeral_rollups_sdk::dlp_api::state::{
+            DelegationMetadata, DelegationRecord, UndelegationRequester,
+        };
+        let run = 8 + ActiveRun::INIT_SPACE;
+        Self {
+            arena_player: 8 + ArenaPlayer::INIT_SPACE,
+            active_run: run,
+            delegation_buffer: run,
+            delegation_record: DelegationRecord::size_with_discriminator(),
+            delegation_metadata: DelegationMetadata {
+                last_commit_id: 0,
+                undelegation_requester: UndelegationRequester::None,
+                seeds: vec![
+                    ACTIVE_RUN_SEED.to_vec(),
+                    b"active".to_vec(),
+                    vec![0; 32],
+                    vec![0; 8],
+                ],
+                rent_payer: Default::default(),
+            }
+            .serialized_size(),
+        }
+    }
+
+    /// Rent for the daily player account, returned when it closes.
+    pub fn arena_player_rent(self) -> u64 {
+        Rent::default().minimum_balance(self.arena_player)
+    }
+
+    /// The most rent the entry transaction holds at once.
+    pub fn peak_rent(self) -> u64 {
+        [
+            self.arena_player,
+            self.active_run,
+            self.delegation_buffer,
+            self.delegation_record,
+            self.delegation_metadata,
+        ]
+        .into_iter()
+        .map(|space| Rent::default().minimum_balance(space))
+        .sum()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_entry_accounts_are_the_real_account_and_delegation_sizes() {
+        let accounts = FirstEntryAccounts::sizes();
+        assert_eq!(
+            accounts,
+            FirstEntryAccounts {
+                arena_player: 290,
+                active_run: 337,
+                delegation_buffer: 337,
+                delegation_record: 96,
+                delegation_metadata: 118,
+            }
+        );
+        assert_eq!(accounts.arena_player_rent(), 2_909_280);
+        assert_eq!(accounts.peak_rent(), 12_653_280);
+    }
 
     #[test]
     fn entry_split_is_exact_and_static() {
