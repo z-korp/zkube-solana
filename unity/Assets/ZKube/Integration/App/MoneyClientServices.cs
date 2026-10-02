@@ -103,7 +103,8 @@ namespace ZKube.Integration.App
             Runs = new RunClient(Identity, SessionAccess, Accounts, Planner, Rpc, RunMarkers, recovery,
                 Journal, Executor, Reconciler, now, Protocol, runClientSeed);
             Products = new ProductQueries(Identity, Accounts, Planner, Rpc, now,
-                string.IsNullOrWhiteSpace(config.StandingsUri) ? null : new StandingsTransport(http, config.StandingsUri));
+                string.IsNullOrWhiteSpace(config.StandingsUri) || !(http is IPublicReadHttp reads) ? null
+                    : new StandingsTransport(reads, config.StandingsUri));
             EntryReadiness = new DailyEntryReadinessQuery(Identity, SessionLifecycle, Accounts, Planner, Rpc, Journal, now);
             PublicDaily = new PublicDailyQuery(Accounts, Planner, Rpc, now);
             Economy = new EconomyClient(Identity, SessionAccess, Products, Planner, Journal, Executor, Reconciler);

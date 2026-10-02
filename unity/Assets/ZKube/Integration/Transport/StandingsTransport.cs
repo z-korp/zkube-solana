@@ -29,9 +29,9 @@ namespace ZKube.Integration.Transport
     {
         public const int PageRows = 100;
         private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
-        private readonly IJsonRpcHttp http;
+        private readonly IPublicReadHttp http;
         private readonly Uri endpoint;
-        public StandingsTransport(IJsonRpcHttp http, string endpoint)
+        public StandingsTransport(IPublicReadHttp http, string endpoint)
         {
             this.http = http ?? throw new ArgumentNullException(nameof(http));
             if (!Uri.TryCreate(endpoint, UriKind.Absolute, out this.endpoint) || this.endpoint.Scheme != Uri.UriSchemeHttps ||

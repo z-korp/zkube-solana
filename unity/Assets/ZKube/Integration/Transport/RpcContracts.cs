@@ -8,6 +8,12 @@ namespace ZKube.Integration.Transport
     public interface IJsonRpcHttp
     {
         Task<string> Post(Uri endpoint, string json, int maximumResponseBytes, CancellationToken cancellation);
+    }
+
+    // A plain bounded GET, for the public read model. It is its own contract:
+    // an RPC transport that cannot do it simply offers no read model.
+    public interface IPublicReadHttp
+    {
         Task<string> Get(Uri endpoint, int maximumResponseBytes, CancellationToken cancellation);
     }
 

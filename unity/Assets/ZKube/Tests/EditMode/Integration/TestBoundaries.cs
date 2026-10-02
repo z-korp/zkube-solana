@@ -70,7 +70,7 @@ namespace ZKube.Integration.Tests
         public void Dispose() { Disposed = true; }
     }
 
-    public sealed class TestHttp : IJsonRpcHttp, IDisposable
+    public sealed class TestHttp : IJsonRpcHttp, IPublicReadHttp, IDisposable
     {
         public readonly ConcurrentQueue<JObject> Requests = new ConcurrentQueue<JObject>();
         public Func<Uri, JObject, CancellationToken, Task<JToken>> Reply;

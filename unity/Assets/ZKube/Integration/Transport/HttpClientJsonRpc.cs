@@ -9,7 +9,7 @@ namespace ZKube.Integration.Transport
 {
     // One reusable HttpClient belongs to the application's lifetime. Responses
     // are bounded while streaming, before allocating/parsing JSON account data.
-    public sealed class HttpClientJsonRpc : IJsonRpcHttp, IDisposable
+    public sealed class HttpClientJsonRpc : IJsonRpcHttp, IPublicReadHttp, IDisposable
     {
         private readonly HttpClient client;
         private readonly TimeSpan requestTimeout;
