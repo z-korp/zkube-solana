@@ -93,6 +93,7 @@ namespace ZKube.Presentation.Tests
                 AssertChosen(false, prompt, fixture + " before");
                 evidence.Click("Guardian action"); yield return null;
                 AssertChosen(true, prompt, fixture + " chosen");
+                yield return ZKube.Tests.Presentation.Captures.Snap(new Rect(0, 0, Screen.width, Screen.height), "armed-" + fixture.Split('-')[0]);
                 var words = Label("Bonus prompt"); words.ForceMeshUpdate();
                 Assert.LessOrEqual(words.GetPreferredValues(words.text, words.rectTransform.rect.width, float.PositiveInfinity).y, words.rectTransform.rect.height + .5f, "The prompt fits the panel");
                 board.View.Status(""); AssertChosen(true, prompt, fixture + " after a cleared notice");
