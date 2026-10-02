@@ -44,7 +44,7 @@ namespace ZKube.Presentation
         private readonly bool[] flying = new bool[3];
         private GameObject modal;
         private Image modalShield;
-        private SpriteRenderer ghost;
+        private SpriteRenderer ghost, pressureFrame, pressureTint;
         // Block sprites are reused: a board change returns them here instead of destroying them.
         private readonly Stack<SpriteRenderer> spareBlocks = new Stack<SpriteRenderer>();
         public int BlockSpritesCreated { get; private set; }
@@ -114,6 +114,11 @@ namespace ZKube.Presentation
                 dimple.color = new Color(1, 1, 1, CellLift);
             }
             Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Layout.Tray, -10);
+            // Under pressure the frame and the glass pulse in the warning colour, over the cells and under the blocks.
+            pressureTint = NewSprite("Pressure tint", art.SkinUi(SkinSlots.FxHalo), -11);
+            Size(pressureTint, new Rect(Layout.Board.x - .15f * Layout.Board.width, Layout.Board.y - .15f * Layout.Board.height, 1.3f * Layout.Board.width, 1.3f * Layout.Board.height));
+            pressureFrame = Sliced("Pressure frame", art.SkinUi(SkinSlots.BoardFrame), Layout.Rim, 1, 2);
+            pressureTint.enabled = pressureFrame.enabled = false;
             var pawsSprite = art.Sprite("boss__paws");
             pawsShadow = NewSprite("Guardian contact shadow", pawsSprite, 7);
             Size(pawsShadow, new Rect(hud.Guardian.x + .7f * d, hud.Guardian.y - 1.3f * d, hud.Guardian.width, hud.Guardian.height));
@@ -623,8 +628,39 @@ namespace ZKube.Presentation
         }
         public static string ObjectiveName(byte kind, byte value, byte count = 0) => PageCatalog.Load().ObjectiveName(kind, value, count);
 
+        // Pressure, as the old client showed it (DECISIONS 2026-10-02): with two
+        // rows or fewer free above the stack the frame and the glass pulse warm
+        // every two seconds; with none free they pulse red, faster and stronger.
+        // The guardian looks worried until the board recovers. Reduced motion
+        // holds the tint instead of pulsing.
+        public const int PressureRows = 2;
+        public static int FreeRows(byte[] grid)
+        {
+            for (int row = 9; row >= 0; row--)
+                for (int col = 0; col < 8; col++)
+                    if (grid[row * 8 + col] != 0) return 9 - row;
+            return 10;
+        }
+        // 0 calm, 1 warning, 2 critical.
+        public static int PressureLevel(int freeRows) => freeRows <= 0 ? 2 : freeRows <= PressureRows ? 1 : 0;
+        public int Pressure { get; private set; }
+        public const string PressureFace = "surprised";
+        private string RestFace => Pressure > 0 ? PressureFace : "idle";
+        private void ShowPressure(float now)
+        {
+            if (pressureFrame == null) return;
+            pressureFrame.enabled = pressureTint.enabled = Pressure > 0;
+            if (Pressure == 0) return;
+            bool critical = Pressure == 2;
+            var danger = art.Token(SkinTokens.Negative);
+            var tone = critical ? danger : Color.Lerp(danger, art.Token(SkinTokens.Accent), .5f);
+            float wave = owner.ReducedMotion ? .6f : .5f - .5f * Mathf.Cos(2 * Mathf.PI * now / (critical ? 1.2f : 2));
+            pressureFrame.color = SkinUi.WithAlpha(tone, critical ? Mathf.Lerp(.5f, 1, wave) : Mathf.Lerp(.3f, .9f, wave));
+            pressureTint.color = SkinUi.WithAlpha(tone, (critical ? .34f : .18f) * wave);
+        }
         public void SetBoard(byte[] grid)
         {
+            Pressure = PressureLevel(FreeRows(grid));
             foreach (var block in blocks.Values) ReturnBlock(block);
             blocks.Clear(); DisplayGrid = (byte[])grid.Clone();
             for (int row = 0; row < 10; row++) for (int col = 0; col < 8;)
@@ -1244,7 +1280,7 @@ namespace ZKube.Presentation
         }
         private void Update()
         {
-            ShowAwaiting(Time.unscaledTime);
+            ShowAwaiting(Time.unscaledTime); ShowPressure(Time.unscaledTime);
             if (guardianGlow != null && guardianGlow.enabled)
                 guardianGlow.color = SkinUi.WithAlpha(guardianGlow.color, owner.ReducedMotion ? 1 : .8f + .2f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f));
             if (owner != null && owner.State != null) Breathe(Time.unscaledTime);
@@ -1253,10 +1289,11 @@ namespace ZKube.Presentation
             float now = Time.unscaledTime;
             if (guardianFinal) return;
             if (guardianCheerUntil > 0 && now < guardianCheerUntil) return;
-            if (guardianCheerUntil > 0) { guardianCheerUntil = 0; Face("idle"); nextBlink = now + 3.2f; }
-            if (owner.ReducedMotion) { if (guardianFace == "blink") Face("idle"); return; }
-            if (blinkUntil > 0 && now >= blinkUntil) { blinkUntil = 0; Face("idle"); nextBlink = now + 3.2f + 1.9f * Mathf.Repeat(now * .618f, 1); }
+            if (guardianCheerUntil > 0) { guardianCheerUntil = 0; Face(RestFace); nextBlink = now + 3.2f; }
+            if (owner.ReducedMotion) { if (guardianFace != RestFace) Face(RestFace); return; }
+            if (blinkUntil > 0 && now >= blinkUntil) { blinkUntil = 0; Face(RestFace); nextBlink = now + 3.2f + 1.9f * Mathf.Repeat(now * .618f, 1); }
             else if (blinkUntil == 0 && now >= nextBlink) { Face("blink"); blinkUntil = now + BlinkSeconds; }
+            else if (blinkUntil == 0 && guardianFace != RestFace) Face(RestFace);
         }
 
         private SpriteRenderer NewSprite(string name, Sprite sprite, int order)

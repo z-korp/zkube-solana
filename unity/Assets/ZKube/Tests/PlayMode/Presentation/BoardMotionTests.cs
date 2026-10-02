@@ -237,6 +237,81 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(Vector3.one, score.rectTransform.localScale);
         }
 
+        // DECISIONS 2026-10-02: with two rows or fewer free the board shows its
+        // pressure, as the old client did, and stops when the board recovers. The
+        // threshold both ways: three free rows are calm, two and one warn, none is
+        // critical, and back. The frame and the glass pulse in the warning colour
+        // over the board's own frame; the guardian looks worried and calms again.
+        [UnityTest] public IEnumerator PressureShowsAtTwoFreeRowsAndStopsWhenTheBoardRecovers()
+        {
+            Assert.AreEqual(2, BoardView.PressureRows);
+            for (int free = 0; free <= 10; free++)
+                Assert.AreEqual(free == 0 ? 2 : free <= 2 ? 1 : 0, BoardView.PressureLevel(free), free + " free rows");
+            yield return Load("realm-8-daily", false);
+            var view = board.View; var original = (byte[])board.State.Grid.Clone();
+            SpriteRenderer Piece(string name) => view.GetComponentsInChildren<SpriteRenderer>(true).Single(sprite => sprite.name == name);
+            // A stack of single blocks up the first column, to the given height.
+            byte[] Stack(int height) { var grid = new byte[80]; for (int row = 0; row < height; row++) grid[row * 8] = 1; return grid; }
+            for (int height = 0; height <= 10; height++) Assert.AreEqual(10 - height, BoardView.FreeRows(Stack(height)), "A stack " + height + " high");
+            Assert.AreEqual(0, view.Pressure, "The fixture opens calm");
+            foreach (var (height, level) in new[] { (7, 0), (8, 1), (9, 1), (10, 2), (9, 1), (8, 1), (7, 0), (10, 2), (3, 0) })
+            {
+                string at = "a stack " + height + " high";
+                view.SetBoard(Stack(height)); yield return null;
+                Assert.AreEqual(level, view.Pressure, at);
+                Assert.AreEqual(level > 0, Piece("Pressure frame").enabled, at + ": the frame");
+                Assert.AreEqual(level > 0, Piece("Pressure tint").enabled, at + ": the tint");
+                if (level > 0)
+                {
+                    Assert.AreEqual((Vector2)view.Layout.Rim.center, (Vector2)Piece("Pressure frame").bounds.center, at + ": on the board's frame");
+                    Assert.AreEqual(view.Layout.Rim.width, Piece("Pressure frame").bounds.size.x, .5f, at);
+                    // It pulses: faster and stronger when critical.
+                    float low = 1, high = 0;
+                    for (float end = Time.realtimeSinceStartup + (level == 2 ? 1.3f : 2.1f); Time.realtimeSinceStartup < end;)
+                    { float a = Piece("Pressure frame").color.a; low = Mathf.Min(low, a); high = Mathf.Max(high, a); yield return null; }
+                    Assert.Greater(high - low, .3f, at + ": the frame pulses");
+                    Assert.AreEqual(level == 2 ? 1 : .9f, high, .08f, at + ": its strength");
+                    Assert.AreEqual("boss__" + BoardView.PressureFace, Guardian().sprite.name.Replace("(Clone)", "").Replace("boss__blink", "boss__" + BoardView.PressureFace), at + ": the guardian is worried");
+                }
+                else
+                {
+                    yield return Seconds(.2f);
+                    Assert.AreEqual("boss__idle", Guardian().sprite.name.Replace("(Clone)", "").Replace("boss__blink", "boss__idle"), at + ": the guardian is calm");
+                }
+            }
+            // Reduced motion holds the tint.
+            board.SetReducedMotion(true); view.SetBoard(Stack(9)); yield return null;
+            float held = Piece("Pressure frame").color.a; yield return Seconds(.5f);
+            Assert.AreEqual(held, Piece("Pressure frame").color.a, 1e-4f, "Reduced motion does not pulse");
+            Assert.Greater(held, .3f);
+            view.SetBoard(original); yield return null;
+            Assert.AreEqual(0, view.Pressure);
+            // Evidence on each phone.
+            board.SetReducedMotion(false);
+            var art = ZKube.Tests.Presentation.BoardTestState.Art(board);
+            view.gameObject.SetActive(false);
+            foreach (var (phone, screen, top, bottom) in new[] { ("compact", ZKube.Tests.Presentation.Phones.CompactScreen, ZKube.Tests.Presentation.Phones.CompactTopInsetDp, 0f),
+                ("emulator", ZKube.Tests.Presentation.Phones.EmulatorScreen, ZKube.Tests.Presentation.Phones.EmulatorTopInsetDp, ZKube.Tests.Presentation.Phones.EmulatorBottomInsetDp),
+                ("seeker", ZKube.Tests.Presentation.Phones.SeekerScreen, ZKube.Tests.Presentation.Phones.SeekerTopInsetDp, 0f) })
+                foreach (int height in new[] { 8, 10 })
+                {
+                    var ui = new SkinUi(art, 1, 1);
+                    var child = new GameObject("Pressure view"); child.transform.SetParent(root.transform);
+                    var shown = child.AddComponent<BoardView>();
+                    shown.Create(board, art, HudLayout.Build(ui, board.State, board.Session, new Rect(0, bottom, screen.width, screen.height - top - bottom), 1, screen), ui);
+                    var grid = new byte[80]; for (int row = 0; row < height; row++) for (int col = 0; col < 6; col += 2) { grid[row * 8 + col + row % 2] = 2; grid[row * 8 + col + row % 2 + 1] = 2; }
+                    shown.SetBoard(grid); shown.SetPreview(board.State.HasNextRow, board.State.NextRow); shown.Summary(board.State, board.Session, true);
+                    yield return null;
+                    var frame = shown.GetComponentsInChildren<SpriteRenderer>().Single(sprite => sprite.name == "Pressure frame");
+                    Assert.IsTrue(frame.enabled, phone); Assert.AreEqual(shown.Layout.Rim.width, frame.bounds.size.x, .5f, phone + ": the pulse is the board's frame");
+                    // Captured at the pulse's peak.
+                    while (frame.color.a < (height == 10 ? .95f : .85f)) yield return null;
+                    yield return ZKube.Tests.Presentation.Captures.Snap(screen, "pressure-" + (height == 10 ? "critical-" : "warning-") + phone);
+                    UnityEngine.Object.Destroy(child); yield return null;
+                }
+            view.gameObject.SetActive(true);
+        }
+
         [UnityTest] public IEnumerator EarnedStarsPopAndTheGuardianCheersThenReturnsToItsCalmFace()
         {
             yield return Load("realm-8-campaign", false);
