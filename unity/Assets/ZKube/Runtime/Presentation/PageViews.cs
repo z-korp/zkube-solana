@@ -18,11 +18,11 @@ namespace ZKube.Presentation
     public sealed partial class PageViews : MonoBehaviour
     {
         public const float GutterDp = 16, ColumnDp = 480, IconDp = 48, FadeDp = 24;
-        private static readonly AppPage[] tabs = { AppPage.Campaign, AppPage.Daily, AppPage.Profile, AppPage.Settings };
+        private static readonly AppPage[] tabs = { AppPage.Home, AppPage.Campaign, AppPage.Profile, AppPage.Settings };
         private IAppPageSource source;
         private PageShell shell;
         private PageCatalog catalog;
-        private string dailyTab, brand;
+        private string homeTab, brand;
         private float textScale;
         private Func<float> density;
         private PageActions actions;
@@ -43,13 +43,14 @@ namespace ZKube.Presentation
         private byte shownRealm;
         public AppPage? Shown { get; private set; }
 
+        // homeTabName is the Home tab's word ("Home", or the Arena's "Arcade");
         // brandName names the product's wordmark: "realms" or "arena".
-        public void Initialize(IAppPageSource pageSource, PageShell pageShell, string dailyTabName, string brandName, float scale,
+        public void Initialize(IAppPageSource pageSource, PageShell pageShell, string homeTabName, string brandName, float scale,
             Func<float> displayDensity = null)
         {
             source = pageSource ?? throw new ArgumentNullException(nameof(pageSource));
             shell = pageShell ?? throw new ArgumentNullException(nameof(pageShell));
-            dailyTab = dailyTabName; brand = brandName ?? throw new ArgumentNullException(nameof(brandName));
+            homeTab = homeTabName; brand = brandName ?? throw new ArgumentNullException(nameof(brandName));
             textScale = BoardController.SupportedTextScale(scale);
             density = displayDensity ?? BoardController.ReadDisplayDensity;
             if (actions == null) actions = new PageActions(source.Report);
@@ -72,35 +73,35 @@ namespace ZKube.Presentation
             float kept = entering ? -1 : shell.Offset;
             switch (page)
             {
-                case AppPage.Daily:
+                case AppPage.Home:
                     var daily = source.DailyPage();
-                    Frame(1, null, null, null, null, daily.Arcade != null ? messages : Array.Empty<string>()); Home(daily, messages); break;
+                    Frame(AppPage.Home, null, null, null, null, daily.Arcade != null ? messages : Array.Empty<string>()); Home(daily, messages); break;
                 case AppPage.Campaign:
                     var campaign = source.CampaignView(); var realm = catalog.Realm(campaign.Realm);
                     // Another realm is another page: it opens at its own start.
                     if (campaign.Realm != shownRealm) kept = -1;
                     shownRealm = campaign.Realm;
-                    if (campaign.Locked != null) Frame(0, realm.realmName, "Realm " + campaign.Realm + " of " + Protocol.Realms.Length, campaign.Previous, null,
+                    if (campaign.Locked != null) Frame(AppPage.Campaign, realm.realmName, "Realm " + campaign.Realm + " of " + Protocol.Realms.Length, campaign.Previous, null,
                         Array.Empty<string>());
-                    else Frame(0, null, null, null, null, Array.Empty<string>(), fullBleed: true);
+                    else Frame(AppPage.Campaign, null, null, null, null, Array.Empty<string>(), fullBleed: true);
                     Campaign(campaign, messages); break;
                 case AppPage.Level:
                     var level = source.LevelPage();
-                    Frame(-1, null, null, null, null, Array.Empty<string>(), fullBleed: true);
+                    Frame(null, null, null, null, null, Array.Empty<string>(), fullBleed: true);
                     back = level.Back;
                     LevelScreen(level, messages); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(2, null, null, null, null, Array.Empty<string>()); Profile(profile, messages); break;
+                    Frame(AppPage.Profile, null, null, null, null, Array.Empty<string>()); Profile(profile, messages); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
-                    Frame(3, null, null, null, null, Array.Empty<string>());
+                    Frame(AppPage.Settings, null, null, null, null, Array.Empty<string>());
                     Settings(settings, messages); break;
                 case AppPage.Result:
                     var result = source.ResultPage();
-                    if (result.HasResult && result.ShowStars) { Frame(-1, null, null, null, null, messages, fullBleed: true); back = result.Done; CampaignScreen(result); }
-                    else if (result.HasResult) { Frame(-1, null, null, null, null, messages, fullBleed: true); back = result.Done; DailyResultScreen(result); }
-                    else { Frame(1, result.Mode, null, null, null, messages); NoResult(result); }
+                    if (result.HasResult && result.ShowStars) { Frame(null, null, null, null, null, messages, fullBleed: true); back = result.Done; CampaignScreen(result); }
+                    else if (result.HasResult) { Frame(null, null, null, null, null, messages, fullBleed: true); back = result.Done; DailyResultScreen(result); }
+                    else { Frame(AppPage.Home, result.Mode, null, null, null, messages); NoResult(result); }
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
             }
@@ -162,10 +163,11 @@ namespace ZKube.Presentation
         // on the screens' title plate at the top of its body, with its left and
         // right tablets beside it; they scroll with it. A full-bleed page (the map,
         // the preview and the results) runs under the tab bar and draws its own.
-        private void Frame(int tab, string title, string subtitle, PageAction left, PageAction right, string[] notices,
+        private void Frame(AppPage? page, string title, string subtitle, PageAction left, PageAction right, string[] notices,
             bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
         {
             var safe = shell.SafeArea; float d = ui.Density;
+            int tab = page.HasValue ? Array.IndexOf(tabs, page.Value) : -1;
             selectedTab = tab;
             float icon = IconDp * d;
             tabBar = ScreenKit.TabRect(ui, shell.ScreenArea, safe);
@@ -213,10 +215,10 @@ namespace ZKube.Presentation
         // navigation is unavailable.
         private void TabBar(Rect safe, int selected)
         {
-            // The Daily's stopwatch, as its countdown chip draws it.
-            var icons = new[] { SkinSlots.IconCampaign, SkinSlots.IconClock, SkinSlots.IconProfile, SkinSlots.IconSettings };
-            var bound = tabs.Select(target => new PageAction { Label = target == AppPage.Daily ? dailyTab : target.ToString(),
-                Name = target == AppPage.Daily ? dailyTab : target.ToString(), CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) }).ToArray();
+            // Home is the crown until the kit has its house.
+            var icons = new[] { SkinSlots.IconCrown, SkinSlots.IconCampaign, SkinSlots.IconProfile, SkinSlots.IconSettings };
+            var bound = tabs.Select(target => new PageAction { Label = target == AppPage.Home ? homeTab : target.ToString(),
+                Name = target == AppPage.Home ? homeTab : target.ToString(), CanInvoke = () => source.CanNavigate(target), Invoke = () => source.Navigate(target) }).ToArray();
             var bar = ui.TabBar("Tab bar", tabBar, new ScreenKit(ui, null, shell.ScreenArea, safe).U, bound.Select((action, i) => (icons[i], action.Label, actions.Click(action))).ToArray(), selected, shell.Chrome);
             var buttons = bar.GetComponentsInChildren<Button>();
             for (int i = 0; i < buttons.Length; i++) actions.Bind(buttons[i], bound[i], fade: false);

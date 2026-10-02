@@ -86,10 +86,10 @@ namespace ZKube.Integration.Presentation
         {
             var back = sessionFromSettings ? PageAction("Back", () => OpenSharedPage(AppPage.Settings), () => PageAvailable() && !Busy) :
                 PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
-            if (sessionRead == null) { var waiting = Waiting("Device", "This device", "Device session", sessionFromSettings ? 3 : 1, pageNotice); waiting.Back = back; return waiting; }
+            if (sessionRead == null) { var waiting = Waiting("Device", "This device", "Device session", sessionFromSettings ? AppPage.Settings : AppPage.Home, pageNotice); waiting.Back = back; return waiting; }
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
-            var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "Device session", Back = back, Tab = sessionFromSettings ? 3 : 1 };
+            var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "Device session", Back = back, Tab = sessionFromSettings ? AppPage.Settings : AppPage.Home };
             var rows = new List<PanelBlock> {
                 PanelBlock.Row("Device state", "Status", look.Title, tagToken: look.Token),
                 PanelBlock.Row("Device owner", "Owner", Short(state.Owner)),

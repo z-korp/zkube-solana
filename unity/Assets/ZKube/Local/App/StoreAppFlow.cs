@@ -9,7 +9,7 @@ using ZKube.Local.Billing;
 
 namespace ZKube.Local.App
 {
-    public enum StorePage { Daily, Campaign, Level, Profile, Settings, Board, Result }
+    public enum StorePage { Home, Campaign, Level, Profile, Settings, Board, Result }
 
     // How a Campaign run ended, kept for its result page.
     public sealed class CampaignOutcome
@@ -51,7 +51,7 @@ namespace ZKube.Local.App
             Product = product ?? throw new ArgumentNullException(nameof(product));
             Runs = runs ?? throw new ArgumentNullException(nameof(runs));
             Billing = billing ?? throw new ArgumentNullException(nameof(billing));
-            Page = StorePage.Daily; Realm = FurthestRealm;
+            Page = StorePage.Home; Realm = FurthestRealm;
         }
         public LocalDaily Today => Runs.Today();
         public LocalRunView TodayRun => Product.Read.DailyAttempt?.DayId == Today.DayId ? Runs.Active("daily") : null;
@@ -179,7 +179,7 @@ namespace ZKube.Local.App
             catch (OperationCanceledException)
             { if (Current(request)) BillingNotice = Billing.Busy ? "The store operation is still in progress." : "Purchase cancelled"; }
             // A store failure is a billing notice: it shows where purchase and
-            // restore are, never on the Daily the app opens on.
+            // restore are, never on the Home the app opens on.
             catch (Exception error) { if (Current(request)) { BillingNotice = error.Message; StoreUnavailable = true; } }
             finally { if (Current(request)) Changed?.Invoke(); }
         }

@@ -154,7 +154,7 @@ namespace ZKube.Tests.Presentation
             shell.RequestRealm(1);
             while (shell.Loading) yield return null;
             var source = new Wireframe();
-            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1);
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
             int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
             long now = 20705L * 86400 + 6 * 3600 + 58 * 60 + 25;
             IEnumerator Page(string page, Action draw)
@@ -171,13 +171,14 @@ namespace ZKube.Tests.Presentation
             }
             source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "Play today" } } };
-            yield return Page("home", () => views.Render(AppPage.Daily));
+            yield return Page("home", () => views.Render(AppPage.Home));
             AssertButtonKinds(root.transform, "home", new string[0], new[] { "Play level*" });
-            // The four tabs draw four distinct pictures; the Daily's is its stopwatch.
+            // The four tabs draw four distinct pictures, Home first.
             var tabIcons = root.GetComponentsInChildren<SkinTabBar>().Single().GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))
                 .Select(image => image.sprite.name.Replace("(Clone)", "")).ToArray();
             Assert.AreEqual(4, tabIcons.Distinct().Count(), "four distinct tab icons: " + string.Join(", ", tabIcons));
-            Assert.AreEqual(SkinSlots.IconClock, tabIcons[1], "The Daily tab is the stopwatch");
+            Assert.AreEqual(new[] { "Home", "Campaign", "Profile", "Settings" }, root.GetComponentsInChildren<SkinTabBar>().Single().GetComponentsInChildren<TMP_Text>()
+                .Select(label => label.text).ToArray(), "The tabs are Home, Campaign, Profile and Settings");
             yield return Page("preview", () => views.Render(AppPage.Level));
             yield return Page("map", () => views.Render(AppPage.Campaign));
             foreach (var (page, stars, reason, moves) in new[] { ("res3", 7, 1, 3u), ("res2", 3, 2, 0u), ("res1", 4, 2, 0u), ("res0", 0, 2, 0u), ("resEnded", 0, 3, 5u) })
@@ -215,7 +216,7 @@ namespace ZKube.Tests.Presentation
             shell.RequestRealm(1);
             while (shell.Loading) yield return null;
             var source = new Wireframe();
-            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1);
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
             int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
             long now = 20705L * 86400 + 6 * 3600;
             var daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
@@ -233,9 +234,9 @@ namespace ZKube.Tests.Presentation
             var used = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, NextOpensAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "View result" } } };
             var pages = new (string name, Action draw)[] {
-                ("home", () => { source.Daily = daily; views.Render(AppPage.Daily); }),
-                ("home with the attempt used", () => { source.Daily = used; views.Render(AppPage.Daily); }),
-                ("arcade", () => { source.Daily = arcade; views.Render(AppPage.Daily); }),
+                ("home", () => { source.Daily = daily; views.Render(AppPage.Home); }),
+                ("home with the attempt used", () => { source.Daily = used; views.Render(AppPage.Home); }),
+                ("arcade", () => { source.Daily = arcade; views.Render(AppPage.Home); }),
                 ("preview", () => views.Render(AppPage.Level)),
                 ("map", () => views.Render(AppPage.Campaign)),
                 ("result", () => { source.Result = campaign; views.Render(AppPage.Result); }),
@@ -280,7 +281,7 @@ namespace ZKube.Tests.Presentation
             shell.RequestRealm(1);
             while (shell.Loading) yield return null;
             var source = new Wireframe();
-            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1);
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
             var catalog = PageCatalog.Load();
             foreach (bool arcade in new[] { false, true })
                 for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
@@ -288,7 +289,7 @@ namespace ZKube.Tests.Presentation
                     source.Daily = new DailyPageView { Day = 20705, Realm = realm, ObjectiveKind = 1, ObjectiveValue = 3,
                         Actions = new[] { new PageAction { Label = arcade ? "Enter · 1 Kredit" : "Play today" } },
                         Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 00:00 UTC" } : null };
-                    views.Render(AppPage.Daily);
+                    views.Render(AppPage.Home);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
                     var portrait = root.GetComponentsInChildren<Image>(true).Single(image => image.name == "Daily guardian");
                     for (float end = Time.realtimeSinceStartup + 10; !portrait.enabled && Time.realtimeSinceStartup < end;) yield return null;
@@ -369,7 +370,7 @@ namespace ZKube.Tests.Presentation
             shell.RequestRealm(1);
             while (shell.Loading) yield return null;
             var source = new Wireframe();
-            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1);
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
             int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
             var catalog = PageCatalog.Load();
             var level = source.Level.Goals; var rule = catalog.Rule(1);
@@ -392,7 +393,7 @@ namespace ZKube.Tests.Presentation
             {
                 source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Actions = new[] { new PageAction { Label = "Play today" } },
                     Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL" } : null };
-                yield return Page(arcade ? "Arcade" : "Home", () => views.Render(AppPage.Daily), new[] { (catalog.Goal(1, 3).Pictogram(Bonus(3)), catalog.Goal(1, 3).chip) });
+                yield return Page(arcade ? "Arcade" : "Home", () => views.Render(AppPage.Home), new[] { (catalog.Goal(1, 3).Pictogram(Bonus(3)), catalog.Goal(1, 3).chip) });
             }
             source.Result = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,
                 ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, Done = new PageAction { Label = "Continue" } };

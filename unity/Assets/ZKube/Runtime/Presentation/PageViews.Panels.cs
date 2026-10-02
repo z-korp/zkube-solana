@@ -37,7 +37,7 @@ namespace ZKube.Presentation
             var kit = Kit; var pieces = new List<Piece>();
             if ((page.Title ?? page.Subtitle) != null) pieces.Add(kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)));
             foreach (var notice in messages) pieces.Add(kit.Note(notice));
-            PanelBody(page.Blocks, pieces, page.Tab >= 0);
+            PanelBody(page.Blocks, pieces, page.Tab.HasValue);
             FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(reducedMotion, ui.Density);

@@ -166,7 +166,7 @@ namespace ZKube.Integration.Presentation
                     }
                     rows.Add(PanelBlock.Text("Border rule", "Earned borders stay available. Ladder points are permanent and pay no rewards.",
                         SkinTokens.TextMuted));
-                    return new PanelPageView { Key = "Profile Borders", Title = "Borders", Subtitle = Short(player.Owner), Back = back, Tab = 2,
+                    return new PanelPageView { Key = "Profile Borders", Title = "Borders", Subtitle = Short(player.Owner), Back = back, Tab = AppPage.Profile,
                         Blocks = rows.ToArray() };
                 }
                 default:

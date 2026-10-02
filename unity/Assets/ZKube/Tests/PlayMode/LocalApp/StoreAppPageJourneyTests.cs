@@ -73,7 +73,7 @@ namespace ZKube.Tests
             app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board);
             // Every guardian has greeted unless a test asks for the first visit.
             greeted = ~0; Greet(app);
-            yield return Page(StorePage.Daily);
+            yield return Page(StorePage.Home);
         }
         [UnityTearDown] public IEnumerator TearDown()
         {
@@ -117,7 +117,7 @@ namespace ZKube.Tests
             Click(app, "Edit name"); yield return null;
             var field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
             Click(app, "Save name"); yield return Page(StorePage.Profile);
-            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "Home"); yield return Page(StorePage.Home);
         }
         private IEnumerator EndRun()
         {
@@ -186,7 +186,7 @@ namespace ZKube.Tests
             field = app.GetComponentInChildren<TMP_InputField>(); field.text = "  Page tester  ";
             Click(app, "Save name"); yield return Page(StorePage.Profile);
             Assert.That(product.Read.Name, Is.EqualTo("Page tester"));
-            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "Home"); yield return Page(StorePage.Home);
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
             Assert.That(leases["ZKube/Atlases/common"], Is.SameAs(common));
         }
@@ -200,8 +200,8 @@ namespace ZKube.Tests
             yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(board.gameObject.activeSelf, Is.False); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
             Assert.That(app.Flow.LastCampaign, Is.Null);
-            // The result has no tab bar; Continue returns to the Daily.
-            Click(app, "Continue"); yield return Page(StorePage.Daily);
+            // The result has no tab bar; Continue returns to Home.
+            Click(app, "Continue"); yield return Page(StorePage.Home);
             // A used Daily gives its reason where Play was, never a greyed-out
             // Play, and counts to the next Daily; the result, which holds the
             // run's numbers, is the action left to take, so it is the primary.
@@ -222,7 +222,7 @@ namespace ZKube.Tests
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
             app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board); Greet(app);
             yield return Wait(() => app.Flow.BillingNotice == "Purchases are unavailable" && !billing.Busy, "Startup store query did not fail");
-            yield return Page(StorePage.Daily);
+            yield return Page(StorePage.Home);
             Assert.That(app.Flow.Error, Is.Null);
             Assert.That(Texts(), Does.Not.Contain("Purchases are unavailable"));
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
@@ -286,11 +286,11 @@ namespace ZKube.Tests
             Assert.That(hits.Count, Is.GreaterThan(0));
             Assert.That(ExecuteEvents.GetEventHandler<IDragHandler>(hits[0].gameObject), Is.EqualTo(scroll.gameObject));
             // The Campaign header holds the realm arrows; settings is the fourth tab.
-            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "Home"); yield return Page(StorePage.Home);
             Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Text size: standard"); yield return Page(StorePage.Settings);
             Assert.That(Buttons().Any(button => button.name == "Back"), Is.False, "A tab page has no back button");
-            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "Home"); yield return Page(StorePage.Home);
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             nodes = Nodes();
             AssertNodeCaptions(nodes);
@@ -342,7 +342,7 @@ namespace ZKube.Tests
             var summary = app.CampaignSummary();
             Assert.That(summary.Realm, Is.EqualTo(3)); Assert.That(summary.Stars, Is.Zero);
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
-            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             Assert.That(Texts(), Does.Contain("Realm 3 of 10 · Level 21"));
             Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite.name, Does.StartWith("brand__realms"));
             Click(app, "Play level 21"); yield return Page(StorePage.Level);
@@ -360,7 +360,7 @@ namespace ZKube.Tests
             {
                 typeof(BoardController).GetProperty("TextScale").SetValue(board, 1.3f);
                 Click(app, "Profile"); yield return Page(StorePage.Profile);
-                Click(app, "Daily"); yield return Page(StorePage.Daily);
+                Click(app, "Home"); yield return Page(StorePage.Home);
                 var viewport = SkinUi.ScreenRect(shell.Viewport);
                 var tabs = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
                 Assert.That(viewport.yMin, Is.GreaterThanOrEqualTo(tabs.yMax - .5f));
@@ -412,7 +412,7 @@ namespace ZKube.Tests
             Click(app, "Continue"); yield return null;
             Assert.That(Texts(), Does.Not.Contain(rule.effect));
             Assert.That(new GuardianGreetings(() => greeted, _ => { }).Greeted(1), Is.True);
-            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "Home"); yield return Page(StorePage.Home);
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Assert.That(Texts(), Does.Not.Contain(catalog.Realm(1).guardianLines.greeting));
         }
@@ -597,7 +597,7 @@ namespace ZKube.Tests
         // count and the streak, with sharing as the primary.
         [UnityTest] public IEnumerator DailyResultShowsTheScoreObjectiveAndStreakWithSharing()
         {
-            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
             var today = runs.Today(); var catalog = PageCatalog.Load();
@@ -620,7 +620,7 @@ namespace ZKube.Tests
                 phone(shell);
                 try
                 {
-                    app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+                    app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
                     Click(app, "View result"); yield return Page(StorePage.Result);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " daily result");
@@ -662,8 +662,8 @@ namespace ZKube.Tests
             // Realm 2 is still closed, so its page is the waiting realm, drawn from its own art.
             var steps = new[] { ("Campaign", StorePage.Campaign), ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign),
                 ("Next", StorePage.Campaign), ("Previous", StorePage.Campaign), ("Trial 1", StorePage.Level), ("Back to map", StorePage.Campaign),
-                ("Profile", StorePage.Profile), ("Settings", StorePage.Settings), ("Profile", StorePage.Profile), ("Daily", StorePage.Daily),
-                ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile), ("Daily", StorePage.Daily) };
+                ("Profile", StorePage.Profile), ("Settings", StorePage.Settings), ("Profile", StorePage.Profile), ("Home", StorePage.Home),
+                ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile), ("Home", StorePage.Home) };
             var shown = app.GetComponent<PageShell>().Artwork; int swaps = 0;
             foreach (var (control, page) in steps)
             {
@@ -689,10 +689,10 @@ namespace ZKube.Tests
             foreach (var textScale in new[] { 1f, 1.3f })
             {
                 typeof(BoardController).GetProperty("TextScale").SetValue(board, textScale);
-                foreach (var (control, page) in new[] { ("Daily", StorePage.Daily), ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile),
+                foreach (var (control, page) in new[] { ("Home", StorePage.Home), ("Campaign", StorePage.Campaign), ("Profile", StorePage.Profile),
                     ("Settings", StorePage.Settings) })
                 {
-                    if (app.Flow.Page == page) { app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily); }
+                    if (app.Flow.Page == page) { app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home); }
                     Click(app, control); yield return Page(page);
                     yield return Wait(() => !app.GetComponentsInChildren<Transform>().Any(value => value.name == "Leaving page"), "The page did not settle");
                     AssertLastPieceClearsTheBar(shell, page + " at " + textScale);
@@ -726,14 +726,14 @@ namespace ZKube.Tests
             // On a compact phone at larger text, where words are tightest.
             ZKube.Tests.Presentation.Phones.Compact(app.GetComponent<PageShell>());
             typeof(BoardController).GetProperty("TextScale").SetValue(board, 1.3f);
-            app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile); app.Flow.Show(StorePage.Daily);
+            app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile); app.Flow.Show(StorePage.Home);
             IEnumerator Words(StorePage page, string state)
             {
                 yield return Page(page);
                 ZKube.Tests.Presentation.PageText.AssertPlayerWords(app, state);
                 ZKube.Tests.Presentation.PageText.AssertPillLabelsOnOneLine(app, state);
             }
-            yield return Words(StorePage.Daily, "Home");
+            yield return Words(StorePage.Home, "Home");
             greeted = 0; app.Flow.Show(StorePage.Campaign); yield return Words(StorePage.Campaign, "Map with its greeting");
             app.Flow.Preview(1); yield return Words(StorePage.Level, "Level preview");
             app.Flow.SelectRealm(2); yield return Words(StorePage.Campaign, "Realm closed by stars");
@@ -746,10 +746,10 @@ namespace ZKube.Tests
             yield return Words(StorePage.Result, "Level won");
             app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = 1, EndReason = 2, Goals = goals });
             yield return Words(StorePage.Result, "Level lost");
-            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
             yield return EndRun(); yield return Words(StorePage.Result, "Daily result");
-            app.Flow.Show(StorePage.Daily); yield return Words(StorePage.Daily, "Home after today's run");
+            app.Flow.Show(StorePage.Home); yield return Words(StorePage.Home, "Home after today's run");
         }
         // View result on the used Daily opens today's Daily result, even right
         // after a Campaign run's result page.
@@ -764,7 +764,7 @@ namespace ZKube.Tests
             yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(app.ResultPage().Mode, Is.EqualTo("Campaign"), "A finished Campaign run opens its own result");
             Click(app, "Map"); yield return Page(StorePage.Campaign);
-            Click(app, "Daily"); yield return Page(StorePage.Daily);
+            Click(app, "Home"); yield return Page(StorePage.Home);
             Click(app, "View result"); yield return Page(StorePage.Result);
             var result = app.ResultPage();
             Assert.That(result.Mode, Is.EqualTo("Daily"));
@@ -779,7 +779,7 @@ namespace ZKube.Tests
             // The compact phone and the Seeker, each with the safe area its device reports.
             foreach (var phone in new System.Action<PageShell>[] { shell1 => ZKube.Tests.Presentation.Phones.Compact(shell1), shell1 => ZKube.Tests.Presentation.Phones.Seeker(shell1) })
             {
-                app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+                app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
                 yield return ActionsOnScreen(phone);
             }
         }
@@ -954,7 +954,7 @@ namespace ZKube.Tests
                 {
                     if (compact) ZKube.Tests.Presentation.Phones.Compact(shell); else ZKube.Tests.Presentation.Phones.Seeker(shell);
                     app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
-                    app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+                    app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     var catalog = PageCatalog.Load(); var today = app.DailyPage();
                     int Count(string text) => Word.Matches(text).Count;
@@ -1064,12 +1064,12 @@ namespace ZKube.Tests
             }
             IEnumerator Settled(StorePage page) { yield return Page(page); yield return new WaitForSecondsRealtime(1); }
             yield return NamePlayer();
-            app.Flow.Show(StorePage.Daily); yield return Settled(StorePage.Daily); Painted("Home", SkinSlots.Background, false);
+            app.Flow.Show(StorePage.Home); yield return Settled(StorePage.Home); Painted("Home", SkinSlots.Background, false);
             app.Flow.Show(StorePage.Campaign); yield return Settled(StorePage.Campaign); Painted("Map", SkinSlots.Map, false);
             app.Flow.Preview(1); yield return Settled(StorePage.Level); Painted("Preview", SkinSlots.Map, true);
             app.Flow.Show(StorePage.Profile); yield return Settled(StorePage.Profile); Painted("Profile", SkinSlots.Background, false);
             app.Flow.Show(StorePage.Settings); yield return Settled(StorePage.Settings); Painted("Settings", SkinSlots.Background, false);
-            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             Click(app, "Play today"); yield return BoardReady(); yield return EndRun(); yield return Page(StorePage.Result);
             yield return new WaitForSecondsRealtime(1); Painted("Daily result", SkinSlots.Background, true);
             // The veil darkens the top and bottom as the composites' gradient does.
@@ -1198,14 +1198,14 @@ namespace ZKube.Tests
         }
         [UnityTest] public IEnumerator RealmPagesAndEmblemDisposalPreserveTheInactiveBoardsAtlas()
         {
-            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady();
             var retainedArt = (BoardArt)typeof(BoardController).GetField("art", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(board);
             yield return EndRun(); yield return Page(StorePage.Result);
             var leases = (System.Collections.IDictionary)typeof(BoardArt).GetField("atlasLoads", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             var before = leases.Keys.Cast<string>().Where(key => key.Contains("/theme-")).ToHashSet();
             product.Write(state => { for (int realm = 1; realm <= 10; realm++) state.Stars[realm * 10 - 1] = 1; return state; });
-            Click(app, "Continue"); yield return Page(StorePage.Daily);
+            Click(app, "Continue"); yield return Page(StorePage.Home);
             Click(app, "Profile"); yield return Page(StorePage.Profile);
             var faces = app.GetComponentsInChildren<Image>().Where(value => value.name == "Guardian portrait").ToArray();
             Assert.That(faces.Length, Is.EqualTo(10)); Assert.That(faces.All(value => value.enabled && value.sprite != null), Is.True);
@@ -1244,7 +1244,7 @@ namespace ZKube.Tests
         }
         [UnityTest] public IEnumerator AcceptedSaveFailureIsVisibleAcrossRecoveryAndResultExit()
         {
-            app.Flow.Show(StorePage.Daily); yield return Page(StorePage.Daily);
+            app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             yield return NamePlayer(); Click(app, "Play today"); yield return BoardReady(); failSave = true;
             Click(board.View, "Pause"); Click(board.View, "End run"); yield return null; Click(board.View, "End run");
             yield return Wait(() => board.RecoveryRequired && !board.Busy, "Expected recovery after accepted save failure");
@@ -1268,7 +1268,7 @@ namespace ZKube.Tests
             Assert.That(audio[AudioPolicy.MusicKey], Is.EqualTo(.73f));
             Assert.That(audio[AudioPolicy.EffectsKey], Is.EqualTo(.27f)); Assert.That(board.Muted, Is.True);
             Slide("Music slider", 0);
-            Click(app, "Daily"); yield return Page(StorePage.Daily); Click(app, "Settings"); yield return Page(StorePage.Settings);
+            Click(app, "Home"); yield return Page(StorePage.Home); Click(app, "Settings"); yield return Page(StorePage.Settings);
             Click(app, "Music switch"); yield return Page(StorePage.Settings); Assert.That(board.MusicVolume, Is.EqualTo(AudioPolicy.ToggleOnLevel));
         }
     }

@@ -35,7 +35,7 @@ namespace ZKube.Integration.Presentation
             switch (page)
             {
                 case AppPage.Campaign: _ = OpenCampaign(); break;
-                case AppPage.Daily: _ = OpenDaily(); break;
+                case AppPage.Home: _ = OpenDaily(); break;
                 case AppPage.Profile: _ = OpenProfile(); break;
                 case AppPage.Settings: OpenSharedPage(page); break;
                 case AppPage.Result: OpenSharedPage(page); break;
@@ -130,18 +130,18 @@ namespace ZKube.Integration.Presentation
                 case "Connect": views.RenderPanel(ConnectPage()); break;
                 case "Campaign":
                     if (CanBrowse() && campaignRead.Value.Browse.Realms.Count != 0) views.Render(browseLevel == 0 ? AppPage.Campaign : AppPage.Level, notices);
-                    else views.RenderPanel(Waiting("Campaign", "Campaign", null, 0, pageNotice ?? "Campaign trial data is unavailable.")); break;
+                    else views.RenderPanel(Waiting("Campaign", "Campaign", null, AppPage.Campaign, pageNotice ?? "Campaign trial data is unavailable.")); break;
                 case "Daily":
-                    if (dailyRead == null) views.RenderPanel(Waiting("Daily", null, "Arena", 1, pageNotice));
+                    if (dailyRead == null) views.RenderPanel(Waiting("Daily", null, "Arena", AppPage.Home, pageNotice));
                     else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);
-                    else views.Render(AppPage.Daily, notices);
+                    else views.Render(AppPage.Home, notices);
                     break;
                 // A page without its read shows its failure itself.
                 case "Kredits": views.RenderPanel(KreditPage(), kreditRead == null ? null : notices); break;
                 case "Rewards": views.RenderPanel(RewardPage(), rewardRead == null ? null : notices); break;
                 case "Device": views.RenderPanel(DevicePage(), sessionRead == null ? null : notices); break;
                 case "Profile":
-                    if (profileRead == null) views.RenderPanel(Waiting("Profile", "Profile", null, 2, pageNotice));
+                    if (profileRead == null) views.RenderPanel(Waiting("Profile", "Profile", null, AppPage.Profile, pageNotice));
                     else if (profileView == ProfileView.Main) views.Render(AppPage.Profile, notices);
                     else views.RenderPanel(ProfilePanel(), notices);
                     break;
@@ -159,7 +159,7 @@ namespace ZKube.Integration.Presentation
 
         // A page whose read is not there yet: what is being checked, or, when the
         // read failed or went stale, the guardian says why with the way forward.
-        private PanelPageView Waiting(string key, string title, string subtitle, int tab, string message)
+        private PanelPageView Waiting(string key, string title, string subtitle, AppPage? tab, string message)
         {
             var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab };
             if (failure != null && !Busy)

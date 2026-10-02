@@ -92,7 +92,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Empty);
             delay.Release(); yield return null;
             controller.SendMessage("OnApplicationPause", false); yield return Idle();
-            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Daily));
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Home));
             Assert.That(environment.Calls.Count(call => call.Operation == "authorize"), Is.EqualTo(1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
@@ -131,7 +131,7 @@ namespace ZKube.Tests.MoneyOverview
                 controller.enabled = true; yield return Idle();
                 Assert.That(host.GetComponentsInChildren<GraphicRaycaster>(), Is.Not.Empty);
                 Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.GreaterThan(before));
-                Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Daily));
+                Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Home));
                 Assert.That(environment.Calls.Count(call => call.Operation == "authorize"), Is.EqualTo(1));
                 Assert.That(environment.ForbiddenCalls, Is.Zero);
             }

@@ -58,7 +58,7 @@ namespace ZKube.Tests.Presentation
             Assert.That(shell.ArtworkError, Is.Null);
             var daily = NativeEngine.Daily(20705);
             var source = new Largest();
-            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Daily", "realms", 1.3f);
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1.3f);
             int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
             var numbers = shell.Artwork.Font(SkinUi.Type.Number);
             long now = 20705L * 86400;
@@ -74,14 +74,14 @@ namespace ZKube.Tests.Presentation
             source.Daily = new DailyPageView { Day = 20705, Realm = 1, ObjectiveKind = daily.Kind, ObjectiveValue = daily.Value, Now = () => now,
                 ClosesAt = now + 3600, NextOpensAt = now + 3600, Score = ulong.MaxValue, ObjectiveTotal = ulong.MaxValue,
                 Actions = new[] { new PageAction { Label = "View result" } } };
-            yield return Check("Used Daily", () => views.Render(AppPage.Daily));
+            yield return Check("Used Daily", () => views.Render(AppPage.Home));
             source.Daily = new DailyPageView { Day = 20705, Realm = 1, ObjectiveKind = daily.Kind, ObjectiveValue = daily.Value, Now = () => now,
                 ClosesAt = now + 3600, Arcade = new ArcadeView { Pot = MaxSol, Closes = "Closes 23:59 UTC" },
                 Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } },
                 Blocks = new[] { PanelBlock.Card("Last run", PanelBlock.Row("Last score", "Score", Max), PanelBlock.Row("Last objective", "Objective", Max)),
                     PanelBlock.Text("Kredit balance", NumberFit.Figure(ulong.MaxValue) + " confirmed Kredits"),
                     PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(ulong.MaxValue) + " points") } };
-            yield return Check("Arcade", () => views.Render(AppPage.Daily));
+            yield return Check("Arcade", () => views.Render(AppPage.Home));
             yield return Check("Level", () => views.Render(AppPage.Level));
             yield return Check("Profile", () => views.Render(AppPage.Profile));
             source.Result = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20705,
@@ -92,7 +92,7 @@ namespace ZKube.Tests.Presentation
                 Goals = new CampaignGoals { Points = uint.MaxValue, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 },
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
             yield return Check("Campaign result", () => views.Render(AppPage.Result));
-            yield return Check("Identity page", () => views.RenderPanel(new PanelPageView { Key = "Largest", Title = "Largest", Tab = 1, Blocks = new[] {
+            yield return Check("Identity page", () => views.RenderPanel(new PanelPageView { Key = "Largest", Title = "Largest", Tab = AppPage.Home, Blocks = new[] {
                 PanelBlock.Card("Balance", PanelBlock.Figure("Balance", "Confirmed balance", Max, "Kredits", SkinSlots.IconKredit)),
                 PanelBlock.Card("Position", PanelBlock.Split("Position", "Your position", "#" + uint.MaxValue.ToString("N0", CultureInfo.InvariantCulture), MaxSol)),
                 PanelBlock.Card("Ladder", PanelBlock.Split("Ladder", null, Max, "Prism", SkinSlots.LadderBadge(4))),

@@ -42,7 +42,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(money, Is.InstanceOf<IAppPageSource>());
             yield return Wait(money.OpenCampaign()); yield return Rendered(money, AppPage.Campaign);
             Click("Trial 1"); yield return Rendered(money, AppPage.Level);
-            yield return Wait(money.OpenDaily()); yield return Rendered(money, AppPage.Daily);
+            yield return Wait(money.OpenDaily()); yield return Rendered(money, AppPage.Home);
             yield return Wait(money.OpenProfile()); yield return Rendered(money, AppPage.Profile);
             money.Navigate(AppPage.Settings); yield return Rendered(money, AppPage.Settings);
             money.Navigate(AppPage.Result); yield return Rendered(money, AppPage.Result);
@@ -63,7 +63,7 @@ namespace ZKube.Tests.MoneyOverview
                 var board = boardObject.AddComponent<BoardController>();
                 var store = local.AddComponent<StoreAppAdapter>(); store.Initialize(product, runs, billing, board);
                 Assert.That(store, Is.InstanceOf<IAppPageSource>());
-                yield return Rendered(store, AppPage.Daily);
+                yield return Rendered(store, AppPage.Home);
                 store.Navigate(AppPage.Campaign); yield return Rendered(store, AppPage.Campaign);
                 store.Flow.Preview(1); yield return Rendered(store, AppPage.Level);
                 store.Navigate(AppPage.Profile); yield return Rendered(store, AppPage.Profile);

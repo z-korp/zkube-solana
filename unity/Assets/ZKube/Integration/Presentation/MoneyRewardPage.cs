@@ -94,10 +94,10 @@ namespace ZKube.Integration.Presentation
         {
             var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             string subtitle = Day(rewardDay) + " · UTC";
-            if (rewardRead == null) { var waiting = Waiting("Rewards " + rewardDay, "Rewards", subtitle, 1, pageNotice); waiting.Back = back; return waiting; }
+            if (rewardRead == null) { var waiting = Waiting("Rewards " + rewardDay, "Rewards", subtitle, AppPage.Home, pageNotice); waiting.Back = back; return waiting; }
             if (boardKind != null) return BoardPage();
             var state = rewardRead.Value; var boards = new[] { state.Boards.Score, state.Boards.Theme };
-            var page = new PanelPageView { Key = "Rewards " + rewardDay, Title = "Rewards", Subtitle = subtitle, Back = back, Tab = 1 };
+            var page = new PanelPageView { Key = "Rewards " + rewardDay, Title = "Rewards", Subtitle = subtitle, Back = back, Tab = AppPage.Home };
             var blocks = new List<PanelBlock>();
             var receipt = ReceiptRow("Rewards");
             if (receipt != null) blocks.Add(receipt);
@@ -197,7 +197,7 @@ namespace ZKube.Integration.Presentation
             var board = RewardBoard(boardKind); string name = RewardName(boardKind);
             var back = PageAction("Back", () => { boardKind = null; Present(); }, () => PageAvailable() && !Busy, "Back to rewards");
             var page = new PanelPageView { Key = "Rewards " + rewardDay + " " + boardKind, Title = name + " board", Subtitle = Day(rewardDay) + " · Sealed",
-                Back = back, Tab = 1 };
+                Back = back, Tab = AppPage.Home };
             // The two boards as a pair; the one shown is the primary.
             var toggle = PanelBlock.Pair(PageAction("Score", () => { boardKind = "score"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
                 Shorter(PageAction(RewardName("theme"), () => { boardKind = "theme"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),

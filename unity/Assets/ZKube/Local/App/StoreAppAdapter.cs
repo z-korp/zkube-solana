@@ -44,7 +44,7 @@ namespace ZKube.Local.App
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");
             shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
             pageRoot = shell.Root;
-            views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Daily", "realms", TextScale);
+            views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Home", "realms", TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
             board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected, Terminal = Terminal };
             board.gameObject.SetActive(false);
@@ -76,7 +76,7 @@ namespace ZKube.Local.App
             }
             if (dirty && !loading && Flow.Page != StorePage.Board) StartCoroutine(Render());
         }
-        private byte PageRealm => Flow.Page == StorePage.Daily ? Flow.Today.Realm :
+        private byte PageRealm => Flow.Page == StorePage.Home ? Flow.Today.Realm :
             Flow.Page == StorePage.Result && Flow.LastCampaign != null ? Flow.LastCampaign.Realm :
             Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? NativeEngine.Daily(Flow.Product.Read.DailyAttempt.DayId).Realm :
             Flow.Page == StorePage.Profile ? WornRealm : Flow.Realm;
@@ -128,7 +128,7 @@ namespace ZKube.Local.App
         private void Draw()
         {
             if (pages == null) pages = PageCatalog.Load();
-            views.Initialize(this, shell, "Daily", "realms", TextScale);
+            views.Initialize(this, shell, "Home", "realms", TextScale);
             views.Render((AppPage)Enum.Parse(typeof(AppPage), Flow.Page.ToString()), Notices());
         }
         private IEnumerable<string> Notices()
@@ -250,7 +250,7 @@ namespace ZKube.Local.App
                 SpeaksStars = attempt != null && attempt.DailyScore > 0 ? 2 : 1,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
                 Share = ResultSharing.Open,
-                Done = Action("Continue", () => Flow.Show(StorePage.Daily)) };
+                Done = Action("Continue", () => Flow.Show(StorePage.Home)) };
         }
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));

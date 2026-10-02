@@ -76,7 +76,7 @@ namespace ZKube.Integration.Presentation
         private PanelPageView KreditPage()
         {
             var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
-            var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "One Kredit enters one Daily", Back = back, Tab = 1 };
+            var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "One Kredit enters one Daily", Back = back, Tab = AppPage.Home };
             var arcade = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             var refresh = PageAction("Refresh balance", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Refresh Kredits");
             var blocks = new List<PanelBlock>();
@@ -94,7 +94,7 @@ namespace ZKube.Integration.Presentation
                         PanelBlock.Button(refresh, true), PanelBlock.Button(arcade, false) };
                     return page;
                 }
-                var waiting = Waiting("Kredits", page.Title, page.Subtitle, 1, pageNotice);
+                var waiting = Waiting("Kredits", page.Title, page.Subtitle, AppPage.Home, pageNotice);
                 waiting.Back = back; return waiting;
             }
             var state = kreditRead.Value;

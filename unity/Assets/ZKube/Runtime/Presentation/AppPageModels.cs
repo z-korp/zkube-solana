@@ -6,7 +6,7 @@ using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {
-    public enum AppPage { Daily, Campaign, Level, Profile, Settings, Result }
+    public enum AppPage { Home, Campaign, Level, Profile, Settings, Result }
 
     public sealed class PageAction
     {
@@ -186,8 +186,8 @@ namespace ZKube.Presentation
     public sealed class PanelPageView
     {
         public string Key;
-        // The tab the page belongs to (0 Campaign, 1 Daily, 2 Profile), or -1.
-        public int Tab = -1;
+        // The tab the page belongs to, or none.
+        public AppPage? Tab;
         // Without a title the header is the product mark over the subtitle.
         public string Title, Subtitle;
         // The left tablet: Back, or on a tab page an action with its own icon.
