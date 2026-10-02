@@ -61,7 +61,7 @@ namespace ZKube.Integration.Execution
                 return true;
             }
             uint day = (uint)accounts.ArenaDaily(dailyEnvelope)["day_id"];
-            var reward = accounts.BoardRewards(boardEnvelope, day, kind, owner).SingleOrDefault(row => row.Position == position);
+            var reward = accounts.BoardRewards(boardEnvelope, dailyEnvelope, day, kind, owner).SingleOrDefault(row => row.Position == position);
             if (succeeded && boardEnvelope != null && reward == null) return false;
             return true;
         }

@@ -1,5 +1,5 @@
 import { KEEPER_SCHEMA_VERSION } from "./keeperRelease.js";
-import { MAX_BOARD_RENT_LAMPORTS } from "./protocolVersions.generated.js";
+import { CADENCE_FUNDING_TWO_DAY_LAMPORTS } from "./protocolVersions.generated.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -25,7 +25,7 @@ import {
 } from "./arcadeChain.js";
 
 export const KEEPER_LIMITS = Object.freeze({
-  writes: 6, boardWrites: 32, spendLamports: 100_000_000, reserveLamports: 100_000_000,
+  writes: 6, spendLamports: 100_000_000, reserveLamports: 100_000_000,
 });
 
 /** The most compute one transaction may request. */
@@ -60,6 +60,9 @@ export interface KeeperLogEvent {
   writeEnabled?: boolean;
   balanceLamports?: number;
   minimumBalanceLamports?: number;
+  cadenceFundingLamports?: number;
+  cadenceFundingTargetLamports?: number;
+  cadenceFundingLow?: boolean;
   maximumSpendLamports?: number;
   spentLamports?: number;
   error?: string;
@@ -103,6 +106,10 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     input.keeper.publicKey,
     "confirmed",
   );
+  // Cadence funding pays every entrant's board rows before their run is
+  // consumed; below its two-day worst case a full day could refuse entries.
+  // The keeper only reports it: topping it up is the owner's decision.
+  const cadenceFundingLamports = await input.connection.getBalance(cadenceFundingPda(), "confirmed");
   log({
     schemaVersion: KEEPER_SCHEMA_VERSION,
     event: "keeper_readiness",
@@ -111,6 +118,9 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
     balanceLamports,
     minimumBalanceLamports,
     maximumSpendLamports,
+    cadenceFundingLamports,
+    cadenceFundingTargetLamports: CADENCE_FUNDING_TWO_DAY_LAMPORTS,
+    cadenceFundingLow: cadenceFundingLamports < CADENCE_FUNDING_TWO_DAY_LAMPORTS,
   });
   if (writeEnabled && balanceLamports < minimumBalanceLamports) {
     throw new Error(
@@ -136,18 +146,12 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   let plannedWrites = 0;
   let failures = 0;
   let spentLamports = 0;
-  let boardRentLamports = 0;
   let attemptedWrites = 0;
-  let attemptedBoardWrites = 0;
   let resolvedPlans = 0;
   for (const plan of plans) {
-    const boardWrite = plan.operation === "submit_arena_board_chunk";
-    if (boardWrite
-      ? attemptedBoardWrites >= KEEPER_LIMITS.boardWrites
-      : attemptedWrites >= maxWrites) continue;
+    if (attemptedWrites >= maxWrites) continue;
     // A submitted write owns its slot even when confirmation fails.
-    if (boardWrite) attemptedBoardWrites += 1;
-    else attemptedWrites += 1;
+    attemptedWrites += 1;
     resolvedPlans += 1;
     const materialized = { ...plan,
       connection: KEEPER_PLAN_INSTRUCTION[plan.operation].connection,
@@ -226,15 +230,11 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
           simulation.value.accounts?.[1]?.lamports,
         )
         : 0;
-      const boardAllocation = plan.operation === "finalize_arena_daily"
-        ? fundingPredicted
-        : 0;
-      const predicted = payerPredicted + fundingPredicted - boardAllocation;
+      // Rent a write takes from cadence funding counts against the pass's
+      // spend like the keeper's own lamports.
+      const predicted = payerPredicted + fundingPredicted;
       if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - spentLamports)) {
         throw new Error("keeper spend ceiling reached");
-      }
-      if (!keeperSpendWithinLimit(boardAllocation, MAX_BOARD_RENT_LAMPORTS - boardRentLamports)) {
-        throw new Error("recyclable board-rent allocation ceiling reached");
       }
       if (before - payerPredicted < minimumBalanceLamports) {
         throw new Error("keeper simulation crosses the reserve floor");
@@ -242,7 +242,6 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       // Reserve the simulated spend before submission. An RPC timeout may still mean the write
       // landed, so its budget must never be reused during this pass.
       spentLamports += predicted;
-      boardRentLamports += boardAllocation;
       const signature = await connection.sendRawTransaction(transaction.serialize(), {
         maxRetries: 5,
         skipPreflight: materialized.connection === "ephemeral-rollup",

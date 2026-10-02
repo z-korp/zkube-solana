@@ -21,6 +21,12 @@ pub struct PrepareArenaDaily<'info> {
     /// CHECK: Canonical Daily PDA allocated and serialized by this instruction.
     #[account(mut, seeds = [ARENA_DAILY_SEED, day_id.to_le_bytes().as_ref()], bump)]
     pub arena_daily: UncheckedAccount<'info>,
+    /// CHECK: The Daily's Score board, allocated as an empty header below.
+    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump)]
+    pub score_board: UncheckedAccount<'info>,
+    /// CHECK: The Daily's Theme board, allocated as an empty header below.
+    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump)]
+    pub theme_board: UncheckedAccount<'info>,
     /// CHECK: Canonical System-owned zero-data payer; signs only this rent path.
     #[account(mut, seeds = [CADENCE_FUNDING_SEED], bump,
         owner = system_program::ID @ ErrorCode::InvalidOwner,
@@ -83,6 +89,38 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         &ctx.accounts.system_program.to_account_info(),
     )?;
     daily.try_serialize(&mut &mut daily_info.try_borrow_mut_data()?[..])?;
+    // Both boards exist from preparation: consuming a run is their only writer.
+    for (info, kind, bump) in [
+        (
+            ctx.accounts.score_board.to_account_info(),
+            DailyBoardKind::Score,
+            ctx.bumps.score_board,
+        ),
+        (
+            ctx.accounts.theme_board.to_account_info(),
+            DailyBoardKind::Theme,
+            ctx.bumps.theme_board,
+        ),
+    ] {
+        create_cadence_account(
+            &ctx.accounts.cadence_funding.to_account_info(),
+            ctx.bumps.cadence_funding,
+            &info,
+            &[ARENA_BOARD_SEED, daily_info.key.as_ref(), kind.seed(), &[bump]],
+            ArenaBoard::HEADER_SIZE,
+            ArenaBoard::HEADER_SIZE,
+            &ctx.accounts.system_program.to_account_info(),
+        )?;
+        ArenaBoard {
+            version: ACCOUNT_VERSION,
+            arena_daily: daily_info.key(),
+            day_id,
+            kind,
+            bump,
+            ..ArenaBoard::default()
+        }
+        .try_serialize(&mut &mut info.try_borrow_mut_data()?[..])?;
+    }
     Ok(())
 }
 
@@ -140,6 +178,14 @@ pub struct SkipSuspendedArenaDaily<'info> {
         constraint = !successor_daily.predecessor_rollover_applied @ ErrorCode::InvalidState
     )]
     pub successor_daily: Box<Account<'info, ArenaDaily>>,
+    #[account(mut, close = cadence_funding,
+        seeds = [ARENA_BOARD_SEED, suspended_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
+        constraint = score_board.bound_to(suspended_daily.key(), DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
+    pub score_board: Box<Account<'info, ArenaBoard>>,
+    #[account(mut, close = cadence_funding,
+        seeds = [ARENA_BOARD_SEED, suspended_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump = theme_board.bump,
+        constraint = theme_board.bound_to(suspended_daily.key(), DailyBoardKind::Theme) @ ErrorCode::InvalidOwner)]
+    pub theme_board: Box<Account<'info, ArenaBoard>>,
     /// CHECK: Canonical recyclable cadence-rent destination.
     #[account(
         mut,
@@ -343,6 +389,17 @@ pub struct EnterArena<'info> {
     pub arena_player: Box<Account<'info, ArenaPlayer>>,
     #[account(mut, seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()], bump = following_daily.bump,)]
     pub following_daily: Box<Account<'info, ArenaDaily>>,
+    #[account(mut, seeds = [ARENA_BOARD_SEED, current_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
+        constraint = score_board.bound_to(current_daily.key(), DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
+    pub score_board: Box<Account<'info, ArenaBoard>>,
+    #[account(mut, seeds = [ARENA_BOARD_SEED, current_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump = theme_board.bump,
+        constraint = theme_board.bound_to(current_daily.key(), DailyBoardKind::Theme) @ ErrorCode::InvalidOwner)]
+    pub theme_board: Box<Account<'info, ArenaBoard>>,
+    /// CHECK: Canonical System-owned zero-data payer; pays each entrant's board rows.
+    #[account(mut, seeds = [CADENCE_FUNDING_SEED], bump,
+        owner = system_program::ID @ ErrorCode::InvalidOwner,
+        constraint = cadence_funding.data_is_empty() && !cadence_funding.executable @ ErrorCode::InvalidOwner)]
+    pub cadence_funding: UncheckedAccount<'info>,
     #[account(mut, seeds = [CREDIT_VAULT_SEED], bump = credit_vault.bump,
         constraint = credit_vault.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
         constraint = credit_vault.protocol == protocol.key() @ ErrorCode::InvalidOwner)]
@@ -409,6 +466,33 @@ pub fn handler_enter_arena<'info>(
             .unique_players
             .checked_add(1)
             .ok_or(ErrorCode::ArithmeticOverflow)?;
+        // A board row needs rent before the run that earns it is consumed.
+        // Paying it here means an entry the boards cannot hold rejects before
+        // its Kredit is spent, and consume never needs a payer.
+        let funded = Rent::get()?.minimum_balance(ArenaBoard::funded_space(
+            ctx.accounts.current_daily.unique_players,
+        ));
+        for board in [
+            ctx.accounts.score_board.to_account_info(),
+            ctx.accounts.theme_board.to_account_info(),
+        ] {
+            let shortfall = funded.saturating_sub(board.lamports());
+            if shortfall > 0 {
+                invoke_signed(
+                    &system_instruction::transfer(
+                        ctx.accounts.cadence_funding.key,
+                        board.key,
+                        shortfall,
+                    ),
+                    &[
+                        ctx.accounts.cadence_funding.to_account_info(),
+                        board,
+                        ctx.accounts.system_program.to_account_info(),
+                    ],
+                    &[&[CADENCE_FUNDING_SEED, &[ctx.bumps.cadence_funding]]],
+                )?;
+            }
+        }
     }
     require!(
         ctx.accounts.arena_player.version == ACCOUNT_VERSION
@@ -514,6 +598,12 @@ pub struct ConsumeArenaRun<'info> {
     /// CHECK: Exact original payer persisted on the closing account.
     #[account(mut, address = active_run.rent_payer @ ErrorCode::InvalidOwner)]
     pub rent_recipient: UncheckedAccount<'info>,
+    #[account(mut, seeds = [ARENA_BOARD_SEED, active_run.daily_challenge.as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
+        constraint = score_board.bound_to(active_run.daily_challenge, DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
+    pub score_board: Option<Box<Account<'info, ArenaBoard>>>,
+    #[account(mut, seeds = [ARENA_BOARD_SEED, active_run.daily_challenge.as_ref(), DailyBoardKind::Theme.seed()], bump = theme_board.bump,
+        constraint = theme_board.bound_to(active_run.daily_challenge, DailyBoardKind::Theme) @ ErrorCode::InvalidOwner)]
+    pub theme_board: Option<Box<Account<'info, ArenaBoard>>>,
 }
 
 pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
@@ -557,7 +647,24 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
             finalized_at: active.finished_at,
             replay_hash: active.replay_hash,
         };
-        daily.record_scored_entry(player, &mut ctx.accounts.player_state, candidate)?;
+        require!(
+            daily.status != PeriodStatus::Finalized,
+            ErrorCode::InvalidState
+        );
+        let changes =
+            daily.record_scored_entry(player, &mut ctx.accounts.player_state, candidate)?;
+        for (change, kind, board) in [
+            (changes[0], DailyBoardKind::Score, &ctx.accounts.score_board),
+            (changes[1], DailyBoardKind::Theme, &ctx.accounts.theme_board),
+        ] {
+            let previous = match change {
+                BestRow::Kept => continue,
+                BestRow::First => None,
+                BestRow::Improved(previous) => Some(previous),
+            };
+            let board = board.as_ref().ok_or(ErrorCode::InvalidState)?;
+            retain_board_row(&board.to_account_info(), kind, previous.as_ref(), &candidate)?;
+        }
         daily.entries_scored = daily
             .entries_scored
             .checked_add(1)
@@ -614,19 +721,19 @@ pub struct FinalizeArenaDaily<'info> {
     #[account(mut, seeds = [ARENA_DAILY_SEED, following_daily.day_id.to_le_bytes().as_ref()], bump = following_daily.bump,
         constraint = !following_daily.predecessor_rollover_applied @ ErrorCode::InvalidState)]
     pub following_daily: Box<Account<'info, ArenaDaily>>,
-    /// CHECK: Exact-sized Score board allocated and serialized below.
-    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump)]
-    pub score_board: UncheckedAccount<'info>,
-    /// CHECK: Exact-sized Theme board allocated and serialized below.
-    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump)]
-    pub theme_board: UncheckedAccount<'info>,
-    /// CHECK: Canonical System-owned zero-data payer; signs only this rent path.
+    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Score.seed()], bump = score_board.bump,
+        constraint = score_board.bound_to(arena_daily.key(), DailyBoardKind::Score) @ ErrorCode::InvalidOwner)]
+    pub score_board: Box<Account<'info, ArenaBoard>>,
+    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), DailyBoardKind::Theme.seed()], bump = theme_board.bump,
+        constraint = theme_board.bound_to(arena_daily.key(), DailyBoardKind::Theme) @ ErrorCode::InvalidOwner)]
+    pub theme_board: Box<Account<'info, ArenaBoard>>,
+    /// CHECK: Canonical System-owned zero-data PDA; receives the rent the
+    /// finalized boards no longer need.
     #[account(mut, seeds = [CADENCE_FUNDING_SEED], bump,
         owner = system_program::ID @ ErrorCode::InvalidOwner,
         constraint = cadence_funding.data_is_empty() && !cadence_funding.executable @ ErrorCode::InvalidOwner)]
     pub cadence_funding: UncheckedAccount<'info>,
     pub caller: Signer<'info>,
-    pub system_program: Program<'info, System>,
 }
 
 pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<()> {
@@ -655,39 +762,6 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
     )?;
     let source_info = ctx.accounts.arena_daily.to_account_info();
     let successor_info = ctx.accounts.following_daily.to_account_info();
-    let score_info = ctx.accounts.score_board.to_account_info();
-    let theme_info = ctx.accounts.theme_board.to_account_info();
-    for (info, kind, count, bump) in [
-        (
-            &score_info,
-            DailyBoardKind::Score,
-            score_plan.count,
-            ctx.bumps.score_board,
-        ),
-        (
-            &theme_info,
-            DailyBoardKind::Theme,
-            theme_plan.count,
-            ctx.bumps.theme_board,
-        ),
-    ] {
-        create_cadence_account(
-            &ctx.accounts.cadence_funding.to_account_info(),
-            ctx.bumps.cadence_funding,
-            info,
-            &[
-                ARENA_BOARD_SEED,
-                source_info.key.as_ref(),
-                kind.seed(),
-                &[bump],
-            ],
-            ArenaBoard::construction_space(count, 0)?,
-            ArenaBoard::account_space(count)?,
-            &ctx.accounts.system_program.to_account_info(),
-        )?;
-    }
-    let mut score_board = ArenaBoard::default();
-    let mut theme_board = ArenaBoard::default();
     let source = &mut ctx.accounts.arena_daily;
     let successor = &mut ctx.accounts.following_daily;
     require_spendable(&source_info, pool)?;
@@ -708,154 +782,47 @@ pub fn handler_finalize_arena_daily(ctx: Context<FinalizeArenaDaily>) -> Result<
     source.ledger.settle(paid_lamports, rollover_lamports)?;
     successor.ledger.add_rollover(rollover_lamports)?;
     successor.predecessor_rollover_applied = true;
-    initialize_arena_board(
-        &mut score_board,
-        ArenaBoardInitialization {
-            daily: source_info.key(),
-            day_id: source.day_id,
-            kind: DailyBoardKind::Score,
-            qualified_count: source.score_qualified_players,
-            pool_lamports: pools.score,
-            plan: score_plan,
-            finalized_at: now,
-            bump: ctx.bumps.score_board,
-        },
-    );
-    initialize_arena_board(
-        &mut theme_board,
-        ArenaBoardInitialization {
-            daily: source_info.key(),
-            day_id: source.day_id,
-            kind: DailyBoardKind::Theme,
-            qualified_count: source.theme_qualified_players,
-            pool_lamports: pools.theme,
-            plan: theme_plan,
-            finalized_at: now,
-            bump: ctx.bumps.theme_board,
-        },
-    );
-    require!(
-        score_info.data_len() == ArenaBoard::construction_space(score_plan.count, 0)?
-            && theme_info.data_len() == ArenaBoard::construction_space(theme_plan.count, 0)?,
-        ErrorCode::AccountingInvariant
-    );
     source.status = PeriodStatus::Finalized;
     source.finalized_at = now;
-    score_board.try_serialize(&mut &mut score_info.try_borrow_mut_data()?[..])?;
-    theme_board.try_serialize(&mut &mut theme_info.try_borrow_mut_data()?[..])?;
-    Ok(())
-}
-
-#[derive(Accounts)]
-#[instruction(kind: DailyBoardKind)]
-pub struct SubmitArenaBoardChunk<'info> {
-    #[account(
-        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
-        bump = arena_daily.bump,
-        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.status == PeriodStatus::Finalized @ ErrorCode::InvalidState
-    )]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(
-        mut,
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), kind.seed()],
-        bump = arena_board.bump,
-        constraint = arena_board.kind == kind @ ErrorCode::InvalidOwner,
-        constraint = arena_board.arena_daily == arena_daily.key() @ ErrorCode::InvalidOwner
-    )]
-    pub arena_board: Box<Account<'info, ArenaBoard>>,
-    pub caller: Signer<'info>,
-}
-
-pub fn handler_submit_arena_board_chunk<'info>(
-    ctx: Context<'info, SubmitArenaBoardChunk<'info>>,
-    kind: DailyBoardKind,
-    entries: Vec<SubmittedBoardEntry>,
-) -> Result<()> {
-    require!(
-        !ctx.accounts.arena_board.sealed()
-            && !entries.is_empty()
-            && entries.len() <= ARENA_BOARD_CHUNK_CAPACITY
-            && entries.len() == ctx.remaining_accounts.len(),
-        ErrorCode::BoardIncomplete
-    );
-    let board_info = ctx.accounts.arena_board.to_account_info();
-    ctx.accounts.arena_board.validate(
-        ctx.accounts.arena_daily.key(),
-        kind,
-        board_info.data_len(),
-    )?;
-    let appended = u32::try_from(entries.len()).map_err(|_| ErrorCode::ArithmeticOverflow)?;
-    let next_cursor = ctx
-        .accounts
-        .arena_board
-        .cursor
-        .checked_add(appended)
-        .ok_or(ErrorCode::ArithmeticOverflow)?;
-    require!(
-        next_cursor <= ctx.accounts.arena_board.payout_count,
-        ErrorCode::BoardIncomplete
-    );
-
-    board_info.resize(ArenaBoard::construction_space(
-        ctx.accounts.arena_board.payout_count,
-        next_cursor,
-    )?)?;
-    let mut previous = if ctx.accounts.arena_board.cursor == 0 {
-        None
-    } else {
-        Some(read_board_entry(
-            &board_info,
-            ctx.accounts.arena_board.cursor - 1,
-        )?)
-    };
-    for (offset, (submitted, source_info)) in entries
-        .into_iter()
-        .zip(ctx.remaining_accounts.iter())
-        .enumerate()
-    {
-        require_keys_eq!(*source_info.owner, crate::ID, ErrorCode::InvalidOwner);
-        let source = {
-            let data = source_info.try_borrow_data()?;
-            let mut bytes: &[u8] = &data;
-            ArenaPlayer::try_deserialize(&mut bytes)?
-        };
-        let (expected_key, _) = Pubkey::find_program_address(
-            &[
-                ARENA_PLAYER_SEED,
-                ctx.accounts.arena_daily.key().as_ref(),
-                source.player.as_ref(),
-            ],
-            &crate::ID,
-        );
-        require_keys_eq!(source_info.key(), expected_key, ErrorCode::InvalidOwner);
+    // The boards are already complete: every scored run was placed when it
+    // was consumed. Keep the paying rows, add their claim bits, and return
+    // the rent of everything else to cadence funding.
+    let cadence = ctx.accounts.cadence_funding.to_account_info();
+    for (board, qualified, pool, plan) in [
+        (
+            &mut ctx.accounts.score_board,
+            source.score_qualified_players,
+            pools.score,
+            score_plan,
+        ),
+        (
+            &mut ctx.accounts.theme_board,
+            source.theme_qualified_players,
+            pools.theme,
+            theme_plan,
+        ),
+    ] {
+        let info = board.to_account_info();
+        let retained = ArenaBoard::open_rows(info.data_len())?;
         require!(
-            source.version == ACCOUNT_VERSION
-                && source.challenge == ctx.accounts.arena_daily.key()
-                && source.resolved(),
-            ErrorCode::InvalidState
+            u32::try_from(retained).is_ok_and(|rows| rows
+                == qualified.min(u32::try_from(ARENA_BOARD_CAPACITY).unwrap_or(u32::MAX)))
+                && plan.count <= qualified,
+            ErrorCode::AccountingInvariant
         );
-        let entry = verify_submitted_board_entry(kind, submitted, &source)?;
-        if let Some(prior) = previous {
-            verify_next_board_entry(kind, &prior, &entry)?;
-        }
-        let position = ctx
-            .accounts
-            .arena_board
-            .cursor
-            .checked_add(u32::try_from(offset).map_err(|_| ErrorCode::ArithmeticOverflow)?)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        write_board_entry(&board_info, position, &entry)?;
-        previous = Some(entry);
-    }
-    ctx.accounts.arena_board.cursor = next_cursor;
-    if next_cursor == ctx.accounts.arena_board.payout_count {
-        require!(
-            board_info.data_len() == ArenaBoard::account_space(next_cursor)?,
-            ErrorCode::BoardIncomplete
-        );
-
-        ctx.accounts.arena_board.sealed_at = Clock::get()?.unix_timestamp;
+        seal_arena_board(board, qualified, pool, plan);
+        let rows_end = ArenaBoard::open_space(
+            usize::try_from(plan.count).map_err(|_| ErrorCode::ArithmeticOverflow)?,
+        )?;
+        let space = ArenaBoard::account_space(plan.count)?;
+        info.resize(space)?;
+        info.try_borrow_mut_data()?[rows_end..].fill(0);
+        let rent = Rent::get()?.minimum_balance(space);
+        let excess = info
+            .lamports()
+            .checked_sub(rent)
+            .ok_or(ErrorCode::AccountingInvariant)?;
+        move_program_lamports(&info, &cadence, excess)?;
     }
     Ok(())
 }
@@ -923,7 +890,7 @@ pub fn handler_claim_daily_prize(
         position,
     )?;
     if ctx.accounts.arena_daily.claims_expired
-        || now > board_claim_deadline(ctx.accounts.arena_board.sealed_at)?
+        || now > daily_claim_deadline(&ctx.accounts.arena_daily)?
         || board_bitmap_is_set(&board_info, &ctx.accounts.arena_board, prize.position)?
     {
         return Ok(());
@@ -1028,15 +995,13 @@ pub fn handler_expire_daily_claims(ctx: Context<ExpireDailyClaims>) -> Result<()
         DailyBoardKind::Theme,
     )?;
     require!(
-        ctx.accounts.score_board.sealed()
-            && ctx.accounts.theme_board.sealed()
-            && ctx.accounts.score_board.claimed_lamports <= ctx.accounts.score_board.paid_lamports
+        ctx.accounts.score_board.claimed_lamports <= ctx.accounts.score_board.paid_lamports
             && ctx.accounts.theme_board.claimed_lamports <= ctx.accounts.theme_board.paid_lamports,
         ErrorCode::BoardIncomplete
     );
     let now = Clock::get()?.unix_timestamp;
     require!(
-        now > daily_claim_deadline(&ctx.accounts.score_board, &ctx.accounts.theme_board,)?,
+        now > daily_claim_deadline(&ctx.accounts.arena_daily)?,
         ErrorCode::InvalidState
     );
     let current_day = day_id_at(now)?;
@@ -1211,10 +1176,7 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
     require!(
         daily.resolved()
             && daily.claims_expired
-            && Clock::get()?.unix_timestamp
-                > daily_claim_deadline(&ctx.accounts.score_board, &ctx.accounts.theme_board,)?
-            && ctx.accounts.score_board.sealed()
-            && ctx.accounts.theme_board.sealed(),
+            && Clock::get()?.unix_timestamp > daily_claim_deadline(daily)?,
         ErrorCode::InvalidState
     );
     Ok(())
@@ -1222,7 +1184,8 @@ pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
 
 #[derive(Accounts)]
 pub struct CloseArenaPlayer<'info> {
-    /// CHECK: The exact parent address is required to be closed in the handler.
+    /// CHECK: The exact parent address, finalized or already closed; read in
+    /// the handler.
     pub arena_daily: UncheckedAccount<'info>,
     #[account(mut, close = rent_recipient,
         seeds = [ARENA_PLAYER_SEED, arena_player.challenge.as_ref(), arena_player.player.as_ref()], bump = arena_player.bump,
@@ -1242,15 +1205,20 @@ pub fn handler_close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> 
         ctx.accounts.arena_player.challenge,
         ErrorCode::InvalidOwner
     );
+    // Boards are complete at finalization and never read this account
+    // again, and no entry or consume can touch a finalized Daily, so nothing
+    // can bring the account back or repeat its qualifying credit.
     let account = ctx.accounts.arena_daily.to_account_info();
-    require!(
-        *account.owner == system_program::ID && account.data_is_empty() && !account.executable,
-        ErrorCode::InvalidState
-    );
+    let closed =
+        *account.owner == system_program::ID && account.data_is_empty() && !account.executable;
+    let finalized = *account.owner == crate::ID
+        && ArenaDaily::try_deserialize(&mut &account.try_borrow_data()?[..])
+            .is_ok_and(|daily| daily.status == PeriodStatus::Finalized);
+    require!(closed || finalized, ErrorCode::InvalidState);
     Ok(())
 }
 
-/// Allocates only the Daily and payout-board PDAs selected by the two callers.
+/// Allocates only the Daily and its two board PDAs at preparation.
 /// A prior System transfer to an unallocated PDA cannot prevent its creation.
 fn create_cadence_account<'info>(
     funding: &AccountInfo<'info>,

@@ -16,9 +16,11 @@ import { ZKUBE_PROGRAM_ID } from "../../shared/chain.js";
 import { zkubeProgram, type TransactionPlan } from "./program.js";
 import type { WalletLike } from "./readOnlyWallet.js";
 import BN from "bn.js";
+import { CADENCE_FUNDING_TWO_DAY_LAMPORTS } from "../../services/src/protocolVersions.generated.js";
 export const LAUNCH_DAILY_SEED_LAMPORTS = 1_000_000_000;
 
-export const CADENCE_FUNDING_SEED_LAMPORTS = 500_000_000;
+/** Cadence funding's worst case: two overlapping Dailies with full boards. */
+export const CADENCE_FUNDING_SEED_LAMPORTS = CADENCE_FUNDING_TWO_DAY_LAMPORTS;
 const U64_MAX = (1n << 64n) - 1n;
 
 export type PrizePoolKind = "daily";

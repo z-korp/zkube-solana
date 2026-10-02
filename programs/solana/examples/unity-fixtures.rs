@@ -131,7 +131,7 @@ fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
     read_inputs["oldDay"] = json!(DAY - 200);
     let mut board_cases: Vec<_> = [solana::state::DailyBoardKind::Score, solana::state::DailyBoardKind::Theme].into_iter().map(|kind| json!({
         "kind": if kind == solana::state::DailyBoardKind::Score { "score" } else { "theme" }, "variant": "sealed",
-        "envelope": boards::board(DAY - 200, kind, false, true, false, owner()) })).collect();
+        "envelope": boards::board(DAY - 200, kind, false, true, owner()) })).collect();
     for row in &mut board_cases {
         row["daily"] = economy::finalized(DAY - 200);
     }

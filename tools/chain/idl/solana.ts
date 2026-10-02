@@ -634,7 +634,10 @@ export type Solana = {
       ],
       "accounts": [
         {
-          "name": "arenaDaily"
+          "name": "arenaDaily",
+          "docs": [
+            "the handler."
+          ]
         },
         {
           "name": "arenaPlayer",
@@ -859,6 +862,86 @@ export type Solana = {
         {
           "name": "rentRecipient",
           "writable": true
+        },
+        {
+          "name": "scoreBoard",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "active_run.daily_challenge",
+                "account": "activeRun"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "themeBoard",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "active_run.daily_challenge",
+                "account": "activeRun"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -1268,6 +1351,110 @@ export type Solana = {
                 "kind": "account",
                 "path": "following_daily.day_id",
                 "account": "arenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "scoreBoard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "currentDaily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "themeBoard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "currentDaily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "cadenceFunding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
               }
             ]
           }
@@ -1790,6 +1977,9 @@ export type Solana = {
         },
         {
           "name": "cadenceFunding",
+          "docs": [
+            "finalized boards no longer need."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -1819,10 +2009,6 @@ export type Solana = {
         {
           "name": "caller",
           "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -2236,6 +2422,82 @@ export type Solana = {
               {
                 "kind": "arg",
                 "path": "dayId"
+              }
+            ]
+          }
+        },
+        {
+          "name": "scoreBoard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arenaDaily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "themeBoard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arenaDaily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
               }
             ]
           }
@@ -2968,6 +3230,82 @@ export type Solana = {
           }
         },
         {
+          "name": "scoreBoard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "suspendedDaily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "themeBoard",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "suspendedDaily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "cadenceFunding",
           "writable": true,
           "pda": {
@@ -3001,105 +3339,6 @@ export type Solana = {
         }
       ],
       "args": []
-    },
-    {
-      "name": "submitArenaBoardChunk",
-      "discriminator": [
-        121,
-        149,
-        35,
-        141,
-        119,
-        21,
-        206,
-        131
-      ],
-      "accounts": [
-        {
-          "name": "arenaDaily",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arenaBoard",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arenaDaily"
-              },
-              {
-                "kind": "arg",
-                "path": "kind"
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "kind",
-          "type": {
-            "defined": {
-              "name": "dailyBoardKind"
-            }
-          }
-        },
-        {
-          "name": "entries",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "submittedBoardEntry"
-              }
-            }
-          }
-        }
-      ]
     }
   ],
   "accounts": [
@@ -3274,50 +3513,35 @@ export type Solana = {
     {
       "code": 6015,
       "name": "boardIncomplete",
-      "msg": "The payout board is incomplete or unsealed"
+      "msg": "The Daily is not finalized, so its boards are not sealed"
     },
     {
       "code": 6016,
-      "name": "boardEntryMismatch",
-      "msg": "A submitted payout row does not match its ArenaPlayer source"
-    },
-    {
-      "code": 6017,
-      "name": "boardEntryOutOfOrder",
-      "msg": "Submitted payout rows are not in canonical order"
-    },
-    {
-      "code": 6018,
-      "name": "duplicateBoardPlayer",
-      "msg": "A player appears more than once on a payout board"
-    },
-    {
-      "code": 6019,
       "name": "accountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6020,
+      "code": 6017,
       "name": "insufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6021,
+      "code": 6018,
       "name": "dailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6022,
+      "code": 6019,
       "name": "invalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6023,
+      "code": 6020,
       "name": "invalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6024,
+      "code": 6021,
       "name": "invalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     }
@@ -3541,6 +3765,13 @@ export type Solana = {
     },
     {
       "name": "arenaBoard",
+      "docs": [
+        "One board of a Daily. While the Daily runs, the account is this header",
+        "followed by the retained rows, best first; only consuming a run writes",
+        "them. Finalization fills the payout fields, keeps the paying rows and",
+        "appends one claim bit per row. A board is sealed exactly when its Daily is",
+        "finalized, so it carries no clock of its own."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
@@ -3595,20 +3826,6 @@ export type Solana = {
           {
             "name": "capacityLimited",
             "type": "bool"
-          },
-          {
-            "name": "cursor",
-            "docs": [
-              "Number of verified rows already appended."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "sealedAt",
-            "docs": [
-              "Starts this board's independent reward-claim window."
-            ],
-            "type": "i64"
           },
           {
             "name": "claimedLamports",
@@ -4292,35 +4509,6 @@ export type Solana = {
           {
             "name": "validUntil",
             "type": "i64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "submittedBoardEntry",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "score",
-            "type": "u32"
-          },
-          {
-            "name": "objectiveTotal",
-            "type": "u64"
-          },
-          {
-            "name": "finalizedAt",
-            "type": "i64"
-          },
-          {
-            "name": "replayHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
           }
         ]
       }

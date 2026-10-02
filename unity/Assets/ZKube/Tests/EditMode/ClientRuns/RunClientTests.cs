@@ -135,6 +135,11 @@ namespace ZKube.Integration.Client.Runs.Tests
             Assert.That(result.Phase, Is.EqualTo("delegated"));
             Assert.That(env.Http.Sent, Is.EqualTo(new[] { "claim_daily_prize", "claim_daily_prize", "enter_arena", "delegate_active_run" }));
             Assert.That(env.Http.SentTransactions, Has.Count.EqualTo(1));
+            // The largest message a player sends: two claims, the entry with today's
+            // boards and cadence funding, and the delegation, in one packet.
+            int packet = Convert.FromBase64String(env.Http.SentTransactions.Single()).Length;
+            TestContext.WriteLine("Composed entry packet: " + packet + " bytes");
+            Assert.That(packet, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
             string idl = ZKube.Integration.Tests.TestBootstrap.ProtocolJson;
             var protocol = new ProtocolBindings(idl);
             var claims = TransactionSignatures.Describe(Convert.FromBase64String(env.Http.SentTransactions.Single())).Instructions
@@ -530,7 +535,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                     if (RevokedSession) return JValue.CreateNull();
                 }
                 JToken source = address == (string)player["address"] ? player : ((JObject)plans["accounts"]).Properties().Where(property => property.Name != "expiredSession").Select(property => property.Value).SingleOrDefault(row => (string)row["address"] == address);
-                if (IncludeClaims && source == null) source = plans["boards"].Select(b => b["envelope"])
+                if (IncludeClaims && source == null) source = plans["boards"].SelectMany(b => new[] { b["envelope"], b["daily"] })
                     .FirstOrDefault(b => b.Type == JTokenType.Object && (string)b["address"] == address);
                 foreach (string mode in new[] { "daily" })
                     if (address == (string)Row(mode, "playing")["address"])

@@ -11,10 +11,12 @@ namespace ZKube.Integration.Planning
         public uint DayId { get; }
         public string Kind { get; }
         public AccountEnvelope Account { get; }
-        public BoardObservation(uint dayId, string kind, AccountEnvelope account)
+        // The board's Daily, which says whether the board is sealed and since when.
+        public AccountEnvelope Daily { get; }
+        public BoardObservation(uint dayId, string kind, AccountEnvelope account, AccountEnvelope daily)
         {
             if (kind != "score" && kind != "theme") throw new ArgumentException("Invalid board kind");
-            DayId = dayId; Kind = kind; Account = account;
+            DayId = dayId; Kind = kind; Account = account; Daily = daily;
         }
     }
 

@@ -2,12 +2,10 @@ import { PublicKey } from "@solana/web3.js";
 
 import {
   KEEPER_RECENT_DAILY_CADENCES,
-  ARENA_BOARD_CHUNK_CAPACITY,
   assertSafeTimestamp,
   currentDayId,
   nextScheduledDaily,
   keeperPlan,
-  type DailyBoardKind,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
 import { dailyWindow, scheduledDailyWindow } from "./zkubeCore.js";
@@ -21,23 +19,6 @@ export type RunLifecycle =
   | "terminal"
   | "unavailable";
 export type RunLocation = "base" | "ephemeral_rollup" | "unavailable";
-
-export interface BoardSourceSnapshot {
-  source: PublicKey;
-  owner: PublicKey;
-  score: number;
-  objectiveTotal: bigint;
-  finalizedAt: number;
-  replayHash: Uint8Array;
-}
-
-export interface BoardConstructionSnapshot {
-  kind: DailyBoardKind;
-  payoutCount: number;
-  cursor: number;
-  sealed: boolean;
-  sealedAt: number;
-}
 
 export interface DailySnapshot {
   dayId: number;
@@ -53,10 +34,6 @@ export interface DailySnapshot {
   predecessorRolloverRequired: boolean;
   predecessorRolloverApplied: boolean;
   claimsExpired: boolean;
-  scoreSources?: readonly BoardSourceSnapshot[];
-  themeSources?: readonly BoardSourceSnapshot[];
-  scoreBoard?: BoardConstructionSnapshot;
-  themeBoard?: BoardConstructionSnapshot;
 }
 
 export interface RunSnapshot {
@@ -190,7 +167,6 @@ export function discoverReconciliation(args: {
         (!daily.predecessorRolloverRequired || daily.predecessorRolloverApplied),
       successorOf(daily)?.dayId,
     );
-    appendBoardConstructionPlans(plans, daily);
   }
 
   for (const player of [...(args.snapshot.closedArenaPlayers ?? [])].sort((left, right) =>
@@ -205,32 +181,6 @@ export function discoverReconciliation(args: {
     const day = operation === "prepare_arena_daily" ? context.followingDayId : context.dayId;
     return day !== undefined && day >= oldestKeeperDay && day <= scheduledDailyWindow(today, args.snapshot.suspendedUntilDay).following;
   });
-}
-
-function appendBoardConstructionPlans(
-  plans: KeeperInstructionPlan[],
-  daily: DailySnapshot,
-): void {
-  if (daily.status !== "finalized") return;
-  for (const kind of ["score", "theme"] as const) {
-    const board = kind === "score" ? daily.scoreBoard : daily.themeBoard;
-    const sources = kind === "score" ? daily.scoreSources : daily.themeSources;
-    if (!board || board.sealed || !sources) continue;
-    const entries = sources.slice(
-      board.cursor,
-      Math.min(board.payoutCount, board.cursor + ARENA_BOARD_CHUNK_CAPACITY),
-    );
-    if (entries.length === 0) {
-      // A malformed source window cannot advance the board.
-      continue;
-    }
-    plans.push(keeperPlan("submit_arena_board_chunk", {
-
-      dayId: daily.dayId,
-      boardKind: kind,
-      boardEntries: entries,
-    }));
-  }
 }
 
 function appendCadenceArchivePlan(

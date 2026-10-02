@@ -11,50 +11,60 @@ namespace ZKube.Tests.ProductReads
 {
     public sealed partial class ProductReadTests
     {
-        [Test] public async Task BoardConstructionCursorAndSealStateMatchTheProgramExactly()
+        [Test] public async Task ABoardIsReadInTheShapeItsDailyGivesIt()
         {
             var e=await Environment.Create(); uint day=(uint)e.Fixture["inputs"]["oldDay"];
-            var source=(JObject)e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="score"&&(string)row["variant"]=="sealed")["envelope"];
-            Assert.That(e.Accounts.ArenaBoard(Envelope(source),day,"score").Sealed,Is.True);
+            var sealedCase=e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="score"&&(string)row["variant"]=="sealed");
+            var source=(JObject)sealedCase["envelope"];
+            var finalized=e.Accounts.ArenaDaily(Envelope(sealedCase["daily"]),day);
+            var running=e.Accounts.ArenaDaily(Envelope(PatchAccount(sealedCase["daily"],"ArenaDaily",("status",new byte[]{1}),("finalized_at",Number(0,8)))),day);
+            var read=e.Accounts.ArenaBoard(Envelope(source),finalized,day,"score");
+            Assert.That(read.Sealed,Is.True); Assert.That(read.SealedAt,Is.EqualTo((long)finalized["finalized_at"]));
             foreach(var bad in new[]{
-                PatchAccount(source,"ArenaBoard",("cursor",Number(0,4))),
-                PatchAccount(source,"ArenaBoard",("sealed_at",Number(0,8))),
-                PatchAccount(source,"ArenaBoard",("cursor",Number(0,4)),("sealed_at",Number(ulong.MaxValue,8))),
                 PatchAccount(source,"ArenaBoard",("width_count",Number(0,4))),
                 PatchAccount(source,"ArenaBoard",("qualified_count",Number(0,4))),
                 PatchAccount(source,"ArenaBoard",("capacity_limited",new byte[]{1})) })
-                Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(bad),day,"score"));
-            var constructing=PatchAccount(source,"ArenaBoard",("cursor",Number(0,4)),("sealed_at",Number(0,8)));
-            Assert.Throws<FormatException>(() => e.Accounts.ArenaBoard(Envelope(constructing), day, "score"));
-            constructing = ConstructionPrefix(e, constructing, 0);
-            Assert.That(e.Accounts.ArenaBoard(Envelope(constructing),day,"score").Sealed,Is.False);
-            var two=TwoRows(e,source);
-            var partial=PatchAccount(two,"ArenaBoard",("cursor",Number(1,4)),("sealed_at",Number(0,8)));
-            partial = ConstructionPrefix(e, partial, 1);
-            Assert.That(e.Accounts.ArenaBoard(Envelope(partial),day,"score").Rows,Is.Empty,"validated prefix is not claimable before automatic sealing");
-            var empty=PatchAccount(source,"ArenaBoard",("payout_count",Number(0,4)),("width_count",Number(0,4)),("qualified_count",Number(0,4)),
-                ("cursor",Number(0,4)),("denominator",new byte[16]));
-            empty["data"]=Convert.ToBase64String(Convert.FromBase64String((string)empty["data"]).Take(e.Accounts.FixedAccountBytes("ArenaBoard")).ToArray());
-            var initialized=e.Accounts.ArenaBoard(Envelope(empty),day,"score");
-            Assert.That(initialized.Sealed,Is.True); Assert.That(initialized.Rows,Is.Empty,"zero payout allocation is sealed on initialization");
+                Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(bad),finalized,day,"score"));
+            // A finalized board under a running Daily, or with no Daily, is not a board.
+            Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(source),running,day,"score"));
+            Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(source),null,day,"score"));
+            // While its Daily runs a board is its header and the retained rows:
+            // standings to show, no payout plan and nothing to claim.
+            foreach(uint rows in new uint[]{0,1,2}){
+                var live=e.Accounts.ArenaBoard(Envelope(Live(e,TwoRows(e,source),rows)),running,day,"score");
+                Assert.That(live.Sealed,Is.False); Assert.That(live.SealedAt,Is.Zero); Assert.That(live.Rows.Count,Is.EqualTo(rows));
+                Assert.That(live.Rows.Any(row=>row.Claimed),Is.False);
+                // The same bytes are not a finalized board.
+                if(rows>0) Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(Live(e,TwoRows(e,source),rows)),finalized,day,"score"));
+            }
+            var ragged=Live(e,TwoRows(e,source),1); ragged["data"]=Convert.ToBase64String(Convert.FromBase64String((string)ragged["data"]).Concat(new byte[1]).ToArray());
+            Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(ragged),running,day,"score"));
+            var planned=PatchAccount(Live(e,TwoRows(e,source),1),"ArenaBoard",("qualified_count",Number(1,4)));
+            Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(planned),running,day,"score"));
+            var emptyCase=e.Fixture["boardCases"].Single(row=>(string)row["variant"]=="empty");
+            var initialized=e.Accounts.ArenaBoard(Envelope(emptyCase["envelope"]),e.Accounts.ArenaDaily(Envelope(emptyCase["daily"]),day),day,"score");
+            Assert.That(initialized.Sealed,Is.True); Assert.That(initialized.Rows,Is.Empty,"a Daily nobody qualified in seals an empty board");
         }
 
-        [Test] public async Task SealedAndWrittenPrefixRowsRequirePositiveMetricsAndCanonicalOrdering()
+        [Test] public async Task SealedAndLiveRowsRequirePositiveMetricsAndCanonicalOrdering()
         {
             var e=await Environment.Create(); uint day=(uint)e.Fixture["inputs"]["oldDay"];
-            var source=(JObject)e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="score"&&(string)row["variant"]=="sealed")["envelope"];
-            var valid=TwoRows(e,source); Assert.That(e.Accounts.ArenaBoard(Envelope(valid),day,"score").Rows.Count,Is.EqualTo(2));
+            var sealedCase=e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="score"&&(string)row["variant"]=="sealed");
+            var source=(JObject)sealedCase["envelope"];
+            var finalized=e.Accounts.ArenaDaily(Envelope(sealedCase["daily"]),day);
+            var running=e.Accounts.ArenaDaily(Envelope(PatchAccount(sealedCase["daily"],"ArenaDaily",("status",new byte[]{1}),("finalized_at",Number(0,8)))),day);
+            var valid=TwoRows(e,source); Assert.That(e.Accounts.ArenaBoard(Envelope(valid),finalized,day,"score").Rows.Count,Is.EqualTo(2));
             var badTime=PatchBoardRow(e,valid,1,"score",Number(10,4)); badTime=PatchBoardRow(e,badTime,1,"finalized_at",Number(1,8));
             var badWallet=PatchBoardRow(e,valid,0,"player",ZKube.Integration.SolanaAddress.Bytes(PublicOwner(255)));
             badWallet=PatchBoardRow(e,badWallet,1,"score",Number(10,4));
             foreach(var bad in new[]{PatchBoardRow(e,valid,0,"score",Number(0,4)),PatchBoardRow(e,valid,1,"score",Number(11,4)),
-                PatchBoardRow(e,valid,0,"finalized_at",Number(ulong.MaxValue,8)),badTime,badWallet})
-                Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(bad),day,"score"));
-            var badPrefix=PatchAccount(PatchBoardRow(e,valid,0,"score",Number(0,4)),"ArenaBoard",("cursor",Number(1,4)),("sealed_at",Number(0,8)));
-            badPrefix = ConstructionPrefix(e, badPrefix, 1);
-            Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(badPrefix),day,"score"));
-            var theme=(JObject)e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="theme"&&(string)row["variant"]=="sealed")["envelope"];
-            Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(PatchBoardRow(e,theme,0,"objective_total",Number(0,8))),day,"theme"));
+                PatchBoardRow(e,valid,0,"finalized_at",Number(ulong.MaxValue,8)),badTime,badWallet}){
+                Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(bad),finalized,day,"score"));
+                Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(Live(e,bad,2)),running,day,"score"));
+            }
+            var themeCase=e.Fixture["boardCases"].Single(row=>(string)row["kind"]=="theme"&&(string)row["variant"]=="sealed");
+            Assert.Throws<FormatException>(()=>e.Accounts.ArenaBoard(Envelope(PatchBoardRow(e,(JObject)themeCase["envelope"],0,"objective_total",Number(0,8))),
+                e.Accounts.ArenaDaily(Envelope(themeCase["daily"]),day),day,"theme"));
         }
 
         [Test] public async Task ClaimablePayoutRequiresNativePlanAndFinalizedDailyEconomicBinding()
@@ -82,22 +92,22 @@ namespace ZKube.Tests.ProductReads
             e.Http.Remove(daily); Assert.That((await e.Queries.SettledBoards(day)).Value.Score.ClaimStatus,Is.EqualTo("unavailable"));
         }
 
-        private static JObject ConstructionPrefix(Environment e, JObject source, uint cursor)
+        // The board of a running Daily: the header with no payout plan, then `rows` rows.
+        private static JObject Live(Environment e, JObject source, uint rows)
         {
-            var result = (JObject)source.DeepClone();
-            byte[] data = Convert.FromBase64String((string)source["data"]);
-            var countField = Locate("ArenaBoard", new[] { "payout_count" }, 0, 8);
-            uint count = BitConverter.ToUInt32(data, countField.Offset);
+            var result = PatchAccount(source,"ArenaBoard",("payout_count",Number(0,4)),("width_count",Number(0,4)),("qualified_count",Number(0,4)),
+                ("denominator",new byte[16]),("pool_lamports",Number(0,8)),("paid_lamports",Number(0,8)),("rollover_lamports",Number(0,8)),
+                ("claimed_lamports",Number(0,8)),("claimed_count",Number(0,4)));
+            byte[] data = Convert.FromBase64String((string)result["data"]);
             int rowBytes = Size(new JObject { ["defined"] = new JObject { ["name"] = "ArenaBoardEntry" } });
-            int prefixBytes = checked(e.Accounts.FixedAccountBytes("ArenaBoard") + (int)cursor * rowBytes);
-            result["data"] = Convert.ToBase64String(data.Take(prefixBytes).Concat(new byte[(count + 7) / 8]).ToArray());
+            result["data"] = Convert.ToBase64String(data.Take(checked(e.Accounts.FixedAccountBytes("ArenaBoard") + (int)rows * rowBytes)).ToArray());
             return result;
         }
 
         private static JObject TwoRows(Environment e,JObject source)
         {
             int header=e.Accounts.FixedAccountBytes("ArenaBoard"),rowBytes=Size(new JObject{["defined"]=new JObject{["name"]="ArenaBoardEntry"}});
-            var result=PatchAccount(source,"ArenaBoard",("payout_count",Number(2,4)),("width_count",Number(2,4)),("qualified_count",Number(2,4)),("cursor",Number(2,4)));
+            var result=PatchAccount(source,"ArenaBoard",("payout_count",Number(2,4)),("width_count",Number(2,4)),("qualified_count",Number(2,4)));
             byte[] prior=Convert.FromBase64String((string)result["data"]),data=new byte[header+rowBytes*2+1];
             Array.Copy(prior,data,header+rowBytes); Array.Copy(prior,header,data,header+rowBytes,rowBytes); result["data"]=Convert.ToBase64String(data);
             result=PatchBoardRow(e,result,0,"score",Number(10,4)); result=PatchBoardRow(e,result,1,"score",Number(5,4));

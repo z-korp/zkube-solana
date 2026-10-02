@@ -3,7 +3,6 @@ export { ZKUBE_PROGRAM_ID, MIN_SUPPORTED_DAY_ID };
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
 
 import {
-  ARENA_BOARD_CHUNK_CAPACITY,
   DAILY_RUN_CLOSE_OFFSET,
   RUN_RECOVERY_SECONDS,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
@@ -14,7 +13,6 @@ import {
 import { dayIdAt, nextScheduledDaily as coreNextScheduledDaily } from "./zkubeCore.js";
 
 export {
-  ARENA_BOARD_CHUNK_CAPACITY,
   DAILY_RUN_CLOSE_OFFSET,
   RUN_RECOVERY_SECONDS,
   DAILY_REWARD_CLAIM_WINDOW_SECONDS,
@@ -32,7 +30,6 @@ export const KEEPER_PLAN_INSTRUCTION = Object.freeze({
   activate_arena_daily: { instruction: "activate_arena_daily", connection: "base", priority: 1 },
   skip_suspended_arena_daily: { instruction: "skip_suspended_arena_daily", connection: "base", priority: 2 },
   finalize_arena_daily: { instruction: "finalize_arena_daily", connection: "base", priority: 8 },
-  submit_arena_board_chunk: { instruction: "submit_arena_board_chunk", connection: "base", priority: 9 },
   archive_arena_daily: { instruction: "archive_arena_daily", connection: "base", priority: 10 },
   expire_daily_claims: { instruction: "expire_daily_claims", connection: "base", priority: 11 },
   close_arena_daily: { instruction: "close_arena_daily", connection: "base", priority: 12 },
@@ -58,14 +55,6 @@ export interface KeeperPlanContext {
   owner?: PublicKey;
   runId?: bigint;
   includeArenaPlayer?: boolean;
-  boardKind?: DailyBoardKind;
-  boardEntries?: readonly {
-    source: PublicKey;
-    score: number;
-    objectiveTotal: bigint;
-    finalizedAt: number;
-    replayHash: Uint8Array;
-  }[];
   rentRecipient?: PublicKey;
 }
 

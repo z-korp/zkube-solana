@@ -163,7 +163,6 @@ namespace ZKube.Integration.Presentation
                     break;
                 case "claimed": detail = "Reward collected · " + Sol(board.Yours.PayoutLamports); break;
                 case "expired": detail = "Claim window closed · 30 days after sealing"; break;
-                case "unsealed": detail = "Results are being finalized. Rewards open when this board is sealed."; break;
                 case "no-placement": detail = board.Rows.Count == 0 ? "No qualifying winners on this board." : "You have no reward on this board."; break;
                 default: detail = "Results are not available yet."; break;
             }

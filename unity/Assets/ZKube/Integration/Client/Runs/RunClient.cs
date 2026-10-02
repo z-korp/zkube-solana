@@ -372,17 +372,25 @@ namespace ZKube.Integration.Client.Runs
         private async Task<IReadOnlyList<ValidatedBoardReward>> EntryClaims(string owner, uint day, CancellationToken cancellation)
         {
             uint first = day > PlanningConstants.ClaimLookbackDays ? day - PlanningConstants.ClaimLookbackDays : 0;
-            var wanted = new List<(uint Day, string Kind)>();
-            for (uint candidate = first; candidate < day; candidate++)
-                foreach (string kind in new[] { "score", "theme" }) wanted.Add((candidate, kind));
+            // Each day is read whole: its Daily says whether its boards are sealed
+            // and when their one claim window began.
+            var wanted = new List<uint>();
+            for (uint candidate = first; candidate < day; candidate++) wanted.Add(candidate);
             var boards = new List<BoardObservation>();
-            for (int offset = 0; offset < wanted.Count; offset += SolanaRpcTransport.MaximumBatchAccounts)
+            int days = SolanaRpcTransport.MaximumBatchAccounts / 3;
+            for (int offset = 0; offset < wanted.Count; offset += days)
             {
-                var group = wanted.Skip(offset).Take(SolanaRpcTransport.MaximumBatchAccounts).ToArray();
+                var group = wanted.Skip(offset).Take(days).ToArray();
                 try
                 {
-                    var batch = await rpc.ReadAccounts(rpc.Base, group.Select(item => planner.Board(item.Day, item.Kind)).ToArray(), cancellation: cancellation).ConfigureAwait(false);
-                    for (int index = 0; index < group.Length; index++) boards.Add(new BoardObservation(group[index].Day, group[index].Kind, batch.Accounts[index].Envelope));
+                    var batch = await rpc.ReadAccounts(rpc.Base, group.SelectMany(item => new[] { planner.Daily(item),
+                        planner.Board(item, "score"), planner.Board(item, "theme") }).ToArray(), cancellation: cancellation).ConfigureAwait(false);
+                    for (int index = 0; index < group.Length; index++)
+                    {
+                        var daily = batch.Accounts[3 * index].Envelope;
+                        boards.Add(new BoardObservation(group[index], "score", batch.Accounts[3 * index + 1].Envelope, daily));
+                        boards.Add(new BoardObservation(group[index], "theme", batch.Accounts[3 * index + 2].Envelope, daily));
+                    }
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception) { cancellation.ThrowIfCancellationRequested(); /* Optional attachments never block entry. */ }

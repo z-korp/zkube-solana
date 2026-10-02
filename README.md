@@ -33,7 +33,7 @@ and distribution review.
   objective's count; they split the pot equally. With no Objective qualifier, its half folds into Score. Each
   player keeps their best run per board.
 - **Prizes:** weights follow 1/rank and pay at least four places when enough players qualify. Winners claim
-  by position for thirty days from the board's sealing; unclaimed prizes return to the next pot.
+  by position for thirty days from the Daily's finalization; unclaimed prizes return to the next pot.
 - **Ladder:** integer log-rank points for placing and a flat credit for qualifying. They pay no SOL and never
   decay.
 - **Execution:** runs play on a MagicBlock ephemeral rollup with VRF and settle on Solana. Replay commitments let

@@ -70,10 +70,17 @@ namespace ZKube.Integration
             return fields;
         }
 
-        public ValidatedBoardAccount ArenaBoard(AccountEnvelope envelope, uint dayId, string kind)
+        // A board carries no clock or cursor of its own. While its Daily runs it
+        // is the header and the retained rows, best first; once the Daily is
+        // finalized it is the paying rows and their claim bits, sealed at the
+        // Daily's finalization. The Daily therefore decides which shape to read.
+        public ValidatedBoardAccount ArenaBoard(AccountEnvelope envelope, JObject daily, uint dayId, string kind)
         {
             if (kind != "score" && kind != "theme") throw new FormatException("Invalid board kind");
             if (envelope == null) return null;
+            if (daily == null || (uint)daily["day_id"] != dayId) throw new FormatException("Board has no matching Daily");
+            bool sealedBoard = ((JObject)daily["status"]).Properties().Single().Name == "Finalized";
+            long sealedAt = sealedBoard ? (long)daily["finalized_at"] : 0;
             int headerBytes = FixedAccountBytes("ArenaBoard");
             var entryType = new JObject { ["defined"] = new JObject { ["name"] = "ArenaBoardEntry" } };
             int rowBytes = MaximumSize(entryType);
@@ -83,21 +90,24 @@ namespace ZKube.Integration
                 throw new FormatException("Board account owner or bounded length is invalid");
             var header = DecodeFixed("ArenaBoard", new AccountEnvelope(envelope.Address, envelope.Owner,
                 false, data.Take(headerBytes).ToArray()));
-            string daily = Address("arena_daily", LittleDay(dayId));
-            string expected = Address("arena_board", SolanaAddress.Bytes(daily), Encoding.UTF8.GetBytes(kind));
+            string dailyAddress = Address("arena_daily", LittleDay(dayId));
+            string expected = Address("arena_board", SolanaAddress.Bytes(dailyAddress), Encoding.UTF8.GetBytes(kind));
             RequireIdentity(envelope, header, expected, Protocol.ProtocolAccountVersion);
-            if ((string)header["arena_daily"] != daily || (uint)header["day_id"] != dayId ||
+            if ((string)header["arena_daily"] != dailyAddress || (uint)header["day_id"] != dayId ||
                 !string.Equals(((JObject)header["kind"]).Properties().Single().Name, kind, StringComparison.OrdinalIgnoreCase))
                 throw new FormatException("Board relationship is invalid");
-            uint count = (uint)header["payout_count"], cursor = (uint)header["cursor"];
-            long sealedAt = (long)header["sealed_at"];
-            bool sealedBoard = cursor == count;
-            if (count > Protocol.ArenaBoardCapacity || cursor > count || count > (uint)header["width_count"] ||
+            uint count = (uint)header["payout_count"];
+            long openRows = (data.Length - headerBytes) / rowBytes;
+            uint cursor = sealedBoard ? count : (uint)Math.Min(openRows, (long)Protocol.ArenaBoardCapacity + 1);
+            if (count > Protocol.ArenaBoardCapacity || cursor > Protocol.ArenaBoardCapacity || count > (uint)header["width_count"] ||
                 count > (uint)header["qualified_count"] || (bool)header["capacity_limited"] != (count < (uint)header["width_count"]) ||
                 (count > 0 && BigInteger.Parse((string)header["denominator"], CultureInfo.InvariantCulture) == 0) ||
-                (!sealedBoard && sealedAt != 0) || (sealedBoard && sealedAt <= 0) || sealedAt > 9007199254740991L ||
+                (sealedBoard && sealedAt <= 0) || sealedAt > 9007199254740991L ||
                 (uint)header["claimed_count"] > count ||
-                data.Length != headerBytes + (long)cursor * rowBytes + (count + 7) / 8)
+                // A running Daily's board has no payout plan yet.
+                (!sealedBoard && (count != 0 || (uint)header["qualified_count"] != 0 || (uint)header["width_count"] != 0 ||
+                    (ulong)header["pool_lamports"] != 0 || (ulong)header["claimed_lamports"] != 0)) ||
+                data.Length != headerBytes + (long)cursor * rowBytes + (sealedBoard ? (count + 7) / 8 : 0))
                 throw new FormatException("Board allocation is invalid");
             int rowsEnd = checked(headerBytes + (int)cursor * rowBytes);
             uint claimedBits = 0;
@@ -122,14 +132,14 @@ namespace ZKube.Integration
                 if (!players.Add(player)) throw new FormatException("Board contains duplicate players");
                 var accepted = new ValidatedBoardRow(position, player, (uint)row["score"], (ulong)row["objective_total"],
                     (long)row["finalized_at"],
-                    (data[rowsEnd + (int)(position / 8)] & (1 << (int)(position % 8))) != 0);
+                    sealedBoard && (data[rowsEnd + (int)(position / 8)] & (1 << (int)(position % 8))) != 0);
                 ulong metric = kind == "score" ? accepted.Score : accepted.ObjectiveTotal;
                 if (metric == 0 || accepted.FinalizedAt < 0 || accepted.FinalizedAt > 9007199254740991L ||
                     (previous != null && BoardOrder.Compare(kind == "score" ? previous.Score : previous.ObjectiveTotal,
                         previous.FinalizedAt, previous.Player, metric, accepted.FinalizedAt, player) >= 0))
                     throw new FormatException("Board rows must have positive metrics in canonical order");
                 previous = accepted;
-                if (sealedBoard) rows.Add(accepted);
+                rows.Add(accepted);
             }
             return new ValidatedBoardAccount(envelope.Address, dayId, kind, count, (uint)header["qualified_count"],
                 BigInteger.Parse((string)header["denominator"], CultureInfo.InvariantCulture), (ulong)header["pool_lamports"],
@@ -138,11 +148,12 @@ namespace ZKube.Integration
         }
 
 
-        public IReadOnlyList<ValidatedBoardReward> BoardRewards(AccountEnvelope envelope, uint dayId, string kind, string owner)
+        // Rewards exist only on a sealed board: a live board's rows are standings.
+        public IReadOnlyList<ValidatedBoardReward> BoardRewards(AccountEnvelope envelope, AccountEnvelope daily, uint dayId, string kind, string owner)
         {
             SolanaAddress.Bytes(owner);
-            var board = ArenaBoard(envelope, dayId, kind);
-            return board == null ? Array.Empty<ValidatedBoardReward>() : Array.AsReadOnly(board.Rows.Where(row => row.Player == owner)
+            var board = envelope == null || daily == null ? null : ArenaBoard(envelope, ArenaDaily(daily, dayId), dayId, kind);
+            return board == null || !board.Sealed ? Array.Empty<ValidatedBoardReward>() : Array.AsReadOnly(board.Rows.Where(row => row.Player == owner)
                 .Select(row => new ValidatedBoardReward(dayId, kind, row.Position, board.SealedAt, row.Claimed, owner, board.Address)).ToArray());
         }
 

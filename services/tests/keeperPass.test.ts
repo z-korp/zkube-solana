@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { KEEPER_LIMITS, MAX_TRANSACTION_COMPUTE_UNITS, keeperComputeUnitLimit, runKeeperPass } from "../src/keeper.js";
 import { ZKUBE_PROGRAM_ID, cadenceFundingPda, type KeeperOperation } from "../src/arcadeChain.js";
 import type { DailySnapshot } from "../src/arcadeReconciliation.js";
+import { CADENCE_FUNDING_TWO_DAY_LAMPORTS } from "../src/protocolVersions.generated.js";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -41,7 +42,7 @@ it("keeper_pass_reserves_write_slots_and_simulates_before_every_send", async () 
   expect(result.writes).toBe(KEEPER_LIMITS.writes);
   expect(result.backlog).toBe(1);
   expect(calls).toEqual(Array.from({ length: KEEPER_LIMITS.writes }, () => ["simulate", "simulate", "send", "confirm"]).flat());
-  expect(connection.getBalance).toHaveBeenCalledTimes(1 + KEEPER_LIMITS.writes);
+  expect(connection.getBalance).toHaveBeenCalledTimes(2 + KEEPER_LIMITS.writes);
 });
 
 it("keeper_dry_run_never_loads_a_signer_or_simulates_or_sends", async () => {
@@ -87,57 +88,32 @@ it("keeper_spend_is_reserved_even_when_confirmation_is_uncertain", async () => {
   expect(result.backlog).toBe(1);
 });
 
-it("keeper_board_rent_ceiling_bounds_the_sum_of_finalizations_in_one_pass", async () => {
-  const { input, connection } = pass(0);
-  connection.getBalance.mockImplementation(async (address) => address.equals(cadenceFundingPda()) ? 5_000_000_000 : 1_000_000_000);
-  connection.simulateTransaction.mockImplementation(async () => ({
-    value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 999_995_000 }, { lamports: 4_000_000_000 }] },
-  }));
-  const dailies: DailySnapshot[] = [20_698, 20_699, 20_700, 20_701].map(dayId => ({
-    dayId, status: dayId < 20_700 ? "open" : "funding", finalizedAt: 0,
-    runsCloseAt: dayId * 86_400 + 86_340, recoveryDeadlineAt: dayId * 86_400 + 107_940,
-    entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n, predecessorDayId: dayId - 1,
-    predecessorRolloverRequired: true, predecessorRolloverApplied: true, claimsExpired: false,
-  }));
-  const log = vi.fn();
-  const result = await runKeeperPass({ ...input, log,
-    protocolSnapshot: { ...input.protocolSnapshot, launchDayId: 20_698, dailies },
-    protocolMaterializer: { materialize: async ({ operation }: { operation: KeeperOperation }) => [new TransactionInstruction({
-      programId: ZKUBE_PROGRAM_ID, data: Buffer.alloc(8),
-      keys: operation === "finalize_arena_daily" ? [{ pubkey: cadenceFundingPda(), isWritable: true, isSigner: false }] : [],
-    })] },
-  });
-  expect(result.writes).toBe(1);
-  expect(connection.sendRawTransaction).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledWith(expect.objectContaining({ error: "recyclable board-rent allocation ceiling reached" }));
-});
-
-it("keeper_board_writes_stop_at_the_separate_pass_limit", async () => {
-  const { input, connection } = pass(0);
-  const dailies: DailySnapshot[] = Array.from({ length: 35 }, (_, index) => {
-    const dayId = 20_667 + index;
-    const finalized = dayId < 20_700;
-    const closes = dayId * 86_400 + 86_340;
-    return {
-      dayId, status: finalized ? "finalized" : "funding", finalizedAt: finalized ? closes : 0,
-      runsCloseAt: closes, recoveryDeadlineAt: closes + 21_600,
-      entriesPaid: finalized ? 1n : 0n, entriesScored: finalized ? 1n : 0n, entriesExpired: 0n,
-      predecessorDayId: dayId - 1, predecessorRolloverRequired: index !== 0, predecessorRolloverApplied: index !== 0 && dayId <= 20_700,
-      claimsExpired: false,
-      ...(finalized ? {
-        scoreBoard: { kind: "score" as const, cursor: 0, payoutCount: 1, sealed: false, sealedAt: 0 },
-        themeBoard: { kind: "theme" as const, cursor: 0, payoutCount: 0, sealed: true, sealedAt: closes },
-        scoreSources: [{ source: input.keeper.publicKey, owner: input.keeper.publicKey,
-          score: 1, objectiveTotal: 0n, finalizedAt: closes - 1, replayHash: new Uint8Array(32) }],
-      } : {}),
-    };
-  });
-  const result = await runKeeperPass({ ...input,
-    protocolSnapshot: { ...input.protocolSnapshot, launchDayId: 20_667, dailies },
-  });
-  expect(result.writes).toBe(KEEPER_LIMITS.boardWrites);
-  expect(result.backlog).toBe(1);
-  expect(connection.sendRawTransaction).toHaveBeenCalledTimes(32);
+it("keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_rent_as_spend", async () => {
+  for (const [cadence, low] of [[CADENCE_FUNDING_TWO_DAY_LAMPORTS - 1, true], [CADENCE_FUNDING_TWO_DAY_LAMPORTS, false]] as const) {
+    const { input, connection } = pass(0);
+    connection.getBalance.mockImplementation(async (address) => address.equals(cadenceFundingPda()) ? cadence : 1_000_000_000);
+    // Preparing a Daily takes its rent and its two empty boards' from cadence funding.
+    connection.simulateTransaction.mockImplementation(async () => ({
+      value: { err: null, unitsConsumed: 60_000, accounts: [{ lamports: 999_995_000 }, { lamports: cadence - 5_200_000 }] },
+    }));
+    const log = vi.fn();
+    const result = await runKeeperPass({ ...input, log,
+      protocolSnapshot: { ...input.protocolSnapshot, paused: false, lastPreparedDay: 20_700, dailies: [{
+        dayId: 20_700, status: "open", finalizedAt: 0, runsCloseAt: 20_700 * 86_400 + 86_340,
+        recoveryDeadlineAt: 20_700 * 86_400 + 107_940, entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n,
+        predecessorDayId: 20_699, predecessorRolloverRequired: false, predecessorRolloverApplied: true, claimsExpired: false,
+      } satisfies DailySnapshot] },
+      protocolMaterializer: { materialize: async ({ operation }: { operation: KeeperOperation }) => {
+        expect(operation).toBe("prepare_arena_daily");
+        return [new TransactionInstruction({ programId: ZKUBE_PROGRAM_ID, data: Buffer.alloc(8),
+          keys: [{ pubkey: cadenceFundingPda(), isWritable: true, isSigner: false }] })];
+      } },
+    });
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ event: "keeper_readiness",
+      cadenceFundingLamports: cadence, cadenceFundingTargetLamports: CADENCE_FUNDING_TWO_DAY_LAMPORTS, cadenceFundingLow: low }));
+    expect(result.writes).toBe(1);
+    expect(result.spentLamports).toBe(5_000 + 5_000 + 5_200_000);
+  }
 });
 
 it("keeper_messages_carry_a_compute_budget_sized_from_simulation", async () => {

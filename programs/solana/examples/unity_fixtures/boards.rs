@@ -11,41 +11,19 @@ pub fn address(day: u32, kind: DailyBoardKind) -> Pubkey {
 }
 
 pub fn empty(day: u32) -> Value {
-    let kind = DailyBoardKind::Score;
-    let daily = accounts::daily_address(day);
-    let (address, bump) = pda(&[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()]);
-    let plan = board_payout_plan(0, 0).unwrap();
-    let board = ArenaBoard {
-        version: ACCOUNT_VERSION,
-        arena_daily: daily,
-        day_id: day,
-        kind,
-        qualified_count: 0,
-        width_count: plan.width_count,
-        payout_count: plan.count,
-        denominator: plan.denominator,
-        pool_lamports: 0,
-        paid_lamports: plan.paid_lamports,
-        rollover_lamports: plan.rollover_lamports,
-        capacity_limited: plan.capacity_limited,
-        cursor: 0,
-
-        sealed_at: NOW - 100,
-        claimed_lamports: 0,
-        claimed_count: 0,
-        bump,
-    };
-    envelope(address, &board, ArenaBoard::account_space(0).unwrap())
+    with_terms(
+        day,
+        DailyBoardKind::Score,
+        owner(),
+        Terms {
+            claimed: false,
+            sealed: true,
+            qualified: 0,
+        },
+    )
 }
 
-pub fn board(
-    day: u32,
-    kind: DailyBoardKind,
-    claimed: bool,
-    sealed: bool,
-    expired: bool,
-    player: Pubkey,
-) -> Value {
+pub fn board(day: u32, kind: DailyBoardKind, claimed: bool, sealed: bool, player: Pubkey) -> Value {
     with_terms(
         day,
         kind,
@@ -53,13 +31,6 @@ pub fn board(
         Terms {
             claimed,
             sealed,
-            sealed_at: if !sealed {
-                0
-            } else if expired {
-                NOW - 31 * 86_400
-            } else {
-                NOW - 100
-            },
             qualified: 1,
         },
     )
@@ -67,42 +38,49 @@ pub fn board(
 
 pub struct Terms {
     pub claimed: bool,
+    /// A sealed board belongs to a finalized Daily: its paying rows and their
+    /// claim bits. Otherwise it is the live board of a running Daily: the
+    /// retained rows only, with the payout fields still zero.
     pub sealed: bool,
-    pub sealed_at: i64,
     pub qualified: u32,
 }
 
 pub fn with_terms(day: u32, kind: DailyBoardKind, player: Pubkey, terms: Terms) -> Value {
     let daily = accounts::daily_address(day);
     let (address, bump) = pda(&[ARENA_BOARD_SEED, daily.as_ref(), kind.seed()]);
-    let pool = 1_000_000_000;
+    let pool = if terms.qualified == 0 { 0 } else { 1_000_000_000 };
     let plan = board_payout_plan(pool, terms.qualified).unwrap();
     let mut board = ArenaBoard {
         version: ACCOUNT_VERSION,
         arena_daily: daily,
         day_id: day,
         kind,
-        qualified_count: terms.qualified,
-        width_count: plan.width_count,
-        payout_count: plan.count,
-        denominator: plan.denominator,
-        pool_lamports: pool,
-        paid_lamports: plan.paid_lamports,
-        rollover_lamports: plan.rollover_lamports,
-        capacity_limited: plan.capacity_limited,
-        cursor: if terms.sealed { plan.count } else { 0 },
-
-        sealed_at: terms.sealed_at,
-        claimed_lamports: 0,
-        claimed_count: u32::from(terms.claimed),
         bump,
+        ..ArenaBoard::default()
     };
-    if terms.claimed {
-        board.claimed_lamports = board.payout_for_position(0).unwrap();
+    if terms.sealed {
+        board.qualified_count = terms.qualified;
+        board.width_count = plan.width_count;
+        board.payout_count = plan.count;
+        board.denominator = plan.denominator;
+        board.pool_lamports = pool;
+        board.paid_lamports = plan.paid_lamports;
+        board.rollover_lamports = plan.rollover_lamports;
+        board.capacity_limited = plan.capacity_limited;
+        board.claimed_count = u32::from(terms.claimed);
+        if terms.claimed {
+            board.claimed_lamports = board.payout_for_position(0).unwrap();
+        }
     }
-    let mut bytes = vec![0; ArenaBoard::construction_space(plan.count, board.cursor).unwrap()];
+    let rows = plan.count;
+    let space = if terms.sealed {
+        ArenaBoard::account_space(rows).unwrap()
+    } else {
+        ArenaBoard::open_space(rows as usize).unwrap()
+    };
+    let mut bytes = vec![0; space];
     board.try_serialize(&mut &mut bytes[..]).unwrap();
-    for index in 0..board.cursor {
+    for index in 0..rows {
         let row = ArenaBoardEntry {
             player: if index == 0 {
                 player
@@ -118,10 +96,28 @@ pub fn with_terms(day: u32, kind: DailyBoardKind, player: Pubkey, terms: Terms) 
         row.serialize(&mut &mut bytes[offset..offset + ArenaBoardEntry::INIT_SPACE])
             .unwrap();
     }
-    if terms.claimed {
-        bytes[ArenaBoard::HEADER_SIZE + board.cursor as usize * ArenaBoardEntry::INIT_SPACE] = 1;
+    if terms.sealed && terms.claimed {
+        bytes[ArenaBoard::HEADER_SIZE + rows as usize * ArenaBoardEntry::INIT_SPACE] = 1;
     }
     json!({"address": address.to_string(), "owner": solana::ID.to_string(), "executable": false, "data": encoded(bytes)})
+}
+
+/// The Daily a board scenario belongs to. A board carries no clock: it is
+/// sealed when its Daily is finalized, and its claims run from that moment.
+pub fn daily(day: u32, variant: &str) -> Value {
+    match variant {
+        "unsealed" => envelope(
+            accounts::daily_address(day),
+            &accounts::daily(day),
+            8 + ArenaDaily::INIT_SPACE,
+        ),
+        "expired" => economy::finalized_at(
+            day,
+            NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS - 1,
+        ),
+        "deadline" => economy::finalized_at(day, NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS),
+        _ => economy::finalized(day),
+    }
 }
 
 pub fn scenarios() -> Vec<Value> {
@@ -131,9 +127,10 @@ pub fn scenarios() -> Vec<Value> {
             let day = DAY - days as u32;
             let kind = if i == 0 { DailyBoardKind::Theme } else { DailyBoardKind::Score };
             let mut envelope = if id == "missing" { Value::Null } else {
-                board(day, kind, id == "claimed", id != "unsealed", id == "expired", if id == "other-owner" { validator() } else { owner() })
+                board(day, kind, id == "claimed", id != "unsealed", if id == "other-owner" { validator() } else { owner() })
             };
             if id == "wrong-program" { envelope["owner"] = json!(validator().to_string()); }
-            json!({"id": id, "day": day, "kind": if i == 0 { "theme" } else { "score" }, "envelope": envelope})
+            json!({"id": id, "day": day, "kind": if i == 0 { "theme" } else { "score" }, "envelope": envelope,
+                "daily": daily(day, id)})
         }).collect()
 }

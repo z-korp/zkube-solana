@@ -14,11 +14,13 @@ pub const ARENA_PLAYER_SEED: &[u8] = b"arena_player";
 pub const LADDER_QUALIFY_POINTS: u32 = zkube_core::LADDER_QUALIFY_POINTS;
 
 pub const ARENA_ENTRY_LAMPORTS: u64 = zkube_core::ARENA_ENTRY_LAMPORTS;
-/// Hard safety ceiling for one independently allocated payout board. The width
-/// rule remains authoritative below this ceiling and any narrowing is recorded
-/// in the immutable board header.
+/// The most rows one board retains, during the day and after finalization.
+/// The width rule remains authoritative below this ceiling and any narrowing
+/// is recorded in the immutable board header.
 pub const ARENA_BOARD_CAPACITY: usize = zkube_core::ARENA_BOARD_CAPACITY;
-pub const ARENA_BOARD_CHUNK_CAPACITY: usize = 10;
+/// Rent a player's first entry of the day moves into each board: one row and
+/// its claim bit, rounded up to a byte.
+pub const ARENA_BOARD_FUNDED_ROW_BYTES: usize = ArenaBoardEntry::INIT_SPACE + 1;
 pub const STUCK_RUN_RECOVERY_SECONDS: i64 = zkube_core::RUN_RECOVERY_SECONDS;
 
 /// Routes canonical core hash schedules through Solana's SHA-256 syscall on
@@ -160,6 +162,11 @@ impl DailyBoardKind {
     }
 }
 
+/// One board of a Daily. While the Daily runs, the account is this header
+/// followed by the retained rows, best first; only consuming a run writes
+/// them. Finalization fills the payout fields, keeps the paying rows and
+/// appends one claim bit per row. A board is sealed exactly when its Daily is
+/// finalized, so it carries no clock of its own.
 #[account]
 #[derive(Default, InitSpace)]
 pub struct ArenaBoard {
@@ -175,10 +182,6 @@ pub struct ArenaBoard {
     pub paid_lamports: u64,
     pub rollover_lamports: u64,
     pub capacity_limited: bool,
-    /// Number of verified rows already appended.
-    pub cursor: u32,
-    /// Starts this board's independent reward-claim window.
-    pub sealed_at: i64,
     pub claimed_lamports: u64,
     pub claimed_count: u32,
     pub bump: u8,
@@ -186,10 +189,6 @@ pub struct ArenaBoard {
 
 impl ArenaBoard {
     pub const HEADER_SIZE: usize = 8 + Self::INIT_SPACE;
-
-    pub fn sealed(&self) -> bool {
-        self.cursor == self.payout_count
-    }
 
     pub fn bitmap_size(payout_count: u32) -> Result<usize> {
         let count = usize::try_from(payout_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
@@ -199,42 +198,55 @@ impl ArenaBoard {
             .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
     }
 
-    pub fn account_space(payout_count: u32) -> Result<usize> {
-        Self::construction_space(payout_count, payout_count)
+    /// Size while the Daily runs: the header and `rows` retained rows.
+    pub fn open_space(rows: usize) -> Result<usize> {
+        require!(rows <= ARENA_BOARD_CAPACITY, ErrorCode::BoardIncomplete);
+        Ok(Self::HEADER_SIZE + rows * ArenaBoardEntry::INIT_SPACE)
     }
 
-    pub fn construction_space(payout_count: u32, cursor: u32) -> Result<usize> {
-        require!(cursor <= payout_count, ErrorCode::BoardIncomplete);
+    /// The retained row count of a board whose Daily is still running.
+    pub fn open_rows(data_len: usize) -> Result<usize> {
+        let rows = data_len
+            .checked_sub(Self::HEADER_SIZE)
+            .ok_or(ErrorCode::AccountingInvariant)?;
         require!(
-            usize::try_from(payout_count).is_ok_and(|count| count <= ARENA_BOARD_CAPACITY),
-            ErrorCode::BoardIncomplete
+            rows % ArenaBoardEntry::INIT_SPACE == 0
+                && rows / ArenaBoardEntry::INIT_SPACE <= ARENA_BOARD_CAPACITY,
+            ErrorCode::AccountingInvariant
         );
-        let rows = usize::try_from(cursor)
-            .map_err(|_| ErrorCode::ArithmeticOverflow)?
-            .checked_mul(ArenaBoardEntry::INIT_SPACE)
-            .ok_or(ErrorCode::ArithmeticOverflow)?;
-        let masks = Self::bitmap_size(payout_count)?;
-        Self::HEADER_SIZE
-            .checked_add(rows)
-            .and_then(|value| value.checked_add(masks))
-            .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
+        Ok(rows / ArenaBoardEntry::INIT_SPACE)
     }
 
+    /// Size once finalized: the header, the paying rows and their claim bits.
+    pub fn account_space(payout_count: u32) -> Result<usize> {
+        let rows = usize::try_from(payout_count).map_err(|_| ErrorCode::ArithmeticOverflow)?;
+        Ok(Self::open_space(rows)? + Self::bitmap_size(payout_count)?)
+    }
+
+    /// The most a board that has taken `entrants` first entries can need, in
+    /// either shape: every entrant's row and claim bit.
+    pub fn funded_space(entrants: u32) -> usize {
+        let rows = usize::try_from(entrants)
+            .unwrap_or(ARENA_BOARD_CAPACITY)
+            .min(ARENA_BOARD_CAPACITY);
+        Self::HEADER_SIZE + rows * ARENA_BOARD_FUNDED_ROW_BYTES
+    }
+
+    pub fn bound_to(&self, daily: Pubkey, kind: DailyBoardKind) -> bool {
+        self.version == ACCOUNT_VERSION && self.arena_daily == daily && self.kind == kind
+    }
+
+    /// Checks a finalized board's shape.
     pub fn validate(&self, daily: Pubkey, kind: DailyBoardKind, data_len: usize) -> Result<()> {
         require!(
-            self.version == ACCOUNT_VERSION
-                && self.arena_daily == daily
-                && self.kind == kind
+            self.bound_to(daily, kind)
                 && self.payout_count <= self.width_count
                 && self.payout_count <= self.qualified_count
                 && usize::try_from(self.payout_count)
                     .is_ok_and(|count| count <= ARENA_BOARD_CAPACITY)
                 && self.capacity_limited == (self.payout_count < self.width_count)
-                && self.cursor <= self.payout_count
-                && ((!self.sealed() && self.sealed_at == 0)
-                    || (self.sealed() && self.sealed_at > 0))
                 && self.claimed_count <= self.payout_count
-                && data_len == Self::construction_space(self.payout_count, self.cursor)?,
+                && data_len == Self::account_space(self.payout_count)?,
             ErrorCode::AccountingInvariant
         );
         Ok(())
@@ -251,28 +263,6 @@ impl ArenaBoard {
             zkube_core::SOL_PAYOUT_UNIT_LAMPORTS,
         )
         .map_err(|_| error!(ErrorCode::AccountingInvariant))
-    }
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
-)]
-pub struct SubmittedBoardEntry {
-    pub score: u32,
-    pub objective_total: u64,
-    pub finalized_at: i64,
-    pub replay_hash: [u8; 32],
-}
-
-impl SubmittedBoardEntry {
-    pub fn with_player(self, player: Pubkey) -> ArenaBoardEntry {
-        ArenaBoardEntry {
-            player,
-            score: self.score,
-            objective_total: self.objective_total,
-            finalized_at: self.finalized_at,
-            replay_hash: self.replay_hash,
-        }
     }
 }
 
@@ -311,23 +301,29 @@ impl ArenaDaily {
         player: &mut ArenaPlayer,
         player_state: &mut PlayerState,
         candidate: ArenaBoardEntry,
-    ) -> Result<()> {
+    ) -> Result<[BestRow; 2]> {
         player_state.record_best_daily_score(candidate.score)?;
-        if candidate.score > 0 && player.record_score(DailyBoardKind::Score, candidate) {
-            self.score_qualified_players = self
-                .score_qualified_players
-                .checked_add(1)
-                .ok_or(ErrorCode::ArithmeticOverflow)?;
-            let _ = player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
+        let mut changes = [BestRow::Kept; 2];
+        for (index, kind, metric) in [
+            (0, DailyBoardKind::Score, u64::from(candidate.score)),
+            (1, DailyBoardKind::Theme, candidate.objective_total),
+        ] {
+            if metric == 0 {
+                continue;
+            }
+            changes[index] = player.record_score(kind, candidate);
+            if changes[index] == BestRow::First {
+                let qualified = match kind {
+                    DailyBoardKind::Score => &mut self.score_qualified_players,
+                    DailyBoardKind::Theme => &mut self.theme_qualified_players,
+                };
+                *qualified = qualified
+                    .checked_add(1)
+                    .ok_or(ErrorCode::ArithmeticOverflow)?;
+                let _ = player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
+            }
         }
-        if candidate.objective_total > 0 && player.record_score(DailyBoardKind::Theme, candidate) {
-            self.theme_qualified_players = self
-                .theme_qualified_players
-                .checked_add(1)
-                .ok_or(ErrorCode::ArithmeticOverflow)?;
-            let _ = player_state.record_ladder_points(LADDER_QUALIFY_POINTS)?;
-        }
-        Ok(())
+        Ok(changes)
     }
 
     /// The one funding edge out of `self`: the Daily prepared directly after
@@ -409,8 +405,9 @@ impl ArenaPlayer {
         }
     }
 
-    /// Returns true when this wallet first qualifies for the selected board.
-    pub fn record_score(&mut self, board: DailyBoardKind, entry: ArenaBoardEntry) -> bool {
+    /// Keeps the better of this wallet's stored row and `entry` for the
+    /// selected board, and says what the board must do about it.
+    pub fn record_score(&mut self, board: DailyBoardKind, entry: ArenaBoardEntry) -> BestRow {
         let best = match board {
             DailyBoardKind::Score => &mut self.score_best_entry,
             DailyBoardKind::Theme => &mut self.theme_best_entry,
@@ -419,15 +416,30 @@ impl ArenaPlayer {
             DailyBoardKind::Score => best.score == 0,
             DailyBoardKind::Theme => best.objective_total == 0,
         };
-        if first || compare_arena_entries(board, &entry, best).is_lt() {
+        if first {
             *best = entry;
+            BestRow::First
+        } else if compare_arena_entries(board, &entry, best).is_lt() {
+            BestRow::Improved(core::mem::replace(best, entry))
+        } else {
+            BestRow::Kept
         }
-        first
     }
 
     pub fn resolved(&self) -> bool {
         self.resolved_entries == self.paid_entries
     }
+}
+
+/// What one scored run did to a wallet's best row on one board.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BestRow {
+    /// The stored row still stands; the board is untouched.
+    Kept,
+    /// The wallet's first qualification on this board today.
+    First,
+    /// A better row replaced the one given here.
+    Improved(ArenaBoardEntry),
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -469,50 +481,161 @@ pub fn board_payout_plan(pool: u64, qualified_winners: u32) -> Result<BoardPayou
     })
 }
 
-pub(crate) struct ArenaBoardInitialization {
-    pub daily: Pubkey,
-    pub day_id: u32,
-    pub kind: DailyBoardKind,
-    pub qualified_count: u32,
-    pub pool_lamports: u64,
-    pub plan: BoardPayoutPlan,
-    pub finalized_at: i64,
-    pub bump: u8,
+/// Where one consumed result goes among a board's retained rows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowPlacement {
+    /// The board is full and the result ranks below its last row.
+    Outside,
+    /// Write the row at `at`, moving the rows from there up to `vacated` one
+    /// place down. `vacated` is the wallet's earlier row, the new last row of
+    /// a growing board, or the last row a full board drops.
+    Insert {
+        at: usize,
+        vacated: usize,
+        grows: bool,
+    },
 }
 
-pub(crate) fn initialize_arena_board(
-    board: &mut ArenaBoard,
-    initialization: ArenaBoardInitialization,
-) {
-    let ArenaBoardInitialization {
-        daily,
-        day_id,
-        kind,
-        qualified_count,
-        pool_lamports,
-        plan,
-        finalized_at,
-        bump,
-    } = initialization;
-    *board = ArenaBoard {
-        version: ACCOUNT_VERSION,
-        arena_daily: daily,
-        day_id,
-        kind,
-        qualified_count,
-        width_count: plan.width_count,
-        payout_count: plan.count,
-        denominator: plan.denominator,
-        pool_lamports,
-        paid_lamports: plan.paid_lamports,
-        rollover_lamports: plan.rollover_lamports,
-        capacity_limited: plan.capacity_limited,
-        cursor: 0,
-        sealed_at: if plan.count == 0 { finalized_at } else { 0 },
-        claimed_lamports: 0,
-        claimed_count: 0,
-        bump,
+fn board_row(rows: &[u8], position: usize) -> Result<ArenaBoardEntry> {
+    let start = position * ArenaBoardEntry::INIT_SPACE;
+    let bytes = rows
+        .get(start..start + ArenaBoardEntry::INIT_SPACE)
+        .ok_or(ErrorCode::AccountingInvariant)?;
+    ArenaBoardEntry::try_from_slice(bytes).map_err(Into::into)
+}
+
+/// Binary search among `count` rows sorted best first.
+fn find_board_row(
+    rows: &[u8],
+    count: usize,
+    kind: DailyBoardKind,
+    entry: &ArenaBoardEntry,
+) -> Result<core::result::Result<usize, usize>> {
+    let (mut low, mut high) = (0, count);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match compare_arena_entries(kind, &board_row(rows, middle)?, entry) {
+            core::cmp::Ordering::Less => low = middle + 1,
+            core::cmp::Ordering::Greater => high = middle,
+            core::cmp::Ordering::Equal => return Ok(Ok(middle)),
+        }
+    }
+    Ok(Err(low))
+}
+
+/// The one owner of board ranking. `rows` holds `count` rows sorted best
+/// first, at most one per wallet. `previous` is the wallet's earlier best row
+/// when it had one; it is still on the board unless better rows pushed it off
+/// the end. Because a row only ever leaves from the end, every wallet outside
+/// the board ranks below every row on it, so the rows always equal a full
+/// sort of every qualifier's best, cut at capacity, in any consume order.
+pub fn place_board_row(
+    rows: &[u8],
+    count: usize,
+    kind: DailyBoardKind,
+    previous: Option<&ArenaBoardEntry>,
+    entry: &ArenaBoardEntry,
+) -> Result<RowPlacement> {
+    let earlier = match previous {
+        Some(previous) => find_board_row(rows, count, kind, previous)?.ok(),
+        None => None,
     };
+    let Err(at) = find_board_row(rows, count, kind, entry)? else {
+        return err!(ErrorCode::AccountingInvariant);
+    };
+    Ok(match earlier {
+        Some(vacated) => {
+            require!(at <= vacated, ErrorCode::AccountingInvariant);
+            RowPlacement::Insert {
+                at,
+                vacated,
+                grows: false,
+            }
+        }
+        None if count < ARENA_BOARD_CAPACITY => RowPlacement::Insert {
+            at,
+            vacated: count,
+            grows: true,
+        },
+        None if at < count => RowPlacement::Insert {
+            at,
+            vacated: count - 1,
+            grows: false,
+        },
+        None => RowPlacement::Outside,
+    })
+}
+
+/// Applies an [`RowPlacement::Insert`] to rows that already have room for it.
+pub fn write_board_row(
+    rows: &mut [u8],
+    at: usize,
+    vacated: usize,
+    entry: &ArenaBoardEntry,
+) -> Result<()> {
+    const ROW: usize = ArenaBoardEntry::INIT_SPACE;
+    require!(
+        at <= vacated && (vacated + 1) * ROW <= rows.len(),
+        ErrorCode::AccountingInvariant
+    );
+    rows.copy_within(at * ROW..vacated * ROW, (at + 1) * ROW);
+    let mut destination = &mut rows[at * ROW..(at + 1) * ROW];
+    entry.serialize(&mut destination)?;
+    Ok(())
+}
+
+/// Offers one consumed result to an open board account. The first entry of
+/// each wallet already moved a row's rent into the board, so growth needs no
+/// payer here.
+pub fn retain_board_row(
+    info: &AccountInfo<'_>,
+    kind: DailyBoardKind,
+    previous: Option<&ArenaBoardEntry>,
+    entry: &ArenaBoardEntry,
+) -> Result<()> {
+    let count = ArenaBoard::open_rows(info.data_len())?;
+    let placement = place_board_row(
+        &info.try_borrow_data()?[ArenaBoard::HEADER_SIZE..],
+        count,
+        kind,
+        previous,
+        entry,
+    )?;
+    let RowPlacement::Insert { at, vacated, grows } = placement else {
+        return Ok(());
+    };
+    if grows {
+        let space = ArenaBoard::open_space(count + 1)?;
+        require!(
+            info.lamports() >= Rent::get()?.minimum_balance(space),
+            ErrorCode::AccountingInvariant
+        );
+        info.resize(space)?;
+    }
+    write_board_row(
+        &mut info.try_borrow_mut_data()?[ArenaBoard::HEADER_SIZE..],
+        at,
+        vacated,
+        entry,
+    )
+}
+
+/// Fills a board's payout fields at finalization. The caller then cuts the
+/// account to its paying rows and claim bits.
+pub(crate) fn seal_arena_board(
+    board: &mut ArenaBoard,
+    qualified_count: u32,
+    pool_lamports: u64,
+    plan: BoardPayoutPlan,
+) {
+    board.qualified_count = qualified_count;
+    board.width_count = plan.width_count;
+    board.payout_count = plan.count;
+    board.denominator = plan.denominator;
+    board.pool_lamports = pool_lamports;
+    board.paid_lamports = plan.paid_lamports;
+    board.rollover_lamports = plan.rollover_lamports;
+    board.capacity_limited = plan.capacity_limited;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -638,10 +761,6 @@ pub fn arcade_prize_at_position(
     owner: Pubkey,
     position: u32,
 ) -> Result<RankedPrize> {
-    require!(
-        board.sealed() && board.cursor == board.payout_count,
-        ErrorCode::BoardIncomplete
-    );
     require_keys_eq!(
         read_board_entry(board_info, position)?.player,
         owner,
@@ -676,16 +795,17 @@ pub fn day_window(day_id: u32) -> Result<(i64, i64, i64)> {
     Ok(zkube_core::daily_window(day_id))
 }
 
-pub fn board_claim_deadline(sealed_at: i64) -> Result<i64> {
-    require!(sealed_at > 0, ErrorCode::BoardIncomplete);
-    sealed_at
+/// Rewards stay claimable for the claim window from the Daily's finalization,
+/// which is when both of its boards seal.
+pub fn daily_claim_deadline(daily: &ArenaDaily) -> Result<i64> {
+    require!(
+        daily.status == PeriodStatus::Finalized && daily.finalized_at > 0,
+        ErrorCode::BoardIncomplete
+    );
+    daily
+        .finalized_at
         .checked_add(zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS)
         .ok_or_else(|| error!(ErrorCode::ArithmeticOverflow))
-}
-
-pub fn daily_claim_deadline(score_board: &ArenaBoard, theme_board: &ArenaBoard) -> Result<i64> {
-    Ok(board_claim_deadline(score_board.sealed_at)?
-        .max(board_claim_deadline(theme_board.sealed_at)?))
 }
 
 /// Canonical finalized Daily result commitment. Mutable claim/profile state,
@@ -699,10 +819,7 @@ pub fn daily_result_hash(
     theme_info: &AccountInfo<'_>,
 ) -> Result<[u8; 32]> {
     require!(
-        score_board.sealed()
-            && score_board.cursor == score_board.payout_count
-            && theme_board.sealed()
-            && theme_board.cursor == theme_board.payout_count,
+        daily.status == PeriodStatus::Finalized,
         ErrorCode::BoardIncomplete
     );
     let mut bytes = Vec::new();
@@ -753,7 +870,6 @@ pub fn immutable_board_header(board: &ArenaBoard) -> Result<Vec<u8>> {
     board.paid_lamports.serialize(&mut bytes)?;
     board.rollover_lamports.serialize(&mut bytes)?;
     board.capacity_limited.serialize(&mut bytes)?;
-    board.sealed_at.serialize(&mut bytes)?;
     Ok(bytes)
 }
 
@@ -778,53 +894,10 @@ pub fn compare_arena_entries(
     )
 }
 
-pub fn verify_submitted_board_entry(
-    kind: DailyBoardKind,
-    submitted: SubmittedBoardEntry,
-    source: &ArenaPlayer,
-) -> Result<ArenaBoardEntry> {
-    let (has_best, expected) = match kind {
-        DailyBoardKind::Score => (source.score_best_entry.score > 0, source.score_best_entry),
-        DailyBoardKind::Theme => (
-            source.theme_best_entry.objective_total > 0,
-            source.theme_best_entry,
-        ),
-    };
-    let entry = submitted.with_player(source.player);
-    require!(
-        has_best
-            && entry == expected
-            && match kind {
-                DailyBoardKind::Score => entry.score > 0,
-                DailyBoardKind::Theme => entry.objective_total > 0,
-            },
-        ErrorCode::BoardEntryMismatch
-    );
-    Ok(entry)
-}
-
-pub fn verify_next_board_entry(
-    kind: DailyBoardKind,
-    previous: &ArenaBoardEntry,
-    entry: &ArenaBoardEntry,
-) -> Result<()> {
-    require!(
-        previous.player != entry.player,
-        ErrorCode::DuplicateBoardPlayer
-    );
-    require!(
-        compare_arena_entries(kind, previous, entry).is_lt(),
-        ErrorCode::BoardEntryOutOfOrder
-    );
-    Ok(())
-}
-
-/// Two retained boards at the protocol capacity under the SDK rent schedule.
+/// The most cadence funding one Daily's two boards can hold at once under
+/// the SDK rent schedule: every row and claim bit at the protocol capacity.
 pub fn maximum_board_rent_lamports() -> u64 {
-    2 * Rent::default().minimum_balance(
-        ArenaBoard::account_space(u32::try_from(ARENA_BOARD_CAPACITY).expect("capacity fits u32"))
-            .expect("board capacity fits"),
-    )
+    2 * Rent::default().minimum_balance(ArenaBoard::funded_space(u32::MAX))
 }
 
 /// Sizes of the accounts a device pays for when it sends a player's first
@@ -947,29 +1020,20 @@ mod tests {
     }
 
     #[test]
-    fn boards_sealed_a_day_apart_each_receive_the_full_claim_window() {
-        let score_sealed_at = 1_800_000_000;
-        let theme_sealed_at = score_sealed_at + zkube_core::SECONDS_PER_DAY;
-        let score = ArenaBoard {
-            sealed_at: score_sealed_at,
-            ..ArenaBoard::default()
-        };
-        let theme = ArenaBoard {
-            sealed_at: theme_sealed_at,
-            ..ArenaBoard::default()
+    fn one_claim_clock_runs_from_the_dailys_finalization() {
+        let finalized_at = 1_800_000_000;
+        let mut daily = ArenaDaily {
+            status: PeriodStatus::Finalized,
+            finalized_at,
+            ..ArenaDaily::default()
         };
         assert_eq!(
-            board_claim_deadline(score.sealed_at).unwrap(),
-            score_sealed_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
+            daily_claim_deadline(&daily).unwrap(),
+            finalized_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
         );
-        assert_eq!(
-            board_claim_deadline(theme.sealed_at).unwrap(),
-            theme_sealed_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
-        );
-        assert_eq!(
-            daily_claim_deadline(&score, &theme).unwrap(),
-            theme_sealed_at + zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS
-        );
+        // A Daily that is still running has no claim window yet.
+        daily.status = PeriodStatus::Open;
+        assert!(daily_claim_deadline(&daily).is_err());
     }
 
     #[test]
@@ -1204,18 +1268,28 @@ mod tests {
             ..ArenaBoardEntry::default()
         };
         let mut player = ArenaPlayer::initialize(Pubkey::new_unique(), wallet, wallet, 1);
-        assert!(player.record_score(DailyBoardKind::Score, best));
-        assert!(!player.record_score(
-            DailyBoardKind::Score,
-            ArenaBoardEntry {
-                player: wallet,
-                score: 90,
-                finalized_at: 11,
-                replay_hash: [2; 32],
-                ..ArenaBoardEntry::default()
-            },
-        ));
+        assert_eq!(
+            player.record_score(DailyBoardKind::Score, best),
+            BestRow::First
+        );
+        let worse = ArenaBoardEntry {
+            player: wallet,
+            score: 90,
+            finalized_at: 11,
+            replay_hash: [2; 32],
+            ..ArenaBoardEntry::default()
+        };
+        assert_eq!(
+            player.record_score(DailyBoardKind::Score, worse),
+            BestRow::Kept
+        );
         assert_eq!(player.score_best_entry.replay_hash, [1; 32]);
+        let better = ArenaBoardEntry { score: 101, ..worse };
+        assert_eq!(
+            player.record_score(DailyBoardKind::Score, better),
+            BestRow::Improved(best)
+        );
+        assert_eq!(player.score_best_entry, better);
     }
 
     #[test]
@@ -1225,13 +1299,22 @@ mod tests {
         let mut daily_bytes = Vec::new();
         ArenaDaily::default().serialize(&mut daily_bytes).unwrap();
         assert_eq!(daily_bytes.len(), 129);
-        assert_eq!(ArenaBoard::INIT_SPACE, 116);
-        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_340);
+        assert_eq!(ArenaBoard::HEADER_SIZE, 112);
+        assert_eq!(ArenaBoard::open_space(1_536).unwrap(), 129_136);
+        assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_328);
         assert_eq!(8 + ArenaPlayer::INIT_SPACE, 290);
-        assert_eq!(
-            Rent::default().minimum_balance(ArenaBoard::account_space(1_536).unwrap()),
-            901_097_280
-        );
+        // Each entrant funds a row and its claim bit, so a board always holds
+        // the rent of either shape, and two full boards bound cadence funding.
+        for entrants in [0, 1, 7, 8, 1_535, 1_536, 50_000] {
+            let rows = entrants.min(1_536);
+            assert!(ArenaBoard::funded_space(entrants) >= ArenaBoard::account_space(rows).unwrap());
+            assert!(
+                ArenaBoard::funded_space(entrants)
+                    >= ArenaBoard::open_space(rows as usize).unwrap()
+            );
+        }
+        assert_eq!(ArenaBoard::funded_space(u32::MAX), 130_672);
+        assert_eq!(maximum_board_rent_lamports(), 2 * 910_368_000);
         for size in [
             CreditVault::INIT_SPACE,
             ArenaDaily::INIT_SPACE,
@@ -1246,22 +1329,12 @@ mod tests {
         let count = u32::try_from(ARENA_BOARD_CAPACITY).unwrap();
         let plan = board_payout_plan(u64::MAX / 4, count).unwrap();
         let mut board = ArenaBoard::default();
-        initialize_arena_board(
+        seal_arena_board(
             &mut board,
-            ArenaBoardInitialization {
-                daily: Pubkey::new_unique(),
-                day_id: 1,
-                kind: DailyBoardKind::Score,
-                qualified_count: count,
-                pool_lamports: u64::MAX / 4,
-                plan: BoardPayoutPlan { count, ..plan },
-                finalized_at: 1,
-                bump: 1,
-            },
+            count,
+            u64::MAX / 4,
+            BoardPayoutPlan { count, ..plan },
         );
-        board.cursor = count;
-
-        board.sealed_at = 1;
         let key = Pubkey::new_unique();
         let owner = crate::ID;
         let mut lamports = 0;
@@ -1274,115 +1347,168 @@ mod tests {
             ..ArenaBoardEntry::default()
         };
         write_board_entry(&info, count - 1, &entry).unwrap();
+        assert_eq!(read_board_entry(&info, count - 1).unwrap(), entry);
         let prize = arcade_prize_at_position(&board, &info, player, count - 1).unwrap();
-        assert_eq!(prize.position, count - 1);
-        assert_eq!(prize.amount, board.payout_for_position(count - 1).unwrap());
+        assert_eq!(usize::from(prize.rank), ARENA_BOARD_CAPACITY);
+        assert!(!board_bitmap_is_set(&info, &board, count - 1).unwrap());
         set_board_bitmap(&info, &board, count - 1).unwrap();
         assert!(board_bitmap_is_set(&info, &board, count - 1).unwrap());
+        assert!(set_board_bitmap(&info, &board, count - 1).is_err());
+        assert!(arcade_prize_at_position(&board, &info, Pubkey::new_unique(), count - 1).is_err());
+        assert!(arcade_prize_at_position(&board, &info, player, count).is_err());
     }
 
-    fn score_source(entry: ArenaBoardEntry) -> ArenaPlayer {
-        let mut source =
-            ArenaPlayer::initialize(Pubkey::new_unique(), entry.player, entry.player, 1);
-        source.score_best_entry = entry;
-        source
+    /// A Daily's players and one board, driven only through the two steps
+    /// consume takes: the wallet's best row, then the board placement.
+    struct Field {
+        kind: DailyBoardKind,
+        rows: Vec<u8>,
+        count: usize,
+        players: std::collections::BTreeMap<Pubkey, ArenaPlayer>,
     }
 
-    fn submitted(entry: ArenaBoardEntry) -> SubmittedBoardEntry {
-        SubmittedBoardEntry {
-            score: entry.score,
-            objective_total: entry.objective_total,
-            finalized_at: entry.finalized_at,
-            replay_hash: entry.replay_hash,
-        }
-    }
-
-    #[test]
-    fn submitted_metrics_must_match_arena_player_exactly() {
-        let entry = ArenaBoardEntry {
-            player: Pubkey::new_unique(),
-            score: 100,
-            finalized_at: 7,
-            replay_hash: [9; 32],
-            ..ArenaBoardEntry::default()
-        };
-        let source = score_source(entry);
-        let mut wrong = submitted(entry);
-        wrong.score += 1;
-        assert!(verify_submitted_board_entry(DailyBoardKind::Score, wrong, &source).is_err());
-        assert_eq!(
-            verify_submitted_board_entry(DailyBoardKind::Score, submitted(entry), &source).unwrap(),
-            entry
-        );
-    }
-
-    #[test]
-    fn board_rejects_metric_order_tiebreak_order_and_duplicates() {
-        let first = ArenaBoardEntry {
-            player: Pubkey::new_from_array([1; 32]),
-            score: 100,
-            finalized_at: 10,
-            ..ArenaBoardEntry::default()
-        };
-        let better = ArenaBoardEntry {
-            score: 101,
-            ..first
-        };
-        assert!(verify_next_board_entry(DailyBoardKind::Score, &first, &better).is_err());
-
-        let later_tie = ArenaBoardEntry {
-            player: Pubkey::new_from_array([2; 32]),
-            finalized_at: 11,
-            ..first
-        };
-        assert!(verify_next_board_entry(DailyBoardKind::Score, &later_tie, &first).is_err());
-        let wallet_tie = ArenaBoardEntry {
-            finalized_at: 10,
-            ..later_tie
-        };
-        assert!(verify_next_board_entry(DailyBoardKind::Score, &wallet_tie, &first).is_err());
-        assert!(verify_next_board_entry(DailyBoardKind::Score, &first, &first).is_err());
-    }
-
-    #[test]
-    fn seal_requires_the_program_computed_count_and_partial_board_is_unclaimable() {
-        assert!(ArenaBoard::construction_space(10, 11).is_err());
-        assert!(
-            ArenaBoard::construction_space(10, 9).unwrap() < ArenaBoard::account_space(10).unwrap()
-        );
-        let board = ArenaBoard {
-            payout_count: 1,
-            cursor: 0,
-            ..ArenaBoard::default()
-        };
-        let key = Pubkey::new_unique();
-        let owner = crate::ID;
-        let mut lamports = 0;
-        let mut data = vec![0u8; ArenaBoard::account_space(1).unwrap()];
-        let info = AccountInfo::new(&key, false, false, &mut lamports, &mut data, &owner, false);
-        assert!(arcade_prize_at_position(&board, &info, Pubkey::new_unique(), 0).is_err());
-    }
-
-    #[test]
-    fn ordering_carries_across_many_chunks() {
-        let entries = (0..27)
-            .map(|index| ArenaBoardEntry {
-                player: Pubkey::new_from_array([u8::try_from(index + 1).unwrap(); 32]),
-                score: 1_000 - index,
-                finalized_at: i64::from(index),
-                ..ArenaBoardEntry::default()
-            })
-            .collect::<Vec<_>>();
-        let mut carried = None;
-        for chunk in entries.chunks(ARENA_BOARD_CHUNK_CAPACITY) {
-            for entry in chunk {
-                if let Some(previous) = carried {
-                    verify_next_board_entry(DailyBoardKind::Score, &previous, entry).unwrap();
-                }
-                carried = Some(*entry);
+    impl Field {
+        fn new(kind: DailyBoardKind) -> Self {
+            Self {
+                kind,
+                rows: Vec::new(),
+                count: 0,
+                players: std::collections::BTreeMap::new(),
             }
         }
-        assert_eq!(carried, entries.last().copied());
+
+        fn consume(&mut self, wallet: Pubkey, metric: u32, finalized_at: i64) {
+            let entry = ArenaBoardEntry {
+                player: wallet,
+                score: metric,
+                objective_total: u64::from(metric),
+                finalized_at,
+                replay_hash: [metric as u8; 32],
+            };
+            let player = self
+                .players
+                .entry(wallet)
+                .or_insert_with(|| ArenaPlayer::initialize(Pubkey::default(), wallet, wallet, 1));
+            let previous = match player.record_score(self.kind, entry) {
+                BestRow::Kept => return,
+                BestRow::First => None,
+                BestRow::Improved(previous) => Some(previous),
+            };
+            match place_board_row(&self.rows, self.count, self.kind, previous.as_ref(), &entry)
+                .unwrap()
+            {
+                RowPlacement::Outside => {}
+                RowPlacement::Insert { at, vacated, grows } => {
+                    if grows {
+                        self.count += 1;
+                        self.rows
+                            .resize(self.count * ArenaBoardEntry::INIT_SPACE, 0);
+                    }
+                    write_board_row(&mut self.rows, at, vacated, &entry).unwrap();
+                }
+            }
+        }
+
+        fn board(&self) -> Vec<ArenaBoardEntry> {
+            (0..self.count)
+                .map(|position| board_row(&self.rows, position).unwrap())
+                .collect()
+        }
+
+        /// Every qualifier's best row, fully sorted and cut at capacity.
+        fn full_sort(&self) -> Vec<ArenaBoardEntry> {
+            let mut best = self
+                .players
+                .values()
+                .map(|player| match self.kind {
+                    DailyBoardKind::Score => player.score_best_entry,
+                    DailyBoardKind::Theme => player.theme_best_entry,
+                })
+                .collect::<Vec<_>>();
+            best.sort_by(|left, right| compare_arena_entries(self.kind, left, right));
+            best.truncate(ARENA_BOARD_CAPACITY);
+            best
+        }
+
+        fn assert_is_the_full_sort(&self) {
+            assert_eq!(self.board(), self.full_sort());
+        }
+    }
+
+    fn wallet(index: u32) -> Pubkey {
+        let mut bytes = [9u8; 32];
+        bytes[..4].copy_from_slice(&index.to_be_bytes());
+        Pubkey::new_from_array(bytes)
+    }
+
+    #[test]
+    fn retained_rows_equal_a_full_sort_in_any_consume_order() {
+        for (kind, seed) in [
+            (DailyBoardKind::Score, 1u64),
+            (DailyBoardKind::Theme, 2),
+            (DailyBoardKind::Score, 3),
+        ] {
+            let mut field = Field::new(kind);
+            let mut state = seed;
+            let mut next = |modulus: u64| {
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                (state >> 33) % modulus
+            };
+            // More wallets than the board holds, few distinct metrics and
+            // times so ties on both are common, and repeat entries throughout.
+            for step in 0..9_000u32 {
+                let wallet = wallet(next(2_000) as u32);
+                field.consume(wallet, 1 + next(60) as u32, 1 + next(40) as i64);
+                if step % 1_500 == 0 {
+                    field.assert_is_the_full_sort();
+                }
+            }
+            field.assert_is_the_full_sort();
+            assert_eq!(field.count, ARENA_BOARD_CAPACITY);
+            assert!(field.players.len() > ARENA_BOARD_CAPACITY);
+        }
+    }
+
+    #[test]
+    fn a_hostile_consume_order_at_capacity_still_yields_the_full_sort() {
+        for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
+            let capacity = u32::try_from(ARENA_BOARD_CAPACITY).unwrap();
+            let mut field = Field::new(kind);
+            // The worst row is consumed first, then a full board of better
+            // ones in ascending order, which pushes it off the end.
+            let dropped = wallet(u32::MAX);
+            field.consume(dropped, 10, 5);
+            for index in 0..capacity {
+                field.consume(wallet(index), 100 + index, 50);
+            }
+            field.assert_is_the_full_sort();
+            assert!(field.board().iter().all(|row| row.player != dropped));
+            let last = *field.board().last().unwrap();
+            assert_eq!((last.score, last.finalized_at), (100, 50));
+
+            // The dropped wallet comes back just below the last row, level
+            // with it on the metric but later, and then just above it.
+            field.consume(dropped, 99, 1);
+            field.assert_is_the_full_sort();
+            assert!(field.board().iter().all(|row| row.player != dropped));
+            field.consume(dropped, 100, 51);
+            field.assert_is_the_full_sort();
+            assert!(field.board().iter().all(|row| row.player != dropped));
+            field.consume(dropped, 100, 49);
+            field.assert_is_the_full_sort();
+            assert_eq!(field.board().last().unwrap().player, dropped);
+            assert!(field.board().iter().all(|row| row.player != last.player));
+
+            // The wallet it displaced returns the same way, and a wallet on
+            // the board moves from the last row to the first.
+            field.consume(last.player, 101, 60);
+            field.consume(dropped, 5_000, 70);
+            field.assert_is_the_full_sort();
+            assert_eq!(field.board()[0].player, dropped);
+            assert_eq!(field.count, ARENA_BOARD_CAPACITY);
+        }
     }
 
     #[test]
@@ -1405,38 +1531,5 @@ mod tests {
             .unwrap();
         let expired = plan.paid_lamports - claimed;
         assert_eq!(claimed + expired + plan.rollover_lamports, pool);
-    }
-    #[test]
-    fn sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards() {
-        for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
-            let row = ArenaBoardEntry {
-                player: Pubkey::new_unique(),
-                score: 100,
-                objective_total: 7,
-                finalized_at: 9,
-                replay_hash: [3; 32],
-            };
-            let mut source =
-                ArenaPlayer::initialize(Pubkey::new_unique(), row.player, row.player, 1);
-            source.score_best_entry = row;
-            source.theme_best_entry = row;
-            assert_eq!(
-                verify_submitted_board_entry(kind, submitted(row), &source).unwrap(),
-                row
-            );
-            let mut changed = submitted(row);
-            changed.replay_hash[0] ^= 1;
-            assert!(verify_submitted_board_entry(kind, changed, &source).is_err());
-            assert!(verify_next_board_entry(kind, &row, &row).is_err());
-            let later = ArenaBoardEntry {
-                player: Pubkey::new_unique(),
-                finalized_at: 10,
-                ..row
-            };
-            verify_next_board_entry(kind, &row, &later).unwrap();
-            assert!(verify_next_board_entry(kind, &later, &row).is_err());
-        }
-        seal_requires_the_program_computed_count_and_partial_board_is_unclaimable();
-        ordering_carries_across_many_chunks();
     }
 }

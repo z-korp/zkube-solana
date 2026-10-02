@@ -295,9 +295,15 @@ fn render_tier_weights_rust(catalog: &CampaignCatalog) -> String {
 fn render_protocol_constants(catalog: &CampaignCatalog) -> String {
     let catalog_version = zkube_core::CATALOG_VERSION;
     let board_capacity = zkube_program::state::ARENA_BOARD_CAPACITY;
-    let chunk_capacity = zkube_program::state::ARENA_BOARD_CHUNK_CAPACITY;
     let entry_size = <zkube_program::state::ArenaBoardEntry as anchor_lang::Space>::INIT_SPACE;
     let max_board_rent = zkube_program::state::maximum_board_rent_lamports();
+    // Two Dailies overlap for the recovery window, so cadence funding can be
+    // holding two days' boards and Daily accounts at once.
+    let cadence_two_days = 2
+        * (max_board_rent
+            + anchor_lang::prelude::Rent::default().minimum_balance(
+                8 + <zkube_program::state::ArenaDaily as anchor_lang::Space>::INIT_SPACE,
+            ));
     let close_offset = zkube_core::DAILY_RUN_CLOSE_OFFSET;
     let recovery_seconds = zkube_core::RUN_RECOVERY_SECONDS;
     let reserved_bytes = zkube_core::PLAYER_STATE_RESERVED_BYTES;
@@ -308,9 +314,9 @@ fn render_protocol_constants(catalog: &CampaignCatalog) -> String {
          export const PLAYER_STATE_ACCOUNT_VERSION = {PLAYER_STATE_ACCOUNT_VERSION} as const;\n\
          export const PLAYER_STATE_RESERVED_BYTES = {reserved_bytes} as const;\n\
          export const ARENA_BOARD_CAPACITY = {board_capacity} as const;\n\
-         export const ARENA_BOARD_CHUNK_CAPACITY = {chunk_capacity} as const;\n\
          export const ARENA_BOARD_ENTRY_SIZE = {entry_size} as const;\n\
          export const MAX_BOARD_RENT_LAMPORTS = {max_board_rent} as const;\n\
+         export const CADENCE_FUNDING_TWO_DAY_LAMPORTS = {cadence_two_days} as const;\n\
          export const DAILY_RUN_CLOSE_OFFSET = {close_offset} as const;\n\
          export const RUN_RECOVERY_SECONDS = {recovery_seconds} as const;\n\
          export const ARENA_ENTRY_LAMPORTS = {ARENA_ENTRY_LAMPORTS}n;\n\

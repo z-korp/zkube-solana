@@ -171,6 +171,8 @@ pub fn consume(payer: Pubkey) -> Value {
                 arena_player: Some(accounts::participant_address(DAY)),
                 active_run: accounts::run_address(RUN_ID),
                 rent_recipient: device(),
+                score_board: Some(boards::address(DAY, DailyBoardKind::Score)),
+                theme_board: Some(boards::address(DAY, DailyBoardKind::Theme)),
             },
         )],
         true,

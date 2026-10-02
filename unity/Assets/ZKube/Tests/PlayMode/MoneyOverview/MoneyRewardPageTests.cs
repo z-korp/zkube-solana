@@ -46,8 +46,8 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.Zero);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
-        [UnityTest] public IEnumerator ExpiredScoreLeavesThemeAvailable() => UnavailableReward("expired", "Claim window closed");
-        [UnityTest] public IEnumerator UnsealedScoreDoesNotOfferAClaim() => UnavailableReward("unsealed", "Results are being finalized.");
+        [UnityTest] public IEnumerator AnExpiredDailyClosesBothBoards() => UnavailableReward("expired", "Claim window closed");
+        [UnityTest] public IEnumerator UnsealedScoreDoesNotOfferAClaim() => UnavailableReward("unsealed", "Rewards open after its results are finalized.");
         [UnityTest] public IEnumerator ClaimedScoreDoesNotOfferASecondPayment() => UnavailableReward("claimed", "Reward collected");
         [UnityTest] public IEnumerator MissingSessionDisablesBothCollections() => UnavailableReward("missing-session", "Set up this device to collect rewards.");
         private IEnumerator UnavailableReward(string variant, string message)
@@ -58,8 +58,10 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(score == null || !score.interactable, Is.True);
             // Without a device session the claim is replaced by its reason.
             var theme = host.GetComponentsInChildren<Button>().SingleOrDefault(button => button.name == "Collect Objective");
-            if (variant == "missing-session") Assert.That(theme == null || !theme.interactable, Is.True);
-            else Assert.That(theme.interactable, Is.True);
+            // The boards seal and expire together with their Daily; only a
+            // reward already collected leaves the other board's on offer.
+            if (variant == "claimed") Assert.That(theme.interactable, Is.True);
+            else Assert.That(theme == null || !theme.interactable, Is.True);
             yield return Wait(host.GetComponent<MoneyIdentity>().Controller.CollectReward("score"));
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
@@ -69,7 +71,7 @@ namespace ZKube.Tests.MoneyOverview
             environment.AdvanceClock(1); yield return null; yield return Idle();
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect Score" && button.interactable), Is.False);
             StringAssert.Contains("Claim window closed", SessionText());
-            Assert.That(host.GetComponentsInChildren<Button>().Single(button => button.name == "Collect Objective").interactable, Is.True);
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Collect Objective" && button.interactable), Is.False);
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator ResultDayNavigationNeverSignsAndOtherPagesCloseResults()

@@ -7,8 +7,43 @@ fn idl() -> serde_json::Value {
 #[test]
 fn fresh_bootstrap_interface_is_locked() {
     let idl = idl();
-    assert_eq!(idl["instructions"].as_array().unwrap().len(), 30);
+    assert_eq!(idl["instructions"].as_array().unwrap().len(), 29);
     assert_eq!(idl["accounts"].as_array().unwrap().len(), 7);
+}
+
+#[test]
+fn no_instruction_accepts_a_board_row() {
+    // Board rows come only from a run's own terminal state when it is
+    // consumed. No instruction takes a row, a list, or any struct argument a
+    // caller could fill with one.
+    let idl = idl();
+    for instruction in idl["instructions"].as_array().unwrap() {
+        let writes_a_board = instruction["accounts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|account| {
+                account["writable"] == true
+                    && account["name"].as_str().is_some_and(|name| name.ends_with("_board"))
+            });
+        for argument in instruction["args"].as_array().unwrap() {
+            let kind = argument["type"].to_string();
+            assert!(!kind.contains("ArenaBoardEntry"), "{}", instruction["name"]);
+            // An instruction that can write a board takes at most which board
+            // and which position: never data to put on it.
+            assert!(
+                !writes_a_board || ["\"u32\"", "\"u64\"", "{\"defined\":{\"name\":\"DailyBoardKind\"}}"]
+                    .contains(&kind.as_str()),
+                "{} takes {kind}",
+                instruction["name"]
+            );
+        }
+    }
+    assert!(idl["instructions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|instruction| instruction["name"] != "submit_arena_board_chunk"));
 }
 
 #[test]
@@ -58,18 +93,11 @@ fn every_program_capacity_has_an_sbf_test_at_its_maximum() {
             }
         }
     }
-    let guards = [
-        (
-            "ARENA_BOARD_CAPACITY",
-            "cadence_funding_creates_exact_boards_through_the_full_capacity",
-            "full_board_finalization_stays_below_one_million_compute_units",
-        ),
-        (
-            "ARENA_BOARD_CHUNK_CAPACITY",
-            "cadence_funding_creates_exact_boards_through_the_full_capacity",
-            "cadence_funding_creates_exact_boards_through_the_full_capacity",
-        ),
-    ];
+    let guards = [(
+        "ARENA_BOARD_CAPACITY",
+        "finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent",
+        "consume_keeps_both_boards_sorted_at_capacity",
+    )];
     let mut actual = BTreeSet::new();
     capacities(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),

@@ -92,15 +92,16 @@ namespace ZKube.Integration.Client
 
         private PrizeBoard Board(uint day, string kind, AccountEnvelope envelope, JObject daily, string owner, long timestamp)
         {
-            var board = accounts.ArenaBoard(envelope, day, kind);
+            var board = envelope == null || daily == null ? null : accounts.ArenaBoard(envelope, daily, day, kind);
             if (board == null) return new PrizeBoard(kind, "missing", "unavailable", null, Array.Empty<PrizeRow>(), owner, null);
+            // A live board has standings but no payout plan to verify or claim yet.
+            if (!board.Sealed) return new PrizeBoard(kind, "unsealed", "unsealed", null, Array.Empty<PrizeRow>(), owner, board);
             // Native width verification scans the full qualified count. Keep
             // untrusted reads inside the existing client/keeper work envelope;
             // this does not cap protocol width or substitute a truncated payout.
             if (board.QualifiedCount > MaximumVerifiedQualifiedPlayers)
                 return new PrizeBoard(kind, "unsupported-verification", "unavailable", null, Array.Empty<PrizeRow>(), owner, null);
             var payouts = ValidateBoardEconomics(board, daily);
-            if (!board.Sealed) return new PrizeBoard(kind, "unsealed", "unsealed", null, Array.Empty<PrizeRow>(), owner, board);
             long expiry = checked(board.SealedAt + (long)Protocol.ClaimWindowSeconds);
             bool expired = timestamp > expiry;
             var rows = board.Rows.Select(row => new PrizeRow(row, kind, payouts[row.Position])).ToArray();

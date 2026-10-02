@@ -81,7 +81,9 @@ export async function checkFreshTransaction(connection: Connection, bundle: Oper
     }
   }
   const funding = await connection.getAccountInfo(deriveCadenceFundingPda(), "confirmed");
-  const rent = await connection.getMinimumBalanceForRentExemption(accountCoder.size("arenaDaily"), "confirmed");
+  // Each prepared Daily took its own rent and its two empty boards' from cadence funding.
+  const rent = await connection.getMinimumBalanceForRentExemption(accountCoder.size("arenaDaily"), "confirmed") +
+    2 * await connection.getMinimumBalanceForRentExemption(accountCoder.size("arenaBoard"), "confirmed");
   if (!funding || funding.executable || !funding.owner.equals(SystemProgram.programId) || funding.data.length ||
       funding.lamports !== CADENCE_FUNDING_SEED_LAMPORTS - 2 * rent) throw new Error("Staged cadence funding differs from approval");
 }

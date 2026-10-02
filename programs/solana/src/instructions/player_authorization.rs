@@ -177,6 +177,9 @@ mod tests {
             current_daily: Pubkey::new_unique(),
             arena_player: Pubkey::new_unique(),
             following_daily: Pubkey::new_unique(),
+            score_board: Pubkey::new_unique(),
+            theme_board: Pubkey::new_unique(),
+            cadence_funding: Pubkey::new_unique(),
             credit_vault: Pubkey::new_unique(),
             active_run: Pubkey::new_unique(),
             payer: actor,
@@ -186,12 +189,12 @@ mod tests {
             system_program: anchor_lang::system_program::ID,
         }
         .to_account_metas(None);
-        assert_eq!(entry.len(), 12);
-        assert_eq!(entry[8].pubkey, owner);
-        assert!(entry[8].is_writable);
-        assert!(!entry[8].is_signer);
-        assert_eq!(entry[10].pubkey, actor);
-        assert!(entry[10].is_signer);
+        assert_eq!(entry.len(), 15);
+        assert_eq!(entry[11].pubkey, owner);
+        assert!(entry[11].is_writable);
+        assert!(!entry[11].is_signer);
+        assert_eq!(entry[13].pubkey, actor);
+        assert!(entry[13].is_signer);
     }
 
     #[test]

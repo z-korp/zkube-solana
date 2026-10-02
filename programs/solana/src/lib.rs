@@ -86,14 +86,6 @@ pub mod solana {
         instructions::arcade_instructions::handler_finalize_arena_daily(ctx)
     }
 
-    pub fn submit_arena_board_chunk<'info>(
-        ctx: Context<'info, SubmitArenaBoardChunk<'info>>,
-        kind: DailyBoardKind,
-        entries: Vec<SubmittedBoardEntry>,
-    ) -> Result<()> {
-        instructions::arcade_instructions::handler_submit_arena_board_chunk(ctx, kind, entries)
-    }
-
     pub fn claim_daily_prize(
         ctx: Context<ClaimDailyPrize>,
         board: DailyBoardKind,

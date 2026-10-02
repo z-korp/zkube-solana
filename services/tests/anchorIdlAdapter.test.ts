@@ -199,18 +199,6 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         dayId: DAY,
         followingDayId: DAY + 1,
       }, "finalize_arena_daily"],
-      ["submit_arena_board_chunk", {
-        dayId: DAY,
-        boardKind: "score",
-
-        boardEntries: [{
-          source: Keypair.generate().publicKey,
-          score: 1,
-          objectiveTotal: 0n,
-          finalizedAt: DAY * 86_400,
-          replayHash: new Uint8Array(32),
-        }],
-      }, "submit_arena_board_chunk"],
       ["expire_daily_claims", {
         dayId: DAY,
         followingDayId: DAY + 1,
@@ -257,7 +245,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
 
       keeper,
     });
-    expect(instruction?.keys).toHaveLength(5);
+    expect(instruction?.keys).toHaveLength(7);
     expect(instruction?.keys.some(({ pubkey }) => pubkey.equals(arenaDailyPda(DAY))))
       .toBe(true);
   });

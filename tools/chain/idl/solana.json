@@ -628,7 +628,10 @@
       ],
       "accounts": [
         {
-          "name": "arena_daily"
+          "name": "arena_daily",
+          "docs": [
+            "the handler."
+          ]
         },
         {
           "name": "arena_player",
@@ -853,6 +856,86 @@
         {
           "name": "rent_recipient",
           "writable": true
+        },
+        {
+          "name": "score_board",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "active_run.daily_challenge",
+                "account": "ActiveRun"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "theme_board",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "active_run.daily_challenge",
+                "account": "ActiveRun"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -1262,6 +1345,110 @@
                 "kind": "account",
                 "path": "following_daily.day_id",
                 "account": "ArenaDaily"
+              }
+            ]
+          }
+        },
+        {
+          "name": "score_board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "current_daily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "theme_board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "current_daily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "cadence_funding",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  100,
+                  101,
+                  110,
+                  99,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
               }
             ]
           }
@@ -1784,6 +1971,9 @@
         },
         {
           "name": "cadence_funding",
+          "docs": [
+            "finalized boards no longer need."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -1813,10 +2003,6 @@
         {
           "name": "caller",
           "signer": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -2230,6 +2416,82 @@
               {
                 "kind": "arg",
                 "path": "day_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "score_board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "theme_board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "arena_daily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
               }
             ]
           }
@@ -2962,6 +3224,82 @@
           }
         },
         {
+          "name": "score_board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "suspended_daily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  99,
+                  111,
+                  114,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "theme_board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  114,
+                  101,
+                  110,
+                  97,
+                  95,
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "suspended_daily"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  101,
+                  109,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "cadence_funding",
           "writable": true,
           "pda": {
@@ -2995,105 +3333,6 @@
         }
       ],
       "args": []
-    },
-    {
-      "name": "submit_arena_board_chunk",
-      "discriminator": [
-        121,
-        149,
-        35,
-        141,
-        119,
-        21,
-        206,
-        131
-      ],
-      "accounts": [
-        {
-          "name": "arena_daily",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  100,
-                  97,
-                  105,
-                  108,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
-              }
-            ]
-          }
-        },
-        {
-          "name": "arena_board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  114,
-                  101,
-                  110,
-                  97,
-                  95,
-                  98,
-                  111,
-                  97,
-                  114,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "arena_daily"
-              },
-              {
-                "kind": "arg",
-                "path": "kind"
-              }
-            ]
-          }
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "kind",
-          "type": {
-            "defined": {
-              "name": "DailyBoardKind"
-            }
-          }
-        },
-        {
-          "name": "entries",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "SubmittedBoardEntry"
-              }
-            }
-          }
-        }
-      ]
     }
   ],
   "accounts": [
@@ -3268,50 +3507,35 @@
     {
       "code": 6015,
       "name": "BoardIncomplete",
-      "msg": "The payout board is incomplete or unsealed"
+      "msg": "The Daily is not finalized, so its boards are not sealed"
     },
     {
       "code": 6016,
-      "name": "BoardEntryMismatch",
-      "msg": "A submitted payout row does not match its ArenaPlayer source"
-    },
-    {
-      "code": 6017,
-      "name": "BoardEntryOutOfOrder",
-      "msg": "Submitted payout rows are not in canonical order"
-    },
-    {
-      "code": 6018,
-      "name": "DuplicateBoardPlayer",
-      "msg": "A player appears more than once on a payout board"
-    },
-    {
-      "code": 6019,
       "name": "AccountingInvariant",
       "msg": "The financial accounting invariant does not balance"
     },
     {
-      "code": 6020,
+      "code": 6017,
       "name": "InsufficientKredits",
       "msg": "The player does not have a Kredit available"
     },
     {
-      "code": 6021,
+      "code": 6018,
       "name": "DailyNotScheduled",
       "msg": "No paid Daily is scheduled for this day"
     },
     {
-      "code": 6022,
+      "code": 6019,
       "name": "InvalidSession",
       "msg": "The scoped player session is invalid"
     },
     {
-      "code": 6023,
+      "code": 6020,
       "name": "InvalidEmblem",
       "msg": "The featured emblem is invalid or not unlocked"
     },
     {
-      "code": 6024,
+      "code": 6021,
       "name": "InvalidPeriod",
       "msg": "The provided period is not the canonical current or successor period"
     }
@@ -3535,6 +3759,13 @@
     },
     {
       "name": "ArenaBoard",
+      "docs": [
+        "One board of a Daily. While the Daily runs, the account is this header",
+        "followed by the retained rows, best first; only consuming a run writes",
+        "them. Finalization fills the payout fields, keeps the paying rows and",
+        "appends one claim bit per row. A board is sealed exactly when its Daily is",
+        "finalized, so it carries no clock of its own."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
@@ -3589,20 +3820,6 @@
           {
             "name": "capacity_limited",
             "type": "bool"
-          },
-          {
-            "name": "cursor",
-            "docs": [
-              "Number of verified rows already appended."
-            ],
-            "type": "u32"
-          },
-          {
-            "name": "sealed_at",
-            "docs": [
-              "Starts this board's independent reward-claim window."
-            ],
-            "type": "i64"
           },
           {
             "name": "claimed_lamports",
@@ -4286,35 +4503,6 @@
           {
             "name": "valid_until",
             "type": "i64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "SubmittedBoardEntry",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "score",
-            "type": "u32"
-          },
-          {
-            "name": "objective_total",
-            "type": "u64"
-          },
-          {
-            "name": "finalized_at",
-            "type": "i64"
-          },
-          {
-            "name": "replay_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
           }
         ]
       }

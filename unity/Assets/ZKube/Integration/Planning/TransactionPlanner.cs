@@ -27,6 +27,7 @@ namespace ZKube.Integration.Planning
             Pda(Text("arena_board"), Key(Daily(day)), Text(kind)) : throw new ArgumentException("Invalid board kind");
         public string ProtocolAddress => Pda(Text("protocol"));
         public string CreditVaultAddress => Pda(Text("credit_vault"));
+        public string CadenceFundingAddress => Pda(Text("cadence_funding"));
         private Dictionary<string, string> ActorAccounts(PlannerActor actor) => new Dictionary<string, string> {
             ["owner_authority"] = actor.Owner, ["actor"] = actor.Signer, ["payer"] = actor.Signer,
             ["session_token"] = actor.SessionToken,
@@ -88,7 +89,7 @@ namespace ZKube.Integration.Planning
             {
                 if (++count > PlanningConstants.ClaimLookbackDays * 2) return Array.Empty<ValidatedBoardReward>();
                 if (observation?.Account == null) continue;
-                try { candidates.AddRange(bindings.BoardRewards(observation.Account, observation.DayId, observation.Kind, owner)); }
+                try { candidates.AddRange(bindings.BoardRewards(observation.Account, observation.Daily, observation.DayId, observation.Kind, owner)); }
                 catch (FormatException) { /* Optional malformed claims never prevent entry. */ }
             }
             return candidates.AsReadOnly();
@@ -122,6 +123,9 @@ namespace ZKube.Integration.Planning
             keys["player_state"] = Player(actor.Owner); keys["current_daily"] = Daily(daily.DayId);
             keys["following_daily"] = Daily(daily.FollowingDayId); keys["arena_player"] = ArenaPlayer(Daily(daily.DayId), actor.Owner);
             keys["credit_vault"] = CreditVaultAddress; keys["active_run"] = ActiveRun(actor.Owner, player.NextRunId);
+            // A first entry of the day moves a row's rent into each of today's boards from cadence funding.
+            keys["score_board"] = Board(daily.DayId, "score"); keys["theme_board"] = Board(daily.DayId, "theme");
+            keys["cadence_funding"] = CadenceFundingAddress;
             var instructions = claims.SelectMany(c => Claim(actor, c.DayId, c.Kind, c.Position).Instructions)
                 .Concat(new[] { Instruction("enter_arena", new JObject { ["run_id"] = player.NextRunId }, keys) });
             return Plan(actor, PlanRoute.Base, instructions, runId: player.NextRunId);
@@ -195,6 +199,9 @@ namespace ZKube.Integration.Planning
             var keys = new Dictionary<string, string> { ["active_run"] = ActiveRun(run.Owner, run.RunId),
                 ["player_state"] = Player(run.Owner), ["rent_recipient"] = run.RentPayer, ["owner"] = run.Owner };
             keys["arena_daily"] = run.DailyAddress; keys["arena_player"] = ArenaPlayer(run.DailyAddress, run.Owner);
+            // Consuming a scored run places its row on the Daily's boards.
+            keys["score_board"] = Pda(Text("arena_board"), Key(run.DailyAddress), Text("score"));
+            keys["theme_board"] = Pda(Text("arena_board"), Key(run.DailyAddress), Text("theme"));
             list.Add(Instruction("consume_arena_run", new JObject(), keys));
             return Plan(actor, PlanRoute.Base, list, runId: run.RunId);
         }

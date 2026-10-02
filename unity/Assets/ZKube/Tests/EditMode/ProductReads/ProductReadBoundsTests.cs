@@ -36,7 +36,9 @@ namespace ZKube.Tests.ProductReads
             var empty = PatchAccount(emptySource["envelope"], "ArenaBoard", ("qualified_count", Number(limit, 4)),
                 ("pool_lamports", Number(0, 8)), ("paid_lamports", Number(0, 8)), ("rollover_lamports", Number(0, 8)),
                 ("denominator", ZKube.Core.Generated.NativeWire.Bytes(plan, 4, 16)));
-            e.Http.Put(empty); e.Http.Remove(source["daily"]);
+            // The board is read through its Daily, which must carry the same field.
+            e.Http.Put(empty); e.Http.Put(PatchAccount(emptySource["daily"], "ArenaDaily", ("score_qualified_players", Number(limit, 4)),
+                ("theme_qualified_players", Number(0, 4)), ("ledger.payout_lamports", Number(0, 8)), ("ledger.rollover_out_lamports", Number(0, 8))));
             Assert.That((await e.Queries.SettledBoards(day)).Value.Score.Status, Is.EqualTo("empty"));
         }
 

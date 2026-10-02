@@ -89,15 +89,19 @@ namespace ZKube.Integration.App.Tests
             }
             if (scenario.StartsWith("claim-"))
             {
-                Http.Add(Ui["profile"]); Http.Add(Ui["claimDaily"]);
+                Http.Add(Ui["profile"]);
                 string kind = scenario.Split('-')[1], variant = scenario.Substring(("claim-" + kind + "-").Length);
                 if (variant.StartsWith("pending-") || variant == "missing-session") variant = "sealed";
                 foreach (string board in new[] { "score", "theme" })
                 {
-                    var row = Ui["claims"].Single(value => (string)value["kind"] == board && (string)value["variant"] == (board == kind ? variant : "sealed"));
+                    // Both boards share their Daily's state: a running Daily has two live
+                    // boards, and a finalized one two sealed boards on one claim clock.
+                    var row = Ui["claims"].Single(value => (string)value["kind"] == board &&
+                        (string)value["variant"] == (board == kind || variant == "unsealed" ? variant : "sealed"));
                     Http.Add(row["before"]);
                     if (board == kind) claim = row;
                 }
+                Http.Add(claim["daily"]);
                 expected = claim["transaction"]; after.Add(claim["after"]); after.Add(claim["playerAfter"]);
                 return;
             }

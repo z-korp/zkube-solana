@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /board[ -]chunk|constructs boards|construction adds no funding|each board's sealing|funds exact final rent|Rewards open when this board is sealed/i, trees: AUTHORED,
+    reversal: "Consuming a run keeps each board sorted; finalization seals both with their Daily" },
   { pattern: /\bTribal\b/i, trees: AUTHORED,
     reversal: "Realm 9 is Serengeti" },
   { pattern: /board changed|swipe again/i, trees: [UNITY],
@@ -57,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Realms own guardian rules without score multipliers or starting charges" },
   { pattern: /move[- ](?:efficiency|percent(?:age)?) stars|second star grants|★★ awards|latch in order|contiguous star sources|while holding/i, trees: SOURCE,
     reversal: "Campaign stars latch independently from score and constraints" },
-  { pattern: /exactly one reroll|once-per-run reroll|carries one reroll/i, trees: AUTHORED,
-    reversal: "Rerolls use a capped inventory with perfect-clear grants" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

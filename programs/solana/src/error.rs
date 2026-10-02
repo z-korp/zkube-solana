@@ -40,14 +40,8 @@ pub enum ErrorCode {
     VrfRequestMismatch,
     #[msg("The player has no Daily prize")]
     NoPrize,
-    #[msg("The payout board is incomplete or unsealed")]
+    #[msg("The Daily is not finalized, so its boards are not sealed")]
     BoardIncomplete,
-    #[msg("A submitted payout row does not match its ArenaPlayer source")]
-    BoardEntryMismatch,
-    #[msg("Submitted payout rows are not in canonical order")]
-    BoardEntryOutOfOrder,
-    #[msg("A player appears more than once on a payout board")]
-    DuplicateBoardPlayer,
     #[msg("The financial accounting invariant does not balance")]
     AccountingInvariant,
     #[msg("The player does not have a Kredit available")]

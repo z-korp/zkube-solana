@@ -106,12 +106,12 @@ spending approval.
 | Area | Source status and guard |
 | --- | --- |
 | Core | One deterministic Rust engine at 1.0.0; `one_run_drives_campaign_and_daily` |
-| Interface | 30 instructions, 7 account types; `fresh_bootstrap_interface_is_locked` |
+| Interface | 29 instructions, 7 account types; `fresh_bootstrap_interface_is_locked` |
 | Accounts | Generated versions and bounded layouts; `target_accounts_fit_normal_solana_account_limits` |
 | Campaign | Local play and synchronized reported stars; `record_campaign_stars_is_idempotent_and_touches_no_other_field` |
 | Arcade | Prepaid entries and Score/Theme boards; `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` |
-| Settlement | Growing exact-sized boards and idempotent claims; `ladder_points_are_credited_once_per_claim` |
-| Keeper | Thirteen permissionless plan instructions, writes disabled pending approval; `keeper_allowlist_is_exactly_its_plans` |
+| Settlement | Boards sorted as runs are consumed, sealed at finalization, idempotent claims; `no_caller_can_choose_board_rows` |
+| Keeper | Twelve permissionless plan instructions, writes disabled pending approval; `keeper_allowlist_is_exactly_its_plans` |
 
 ## Product truth and locked rules
 
@@ -197,10 +197,11 @@ spending approval.
   floored at four before limiting to qualifiers. Trailing zero payouts are dropped, payouts floor to the
   protocol quantum and dust rolls forward. `rank_curve_keeps_four_places_and_renormalizes_fewer_qualifiers`
   and `optimized_payouts_match_the_original_at_every_supported_width` guard the exact arithmetic.
-- **Retained capacity:** the width and denominator are computed without an arithmetic cap; retained rows use
-  `ARENA_BOARD_CAPACITY` and writes use `ARENA_BOARD_CHUNK_CAPACITY`, with dropped shares rolling over without renormalization.
-  `bounded_payout_plan_keeps_the_full_width_and_denominator`,
-  `cadence_funding_creates_exact_boards_through_the_full_capacity` and
+- **Retained capacity:** the width and denominator are computed without an arithmetic cap; a board never holds
+  more than `ARENA_BOARD_CAPACITY` rows, during the day or after, and dropped shares roll over without
+  renormalization. `bounded_payout_plan_keeps_the_full_width_and_denominator`,
+  `finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent`,
+  `consume_keeps_both_boards_sorted_at_capacity` and
   `full_board_finalization_stays_below_one_million_compute_units` guard width, allocation and compute.
   Sizing starts from stored harmonic denominators, so a board hundreds of thousands of places wide finalizes in
   one transaction with the same exact result as the rank-by-rank scan.
@@ -208,9 +209,9 @@ spending approval.
   `finalization_sizes_boards_far_wider_than_they_retain_in_one_transaction` guard the arithmetic and its compute.
 - **One row per player per board:** retain that player's best qualifying run with unlimited paid entries.
   Ordering is metric descending, earliest finalized achievement, then wallet bytes.
-  `board_order_uses_metric_then_time_then_owner_bytes` and
-  `sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards` guard ordering and
-  uniqueness.
+  `board_order_uses_metric_then_time_then_owner_bytes`,
+  `retained_rows_equal_a_full_sort_in_any_consume_order` and
+  `a_hostile_consume_order_at_capacity_still_yields_the_full_sort` guard ordering and uniqueness.
 - **Prepaid entry:** a Kredit has one protocol price and is one-way: no withdrawal, transfer, cash-out,
   grant, discount or bonus. The shop's packs share that unit price. The owner buys the balance; device
   spending stays within that owner-set cap. `entry_split_is_exact_and_static` and
@@ -223,16 +224,26 @@ spending approval.
   delay the next prepared Daily's opening. `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths`
   and `keeper_preparation_advances_past_archived_days_and_keeps_the_recent_window` guard lifecycle and
   preparation.
-- **Board construction:** finalization funds exact final rent; each existing chunk grows by exactly its
-  rows, without exceeding finalized width. Sealing requires the final size, verified results, global
-  ordering and the program-computed count. `cadence_funding_creates_exact_boards_through_the_full_capacity`
-  and `sbf_board_chunks_verify_rows_cursor_and_program_computed_sealing_on_both_boards` guard construction.
+- **Boards:** global ranking has one owner, the program. Preparation creates both boards empty. Consuming a
+  scored run is their only writer: it moves the player's earlier row up, inserts a new row, or at capacity
+  drops the last row or leaves the result out, so the rows always equal a full sort of every qualifier's best.
+  No instruction accepts a row. Finalization keeps the program-computed paying rows, appends their claim
+  bits and seals both boards with their Daily. `no_caller_can_choose_board_rows`,
+  `no_instruction_accepts_a_board_row`, `retained_rows_equal_a_full_sort_in_any_consume_order` and
+  `finalization_cuts_to_the_paying_rows_and_returns_the_excess_rent` guard it.
+- **Board rent:** cadence funding pays it all and gets it all back. A player's first entry of the day moves
+  one row and claim bit of rent into each board, before the Kredit is spent, so an accepted entry always has
+  room for its result and consume needs no payer. Finalization returns what the paying rows do not need; closing
+  the Daily, or skipping a suspended one, returns the rest.
+  `board_rows_never_exceed_the_row_rent_their_entrants_paid` and
+  `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` guard the invariant and the refusal.
 - **Claims:** an explicit position is checked against its sealed board and payout is recomputed. A claim of
-  an already-claimed or expired position is a no-op: no transfer, points or other changes. Unsealed boards
-  reject; `ladder_points_are_credited_once_per_claim` guards successful, failed and no-op outcomes.
-- **Claim window:** rewards remain claimable for thirty days from each board's sealing. After both windows
-  and archival, unclaimed money expires into the next pot, not revenue.
-  `ladder_points_are_credited_once_per_claim` and
+  an already-claimed or expired position is a no-op: no transfer, points or other changes. A Daily that is
+  not finalized has no sealed board and rejects; `ladder_points_are_credited_once_per_claim` guards
+  successful, failed and no-op outcomes.
+- **Claim window:** both boards seal when their Daily is finalized, and rewards remain claimable for thirty
+  days from that one moment. After the window and archival, unclaimed money expires into the next pot, not
+  revenue. `one_claim_clock_runs_from_the_dailys_finalization`, `ladder_points_are_credited_once_per_claim` and
   `sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard claims and root-gated closure.
 - **Composed entry:** prepend at most two claims proven claimable by the client's reads, then entry in the
   same transaction. Stale claimed/expired positions are no-ops, without preflight or retry.
@@ -391,12 +402,14 @@ the cost of that entry. `first_entry_accounts_are_the_real_account_and_delegatio
 `ADeviceThatCannotPayItsFirstEntryIsAskedToRefillBeforeEntering` guard the sizes, the real entry cost and
 the gate. The delegation charge is MagicBlock's published figure; a Devnet trial confirms it.
 
-Each run and ArenaPlayer returns rent to its stored payer, even from another device.
-`a_closed_run_returns_rent_to_its_payer` and `a_closed_arena_player_returns_rent_to_its_payer` guard
-refunds. `sbf_cadence_funding_can_prepare_a_missing_post_launch_daily` and
-`cadence_funding_creates_exact_boards_through_the_full_capacity` guard the two cadence rent paths. Full
-board rent is funded at finalization; construction adds no funding or extra write plan. The cadence signer
-is not a general fee sponsor.
+Each run and ArenaPlayer returns rent to its stored payer, even from another device. An ArenaPlayer closes
+once its Daily is finalized: the boards were complete at that point and never read it again, and no entry or
+consume can touch a finalized Daily, so nothing can bring it back or repeat its qualifying credit.
+`a_closed_run_returns_rent_to_its_payer`, `a_closed_arena_player_returns_rent_to_its_payer` and
+`a_closed_daily_player_cannot_come_back_on_a_finalized_or_archived_day` guard refunds and revival.
+The cadence signer pays rent only for a Daily and its two boards, at preparation and at a player's first
+entry; it is not a general fee sponsor. `sbf_cadence_funding_can_prepare_a_missing_post_launch_daily` guards
+preparation.
 
 Base, Router and resolved ER connections stay separate, and each endpoint is HTTPS unless it is this machine;
 `AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. Resolve
@@ -523,9 +536,9 @@ Daily of the chain, never a later sealed one` and
 notification service; a missed notification never changes a claim window. Notification controls remain
 parked; any future notification is only a courtesy.
 
-Cadence prepares, activates or calls `skip_suspended_arena_daily`, finalizes, constructs boards, archives, expires claims and closes
-Daily/player accounts. Last-resort recovery finishes deadline runs, commits, consumes or expires unreachable
-runs. All thirteen instructions are permissionless; `keeper_allowlist_is_exactly_its_plans`,
+Cadence prepares, activates or calls `skip_suspended_arena_daily`, finalizes, archives, expires claims and
+closes Daily/player accounts. Last-resort recovery finishes deadline runs, commits, consumes or expires
+unreachable runs. All twelve instructions are permissionless; `keeper_allowlist_is_exactly_its_plans`,
 `an_expired_orphan_closes_without_period_accounts` and
 `a_missed_funding_day_finalizes_after_its_window_and_rollover` guard those plans. Governance stays with the
 owner; a keeper outage does not remove player claim authority.
@@ -557,12 +570,14 @@ Every keeper message states its compute-unit limit: a first simulation under the
 and the message carrying that limit is the one simulated again and relayed.
 `keeper_messages_carry_a_compute_budget_sized_from_simulation` guards the compiled message. The loop simulates
 before relay, reserves simulated spend even after uncertain confirmation, and enforces
-general writes, board writes, aggregate recyclable board rent and reserve floor from KEEPER_LIMITS.
+the write count, the spend ceiling and the reserve floor from KEEPER_LIMITS; rent a write takes from cadence
+funding counts as spend. Each pass reports cadence funding against its worst case, two overlapping Dailies
+with full boards, which is also what the launch plan seeds; topping it up stays the owner's decision.
 `keeper_pass_reserves_write_slots_and_simulates_before_every_send`,
 `keeper_simulation_failure_and_reserve_floor_prevent_relay`,
-`keeper_spend_is_reserved_even_when_confirmation_is_uncertain`,
-`keeper_board_writes_stop_at_the_separate_pass_limit` and
-`keeper_board_rent_ceiling_bounds_the_sum_of_finalizations_in_one_pass` guard the limits.
+`keeper_spend_is_reserved_even_when_confirmation_is_uncertain` and
+`keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_rent_as_spend` guard the limits
+and the report.
 
 ## Operator procedures
 

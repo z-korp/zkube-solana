@@ -317,7 +317,7 @@ namespace ZKube.Integration.Execution.Tests
         }
 
         [Test]
-        public async Task ExplicitClaimUsesEachBoardSealingWindowEvenForADailyOutsideDiscoveryHistory()
+        public async Task ExplicitClaimUsesTheDailysClaimWindowEvenOutsideDiscoveryHistory()
         {
             var economy = Fixture("economy");
             native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
@@ -327,7 +327,7 @@ namespace ZKube.Integration.Execution.Tests
             await ZKube.Integration.Tests.TestBootstrap.SeedSession(records, owner, device, (string)tokenRow["address"], token.ValidUntil);
             http.ExtraAccounts[(string)tokenRow["address"]] = tokenRow;
             http.ExtraAccounts[device] = new JObject { ["address"] = device, ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 5000000 };
-            foreach (string name in new[] { "oldDaily", "oldScore", "oldExpiredTheme" }) http.ExtraAccounts[(string)economy[name]["address"]] = economy[name];
+            foreach (string name in new[] { "oldDailyExpired", "oldScore", "oldTheme" }) http.ExtraAccounts[(string)economy[name]["address"]] = economy[name];
             var rpc = new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
             var protocol = new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
             var journal = new TransactionJournal(store); string accepted = null;
@@ -337,8 +337,11 @@ namespace ZKube.Integration.Execution.Tests
             var client = new EconomyClient(identity, sessionAccess, new ProductQueries(identity, accounts, planner, rpc, () => (long)plans["inputs"]["now"]), planner, journal, executor, reconciler);
             uint day = (uint)economy["oldDay"];
             Assert.That(day, Is.LessThan((uint)plans["inputs"]["day"] - PlanningConstants.ClaimLookbackDays));
-            await AsyncAssert.Throws<InvalidOperationException>(() => client.Claim(day, "theme"));
+            // Both boards share the Daily's one claim window: past it, neither is offered.
+            foreach (string kind in new[] { "score", "theme" })
+                await AsyncAssert.Throws<InvalidOperationException>(() => client.Claim(day, kind));
             Assert.That(http.Count("sendTransaction"), Is.Zero);
+            http.ExtraAccounts[(string)economy["oldDaily"]["address"]] = economy["oldDaily"];
             http.AfterSend = () => http.ExtraAccounts[(string)economy["oldScore"]["address"]] = economy["oldScoreClaimed"];
             Assert.That((await client.Claim(day, "score")).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             ZKube.Integration.Tests.ProgramScenarios.Equivalent(http.Sent, Convert.FromBase64String((string)economy["oldScoreTransaction"]));

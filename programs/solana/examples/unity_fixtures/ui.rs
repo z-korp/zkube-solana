@@ -46,12 +46,6 @@ pub fn scenarios() -> Value {
     let mut claims = Vec::new();
     for (kind, qualified) in [(DailyBoardKind::Score, 30), (DailyBoardKind::Theme, 15)] {
         for variant in ["sealed", "deadline", "expired", "unsealed", "claimed"] {
-            let at = match variant {
-                "deadline" => NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS,
-                "expired" => NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS - 1,
-                "unsealed" => 0,
-                _ => NOW - 100,
-            };
             let row = |claimed| {
                 boards::with_terms(
                     day,
@@ -61,7 +55,6 @@ pub fn scenarios() -> Value {
                         qualified,
                         claimed,
                         sealed: variant != "unsealed",
-                        sealed_at: at,
                     },
                 )
             };
@@ -78,7 +71,8 @@ pub fn scenarios() -> Value {
             .unwrap();
             claims.push(
                 json!({"kind": if kind == DailyBoardKind::Score { "score" } else { "theme" },
-                "variant": variant, "before": row(variant == "claimed"), "after": row(true),
+                "variant": variant, "daily": claim_daily(day, variant),
+                "before": row(variant == "claimed"), "after": row(true),
                 "playerAfter": player_row(&after), "points": points, "amountLamports": amount,
                 "transaction": transactions::claim(day, kind)}),
             );
@@ -88,20 +82,38 @@ pub fn scenarios() -> Value {
     entered.kredit_balance = 24;
     let mut consumed = accounts::player(0, RUN_ID + 1);
     consumed.kredit_balance = 24;
-    let mut daily = accounts::daily(day);
-    daily.status = PeriodStatus::Finalized;
-    daily.score_qualified_players = 30;
-    daily.theme_qualified_players = 15;
-    daily.ledger.seeded_lamports = 2_000_000_000;
-    for qualified in [30, 15] {
-        let plan = board_payout_plan(1_000_000_000, qualified).unwrap();
-        daily.ledger.payout_lamports += plan.paid_lamports;
-        daily.ledger.rollover_out_lamports += plan.rollover_lamports;
-    }
     json!({"enteredPlayer": player_row(&entered), "consumedPlayer": player_row(&consumed),
         "profile": player_row(&player), "fresh": player_row(&fresh), "purchases": purchases,
         "profiles": profiles, "claims": claims, "claimDay": day,
-        "claimDaily": envelope(accounts::daily_address(day), &daily, 8 + ArenaDaily::INIT_SPACE),
+        "claimDaily": claim_daily(day, "sealed"),
         "currentToken": device::token(device(), NOW + 3_600),
         "renewedToken": device::token(device(), NOW + 604_500)})
+}
+
+/// The Daily behind the claim scenarios: thirty Score and fifteen Theme
+/// qualifiers. Its finalization is the one clock both boards' claims run on,
+/// and a Daily that is still running has only live boards.
+fn claim_daily(day: u32, variant: &str) -> Value {
+    let mut daily = accounts::daily(day);
+    if variant != "unsealed" {
+        daily.status = PeriodStatus::Finalized;
+        daily.finalized_at = match variant {
+            "deadline" => NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS,
+            "expired" => NOW - zkube_core::DAILY_REWARD_CLAIM_WINDOW_SECONDS - 1,
+            _ => NOW - 100,
+        };
+        daily.score_qualified_players = 30;
+        daily.theme_qualified_players = 15;
+        daily.ledger.seeded_lamports = 2_000_000_000;
+        for qualified in [30, 15] {
+            let plan = board_payout_plan(1_000_000_000, qualified).unwrap();
+            daily.ledger.payout_lamports += plan.paid_lamports;
+            daily.ledger.rollover_out_lamports += plan.rollover_lamports;
+        }
+    }
+    envelope(
+        accounts::daily_address(day),
+        &daily,
+        8 + ArenaDaily::INIT_SPACE,
+    )
 }

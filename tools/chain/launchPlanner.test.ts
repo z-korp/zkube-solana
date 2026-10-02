@@ -10,6 +10,7 @@ import {
   type Connection,
 } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
+import { CADENCE_FUNDING_TWO_DAY_LAMPORTS } from "../../services/src/protocolVersions.generated.js";
 import {
   canonicalDevnetReplayDomainHex,
   type LaunchPlannerInput,
@@ -63,7 +64,8 @@ describe("read-only paused bootstrap and launch planner", () => {
       .map(account => account.address).sort()).toEqual([authority.toBase58(), upgradeAuthority.toBase58()].sort());
     const operation = plan.payload.operation;
     if (operation.kind !== "launch") throw new Error("Expected launch plan");
-    expect(operation.costs.seedLamports).toBe(1_500_000_000);
+    // The launch pot, and cadence funding for two overlapping Dailies with full boards.
+    expect(operation.costs.seedLamports).toBe(1_000_000_000 + CADENCE_FUNDING_TWO_DAY_LAMPORTS);
     expect(operation.costs.transactionCount).toBe(5);
     expect(plan.fingerprint).toMatch(/^[0-9a-f]{64}$/);
 
