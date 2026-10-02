@@ -32,6 +32,8 @@ namespace ZKube.Local.App
         private Exception lastFulfillment;
         private PageCatalog pages;
         public const float TerminalHoldSeconds = 1.2f;
+        // Over the board it is a banner; on a page it is one of the page's notices, at the bottom.
+        public const string UnsavedWarning = "Progress is not saved. Keep the app open; closing it may lose this result.";
         private Coroutine outcome;
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
@@ -55,7 +57,7 @@ namespace ZKube.Local.App
             warning = Rect("Save warning text", banner).gameObject.AddComponent<TextMeshProUGUI>();
             warning.font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + SkinUi.FontName(SkinUi.Type.Body)); warning.fontSize = 18; warning.color = Color.white;
             warning.alignment = TextAlignmentOptions.Center; warning.raycastTarget = false;
-            warning.text = "Progress is not saved. Keep the app open; closing it may lose this result.";
+            warning.text = UnsavedWarning;
             Stretch(warning.rectTransform, 14);
             warningRoot.SetActive(false); Refresh();
             _ = Flow.RefreshBilling();
@@ -89,7 +91,7 @@ namespace ZKube.Local.App
             shell.Show(Flow.Page != StorePage.Board);
             if (warningRoot != null)
             {
-                warningRoot.SetActive(Flow.Unsaved);
+                warningRoot.SetActive(Flow.Unsaved && Flow.Page == StorePage.Board);
                 var rect = (RectTransform)warning.transform.parent;
                 rect.anchorMin = new Vector2(Screen.safeArea.xMin / Screen.width, Screen.safeArea.yMax / Screen.height);
                 rect.anchorMax = new Vector2(Screen.safeArea.xMax / Screen.width, Screen.safeArea.yMax / Screen.height);
@@ -134,6 +136,7 @@ namespace ZKube.Local.App
         private IEnumerable<string> Notices()
         {
             yield return Flow.Error;
+            if (Flow.Unsaved) yield return UnsavedWarning;
             // Store status belongs where its purchase and restore actions are.
             if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Settings) yield break;
             // The Campaign page states an unreachable store in place of its purchase.
