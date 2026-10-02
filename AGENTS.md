@@ -152,7 +152,8 @@ spending approval.
   operator nor VRF chooses a pair. `daily_draw_is_reproducible_from_seed_and_day` guards independent
   recomputation.
 - **Cadence:** play and payout never wait for a keeper. A Daily exists only for a day somebody entered, plus
-  the launch day: the day's first transaction prepares it, and a repeat is a no-op. A Daily has no status: the
+  the launch day: the day's first transaction prepares it, and a repeat is a no-op. The core owns which Daily
+  can be prepared, for the program, the keeper and the client alike. A Daily has no status: the
   clock opens and closes its window, and it is finalized once it records when. Anyone finalizes it once its
   window has closed and every entry is resolved, or six hours later whatever is unresolved, which then counts
   as expired. An entry carries today's preparation and up to two due finalizations ahead of itself; a winner

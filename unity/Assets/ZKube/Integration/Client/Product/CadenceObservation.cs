@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using ZKube.Core;
 using ZKube.Integration.Planning;
 using ZKube.Integration.Transport;
 
@@ -29,9 +30,8 @@ namespace ZKube.Integration.Client
             var result = new CadenceObservation { Slot = minContextSlot ?? 0 };
             if (protocol == null || (uint)protocol["launch_day_id"] == 0) return result;
             uint lastPrepared = (uint)protocol["last_prepared_day"];
-            // The one Daily the program lets anyone prepare: today's, or during
-            // a suspension the first day after it.
-            uint preparable = Math.Max(day, (uint)protocol["suspended_until_day"]);
+            // The one Daily the program lets anyone prepare, by the core's rule.
+            uint preparable = NativeEngine.PreparableDaily(day, (uint)protocol["launch_day_id"], (uint)protocol["suspended_until_day"]);
             async Task<JObject> Daily(uint id)
             {
                 var read = await rpc.ReadAccount(rpc.Base, addresses.Daily(id), minContextSlot: minContextSlot, cancellation: token).ConfigureAwait(false);

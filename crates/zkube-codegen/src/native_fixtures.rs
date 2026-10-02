@@ -72,6 +72,32 @@ fn protocol_query_vectors() -> Vec<Value> {
         )
     })
     .collect::<Vec<_>>();
+    // The one preparable Daily: today's, the first day after a suspension,
+    // and today's again before launch, at the ends of the day range.
+    queries.extend(
+        [
+            (104, 100, 0),
+            (104, 100, 104),
+            (104, 100, 110),
+            (104, 0, 110),
+            (0, 1, u32::MAX),
+            (u32::MAX, 1, 0),
+        ]
+        .into_iter()
+        .map(|(today, launch, suspended): (u32, u32, u32)| {
+            (
+                30,
+                vec![
+                    ("Today", today.to_le_bytes().to_vec()),
+                    ("Launch", launch.to_le_bytes().to_vec()),
+                    ("SuspendedUntil", suspended.to_le_bytes().to_vec()),
+                ],
+                zkube_core::preparable_daily(today, launch, suspended)
+                    .to_le_bytes()
+                    .to_vec(),
+            )
+        }),
+    );
     queries.extend([
         (
             13,
