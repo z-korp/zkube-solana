@@ -4224,13 +4224,13 @@
       ],
       "guardian": {
         "face": [
-          0.296875,
-          0.22395833333333334,
-          0.4166666666666667,
-          0.3385416666666667
+          0.28125,
+          0.21614583333333334,
+          0.4375,
+          0.3111979166666667
         ],
-        "railFrontY": 0.8658854166666666,
-        "railY": 0.8333333333333334
+        "railFrontY": 0.7994791666666666,
+        "railY": 0.7890625
       },
       "guardianLines": {
         "dailyGreeting": "The same puzzle for all minds today. Prove yours is the sharpest.",
