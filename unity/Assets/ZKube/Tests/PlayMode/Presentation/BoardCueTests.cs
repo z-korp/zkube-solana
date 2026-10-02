@@ -131,7 +131,11 @@ namespace ZKube.Presentation.Tests
                 Assert.IsFalse(gold.raycastTarget); Assert.IsFalse(cyan.raycastTarget);
                 var hud = board.View.Hud; var scorePlate = hud.Campaign ? hud.Plates[0] : hud.Crown;
                 AbovePlate(board.View, gold, scorePlate, at); AbovePlate(board.View, cyan, hud.Plates[1], at);
-                Assert.GreaterOrEqual(Bounds(gold).yMin, scorePlate.yMax - 1, at + ": the score's gain starts just above its plate");
+                // Just above the plate, or over its pictogram where the safe area leaves no room above.
+                float room = board.View.Layout.Frame.yMax - scorePlate.yMax;
+                Assert.GreaterOrEqual(Bounds(gold).yMin, room >= Bounds(gold).height + BoardView.GainRiseDp ? scorePlate.yMax - 1 : scorePlate.yMin,
+                    at + ": the score's gain starts by its plate's top");
+                Assert.Less(Bounds(gold).center.x, scorePlate.center.x, at + ": over the pictogram, clear of the count");
                 Assert.LessOrEqual(Bounds(cyan).xMax, hud.Plates[1].xMin + 1, at + ": the objective's gain rises beside its plate");
                 var left = gold.rectTransform.anchoredPosition; var right = cyan.rectTransform.anchoredPosition;
                 yield return new WaitForSecondsRealtime(.4f);

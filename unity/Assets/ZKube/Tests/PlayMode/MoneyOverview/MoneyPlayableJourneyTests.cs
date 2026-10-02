@@ -23,7 +23,7 @@ namespace ZKube.Tests.MoneyOverview
             var board = host.GetComponent<MoneyBoardHost>().Board;
             yield return BoardReady();
             Assert.That(board.Session.Daily, Is.False);
-            Click("Reroll action"); yield return BoardAccepted(1);
+            Click("Reroll action"); yield return null; Click("Dialog " + BoardController.RerollConfirm); yield return BoardAccepted(1);
             Click("Pause"); yield return null;
             Click("Dialog End run"); yield return null;
             Click("Dialog End run"); yield return BoardFinished();
@@ -48,7 +48,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return BoardReady();
             var board = host.GetComponent<MoneyBoardHost>().Board;
             Assert.That(board.Session.Daily, Is.True);
-            Click("Reroll action"); yield return BoardAccepted(1);
+            Click("Reroll action"); yield return null; Click("Dialog " + BoardController.RerollConfirm); yield return BoardAccepted(1);
             Click("Pause"); yield return null;
             Click("Dialog End run"); yield return null;
             Click("Dialog End run"); yield return BoardFinished();

@@ -84,7 +84,7 @@ namespace ZKube.Presentation.Tests
                 var position = Board.View.Layout.CellCenter(step.row, step.column);
                 Tap(position);
             }
-            else if (step.operation == NativeOperation.RequestReroll) Click("Reroll action");
+            else if (step.operation == NativeOperation.RequestReroll) { Click("Reroll action"); yield return null; Click("Dialog " + BoardController.RerollConfirm); }
             else if (step.operation == NativeOperation.Finish && step.reason == 3)
             {
                 Click("Pause"); yield return null; Click("Dialog End run"); yield return null; Click("Dialog End run");

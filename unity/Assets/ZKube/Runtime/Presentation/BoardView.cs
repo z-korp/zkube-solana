@@ -33,6 +33,11 @@ namespace ZKube.Presentation
         private readonly Image[] stars = new Image[3], starHalos = new Image[3], starRings = new Image[3];
         private readonly GoalPlate[] plates = new GoalPlate[3];
         private SkinTablet guardianTablet, rerollTablet;
+        private Image guardianGlow, guardianWash, promptPlate;
+        private TMP_Text prompt;
+        private readonly Dictionary<SkinTablet, Image> capRings = new Dictionary<SkinTablet, Image>();
+        public bool BonusChosen { get; private set; }
+        public string PromptText => prompt == null ? "" : prompt.text;
         private GameObject bubble;
         private TMP_Text pressure, best, timeLeft;
         private Image pressureFill, bestCrown;
@@ -254,12 +259,25 @@ namespace ZKube.Presentation
             var face = Layout.PauseFace; float inner = face.width * 10 / BoardLayout.PauseDp;
             ui.Piece("Pause icon", SkinSlots.IconPause, new Rect(face.x + inner, face.y + inner, face.width - 2 * inner, face.height - 2 * inner), pause.transform);
             Earn(root);
+            // A chosen power stands on a gold glow, its face washed gold, until it is used or put back.
+            var chosen = Layout.GuardianButton; float around = .9f * chosen.width;
+            guardianGlow = ui.Rect<Image>("Guardian action glow", new Rect(chosen.x - around, chosen.y - around, chosen.width + 2 * around, chosen.height + 2 * around), root);
+            guardianGlow.sprite = art.SkinUi(SkinSlots.FxGlow); guardianGlow.raycastTarget = false;
+            guardianGlow.color = art.Token(SkinTokens.Accent); guardianGlow.enabled = false;
             guardianTablet = HudTablet("Guardian action", Layout.GuardianButton, owner.SelectGuardian, root);
             rerollTablet = HudTablet("Reroll action", Layout.RerollButton, owner.Reroll, root);
+            // (A tint only darkens the dark plate; the wash is light laid over it.)
+            guardianWash = ui.Piece("Guardian action chosen", SkinSlots.FxGlow, new Rect(chosen.x - .35f * chosen.width, chosen.y - .35f * chosen.height, 1.7f * chosen.width, 1.7f * chosen.height), guardianTablet.transform);
+            guardianWash.transform.SetAsFirstSibling();
+            guardianWash.color = art.Token(SkinTokens.Accent); guardianWash.enabled = false;
 
             statusPlate = ui.Piece("Action status plate", SkinSlots.Plate, hud.Status, root);
             status = ui.Label("Action status", "", hud.Status, hud.StatusPt, SkinTokens.Text, root);
             statusPlate.enabled = false;
+            // The chosen power's prompt has its own plate, so nothing that clears a notice hides it.
+            promptPlate = ui.Piece("Bonus prompt plate", SkinSlots.Plate, hud.Status, root);
+            prompt = ui.Label("Bonus prompt", "", hud.Status, hud.StatusPt, SkinTokens.Text, root);
+            promptPlate.enabled = false;
             // This always-rendered transparent surface already has a canvas
             // depth when a dialog opens. It catches the opening frame while new
             // dialog graphics are waiting for their first rendered layout.
@@ -373,6 +391,8 @@ namespace ZKube.Presentation
             var count = ui.Label(name + " label", "", badgeRect, 12, SkinTokens.TextOnPrimary, face.transform, SkinUi.Type.Number);
             var tablet = face.gameObject.AddComponent<SkinTablet>();
             tablet.Bind(button, glyph, halo, badgeHalo, badge, count, art.Token(SkinTokens.TextOnPrimary), art.Token(SkinTokens.Text));
+            var ring = ui.Piece(name + " full ring", SkinSlots.FxRingSoft, new Rect(badgeRect.x - 4 * d, badgeRect.y - 4 * d, pip + 8 * d, pip + 8 * d), face.transform);
+            ring.color = art.Token(SkinTokens.Accent); ring.enabled = false; capRings[tablet] = ring;
             return tablet;
         }
         // Sizes a text's underpaint to the words it actually holds.
@@ -442,8 +462,28 @@ namespace ZKube.Presentation
             rerollTablet.Icons(art.SkinUi(SkinSlots.IconReroll), art.SkinUi(SkinSlots.IconRerollEmpty));
             guardianTablet.Show(state.BonusCharges, available);
             rerollTablet.Show(state.RerollCharges, available);
+            ShowCap(guardianTablet, state.BonusCharges); ShowCap(rerollTablet, state.RerollCharges);
             NeedsTextReflow = new[] { moves, score, objective, earnCaption }
                 .Any(label => label != null && label.gameObject.activeInHierarchy && label.GetPreferredValues(label.text, label.rectTransform.rect.width, float.PositiveInfinity).y > label.rectTransform.rect.height + .5f);
+        }
+        // The chosen guardian power: its tablet stands lit on a gold glow and the
+        // board says what to tap. Both follow the controller's choice, through
+        // any redraw.
+        public void Choose(bool chosen)
+        {
+            BonusChosen = chosen;
+            guardianGlow.enabled = chosen; guardianWash.enabled = chosen;
+            prompt.text = chosen ? BoardNotices.Prompt(owner.State.BonusType) : "";
+            promptPlate.enabled = chosen;
+        }
+        // A full tablet says so: its badge reads the count over the cap, in a gold ring.
+        private void ShowCap(SkinTablet tablet, int charges)
+        {
+            bool full = charges >= Protocol.ChargeCap;
+            capRings[tablet].enabled = full;
+            tablet.Count.enableWordWrapping = false;
+            tablet.Count.text = full ? charges + "/" + Protocol.ChargeCap : charges.ToString();
+            tablet.Count.fontSize = (full ? 9.5f : 12) * Layout.Density * ui.Scale;
         }
         public void Status(string text)
         {
@@ -460,9 +500,18 @@ namespace ZKube.Presentation
         public static string ComboText(int lines) => lines >= ComboLines ? "COMBO ×" + lines : null;
         public const float ComboSeconds = 1.6f, PerfectSeconds = 1.9f, PerfectDelay = .16f, GainSeconds = .9f, GainRiseDp = 22;
         public const string FullNote = "Full";
-        public void ShowGains(uint scoreGain, ulong themeGain, int lines, bool reducedMotion, bool perfectClear = false, bool rerollGranted = false)
+        public void ShowGains(uint scoreGain, ulong themeGain, int lines, bool reducedMotion, bool perfectClear = false, bool rerollGranted = false,
+            int bonusEarned = 0, bool bonusFull = false)
         {
             float d = Layout.Density;
+            // An earned guardian charge rises from its tablet; an earn the full
+            // tablet could not take says so instead of passing unseen.
+            if (bonusEarned > 0)
+            {
+                var power = Layout.GuardianButton; var foot = new Vector2(power.center.x, power.yMax + 2 * d);
+                if (bonusFull) Gain("Accepted bonus cap", FullNote, foot, SkinTokens.Accent, 14, reducedMotion);
+                else Gain("Accepted bonus chip", "+" + bonusEarned, foot, SkinTokens.Accent, 18, reducedMotion);
+            }
             if (scoreGain > 0)
             {
                 if (!reducedMotion) StartCoroutine(CountScore(scoreShown + scoreGain));
@@ -1196,6 +1245,8 @@ namespace ZKube.Presentation
         private void Update()
         {
             ShowAwaiting(Time.unscaledTime);
+            if (guardianGlow != null && guardianGlow.enabled)
+                guardianGlow.color = SkinUi.WithAlpha(guardianGlow.color, owner.ReducedMotion ? 1 : .8f + .2f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f));
             if (owner != null && owner.State != null) Breathe(Time.unscaledTime);
             ShowTimeLeft();
             if (guardian == null) return;

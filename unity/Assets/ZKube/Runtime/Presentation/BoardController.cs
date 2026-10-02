@@ -175,7 +175,7 @@ namespace ZKube.Presentation
         }
         private void CreateView()
         {
-            lastSafe = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height);
+            lastSafe = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height); askingReroll = false;
             if (View != null) { View.gameObject.SetActive(false); Destroy(View.gameObject); }
             var root = new GameObject("Realm " + art.RealmId + " board presentation"); root.transform.SetParent(transform, false);
             View = root.AddComponent<BoardView>();
@@ -204,7 +204,7 @@ namespace ZKube.Presentation
             State = NativeEngine.Summary(Session.Accepted);
             View.SetBoard(State.Grid); View.SetPreview(State.HasNextRow, State.NextRow);
             View.Summary(State, Session, HostInputEnabled && !busy && !paused && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
-            View.Status("");
+            View.Status(""); View.Choose(guardianSelected);
         }
 
         public void BeginDrag(int pointer, Vector2 position)
@@ -262,12 +262,28 @@ namespace ZKube.Presentation
         {
             if (!HostInputEnabled || !PresentationInitialized || State == null || busy || paused || recoveryRequired || State.BonusCharges == 0 || IsTerminal()) return;
             guardianSelected = !guardianSelected;
-            View.Status(guardianSelected ? BoardNotices.Text(State.BonusType == 2 ? BoardNotice.Totem : State.BonusType == 3 ? BoardNotice.Wave : BoardNotice.Hammer) : "");
+            View.Choose(guardianSelected);
         }
+        // The reroll asks first: what it does, in a few plain words, then spends the charge.
+        public const string RerollTitle = "New next row?", RerollDetail = "Swap the row waiting below for a new one. Uses one reroll.",
+            RerollConfirm = "Reroll", RerollKeep = "Keep it";
+        private bool askingReroll;
+        public bool AskingReroll => askingReroll;
         public void Reroll()
         {
             if (!HostInputEnabled || !PresentationInitialized || State == null || busy || paused || recoveryRequired || State.RerollCharges == 0 || IsTerminal()) return;
-            Submit(new BoardAction(BoardActionKind.Reroll));
+            askingReroll = true; guardianSelected = false; View.Choose(false);
+            View.OpenModal(RerollTitle, RerollDetail, (RerollConfirm, ConfirmReroll), (RerollKeep, KeepRow));
+        }
+        public void ConfirmReroll()
+        {
+            if (!askingReroll) return;
+            KeepRow(); Submit(new BoardAction(BoardActionKind.Reroll));
+        }
+        private void KeepRow()
+        {
+            if (!askingReroll) return;
+            askingReroll = false; View.CloseModal();
         }
         private async void ResolveOpening()
         {
@@ -282,7 +298,7 @@ namespace ZKube.Presentation
         {
             if (!HostInputEnabled || !PresentationInitialized || Session == null || busy || recoveryRequired || IsTerminal()) return;
             busy = true; guardianSelected = false; queued = null;
-            failure = null;
+            failure = null; View.Choose(false);
             View.Summary(State, Session, false); View.Status(""); View.Awaiting(true);
             try
             {
@@ -333,7 +349,7 @@ namespace ZKube.Presentation
             if (!result.Token.Config.SequenceEqual(Session.Accepted.Config))
                 throw new InvalidOperationException("Accepted response belongs to another run configuration");
             var final = NativeEngine.Summary(result.Token);
-            byte previousStars = State.LatchedStarSources;
+            byte previousStars = State.LatchedStarSources, previousCharges = State.BonusCharges, previousEarned = State.ChargesEarned;
             uint previousScore = Session.Daily ? State.DailyScore : State.Score;
             ulong previousTheme = State.ObjectiveTotal;
             bool changed = !result.Token.State.SequenceEqual(Session.Accepted.State);
@@ -364,7 +380,11 @@ namespace ZKube.Presentation
             var perfect = transition.Events.FirstOrDefault(e => e.Kind == PresentationKind.PerfectClear);
             View.ShowGains(acceptedScore > previousScore ? acceptedScore - previousScore : 0,
                 Session.Daily && State.ObjectiveTotal > previousTheme ? State.ObjectiveTotal - previousTheme : 0,
-                lines, ReducedMotion, perfect != null, perfect != null && perfect.Payload[0] == 1);
+                lines, ReducedMotion, perfect != null, perfect != null && perfect.Payload[0] == 1,
+                // What the guardian's trigger earned, and whether the full tablet took all of it.
+                State.ChargesEarned - previousEarned,
+                State.ChargesEarned > previousEarned && State.BonusCharges == Protocol.ChargeCap
+                    && State.BonusCharges - previousCharges + (transition.Events.Any(e => e.Kind == PresentationKind.BonusApplied) ? 1 : 0) < State.ChargesEarned - previousEarned);
             View.Summary(State, Session, false);
             View.Celebrate(previousStars, State.LatchedStarSources, lines, perfect != null);
             // One star sound for an action's newly earned stars; an ended run, which keeps none, earns none.
@@ -441,7 +461,7 @@ namespace ZKube.Presentation
             if (PresentationInitialized && Session != null && recoveryRequired) { ShowRecovery(); return; }
             if (!PresentationInitialized || Session == null || IsTerminal()) return;
             // The music plays on through a pause.
-            paused = true; queued = null; CancelDrag();
+            KeepRow(); paused = true; queued = null; CancelDrag();
             pauseDialog?.Close();
             pauseDialog = PauseDialog.Pause(View, art, State, Session, Resume, PauseRows(), () => {
                 pauseDialog?.Close();

@@ -64,7 +64,7 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(0, board.State.BonusCharges); Assert.IsFalse(board.View.GuardianEnabled);
             Assert.AreEqual(1, board.State.RerollCharges);
             uint before = board.State.ActionCounter;
-            evidence.Click("Reroll action");
+            evidence.Click("Reroll action"); board.ConfirmReroll();
             Assert.IsTrue(board.Busy);
             Assert.AreEqual(before, board.State.ActionCounter, "A clicked intent has not yet been accepted");
             Assert.AreEqual("", board.View.StatusText, "A pending action shows no protocol words");
@@ -222,7 +222,7 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-daily"); var original = board.Session;
             var provider = new UncertainProvider();
             board.Bind(new BoardSession(original.Accepted, original.Rules, provider, original.RealmId));
-            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action");
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action"); board.ConfirmReroll();
             yield return Wait(() => !board.Busy); Assert.IsTrue(board.RecoveryRequired);
             board.SetTextScale(1.3f); yield return null;
             Assert.IsTrue(board.View.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Recover run"));
@@ -239,7 +239,7 @@ namespace ZKube.Presentation.Tests
             yield return Load("realm-8-daily"); var original = board.Session;
             var provider = new UncertainProvider();
             board.Bind(new BoardSession(original.Accepted, original.Rules, provider, original.RealmId));
-            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action");
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action"); board.ConfirmReroll();
             yield return Wait(() => !board.Busy); yield return null;
             evidence.Click("Dialog Recover run"); provider.Result.SetResult(null);
             yield return Wait(() => !board.Busy); yield return null;
@@ -267,7 +267,7 @@ namespace ZKube.Presentation.Tests
             var accepted = board.Session.Accepted;
             board.Bind(new BoardSession(accepted, board.Session.Rules, new CrossedResponse(), board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            evidence.Click("Reroll action"); yield return Wait(() => !board.Busy);
+            evidence.Click("Reroll action"); board.ConfirmReroll(); yield return Wait(() => !board.Busy);
             CollectionAssert.AreEqual(accepted.Config, board.Session.Accepted.Config);
             CollectionAssert.AreEqual(accepted.State, board.Session.Accepted.State);
             Assert.IsFalse(board.View.RerollEnabled, "Unknown crossed acceptance must recover before retrying");
@@ -326,7 +326,7 @@ namespace ZKube.Presentation.Tests
             var held = new HeldAction(board.Session.Actions);
             board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, board.Session.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            evidence.Click("Reroll action"); Assert.IsTrue(board.Busy);
+            evidence.Click("Reroll action"); board.ConfirmReroll(); Assert.IsTrue(board.Busy);
             for (float end = Time.realtimeSinceStartup + BoardView.AwaitDelay * .5f; Time.realtimeSinceStartup < end;) yield return null;
             Assert.IsFalse(board.View.AwaitingShown, "A short wait shows nothing");
             for (float end = Time.realtimeSinceStartup + BoardView.AwaitDelay; Time.realtimeSinceStartup < end;) yield return null;
@@ -392,7 +392,7 @@ namespace ZKube.Presentation.Tests
             board.RefreshLayout(); yield return null;
             Assert.AreSame(events, EventSystem.current);
             Assert.AreEqual(1, UnityEngine.Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Count(l => l.enabled && l.gameObject.activeInHierarchy));
-            evidence.Click("Reroll action"); yield return Wait(() => !board.Busy);
+            evidence.Click("Reroll action"); board.ConfirmReroll(); yield return Wait(() => !board.Busy);
             Assert.AreEqual(0, board.State.RerollCharges);
         }
 

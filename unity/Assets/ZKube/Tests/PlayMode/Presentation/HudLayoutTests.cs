@@ -787,7 +787,7 @@ namespace ZKube.Presentation.Tests
                 view.Status(notice); Fits(Label("Action status"));
                 Assert.AreSame(view, board.View, "Status changes use space reserved before gameplay");
             }
-            evidence.Click("Reroll action"); Assert.IsTrue(board.Busy);
+            evidence.Click("Reroll action"); board.ConfirmReroll(); Assert.IsTrue(board.Busy);
             yield return null; Fits(Label("Action status"));
             Assert.AreSame(view, board.View, "Pending feedback must not rebuild the board");
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));

@@ -16,15 +16,17 @@ namespace ZKube.Presentation
             {
                 case BoardNotice.Waiting: return "Waiting for a run";
                 case BoardNotice.Queued: return "Swipe queued";
-                case BoardNotice.Totem: return "Tap a block to choose its size";
-                case BoardNotice.Wave: return "Tap a row for Wave";
-                case BoardNotice.Hammer: return "Tap a block for Hammer";
+                case BoardNotice.Totem: return "Tap a block to clear its size";
+                case BoardNotice.Wave: return "Tap a row to clear it";
+                case BoardNotice.Hammer: return "Tap a block to break it";
                 case BoardNotice.Unavailable: return "That move is unavailable";
                 case BoardNotice.Recover: return "Unable to complete the action · recover the run";
                 case BoardNotice.Recovering: return "Checking your last move…";
                 default: throw new ArgumentOutOfRangeException(nameof(notice));
             }
         }
+        // What a chosen guardian bonus asks for next.
+        public static string Prompt(byte bonus) => Text(bonus == 2 ? BoardNotice.Totem : bonus == 3 ? BoardNotice.Wave : BoardNotice.Hammer);
         public static IEnumerable<string> All()
         {
             foreach (BoardNotice notice in Enum.GetValues(typeof(BoardNotice))) yield return Text(notice);

@@ -298,6 +298,13 @@ fn protocol(catalog: &CampaignCatalog) -> String {
         "        public const uint PressureStep = {PRESSURE_STEP};"
     )
     .unwrap();
+    // The most guardian charges, and the most rerolls, a run holds.
+    writeln!(
+        output,
+        "        public const byte ChargeCap = {};",
+        zkube_core::BONUS_CHARGE_CAP
+    )
+    .unwrap();
     writeln!(
         output,
         "        public static uint PressureMultiplierPercent(byte tier) => {PRESSURE_MULTIPLIER_BASE_PERCENT}U + {PRESSURE_MULTIPLIER_STEP_PERCENT}U * tier;"
