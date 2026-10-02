@@ -44,6 +44,8 @@ namespace ZKube.Presentation.Tests
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board) && !board.Busy);
         }
         private TMP_Text Label(string name) => board.View.GetComponentsInChildren<TMP_Text>().SingleOrDefault(t => t.name == name);
+        // A cue's words lie inside the holder its motion and fade act on.
+        private static RectTransform Holder(TMP_Text label) => (RectTransform)label.transform.parent;
         private static Rect Bounds(TMP_Text label)
         {
             var corners = new Vector3[4]; label.rectTransform.GetWorldCorners(corners);
@@ -57,6 +59,21 @@ namespace ZKube.Presentation.Tests
                 at + ": " + label.name + " " + rect + " stays in the safe area " + frame);
             Assert.IsFalse(rect.Overlaps(view.Layout.Board), at + ": " + label.name + " is not inside the board");
             Assert.Less(Mathf.Abs(rect.center.x - plate.center.x), plate.width, at + ": " + label.name + " rises by its plate");
+            AssertOutlined(label, at);
+        }
+        // Every cue reads over any block colour: its words stand in a dark
+        // outline, eight ink copies around the coloured fill.
+        private static void AssertOutlined(TMP_Text label, string at)
+        {
+            var copies = Holder(label).GetComponentsInChildren<TMP_Text>().Where(t => t.name == label.name + " outline").ToArray();
+            Assert.AreEqual(8, copies.Length, at + ": " + label.name + " has its outline");
+            foreach (var copy in copies)
+            {
+                Assert.AreEqual(label.text, copy.text); Assert.AreEqual(label.fontSize, copy.fontSize, .01f);
+                Assert.Less(((Color)copy.color).grayscale, .15f, at + ": the outline is dark"); Assert.Greater(((Color)label.color).grayscale, .5f, at + ": the fill is bright");
+                Assert.GreaterOrEqual(copy.rectTransform.anchoredPosition.magnitude, 1.4f, at + ": the outline has weight");
+                Assert.Less(copy.transform.GetSiblingIndex(), label.transform.GetSiblingIndex(), at + ": under the fill");
+            }
         }
         private IEnumerator InputWhileCueAppears()
         {
@@ -89,7 +106,7 @@ namespace ZKube.Presentation.Tests
                 Assert.IsNull(Label("Accepted perfect clear"));
                 yield return InputWhileCueAppears();
                 Assert.IsTrue(ZKube.Tests.Presentation.BoardTestState.Settled(board.View, board.State.Grid), at + ": the callout follows the blocks");
-                Assert.AreEqual("PERFECT", Label("Accepted perfect clear").text);
+                Assert.AreEqual("PERFECT", Label("Accepted perfect clear").text); AssertOutlined(Label("Accepted perfect clear"), at);
                 Assert.IsFalse(Label("Accepted perfect clear").raycastTarget);
                 Assert.AreEqual(scenario.Item2 ? 2 : 3, board.State.RerollCharges);
                 var chip = Label("Accepted reroll chip"); var full = Label("Accepted reroll cap");
@@ -100,9 +117,9 @@ namespace ZKube.Presentation.Tests
                 var tablet = board.View.Layout.RerollButton;
                 Assert.GreaterOrEqual(Bounds(note).yMin, tablet.yMax - 1, at + ": the note stands over the reroll tablet");
                 Assert.Less(Mathf.Abs(Bounds(note).center.x - tablet.center.x), tablet.width / 2, at);
-                var start = note.rectTransform.anchoredPosition;
+                var start = Holder(note).anchoredPosition;
                 yield return new WaitForSecondsRealtime(.35f);
-                Assert.AreEqual(reduced, Vector2.Distance(start, note.rectTransform.anchoredPosition) < .01f, at + ": only normal motion rises");
+                Assert.AreEqual(reduced, Vector2.Distance(start, Holder(note).anchoredPosition) < .01f, at + ": only normal motion rises");
                 Assert.IsFalse(root.GetComponentsInChildren<AudioSource>().Any(s => s.isPlaying), "Mute applies to accepted effects");
                 yield return Wait(() => !board.Busy);
                 yield return Gone("Accepted perfect clear", "Accepted reroll chip", "Accepted reroll cap");
@@ -131,17 +148,19 @@ namespace ZKube.Presentation.Tests
                 Assert.IsFalse(gold.raycastTarget); Assert.IsFalse(cyan.raycastTarget);
                 var hud = board.View.Hud; var scorePlate = hud.Campaign ? hud.Plates[0] : hud.Crown;
                 AbovePlate(board.View, gold, scorePlate, at); AbovePlate(board.View, cyan, hud.Plates[1], at);
-                // Just above the plate, or over its pictogram where the safe area leaves no room above.
-                float room = board.View.Layout.Frame.yMax - scorePlate.yMax;
-                Assert.GreaterOrEqual(Bounds(gold).yMin, room >= Bounds(gold).height + BoardView.GainRiseDp ? scorePlate.yMax - 1 : scorePlate.yMin,
-                    at + ": the score's gain starts by its plate's top");
-                Assert.Less(Bounds(gold).center.x, scorePlate.center.x, at + ": over the pictogram, clear of the count");
-                Assert.LessOrEqual(Bounds(cyan).xMax, hud.Plates[1].xMin + 1, at + ": the objective's gain rises beside its plate");
-                var left = gold.rectTransform.anchoredPosition; var right = cyan.rectTransform.anchoredPosition;
+                // "+N" starts just above the score's own numerals, centred on them (lower only
+                // where the safe area leaves no room above them).
+                var number = Label("Score"); number.ForceMeshUpdate();
+                var ink = number.textBounds; var top = (Vector2)number.rectTransform.TransformPoint(new Vector3(ink.center.x, ink.max.y));
+                float d = board.View.Layout.Density;
+                Assert.AreEqual(top.x, Bounds(gold).center.x, 2 * d, at + ": centred on the score's numerals, not its pictogram");
+                bool room = board.View.Layout.Frame.yMax - top.y >= Bounds(gold).height;
+                if (room) Assert.AreEqual(top.y, Bounds(gold).yMin, 2 * d, at + ": it starts at the numerals' top");
+                else Assert.LessOrEqual(Bounds(gold).yMax, board.View.Layout.Frame.yMax + .5f, at);
+                var left = Holder(gold).anchoredPosition; var right = Holder(cyan).anchoredPosition;
                 yield return new WaitForSecondsRealtime(.4f);
-                Assert.AreEqual(reduced, Vector2.Distance(left, gold.rectTransform.anchoredPosition) < .01f);
-                Assert.AreEqual(reduced, Vector2.Distance(right, cyan.rectTransform.anchoredPosition) < .01f);
-                if (!reduced) Assert.Greater(gold.rectTransform.anchoredPosition.y, left.y, "The gain rises");
+                Assert.AreEqual(reduced || !room, Vector2.Distance(left, Holder(gold).anchoredPosition) < .01f);
+                Assert.AreEqual(reduced, Vector2.Distance(right, Holder(cyan).anchoredPosition) < .01f);
                 while (gold != null || cyan != null)
                 {
                     if (gold != null) AbovePlate(board.View, gold, scorePlate, at);
@@ -192,6 +211,15 @@ namespace ZKube.Presentation.Tests
         // phone, the emulator's default and the Seeker, at both text sizes.
         [UnityTest] public IEnumerator CalloutsAreBigAnimatedAndCentredOnEveryPhone()
         {
+            // The old client's motion: in from nothing with a turn, past its size (1.4),
+            // settled and held at 1.1, a swell, then up and out.
+            Assert.AreEqual(0, BoardView.CalloutPose(0).scale); Assert.AreEqual(0, BoardView.CalloutPose(0).alpha);
+            Assert.AreEqual(1.4f, BoardView.CalloutPose(.1f).scale, .001f); Assert.AreEqual(1, BoardView.CalloutPose(.1f).alpha, .001f);
+            foreach (float held in new[] { .2f, .4f, .6f, .72f })
+            { Assert.AreEqual(1.1f, BoardView.CalloutPose(held).scale, .001f); Assert.AreEqual(0, BoardView.CalloutPose(held).rise, .001f); Assert.AreEqual(1, BoardView.CalloutPose(held).alpha, .001f); }
+            Assert.AreEqual(1.2f, BoardView.CalloutPose(.86f).scale, .001f);
+            Assert.AreEqual(1, BoardView.CalloutPose(1).rise, .001f); Assert.AreEqual(0, BoardView.CalloutPose(1).alpha, .001f);
+            Assert.AreNotEqual(0, BoardView.CalloutPose(.05f).turn);
             yield return Load("realm-8-daily", false);
             var art = (BoardArt)typeof(BoardController).GetField("art", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(board);
             board.View.gameObject.SetActive(false);
@@ -213,7 +241,10 @@ namespace ZKube.Presentation.Tests
                         var combo = view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "Accepted combo");
                         Assert.AreEqual("PERFECT", perfect.text); Assert.AreEqual("COMBO ×4", combo.text);
                         var boardRect = view.Layout.Board; float peak = 0, shown = 0;
-                        var places = new[] { perfect.rectTransform.anchoredPosition, combo.rectTransform.anchoredPosition };
+                        var places = new[] { Holder(perfect).anchoredPosition, Holder(combo).anchoredPosition };
+                        AssertOutlined(perfect, at); AssertOutlined(combo, at);
+                        Assert.AreEqual(art.Token(ZKube.Core.Generated.SkinTokens.Accent), (Color)perfect.color, at + ": PERFECT is gold");
+                        float lifted = 0, turned = 0;
                         bool captured = false;
                         for (float began = Time.realtimeSinceStartup; perfect != null || combo != null;)
                         {
@@ -222,20 +253,24 @@ namespace ZKube.Presentation.Tests
                             {
                                 StringAssert.Contains("LilitaOne", cue.font.name, at + ": the display face");
                                 Assert.GreaterOrEqual(cue.fontSize, 30 * text * Mathf.Min(1, boardRect.width / 320), at + ": " + cue.name + " is big");
-                                Assert.AreEqual(boardRect.center.x, cue.rectTransform.position.x, 1, at + ": centred over the board");
-                                Assert.IsTrue(cue.rectTransform.position.y > boardRect.yMin && cue.rectTransform.position.y < boardRect.yMax, at + ": over the board");
+                                Assert.AreEqual(boardRect.center.x, Holder(cue).position.x, 1, at + ": centred over the board");
+                                Assert.IsTrue(Holder(cue).position.y > boardRect.yMin && Holder(cue).position.y < boardRect.yMax, at + ": over the board");
                                 cue.ForceMeshUpdate();
                                 Assert.LessOrEqual(cue.GetPreferredValues(cue.text, float.PositiveInfinity, float.PositiveInfinity).x * 1.4f, boardRect.width, at + ": " + cue.name + " fits the board at its largest");
                                 Assert.IsFalse(cue.raycastTarget);
                                 if (reduced)
                                 {
-                                    Assert.AreEqual(Vector3.one, cue.rectTransform.localScale, at + ": no scale");
-                                    Assert.AreEqual(Quaternion.identity, cue.rectTransform.localRotation, at + ": no turn");
-                                    Assert.AreEqual(places[cue == perfect ? 0 : 1], cue.rectTransform.anchoredPosition, at + ": no movement");
+                                    Assert.AreEqual(Vector3.one, Holder(cue).localScale, at + ": no scale");
+                                    Assert.AreEqual(Quaternion.identity, Holder(cue).localRotation, at + ": no turn");
+                                    Assert.AreEqual(places[cue == perfect ? 0 : 1], Holder(cue).anchoredPosition, at + ": no movement");
                                 }
                             }
-                            if (perfect != null && combo != null) Assert.Greater(perfect.rectTransform.position.y, combo.rectTransform.position.y, at + ": PERFECT stands over the combo");
-                            if (combo != null) { peak = Mathf.Max(peak, combo.rectTransform.localScale.x); shown = Mathf.Max(shown, combo.alpha); }
+                            if (perfect != null && combo != null) Assert.Greater(Holder(perfect).position.y, Holder(combo).position.y, at + ": PERFECT stands over the combo");
+                            if (combo != null)
+                            {
+                                peak = Mathf.Max(peak, Holder(combo).localScale.x); shown = Mathf.Max(shown, Holder(combo).GetComponent<CanvasGroup>().alpha);
+                                lifted = Mathf.Max(lifted, Holder(combo).anchoredPosition.y - places[1].y); turned = Mathf.Max(turned, Mathf.Abs(Mathf.DeltaAngle(0, Holder(combo).localEulerAngles.z)));
+                            }
                             if (!captured && text == 1 && Time.realtimeSinceStartup - began > .6f)
                             {
                                 captured = true;
@@ -244,7 +279,11 @@ namespace ZKube.Presentation.Tests
                             yield return null;
                         }
                         Assert.AreEqual(1, shown, .05f, at + ": the callout shows fully");
-                        if (!reduced) Assert.Greater(peak, 1.25f, at + ": the callout punches in past its size");
+                        if (!reduced)
+                        {
+                            Assert.Greater(peak, 1.15f, at + ": the callout swells past its size");
+                            Assert.Greater(turned, 4, at + ": it turns as it lands"); Assert.Greater(lifted, 4, at + ": it rises as it leaves");
+                        }
                         UnityEngine.Object.Destroy(child); yield return null;
                     }
             board.View.gameObject.SetActive(true);

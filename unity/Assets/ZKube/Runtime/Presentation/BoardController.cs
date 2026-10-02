@@ -281,16 +281,15 @@ namespace ZKube.Presentation
             guardianSelected = !guardianSelected;
             View.Choose(guardianSelected);
         }
-        // The reroll asks first: what it does, in a few plain words, then spends the charge.
-        public const string RerollTitle = "New next row?", RerollDetail = "Swap the row waiting below for a new one. Uses one reroll.",
-            RerollConfirm = "Reroll", RerollKeep = "Keep it";
+        // The reroll asks first, on a small sheet over its tablet: the question, its cost, two verbs.
+        public const string RerollTitle = "New next row?", RerollDetail = "Uses 1 reroll.", RerollConfirm = "Reroll", RerollKeep = "Keep";
         private bool askingReroll;
         public bool AskingReroll => askingReroll;
         public void Reroll()
         {
             if (!HostInputEnabled || !PresentationInitialized || State == null || busy || paused || recoveryRequired || State.RerollCharges == 0 || IsTerminal()) return;
             askingReroll = true; guardianSelected = false; View.Choose(false);
-            View.OpenModal(RerollTitle, RerollDetail, (RerollConfirm, ConfirmReroll), (RerollKeep, KeepRow));
+            View.OpenSheet(View.Layout.RerollButton, RerollTitle, RerollDetail, (RerollConfirm, ConfirmReroll), (RerollKeep, KeepRow));
         }
         public void ConfirmReroll()
         {

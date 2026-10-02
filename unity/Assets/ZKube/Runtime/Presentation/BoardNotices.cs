@@ -16,7 +16,7 @@ namespace ZKube.Presentation
             {
                 case BoardNotice.Waiting: return "Waiting for a run";
                 case BoardNotice.Queued: return "Swipe queued";
-                case BoardNotice.Totem: return "Tap a block to clear its size";
+                case BoardNotice.Totem: return "Tap a size to clear it";
                 case BoardNotice.Wave: return "Tap a row to clear it";
                 case BoardNotice.Hammer: return "Tap a block to break it";
                 case BoardNotice.Unavailable: return "That move is unavailable";

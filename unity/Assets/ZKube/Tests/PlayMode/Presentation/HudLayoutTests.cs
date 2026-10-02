@@ -218,6 +218,83 @@ namespace ZKube.Presentation.Tests
             }
             finally { board.State.LatchedStarSources = saved; board.View.Summary(board.State, board.Session, true); }
         }
+        // Review 2: one layout for every HUD plate. On the three phones, in both
+        // HUDs: a row plate's pictogram stands the same distance from the plate's
+        // left, top and bottom edges; the value area starts one gap after it and
+        // ends that same distance from the right edge; the value is drawn in that
+        // area, its numerals centred; a tablet centres its pictogram and its value.
+        [UnityTest] public IEnumerator EveryPlateSpacesItsPictogramAndValueByOneRule()
+        {
+            foreach (string fixture in new[] { "realm-1-campaign", "realm-8-campaign", "realm-8-daily", "realm-1-daily" })
+            {
+                evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                board.View.gameObject.SetActive(false);
+                foreach (var (name, screen, safe, density) in Screens(1, true))
+                {
+                    var host = new GameObject("Plate view"); host.transform.SetParent(root.transform);
+                    try
+                    {
+                        var ui = new SkinUi(Art(), density, 1);
+                        var plan = HudLayout.Build(ui, board.State, board.Session, safe, density, screen);
+                        var view = host.AddComponent<BoardView>(); view.Create(board, Art(), plan, ui);
+                        view.Summary(board.State, board.Session, true); Canvas.ForceUpdateCanvases();
+                        float unit = plan.K * density;
+                        Assert.GreaterOrEqual(view.PlateParts.Count, 4, fixture + " on " + name);
+                        foreach (var part in view.PlateParts)
+                        {
+                            string at = fixture + " on " + name + ", " + part.Name; var rule = part.Layout; var plate = rule.Plate;
+                            bool column = part.Name == "Moves tablet";
+                            if (part.Icon != null)
+                            {
+                                var icon = WorldRect(part.Icon);
+                                if (column)
+                                {
+                                    Assert.AreEqual(plate.center.x, icon.center.x, .5f, at + ": the pictogram is centred");
+                                    Assert.AreEqual(rule.Inset, plate.yMax - icon.yMax, .5f, at + ": under the top inset");
+                                }
+                                else
+                                {
+                                    float left = icon.xMin - plate.xMin, bottom = icon.yMin - plate.yMin, top = plate.yMax - icon.yMax;
+                                    Assert.AreEqual(left, top, .5f, at + ": the pictogram's left and top insets"); Assert.AreEqual(left, bottom, .5f, at + ": its left and bottom insets");
+                                    Assert.AreEqual(rule.Inset, left, .5f, at);
+                                    Assert.AreEqual(PlateLayout.GapDp * unit, rule.Value.xMin - icon.xMax, .5f, at + ": one gap to the value");
+                                    Assert.AreEqual(left, plate.xMax - rule.Value.xMax, .5f, at + ": the value ends the same distance from the right edge");
+                                }
+                            }
+                            else Assert.AreEqual(plate.xMax - rule.Value.xMax, rule.Value.xMin - plate.xMin, .5f, at + ": a value alone is centred between equal insets");
+                            if (part.Value == null) continue;
+                            var drawn = WorldRect(part.Value.rectTransform);
+                            if (part.Name != "Pressure plate")
+                            {
+                                Assert.AreEqual(rule.Number.x, drawn.x, .5f, at + ": the value is drawn in the value area"); Assert.AreEqual(rule.Number.width, drawn.width, .5f, at);
+                                Assert.AreEqual(rule.Number.y, drawn.y, .5f, at); Assert.AreEqual(rule.Number.height, drawn.height, .5f, at);
+                            }
+                            Assert.AreEqual(rule.Value.center.x, drawn.center.x, .5f, at + ": centred on the value area");
+                            if (string.IsNullOrEmpty(part.Value.text)) continue;
+                            part.Value.ForceMeshUpdate(); var ink = Ink(part.Value);
+                            Assert.AreEqual(drawn.center.x, ink.center.x, 2 * density, at + ": the numerals are centred, " + ink + " in " + drawn);
+                            Assert.IsTrue(ink.xMin >= plate.xMin && ink.xMax <= plate.xMax && ink.yMin >= plate.yMin - 1 && ink.yMax <= plate.yMax + 1, at + ": the numerals stay on the plate");
+                        }
+                        // Plates of one kind share one inset: the goal plates among themselves.
+                        var goals = view.PlateParts.Where(part => part.Name.StartsWith("Goal plate ", StringComparison.Ordinal)).Select(part => part.Layout.Inset).Distinct().ToArray();
+                        Assert.LessOrEqual(goals.Length, 1, fixture + " on " + name + ": the goal plates share one inset");
+                        if (!plan.Campaign && view.GetComponentsInChildren<Image>().Any(image => image.name == "Best badge"))
+                        {
+                            // The best badge is centred over the score's value, straddling the plate's top edge.
+                            var score = view.PlateParts.Single(part => part.Name == "Score plate");
+                            Assert.AreEqual(score.Layout.Value.center.x, plan.Best.center.x, Mathf.Max(.5f, plan.Best.xMax - plan.Crown.xMax + .5f), fixture + " on " + name + ": the best badge over the number");
+                            Assert.IsTrue(plan.Best.yMin < plan.Crown.yMax && plan.Best.yMax > plan.Crown.yMax, fixture + " on " + name + ": it straddles the plate's top edge");
+                            Assert.LessOrEqual(plan.Best.xMax, plan.Crown.xMax + .5f);
+                        }
+                        if (fixture.EndsWith("-daily", StringComparison.Ordinal) || fixture == "realm-1-campaign")
+                            { yield return null; yield return ZKube.Tests.Presentation.Captures.Snap(screen, "plates-" + fixture + "-" + name.Replace(" ", "")); }
+                    }
+                    finally { UnityEngine.Object.Destroy(host); }
+                    yield return null;
+                }
+                board.View.gameObject.SetActive(true);
+            }
+        }
         // DECISIONS 2026-10-02: a streak goal ("clear a line on N moves in a row")
         // shows a bar that fills a move at a time and resets, not dots.
         [UnityTest] public IEnumerator AStreakGoalShowsABarThatFillsAndResets()
@@ -401,7 +478,16 @@ namespace ZKube.Presentation.Tests
                     Debug.Log($"HUD {at}: cell {cell:0.0} dp of {widest:0.0}, guardian {plan.Guardian.width / density:0.0} dp, k {plan.K:0.00}, header {(safe.yMax - layout.Rim.yMax) / density:0.0} dp");
                     if (name == "Seeker") Assert.AreEqual(Mathf.Floor(widest * density) / density, cell, .01f, at + ": the cells take the width");
                     if (name == "emulator") Assert.GreaterOrEqual(cell, 46, at + ": the cells grow into the old header");
-                    Assert.LessOrEqual(plan.Guardian.width / density, HudLayout.GuardianMaxDp + .01f, at + ": the guardian is drawn smaller");
+                    // Review 2: the guardian grows into the header without the board giving a pixel.
+                    float header = (safe.yMax - layout.Rim.yMax) / density;
+                    var (cells, rim) = name == "Seeker" ? (50.0f, 197.6f) : name == "emulator" ? (47.0f, 140.9f) : (34.33f, 98.6f);
+                    Assert.AreEqual(cells, cell, .05f, at + ": the board's cells are as they were"); Assert.AreEqual(rim, header, .15f, at + ": the board's top is where it was");
+                    Assert.LessOrEqual(plan.Guardian.width / density, HudLayout.GuardianMaxDp + .01f, at);
+                    if (name != "360 x 640") Assert.GreaterOrEqual(plan.Guardian.width / density, plan.Campaign ? 140 : 120, at + ": the guardian takes the header's free space");
+                    // Its painted figure stays between the tablet and the plates, under the crown.
+                    var figure = new Rect(plan.Guardian.x + HudLayout.GuardianSideMargin * plan.Guardian.width, layout.Rim.yMax,
+                        (1 - 2 * HudLayout.GuardianSideMargin) * plan.Guardian.width, plan.Guardian.yMax - .13f * plan.Guardian.height - layout.Rim.yMax);
+                    foreach (var piece in Header(plan)) Assert.IsFalse(piece.Overlaps(new Rect(figure.x + 1, figure.y + 1, figure.width - 2, figure.height - 2)), at + ": the guardian " + figure + " overlaps " + piece);
                     Assert.GreaterOrEqual(plan.Guardian.width / density, 72, at + " keeps its guardian");
                     Assert.AreEqual(layout.Rim.center.x, plan.Guardian.center.x, .5f, at + ": the guardian is centred on the frame");
                     Assert.AreEqual(layout.Rim.yMax - density - (1 - Art().GuardianRailY) * plan.Guardian.height, plan.Guardian.y, .5f, at + ": the guardian leans on the frame");
