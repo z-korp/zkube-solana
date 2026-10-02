@@ -379,13 +379,41 @@ namespace ZKube.Tests
             Assert.That(summary.Realm, Is.EqualTo(3)); Assert.That(summary.Stars, Is.Zero);
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
-            Assert.That(Texts(), Does.Contain("Realm 3 of 10 · Level 21"));
+            Assert.That(Texts(), Does.Contain("Realm 3 of 10"));
             // The lockup wears the colours of the day's Daily realm.
             var art = app.GetComponent<PageShell>().Artwork;
             Assert.That(art.RealmId, Is.EqualTo(app.DailyPage().Realm));
             Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite, Is.EqualTo(art.SkinRealm("wordmark-realms")));
             Click(app, "Play level 21"); yield return Page(StorePage.Level);
             Assert.That(app.Flow.Realm, Is.EqualTo(3)); Assert.That(app.Flow.Level, Is.EqualTo(1));
+        }
+        // The Campaign card's place line sits on one line at every phone size, at
+        // its longest: the last realm, with the last level on the button under it.
+        [UnityTest] public IEnumerator HomeCampaignCardLineStaysOnOneLineAtItsLongestOnEveryPhone()
+        {
+            product.Write(state => { for (int i = 0; i < state.Stars.Length - 1; i++) state.Stars[i] = 3; state.CampaignOwned = true; return state; });
+            var shell = app.GetComponent<PageShell>();
+            foreach (var (phone, name) in new (System.Action<PageShell>, string)[] {
+                (value => ZKube.Tests.Presentation.Phones.Compact(value), "360 x 640"), (value => ZKube.Tests.Presentation.Phones.EmulatorDefault(value), "emulator default"),
+                (value => ZKube.Tests.Presentation.Phones.Seeker(value), "Seeker") })
+            {
+                phone(shell);
+                try
+                {
+                    app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+                    app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
+                    Assert.That(FindButton(app, "Play level 100"), Is.Not.Null, name);
+                    foreach (string piece in new[] { "Campaign line", "Campaign guardian name" })
+                    {
+                        var text = app.GetComponentsInChildren<TMP_Text>().Single(value => value.name == piece);
+                        if (piece == "Campaign line") Assert.That(text.text, Is.EqualTo("Realm 10 of 10"));
+                        text.ForceMeshUpdate();
+                        Assert.That(text.textInfo.lineCount, Is.EqualTo(1), name + ": " + piece + " wraps \"" + text.text + "\"");
+                        Assert.That(text.preferredWidth, Is.LessThanOrEqualTo(text.rectTransform.rect.width + 1), name + ": " + piece + " overflows");
+                    }
+                }
+                finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+            }
         }
         // At the larger text size on a 360 x 640 phone (its safe area as the
         // device reports it), Home is taller than the space between the
