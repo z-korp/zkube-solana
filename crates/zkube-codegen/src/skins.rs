@@ -627,6 +627,23 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    // A cleared level's tier is told by its picture alone: bronze, silver and
+    // gold are three different pictures in every realm of the shipped skin.
+    #[test]
+    fn the_cleared_tiers_are_three_pictures_in_every_realm() {
+        let skin = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/skins/lumen");
+        for realm in 1..=10 {
+            let tier = |stars: u8| {
+                fs::read(skin.join(format!("realm-{realm}/map-node-done-{stars}.png"))).unwrap()
+            };
+            let (bronze, silver, gold) = (tier(1), tier(2), tier(3));
+            assert!(
+                bronze != silver && silver != gold && bronze != gold,
+                "realm {realm} tells its cleared tiers apart"
+            );
+        }
+    }
+
     #[test]
     fn every_realm_declares_its_own_block_tints_and_light() {
         let root = fixture("realm-tokens");

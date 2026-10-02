@@ -421,8 +421,9 @@ count. build.py gives each skin UI kit and skin realm its own atlas with the
 authored stretch borders. `every_skin_fills_every_ui_and_realm_slot`,
 `every_realm_declares_its_own_block_tints_and_light`, `every_realm_places_its_key_light_shafts_and_motes`,
 `paintings_are_jpeg_and_everything_with_alpha_is_png`,
-`EverySkinMustCoverEveryRealm`, `test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders` and
-`TheMapTellsItsNodesApartAndItsGuardianIsTheBoss` guard the contract. Kit art carries no seam or stray highlight;
+`EverySkinMustCoverEveryRealm`, `test_skin_ui_and_realm_slots_import_into_their_own_atlases_with_borders`,
+`the_cleared_tiers_are_three_pictures_in_every_realm` and `TheMapTellsItsNodesApartAndItsGuardianIsTheBoss` guard
+the contract. Kit art carries no seam or stray highlight;
 `NoSlicedKitPieceShowsASeamAtItsSliceLinesAtTwiceItsSize` and
 `test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
 
