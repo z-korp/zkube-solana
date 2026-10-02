@@ -101,8 +101,10 @@ namespace ZKube.Tests.Presentation
             File.WriteAllText(file, dump.ToString());
         }
 
-        // How far a guardian's canvas top stands over what it leans on.
-        private static float GuardianStand(Rect canvas) => ScreenKit.GuardianStand * canvas.width;
+        // How far a guardian's canvas top stands over what it leans on: the
+        // wireframe draws the rail at .833 of the canvas, a guardian's art at its own.
+        private const float WireframeRail = .833f;
+        public static float GuardianRail = WireframeRail;
         // Holds a page's pieces to the wireframe's, within Tolerance dp. A title
         // is its plate less the plate's 6u outset above and below; a guardian is
         // its canvas's left, top and width (the wireframe's box stops at the
@@ -134,8 +136,8 @@ namespace ZKube.Tests.Presentation
                     if (role == "talk") { Near(w.yMax, h.yMax, "bottom"); continue; }
                     if (role == "guardians" && expected["talk"].HasValues)
                     {
-                        Near(GuardianStand(w), (float)expected["talk"][0][1] - w.y, "stand");
-                        Near(GuardianStand(w), got["talk"][0].y - h.y, "stand");
+                        Near(WireframeRail * w.width, (float)expected["talk"][0][1] - w.y, "the wireframe's stand");
+                        Near(GuardianRail * h.width, got["talk"][0].y - h.y, "stand");
                         continue;
                     }
                     // A page's top hangs TopClearDp and the plate's outset under the
@@ -174,6 +176,7 @@ namespace ZKube.Tests.Presentation
                 var pieces = Pieces(root.transform, shell.ScreenArea, 1);
                 Dump(page, pieces);
                 yield return Captures.Snap(shell, "wireframe " + page);
+                GuardianRail = shell.Artwork.GuardianRailY;
                 if (page.StartsWith("greet")) Match(page, pieces, shell.ScreenArea, 1.1f, "guardians", "talk");
                 // The platform account names the player (DECISIONS 2026-10-02): the wireframe's quiet button is gone.
                 else if (page == "profile") Match(page, pieces, shell.ScreenArea, 1.1f, "titles", "cards", "stats", "tabs");

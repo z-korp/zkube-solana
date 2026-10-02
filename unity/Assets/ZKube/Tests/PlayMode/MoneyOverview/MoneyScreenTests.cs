@@ -61,6 +61,7 @@ namespace ZKube.Tests.MoneyOverview
             var pieces = WireframeGeometryTests.Pieces(host.transform, shell.ScreenArea, 1);
             WireframeGeometryTests.Dump("arena " + page, pieces);
             yield return Captures.Snap(shell, "wireframe arena " + page);
+            WireframeGeometryTests.GuardianRail = shell.Artwork.GuardianRailY;
             WireframeGeometryTests.Match(page, pieces, shell.ScreenArea, 1.1f, roles);
         }
         [UnityTest] public IEnumerator EveryArenaPageMatchesItsWireframe()

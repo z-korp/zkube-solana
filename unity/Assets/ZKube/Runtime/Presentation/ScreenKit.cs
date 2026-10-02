@@ -345,12 +345,11 @@ namespace ZKube.Presentation
         }
 
         // The guardian over its card (.gw then .card3): the c-wide canvas stands
-        // .833c above the card's top, which is where its rail line rests, the paws
+        // over the card's top by its own rail line, which rests there, the paws
         // drawn over the card's edge, its line in a bubble beside its head.
-        public const float GuardianStand = .833f;
         public Piece GuardianCard(string frame, string line, float sizeU, Piece card)
         {
-            float u = U, c = sizeU * u, above = GuardianStand * c;
+            float u = U, c = sizeU * u, above = Ui.Art.GuardianRailY * c;
             return new Piece(above + card.Height, rect => {
                 var cardRect = new Rect(rect.x, rect.y, rect.width, card.Height);
                 var canvas = new Rect(rect.center.x - c / 2, rect.yMax - c, c, c);
