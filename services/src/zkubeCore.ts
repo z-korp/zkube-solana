@@ -2,10 +2,14 @@
 // Protocol consumers decode only this
 // generated boundary rather than carrying TypeScript rule mirrors.
 import {
-  dayIdAt, nextScheduledDaily,
+  initSync, dayIdAt, nextScheduledDaily,
   dailyWindow as encodedDailyWindow,
   scheduledDailyWindow as encodedScheduledDailyWindow, compareBoardEntries as wasmCompareBoardEntries,
 } from "../zkube-core/zkube_core.js";
+import module from "./zkubeCoreWasm.js";
+
+// One binding serves Node and the Worker; only the module's source differs.
+initSync({ module });
 export { dayIdAt, nextScheduledDaily };
 
 export function dailyWindow(day: number) {

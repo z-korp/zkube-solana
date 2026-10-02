@@ -34,10 +34,11 @@ namespace ZKube.Integration.Client
         private readonly TransactionPlanner addresses;
         private readonly SolanaRpcTransport rpc;
         private readonly Func<long> now;
+        private readonly StandingsTransport standings;
         public ProductQueries(ClientIdentity identity, AccountBindings accounts, TransactionPlanner addresses,
-            SolanaRpcTransport rpc, Func<long> now)
+            SolanaRpcTransport rpc, Func<long> now, StandingsTransport standings = null)
         { this.identity = identity; this.accounts = accounts; this.addresses = addresses; this.rpc = rpc;
-            this.now = now; }
+            this.now = now; this.standings = standings; }
 
         public Task<MoneyRead<PlayerProfile>> Profile(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
@@ -77,9 +78,38 @@ namespace ZKube.Integration.Client
             var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
             string dailyStatus = daily == null ? "missing" : DailyStatus(daily, timestamp);
             return new DailyBoards(day, dailyStatus,
-                Board(day, "score", read.Accounts[1].Envelope, daily, lease.Owner, timestamp),
-                Board(day, "theme", read.Accounts[2].Envelope, daily, lease.Owner, timestamp));
+                await WithPublicStandings(day, Board(day, "score", read.Accounts[1].Envelope, daily, lease.Owner, timestamp), lease.Owner, token).ConfigureAwait(false),
+                await WithPublicStandings(day, Board(day, "theme", read.Accounts[2].Envelope, daily, lease.Owner, timestamp), lease.Owner, token).ConfigureAwait(false));
         });
+
+        // A sealed board keeps its paying rows; the ranks below them live only in
+        // the public read model. Its answer is shown only where it agrees with
+        // the board: the same qualified count, ranks after the board's rows, and
+        // no result above the last one the board holds. Anything else, or no
+        // answer, leaves the board exactly as the chain gave it.
+        private async Task<PrizeBoard> WithPublicStandings(uint day, PrizeBoard board, string owner, CancellationToken token)
+        {
+            var account = board.Account;
+            if (standings == null || account == null || !account.Sealed || account.QualifiedCount <= board.Rows.Count) return board;
+            uint held = (uint)board.Rows.Count, total = account.QualifiedCount;
+            ulong ceiling = held == 0 ? ulong.MaxValue : board.Rows[board.Rows.Count - 1].Metric;
+            bool Agrees(PublicStandings answer) => answer != null && answer.Total == total && answer.Rows.All(row =>
+                row.Rank > held && row.Rank <= total && row.Metric > 0 && row.Metric <= ceiling &&
+                board.Rows.All(paid => paid.Record.Player != row.Player));
+            var page = await standings.Rows(day, board.Kind, held, token).ConfigureAwait(false);
+            if (!Agrees(page) || page.Rows.Count != Math.Min(total - held, StandingsTransport.PageRows) ||
+                page.Rows.Where((row, index) => row.Rank != held + 1 + (uint)index ||
+                    (index > 0 && row.Metric > page.Rows[index - 1].Metric)).Any() ||
+                page.Rows.Select(row => row.Player).Distinct().Count() != page.Rows.Count) return board;
+            var yours = board.Yours != null ? null : page.Rows.FirstOrDefault(row => row.Player == owner);
+            if (board.Yours == null && yours == null && total > held + page.Rows.Count)
+            {
+                var rank = await standings.Rank(day, board.Kind, owner, token).ConfigureAwait(false);
+                if (Agrees(rank) && rank.Rows[0].Player == owner && rank.Rows[0].Rank > held + page.Rows.Count &&
+                    rank.Rows[0].Metric <= page.Rows[page.Rows.Count - 1].Metric) yours = rank.Rows[0];
+            }
+            return board.WithPublic(page.Rows.ToArray(), yours);
+        }
 
         // A single-board action must not depend on the peer board being present.
         // Both the page and preflight use Board for binding, payouts and expiry.

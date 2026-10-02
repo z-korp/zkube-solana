@@ -1,7 +1,5 @@
-import { KEEPER_SCHEMA_VERSION } from "./keeperRelease.js";
 import { CADENCE_FUNDING_TWO_DAY_LAMPORTS } from "./protocolVersions.generated.js";
-import { randomUUID } from "node:crypto";
-
+import { utils } from "@anchor-lang/core";
 import {
   ComputeBudgetProgram,
   Keypair,
@@ -23,6 +21,8 @@ import {
 import {
   type ProtocolInstructionMaterializer,
 } from "./arcadeChain.js";
+
+export const KEEPER_SCHEMA_VERSION = 1 as const;
 
 export const KEEPER_LIMITS = Object.freeze({
   writes: 6, spendLamports: 100_000_000, reserveLamports: 100_000_000,
@@ -83,11 +83,28 @@ export interface KeeperPassResult {
   maximumSpendLamports: number;
 }
 
+/**
+ * The durable record of keeper writes. A write's spend is recorded before it
+ * is relayed and settled only on a definite outcome, so a write whose
+ * confirmation never arrived keeps counting against the next pass too.
+ */
+export interface KeeperLedger {
+  unsettledLamports(nowUnix: number): Promise<number>;
+  reserve(write: { operation: string; lamports: number; signature: string; nowUnix: number }):
+  Promise<(outcome: "confirmed" | "failed") => Promise<void>>;
+}
+
+/** How often and how long a relayed write is polled for its outcome. */
+export const KEEPER_CONFIRMATION = Object.freeze({ polls: 60, intervalMs: 1_000 });
+
 export interface KeeperDependencies {
   connection: Connection;
   keeper: Pick<Keypair, "publicKey"> & Partial<Pick<Keypair, "secretKey">>;
   writeEnabled?: boolean;
   now?: () => number;
+  traceId?: string;
+  ledger?: KeeperLedger;
+  wait?: (milliseconds: number) => Promise<void>;
   protocolSnapshot?: ProtocolSnapshot;
   protocolMaterializer?: ProtocolInstructionMaterializer;
   resolveEphemeralConnection?: (plan: KeeperInstructionPlan) => Promise<Connection>;
@@ -95,7 +112,7 @@ export interface KeeperDependencies {
 }
 
 export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPassResult> {
-  const traceId = randomUUID();
+  const traceId = input.traceId ?? crypto.randomUUID();
   const nowUnix = Math.floor((input.now?.() ?? Date.now()) / 1_000);
   const writeEnabled = input.writeEnabled ?? false;
   const maxWrites = KEEPER_LIMITS.writes;
@@ -146,6 +163,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   let plannedWrites = 0;
   let failures = 0;
   let spentLamports = 0;
+  const unsettledLamports = writeEnabled ? await input.ledger?.unsettledLamports(nowUnix) ?? 0 : 0;
   let attemptedWrites = 0;
   let resolvedPlans = 0;
   for (const plan of plans) {
@@ -233,7 +251,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       // Rent a write takes from cadence funding counts against the pass's
       // spend like the keeper's own lamports.
       const predicted = payerPredicted + fundingPredicted;
-      if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - spentLamports)) {
+      if (!keeperSpendWithinLimit(predicted, maximumSpendLamports - unsettledLamports - spentLamports)) {
         throw new Error("keeper spend ceiling reached");
       }
       if (before - payerPredicted < minimumBalanceLamports) {
@@ -242,12 +260,15 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       // Reserve the simulated spend before submission. An RPC timeout may still mean the write
       // landed, so its budget must never be reused during this pass.
       spentLamports += predicted;
+      const settle = await input.ledger?.reserve({ operation: plan.operation, lamports: predicted,
+        signature: utils.bytes.bs58.encode(transaction.signatures[0]!), nowUnix });
       const signature = await connection.sendRawTransaction(transaction.serialize(), {
         maxRetries: 5,
         skipPreflight: materialized.connection === "ephemeral-rollup",
       });
-      const confirmed = await connection.confirmTransaction({ ...latest, signature }, "confirmed");
-      if (confirmed.value.err) throw new Error(`confirmation failed: ${JSON.stringify(confirmed.value.err)}`);
+      const error = await writeOutcome(connection, signature, input.wait ?? wait);
+      await settle?.(error === null ? "confirmed" : "failed");
+      if (error !== null) throw new Error(`confirmation failed: ${JSON.stringify(error)}`);
       writes += 1;
       log({
         schemaVersion: KEEPER_SCHEMA_VERSION,
@@ -298,6 +319,27 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
   });
   return result;
 }
+
+/**
+ * Polls a relayed write until the cluster reports its outcome: null when it
+ * confirmed, its error when it landed and failed. Running out of polls is no
+ * outcome at all, and throws.
+ */
+async function writeOutcome(
+  connection: Connection,
+  signature: string,
+  pause: (milliseconds: number) => Promise<void>,
+): Promise<unknown> {
+  for (let poll = 0; poll < KEEPER_CONFIRMATION.polls; poll += 1) {
+    const status = (await connection.getSignatureStatuses([signature])).value[0];
+    if (status?.err) return status.err;
+    if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return null;
+    await pause(KEEPER_CONFIRMATION.intervalMs);
+  }
+  throw new Error("the write's outcome is unknown");
+}
+
+const wait = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 async function requiredEphemeralConnection(
   resolver: KeeperDependencies["resolveEphemeralConnection"],

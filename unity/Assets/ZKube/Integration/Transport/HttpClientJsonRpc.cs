@@ -25,12 +25,17 @@ namespace ZKube.Integration.Transport
             client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
         }
         public void Dispose() => client.Dispose();
-        public async Task<string> Post(Uri endpoint, string json, int maximumResponseBytes, CancellationToken cancellation)
+        public Task<string> Post(Uri endpoint, string json, int maximumResponseBytes, CancellationToken cancellation) =>
+            Send(new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = new StringContent(json, Encoding.UTF8, "application/json") },
+                maximumResponseBytes, cancellation);
+        public Task<string> Get(Uri endpoint, int maximumResponseBytes, CancellationToken cancellation) =>
+            Send(new HttpRequestMessage(HttpMethod.Get, endpoint), maximumResponseBytes, cancellation);
+        private async Task<string> Send(HttpRequestMessage message, int maximumResponseBytes, CancellationToken cancellation)
         {
+            using var request = message;
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             deadline.CancelAfter(requestTimeout);
             cancellation = deadline.Token;
-            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength > maximumResponseBytes) throw new FormatException("RPC response exceeds its bound");

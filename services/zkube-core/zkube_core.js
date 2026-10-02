@@ -9,7 +9,7 @@
  * @param {Uint8Array} right_owner
  * @returns {number}
  */
-function compareBoardEntries(left_metric, left_time, left_owner, right_metric, right_time, right_owner) {
+export function compareBoardEntries(left_metric, left_time, left_owner, right_metric, right_time, right_owner) {
     const ptr0 = passArray8ToWasm0(left_owner, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(right_owner, wasm.__wbindgen_malloc);
@@ -20,53 +20,49 @@ function compareBoardEntries(left_metric, left_time, left_owner, right_metric, r
     }
     return ret[0];
 }
-exports.compareBoardEntries = compareBoardEntries;
 
 /**
  * @param {number} day
  * @returns {BigInt64Array}
  */
-function dailyWindow(day) {
+export function dailyWindow(day) {
     const ret = wasm.dailyWindow(day);
     var v1 = getArrayI64FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
     return v1;
 }
-exports.dailyWindow = dailyWindow;
 
 /**
  * @param {bigint} timestamp
  * @returns {number}
  */
-function dayIdAt(timestamp) {
+export function dayIdAt(timestamp) {
     const ret = wasm.dayIdAt(timestamp);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return ret[0] >>> 0;
 }
-exports.dayIdAt = dayIdAt;
 
 /**
  * @param {number} day
  * @param {number} suspended
  * @returns {number}
  */
-function nextScheduledDaily(day, suspended) {
+export function nextScheduledDaily(day, suspended) {
     const ret = wasm.nextScheduledDaily(day, suspended);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return ret[0] >>> 0;
 }
-exports.nextScheduledDaily = nextScheduledDaily;
 
 /**
  * @param {number} day
  * @param {number} suspended
  * @returns {Uint32Array}
  */
-function scheduledDailyWindow(day, suspended) {
+export function scheduledDailyWindow(day, suspended) {
     const ret = wasm.scheduledDailyWindow(day, suspended);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
@@ -75,7 +71,6 @@ function scheduledDailyWindow(day, suspended) {
     wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
     return v1;
 }
-exports.scheduledDailyWindow = scheduledDailyWindow;
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -153,14 +148,110 @@ function takeFromExternrefTable0(idx) {
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
 cachedTextDecoder.decode();
+const MAX_SAFARI_DECODE_BYTES = 2146435072;
+let numBytesDecoded = 0;
 function decodeText(ptr, len) {
+    numBytesDecoded += len;
+    if (numBytesDecoded >= MAX_SAFARI_DECODE_BYTES) {
+        cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+        cachedTextDecoder.decode();
+        numBytesDecoded = len;
+    }
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 
 let WASM_VECTOR_LEN = 0;
 
-const wasmPath = `${__dirname}/zkube_core_bg.wasm`;
-const wasmBytes = require('fs').readFileSync(wasmPath);
-const wasmModule = new WebAssembly.Module(wasmBytes);
-let wasm = new WebAssembly.Instance(wasmModule, __wbg_get_imports()).exports;
-wasm.__wbindgen_start();
+let wasmModule, wasm;
+function __wbg_finalize_init(instance, module) {
+    wasm = instance.exports;
+    wasmModule = module;
+    cachedBigInt64ArrayMemory0 = null;
+    cachedUint32ArrayMemory0 = null;
+    cachedUint8ArrayMemory0 = null;
+    wasm.__wbindgen_start();
+    return wasm;
+}
+
+async function __wbg_load(module, imports) {
+    if (typeof Response === 'function' && module instanceof Response) {
+        if (typeof WebAssembly.instantiateStreaming === 'function') {
+            try {
+                return await WebAssembly.instantiateStreaming(module, imports);
+            } catch (e) {
+                const validResponse = module.ok && expectedResponseType(module.type);
+
+                if (validResponse && module.headers.get('Content-Type') !== 'application/wasm') {
+                    console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+
+                } else { throw e; }
+            }
+        }
+
+        const bytes = await module.arrayBuffer();
+        return await WebAssembly.instantiate(bytes, imports);
+    } else {
+        const instance = await WebAssembly.instantiate(module, imports);
+
+        if (instance instanceof WebAssembly.Instance) {
+            return { instance, module };
+        } else {
+            return instance;
+        }
+    }
+
+    function expectedResponseType(type) {
+        switch (type) {
+            case 'basic': case 'cors': case 'default': return true;
+        }
+        return false;
+    }
+}
+
+function initSync(module) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module !== undefined) {
+        if (Object.getPrototypeOf(module) === Object.prototype) {
+            ({module} = module)
+        } else {
+            console.warn('using deprecated parameters for `initSync()`; pass a single object instead')
+        }
+    }
+
+    const imports = __wbg_get_imports();
+    if (!(module instanceof WebAssembly.Module)) {
+        module = new WebAssembly.Module(module);
+    }
+    const instance = new WebAssembly.Instance(module, imports);
+    return __wbg_finalize_init(instance, module);
+}
+
+async function __wbg_init(module_or_path) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module_or_path !== undefined) {
+        if (Object.getPrototypeOf(module_or_path) === Object.prototype) {
+            ({module_or_path} = module_or_path)
+        } else {
+            console.warn('using deprecated parameters for the initialization function; pass a single object instead')
+        }
+    }
+
+    if (module_or_path === undefined) {
+        module_or_path = new URL('zkube_core_bg.wasm', import.meta.url);
+    }
+    const imports = __wbg_get_imports();
+
+    if (typeof module_or_path === 'string' || (typeof Request === 'function' && module_or_path instanceof Request) || (typeof URL === 'function' && module_or_path instanceof URL)) {
+        module_or_path = fetch(module_or_path);
+    }
+
+    const { instance, module } = await __wbg_load(await module_or_path, imports);
+
+    return __wbg_finalize_init(instance, module);
+}
+
+export { initSync, __wbg_init as default };

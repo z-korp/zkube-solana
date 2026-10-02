@@ -37,7 +37,8 @@ and distribution review.
 - **Ladder:** integer log-rank points for placing and a flat credit for qualifying. They pay no SOL and never
   decay.
 - **Execution:** runs play on a MagicBlock ephemeral rollup with VRF and settle on Solana. Replay commitments let
-  anyone recompute a result. A keeper handles cadence and recovery under separately approved limits.
+  anyone recompute a result. A keeper handles cadence and recovery under separately approved limits, and a
+  public read model serves the full standings without any authority over them.
 
 Campaign plays locally in both games and never touches money. On Arena, the packed star array on chain is the
 player's save, synchronized across their devices; stars grant no SOL, entries or prize eligibility.
@@ -54,7 +55,7 @@ working rules, the development environment, the locked protocol rules and operat
 | crates/zkube-core-ffi | Rust | The native byte boundary for Unity |
 | crates/zkube-codegen | Rust | Catalog and skin validation, and every generated file |
 | programs/solana | Anchor | Player records, Arcade lifecycle, accounting and settlement |
-| services | TypeScript | The keeper, with no inbound HTTP surface |
+| services | TypeScript | One Cloudflare Worker: the public standings read model and the keeper, which runs only on its schedule |
 | tools/chain, shared | TypeScript | Operator CLI, the checked-in program IDL and shared chain identity |
 | unity | Unity | Both Android identities; toolchain.json pins the editor and identities, tools/build.py runs Unity |
 | unity/Assets/ZKube | C# | Runtime (pages, board, kit, talk scene), Integration (Arena chain and wallet), Local (Realms saves and billing), Rendering, Android, Editor, Tests |

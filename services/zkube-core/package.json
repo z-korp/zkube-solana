@@ -1,5 +1,6 @@
 {
   "name": "zkube-core-host",
+  "type": "module",
   "description": "Safe native and keeper WASM boundary for the zKube core",
   "version": "0.1.0",
   "license": "Apache-2.0",
@@ -9,5 +10,8 @@
     "zkube_core.d.ts"
   ],
   "main": "zkube_core.js",
-  "types": "zkube_core.d.ts"
+  "types": "zkube_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
 }

@@ -82,6 +82,17 @@ namespace ZKube.Integration.Tests
             var result = await Reply(endpoint, request, cancellation);
             return new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"], ["result"] = result }.ToString();
         }
+        // The public read model's answer to a GET; absent, it is down.
+        public Func<Uri, string> Read;
+        public readonly ConcurrentQueue<Uri> Reads = new ConcurrentQueue<Uri>();
+        public Task<string> Get(Uri endpoint, int maximumResponseBytes, CancellationToken cancellation)
+        {
+            cancellation.ThrowIfCancellationRequested(); Reads.Enqueue(endpoint);
+            if (Read == null) throw new System.Net.Http.HttpRequestException("read model is down");
+            string body = Read(endpoint);
+            if (body.Length > maximumResponseBytes) throw new FormatException("response exceeds its bound");
+            return Task.FromResult(body);
+        }
         public static JObject Context(JToken value, ulong slot = 1000) =>
             new JObject { ["context"] = new JObject { ["slot"] = slot }, ["value"] = value };
         public void Dispose() { Disposed = true; }

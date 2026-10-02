@@ -118,7 +118,7 @@ namespace ZKube.Integration.Presentation
                 page.Blocks = blocks.ToArray();
                 return page;
             }
-            if (boards.All(board => board.Yours == null) && paid == null)
+            if (boards.All(board => board.Yours == null && board.Standing == null) && paid == null)
             {
                 blocks.Add(PanelBlock.Talk(boards.All(board => board.Rows.Count == 0) ? "No one placed on this day’s sealed boards." :
                     "You have no placed position on a sealed board for this day.", "idle"));
@@ -167,7 +167,9 @@ namespace ZKube.Integration.Presentation
                 default: detail = "Results are not available yet."; break;
             }
             var (icon, chip) = BoardIcon(board.Kind);
-            lines.Add(PanelBlock.Row(name + " position", board.Yours != null ? "Your place" : name, board.Yours == null ? null : "#" + board.Yours.Rank,
+            // Your place is the board's own row, or below its rows the public read model's rank.
+            uint? place = board.Yours?.Rank ?? board.Standing?.Rank;
+            lines.Add(PanelBlock.Row(name + " position", place.HasValue ? "Your place" : name, place.HasValue ? "#" + place.Value : null,
                 detail: detail, icon: icon, chip: chip));
             if (claim != null) lines.Add(claim);
             if (board.Rows.Count != 0 || isSealed)
@@ -202,7 +204,7 @@ namespace ZKube.Integration.Presentation
                 Shorter(PageAction(RewardName("theme"), () => { boardKind = "theme"; boardPage = 0; Present(); }, () => PageAvailable() && !Busy),
                     MoneyText.Board("theme", catalog)),
                 boardKind == "score" ? 0 : 1);
-            if (board.Rows.Count == 0)
+            if (board.Rows.Count == 0 && board.Unpaid.Count == 0)
             {
                 page.Blocks = new[] { toggle,
                     PanelBlock.Talk("No one has a positive result on this board. A run needs a result above zero to place.", "idle"),
@@ -210,21 +212,26 @@ namespace ZKube.Integration.Presentation
                 return page;
             }
             const int count = 5;
-            boardPage = Math.Max(0, Math.Min(boardPage, (board.Rows.Count - 1) / count));
+            // The board's own rows, then the ranks below them when the public read model has them.
+            var rows = board.Rows.Select(row => (row.Rank, row.Record.Player, row.Metric, Payout: (ulong?)row.PayoutLamports))
+                .Concat(board.Unpaid.Select(row => (row.Rank, row.Player, row.Metric, Payout: (ulong?)null))).ToArray();
+            boardPage = Math.Max(0, Math.Min(boardPage, (rows.Length - 1) / count));
             var lines = new List<PanelBlock> { PanelBlock.Eyebrow(name) };
-            if (board.Yours != null)
-                lines.Add(PanelBlock.Figure(name + " yours", "Your position", "#" + board.Yours.Rank + " · " + board.Yours.Metric.ToString("N0", CultureInfo.InvariantCulture)));
-            foreach (var row in board.Rows.Skip(boardPage * count).Take(count))
+            var yours = rows.Where(row => row.Player == identity.Owner).Select(row => (row.Rank, row.Metric))
+                .Concat(board.Standing == null ? Enumerable.Empty<(uint, ulong)>() : new[] { (board.Standing.Rank, board.Standing.Metric) }).Take(1).ToArray();
+            if (yours.Length != 0)
+                lines.Add(PanelBlock.Figure(name + " yours", "Your position", "#" + yours[0].Item1 + " · " + yours[0].Item2.ToString("N0", CultureInfo.InvariantCulture)));
+            foreach (var row in rows.Skip(boardPage * count).Take(count))
             {
-                string player = row.Record.Player == identity.Owner ? "You" : Short(row.Record.Player);
+                string player = row.Player == identity.Owner ? "You" : Short(row.Player);
                 lines.Add(PanelBlock.Row(name + " row " + row.Rank, "#" + row.Rank + "  " + player,
-                    row.Metric.ToString("N0", CultureInfo.InvariantCulture) + "  ·  " + Sol(row.PayoutLamports), SkinTokens.Objective));
+                    row.Metric.ToString("N0", CultureInfo.InvariantCulture) + (row.Payout.HasValue ? "  ·  " + Sol(row.Payout.Value) : ""), SkinTokens.Objective));
             }
             var blocks = new List<PanelBlock> { toggle, PanelBlock.Card(name + " rows", lines.ToArray()),
                 PanelBlock.Text("Board rule", "One best run per player on each board. Places are final once the board is sealed.", centered: false) };
-            if (boardPage > 0 || (boardPage + 1) * count < board.Rows.Count)
+            if (boardPage > 0 || (boardPage + 1) * count < rows.Length)
                 blocks.Add(PanelBlock.Pair(boardPage > 0 ? PageAction("Earlier rows", () => ChangeBoardRows(-1), () => PageAvailable() && !Busy) : null,
-                    (boardPage + 1) * count < board.Rows.Count ? PageAction("More rows", () => ChangeBoardRows(1), () => PageAvailable() && !Busy) : null));
+                    (boardPage + 1) * count < rows.Length ? PageAction("More rows", () => ChangeBoardRows(1), () => PageAvailable() && !Busy) : null));
             page.Blocks = blocks.ToArray();
             return page;
         }

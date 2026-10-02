@@ -1,0 +1,33 @@
+# The one Worker: the public read model and the keeper. Build it first with
+# `pnpm build`; wrangler uploads dist/worker as built.
+name = "zkube-arena"
+main = "../../dist/worker/worker.js"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+no_bundle = true
+find_additional_modules = true
+base_dir = "../../dist/worker"
+rules = [{ type = "CompiledWasm", globs = ["**/*.wasm"], fallthrough = false }]
+
+# The only way into the keeper pass and the catch-up walk.
+[triggers]
+crons = ["* * * * *"]
+
+# The deployed version's ID is the keeper release's identity.
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zkube-arena"
+database_id = "00000000-0000-0000-0000-000000000000" # the owner's database, set before deploying
+
+# Public values. The launch day and keeper key are part of the approved release.
+# Secrets (set with `wrangler secret put`, never here): SOLANA_DEVNET_RPC_URL,
+# WEBHOOK_SECRET, KEEPER_SECRET_KEY.
+[vars]
+ZKUBE_KEEPER_PUBLIC_KEY = ""
+ZKUBE_LAUNCH_DAY_ID = ""
+
+[observability]
+enabled = true

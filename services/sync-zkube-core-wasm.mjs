@@ -23,8 +23,10 @@ const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const crate = resolve(workspaceRoot, "crates/zkube-core-host");
 const builds = [
   {
-    label: "Node",
-    target: "nodejs",
+    // One binding for Node and for the Worker: the web target takes the
+    // module's bytes from its caller instead of reading a file itself.
+    label: "web",
+    target: "web",
     destination: resolve(workspaceRoot, "services/zkube-core"),
   },
 ];

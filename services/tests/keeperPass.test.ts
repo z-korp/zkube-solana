@@ -24,7 +24,10 @@ function pass(count = 7) {
       return { value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 999_995_000 }] } };
     }),
     sendRawTransaction: vi.fn(async () => { calls.push("send"); return "signature"; }),
-    confirmTransaction: vi.fn(async () => { calls.push("confirm"); return { value: { err: null } }; }),
+    getSignatureStatuses: vi.fn(async () => {
+      calls.push("confirm");
+      return { value: [{ err: null, confirmationStatus: "confirmed" }] };
+    }),
   };
   const input = {
     connection: connection as unknown as Connection, keeper, writeEnabled: true,
@@ -83,7 +86,7 @@ it("keeper_spend_is_reserved_even_when_confirmation_is_uncertain", async () => {
   connection.simulateTransaction.mockImplementation(async () => ({
     value: { err: null, unitsConsumed: 40_000, accounts: [{ lamports: 920_000_000 }] },
   }));
-  connection.confirmTransaction.mockRejectedValueOnce(new Error("timeout"));
+  connection.getSignatureStatuses.mockRejectedValueOnce(new Error("timeout"));
   const result = await runKeeperPass(input);
   expect(result.writes).toBe(0);
   expect(connection.sendRawTransaction).toHaveBeenCalledTimes(1);

@@ -31,11 +31,13 @@ it("keeper_and_operator_share_chain_identity_and_launch_day_bounds", () => {
 
 it("workspace_build_loads_keeper_idl_and_native_rules_offline", () => {
   const output = execFileSync(process.execPath, ["--input-type=module", "-e", `
-    import './dist/services/src/keeperWorker.js';
+    import './dist/services/src/keeper.js';
+    import './dist/services/src/worker/keeperJob.js';
     import './dist/services/src/zkubeCore.js';
     import { readFileSync } from 'node:fs';
     const idl = JSON.parse(readFileSync('./dist/tools/chain/idl/solana.json', 'utf8'));
     if (!idl.address || !idl.instructions.length) throw new Error('missing program interface');
+    for (const file of ['worker.js', 'zkube_core_bg.wasm']) readFileSync('./dist/worker/' + file);
     process.stdout.write('loaded');
   `], { cwd: fileURLToPath(root), encoding: "utf8", timeout: 15000,
     env: { PATH: process.env.PATH, NO_DNA: "1" } });

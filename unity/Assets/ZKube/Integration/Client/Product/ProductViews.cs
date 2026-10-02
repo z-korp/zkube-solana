@@ -5,6 +5,8 @@ using Newtonsoft.Json.Linq;
 using ZKube.Core;
 using ZKube.Core.Generated;
 
+using ZKube.Integration.Transport;
+
 namespace ZKube.Integration.Client
 {
     // Query values carry the viewing identity lease. There is no shared cache;
@@ -103,9 +105,16 @@ namespace ZKube.Integration.Client
         public IReadOnlyList<PrizeRow> Rows { get; }
         public PrizeRow Yours { get; }
         public ValidatedBoardAccount Account { get; }
+        // What the public read model adds to a sealed board, for display only:
+        // the ranks after the board's own rows, and your result when the board
+        // does not hold it. Empty and null whenever that model is unavailable.
+        public IReadOnlyList<PublicStandingRow> Unpaid { get; private set; } = Array.Empty<PublicStandingRow>();
+        public PublicStandingRow Standing { get; private set; }
         internal PrizeBoard(string kind, string status, string claim, long? expiresAt, PrizeRow[] rows, string owner, ValidatedBoardAccount account)
         { Kind = kind; Status = status; ClaimStatus = claim; ExpiresAt = expiresAt; Rows = Array.AsReadOnly(rows);
             Yours = rows.SingleOrDefault(row => row.Record.Player == owner); Account = account; }
+        internal PrizeBoard WithPublic(PublicStandingRow[] unpaid, PublicStandingRow standing)
+        { Unpaid = Array.AsReadOnly(unpaid); Standing = standing; return this; }
     }
     public sealed class DailyBoards
     {

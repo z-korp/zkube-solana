@@ -81,6 +81,7 @@ that class:
 | --- | --- |
 | Herdr | Terminal workspace for agents. Split a pane beside the caller with herdr pane split --current --direction right --no-focus, start a named agent with herdr agent start <name> --pane <id>, then send work with herdr agent prompt and follow it with herdr agent wait. |
 | Solana documentation MCP | https://mcp.solana.com/mcp: current Solana, Anchor and MagicBlock documentation for program and client chain work. |
+| Miniflare | Runs the built Worker and a real D1 database in the Workers runtime, offline, inside the pnpm tests. No wrangler command runs in routine work. |
 | Playwright MCP | A headless browser (Brave, driven as Chromium) for browser checks. |
 | Unity MCP relay | ~/.unity/relay/relay_linux --mcp, configured but disabled. Enable it only for work that drives a live Editor; builds, tests and imports still run through unity/tools/build.py. |
 | Blender MCP | ~/.local/bin/blender-mcp, for art tooling when an art task needs Blender. |
@@ -111,7 +112,8 @@ spending approval.
 | Campaign | Local play and synchronized reported stars; `record_campaign_stars_is_idempotent_and_touches_no_other_field` |
 | Arcade | Prepaid entries and Score/Theme boards; `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` |
 | Settlement | Boards sorted as runs are consumed, sealed at finalization, idempotent claims; `no_caller_can_choose_board_rows` |
-| Keeper | Twelve permissionless plan instructions, writes disabled pending approval; `keeper_allowlist_is_exactly_its_plans` |
+| Keeper | Twelve permissionless plan instructions, run from the Worker's Cron Trigger, writes disabled pending approval; `keeper_allowlist_is_exactly_its_plans` |
+| Read model | Full standings and discovery hints in the same Worker, never an authority; `indexer_ranks_agree_with_the_core_board_order` |
 
 ## Product truth and locked rules
 
@@ -547,9 +549,34 @@ recorded predecessor is the last member; a skipped suspended Daily leaves that c
 forwarded, so a gap is one step and no finalized Daily can be passed over. Daily closure requires root coverage;
 `archive_is_strictly_sequential`, `the_result_root_cannot_pass_over_a_finalized_daily`, `archives only the next
 Daily of the chain, never a later sealed one` and
-`sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard it. The ledger is the archive; indexing is a separate deployment decision. The keeper has no inbound HTTP or
-notification service; a missed notification never changes a claim window. Notification controls remain
-parked; any future notification is only a courtesy.
+`sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard it. The ledger is the archive. No
+notification service exists; a missed notification never changes a claim window, and any future notification
+is only a courtesy.
+
+One Cloudflare Worker (services/src/worker, schema in services/worker/schema.sql) holds the public read model
+and the keeper over one D1 database. The read model ingests the program's Base transactions, by webhook and
+by a bounded catch-up walk that closes any gap, and records every scored run from the `RunScored` log a
+consume writes, counted only while the zKube program is the one running: full standings and any wallet's rank, including ranks below the paying rows and days already
+closed. It is never an authority. The program's boards stay the leaderboard of record, claims read the chain,
+its answers say so, and a delivery adds only what the walk would. Whoever holds the webhook secret can add
+display rows and discovery hints and nothing else: no board, claim or keeper write reads them unverified. Its ranking is the core's board
+order. `indexer_records_every_scored_run_and_ranks_each_wallets_best_on_both_boards`,
+`a_result_counts_only_when_the_zkube_program_logged_it`, `indexer_ranks_agree_with_the_core_board_order`,
+`ingesting_again_or_in_another_order_leaves_the_same_rows`,
+`catch_up_walks_bounded_pages_and_reports_itself_incomplete_until_the_gap_closes`,
+`public_reads_serve_full_standings_and_any_wallets_rank_without_claiming_authority` and
+`the_webhook_needs_its_secret_and_only_adds_what_catch_up_would` guard it.
+
+The client reads a sealed board from the chain and asks the read model only for what that board no longer
+holds: the ranks after its rows and the player's own result below them. An answer is shown only where it agrees
+with the board (the same qualified count, ranks after the board's rows, no result above its last row); with no
+answer, or one that disagrees, the page shows the chain's board alone and nothing else changes. Claims never
+read it. `YourResultBelowThePaidRowsComesFromTheReadModelAndTheBoardStandsAloneWithoutIt` and
+`ABoardThatHoldsItsWholeFieldAsksTheReadModelNothing` guard the read.
+
+The keeper pass runs only from the Worker's Cron Trigger. The request path is handed the database and the
+webhook secret alone: no request can start a pass, reach the key or change the write switch.
+`a_fetch_cannot_start_a_keeper_pass_reach_the_key_or_change_the_write_switch` guards that boundary.
 
 Cadence prepares, activates or calls `skip_suspended_arena_daily`, finalizes, archives, expires claims and
 closes Daily/player accounts. Last-resort recovery finishes deadline runs, commits, consumes or expires
@@ -566,10 +593,11 @@ operation`, `keeps monetary, archive, and cleanup ordering stable`,
 `keeper_rule_boundaries_use_the_core_at_day_and_ordering_limits` and
 `BoardOrderingUsesTheCoreAtMetricAndTimestampBounds` guard the boundaries.
 
-Writes require explicit enablement and the approved fingerprint of immutable image, keeper key and launch
-day; program ID and IDL hash come from the build. `binds the image, keeper key and launch day while
-reporting build identity`, `pins loaded secret material to the configured public key` and `keeps writes
-fail-closed unless explicitly enabled` guard release identity. RPC checks cover Devnet, HTTPS, owner,
+Writes are off unless the owner's stored approval equals the fingerprint the running Worker computes from its
+deployed version, keeper key and launch day; any new deployment is a new version and plans only until it is
+approved again. Program ID and IDL hash come from the build. `binds the Worker version, keeper key and launch
+day while reporting build identity`, `pins loaded secret material to the configured public key` and `keeps
+writes fail-closed unless explicitly enabled` guard release identity. RPC checks cover Devnet, HTTPS, owner,
 bounded length, discriminator, version and field shape; plans stay in the recent cadence window. `requires
 the Devnet genesis and handles an unavailable RPC`, `requires HTTPS outside localhost`,
 `keeper_rpc_decoding_rejects_foreign_and_malformed_accounts`, `rejects a Router owner mismatch
@@ -579,12 +607,18 @@ placement.
 Run discovery follows play in flight: the players of recent Dailies with a paid run, and run accounts on Base.
 It never reads the lifetime set of profiles and has no population ceiling. A run that cannot be read is carried
 as unavailable and deferred to its recovery deadline while every other Daily and run is served.
-`keeper_discovery_follows_play_in_flight_and_defers_one_unreachable_run` guards both.
+`keeper_discovery_follows_play_in_flight_and_defers_one_unreachable_run` guards both. A read model that has
+completed a catch-up walk within the last five minutes replaces the account scan with the addresses it names;
+each is read from the chain, and one that is closed, foreign or malformed is dropped. Otherwise the keeper
+scans. `discovery_hints_follow_entry_consume_and_close_and_are_withheld_until_the_model_is_complete` and
+`keeper_reads_hinted_accounts_from_the_chain_and_drops_every_hint_it_cannot_verify` guard the hints.
 
 Every keeper message states its compute-unit limit: a first simulation under the transaction maximum sizes it,
 and the message carrying that limit is the one simulated again and relayed.
-`keeper_messages_carry_a_compute_budget_sized_from_simulation` guards the compiled message. The loop simulates
-before relay, reserves simulated spend even after uncertain confirmation, and enforces
+`keeper_messages_carry_a_compute_budget_sized_from_simulation` guards the compiled message. A D1 lease admits
+one pass at a time. Each pass simulates before relay, records the simulated spend in D1 before the bytes
+leave, settles it only on a definite outcome, counts a write whose outcome never arrived against the next
+pass while it can still land, and enforces
 the write count, the spend ceiling and the reserve floor from KEEPER_LIMITS; rent a write takes from cadence
 funding counts as spend. Each pass reports cadence funding against its worst case, two overlapping Dailies
 with full boards, which is also what the launch plan seeds; topping it up stays the owner's decision.
@@ -592,7 +626,10 @@ with full boards, which is also what the launch plan seeds; topping it up stays 
 `keeper_simulation_failure_and_reserve_floor_prevent_relay`,
 `keeper_spend_is_reserved_even_when_confirmation_is_uncertain` and
 `keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_rent_as_spend` guard the limits
-and the report.
+and the report; `keeper_lease_admits_one_pass_at_a_time_and_only_a_dead_pass_loses_it`,
+`keeper_ledger_reserves_before_relay_and_an_unsettled_write_counts_against_the_next_pass` and
+`the_scheduled_pass_simulates_reserves_relays_and_settles_a_write_inside_the_worker` guard the lease, the
+ledger and the pass in the Workers runtime.
 
 ## Operator procedures
 
@@ -629,11 +666,12 @@ keeper authority. The approval boundary above applies to every execution.
   selects an inclusive printed index;
   `operator_until_stops_after_the_requested_transaction_and_resumes_that_prefix` and
   `operator_until_is_an_inclusive_bounded_index_and_activation_requires_the_keeper` guard staging.
-- **Keeper release:** NO_DNA=1 pnpm release:deploy builds or selects an immutable image, saves
-  build/keeper-release.json, stages disabled writes and deploys. Review its read-only pass and fingerprint
-  before separately approving enablement;
-  `staged_launch_ready_requires_the_paused_protocol_and_both_unfunded_days` and
-  `keeper_release_deploy_saves_the_image_binding_and_disables_writes_before_deployment` guard that order.
+- **Worker release:** pnpm build writes dist/worker, which services/worker/wrangler.toml deploys as built. A
+  deployment needs its own approval and always starts planning only: each pass logs its release fingerprint.
+  Review that read-only pass, then separately approve enablement by storing the fingerprint in the
+  keeper_approval row; deleting the row stops writes at the next pass.
+  `staged_launch_ready_requires_the_paused_protocol_and_both_unfunded_days` and `keeps writes fail-closed unless
+  explicitly enabled` guard that order.
 
 ### Gate G1 — physical-device wallet compatibility
 

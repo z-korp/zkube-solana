@@ -24,8 +24,12 @@ namespace ZKube.Integration.App
         public string ExpectedGenesis { get; }
         // A mainnet endpoint for the Seeker ID a profile shows; none shows addresses.
         public string NameUri { get; }
-        public MoneyConnectionConfig(string baseUri, string routerUri, string expectedGenesis, string nameUri = null)
-        { BaseUri = baseUri; RouterUri = routerUri; ExpectedGenesis = expectedGenesis; NameUri = nameUri; }
+        // The public read model, or empty: the app then shows the chain's boards alone.
+        public string StandingsUri { get; }
+        public MoneyConnectionConfig(string baseUri, string routerUri, string expectedGenesis, string nameUri = null,
+            string standingsUri = null)
+        { BaseUri = baseUri; RouterUri = routerUri; ExpectedGenesis = expectedGenesis; NameUri = nameUri;
+            StandingsUri = standingsUri; }
         internal void Validate()
         {
             if (string.IsNullOrWhiteSpace(BaseUri) || string.IsNullOrWhiteSpace(RouterUri) || string.IsNullOrWhiteSpace(ExpectedGenesis))
@@ -35,6 +39,8 @@ namespace ZKube.Integration.App
                 throw new MoneyConfigurationException("unsupported-wallet-cluster");
             if (!ValidUri(BaseUri, out var baseAddress) || !ValidUri(RouterUri, out var routerAddress) || baseAddress == routerAddress)
                 throw new MoneyConfigurationException("invalid-base-router-endpoints");
+            if (!string.IsNullOrWhiteSpace(StandingsUri) && (!ValidUri(StandingsUri, out var standings) || !string.IsNullOrEmpty(standings.Query)))
+                throw new MoneyConfigurationException("invalid-standings-endpoint");
         }
         private static bool ValidUri(string value, out Uri uri) => Uri.TryCreate(value, UriKind.Absolute, out uri) &&
             uri.Scheme == Uri.UriSchemeHttps && string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Fragment);
@@ -96,7 +102,8 @@ namespace ZKube.Integration.App
             var recovery = new RunRecovery(Protocol.ProgramId, PlanningConstants.DelegationProgram, Accounts);
             Runs = new RunClient(Identity, SessionAccess, Accounts, Planner, Rpc, RunMarkers, recovery,
                 Journal, Executor, Reconciler, now, Protocol, runClientSeed);
-            Products = new ProductQueries(Identity, Accounts, Planner, Rpc, now);
+            Products = new ProductQueries(Identity, Accounts, Planner, Rpc, now,
+                string.IsNullOrWhiteSpace(config.StandingsUri) ? null : new StandingsTransport(http, config.StandingsUri));
             EntryReadiness = new DailyEntryReadinessQuery(Identity, SessionLifecycle, Accounts, Planner, Rpc, Journal, now);
             PublicDaily = new PublicDailyQuery(Accounts, Planner, Rpc, now);
             Economy = new EconomyClient(Identity, SessionAccess, Products, Planner, Journal, Executor, Reconciler);

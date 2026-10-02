@@ -26,7 +26,7 @@ const EXACT_ALLOWLIST = [
 ] as const;
 
 describe("keeper release binding", () => {
-  it("binds the image, keeper key and launch day while reporting build identity", () => {
+  it("binds the Worker version, keeper key and launch day while reporting build identity", () => {
     const input = releaseInput();
     const first = keeperReleaseRecord(input);
     expect(keeperReleaseRecord(input)).toEqual(first);
@@ -36,7 +36,7 @@ describe("keeper release binding", () => {
     for (const changed of [
       { ...input, keeperPublicKey: Keypair.generate().publicKey.toBase58() },
       { ...input, launchDayId: input.launchDayId + 1 },
-      { ...input, keeperImageReference: input.keeperImageReference.slice(0, -1) + "Y" },
+      { ...input, workerVersionId: input.workerVersionId.slice(0, -1) + "0" },
     ]) expect(keeperReleaseRecord(changed).fingerprint).not.toBe(first.fingerprint);
   });
 
@@ -47,8 +47,10 @@ describe("keeper release binding", () => {
       .toEqual(new Set(EXACT_ALLOWLIST));
   });
 
-  it("rejects mutable images and malformed release inputs", () => {
-    expect(() => keeperReleaseRecord({ ...releaseInput(), keeperImageReference: "latest" })).toThrow("Fly deployment");
+  it("rejects an unidentified deployment and malformed release inputs", () => {
+    for (const workerVersionId of ["", "latest", "0B8A2F6E-3C1D-4E5F-9A7B-1C2D3E4F5A6B"]) {
+      expect(() => keeperReleaseRecord({ ...releaseInput(), workerVersionId })).toThrow("Worker version");
+    }
     expect(() => keeperReleaseRecord({ ...releaseInput(), keeperPublicKey: "invalid" })).toThrow();
     for (const launchDayId of [-1, 0x100000000, 4.5]) {
       expect(() => keeperReleaseRecord({ ...releaseInput(), launchDayId })).toThrow("u32 day");
@@ -59,8 +61,7 @@ describe("keeper release binding", () => {
 function releaseInput() {
   return {
     keeperPublicKey: Keypair.generate().publicKey.toBase58(),
-    keeperImageReference:
-      "registry.fly.io/zkube-solana-devnet-keeper:deployment-01KY50T1AP5RKZ5K5ET0F50W9X",
+    workerVersionId: "0b8a2f6e-3c1d-4e5f-9a7b-1c2d3e4f5a6b",
     launchDayId: 20_656,
   };
 }

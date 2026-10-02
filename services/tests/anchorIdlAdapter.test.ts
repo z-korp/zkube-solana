@@ -134,6 +134,41 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
     expect(new Set(scanned)).toEqual(new Set([coder.memcmp("arenaPlayer").bytes, coder.memcmp("activeRun").bytes]));
   });
 
+  it("keeper_reads_hinted_accounts_from_the_chain_and_drops_every_hint_it_cannot_verify", async () => {
+    const fixtures = JSON.parse(readFileSync(new URL("../../fixtures/program-unity-v1.json", import.meta.url), "utf8"));
+    const coder = new BorshAccountsCoder(convertIdlToCamelCase(readIdl() as Idl));
+    const decode = (name: string, row: { data: string }) => coder.decode(name, Buffer.from(row.data, "base64"));
+    const { day, now } = fixtures.plans.inputs;
+    const protocol = decode("protocolConfig", fixtures.plans.accounts.protocol);
+    protocol.lastPreparedDay = day + 1;
+    const daily = decode("arenaDaily", fixtures.plans.accounts.daily);
+    const info = (data: Buffer, owner = ZKUBE_PROGRAM_ID) => ({ data, owner, executable: false, lamports: 1_000_000_000, rentEpoch: 0 });
+    const finished = decode("arenaPlayer", fixtures.closedPlayer.player);
+    const owner = finished.player as PublicKey;
+    finished.challenge = arenaDailyPda(day - 1);
+    const finishedData = await coder.encode("arenaPlayer", finished);
+    const real = arenaPlayerPda(arenaDailyPda(day - 1), owner);
+    const foreign = Keypair.generate().publicKey, closed = Keypair.generate().publicKey;
+    const values = new Map([
+      [protocolPda().toBase58(), info(await coder.encode("protocolConfig", protocol))],
+      [arenaDailyPda(day).toBase58(), info(await coder.encode("arenaDaily", daily))],
+      [real.toBase58(), info(finishedData)],
+      // The same bytes under another program: a forged hint.
+      [foreign.toBase58(), info(finishedData, SystemProgram.programId)],
+    ]);
+    const connection = {
+      getAccountInfo: async (address: PublicKey) => values.get(address.toBase58()) ?? null,
+      getMultipleAccountsInfo: async (addresses: PublicKey[]) =>
+        addresses.map((address) => values.get(address.toBase58()) ?? null),
+      getProgramAccounts: async () => { throw new Error("a complete read model replaces the scan"); },
+    } as unknown as Connection;
+    const adapter = await AnchorKeeperAdapter.create({ connection, nowUnix: now, launchDayId: protocol.launchDayId,
+      discovery: { arenaPlayers: [foreign, closed, real], runOwners: [Keypair.generate().publicKey] } });
+    const snapshot = await adapter.loadProtocolSnapshot();
+    expect(snapshot.closedArenaPlayers).toMatchObject([{ dayId: day - 1, owner }]);
+    expect(snapshot.runs).toEqual([]);
+  });
+
   it("a_closed_arena_player_returns_rent_to_its_payer", async () => {
     const fixtures = JSON.parse(readFileSync(new URL("../../fixtures/program-unity-v1.json", import.meta.url), "utf8"));
     const fixture = fixtures.closedPlayer;

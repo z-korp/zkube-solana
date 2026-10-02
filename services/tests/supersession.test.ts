@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /\bFly\.io\b|flyctl|FLY_IMAGE_REF|Dockerfile|immutable image|release:deploy|indexing is a separate deployment decision|keeper has no inbound HTTP/i, trees: AUTHORED,
+    reversal: "One Cloudflare Worker holds the read model and the keeper, bound to its deployed version" },
   { pattern: /board[ -]chunk|constructs boards|construction adds no funding|each board's sealing|funds exact final rent|Rewards open when this board is sealed/i, trees: AUTHORED,
     reversal: "Consuming a run keeps each board sorted; finalization seals both with their Daily" },
   { pattern: /\bTribal\b/i, trees: AUTHORED,
@@ -57,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "One target ladder and pressure formula own difficulty" },
   { pattern: /passive\s+(?:pairing|score|scoring|bonus|map|mutator|line-clear|perfect-clear)|neutral baseline|score at ×|perfect clears add|Start with .* (?:Totem|Hammer|Wave)/i, trees: SOURCE,
     reversal: "Realms own guardian rules without score multipliers or starting charges" },
-  { pattern: /move[- ](?:efficiency|percent(?:age)?) stars|second star grants|★★ awards|latch in order|contiguous star sources|while holding/i, trees: SOURCE,
-    reversal: "Campaign stars latch independently from score and constraints" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

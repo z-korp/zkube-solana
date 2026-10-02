@@ -179,6 +179,92 @@ pub fn consume(payer: Pubkey) -> Value {
     )
 }
 
+/// What the public read model ingests: the program's own instruction bytes
+/// and the log a scored consume writes.
+pub fn indexer() -> Value {
+    use anchor_lang::Event;
+    let daily = accounts::daily_address(DAY);
+    let entry = message(
+        "entry",
+        device(),
+        vec![instruction(
+            solana::instruction::EnterArena { run_id: RUN_ID },
+            solana::accounts::EnterArena {
+                protocol: accounts::singleton(PROTOCOL_CONFIG_SEED),
+                player_state: accounts::player_address(),
+                current_daily: daily,
+                arena_player: accounts::participant_address(DAY),
+                following_daily: accounts::daily_address(DAY + 1),
+                score_board: boards::address(DAY, DailyBoardKind::Score),
+                theme_board: boards::address(DAY, DailyBoardKind::Theme),
+                cadence_funding: accounts::singleton(CADENCE_FUNDING_SEED),
+                credit_vault: accounts::singleton(CREDIT_VAULT_SEED),
+                active_run: accounts::run_address(RUN_ID),
+                payer: device(),
+                owner_authority: owner(),
+                session_token: Some(accounts::session_address()),
+                actor: device(),
+                system_program: Pubkey::default(),
+            },
+        )],
+        true,
+    );
+    let finalize = message(
+        "finalize",
+        validator(),
+        vec![instruction(
+            solana::instruction::FinalizeArenaDaily {},
+            solana::accounts::FinalizeArenaDaily {
+                arena_daily: daily,
+                following_daily: accounts::daily_address(DAY + 1),
+                score_board: boards::address(DAY, DailyBoardKind::Score),
+                theme_board: boards::address(DAY, DailyBoardKind::Theme),
+                cadence_funding: accounts::singleton(CADENCE_FUNDING_SEED),
+                caller: validator(),
+            },
+        )],
+        false,
+    );
+    let close_player = message(
+        "close-entered-player",
+        validator(),
+        vec![instruction(
+            solana::instruction::CloseArenaPlayer {},
+            solana::accounts::CloseArenaPlayer {
+                arena_daily: daily,
+                arena_player: accounts::participant_address(DAY),
+                rent_recipient: device(),
+                caller: validator(),
+            },
+        )],
+        false,
+    );
+    let scored = |player: Pubkey, run_id: u64, score: u32, objective_total: u64, finalized_at: i64| {
+        let event = RunScored {
+            day_id: DAY,
+            run_id,
+            row: ArenaBoardEntry {
+                player,
+                score,
+                objective_total,
+                finalized_at,
+                replay_hash: [7; 32],
+            },
+        };
+        json!({"log": format!("Program data: {}", encoded(event.data())), "dayId": DAY, "runId": run_id.to_string(),
+            "player": player.to_string(), "score": score, "objectiveTotal": objective_total.to_string(),
+            "finalizedAt": finalized_at})
+    };
+    json!({"entry": entry, "consume": consume(device()), "finalize": finalize,
+        "closePlayer": close_player,
+        "scored": [
+            scored(owner(), RUN_ID, 40, 3, NOW + 60),
+            scored(validator(), 7, 90, 0, NOW + 120),
+            scored(device(), 8, 40, 9, NOW + 30),
+            scored(owner(), RUN_ID + 1, 75, 1, NOW + 300),
+        ]})
+}
+
 pub fn claim(day: u32, kind: DailyBoardKind) -> Value {
     message(
         "claim",

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { IDL } from "../../tools/chain/idl/index.js";
 
 import {
   BorshAccountsCoder,
@@ -80,8 +80,12 @@ export interface AnchorKeeperAdapterInput {
   routerEndpoint?: string;
   fetcher?: typeof fetch;
   connectionFactory?: (endpoint: string) => Connection;
-  idlPath?: URL;
   launchDayId: number;
+  /**
+   * Addresses a complete read model names, read here from the chain. Absent,
+   * the adapter scans the program's accounts instead.
+   */
+  discovery?: { arenaPlayers: readonly PublicKey[]; runOwners: readonly PublicKey[] };
 }
 
 export type KeeperLaunchState = "staged_launch_ready" | "active";
@@ -101,15 +105,9 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   }
 
   static async create(input: AnchorKeeperAdapterInput): Promise<AnchorKeeperAdapter> {
-    const path = input.idlPath ??
-      new URL("../../tools/chain/idl/solana.json", import.meta.url);
-    const bytes = await readFile(path);
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(bytes.toString("utf8"));
-    } catch {
-      throw new Error("checked-in Anchor IDL is malformed JSON");
-    }
+    // The interface is the build's own: the generated IDL is compiled in, so
+    // the adapter reads no file and runs the same on Node and in the Worker.
+    const parsed: unknown = IDL;
     if (!isRecord(parsed) || parsed.address !== ZKUBE_PROGRAM_ID.toBase58()) {
       throw new Error("checked-in Anchor IDL program address is not the pinned zKube program");
     }
@@ -406,7 +404,11 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const liveDaily = new Map(
       dailies.map(({ snapshot }) => [snapshot.dayId, snapshot]),
     );
-    for (const player of await this.scanAccounts("arenaPlayer", PROTOCOL_ACCOUNT_VERSION)) {
+    const hinted = this.input.discovery;
+    const players = hinted
+      ? await this.loadHinted("arenaPlayer", hinted.arenaPlayers, PROTOCOL_ACCOUNT_VERSION)
+      : await this.scanAccounts("arenaPlayer", PROTOCOL_ACCOUNT_VERSION);
+    for (const player of players) {
       const challenge = publicKey(player.value.challenge, "ArenaPlayer challenge");
       const owner = publicKey(player.value.player, "ArenaPlayer owner");
       const dayId = dayByAddress.get(challenge.toBase58());
@@ -427,9 +429,10 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
   }
 
   private async loadPlayerStates(entered: readonly PublicKey[]): Promise<PlayerStateRecord[]> {
-    const baseRuns = await this.scanAccounts("activeRun", PROTOCOL_ACCOUNT_VERSION);
-    const owners = [...new Map([...entered,
-      ...baseRuns.map(({ value }) => publicKey(value.owner, "ActiveRun owner"))]
+    const runOwners = this.input.discovery?.runOwners ??
+      (await this.scanAccounts("activeRun", PROTOCOL_ACCOUNT_VERSION))
+        .map(({ value }) => publicKey(value.owner, "ActiveRun owner"));
+    const owners = [...new Map([...entered, ...runOwners]
       .map((owner) => [owner.toBase58(), owner])).values()];
     const accounts = await this.loadKnown(
       "playerState",
@@ -610,6 +613,23 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
       return info
         ? [this.decodeAccount(name, item.address, info, version)]
         : [];
+    });
+  }
+
+  /**
+   * Reads addresses a hint named. A hint is not evidence: an address that is
+   * closed, foreign or malformed is dropped, never trusted and never fatal.
+   */
+  private async loadHinted(
+    name: string,
+    addresses: readonly PublicKey[],
+    version: number | readonly number[],
+  ): Promise<LoadedAccount[]> {
+    const infos = await this.getMultiple(addresses);
+    return addresses.flatMap((address, index) => {
+      const info = infos[index];
+      if (!info) return [];
+      try { return [this.decodeAccount(name, address, info, version)]; } catch { return []; }
     });
   }
 

@@ -15,7 +15,7 @@ namespace ZKube.Integration.App
     [Serializable] public sealed class MoneyConfiguration
     {
         public TextAsset SolanaSchema, SessionSchema;
-        public string BaseUri, RouterUri, ExpectedGenesis;
+        public string BaseUri, RouterUri, ExpectedGenesis, StandingsUri;
         // A mainnet RPC endpoint for the Seeker ID lookup; empty shows addresses.
         public string NameUri;
         [NonSerialized] public MoneyClientServices Services;
@@ -38,7 +38,8 @@ namespace ZKube.Integration.App
                 var native = new AndroidWalletTransport();
                 string directory = Path.Combine(Application.persistentDataPath, "campaign");
                 services = new MoneyClientServices(Configuration.SolanaSchema?.text, Configuration.SessionSchema?.text,
-                    new MoneyConnectionConfig(Configuration.BaseUri, Configuration.RouterUri, Configuration.ExpectedGenesis, Configuration.NameUri),
+                    new MoneyConnectionConfig(Configuration.BaseUri, Configuration.RouterUri, Configuration.ExpectedGenesis, Configuration.NameUri,
+                        Configuration.StandingsUri),
                     http, native, native, clock, owner => {
                         string path = Path.Combine(directory, owner + ".json");
                         return new LocalProductStore(_ => AtomicProductFile.Read(path),

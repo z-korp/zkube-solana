@@ -8,6 +8,7 @@ namespace ZKube.Integration.Transport
     public interface IJsonRpcHttp
     {
         Task<string> Post(Uri endpoint, string json, int maximumResponseBytes, CancellationToken cancellation);
+        Task<string> Get(Uri endpoint, int maximumResponseBytes, CancellationToken cancellation);
     }
 
     public sealed class RpcEndpoint
