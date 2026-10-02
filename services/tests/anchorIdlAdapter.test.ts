@@ -101,6 +101,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
       [playerStatePda(owner).toBase58(), info(await coder.encode("playerState", profile))],
       [arenaPlayerPda(arenaDailyPda(day), owner).toBase58(), entrantInfo],
     ]);
+    const outside = Keypair.generate().publicKey;
     const scanned: string[] = [];
     const connection = {
       getAccountInfo: async (address: PublicKey) => values.get(address.toBase58()) ?? null,
@@ -111,7 +112,7 @@ describe("exact v5 Anchor IDL keeper adapter", () => {
         scanned.push(filter);
         return filter !== coder.memcmp("arenaPlayer").bytes ? [] : [
           { pubkey: arenaPlayerPda(arenaDailyPda(day), owner), account: entrantInfo },
-          ...Array.from({ length: 10_000 }, () => ({ pubkey: Keypair.generate().publicKey, account: unrelatedInfo })),
+          ...new Array(10_000).fill({ pubkey: outside, account: unrelatedInfo }),
         ];
       },
     } as unknown as Connection;
