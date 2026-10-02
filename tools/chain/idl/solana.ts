@@ -117,9 +117,6 @@ export type Solana = {
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
         },
         {
-          "name": "delegationRecordActive"
-        },
-        {
           "name": "programIdentity",
           "pda": {
             "seeds": [
@@ -2077,14 +2074,6 @@ export type Solana = {
         {
           "name": "activeRun",
           "writable": true
-        },
-        {
-          "name": "magicFeeVault",
-          "docs": [
-            "protocol infrastructure for gasless ER VRF and is unrelated to the",
-            "owner's base-layer device-rent flow."
-          ],
-          "writable": true
         }
       ],
       "args": [
@@ -2295,9 +2284,6 @@ export type Solana = {
           "name": "oracleQueue",
           "writable": true,
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
-        },
-        {
-          "name": "delegationRecordActive"
         },
         {
           "name": "programIdentity",
@@ -2848,9 +2834,6 @@ export type Solana = {
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
         },
         {
-          "name": "delegationRecordActive"
-        },
-        {
           "name": "programIdentity",
           "pda": {
             "seeds": [
@@ -2932,9 +2915,6 @@ export type Solana = {
           "name": "oracleQueue",
           "writable": true,
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
-        },
-        {
-          "name": "delegationRecordActive"
         },
         {
           "name": "programIdentity",
@@ -3434,6 +3414,21 @@ export type Solana = {
       ]
     }
   ],
+  "events": [
+    {
+      "name": "runScored",
+      "discriminator": [
+        182,
+        97,
+        5,
+        51,
+        139,
+        99,
+        63,
+        253
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6000,
@@ -3715,10 +3710,6 @@ export type Solana = {
             "type": "u16"
           },
           {
-            "name": "bonusType",
-            "type": "u8"
-          },
-          {
             "name": "bonusCharges",
             "type": "u8"
           },
@@ -3732,7 +3723,7 @@ export type Solana = {
           {
             "name": "vrfRequestCounter",
             "docs": [
-              "Ramped draw tier for Daily."
+              "VRF requests issued for this run so far; the next request takes this number."
             ],
             "type": "u32"
           },
@@ -4004,24 +3995,57 @@ export type Solana = {
             "type": "u64"
           },
           {
-            "name": "scoreBestEntry",
+            "name": "scoreBest",
             "type": {
               "defined": {
-                "name": "arenaBoardEntry"
+                "name": "bestRun"
               }
             }
           },
           {
-            "name": "themeBestEntry",
+            "name": "themeBest",
             "type": {
               "defined": {
-                "name": "arenaBoardEntry"
+                "name": "bestRun"
               }
             }
           },
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bestRun",
+      "docs": [
+        "A wallet's best result on one board of one Daily. The wallet is the",
+        "daily player account's own `player`, so it is not repeated here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "score",
+            "type": "u32"
+          },
+          {
+            "name": "objectiveTotal",
+            "type": "u64"
+          },
+          {
+            "name": "finalizedAt",
+            "type": "i64"
+          },
+          {
+            "name": "replayHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -4267,7 +4291,7 @@ export type Solana = {
           {
             "name": "highestLadderTier",
             "docs": [
-              "Highest placeholder tier ever reached; it never decreases."
+              "Highest ladder tier ever reached; it never decreases, even through a reset."
             ],
             "type": "u8"
           },
@@ -4303,18 +4327,6 @@ export type Solana = {
               "Consecutive days carrying at least one paid entry."
             ],
             "type": "u16"
-          },
-          {
-            "name": "reserved",
-            "docs": [
-              "Explicit zeroed expansion space for future profile fields."
-            ],
-            "type": {
-              "array": [
-                "u8",
-                18
-              ]
-            }
           },
           {
             "name": "bump",
@@ -4481,6 +4493,36 @@ export type Solana = {
           },
           {
             "name": "finished"
+          }
+        ]
+      }
+    },
+    {
+      "name": "runScored",
+      "docs": [
+        "Logged when a scored run is consumed. A finalized board keeps only its",
+        "paying rows and daily player accounts close, so this is the public record",
+        "of every result, including the ranks below the paying rows. It grants",
+        "nothing: boards and claims never read it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "dayId",
+            "type": "u32"
+          },
+          {
+            "name": "runId",
+            "type": "u64"
+          },
+          {
+            "name": "row",
+            "type": {
+              "defined": {
+                "name": "arenaBoardEntry"
+              }
+            }
           }
         ]
       }

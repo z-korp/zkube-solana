@@ -13,7 +13,8 @@ pub const PLAYER_STATE_SEED: &[u8] = b"player";
 pub const ACTIVE_RUN_SEED: &[u8] = b"run";
 
 pub const ACCOUNT_VERSION: u8 = zkube_core::PROTOCOL_ACCOUNT_VERSION;
-/// Fresh-bootstrap player schema with one Arcade run slot and zeroed expansion space.
+/// Fresh-bootstrap player schema with one Arcade run slot and no spare bytes: a
+/// new field means a new fresh bootstrap, which reallocates.
 pub const PLAYER_STATE_VERSION: u8 = zkube_core::PLAYER_STATE_ACCOUNT_VERSION;
 pub const CAMPAIGN_STAR_BYTES: usize = zkube_core::CAMPAIGN_STAR_BYTES;
 pub use zkube_core::{
@@ -108,7 +109,7 @@ pub struct PlayerState {
     pub kredit_balance: u64,
     /// Monotonic, non-monetary points accumulated by qualification and claims.
     pub ladder_points: u64,
-    /// Highest placeholder tier ever reached; it never decreases.
+    /// Highest ladder tier ever reached; it never decreases, even through a reset.
     pub highest_ladder_tier: u8,
     /// Ladder border the player has chosen to wear. Any tier they have ever
     /// reached stays available: a rank is earned once, and a border the player
@@ -123,8 +124,6 @@ pub struct PlayerState {
     pub last_entry_day_id: u32,
     /// Consecutive days carrying at least one paid entry.
     pub entry_streak_days: u16,
-    /// Explicit zeroed expansion space for future profile fields.
-    pub reserved: [u8; zkube_core::PLAYER_STATE_RESERVED_BYTES],
     pub bump: u8,
 }
 
@@ -149,7 +148,6 @@ impl PlayerState {
             best_daily_score: 0,
             last_entry_day_id: 0,
             entry_streak_days: 0,
-            reserved: [0; zkube_core::PLAYER_STATE_RESERVED_BYTES],
             bump,
         }
     }
@@ -158,7 +156,6 @@ impl PlayerState {
         self.version == PLAYER_STATE_VERSION
             && self.highest_ladder_tier >= ladder_tier_for_points(self.ladder_points)
             && self.featured_frame_tier <= self.highest_ladder_tier
-            && self.reserved == [0; zkube_core::PLAYER_STATE_RESERVED_BYTES]
     }
 
     fn require_schema(&self) -> Result<()> {
@@ -419,11 +416,10 @@ pub struct ActiveRun {
     /// Guardian trigger events produced across the run, before inventory caps.
     pub charges_earned: u8,
     pub level_lines_cleared: u16,
-    pub bonus_type: u8,
     pub bonus_charges: u8,
     /// Held preview replacements; every run starts with one.
     pub reroll_charges: u8,
-    /// Ramped draw tier for Daily.
+    /// VRF requests issued for this run so far; the next request takes this number.
     pub vrf_request_counter: u32,
     pub pending_vrf_counter: u32,
     /// Domain-separated rolling commitment over rules, VRF rows, and actions.
@@ -461,7 +457,6 @@ impl Default for ActiveRun {
             streak: 0,
             charges_earned: 0,
             level_lines_cleared: 0,
-            bonus_type: 0,
             bonus_charges: 0,
             reroll_charges: 0,
             vrf_request_counter: 0,
@@ -534,25 +529,13 @@ mod tests {
     }
 
     #[test]
-    fn player_state_rejects_nonzero_reserved_bytes() {
-        let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
-        assert!(player.schema_valid());
-        player.reserved[17] = 1;
-        assert!(!player.schema_valid());
-        assert!(player
-            .reserve_arcade_run(1, Pubkey::new_unique(), 1_000)
-            .is_err());
-    }
-
-    #[test]
-    fn ladder_points_accumulate_and_promote_without_consuming_padding() {
+    fn ladder_points_accumulate_and_promote() {
         let mut player = PlayerState::initialize(Pubkey::new_unique(), 1);
         assert_eq!(player.record_ladder_points(1_499).unwrap(), 1_499);
         assert_eq!(player.ladder_points, 1_499);
         assert_eq!(player.highest_ladder_tier, 0);
         player.record_ladder_points(1).unwrap();
         assert_eq!(player.highest_ladder_tier, 1);
-        assert_eq!(player.reserved, [0; 18]);
         assert!(player.schema_valid());
         // A reset compresses points downward; the earned tier is permanent.
         player.ladder_points = 750;
@@ -647,8 +630,8 @@ mod tests {
         ]);
         assert!(sizes.into_iter().all(|size| size < 10_240));
         assert_eq!(8 + ProtocolConfig::INIT_SPACE, 155);
-        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 206);
-        assert_eq!(8 + ActiveRun::INIT_SPACE, 337);
+        assert_eq!(8 + std::hint::black_box(PlayerState::INIT_SPACE), 188);
+        assert_eq!(8 + ActiveRun::INIT_SPACE, 336);
     }
 
     #[test]

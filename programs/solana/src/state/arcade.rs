@@ -144,6 +144,51 @@ pub struct ArenaBoardEntry {
     pub replay_hash: [u8; 32],
 }
 
+/// Logged when a scored run is consumed. A finalized board keeps only its
+/// paying rows and daily player accounts close, so this is the public record
+/// of every result, including the ranks below the paying rows. It grants
+/// nothing: boards and claims never read it.
+#[event]
+pub struct RunScored {
+    pub day_id: u32,
+    pub run_id: u64,
+    pub row: ArenaBoardEntry,
+}
+
+/// A wallet's best result on one board of one Daily. The wallet is the
+/// daily player account's own `player`, so it is not repeated here.
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
+)]
+pub struct BestRun {
+    pub score: u32,
+    pub objective_total: u64,
+    pub finalized_at: i64,
+    pub replay_hash: [u8; 32],
+}
+
+impl BestRun {
+    pub fn of(entry: &ArenaBoardEntry) -> Self {
+        Self {
+            score: entry.score,
+            objective_total: entry.objective_total,
+            finalized_at: entry.finalized_at,
+            replay_hash: entry.replay_hash,
+        }
+    }
+
+    /// The board row this result makes for `player`.
+    pub fn row(self, player: Pubkey) -> ArenaBoardEntry {
+        ArenaBoardEntry {
+            player,
+            score: self.score,
+            objective_total: self.objective_total,
+            finalized_at: self.finalized_at,
+            replay_hash: self.replay_hash,
+        }
+    }
+}
+
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq,
 )]
@@ -384,8 +429,8 @@ pub struct ArenaPlayer {
     pub paid_entries: u32,
     pub resolved_entries: u32,
     pub active_paid_run_id: u64,
-    pub score_best_entry: ArenaBoardEntry,
-    pub theme_best_entry: ArenaBoardEntry,
+    pub score_best: BestRun,
+    pub theme_best: BestRun,
     pub bump: u8,
 }
 
@@ -399,8 +444,8 @@ impl ArenaPlayer {
             paid_entries: 0,
             resolved_entries: 0,
             active_paid_run_id: 0,
-            score_best_entry: ArenaBoardEntry::default(),
-            theme_best_entry: ArenaBoardEntry::default(),
+            score_best: BestRun::default(),
+            theme_best: BestRun::default(),
             bump,
         }
     }
@@ -408,19 +453,20 @@ impl ArenaPlayer {
     /// Keeps the better of this wallet's stored row and `entry` for the
     /// selected board, and says what the board must do about it.
     pub fn record_score(&mut self, board: DailyBoardKind, entry: ArenaBoardEntry) -> BestRow {
+        let player = self.player;
         let best = match board {
-            DailyBoardKind::Score => &mut self.score_best_entry,
-            DailyBoardKind::Theme => &mut self.theme_best_entry,
+            DailyBoardKind::Score => &mut self.score_best,
+            DailyBoardKind::Theme => &mut self.theme_best,
         };
         let first = match board {
             DailyBoardKind::Score => best.score == 0,
             DailyBoardKind::Theme => best.objective_total == 0,
         };
         if first {
-            *best = entry;
+            *best = BestRun::of(&entry);
             BestRow::First
-        } else if compare_arena_entries(board, &entry, best).is_lt() {
-            BestRow::Improved(core::mem::replace(best, entry))
+        } else if compare_arena_entries(board, &entry, &best.row(player)).is_lt() {
+            BestRow::Improved(core::mem::replace(best, BestRun::of(&entry)).row(player))
         } else {
             BestRow::Kept
         }
@@ -970,15 +1016,15 @@ mod tests {
         assert_eq!(
             accounts,
             FirstEntryAccounts {
-                arena_player: 290,
-                active_run: 337,
-                delegation_buffer: 337,
+                arena_player: 226,
+                active_run: 336,
+                delegation_buffer: 336,
                 delegation_record: 96,
                 delegation_metadata: 118,
             }
         );
-        assert_eq!(accounts.arena_player_rent(), 2_909_280);
-        assert_eq!(accounts.peak_rent(), 12_653_280);
+        assert_eq!(accounts.arena_player_rent(), 2_463_840);
+        assert_eq!(accounts.peak_rent(), 12_193_920);
     }
 
     #[test]
@@ -1178,8 +1224,8 @@ mod tests {
             .unwrap();
         assert_eq!(daily.score_qualified_players, 0);
         assert_eq!(daily.theme_qualified_players, 0);
-        assert_eq!(player.score_best_entry.score, 0);
-        assert_eq!(player.theme_best_entry.objective_total, 0);
+        assert_eq!(player.score_best.score, 0);
+        assert_eq!(player.theme_best.objective_total, 0);
         assert_eq!(state.ladder_points, 0);
     }
 
@@ -1235,8 +1281,8 @@ mod tests {
         // Twenty entries would credit no more than these four: only the first
         // qualification on each board pays, so the ladder cannot be bought.
         assert_eq!(state.ladder_points, u64::from(LADDER_QUALIFY_POINTS) * 2);
-        assert_eq!(player.score_best_entry.score, 500);
-        assert_eq!(player.theme_best_entry.objective_total, 900);
+        assert_eq!(player.score_best.score, 500);
+        assert_eq!(player.theme_best.objective_total, 900);
     }
 
     #[test]
@@ -1283,13 +1329,15 @@ mod tests {
             player.record_score(DailyBoardKind::Score, worse),
             BestRow::Kept
         );
-        assert_eq!(player.score_best_entry.replay_hash, [1; 32]);
+        assert_eq!(player.score_best.replay_hash, [1; 32]);
         let better = ArenaBoardEntry { score: 101, ..worse };
         assert_eq!(
             player.record_score(DailyBoardKind::Score, better),
             BestRow::Improved(best)
         );
-        assert_eq!(player.score_best_entry, better);
+        // The stored result carries no wallet: its row takes the account's.
+        assert_eq!(player.score_best, BestRun::of(&better));
+        assert_eq!(player.score_best.row(wallet), better);
     }
 
     #[test]
@@ -1302,7 +1350,7 @@ mod tests {
         assert_eq!(ArenaBoard::HEADER_SIZE, 112);
         assert_eq!(ArenaBoard::open_space(1_536).unwrap(), 129_136);
         assert_eq!(ArenaBoard::account_space(1_536).unwrap(), 129_328);
-        assert_eq!(8 + ArenaPlayer::INIT_SPACE, 290);
+        assert_eq!(8 + ArenaPlayer::INIT_SPACE, 226);
         // Each entrant funds a row and its claim bit, so a board always holds
         // the rent of either shape, and two full boards bound cadence funding.
         for entrants in [0, 1, 7, 8, 1_535, 1_536, 50_000] {
@@ -1421,8 +1469,8 @@ mod tests {
                 .players
                 .values()
                 .map(|player| match self.kind {
-                    DailyBoardKind::Score => player.score_best_entry,
-                    DailyBoardKind::Theme => player.theme_best_entry,
+                    DailyBoardKind::Score => player.score_best.row(player.player),
+                    DailyBoardKind::Theme => player.theme_best.row(player.player),
                 })
                 .collect::<Vec<_>>();
             best.sort_by(|left, right| compare_arena_entries(self.kind, left, right));

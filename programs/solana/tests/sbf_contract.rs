@@ -3360,8 +3360,8 @@ fn consume_keeps_both_boards_sorted_at_capacity() {
         entry.resolved_entries = 1;
         entry.active_paid_run_id = run_id;
         if let Some(previous) = previous {
-            entry.score_best_entry = previous;
-            entry.theme_best_entry = previous;
+            entry.score_best = BestRun::of(&previous);
+            entry.theme_best = BestRun::of(&previous);
         }
         world.accounts.insert(
             participant,

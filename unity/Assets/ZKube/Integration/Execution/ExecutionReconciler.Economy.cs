@@ -26,8 +26,8 @@ namespace ZKube.Integration.Execution
             if (playerEnvelope != null) accounts.PlayerState(playerEnvelope, owner);
             if (call.Name == "set_featured_emblem")
             {
-                if ((byte)call.Arguments["emblem_id"] > PlanningConstants.MaxEmblemId ||
-                    (byte)call.Arguments["frame_tier"] > PlanningConstants.MaxFrameTier) return false;
+                if ((byte)call.Arguments["emblem_id"] > Protocol.MaxEmblemId ||
+                    (byte)call.Arguments["frame_tier"] > Protocol.MaxFrameTier) return false;
                 return true;
             }
             if (call.Name == "purchase_kredits")

@@ -257,7 +257,7 @@ spending approval.
 - **Ladder:** cumulative integer log-rank points pay no money, never decay and run on no timer. They use
   each board's qualified field and accumulate a permanent highest tier.
   `committed_ladder_vectors_match_integer_ln` and
-  `ladder_points_accumulate_and_promote_without_consuming_padding` guard arithmetic and progression; native
+  `ladder_points_accumulate_and_promote` guard arithmetic and progression; native
   and program paths use the same core. Campaign stars and ladder tiers grant no SOL, entries, mint odds or
   prize eligibility.
 - **Qualifying credit:** a positive flat award applies once per player, board and day on first
@@ -353,7 +353,13 @@ action scores its last committed state; untouched runs expire. Pending or late V
 expired or orphaned run. `finish_run_predicates_are_exact` guards authorized Abandon before cutoff,
 permissionless Deadline afterwards and exact idempotence. Opening VRF remains separate after Router
 placement; delegation and terminal commit remain separate operations, guarded by
-`sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths`.
+`sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths`. A row callback writes only its run and
+schedules no commit, so its request names no Magic context or fee vault;
+`the_row_callback_carries_only_its_run` guards the request and the callback's accounts.
+
+Consuming a scored run logs RunScored: the day, the run and its row. A finalized board keeps only its paying
+rows and daily player accounts close, so that log is the public record of every result. It grants nothing;
+boards and claims never read it.
 
 ### Accounts, identity and recovery
 
@@ -368,8 +374,12 @@ authority it names; `an_untrusted_initializer_cannot_claim_the_protocol` guards 
 
 PlayerState keeps separate Score/Theme best paying rank, wins and rewards; non-paying places do not become
 profile records. Kredit balance, ladder total/highest tier, lifetime best daily score and streak remain
-distinct. Reserved bytes stay zero. `competition_record_counts_only_prize_results` and
-`ladder_points_accumulate_and_promote_without_consuming_padding` guard those fields. Featured emblem and
+distinct. The profile carries no spare bytes: there is no migration, so a new field means a fresh bootstrap,
+which reallocates. `competition_record_counts_only_prize_results` and `ladder_points_accumulate_and_promote`
+guard those fields. An ArenaPlayer stores its two best results without repeating its wallet, and an ActiveRun
+reads its bonus from its rules snapshot rather than a second copy;
+`arena_player_keeps_best_replay_and_its_run_identity` and `program_and_core_score_one_action_identically`
+guard both. Featured emblem and
 ladder border change together; any previously earned tier remains wearable after a reset. Automatic emblem
 selection chooses the strongest unlocked guardian, all-guardian or perfect-world emblem; all are
 display-only. `sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badges` guards selection.

@@ -33,8 +33,7 @@ namespace ZKube.Integration
             var expected = SolanaAddress.Derive(ProgramId, new[] { Encoding.UTF8.GetBytes("player"), SolanaAddress.Bytes(authority) }, out _);
             if (envelope.Address != expected || (string)fields["owner"] != authority || (uint)fields["version"] != playerVersion ||
                 (int)fields["highest_ladder_tier"] > NativeEngine.LadderTier(ulong.MaxValue) ||
-                (int)fields["featured_frame_tier"] > (int)fields["highest_ladder_tier"] ||
-                fields["reserved"].Values<byte>().Any(value => value != 0))
+                (int)fields["featured_frame_tier"] > (int)fields["highest_ladder_tier"])
                 throw new FormatException("PlayerState relationship is invalid");
             return fields;
         }
@@ -163,9 +162,7 @@ namespace ZKube.Integration
             string daily = Address("arena_daily", LittleDay(dayId));
             RequireIdentity(envelope, fields, Address("arena_player", SolanaAddress.Bytes(daily), SolanaAddress.Bytes(owner)), Protocol.ProtocolAccountVersion);
             if ((string)fields["challenge"] != daily || (string)fields["player"] != owner ||
-                (uint)fields["resolved_entries"] > (uint)fields["paid_entries"] ||
-                ((uint)fields["score_best_entry"]["score"] > 0 && (string)fields["score_best_entry"]["player"] != owner) ||
-                ((ulong)fields["theme_best_entry"]["objective_total"] > 0 && (string)fields["theme_best_entry"]["player"] != owner))
+                (uint)fields["resolved_entries"] > (uint)fields["paid_entries"])
                 throw new FormatException("ArenaPlayer relationship is invalid");
             return fields;
         }

@@ -18,7 +18,7 @@ use crate::error::ErrorCode;
 use crate::instructions::player_authorization::require_player_authorization;
 use crate::state::arcade::SolanaSha256;
 use crate::state::protocol::*;
-use zkube_core::{Bonus, ConstraintKind, Grid, RunEngine, RunPhase};
+use zkube_core::{ConstraintKind, Grid, RunEngine, RunPhase};
 
 #[delegate]
 #[derive(Accounts)]
@@ -106,12 +106,6 @@ pub struct RunVrf<'info> {
     /// CHECK: Address-constrained to MagicBlock's devnet ER queue.
     #[account(mut, address = ephemeral_rollups_sdk::vrf::consts::DEFAULT_EPHEMERAL_QUEUE)]
     pub oracle_queue: UncheckedAccount<'info>,
-    /// CHECK: Address/owner constrained; the handler validates the SDK record before use.
-    #[account(
-        address = ephemeral_rollups_sdk::pda::delegation_record_pda_from_delegated_account(&active_run.key().to_bytes().into()).to_bytes().into(),
-        owner = Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()) @ ErrorCode::InvalidOwner
-    )]
-    pub delegation_record_active: UncheckedAccount<'info>,
 }
 
 fn prepare_row_vrf_request(
@@ -119,10 +113,8 @@ fn prepare_row_vrf_request(
     active_key: Pubkey,
     actor: Pubkey,
     oracle_queue: Pubkey,
-    validator: Pubkey,
     client_seed: [u8; 32],
 ) -> Result<ephemeral_rollups_sdk::vrf::compat::Instruction> {
-    use ephemeral_rollups_sdk::consts::{MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
     use ephemeral_rollups_sdk::vrf::instructions::{
         create_request_high_priority_scoped_randomness_ix, RequestRandomnessParams,
     };
@@ -145,10 +137,6 @@ fn prepare_row_vrf_request(
     active.pending_vrf_counter = request_counter;
     active.lifecycle = RunLifecycle::AwaitingVrf;
 
-    let (magic_fee_vault, _) = Pubkey::find_program_address(
-        &[b"magic-fee-vault", validator.as_ref()],
-        &Pubkey::new_from_array(ephemeral_rollups_sdk::id().to_bytes()),
-    );
     let run_id = active.run_id.to_le_bytes();
     let request = request_counter.to_le_bytes();
     let caller_seed = zkube_core::sha256v_with::<SolanaSha256>(&[
@@ -166,28 +154,13 @@ fn prepare_row_vrf_request(
             callback_program_id: crate::ID.to_bytes().into(),
             callback_discriminator: crate::instruction::FulfillRowVrf::DISCRIMINATOR.to_vec(),
             caller_seed,
-            accounts_metas: Some(vec![
-                SerializableAccountMeta {
-                    pubkey: active_key.to_bytes().into(),
-                    is_signer: false,
-                    is_writable: true,
-                },
-                SerializableAccountMeta {
-                    pubkey: magic_fee_vault.to_bytes().into(),
-                    is_signer: false,
-                    is_writable: true,
-                },
-                SerializableAccountMeta {
-                    pubkey: MAGIC_PROGRAM_ID,
-                    is_signer: false,
-                    is_writable: false,
-                },
-                SerializableAccountMeta {
-                    pubkey: MAGIC_CONTEXT_ID,
-                    is_signer: false,
-                    is_writable: true,
-                },
-            ]),
+            // The callback only writes the run. It schedules no commit, so
+            // it carries no Magic context or fee vault to lock.
+            accounts_metas: Some(vec![SerializableAccountMeta {
+                pubkey: active_key.to_bytes().into(),
+                is_signer: false,
+                is_writable: true,
+            }]),
             // Bind the asynchronous callback to the exact pending request. A
             // delayed result from an older request must never fulfill a newer
             // row transition on the same ActiveRun.
@@ -203,15 +176,12 @@ pub fn handler_request_vrf(ctx: Context<RunVrf>, client_seed: [u8; 32]) -> Resul
         ctx.accounts.session_token.as_ref(),
     )?;
     require_before_arcade_deadline(&ctx.accounts.active_run, Clock::get()?.unix_timestamp)?;
-    let validator =
-        delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
     let active_key = ctx.accounts.active_run.key();
     let ix = prepare_row_vrf_request(
         &mut ctx.accounts.active_run,
         active_key,
         ctx.accounts.actor.key(),
         ctx.accounts.oracle_queue.key(),
-        validator,
         client_seed,
     )?;
     ctx.accounts
@@ -228,11 +198,6 @@ pub struct FulfillRowVrf<'info> {
         constraint = active_run.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion
     )]
     pub active_run: Account<'info, ActiveRun>,
-    /// CHECK: MagicBlock's validator-scoped ER callback fee vault. This is
-    /// protocol infrastructure for gasless ER VRF and is unrelated to the
-    /// owner's base-layer device-rent flow.
-    #[account(mut)]
-    pub magic_fee_vault: UncheckedAccount<'info>,
 }
 
 pub fn handler_fulfill_row_vrf(
@@ -301,15 +266,12 @@ pub fn handler_play_move(
     let terminal_at = terminal_action_timestamp(run.engine.phase)?;
     write_run(active, &run, terminal_at)?;
     if action_needs_row_vrf(active.lifecycle) {
-        let validator =
-            delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
         let active_key = active.key();
         let ix = prepare_row_vrf_request(
             active,
             active_key,
             ctx.accounts.actor.key(),
             ctx.accounts.oracle_queue.key(),
-            validator,
             client_seed,
         )?;
         ctx.accounts
@@ -353,15 +315,12 @@ pub fn handler_apply_bonus(
     let terminal_at = terminal_action_timestamp(run.engine.phase)?;
     write_run(active, &run, terminal_at)?;
     if action_needs_row_vrf(active.lifecycle) {
-        let validator =
-            delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
         let active_key = active.key();
         let ix = prepare_row_vrf_request(
             active,
             active_key,
             ctx.accounts.actor.key(),
             ctx.accounts.oracle_queue.key(),
-            validator,
             client_seed,
         )?;
         ctx.accounts
@@ -391,15 +350,12 @@ pub fn handler_request_reroll(
         ErrorCode::InvalidMoveOrder
     );
     apply_reroll_request(active, expected_action)?;
-    let validator =
-        delegation_record_validator(&ctx.accounts.delegation_record_active.try_borrow_data()?)?;
     let active_key = active.key();
     let ix = prepare_row_vrf_request(
         active,
         active_key,
         ctx.accounts.actor.key(),
         ctx.accounts.oracle_queue.key(),
-        validator,
         client_seed,
     )?;
     ctx.accounts
@@ -589,14 +545,6 @@ pub fn handler_commit_run(ctx: Context<CommitRun>) -> Result<()> {
     Ok(())
 }
 
-fn delegation_record_validator(data: &[u8]) -> Result<Pubkey> {
-    use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
-
-    let record = DelegationRecord::try_from_bytes_with_discriminator(data)
-        .map_err(|_| error!(ErrorCode::InvalidOwner))?;
-    Ok(Pubkey::new_from_array(record.authority.to_bytes()))
-}
-
 fn run_rules(active: &ActiveRun) -> Result<zkube_core::RunRules> {
     let guardian = active.rules.guardian.to_core()?;
     let theme = active.daily_theme.to_core()?;
@@ -617,10 +565,9 @@ fn run_rules(active: &ActiveRun) -> Result<zkube_core::RunRules> {
 }
 
 fn engine_from_active(active: &ActiveRun) -> Result<RunEngine> {
-    let bonus = match active.bonus_type {
-        0 => None,
-        tag => Some(Bonus::from_tag(tag).ok_or(ErrorCode::InvalidState)?),
-    };
+    // A run's bonus is its realm guardian's for its whole life, as the core
+    // sets it when the run is created; the rules snapshot is its one owner.
+    let bonus = Some(active.rules.guardian.to_core()?.bonus);
     let phase = match active.lifecycle {
         RunLifecycle::Prepared | RunLifecycle::Delegated | RunLifecycle::AwaitingVrf => {
             RunPhase::AwaitingVrf
@@ -656,10 +603,6 @@ fn write_engine(active: &mut ActiveRun, engine: &RunEngine) {
     active.streak = engine.streak;
     active.charges_earned = engine.charges_earned;
     active.level_lines_cleared = engine.level_lines_cleared;
-    active.bonus_type = match engine.bonus {
-        None => 0,
-        Some(bonus) => bonus.tag(),
-    };
     active.bonus_charges = engine.bonus_charges;
     active.reroll_charges = engine.reroll_charges;
 }
@@ -785,31 +728,9 @@ mod tests {
                 kind: ConstraintKind::None,
                 value: 0,
             }),
-            bonus_type: 1,
             reroll_charges: 1,
             ..ActiveRun::default()
         }
-    }
-
-    fn delegation_record_bytes(validator: Pubkey) -> Vec<u8> {
-        use ephemeral_rollups_sdk::dlp_api::state::DelegationRecord;
-
-        let mut data = vec![0; DelegationRecord::size_with_discriminator()];
-        data[..8].copy_from_slice(&100u64.to_le_bytes());
-        data[8..40].copy_from_slice(validator.as_ref());
-        data
-    }
-
-    #[test]
-    fn delegation_record_validator_requires_the_sdk_layout_and_discriminator() {
-        let validator = Pubkey::new_unique();
-        let valid = delegation_record_bytes(validator);
-        assert_eq!(delegation_record_validator(&valid).unwrap(), validator);
-
-        let mut wrong_discriminator = valid.clone();
-        wrong_discriminator[..8].copy_from_slice(&101u64.to_le_bytes());
-        assert!(delegation_record_validator(&wrong_discriminator).is_err());
-        assert!(delegation_record_validator(&valid[..39]).is_err());
     }
 
     #[test]
@@ -819,7 +740,6 @@ mod tests {
         let session_token = Pubkey::new_unique();
         let actor = Pubkey::new_unique();
         let oracle_queue = Pubkey::new_unique();
-        let delegation_record = Pubkey::new_unique();
         let program_identity = Pubkey::new_unique();
         let vrf_program = Pubkey::new_unique();
         let slot_hashes = Pubkey::new_unique();
@@ -830,7 +750,6 @@ mod tests {
             session_token: Some(session_token),
             actor,
             oracle_queue,
-            delegation_record_active: delegation_record,
             program_identity,
             vrf_program,
             slot_hashes,
@@ -838,12 +757,12 @@ mod tests {
         }
         .to_account_metas(None);
 
-        assert_eq!(metas.len(), 10);
+        assert_eq!(metas.len(), 9);
         assert_eq!(metas[0].pubkey, active_run);
         assert_eq!(metas[3].pubkey, actor);
         assert!(metas[3].is_signer && metas[3].is_writable);
         assert_eq!(metas[4].pubkey, oracle_queue);
-        assert_eq!(metas[5].pubkey, delegation_record);
+        assert_eq!(metas[5].pubkey, program_identity);
     }
 
     #[test]
@@ -1064,12 +983,51 @@ mod tests {
                 Pubkey::new_unique(),
                 Pubkey::new_unique(),
                 Pubkey::new_unique(),
-                Pubkey::new_unique(),
                 [0; 32],
             )
             .unwrap();
         }
         active
+    }
+
+    #[test]
+    fn the_row_callback_carries_only_its_run() {
+        // The callback writes the run and schedules no commit, so the request
+        // names no Magic context or fee vault for the oracle to lock.
+        let run = Pubkey::new_unique();
+        let mut active = ActiveRun {
+            lifecycle: RunLifecycle::Delegated,
+            ..ActiveRun::default()
+        };
+        let request = prepare_row_vrf_request(
+            &mut active,
+            run,
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            [1; 32],
+        )
+        .unwrap();
+        let contains = |needle: &[u8]| {
+            request
+                .data
+                .windows(needle.len())
+                .any(|window| window == needle)
+        };
+        assert!(contains(run.as_ref()));
+        assert!(!contains(ephemeral_rollups_sdk::consts::MAGIC_CONTEXT_ID.as_ref()));
+        assert!(!contains(ephemeral_rollups_sdk::consts::MAGIC_PROGRAM_ID.as_ref()));
+        let callback = crate::accounts::FulfillRowVrf {
+            active_run: run,
+            vrf_program_identity: Pubkey::new_unique(),
+        }
+        .to_account_metas(None);
+        assert_eq!(callback.len(), 2);
+        let writable = callback
+            .iter()
+            .filter(|meta| meta.is_writable)
+            .collect::<Vec<_>>();
+        assert_eq!(writable.len(), 1);
+        assert_eq!(writable[0].pubkey, run);
     }
 
     #[test]

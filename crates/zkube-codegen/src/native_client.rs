@@ -280,6 +280,12 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             u32::from(PLAYER_STATE_ACCOUNT_VERSION),
         ),
         ("CatalogVersion", zkube_core::CATALOG_VERSION),
+        // The last emblem and the top ladder tier a profile can feature.
+        ("MaxEmblemId", u32::from(zkube_core::EMBLEM_WORLD_PERFECT)),
+        (
+            "MaxFrameTier",
+            u32::from(zkube_core::ladder_tier_for_points(u64::MAX)),
+        ),
     ] {
         writeln!(output, "        public const uint {name} = {value}U;").unwrap();
     }

@@ -653,6 +653,11 @@ pub fn handler_consume_arena_run(ctx: Context<ConsumeArenaRun>) -> Result<()> {
         );
         let changes =
             daily.record_scored_entry(player, &mut ctx.accounts.player_state, candidate)?;
+        emit!(RunScored {
+            day_id: daily.day_id,
+            run_id: active.run_id,
+            row: candidate,
+        });
         for (change, kind, board) in [
             (changes[0], DailyBoardKind::Score, &ctx.accounts.score_board),
             (changes[1], DailyBoardKind::Theme, &ctx.accounts.theme_board),

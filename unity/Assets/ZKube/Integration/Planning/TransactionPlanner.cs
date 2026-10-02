@@ -52,7 +52,7 @@ namespace ZKube.Integration.Planning
 
         public TransactionPlan SetFeaturedIdentity(PlannerActor actor, byte emblem, byte frame)
         {
-            if (emblem > PlanningConstants.MaxEmblemId || frame > PlanningConstants.MaxFrameTier)
+            if (emblem > Protocol.MaxEmblemId || frame > Protocol.MaxFrameTier)
                 throw new ArgumentOutOfRangeException("Featured identity is outside the supported catalog");
             var keys = ActorAccounts(actor); keys["player_state"] = Player(actor.Owner);
             return Plan(actor, PlanRoute.Base, new[] { Instruction("set_featured_emblem",
@@ -175,8 +175,6 @@ namespace ZKube.Integration.Planning
                 // JSON.NET treats byte[] as one binary value. IDL fixed arrays
                 // require one numeric token per byte for every VRF action.
                 args["client_seed"] = new JArray(seed.Select(value => (int)value));
-                keys["delegation_record_active"] = SolanaAddress.Derive(PlanningConstants.DelegationProgram,
-                    new[] { Text("delegation"), Key(keys["active_run"]) }, out _);
                 keys["program_identity"] = Pda(Text("identity"));
             }
             return Plan(actor, PlanRoute.ResolvedEr, new[] { Instruction(instruction, args, keys) }, runId: run.RunId);

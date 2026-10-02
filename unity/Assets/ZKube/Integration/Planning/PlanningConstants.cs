@@ -7,9 +7,9 @@ namespace ZKube.Integration.Planning
         public const uint LargestKreditPack = 25U;
         public const uint SettlementReserveLamports = 5000U;
         public const uint SessionLifetimeSeconds = 604500U;
-        public const uint ClaimLookbackDays = 30U;
-        public const uint MaxEmblemId = 12U;
-        public const uint MaxFrameTier = 4U;
+        // How far back an entry looks for rewards to attach: the claim window,
+        // plus the day a Daily takes to close and be finalized after it opens.
+        public const uint ClaimLookbackDays = (uint)(ZKube.Core.Generated.Protocol.ClaimWindowSeconds / 86400UL) + 1U;
         public const int MaxAutoClaims = 2;
         public const string SystemProgram = "11111111111111111111111111111111";
         public const string ComputeBudgetProgram = "ComputeBudget111111111111111111111111111111";

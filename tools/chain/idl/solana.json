@@ -111,9 +111,6 @@
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
         },
         {
-          "name": "delegation_record_active"
-        },
-        {
           "name": "program_identity",
           "pda": {
             "seeds": [
@@ -2071,14 +2068,6 @@
         {
           "name": "active_run",
           "writable": true
-        },
-        {
-          "name": "magic_fee_vault",
-          "docs": [
-            "protocol infrastructure for gasless ER VRF and is unrelated to the",
-            "owner's base-layer device-rent flow."
-          ],
-          "writable": true
         }
       ],
       "args": [
@@ -2289,9 +2278,6 @@
           "name": "oracle_queue",
           "writable": true,
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
-        },
-        {
-          "name": "delegation_record_active"
         },
         {
           "name": "program_identity",
@@ -2842,9 +2828,6 @@
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
         },
         {
-          "name": "delegation_record_active"
-        },
-        {
           "name": "program_identity",
           "pda": {
             "seeds": [
@@ -2926,9 +2909,6 @@
           "name": "oracle_queue",
           "writable": true,
           "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
-        },
-        {
-          "name": "delegation_record_active"
         },
         {
           "name": "program_identity",
@@ -3428,6 +3408,21 @@
       ]
     }
   ],
+  "events": [
+    {
+      "name": "RunScored",
+      "discriminator": [
+        182,
+        97,
+        5,
+        51,
+        139,
+        99,
+        63,
+        253
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6000,
@@ -3709,10 +3704,6 @@
             "type": "u16"
           },
           {
-            "name": "bonus_type",
-            "type": "u8"
-          },
-          {
             "name": "bonus_charges",
             "type": "u8"
           },
@@ -3726,7 +3717,7 @@
           {
             "name": "vrf_request_counter",
             "docs": [
-              "Ramped draw tier for Daily."
+              "VRF requests issued for this run so far; the next request takes this number."
             ],
             "type": "u32"
           },
@@ -3998,24 +3989,57 @@
             "type": "u64"
           },
           {
-            "name": "score_best_entry",
+            "name": "score_best",
             "type": {
               "defined": {
-                "name": "ArenaBoardEntry"
+                "name": "BestRun"
               }
             }
           },
           {
-            "name": "theme_best_entry",
+            "name": "theme_best",
             "type": {
               "defined": {
-                "name": "ArenaBoardEntry"
+                "name": "BestRun"
               }
             }
           },
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BestRun",
+      "docs": [
+        "A wallet's best result on one board of one Daily. The wallet is the",
+        "daily player account's own `player`, so it is not repeated here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "score",
+            "type": "u32"
+          },
+          {
+            "name": "objective_total",
+            "type": "u64"
+          },
+          {
+            "name": "finalized_at",
+            "type": "i64"
+          },
+          {
+            "name": "replay_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -4261,7 +4285,7 @@
           {
             "name": "highest_ladder_tier",
             "docs": [
-              "Highest placeholder tier ever reached; it never decreases."
+              "Highest ladder tier ever reached; it never decreases, even through a reset."
             ],
             "type": "u8"
           },
@@ -4297,18 +4321,6 @@
               "Consecutive days carrying at least one paid entry."
             ],
             "type": "u16"
-          },
-          {
-            "name": "reserved",
-            "docs": [
-              "Explicit zeroed expansion space for future profile fields."
-            ],
-            "type": {
-              "array": [
-                "u8",
-                18
-              ]
-            }
           },
           {
             "name": "bump",
@@ -4475,6 +4487,36 @@
           },
           {
             "name": "Finished"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RunScored",
+      "docs": [
+        "Logged when a scored run is consumed. A finalized board keeps only its",
+        "paying rows and daily player accounts close, so this is the public record",
+        "of every result, including the ranks below the paying rows. It grants",
+        "nothing: boards and claims never read it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "day_id",
+            "type": "u32"
+          },
+          {
+            "name": "run_id",
+            "type": "u64"
+          },
+          {
+            "name": "row",
+            "type": {
+              "defined": {
+                "name": "ArenaBoardEntry"
+              }
+            }
           }
         ]
       }

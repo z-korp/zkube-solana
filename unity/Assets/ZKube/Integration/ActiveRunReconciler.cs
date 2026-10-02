@@ -21,7 +21,7 @@ namespace ZKube.Integration
                 : reason == null ? (byte)2 : reason == "Abandon" ? (byte)3 : reason == "Deadline" ? (byte)4 : (byte)255;
             var snapshot = new ReconcileRequest {
                 Phase = (byte)Phase(lifecycle), EndReason = endReason,
-                BonusType = (byte)account["bonus_type"], BonusCharges = (byte)account["bonus_charges"],
+                BonusType = (byte)account["rules"]["guardian"]["bonus"], BonusCharges = (byte)account["bonus_charges"],
                 RerollCharges = (byte)account["reroll_charges"], ComboCounter = (byte)account["combo_counter"],
                 MaxCombo = (byte)account["max_combo"],
                 Streak = (byte)account["streak"], ChargesEarned = (byte)account["charges_earned"],

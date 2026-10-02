@@ -5,15 +5,17 @@ namespace ZKube.Core.Generated
     {
         public const ulong EntryLamports = 10000000UL;
         public const ulong ClaimWindowSeconds = 2592000UL;
-        public const ulong FirstEntryPeakRentLamports = 12653280UL;
-        public const ulong ArenaPlayerRentLamports = 2909280UL;
+        public const ulong FirstEntryPeakRentLamports = 12193920UL;
+        public const ulong ArenaPlayerRentLamports = 2463840UL;
         public const ulong PayoutUnitLamports = 1000000UL;
         public const ulong SystemAccountRentLamports = 890880UL;
         public const uint ArenaBoardCapacity = 1536U;
         public const uint DailyMaxMoves = 100U;
         public const uint ProtocolAccountVersion = 7U;
-        public const uint PlayerStateAccountVersion = 3U;
+        public const uint PlayerStateAccountVersion = 4U;
         public const uint CatalogVersion = 3U;
+        public const uint MaxEmblemId = 12U;
+        public const uint MaxFrameTier = 4U;
         public static readonly ushort[] CampaignTargets = { 10, 14, 18, 22, 27, 32, 37, 42, 46, 50 };
         public static readonly byte[][] DailyThemes =
         {
