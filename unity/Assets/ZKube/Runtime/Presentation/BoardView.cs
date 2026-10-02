@@ -44,7 +44,9 @@ namespace ZKube.Presentation
         private readonly bool[] flying = new bool[3];
         private GameObject modal;
         private Image modalShield;
-        private SpriteRenderer ghost, pressureFrame, pressureTint;
+        private SpriteRenderer ghost, pressureFrame, pressureTint, guardianAura;
+        public bool Boss { get; private set; }
+        public const float AuraAlpha = .55f, IntroSeconds = 2.2f;
         // Block sprites are reused: a board change returns them here instead of destroying them.
         private readonly Stack<SpriteRenderer> spareBlocks = new Stack<SpriteRenderer>();
         public int BlockSpritesCreated { get; private set; }
@@ -95,14 +97,26 @@ namespace ZKube.Presentation
             background.sharedMaterial = BoardLight.Lit;
             float d = Layout.Density, cell = Layout.Cell;
             var key = art.Token(SkinTokens.LightKey);
+            // The guardian's own level (DECISIONS 2026-10-02: a boss level feels
+            // like one): the frame and its backlight turn gold and the guardian
+            // stands in a breathing aura for the whole run.
+            Boss = HudLayout.BossLevel(owner.Session);
+            if (Boss)
+            {
+                guardianAura = NewSprite("Guardian aura", art.SkinUi(SkinSlots.FxGlow), -17);
+                float aura = 1.9f * hud.Guardian.width;
+                Size(guardianAura, new Rect(hud.Guardian.center.x - aura / 2, hud.Guardian.y + hud.Guardian.height * .62f - aura / 2, aura, aura));
+                guardianAura.color = SkinUi.WithAlpha(art.Token(SkinTokens.Accent), AuraAlpha);
+            }
             guardian = NewSprite("Calm realm guardian", art.Sprite("boss__idle"), -16);
             Size(guardian, hud.Guardian);
             guardian.sharedMaterial = BoardLight.Lit;
             var backlight = NewSprite("Board backlight", art.SkinUi(SkinSlots.FxGlow), -15);
             Size(backlight, new Rect(Layout.Rim.x - 12 * d, Layout.Rim.y - 24 * d, Layout.Rim.width + 24 * d, Layout.Rim.height + 48 * d));
-            backlight.color = new Color(key.r, key.g, key.b);
+            var rim = Boss ? art.Token(SkinTokens.Accent) : key;
+            backlight.color = new Color(rim.r, rim.g, rim.b);
             Sliced("Grid well", art.SkinUi(SkinSlots.GridWell), Layout.Rim, -14);
-            Sliced("Board frame", art.SkinUi(SkinSlots.BoardFrame), Layout.Rim, -13).color = key;
+            Sliced("Board frame", art.SkinUi(SkinSlots.BoardFrame), Layout.Rim, -13).color = rim;
             // Each cell is a soft dimple of light in the glass: the art is its shape
             // at full strength, drawn here at the 3% lift the spec gives, so device
             // texture compression keeps its edge.
@@ -115,8 +129,8 @@ namespace ZKube.Presentation
             }
             Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Layout.Tray, -10);
             // Under pressure the frame and the glass pulse in the warning colour, over the cells and under the blocks.
-            pressureTint = NewSprite("Pressure tint", art.SkinUi(SkinSlots.FxHalo), -11);
-            Size(pressureTint, new Rect(Layout.Board.x - .15f * Layout.Board.width, Layout.Board.y - .15f * Layout.Board.height, 1.3f * Layout.Board.width, 1.3f * Layout.Board.height));
+            pressureTint = NewSprite("Pressure tint", art.SkinUi(SkinSlots.FxGlow), -11);
+            Size(pressureTint, new Rect(Layout.Board.x - .2f * Layout.Board.width, Layout.Board.y - .2f * Layout.Board.height, 1.4f * Layout.Board.width, 1.4f * Layout.Board.height));
             pressureFrame = Sliced("Pressure frame", art.SkinUi(SkinSlots.BoardFrame), Layout.Rim, 1, 2);
             pressureTint.enabled = pressureFrame.enabled = false;
             var pawsSprite = art.Sprite("boss__paws");
@@ -173,7 +187,7 @@ namespace ZKube.Presentation
                 if (hud.Medal.width > 0 && level > 0)
                 {
                     var medal = ui.Rect<Image>("Level medal", hud.Medal, root);
-                    medal.sprite = art.SkinRealm(SkinSlots.MapNodeOpen); medal.preserveAspect = true; medal.raycastTarget = false;
+                    medal.sprite = art.SkinRealm(Boss ? SkinSlots.MapNodeGuardian : SkinSlots.MapNodeOpen); medal.preserveAspect = true; medal.raycastTarget = false;
                     Text("Level", HudLayout.LevelNumber(session.RealmId, level), hud.Medal, hud.LevelPt, SkinTokens.Text, root,
                         SkinUi.Type.Display, TextAlignmentOptions.Center);
                 }
@@ -641,6 +655,15 @@ namespace ZKube.Presentation
                     if (grid[row * 8 + col] != 0) return 9 - row;
             return 10;
         }
+        // The guardian's level opens with the guardian: its name and title shout
+        // over the board while it greets the player from its aura.
+        public void IntroduceGuardian(bool reducedMotion)
+        {
+            float centre = Layout.Board.center.y, apart = 26 * Layout.Density * ui.Scale;
+            Callout("Guardian name", art.GuardianName.ToUpperInvariant(), 46, SkinTokens.Accent, centre + apart, 0, IntroSeconds, reducedMotion);
+            Callout("Guardian title", art.GuardianTitle, 22, SkinTokens.Text, centre - apart, PerfectDelay, IntroSeconds, reducedMotion);
+            Face("greeting"); guardianCheerUntil = Time.unscaledTime + IntroSeconds;
+        }
         // 0 calm, 1 warning, 2 critical.
         public static int PressureLevel(int freeRows) => freeRows <= 0 ? 2 : freeRows <= PressureRows ? 1 : 0;
         public int Pressure { get; private set; }
@@ -656,7 +679,7 @@ namespace ZKube.Presentation
             var tone = critical ? danger : Color.Lerp(danger, art.Token(SkinTokens.Accent), .5f);
             float wave = owner.ReducedMotion ? .6f : .5f - .5f * Mathf.Cos(2 * Mathf.PI * now / (critical ? 1.2f : 2));
             pressureFrame.color = SkinUi.WithAlpha(tone, critical ? Mathf.Lerp(.5f, 1, wave) : Mathf.Lerp(.3f, .9f, wave));
-            pressureTint.color = SkinUi.WithAlpha(tone, (critical ? .34f : .18f) * wave);
+            pressureTint.color = SkinUi.WithAlpha(tone, (critical ? .5f : .28f) * wave);
         }
         public void SetBoard(byte[] grid)
         {
@@ -1281,6 +1304,8 @@ namespace ZKube.Presentation
         private void Update()
         {
             ShowAwaiting(Time.unscaledTime); ShowPressure(Time.unscaledTime);
+            if (guardianAura != null)
+                guardianAura.color = SkinUi.WithAlpha(guardianAura.color, owner.ReducedMotion ? AuraAlpha : AuraAlpha * (.75f + .25f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 3)));
             if (guardianGlow != null && guardianGlow.enabled)
                 guardianGlow.color = SkinUi.WithAlpha(guardianGlow.color, owner.ReducedMotion ? 1 : .8f + .2f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f));
             if (owner != null && owner.State != null) Breathe(Time.unscaledTime);

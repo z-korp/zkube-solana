@@ -138,7 +138,7 @@ namespace ZKube.Presentation
             // Invalidate the old gesture and layout together at that boundary.
             if (!bootstrapped || loadingRealm) return;
             if (PresentationInitialized && art.RealmId == session.RealmId)
-            { CancelDrag(); SetMuted(Muted); CreateView(); DisplayAccepted(); ResolveOpening(); }
+            { CancelDrag(); UseRunMusic(); SetMuted(Muted); CreateView(); DisplayAccepted(); IntroduceGuardian(); ResolveOpening(); }
             else StartCoroutine(LoadBoundRealm());
         }
         private IEnumerator LoadBoundRealm()
@@ -159,18 +159,35 @@ namespace ZKube.Presentation
                     // Bind may replace a selection while Resources is loading.
                     // Serialize loads and never expose that superseded realm.
                     if (Session.RealmId != requested) continue;
-                    music.clip = Resources.Load<AudioClip>(art.LevelMusicResource);
-                    if (music.clip == null) throw new InvalidOperationException("The bound realm music is missing");
+                    UseRunMusic();
                     SetMuted(Muted); CreateView(); initialized = true; loadingRealm = false;
-                    DisplayAccepted(); ResolveOpening(); yield break;
+                    DisplayAccepted(); IntroduceGuardian(); ResolveOpening(); yield break;
                 }
             }
             finally { loadingRealm = false; }
         }
+        // The realm's level track, or the guardian's own on its level.
+        private string musicResource;
+        private void UseRunMusic()
+        {
+            string wanted = HudLayout.BossLevel(Session) ? art.BossMusicResource : art.LevelMusicResource;
+            if (music.clip != null && musicResource == wanted) return;
+            ReleaseRealmMusic();
+            music.clip = Resources.Load<AudioClip>(wanted); musicResource = wanted;
+            if (music.clip == null) throw new InvalidOperationException("The bound realm music is missing");
+        }
+        // The guardian's level opens with the guardian: once for a fresh run.
+        private BoardSession introduced;
+        private void IntroduceGuardian()
+        {
+            if (!HudLayout.BossLevel(Session) || introduced == Session || State.ActionCounter != 0) return;
+            introduced = Session;
+            View.IntroduceGuardian(ReducedMotion); Sound(SoundCues.BossIntro);
+        }
         private void ReleaseRealmMusic()
         {
             if (music == null) return;
-            music.Stop(); var old = music.clip; music.clip = null;
+            music.Stop(); var old = music.clip; music.clip = null; musicResource = null;
             if (old != null) Resources.UnloadAsset(old);
         }
         private void CreateView()

@@ -154,7 +154,8 @@ fn theme(source: &Value, root: &Path) -> Result<Value, String> {
             json!(format!("/assets/{id}/boss/{frame}.png")),
         );
     }
-    let music: serde_json::Map<String, Value> = ["level"]
+    // The realm's level track, and the guardian's for its own level.
+    let music: serde_json::Map<String, Value> = ["level", "boss"]
         .into_iter()
         .map(|kind| {
             (
@@ -245,7 +246,7 @@ fn objective(theme: &zkube_core::DailyTheme) -> Value {
 /// its clip under assets/common/sounds/effects. The clips are imported and the
 /// C# names emitted from this one list, so a played cue cannot lack its clip.
 /// The small win is the old client's level-up sting until its own is authored.
-pub const SOUND_CUES: [(&str, &str); 7] = [
+pub const SOUND_CUES: [(&str, &str); 8] = [
     ("Move", "swipe"),
     ("LineBreak", "explode"),
     ("Bonus", "bonus-activate"),
@@ -253,6 +254,7 @@ pub const SOUND_CUES: [(&str, &str); 7] = [
     ("Loss", "over"),
     ("SmallWin", "levelup"),
     ("BigWin", "victory"),
+    ("BossIntro", "boss-intro"),
 ];
 
 pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<String, String> {

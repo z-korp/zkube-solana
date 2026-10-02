@@ -97,6 +97,9 @@ namespace ZKube.Presentation
         public static byte CampaignLevel(BoardSession session) =>
             session == null || session.Daily ? (byte)0 : (byte)(Array.IndexOf(Protocol.CampaignTargets, (ushort)session.Rules.PointsRequired) + 1);
 
+        // The guardian's level, the last of its realm: a boss level.
+        public static bool BossLevel(BoardSession session) => CampaignLevel(session) == Protocol.CampaignTargets.Length;
+
         public static HudLayout Build(SkinUi ui, RunSummary state, BoardSession session, Rect safe, float density, Rect? screen = null)
         {
             var result = new HudLayout { Scale = ui.Scale, Campaign = session == null || !session.Daily };

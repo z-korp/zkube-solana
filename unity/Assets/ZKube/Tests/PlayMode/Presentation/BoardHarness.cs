@@ -65,6 +65,15 @@ namespace ZKube.Presentation.Tests
             Board.Bind(new BoardSession(token, config, new OfflineActions(Current), Current.realmId));
         }
 
+        // A fresh Campaign run of a catalog level, its randomness from the level's name.
+        public void LoadCampaign(byte realm, byte level)
+        {
+            Board = GetComponent<BoardController>();
+            var config = NativeEngine.CampaignRules(realm, level);
+            Current = new Fixture { name = "campaign-" + realm + "-" + level, realmId = realm, steps = new Step[0] }; journeyCursor = 0;
+            Board.Bind(new BoardSession(NativeEngine.Initialize(config), config, new OfflineActions(Current), realm));
+        }
+
         public IEnumerator PlayNextInput()
         {
             while (!ZKube.Tests.Presentation.BoardTestState.Idle(Board) || Board.Busy) yield return null;

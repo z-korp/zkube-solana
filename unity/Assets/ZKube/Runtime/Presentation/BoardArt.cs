@@ -49,6 +49,9 @@ namespace ZKube.Presentation
         // The guardian's rail line, a fraction of its canvas from the top.
         public float GuardianRailY { get; private set; }
         public string LevelMusicResource { get; private set; }
+        // The guardian's own track and title, for its level.
+        public string BossMusicResource { get; private set; }
+        public string GuardianTitle { get; private set; }
         private bool disposed;
         public IEnumerator Load(byte realmId)
         {
@@ -64,7 +67,10 @@ namespace ZKube.Presentation
                 ?? throw new InvalidOperationException("Imported realm level music is missing");
             if (theme.guardian == null || !(theme.guardian.railY > 0 && theme.guardian.railY < 1))
                 throw new InvalidOperationException("Imported guardian has no rail line");
+            var boss = theme.audio.SingleOrDefault(value => value.context == "boss")
+                ?? throw new InvalidOperationException("Imported realm guardian music is missing");
             RealmId = realmId; ThemeId = theme.id; GuardianName = theme.guardianName; LevelMusicResource = music.resource;
+            BossMusicResource = boss.resource; GuardianTitle = theme.guardianTitle;
             GuardianRailY = theme.guardian.railY;
             foreach (var swatch in theme.rgba)
                 colors[swatch.name] = new Color(swatch.value[0], swatch.value[1], swatch.value[2], swatch.value[3]);
@@ -173,7 +179,7 @@ namespace ZKube.Presentation
             { UnityEngine.Object.Destroy(sprites[key]); sprites.Remove(key); }
             ReleaseAtlas(ref realmLoad); ReleaseAtlas(ref skinRealmLoad);
             atlas = null; skinRealm = null; colors.Clear(); tokens.Clear();
-            RealmId = 0; ThemeId = null; GuardianName = null; LevelMusicResource = null;
+            RealmId = 0; ThemeId = null; GuardianName = null; LevelMusicResource = null; BossMusicResource = null; GuardianTitle = null;
         }
         public void Dispose()
         {

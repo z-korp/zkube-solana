@@ -30,13 +30,13 @@ class PortraitImports(unittest.TestCase):
         skins = json.loads((ROOT / 'assets/catalog.json').read_text())['skins']
         expected = {'assets/common/mark.png', 'assets/common/brand/realms.png', 'assets/common/brand/arena.png'}
         expected.update(f'assets/common/sounds/effects/{name}.mp3'
-                        for name in ('swipe', 'explode', 'bonus-activate', 'star', 'over', 'levelup', 'victory'))
+                        for name in ('swipe', 'explode', 'bonus-activate', 'star', 'over', 'levelup', 'victory', 'boss-intro'))
         for realm in range(1, 11):
             expected.update(f'assets/theme-{realm}/{name}.png' for name in
                             ['background'] + [f'boss/{frame}' for frame in
                              ('idle', 'blink', 'talk-mid', 'talk-open', 'greeting', 'satisfied', 'surprised',
                               'celebrate', 'defeated', 'portrait', 'paws')])
-            expected.add(f'assets/theme-{realm}/sounds/musics/level.mp3')
+            expected.update(f'assets/theme-{realm}/sounds/musics/{track}.mp3' for track in ('level', 'boss'))
         expected.update(f'assets/skins/{skin}/ui/{name}.png' for skin in skins for name in skin_slots())
         expected.update(realm_images())
         self.assertEqual({entry['source'] for entry in catalog['assets']}, expected)
