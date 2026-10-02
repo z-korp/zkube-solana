@@ -1285,22 +1285,18 @@ fn prepare_makes_only_todays_daily_once_and_a_repeat_is_a_checked_no_op() {
             .is_err());
     }
 
-    // During a suspension the one preparable Daily is the first day after
-    // it: where a finished day's money goes while nothing is played.
+    // A suspension changes nothing: today's Daily is still the only one, and
+    // the day the suspension ends is a later day like any other.
     runtime.sysvars.clock.unix_timestamp = day_window(today).unwrap().0 + 5;
     let mut suspended = protocol_state.clone();
     suspended.suspended_until_day = today + 4;
     let resume = prepare(today + 4);
     assert!(runtime
-        .process_instruction(&instruction, &accounts_for(&instruction, &suspended))
+        .process_instruction(&resume, &accounts_for(&resume, &suspended))
         .program_result
         .is_err());
-    let resumed = runtime.process_instruction(&resume, &accounts_for(&resume, &suspended));
-    assert!(
-        resumed.program_result.is_ok(),
-        "{:?}",
-        resumed.program_result
-    );
+    let during = runtime.process_instruction(&instruction, &accounts_for(&instruction, &suspended));
+    assert!(during.program_result.is_ok(), "{:?}", during.program_result);
 
     let rent = resulting_account(&result, &missing).lamports;
     for donation in [1, rent + 1] {
@@ -3121,7 +3117,8 @@ struct Game {
 
 impl Game {
     /// A protocol launched on `day` with `seed` lamports in its first pot.
-    fn launched(day: u32, seed: u64) -> Self {
+    /// Initialized and cadence-funded, paused, with no Daily yet.
+    fn unlaunched(day: u32) -> Self {
         let authority = Pubkey::new_unique();
         let caller = Pubkey::new_unique();
         let (protocol, mut state) = protocol_fixture(authority, Pubkey::new_unique(), true);
@@ -3165,14 +3162,20 @@ impl Game {
             caller,
         };
         game.at(day, 1);
-        let launch = [
-            game.prepare(day),
+        game
+    }
+
+    /// The operator's one launch transaction: the authority prepares today's
+    /// Daily, seeds it and unpauses.
+    fn launch(&self, day: u32, seed: u64) -> [Ix; 3] {
+        [
+            self.prepare_as(day, self.authority),
             Ix {
                 program_id: zkube::ID,
                 accounts: zkube::accounts::DepositArenaDaily {
-                    protocol,
+                    protocol: self.protocol,
                     arena_daily: Self::daily(day),
-                    authority,
+                    authority: self.authority,
                     system_program: anchor_lang::system_program::ID,
                 }
                 .to_account_metas(None),
@@ -3181,14 +3184,18 @@ impl Game {
             Ix {
                 program_id: zkube::ID,
                 accounts: zkube::accounts::SetProtocolPause {
-                    protocol,
-                    authority,
+                    protocol: self.protocol,
+                    authority: self.authority,
                 }
                 .to_account_metas(None),
                 data: zkube::instruction::SetProtocolPause { paused: false }.data(),
             },
-        ];
-        let launched = game.send(&launch);
+        ]
+    }
+
+    fn launched(day: u32, seed: u64) -> Self {
+        let mut game = Self::unlaunched(day);
+        let launched = game.send(&game.launch(day, seed));
         assert!(
             launched.program_result.is_ok(),
             "{:?}",
@@ -3274,6 +3281,10 @@ impl Game {
     }
 
     fn prepare(&self, day: u32) -> Ix {
+        self.prepare_as(day, self.caller)
+    }
+
+    fn prepare_as(&self, day: u32, caller: Pubkey) -> Ix {
         let daily = Self::daily(day);
         Ix {
             program_id: zkube::ID,
@@ -3283,7 +3294,7 @@ impl Game {
                 score_board: board_address(daily, DailyBoardKind::Score).0,
                 theme_board: board_address(daily, DailyBoardKind::Theme).0,
                 cadence_funding: self.cadence_funding,
-                caller: self.caller,
+                caller,
                 system_program: anchor_lang::system_program::ID,
             }
             .to_account_metas(None),
@@ -3781,7 +3792,9 @@ fn empty_dailies_are_bounded_finalize_empty_and_close_at_once() {
     // At no point did the month hold more than two empty Dailies' rent, and
     // at the end only the newest one is out.
     let worst = funding_start - lowest;
-    println!("a month of quiet days each touched once: at most {worst} lamports of cadence funding out at a time");
+    println!(
+        "a month of quiet days each touched once: at most {worst} lamports of cadence funding out at a time"
+    );
     assert_eq!(worst, empty_cost);
     assert_eq!(
         game.accounts[&game.cadence_funding].lamports,
@@ -3887,22 +3900,34 @@ fn a_seeded_launch_day_suspended_before_any_entry_finalizes_empty_and_its_seed_m
     game.player(player);
     let total = game.total();
     game.suspend_until(resume);
-    // Nobody can enter a suspended day, and none of its days can be prepared.
+    // Nobody can enter a suspended day.
     assert!(game
         .send(&[game.enter(player, launch)])
         .program_result
         .is_err());
     game.at(launch + 1, 60);
+    // No later day is ever prepared ahead, the day the suspension ends included.
+    for later in [launch + 2, resume] {
+        assert!(game.send(&[game.prepare(later)]).program_result.is_err());
+    }
+    // Today's Daily can be, suspended or not: it is what a finished day
+    // finalizes into, so a claim never waits for the suspension to end. It
+    // still takes no entry.
+    let carried = game.send(&[game.prepare(launch + 1), game.finalize(launch, launch + 1)]);
+    assert!(
+        carried.program_result.is_ok(),
+        "{:?}",
+        carried.program_result
+    );
     assert!(game
-        .send(&[game.prepare(launch + 1)])
+        .send(&[game.enter(player, launch + 1)])
         .program_result
         .is_err());
-    assert!(!game.exists(&Game::daily(launch + 1)));
     // The first player after the suspension carries everything.
     game.at(resume, 60);
     let entered = game.send(&[
         game.prepare(resume),
-        game.finalize(launch, resume),
+        game.finalize(launch + 1, resume),
         game.enter(player, resume),
     ]);
     assert!(
@@ -3910,45 +3935,36 @@ fn a_seeded_launch_day_suspended_before_any_entry_finalizes_empty_and_its_seed_m
         "{:?}",
         entered.program_result
     );
-    let old = game.state(launch);
-    assert_eq!(
-        (
-            old.entries_paid,
-            old.ledger.payout_lamports,
-            old.ledger.rollover_out_lamports
-        ),
-        (0, 0, SEED)
-    );
+    for empty in [launch, launch + 1] {
+        let old = game.state(empty);
+        assert_eq!(
+            (
+                old.entries_paid,
+                old.ledger.payout_lamports,
+                old.ledger.rollover_out_lamports
+            ),
+            (0, 0, SEED)
+        );
+    }
     let pot = game.state(resume);
-    assert_eq!(pot.predecessor_day, launch);
+    assert_eq!(pot.predecessor_day, launch + 1);
     assert_eq!(pot.ledger.available_lamports().unwrap(), SEED);
-    // The launch day is the root's first member, and closes at once.
-    assert_eq!(game.root().last_daily_id, launch);
-    assert!(game
-        .send(&[game.close(launch, None)])
-        .program_result
-        .is_ok());
+    // Both empty days joined the root in order, and close at once.
+    assert_eq!(game.root().last_daily_id, launch + 1);
+    for empty in [launch, launch + 1] {
+        assert!(game.send(&[game.close(empty, None)]).program_result.is_ok());
+    }
     assert_eq!(game.total(), total);
 
-    // A suspension that begins while a day already prepared for the resume
-    // is waiting: that Daily's window passes unplayed, it finalizes empty
-    // and the money reaches the next played day, with nothing to skip.
+    // A suspension that begins after a played day: that day's entry share
+    // waits in it and reaches the first Daily prepared afterwards, once.
     game.at(resume, 900);
     assert!(game.settle(player, resume, 10, 0).program_result.is_ok());
-    game.suspend_until(resume + 5);
-    game.at(resume + 1, 60);
-    // During the suspension the one preparable day is the day it ends.
-    assert!(game
-        .send(&[game.prepare(resume + 1)])
-        .program_result
-        .is_err());
-    let waiting = [game.prepare(resume + 5), game.finalize(resume, resume + 5)];
-    assert!(game.send(&waiting).program_result.is_ok());
     game.suspend_until(resume + 9);
     game.at(resume + 9, 60);
     let resumed = game.send(&[
         game.prepare(resume + 9),
-        game.finalize(resume + 5, resume + 9),
+        game.finalize(resume, resume + 9),
         game.enter(player, resume + 9),
     ]);
     assert!(
@@ -3957,16 +3973,187 @@ fn a_seeded_launch_day_suspended_before_any_entry_finalizes_empty_and_its_seed_m
         resumed.program_result
     );
     let pot = game.state(resume + 9);
-    let passed = game.state(resume + 5);
-    assert_eq!(passed.ledger.payout_lamports, 0);
+    let played = game.state(resume);
     assert_eq!(
         pot.ledger.rollover_in_lamports,
-        passed.ledger.rollover_out_lamports
+        played.ledger.rollover_out_lamports
     );
-    assert_eq!(pot.ledger.entry_lamports, 0);
+    assert_eq!(pot.ledger.entry_lamports, zkube_core::ENTRY_DAILY_LAMPORTS);
+    assert_eq!(game.total(), total);
+}
+
+#[test]
+fn shortening_a_suspension_takes_effect_at_once_because_no_later_day_is_ever_prepared() {
+    for until in [20_810, u32::MAX] {
+        let day = 20_710;
+        let mut game = Game::launched(day, SEED);
+        let player = Pubkey::new_unique();
+        game.player(player);
+        let total = game.total();
+        game.suspend_until(until);
+        game.at(day + 1, 60);
+        // Nobody can commit the old resume day: it is not today.
+        let before = game.accounts.clone();
+        assert!(game.send(&[game.prepare(until)]).program_result.is_err());
+        assert_eq!(game.accounts, before);
+        // Preparing today's Daily during the suspension commits nothing either.
+        assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
+        assert!(game
+            .send(&[game.enter(player, day + 1)])
+            .program_result
+            .is_err());
+        // Governance cancels the suspension: play resumes in the same day.
+        game.suspend_until(0);
+        let entered = game.send(&[
+            game.prepare(day + 1),
+            game.finalize(day, day + 1),
+            game.enter(player, day + 1),
+        ]);
+        assert!(
+            entered.program_result.is_ok(),
+            "{:?}",
+            entered.program_result
+        );
+        // The launch seed reached today's pot exactly once.
+        let pot = game.state(day + 1);
+        assert_eq!(
+            (pot.ledger.rollover_in_lamports, pot.entries_paid),
+            (SEED, 1)
+        );
+        let again = game.accounts.clone();
+        assert!(game
+            .send(&[game.finalize(day, day + 1)])
+            .program_result
+            .is_ok());
+        assert_eq!(game.accounts, again);
+        assert_eq!(game.total(), total);
+    }
+}
+
+#[test]
+fn before_launch_only_the_authority_prepares_and_a_daily_from_before_the_launch_day_closes_at_once()
+{
+    for gap in [1, 8] {
+        let day = 20_710;
+        let mut game = Game::unlaunched(day);
+        let funding = game.accounts[&game.cadence_funding].lamports;
+        let total = game.total();
+        // Nobody else can spend cadence rent on a Daily that may never be seeded.
+        let before = game.accounts.clone();
+        assert!(game.send(&[game.prepare(day)]).program_result.is_err());
+        assert_eq!(game.accounts, before);
+        // The authority prepared on its own and the launch then slipped: that
+        // Daily is no member of the chain, and it must not keep its rent.
+        assert!(game
+            .send(&[game.prepare_as(day, game.authority)])
+            .program_result
+            .is_ok());
+        let unseeded = game.accounts.clone();
+        assert!(game.send(&[game.close(day, None)]).program_result.is_err());
+        assert_eq!(
+            game.accounts, unseeded,
+            "before launch it may still be the launch Daily"
+        );
+        game.at(day + gap, 60);
+        let launched = game.send(&game.launch(day + gap, SEED));
+        assert!(
+            launched.program_result.is_ok(),
+            "{:?}",
+            launched.program_result
+        );
+        assert_eq!(game.root().launch_day_id, day + gap);
+        game.at(day + gap + 40, 60);
+        assert!(game
+            .send(&[game.finalize(day, day + gap)])
+            .program_result
+            .is_err());
+        let held = funding - game.accounts[&game.cadence_funding].lamports;
+        assert_eq!(held, 2 * 5_226_960);
+        assert!(game.send(&[game.close(day, None)]).program_result.is_ok());
+        for address in [
+            Game::daily(day),
+            board_address(Game::daily(day), DailyBoardKind::Score).0,
+            board_address(Game::daily(day), DailyBoardKind::Theme).0,
+        ] {
+            assert!(!game.exists(&address));
+        }
+        assert_eq!(
+            funding - game.accounts[&game.cadence_funding].lamports,
+            5_226_960
+        );
+        // The seeded launch Daily is a member of the chain and has no such exit.
+        let before = game.accounts.clone();
+        assert!(game
+            .send(&[game.close(day + gap, None)])
+            .program_result
+            .is_err());
+        assert_eq!(game.accounts, before);
+        assert_eq!(game.total(), total);
+    }
+}
+
+#[test]
+fn a_backlog_of_empty_dailies_finalizes_from_the_root_forward_whatever_its_length() {
+    let day = 20_710;
+    let mut game = Game::launched(day, SEED);
+    let funding = game.accounts[&game.cadence_funding].lamports;
+    let total = game.total();
+    // With no keeper, somebody prepares an empty Daily every day for a month.
+    for offset in 1..=30 {
+        game.at(day + offset, 60);
+        assert!(game
+            .send(&[game.prepare(day + offset)])
+            .program_result
+            .is_ok());
+        let before = game.accounts.clone();
+        assert!(game
+            .send(&[game.prepare(day + offset)])
+            .program_result
+            .is_ok());
+        assert_eq!(
+            game.accounts, before,
+            "one Daily a day, however often it is asked for"
+        );
+    }
     assert_eq!(
-        passed.ledger.entry_lamports,
-        zkube_core::ENTRY_DAILY_LAMPORTS
+        funding - game.accounts[&game.cadence_funding].lamports,
+        30 * 5_226_960
+    );
+    // The root names the last finalized Daily: the oldest waiting one is the
+    // first Daily after it, and its successor the first after that. A sender
+    // needs no lookback from the newest, and two at a time always advances.
+    let mut transactions = 0;
+    loop {
+        let root = game.root();
+        let waiting = (root.last_daily_id + 1..=root.last_prepared_day)
+            .filter(|candidate| game.exists(&Game::daily(*candidate)))
+            .take(3)
+            .collect::<Vec<_>>();
+        if waiting.len() < 2 {
+            break;
+        }
+        let steps = waiting
+            .windows(2)
+            .map(|pair| game.finalize(pair[0], pair[1]))
+            .collect::<Vec<_>>();
+        let result = game.send(&steps);
+        assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+        for finalized in &waiting[..waiting.len() - 1] {
+            assert!(game
+                .send(&[game.close(*finalized, None)])
+                .program_result
+                .is_ok());
+        }
+        transactions += 1;
+    }
+    assert_eq!(transactions, 15);
+    assert_eq!(game.root().last_daily_id, day + 29);
+    let pot = game.state(day + 30);
+    assert_eq!(pot.ledger.available_lamports().unwrap(), SEED);
+    assert_eq!(
+        funding - game.accounts[&game.cadence_funding].lamports,
+        0,
+        "only the newest Daily still holds rent, as the launch Daily did"
     );
     assert_eq!(game.total(), total);
 }
@@ -4168,7 +4355,6 @@ fn lamports_are_conserved_and_a_days_waiting_share_reaches_exactly_one_later_pot
                         let claim = game.claim(owner, day, DailyBoardKind::Score, position as u32);
                         if unfinalized == Some(day) {
                             if !game.exists(&Game::daily(today))
-                                && today >= suspended_until
                                 && game.send(&[game.prepare(today)]).program_result.is_ok()
                             {
                                 chain.push(today);
@@ -4235,14 +4421,10 @@ fn lamports_are_conserved_and_a_days_waiting_share_reaches_exactly_one_later_pot
     }
 }
 
-#[test]
-fn the_largest_cadence_carrying_entry_fits_one_transaction() {
-    // Yesterday ended with a full field: 262,144 qualifiers on both boards,
-    // each board holding its 1,536 best rows, and a pot that pays them all.
-    let day = 20_710;
-    let mut game = Game::launched(day, SEED);
+/// A day that ended with a full field: 262,144 qualifiers on both boards,
+/// each board holding its 1,536 best rows, and a pot that pays them all.
+fn full_day(game: &mut Game, day: u32, pool: u64) {
     let qualified = ARENA_DAILY_PLAYER_CAPACITY;
-    let pool = u64::MAX / 4;
     let mut state = game.state(day);
     state.ledger.seeded_lamports = pool;
     state.score_qualified_players = qualified;
@@ -4268,31 +4450,97 @@ fn the_largest_cadence_carrying_entry_fits_one_transaction() {
         let (address, account) = open_board(Game::daily(day), day, kind, &rows, qualified);
         game.accounts.insert(address, account);
     }
-    let player = Pubkey::new_unique();
-    game.player(player);
-    game.at(day + 1, 60);
-    let transaction = [
-        game.prepare(day + 1),
-        game.finalize(day, day + 1),
-        game.enter(player, day + 1),
-    ];
-    let entered = game.send(&transaction);
-    assert!(
-        entered.program_result.is_ok(),
-        "{:?}",
-        entered.program_result
-    );
-    println!(
-        "largest entry (prepare + finalize two full boards of a full field + root + entry): {} CU",
-        entered.compute_units_consumed
-    );
-    // Solana allows 1,400,000 units in one transaction.
-    assert!(entered.compute_units_consumed < 1_000_000);
-    let board: ArenaBoard = decode(game.board(day, DailyBoardKind::Score));
-    assert_eq!(
-        (board.width_count, board.payout_count as usize),
-        (qualified, ARENA_BOARD_CAPACITY)
-    );
-    assert_eq!(game.state(day + 1).entries_paid, 1);
-    assert_eq!(game.root().last_daily_id, day);
+}
+
+/// One transaction may use 1,400,000 units. What the program's instructions
+/// may use leaves room for the delegation the client adds to an entry.
+const TRANSACTION_COMPUTE_UNITS: u64 = 1_400_000;
+const DELEGATION_HEADROOM_UNITS: u64 = 200_000;
+
+#[test]
+fn the_largest_cadence_carrying_entry_fits_one_transaction() {
+    // The client sizes what it attaches by simulation and drops finalizations
+    // that do not fit, so the entry is never the one that fails. These are
+    // the worst cases of what it can end up sending: two finished days in a
+    // row, both with a full field, at three pot sizes.
+    for pool in [u64::MAX / 4, 100_000_000_000_000, 65_000_000_000_000] {
+        let day = 20_710;
+        let world = |finished: bool| {
+            let mut game = Game::launched(day, SEED);
+            full_day(&mut game, day, pool);
+            game.at(day + 1, 60);
+            assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
+            full_day(&mut game, day + 1, 0);
+            let player = Pubkey::new_unique();
+            game.player(player);
+            game.at(day + 2, 60);
+            if finished {
+                assert!(game
+                    .send(&[game.finalize(day, day + 1)])
+                    .program_result
+                    .is_ok());
+            }
+            (game, player)
+        };
+        let units = |game: &mut Game, transaction: &[Ix]| {
+            let result = game.send(transaction);
+            assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+            result.compute_units_consumed
+        };
+        // Both finalizations with the entry: more than one transaction holds.
+        // The client's simulation rejects it and it falls back.
+        let (mut game, player) = world(false);
+        let transaction = [
+            game.prepare(day + 2),
+            game.finalize(day, day + 1),
+            game.finalize(day + 1, day + 2),
+            game.enter(player, day + 2),
+        ];
+        let both = units(&mut game, &transaction);
+        // One finalization with the entry: the oldest day, then on the next
+        // entry the one after it. Each must fit with the delegation.
+        let (mut game, player) = world(false);
+        let transaction = [
+            game.prepare(day + 2),
+            game.finalize(day, day + 1),
+            game.enter(player, day + 2),
+        ];
+        let first = units(&mut game, &transaction);
+        let other = Pubkey::new_unique();
+        game.player(other);
+        let transaction = [
+            game.prepare(day + 2),
+            game.finalize(day + 1, day + 2),
+            game.enter(other, day + 2),
+        ];
+        let second = units(&mut game, &transaction);
+        assert_eq!(game.root().last_daily_id, day + 1);
+        assert_eq!(game.state(day + 2).entries_paid, 2);
+        // No finalization at all: the entry alone, preparing its day.
+        let (mut game, player) = world(false);
+        let transaction = [game.prepare(day + 2), game.enter(player, day + 2)];
+        let alone = units(&mut game, &transaction);
+        assert_eq!(game.state(day + 2).entries_paid, 1);
+        // A winner sealing days without entering: one day, and two.
+        let (mut game, _) = world(false);
+        let transaction = [game.prepare(day + 2), game.finalize(day, day + 1)];
+        let seal = units(&mut game, &transaction);
+        let (mut game, _) = world(false);
+        let transaction = [
+            game.prepare(day + 2),
+            game.finalize(day, day + 1),
+            game.finalize(day + 1, day + 2),
+        ];
+        let seal_both = units(&mut game, &transaction);
+        println!(
+            "pool {pool}: entry with two full finalizations {both} CU, with one {first} and {second}, \
+             alone {alone}; sealing one {seal}, two {seal_both}"
+        );
+        for fitting in [first, second, alone] {
+            assert!(fitting + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
+        }
+        assert!(seal <= TRANSACTION_COMPUTE_UNITS);
+        let board: ArenaBoard = decode(game.board(day, DailyBoardKind::Score));
+        assert_eq!(board.payout_count as usize, ARENA_BOARD_CAPACITY);
+    }
 }

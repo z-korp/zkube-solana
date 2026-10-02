@@ -3,7 +3,6 @@
 export const memory: WebAssembly.Memory;
 export const dayIdAt: (a: bigint) => [number, number, number];
 export const dailyWindow: (a: number) => [number, number];
-export const preparableDaily: (a: number, b: number, c: number) => number;
 export const compareBoardEntries: (a: bigint, b: bigint, c: number, d: number, e: bigint, f: bigint, g: number, h: number) => [number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_malloc: (a: number, b: number) => number;

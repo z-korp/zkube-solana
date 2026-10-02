@@ -75,10 +75,9 @@ namespace ZKube.Integration.Client
         // What a transaction sent now would prepare and finalize.
         public Task<MoneyRead<CadenceObservation>> Cadence(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             long timestamp = Clock(); uint day = CurrentDay(timestamp);
-            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.ProtocolAddress, addresses.Daily(day) }, cancellation: token).ConfigureAwait(false);
+            var read = await rpc.ReadAccount(rpc.Base, addresses.ProtocolAddress, cancellation: token).ConfigureAwait(false);
             return await CadenceObservation.Read(accounts, addresses, rpc,
-                read.Accounts[0].Envelope == null ? null : accounts.ProtocolConfig(read.Accounts[0].Envelope),
-                read.Accounts[1].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[1].Envelope, day), day, timestamp, read.Slot, token).ConfigureAwait(false);
+                read.Envelope == null ? null : accounts.ProtocolConfig(read.Envelope), day, timestamp, read.Slot, token).ConfigureAwait(false);
         });
 
         // Explicit day reads have no discovery lookback restriction: an old

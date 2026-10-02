@@ -8035,36 +8035,6 @@
       "responseHex": "ffffffff"
     },
     {
-      "operation": 30,
-      "requestHex": "0200680000006400000000000000",
-      "responseHex": "68000000"
-    },
-    {
-      "operation": 30,
-      "requestHex": "0200680000006400000068000000",
-      "responseHex": "68000000"
-    },
-    {
-      "operation": 30,
-      "requestHex": "020068000000640000006e000000",
-      "responseHex": "6e000000"
-    },
-    {
-      "operation": 30,
-      "requestHex": "020068000000000000006e000000",
-      "responseHex": "68000000"
-    },
-    {
-      "operation": 30,
-      "requestHex": "02000000000001000000ffffffff",
-      "responseHex": "ffffffff"
-    },
-    {
-      "operation": 30,
-      "requestHex": "0200ffffffff0100000000000000",
-      "responseHex": "ffffffff"
-    },
-    {
       "operation": 13,
       "requestHex": "02000a07",
       "responseHex": "2d00"

@@ -31,12 +31,14 @@ namespace ZKube.Tests.ProductReads
             public readonly SolanaRpcTransport Rpc;
             public readonly Dictionary<string, JToken> Chain = new Dictionary<string, JToken>();
             public readonly uint Day; public readonly long Now; public readonly string Owner;
+            public int Reads;
             public World()
             {
                 Planner = new TransactionPlanner(Protocol, Tokens);
                 Day = (uint)Plans["inputs"]["day"]; Now = (long)Plans["inputs"]["now"]; Owner = (string)Plans["inputs"]["owner"];
                 var http = new TestHttp { Reply = async (endpoint, request, token) => {
                     await Task.Yield();
+                    if ((string)request["method"] != "getGenesisHash") Reads++;
                     JToken Account(string address) => Chain.TryGetValue(address, out var row) ? new JObject { ["owner"] = row["owner"],
                         ["executable"] = false, ["lamports"] = 1000000000, ["data"] = new JArray(row["data"], "base64") } : JValue.CreateNull();
                     switch ((string)request["method"])
@@ -57,8 +59,8 @@ namespace ZKube.Tests.ProductReads
             public JObject Config(JToken row) => Accounts.ProtocolConfig(Envelope(row));
             // The moment yesterday's last unresolved run can no longer score.
             public long YesterdayRecovered => (long)NativeEngine.Daily(Day - 1).FreezesAt + (long)ZKube.Core.Generated.Protocol.RunRecoverySeconds;
-            public Task<CadenceObservation> Read(JToken protocol, string today, long now) => CadenceObservation.Read(Accounts, Planner, Rpc,
-                Config(protocol), today == null ? null : Daily(today), Day, now, null, CancellationToken.None);
+            public Task<CadenceObservation> Read(JToken protocol, long now) => CadenceObservation.Read(Accounts, Planner, Rpc,
+                Config(protocol), Day, now, null, CancellationToken.None);
             public PlannerActor Device() => PlannerActor.Device(Owner, (string)Plans["inputs"]["device"], Envelope(Plans["accounts"]["session"]),
                 Tokens, Protocol.ProgramId, Now);
         }
@@ -98,21 +100,45 @@ namespace ZKube.Tests.ProductReads
             var world = new World(); long late = world.YesterdayRecovered;
             world.Put(world.Cadence["yesterday"]);
             // A quiet day: today's Daily is prepared and yesterday finalizes into it.
-            var quiet = await world.Read(world.Cadence["quietProtocol"], null, late);
+            var quiet = await world.Read(world.Cadence["quietProtocol"], late);
             Assert.That(quiet.PrepareDay, Is.EqualTo(world.Day));
             Assert.That(quiet.Steps.Select(step => (step.Day, step.Following)), Is.EqualTo(new[] { (world.Day - 1, world.Day) }));
             // Someone entered today already: only the finalization is left.
-            var played = await world.Read(world.Plans["accounts"]["protocol"], "today", late);
+            world.Put(world.Cadence["today"]);
+            var played = await world.Read(world.Cadence["protocol"], late);
             Assert.That(played.PrepareDay, Is.Null);
             Assert.That(played.Steps.Select(step => (step.Day, step.Following)), Is.EqualTo(new[] { (world.Day - 1, world.Day) }));
-            Assert.That((uint)played.Predecessor["day_id"], Is.EqualTo(world.Day - 1));
             // One run is still unresolved: until its recovery deadline the day waits for it.
-            var early = await world.Read(world.Plans["accounts"]["protocol"], "today", late - 1);
-            Assert.That(early.Steps, Is.Empty); Assert.That(early.Due, Is.False);
-            // Once it is done there is nothing to carry.
-            world.Put(world.Cadence["yesterdayFinalized"]);
-            var done = await world.Read(world.Plans["accounts"]["protocol"], "todayReceived", late);
-            Assert.That(done.Due, Is.False);
+            var early = await world.Read(world.Cadence["protocol"], late - 1);
+            Assert.That(early.Steps, Is.Empty); Assert.That(early.PrepareDay, Is.Null);
+            // Once the root holds yesterday there is nothing to carry.
+            world.Put(world.Cadence["yesterdayFinalized"], world.Cadence["todayReceived"]);
+            var done = await world.Read(world.Plans["accounts"]["protocol"], late);
+            Assert.That(done.Steps, Is.Empty); Assert.That(done.PrepareDay, Is.Null);
+        }
+
+        [Test]
+        public async Task ABacklogOfAnyLengthIsReadFromTheRootForward()
+        {
+            // Nine Dailies nobody finalized, on scattered days, with no keeper:
+            // more than any lookback from the newest would cover. The root
+            // names the last finalized day, and the oldest waiting one is the
+            // first Daily after it.
+            var world = new World(); var backlog = world.Cadence["backlog"];
+            var days = backlog["days"].Values<uint>().ToArray();
+            world.Put(backlog["dailies"].ToArray());
+            (uint, uint)[] Steps(CadenceObservation read) => read.Steps.Select(step => (step.Day, step.Following)).ToArray();
+            var start = await world.Read(backlog["start"], world.Now);
+            Assert.That(Steps(start), Is.EqualTo(new[] { (days[0], days[1]), (days[1], days[2]) }));
+            // Each transaction moves the root on, and the next read starts from there.
+            var advanced = await world.Read(backlog["advanced"], world.Now);
+            Assert.That(Steps(advanced), Is.EqualTo(new[] { (days[2], days[3]), (days[3], days[4]) }));
+            // The newest finalizes into today's Daily, which the same transaction prepares.
+            var last = await world.Read(backlog["last"], world.Now);
+            Assert.That(last.PrepareDay, Is.EqualTo(world.Day));
+            Assert.That(Steps(last), Is.EqualTo(new[] { (days[8], world.Day) }));
+            // The read is bounded by the days between the root and the newest Daily, never by the backlog.
+            Assert.That(world.Reads, Is.LessThanOrEqualTo(3 * (1 + 40 / SolanaRpcTransport.MaximumBatchAccounts)));
         }
 
         [Test]
@@ -128,6 +154,9 @@ namespace ZKube.Tests.ProductReads
             // The device pays only the fee: it signs alone and no owner approval is asked.
             Assert.That(plan.FeePayer, Is.EqualTo(actor.Signer)); Assert.That(plan.OwnerSignatureRequired, Is.False);
             Assert.That(calls.All(call => call.Accounts["caller"] == actor.Signer && call.Accounts["cadence_funding"] == world.Planner.CadenceFundingAddress));
+            // A day that finalizes into a Daily already prepared leaves today's alone.
+            var older = world.Planner.SettleDailies(actor, world.Day, new[] { new CadenceStep(world.Day - 2, world.Day - 1) });
+            Assert.That(older.Instructions.Select(world.Protocol.DecodeInstruction).Select(call => call.Name), Is.EqualTo(new[] { "finalize_arena_daily" }));
             Assert.Throws<InvalidOperationException>(() => world.Planner.SettleDailies(actor, null, Array.Empty<CadenceStep>()));
         }
 

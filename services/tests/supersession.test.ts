@@ -19,7 +19,7 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
-  { pattern: /Daily is being prepared|two Daily preparations|seed\/unpause\/activation|After the window and archival|root-gated closure|skipping a suspended one|activates or calls|whether or not it was activated|funds the following paid Daily|next prepared Daily's opening/i, trees: AUTHORED,
+  { pattern: /Daily is being prepared|two Daily preparations|seed\/unpause\/activation|After the window and archival|root-gated closure|skipping a suspended one|activates or calls|whether or not it was activated|funds the following paid Daily|next prepared Daily's opening|lets anyone prepare|first day after (?:it|a suspension)|preparable Daily/i, trees: AUTHORED,
     reversal: "Players' own transactions prepare and finalize each Daily; the keeper is a backstop" },
   { pattern: /\bFly\.io\b|flyctl|FLY_IMAGE_REF|Dockerfile|immutable image|release:deploy|indexing is a separate deployment decision|keeper has no inbound HTTP/i, trees: AUTHORED,
     reversal: "One Cloudflare Worker holds the read model and the keeper, bound to its deployed version" },

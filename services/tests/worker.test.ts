@@ -37,7 +37,8 @@ const WEBHOOK_SECRET = "delivery-secret";
 const VERSION = "0b8a2f6e-3c1d-4e5f-9a7b-1c2d3e4f5a6b";
 const keeper = Keypair.generate();
 // The Worker runs on the real clock, so its release launches on the real day.
-const LAUNCH_DAY = dayIdAt(BigInt(Math.floor(Date.now() / 1_000)));
+// Launched yesterday, so the launch Daily's window has closed.
+const LAUNCH_DAY = dayIdAt(BigInt(Math.floor(Date.now() / 1_000))) - 1;
 const tables = ["transactions", "results", "finalized_dailies", "daily_players", "runs", "keeper_lease", "keeper_writes",
   "keeper_approval", "keeper_scan"];
 const MODEL = ["results", "finalized_dailies", "daily_players", "runs"];
@@ -611,15 +612,15 @@ describe("keeper in the Worker", () => {
   });
 
   it("the_scheduled_pass_simulates_reserves_relays_and_settles_a_write_inside_the_worker", async () => {
-    // Launch day prepared, then a suspension: the day it ends is the one Daily anyone can prepare,
-    // and nobody has yet. One plan: prepare_arena_daily.
+    // Yesterday's launch Daily was played and is over, and nobody has prepared today's for it to
+    // finalize into. One plan: prepare_arena_daily.
     const coder = new BorshAccountsCoder(convertIdlToCamelCase(IDL as unknown as Idl));
     const decode = (name: string, row: { data: string }) => coder.decode(name, Buffer.from(row.data, "base64"));
     const protocol = decode("protocolConfig", programFixtures.plans.accounts.protocol);
     protocol.launchDayId = LAUNCH_DAY; protocol.lastPreparedDay = LAUNCH_DAY; protocol.lastDailyId = 0;
-    protocol.suspendedUntilDay = LAUNCH_DAY + 3;
     const daily = decode("arenaDaily", programFixtures.plans.accounts.daily);
     daily.dayId = LAUNCH_DAY; daily.predecessorDay = 0;
+    daily.entriesPaid = daily.entriesPaid.addn(1); daily.entriesScored = daily.entriesScored.addn(1);
     const account = (data: Buffer, owner = ZKUBE_PROGRAM_ID, lamports = 1_000_000_000) => ({
       data: [data.toString("base64"), "base64"], executable: false, lamports, owner: owner.toBase58(), rentEpoch: 0, space: data.length });
     const accounts = new Map([

@@ -84,11 +84,6 @@ namespace ZKube.Core
         public static uint DayAt(long timestamp) => BitConverter.ToUInt32(
             Call(NativeOperation.DayAt, NativeRequest.DayAt(BitConverter.GetBytes(timestamp))), 0);
 
-        // The one Daily anyone can prepare now: today's, or during a suspension
-        // the first day after it. The program enforces the same core rule.
-        public static uint PreparableDaily(uint today, uint launch, uint suspendedUntil) => BitConverter.ToUInt32(
-            Call(NativeOperation.PreparableDaily, NativeRequest.PreparableDaily(today, launch, suspendedUntil)), 0);
-
         public static int CompareBoardEntries(ulong leftMetric, long leftTime, byte[] leftOwner,
             ulong rightMetric, long rightTime, byte[] rightOwner)
         {

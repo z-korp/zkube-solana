@@ -349,9 +349,57 @@ namespace ZKube.Integration.Execution.Tests
             Assert.That(native.Calls, Is.EqualTo(1), "The device claim must not open the wallet again");
         }
 
+        [Test]
+        public async Task AWinnerSealsOnlyAsManyFinishedDaysAsFitOneTransaction()
+        {
+            // Nine Dailies nobody finalized and no keeper. Each seal starts at
+            // the root's oldest waiting day and carries what its simulation
+            // accepts: two days, or one when two do not fit.
+            var backlog = Fixture("economy")["cadence"]["backlog"]; var days = backlog["days"].Values<uint>().ToArray();
+            native.Seed = Enumerable.Repeat((byte)2, 32).ToArray();
+            var wallet = new WalletClient(native); var identity = new ClientIdentity(wallet); await identity.Connect(owner);
+            var records = new SessionRecordStore(store, sessions, accounts.ProgramId);
+            var tokenRow = plans["accounts"]["session"]; var token = sessions.Decode(Envelope(tokenRow));
+            await ZKube.Integration.Tests.TestBootstrap.SeedSession(records, owner, device, (string)tokenRow["address"], token.ValidUntil);
+            http.ExtraAccounts[(string)tokenRow["address"]] = tokenRow; http.AbsentNonPlayer = true;
+            http.ExtraAccounts[device] = new JObject { ["address"] = device, ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 5000000 };
+            foreach (var daily in backlog["dailies"]) http.ExtraAccounts[(string)daily["address"]] = daily;
+            var rpc = new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
+            var protocol = new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
+            var journal = new TransactionJournal(store);
+            var reconciler = new ExecutionReconciler(protocol, accounts, sessions, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
+            executor = new TransactionExecutor(planner, rpc, wallet, journal);
+            var sessionAccess = new SessionAccess(wallet, records, sessions, rpc, accounts.ProgramId, () => (long)plans["inputs"]["now"]);
+            var client = new EconomyClient(identity, sessionAccess, new ProductQueries(identity, accounts, planner, rpc, () => (long)plans["inputs"]["now"]), planner, journal, executor, reconciler);
+            (string, string, string)[] Sealed() => TransactionSignatures.Describe(http.Sent).Instructions.Where(ix => ix.ProgramId == protocol.ProgramId)
+                .Select(protocol.DecodeInstruction).Select(call => (call.Name, call.Accounts["arena_daily"],
+                    call.Accounts.TryGetValue("following_daily", out var following) ? following : null)).ToArray();
+            (string, string, string) Step(int index) => ("finalize_arena_daily", planner.Daily(days[index]), planner.Daily(days[index + 1]));
+
+            http.ExtraAccounts[planner.ProtocolAddress] = backlog["start"];
+            Assert.That((await client.SettleDailies()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(Sealed(), Is.EqualTo(new[] { Step(0), Step(1) }));
+            // Two full days do not fit: the oldest goes alone, and the next seal takes the other.
+            http.Fits = transaction => TransactionSignatures.Describe(transaction).Instructions.Count(ix => ix.ProgramId == protocol.ProgramId) < 2;
+            Assert.That((await client.SettleDailies()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(Sealed(), Is.EqualTo(new[] { Step(0) }));
+            http.ExtraAccounts[planner.ProtocolAddress] = backlog["advanced"];
+            Assert.That((await client.SettleDailies()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(Sealed(), Is.EqualTo(new[] { Step(2) }));
+            // The newest waiting day finalizes into today's Daily, prepared in the same transaction.
+            http.Fits = null; http.ExtraAccounts[planner.ProtocolAddress] = backlog["last"];
+            Assert.That((await client.SettleDailies()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            uint today = (uint)plans["inputs"]["day"];
+            Assert.That(Sealed(), Is.EqualTo(new[] { ("prepare_arena_daily", planner.Daily(today), (string)null),
+                ("finalize_arena_daily", planner.Daily(days[8]), planner.Daily(today)) }));
+            Assert.That(native.Calls, Is.EqualTo(1), "Sealing is the device's own transaction and never opens the wallet");
+        }
+
         private sealed class Http
         {
             public readonly TestHttp Transport;
+            // Which simulated transactions the cluster accepts; all of them when null.
+            public Func<byte[], bool> Fits;
 
             private readonly ConcurrentQueue<string> events; private readonly TestMemory store;
             private readonly JObject rpc, solana, plans; private readonly string owner;
@@ -380,7 +428,8 @@ namespace ZKube.Integration.Execution.Tests
                     case "getBalance": result = TestHttp.Context(new JValue(Balance), 1000); break;
                     case "getMinimumBalanceForRentExemption": result = new JValue(Rent); break;
                     case "simulateTransaction":
-                        var simulationError = SimulationError;
+                        var simulationError = SimulationError ?? (Fits == null || Fits(Convert.FromBase64String((string)request["params"][0])) ? null :
+                            new JObject { ["InstructionError"] = new JArray(2, "ComputationalBudgetExceeded") });
                         result = TestHttp.Context(new JObject { ["err"] = simulationError?.DeepClone() ?? JValue.CreateNull(), ["logs"] = new JArray(), ["unitsConsumed"] = 100 }, 1000); break;
                     case "sendTransaction":
                         Assert.That(store.Peek(owner, "journal"), Is.Not.Null, "Send ran before durable commit");

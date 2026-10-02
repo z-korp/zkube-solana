@@ -32,7 +32,7 @@ import {
   type KeeperOperation,
   type KeeperPlanContext,
 } from "./arcadeChain.js";
-import { dailyWindow, preparableDaily } from "./zkubeCore.js";
+import { dailyWindow } from "./zkubeCore.js";
 import {
   type DailySnapshot,
   type ProtocolSnapshot,
@@ -133,7 +133,7 @@ export class AnchorKeeperAdapter implements ProtocolInstructionMaterializer {
     const firstDay = Math.max(launchDayId, today - KEEPER_RECENT_DAILY_CADENCES);
     // A Daily exists only for a day somebody entered, so most of these
     // addresses are empty. The last is the one day that can be prepared now.
-    const dailyIds = [...new Set([...range(firstDay, today), preparableDaily(today, launchDayId, suspendedUntilDay)])];
+    const dailyIds = [...new Set([...range(firstDay, today), today])];
     const dailies = await this.loadDailies(dailyIds);
     const discover = async (hints: AnchorKeeperAdapterInput["discovery"]) => {
       const { closable, entered } = await this.loadArenaPlayers(dailies, hints);

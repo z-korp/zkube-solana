@@ -51,12 +51,36 @@ fn cadence() -> Value {
         settlement.score.paid_lamports > 0
             && settlement.forwarded_lamports > yesterday.ledger.next_pot_lamports
     );
-    let mut quiet = accounts::protocol();
-    quiet.last_prepared_day = DAY - 1;
+    let root = |last_finalized: u32, last_prepared: u32| {
+        let mut protocol = accounts::protocol();
+        protocol.last_daily_id = last_finalized;
+        protocol.last_prepared_day = last_prepared;
+        envelope(
+            accounts::singleton(PROTOCOL_CONFIG_SEED),
+            &protocol,
+            8 + ProtocolConfig::INIT_SPACE,
+        )
+    };
+    // A backlog with no keeper: nine empty Dailies on scattered days, none
+    // finalized, the newest three days old. The root is shown at the start
+    // and after the oldest two, and all but the newest, have finalized.
+    let days = [39, 20, 19, 8, 7, 6, 5, 4, 3].map(|ago| DAY - ago);
+    let backlog: Vec<_> = days
+        .iter()
+        .enumerate()
+        .map(|(index, day)| {
+            let mut daily = accounts::daily(*day);
+            daily.predecessor_day = if index == 0 { DAY - 40 } else { days[index - 1] };
+            daily.predecessor_rollover_applied = index == 0;
+            row(&daily)
+        })
+        .collect();
     json!({"yesterday": row(&yesterday), "today": row(&today),
         "yesterdayFinalized": row(&finalized), "todayReceived": row(&received),
         "forwarded": settlement.forwarded_lamports.to_string(),
-        "quietProtocol": envelope(accounts::singleton(PROTOCOL_CONFIG_SEED), &quiet, 8 + ProtocolConfig::INIT_SPACE)})
+        "protocol": root(DAY - 2, DAY), "quietProtocol": root(DAY - 2, DAY - 1),
+        "backlog": {"days": days, "dailies": backlog, "start": root(DAY - 40, DAY - 3),
+            "advanced": root(DAY - 20, DAY - 3), "last": root(DAY - 4, DAY - 3)}})
 }
 
 pub fn scenarios() -> Value {

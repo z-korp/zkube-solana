@@ -36,37 +36,14 @@ pub const fn daily_is_scheduled(day: u32, suspended_until: u32) -> bool {
     day >= suspended_until
 }
 
-/// The one Daily anyone can prepare at a given moment: today's, or during a
-/// suspension the first day after it, which is where a finished day's money
-/// goes while nothing is played. Before launch (`launch` zero) it is today's.
-#[must_use]
-pub fn preparable_daily(today: u32, launch: u32, suspended_until: u32) -> u32 {
-    if launch == 0 {
-        today
-    } else {
-        today.max(suspended_until)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn only_todays_daily_or_the_first_after_a_suspension_can_be_prepared() {
-        assert_eq!(preparable_daily(104, 100, 0), 104);
-        assert_eq!(preparable_daily(104, 100, 104), 104);
-        assert_eq!(preparable_daily(104, 100, 110), 110);
-        assert_eq!(preparable_daily(104, 0, 0), 104);
-        assert_eq!(preparable_daily(104, 0, 110), 104);
-    }
-
-    #[test]
     fn suspension_window_handles_gaps_and_u32_limits() {
         assert!(!daily_is_scheduled(19, 20));
         assert!(daily_is_scheduled(20, 20));
-        assert_eq!(preparable_daily(u32::MAX, 1, 0), u32::MAX);
-        assert_eq!(preparable_daily(0, 1, u32::MAX), u32::MAX);
         assert_eq!(
             day_id_at((i64::from(u32::MAX) + 1) * SECONDS_PER_DAY + DAY_START_OFFSET),
             Err(PeriodError::Overflow)

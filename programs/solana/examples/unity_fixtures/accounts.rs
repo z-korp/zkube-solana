@@ -115,6 +115,7 @@ pub fn protocol() -> ProtocolConfig {
         bump: pda(&[PROTOCOL_CONFIG_SEED]).1,
         launch_day_id: DAY - 100,
         last_prepared_day: DAY,
+        last_daily_id: DAY - 1,
         ..ProtocolConfig::default()
     }
 }

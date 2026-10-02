@@ -24,10 +24,9 @@ namespace ZKube.Integration.Planning
     // is on this path; the program enforces the same rules.
     public static class DailyCadence
     {
-        // Finalizations one transaction carries. More wait for the next one.
+        // The most finalizations one transaction is offered. How many it
+        // carries is what fits when it is simulated; the rest wait for the next.
         public const int MaximumSteps = 2;
-        // Unfinalized Dailies looked back over to find the oldest one due.
-        public const int MaximumHops = 6;
 
         // A Daily has no status: it is finalized once it carries the time it was.
         public static bool Finalized(JObject daily) => (long)daily["finalized_at"] != 0;

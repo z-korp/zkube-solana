@@ -7,15 +7,12 @@ export function dailyWindow(day: number): BigInt64Array;
 
 export function dayIdAt(timestamp: bigint): number;
 
-export function preparableDaily(today: number, launch: number, suspended: number): number;
-
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly dayIdAt: (a: bigint) => [number, number, number];
     readonly dailyWindow: (a: number) => [number, number];
-    readonly preparableDaily: (a: number, b: number, c: number) => number;
     readonly compareBoardEntries: (a: bigint, b: bigint, c: number, d: number, e: bigint, f: bigint, g: number, h: number) => [number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

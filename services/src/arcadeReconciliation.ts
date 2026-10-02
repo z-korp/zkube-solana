@@ -8,7 +8,6 @@ import {
   keeperPlan,
   type KeeperInstructionPlan,
 } from "./arcadeChain.js";
-import { preparableDaily } from "./zkubeCore.js";
 
 export type RunLifecycle =
   | "prepared"
@@ -84,11 +83,14 @@ export function discoverReconciliation(args: {
   const oldestKeeperDay = Math.max(0, today - KEEPER_RECENT_DAILY_CADENCES);
   const newest = snapshot.dailies.find(({ dayId }) => dayId === snapshot.lastPreparedDay);
 
-  // The one Daily the program lets anyone prepare: today's, or during a
-  // suspension the first day after it.
-  const preparable = preparableDaily(today, snapshot.launchDayId, snapshot.suspendedUntilDay);
-  if (snapshot.launchDayId > 0 && snapshot.lastPreparedDay < preparable) {
-    plans.push(keeperPlan("prepare_arena_daily", { dayId: preparable }));
+  // Only today's Daily can be prepared, and the backstop prepares it only
+  // when a played day is over with no later Daily to finalize into: an
+  // empty Daily helps nobody, and it never creates one for its own sake.
+  const windowDone = (daily: DailySnapshot) => nowUnix >= daily.runsCloseAt &&
+    (daily.entriesScored + daily.entriesExpired === daily.entriesPaid || nowUnix >= daily.recoveryDeadlineAt);
+  if (snapshot.launchDayId > 0 && newest && newest.dayId < today && newest.finalizedAt === 0 &&
+      newest.entriesPaid > 0 && windowDone(newest)) {
+    plans.push(keeperPlan("prepare_arena_daily", { dayId: today }));
   }
 
   for (const run of snapshot.runs) {
@@ -101,9 +103,7 @@ export function discoverReconciliation(args: {
     if (daily.finalizedAt === 0) {
       // The program's rule: the window has closed, and every entry is
       // resolved or the recovery deadline has passed.
-      const resolved = daily.entriesScored + daily.entriesExpired === daily.entriesPaid;
-      if (successor && successor.finalizedAt === 0 && daily.predecessorRolloverApplied &&
-          nowUnix >= daily.runsCloseAt && (resolved || nowUnix >= daily.recoveryDeadlineAt)) {
+      if (successor && successor.finalizedAt === 0 && daily.predecessorRolloverApplied && windowDone(daily)) {
         plans.push(keeperPlan("finalize_arena_daily", { dayId: daily.dayId, followingDayId: successor.dayId }));
       }
     } else if (daily.payoutLamports === 0n) {
@@ -125,7 +125,7 @@ export function discoverReconciliation(args: {
   }
 
   return plans.filter(({ context }) =>
-    context.dayId !== undefined && context.dayId >= oldestKeeperDay && context.dayId <= preparable);
+    context.dayId !== undefined && context.dayId >= oldestKeeperDay && context.dayId <= today);
 }
 
 function appendRunPlan(

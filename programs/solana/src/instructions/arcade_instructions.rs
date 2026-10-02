@@ -51,15 +51,18 @@ pub fn handler_prepare_arena_daily(ctx: Context<PrepareArenaDaily>, day_id: u32)
         );
         return Ok(());
     }
-    let today = day_id_at(Clock::get()?.unix_timestamp)?;
+    // Only today's Daily can be prepared, suspended or not: no account ever
+    // exists for a later day, so nothing commits the future.
     require!(
-        day_id
-            == zkube_core::preparable_daily(
-                today,
-                ctx.accounts.protocol.launch_day_id,
-                ctx.accounts.protocol.suspended_until_day,
-            ),
+        day_id == day_id_at(Clock::get()?.unix_timestamp)?,
         ErrorCode::InvalidPeriod
+    );
+    // Before launch the authority alone prepares, in its launch transaction:
+    // nobody else can spend cadence rent on a Daily that may never be seeded.
+    require!(
+        ctx.accounts.protocol.launch_day_id != 0
+            || ctx.accounts.caller.key() == ctx.accounts.protocol.authority,
+        ErrorCode::Unauthorized
     );
     let content = zkube_core::daily_pair_with::<SolanaSha256>(day_id);
     let realm = zkube_core::REALM_RULES[usize::from(content.0 - 1)];
@@ -845,7 +848,8 @@ pub struct CloseArenaDaily<'info> {
         seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
         bump = arena_daily.bump,
         constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.finalized() @ ErrorCode::InvalidState
+        constraint = arena_daily.finalized()
+            || arena_daily.never_launched(protocol.launch_day_id) @ ErrorCode::InvalidState
     )]
     pub arena_daily: Box<Account<'info, ArenaDaily>>,
     #[account(
@@ -892,9 +896,14 @@ pub struct CloseArenaDaily<'info> {
 
 /// Closes a finalized Daily and its boards once its claim window has passed,
 /// or at once when it paid nothing. What was never claimed moves into the
-/// newest prepared Daily's pot; only rent returns to cadence funding.
+/// newest prepared Daily's pot; only rent returns to cadence funding. A Daily
+/// prepared for a day before the launch never joined the chain: it holds
+/// nothing but rent and closes at once.
 pub fn handler_close_arena_daily(ctx: Context<CloseArenaDaily>) -> Result<()> {
     let daily = &ctx.accounts.arena_daily;
+    if !daily.finalized() {
+        return Ok(());
+    }
     let score_info = ctx.accounts.score_board.to_account_info();
     let theme_info = ctx.accounts.theme_board.to_account_info();
     validate_finalized_board_binding(

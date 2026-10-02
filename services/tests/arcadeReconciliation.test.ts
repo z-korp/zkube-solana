@@ -25,19 +25,24 @@ const of = (plans: ReturnType<typeof discoverReconciliation>, operation: string)
   plans.filter((plan) => plan.operation === operation).map(({ context }) => context);
 
 describe("backstop keeper reconciliation", () => {
-  it("keeper_backstop_prepares_only_the_one_daily_the_program_lets_anyone_prepare", () => {
-    // Today's Daily, once: an entry would prepare it too, and whoever comes second changes nothing.
-    expect(of(plansOf({ dailies: [daily(DAY - 3)] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([{ dayId: DAY }]);
-    expect(of(plansOf({ dailies: [daily(DAY)] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([]);
-    // Days nobody played are never prepared afterwards: only today's can be.
-    expect(of(plansOf({ dailies: [daily(DAY - 9)] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([{ dayId: DAY }]);
-    // During a suspension the one preparable day is the first after it, where a finished day's money goes.
-    const suspended = { suspendedUntilDay: DAY + 4, dailies: [daily(DAY - 1)] };
-    expect(of(plansOf(suspended, opens(DAY) + 1), "prepare_arena_daily")).toEqual([{ dayId: DAY + 4 }]);
-    expect(of(plansOf({ ...suspended, dailies: [daily(DAY - 1), { ...daily(DAY + 4), predecessorDayId: DAY - 1 }] },
-      opens(DAY) + 1), "prepare_arena_daily")).toEqual([]);
+  it("keeper_backstop_prepares_todays_daily_only_for_a_played_day_waiting_for_its_successor", () => {
+    const played = { ...daily(DAY - 3), entriesPaid: 2n, entriesScored: 2n };
+    const prepared = (overrides: Partial<ProtocolSnapshot>, nowUnix = opens(DAY) + 1) =>
+      of(plansOf(overrides, nowUnix), "prepare_arena_daily");
+    // A played day is over and nothing was prepared after it: today's Daily is what it finalizes into.
+    expect(prepared({ dailies: [played] })).toEqual([{ dayId: DAY }]);
+    // An empty Daily helps nobody: the backstop never prepares one after another, whatever the day.
+    expect(prepared({ dailies: [daily(DAY - 3)] })).toEqual([]);
+    expect(prepared({ dailies: [daily(DAY - 9)] })).toEqual([]);
+    // Today's exists already, or the played day can still be scored: nothing to prepare.
+    expect(prepared({ dailies: [daily(DAY)] })).toEqual([]);
+    const running = { ...daily(DAY - 1), entriesPaid: 2n, entriesScored: 1n };
+    expect(prepared({ dailies: [running] }, recoveryEnds(DAY - 1) - 1)).toEqual([]);
+    expect(prepared({ dailies: [running] }, recoveryEnds(DAY - 1))).toEqual([{ dayId: DAY }]);
+    // A suspension changes nothing: only today's Daily is ever prepared, never the resume day.
+    expect(prepared({ suspendedUntilDay: DAY + 4, dailies: [played] })).toEqual([{ dayId: DAY }]);
     // Before launch the operator's own transaction prepares the first Daily.
-    expect(of(plansOf({ launchDayId: 0, dailies: [] }, opens(DAY) + 1), "prepare_arena_daily")).toEqual([]);
+    expect(prepared({ launchDayId: 0, dailies: [] })).toEqual([]);
   });
 
   it("keeper_finalizes_by_the_clock_once_the_day_has_a_successor", () => {

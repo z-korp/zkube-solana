@@ -18,10 +18,23 @@ namespace ZKube.Integration.Execution
         public TransactionExecutor(TransactionPlanner planner, SolanaRpcTransport rpc, WalletClient wallet, TransactionJournal journal)
         { this.planner = planner; this.rpc = rpc; this.wallet = wallet; this.journal = journal; }
 
-        public async Task<ExecutionResult> Execute(TransactionPlan plan, string intent, IReadOnlyList<DeviceSigner> deviceSigners,
+        public Task<ExecutionResult> Execute(TransactionPlan plan, string intent, IReadOnlyList<DeviceSigner> deviceSigners,
+            IExecutionReconciler reconciler, CancellationToken cancellation = default) =>
+            Execute(plan == null ? null : new[] { plan }, intent, deviceSigners, reconciler, cancellation);
+
+        // One intent, offered in sizes: the most it could carry first, the
+        // intent on its own last. A size that does not fit a packet, or that
+        // its simulation rejects (compute included, at the limit it states),
+        // gives way to the next, so nothing optional attached to an intent can
+        // make it fail. Only the last size's rejection is the intent's.
+        public async Task<ExecutionResult> Execute(IReadOnlyList<TransactionPlan> sizes, string intent, IReadOnlyList<DeviceSigner> deviceSigners,
             IExecutionReconciler reconciler, CancellationToken cancellation = default)
         {
-            if (plan == null || reconciler == null) throw new ArgumentNullException();
+            if (sizes == null || sizes.Count == 0 || sizes.Any(size => size == null) || reconciler == null) throw new ArgumentNullException();
+            var plan = sizes[sizes.Count - 1];
+            if (sizes.Any(size => size.Owner != plan.Owner || size.FeePayer != plan.FeePayer || size.Route != plan.Route || size.RunId != plan.RunId ||
+                    size.OwnerSignatureRequired != plan.OwnerSignatureRequired || !size.DeviceSigners.SequenceEqual(plan.DeviceSigners)))
+                throw new ArgumentException("Sizes of one intent share its owner, payer, route and signers");
             if (string.IsNullOrWhiteSpace(intent) || intent.Length > 64) throw new ArgumentException("Invalid execution intent");
             if (!executing.Wait(0)) return Rejected(intent, "execution-busy");
             PendingTransaction pending = null;
@@ -40,6 +53,17 @@ namespace ZKube.Integration.Execution
                 var endpoint = plan.Route == PlanRoute.Base ? rpc.Base :
                     await rpc.ResolveEr(planner.ActiveRun(plan.Owner, plan.RunId.Value)).ConfigureAwait(false);
                 var lease = await rpc.LatestBlockhash(endpoint, cancellation).ConfigureAwait(false);
+                bool fastEr = plan.Route == PlanRoute.ResolvedEr && !plan.OwnerSignatureRequired;
+                int chosen = 0;
+                for (; chosen < sizes.Count - 1; chosen++)
+                {
+                    byte[] candidate;
+                    try { candidate = SolanaWire.UnsignedTransaction(sizes[chosen].CompileMessage(lease.Blockhash)); }
+                    catch (Exception error) when (error is ArgumentException || error is FormatException) { continue; }
+                    foreach (var signer in signers) candidate = signer.PartialSign(candidate);
+                    if (fastEr || (await rpc.Simulate(endpoint, candidate, lease, cancellation).ConfigureAwait(false)).Succeeded) break;
+                }
+                plan = sizes[chosen];
                 var message = plan.CompileMessage(lease.Blockhash);
                 var transaction = SolanaWire.UnsignedTransaction(message);
                 var feeTask = rpc.FeeForMessage(endpoint, message, cancellation);
@@ -53,7 +77,6 @@ namespace ZKube.Integration.Execution
                 catch (InvalidOperationException)
                 { return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill"); }
 
-                bool fastEr = plan.Route == PlanRoute.ResolvedEr && !plan.OwnerSignatureRequired;
                 foreach (var signer in signers) transaction = signer.PartialSign(transaction);
                 if (!fastEr)
                 {

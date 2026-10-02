@@ -122,15 +122,19 @@ namespace ZKube.Integration.Client.Runs
                 var entry = observation.Assess(accounts, observation.ObservedAt);
                 if (entry.Snapshot == null) throw new InvalidOperationException("Daily entry unavailable: " + entry.Status);
                 var claims = await EntryClaims(lease.Owner, observation.Day, token).ConfigureAwait(false);
-                var prepared = planner.PrepareDaily(session.Actor, player, entry.Snapshot, claims, now(), observation.Occupied,
-                    observation.Cadence.Steps);
                 var validator = await rpc.ClosestValidator(token).ConfigureAwait(false);
-                var plan = planner.PrepareAndDelegate(prepared, session.Actor, validator.Identity);
+                // The entry is offered with every due finalization, then with
+                // fewer, then on its own: the executor sends the most that fits,
+                // and a finished day never stands between a player and their run.
+                long at = now(); var due = observation.Cadence.Steps;
+                var sizes = Enumerable.Range(0, due.Count + 1).Select(dropped => planner.PrepareAndDelegate(
+                    planner.PrepareDaily(session.Actor, player, entry.Snapshot, claims, at, observation.Occupied, due.Take(due.Count - dropped)),
+                    session.Actor, validator.Identity)).ToArray();
                 // Persist the locator before any signing/send. A failed or
                 // expired preparation clears it only through fresh absence proof.
                 await markers.Save(new RunMarker(lease.Owner, player.NextRunId,
                     planner.ActiveRun(lease.Owner, player.NextRunId))).ConfigureAwait(false);
-                var result = await executor.Execute(plan, "start-daily", new[] { session.Signer }, reconciler, token).ConfigureAwait(false);
+                var result = await executor.Execute(sizes, "start-daily", new[] { session.Signer }, reconciler, token).ConfigureAwait(false);
                 receipts?.Record(result);
                 if (result.Outcome != ExecutionOutcome.Pending) await Observe(lease, token).ConfigureAwait(false);
                 RequireSettled(result);

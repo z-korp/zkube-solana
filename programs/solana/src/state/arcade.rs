@@ -3,7 +3,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
-use crate::state::protocol::{PlayerState, ACCOUNT_VERSION};
+use crate::state::protocol::{ACCOUNT_VERSION, PlayerState};
 
 pub const CADENCE_FUNDING_SEED: &[u8] = b"cadence_funding";
 pub const CREDIT_VAULT_SEED: &[u8] = b"credit_vault";
@@ -341,6 +341,17 @@ impl ArenaDaily {
     /// window, and finalized once it carries the time it was.
     pub fn finalized(&self) -> bool {
         self.finalized_at != 0
+    }
+
+    /// A Daily prepared for a day before the launch day. Launch happened on
+    /// a later Daily, so this one was never seeded or entered, is no member of
+    /// the chain or the result root, and holds nothing but rent.
+    pub fn never_launched(&self, launch_day: u32) -> bool {
+        launch_day != 0
+            && self.day_id < launch_day
+            && !self.finalized()
+            && self.entries_paid == 0
+            && self.ledger == PoolLedger::default()
     }
 
     /// Finalizes this Daily's money: unresolved entries count as expired, the
@@ -947,7 +958,7 @@ pub fn immutable_board_header(board: &ArenaBoard) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-pub use zkube_core::{daily_board_pools, DailyBoardPools};
+pub use zkube_core::{DailyBoardPools, daily_board_pools};
 
 pub fn compare_arena_entries(
     board: DailyBoardKind,
@@ -989,7 +1000,7 @@ pub struct FirstEntryAccounts {
 
 impl FirstEntryAccounts {
     pub fn sizes() -> Self {
-        use crate::state::protocol::{ActiveRun, ACTIVE_RUN_SEED};
+        use crate::state::protocol::{ACTIVE_RUN_SEED, ActiveRun};
         use ephemeral_rollups_sdk::dlp_api::state::{
             DelegationMetadata, DelegationRecord, UndelegationRequester,
         };
@@ -1123,20 +1134,28 @@ mod tests {
         };
         for day in [5, 20_000, u32::MAX - 1] {
             let source = daily(day, day - 1);
-            assert!(source
-                .require_funding_successor(&daily(day + 1, day))
-                .is_ok());
+            assert!(
+                source
+                    .require_funding_successor(&daily(day + 1, day))
+                    .is_ok()
+            );
             // A gap is one edge when the next Daily was prepared after it.
-            assert!(source
-                .require_funding_successor(&daily(u32::MAX, day))
-                .is_ok());
-            assert!(source
-                .require_funding_successor(&daily(u32::MAX, day - 1))
-                .is_err());
+            assert!(
+                source
+                    .require_funding_successor(&daily(u32::MAX, day))
+                    .is_ok()
+            );
+            assert!(
+                source
+                    .require_funding_successor(&daily(u32::MAX, day - 1))
+                    .is_err()
+            );
             assert!(source.require_funding_successor(&source).is_err());
-            assert!(source
-                .require_funding_successor(&daily(day - 1, day))
-                .is_err());
+            assert!(
+                source
+                    .require_funding_successor(&daily(day - 1, day))
+                    .is_err()
+            );
         }
         let mut protocol = ProtocolConfig::default();
         assert_eq!(protocol.record_prepared_daily(7).unwrap(), 0);
@@ -1153,17 +1172,21 @@ mod tests {
             last_daily_id: launch_day - 1,
             ..ProtocolConfig::default()
         };
-        assert!(archive
-            .append_daily(launch_day + 1, launch_day, [2; 32])
-            .is_err());
+        assert!(
+            archive
+                .append_daily(launch_day + 1, launch_day, [2; 32])
+                .is_err()
+        );
         archive.append_daily(launch_day, 0, [1; 32]).unwrap();
         assert!(archive.append_daily(launch_day, 0, [1; 32]).is_err());
         // A finalized Daily further along the chain cannot pass over the
         // next member, and a gap is one step only when the chain records it.
         let root = archive.daily_root;
-        assert!(archive
-            .append_daily(launch_day + 2, launch_day + 1, [3; 32])
-            .is_err());
+        assert!(
+            archive
+                .append_daily(launch_day + 2, launch_day + 1, [3; 32])
+                .is_err()
+        );
         assert_eq!(
             (archive.last_daily_id, archive.daily_root),
             (launch_day, root)
@@ -1188,27 +1211,35 @@ mod tests {
         // The launch day was skipped while suspended: its successor took over
         // its predecessor, a day before launch, and is the first member.
         let mut skipped = fresh.clone();
-        assert!(skipped
-            .append_daily(launch_day + 4, launch_day + 3, [1; 32])
-            .is_err());
-        assert!(skipped
-            .append_daily(launch_day - 1, launch_day - 2, [1; 32])
-            .is_err());
+        assert!(
+            skipped
+                .append_daily(launch_day + 4, launch_day + 3, [1; 32])
+                .is_err()
+        );
+        assert!(
+            skipped
+                .append_daily(launch_day - 1, launch_day - 2, [1; 32])
+                .is_err()
+        );
         skipped
             .append_daily(launch_day + 3, launch_day - 1, [1; 32])
             .unwrap();
         // From then on the chain alone decides, as after an ordinary launch.
-        assert!(skipped
-            .append_daily(launch_day + 5, launch_day - 1, [2; 32])
-            .is_err());
+        assert!(
+            skipped
+                .append_daily(launch_day + 5, launch_day - 1, [2; 32])
+                .is_err()
+        );
         skipped
             .append_daily(launch_day + 4, launch_day + 3, [2; 32])
             .unwrap();
         // A Daily that still follows the launch day is not the first member.
         let mut ordinary = fresh;
-        assert!(ordinary
-            .append_daily(launch_day + 1, launch_day, [1; 32])
-            .is_err());
+        assert!(
+            ordinary
+                .append_daily(launch_day + 1, launch_day, [1; 32])
+                .is_err()
+        );
         ordinary.append_daily(launch_day, 0, [1; 32]).unwrap();
     }
 

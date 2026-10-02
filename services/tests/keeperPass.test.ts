@@ -105,10 +105,10 @@ it("keeper_reports_cadence_funding_against_two_overlapping_days_and_counts_its_r
     }));
     const log = vi.fn();
     const result = await runKeeperPass({ ...input, log,
-      // Yesterday's Daily is the newest prepared: the backstop prepares today's.
+      // Yesterday's played Daily is the newest prepared: the backstop prepares today's for it.
       protocolSnapshot: { ...input.protocolSnapshot, paused: false, launchDayId: 20_690, lastPreparedDay: 20_699, dailies: [{
         dayId: 20_699, finalizedAt: 0, runsCloseAt: opens(20_699) + 86_340,
-        recoveryDeadlineAt: opens(20_699) + 107_940, entriesPaid: 0n, entriesScored: 0n, entriesExpired: 0n,
+        recoveryDeadlineAt: opens(20_699) + 107_940, entriesPaid: 2n, entriesScored: 2n, entriesExpired: 0n,
         predecessorDayId: 20_698, predecessorRolloverApplied: true, payoutLamports: 0n,
       } satisfies DailySnapshot] },
       protocolMaterializer: { materialize: async ({ operation }: { operation: KeeperOperation }) => {

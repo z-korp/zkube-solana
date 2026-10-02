@@ -121,7 +121,6 @@ pub use payouts::{
 pub use periods::{
     DAILY_REWARD_CLAIM_WINDOW_SECONDS, DAILY_RUN_CLOSE_OFFSET, DAY_START_OFFSET, PeriodError,
     RUN_RECOVERY_SECONDS, SECONDS_PER_DAY, daily_is_scheduled, daily_window, day_id_at,
-    preparable_daily,
 };
 
 pub use presentation::{NoPresentation, PresentationEvent, PresentationObserver};

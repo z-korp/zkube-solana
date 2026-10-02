@@ -150,6 +150,32 @@ namespace ZKube.Integration.Client.Runs.Tests
         }
 
         [Test]
+        public async Task AnEntryCarriesOnlyTheFinalizationsItsSimulationAccepts()
+        {
+            // Two finished days are waiting and today's Daily does not exist. The
+            // entry is offered with both finalizations, then one, then none; what
+            // is sent is the most its simulation accepts, in one transaction, and
+            // the entry itself is never what fails.
+            var backlog = Fixture("economy")["cadence"]["backlog"];
+            foreach (var (fitting, sent) in new[] {
+                (2, new[] { "prepare_arena_daily", "finalize_arena_daily", "finalize_arena_daily", "enter_arena", "delegate_active_run" }),
+                (1, new[] { "prepare_arena_daily", "finalize_arena_daily", "enter_arena", "delegate_active_run" }),
+                (0, new[] { "prepare_arena_daily", "enter_arena", "delegate_active_run" }) })
+            {
+                var env = await Environment.Create(); env.Http.Prepare("daily"); env.Http.IncludeClaims = true;
+                env.Http.Extra.Add(backlog["start"]); env.Http.Extra.AddRange(backlog["dailies"]);
+                env.Http.Hidden.Add((string)Fixture("plans")["accounts"]["daily"]["address"]);
+                env.Http.SimulationFits = names => names.Count(name => name == "finalize_arena_daily") <= fitting;
+                var result = await env.Client.StartDaily();
+                Assert.That(result.Phase, Is.EqualTo("delegated"), "fitting " + fitting);
+                Assert.That(env.Http.Sent, Is.EqualTo(sent));
+                Assert.That(env.Http.SentTransactions, Has.Count.EqualTo(1));
+                Assert.That(Convert.FromBase64String(env.Http.SentTransactions.Single()).Length, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
+                Assert.That(await env.Journal.Load(env.Owner), Is.Null);
+            }
+        }
+
+        [Test]
         public async Task ArcadeRecoversWithoutADeviceKeyAndUsesProgramSnapshots()
         {
             var env = await Environment.Create(); env.Native.Seed = (false) ? Enumerable.Repeat((byte)2, 32).ToArray() : null;
@@ -516,6 +542,11 @@ namespace ZKube.Integration.Client.Runs.Tests
             private JToken player;
             public Http(ProtocolBindings protocol, JObject plans, JObject runs) { Transport = new TestHttp { Reply = Respond }; this.protocol = protocol; this.plans = plans; Runs = runs; player = runs["player"]; }
             public bool IncludeClaims;
+            // Accounts served ahead of the fixture's own, addresses that do not
+            // exist, and which simulated instruction lists the cluster accepts.
+            public readonly List<JToken> Extra = new List<JToken>();
+            public readonly HashSet<string> Hidden = new HashSet<string>();
+            public Func<string[], bool> SimulationFits;
             public void Prepare(string mode) { player = Runs["initialPlayers"][mode]; States["daily"] = null; Delegated.Clear(); }
             public void ReplaceWithSuccessor(bool opening, bool delegated, string mode = "daily")
             {
@@ -534,7 +565,9 @@ namespace ZKube.Integration.Client.Runs.Tests
                     if (FailSessionRead) throw new IOException("Synthetic session read unavailable");
                     if (RevokedSession) return JValue.CreateNull();
                 }
-                JToken source = address == (string)player["address"] ? player : ((JObject)plans["accounts"]).Properties().Where(property => property.Name != "expiredSession").Select(property => property.Value).SingleOrDefault(row => (string)row["address"] == address);
+                if (Hidden.Contains(address)) return JValue.CreateNull();
+                JToken source = Extra.FirstOrDefault(row => (string)row["address"] == address) ??
+                    (address == (string)player["address"] ? player : ((JObject)plans["accounts"]).Properties().Where(property => property.Name != "expiredSession").Select(property => property.Value).SingleOrDefault(row => (string)row["address"] == address));
                 if (IncludeClaims && source == null) source = plans["boards"].SelectMany(b => new[] { b["envelope"], b["daily"] })
                     .FirstOrDefault(b => b.Type == JTokenType.Object && (string)b["address"] == address);
                 foreach (string mode in new[] { "daily" })
@@ -579,7 +612,11 @@ namespace ZKube.Integration.Client.Runs.Tests
                     case "getLatestBlockhash": result = Context(new JObject { ["blockhash"] = plans["inputs"]["blockhash"], ["lastValidBlockHeight"] = 11000 }); break;
                     case "getFeeForMessage": result = Context(new JValue(5000)); break;
                     case "getBalance": result = Context(new JValue((string)request["params"][0] == (string)plans["inputs"]["device"] ? ActualDeviceBalance : 1000000000UL)); break;
-                    case "simulateTransaction": result = Context(new JObject { ["err"] = null, ["logs"] = new JArray(), ["unitsConsumed"] = 1 }); break;
+                    case "simulateTransaction":
+                        var simulated = TransactionSignatures.Describe(Convert.FromBase64String((string)request["params"][0])).Instructions
+                            .Where(ix => ix.ProgramId == protocol.ProgramId).Select(ix => protocol.DecodeInstruction(ix).Name).ToArray();
+                        result = Context(new JObject { ["err"] = SimulationFits == null || SimulationFits(simulated) ? null :
+                            new JObject { ["InstructionError"] = new JArray(2, "ComputationalBudgetExceeded") }, ["logs"] = new JArray(), ["unitsConsumed"] = 1 }); break;
                     case "sendTransaction":
                         byte[] bytes = Convert.FromBase64String((string)request["params"][0]);
                         SentTransactions.Add(Convert.ToBase64String(bytes));
@@ -587,7 +624,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                         foreach (var instruction in TransactionSignatures.Describe(bytes).Instructions.Where(ix => ix.ProgramId == protocol.ProgramId))
                         {
                             var decoded = protocol.DecodeInstruction(instruction); Sent.Add(decoded.Name);
-                            if (decoded.Name == "claim_daily_prize") continue;
+                            if (decoded.Name == "claim_daily_prize" || decoded.Name == "prepare_arena_daily" || decoded.Name == "finalize_arena_daily") continue;
                             if (SuppressSendEffects) continue;
                             string mode = Mode(decoded.Accounts[decoded.Name == "delegate_active_run" ? "pda" : "active_run"]);
                             if (decoded.Name == "enter_arena") { States[mode] = "prepared"; player = Runs["preparedPlayers"][mode]; }

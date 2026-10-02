@@ -152,25 +152,37 @@ spending approval.
   operator nor VRF chooses a pair. `daily_draw_is_reproducible_from_seed_and_day` guards independent
   recomputation.
 - **Cadence:** play and payout never wait for a keeper. A Daily exists only for a day somebody entered, plus
-  the launch day: the day's first transaction prepares it, and a repeat is a no-op. The core owns which Daily
-  can be prepared, for the program, the keeper and the client alike. A Daily has no status: the
-  clock opens and closes its window, and it is finalized once it records when. Anyone finalizes it once its
-  window has closed and every entry is resolved, or six hours later whatever is unresolved, which then counts
-  as expired. An entry carries today's preparation and up to two due finalizations ahead of itself; a winner
-  back on a quiet day sends the same steps alone, then claims.
+  the launch day: the day's first transaction prepares it, and a repeat is a no-op. Only today's Daily can be
+  prepared, suspended or not, so no account ever exists for a later day. A Daily has no status: the clock opens
+  and closes its window, and it is finalized once it records when. Anyone finalizes it once its window has
+  closed and every entry is resolved, or six hours later whatever is unresolved, which then counts as expired.
   `prepare_makes_only_todays_daily_once_and_a_repeat_is_a_checked_no_op`,
   `a_quiet_week_resolves_from_the_first_transaction_whoever_sends_it`,
-  `a_day_with_an_abandoned_run_finalizes_on_the_first_claim_after_the_recovery_window`,
-  `empty_dailies_are_bounded_finalize_empty_and_close_at_once`,
-  `the_largest_cadence_carrying_entry_fits_one_transaction`, `TheLargestCadenceCarryingEntryFitsOnePacket`,
-  `TheCadenceIsReadFromTheChainOfPreparedDailiesOldestFirst` and
+  `a_day_with_an_abandoned_run_finalizes_on_the_first_claim_after_the_recovery_window` and
+  `empty_dailies_are_bounded_finalize_empty_and_close_at_once` guard the program.
+- **Carried cadence:** an entry is offered with today's preparation and up to two due finalizations, then with
+  fewer, then on its own; the client sends the most that fits one packet and passes simulation at the limit it
+  states, so a finished day never makes an entry fail. A winner back on a quiet day seals days the same way,
+  then claims. The waiting Dailies are read forward from the result root, which names the last finalized day,
+  so a backlog of any length advances with every transaction.
+  `the_largest_cadence_carrying_entry_fits_one_transaction` bounds each size the client can fall back to with
+  room for delegation; `a_backlog_of_empty_dailies_finalizes_from_the_root_forward_whatever_its_length`,
+  `AnEntryCarriesOnlyTheFinalizationsItsSimulationAccepts`,
+  `AWinnerSealsOnlyAsManyFinishedDaysAsFitOneTransaction`, `ABacklogOfAnyLengthIsReadFromTheRootForward`,
+  `TheLargestCadenceCarryingEntryFitsOnePacket`, `TheCadenceIsReadFromTheChainOfPreparedDailiesOldestFirst` and
   `AWinnerBackOnAQuietDayFinalizesTheirDayThemselves` guard the program and the client.
-- **Suspension:** governance may suspend Dailies instantly for any duration. Paid entry rejects on a suspended
-  day, including one already entered, before any Kredit, vault or pot change. No Daily is prepared for a
-  suspended day. A prepared Daily nobody entered finalizes empty and sends everything it holds to the next
-  prepared Daily, once, without spending a Kredit or remapping later days.
+- **Launch:** before launch only the authority prepares a Daily, in the one transaction that also seeds it and
+  unpauses. A Daily left from before the launch day was never seeded or entered, is no member of the chain, and
+  closes at once with its rent returned to cadence funding.
+  `before_launch_only_the_authority_prepares_and_a_daily_from_before_the_launch_day_closes_at_once` guards both.
+- **Suspension:** governance may suspend Dailies instantly for any duration, and shorten or cancel a suspension
+  with immediate effect: nothing is ever prepared for the day it was due to end. Paid entry rejects on a
+  suspended day, including one already entered, before any Kredit, vault or pot change. Today's Daily can
+  still be prepared, empty, so that a finished day finalizes and its winners claim during the suspension. A
+  prepared Daily nobody entered finalizes empty and sends everything it holds to the next prepared Daily, once,
+  without spending a Kredit or remapping later days.
   `a_seeded_launch_day_suspended_before_any_entry_finalizes_empty_and_its_seed_moves_on`,
-  `only_todays_daily_or_the_first_after_a_suspension_can_be_prepared`,
+  `shortening_a_suspension_takes_effect_at_once_because_no_later_day_is_ever_prepared`,
   `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` and
   `suspension_window_handles_gaps_and_u32_limits` guard that behavior.
 - **Funding edge:** preparation only moves forward, and each Daily records the Daily prepared before it. Entry
@@ -178,7 +190,7 @@ spending approval.
   change never remaps an edge, and no caller chooses a successor.
   `the_funding_edge_is_the_recorded_predecessor_whatever_the_suspension`,
   `finalization_rejects_skipping_its_funding_successor` and
-  `keeper_backstop_prepares_only_the_one_daily_the_program_lets_anyone_prepare` guard the program and the keeper.
+  `keeper_backstop_prepares_todays_daily_only_for_a_played_day_waiting_for_its_successor` guard the program and the keeper.
 - **No future-content panel:** the app shows the current challenge and suspension notice, without previewing
   the following day's pair. `keeps reversed models out of authored source` guards the retired copy; nothing
   prepares a later day's account.
@@ -578,7 +590,7 @@ share one workspace and configuration; `workspace_has_one_dependency_and_configu
 ProtocolConfig advances a sequential result root from launch day, and finalization appends its Daily to it.
 The next member is exactly the Daily whose recorded predecessor is the last member, and a Daily finalizes only
 after that predecessor has, so no Daily can be passed over. The first member is the one Daily from launch
-onward whose predecessor lies before launch. A Daily closes only once finalized, so the root covers it.
+onward whose predecessor lies before launch. A Daily of the chain closes only once finalized, so the root covers it.
 `archive_is_strictly_sequential`, `the_first_root_member_is_the_first_daily_of_the_chain_from_launch`,
 `finalization_rejects_skipping_its_funding_successor` and
 `closing_a_daily_moves_what_was_never_claimed_into_the_newest_pot_and_returns_only_rent` guard it. The ledger is the archive. No
@@ -622,8 +634,8 @@ The keeper pass runs only from the Worker's Cron Trigger. The request path is ha
 webhook secret alone: no request can start a pass, reach the key or change the write switch.
 `a_fetch_cannot_start_a_keeper_pass_reach_the_key_or_change_the_write_switch` guards that boundary.
 
-The keeper is a backstop: nothing a player does waits for it. Its seven plans prepare the one Daily the
-program lets anyone prepare, finalize, close Daily and player accounts and, for runs nobody came back to,
+The keeper is a backstop: nothing a player does waits for it. Its seven plans prepare today's Daily when a
+played day is over with nothing to finalize into (never an empty Daily for its own sake), finalize, close Daily and player accounts and, for runs nobody came back to,
 finish at the deadline, commit and consume. All seven instructions are permissionless and each is a no-op or a
 checked rejection when a player's transaction got there first; `keeper_allowlist_is_exactly_its_plans`,
 `an_expired_orphan_closes_without_period_accounts`,

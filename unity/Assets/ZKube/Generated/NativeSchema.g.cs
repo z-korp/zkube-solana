@@ -114,7 +114,6 @@ namespace ZKube.Core.Generated
         public const uint RecordLocalCampaignResult = 26;
         public const uint BoardOrder = 28;
         public const uint DayAt = 29;
-        public const uint PreparableDaily = 30;
     }
     public static class NativeRequest
     {
@@ -301,15 +300,6 @@ namespace ZKube.Core.Generated
             var bytes = new byte[10];
             NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
             NativeWire.Copy(Timestamp, bytes, 2, 8);
-            return bytes;
-        }
-        public static byte[] PreparableDaily(uint Today, uint Launch, uint SuspendedUntil)
-        {
-            var bytes = new byte[14];
-            NativeWire.Write(bytes, 0, 2, NativeSchema.AbiVersion);
-            NativeWire.Write(bytes, 2, 4, Today);
-            NativeWire.Write(bytes, 6, 4, Launch);
-            NativeWire.Write(bytes, 10, 4, SuspendedUntil);
             return bytes;
         }
     }

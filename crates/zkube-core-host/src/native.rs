@@ -221,11 +221,6 @@ pub const OPERATIONS: &[Operation] = &[
         name: "DayAt",
         fields: fields![Timestamp: Bytes(8)],
     },
-    Operation {
-        id: 30,
-        name: "PreparableDaily",
-        fields: fields![Today: U32, Launch: U32, SuspendedUntil: U32],
-    },
 ];
 
 /// One registry drives safe Rust indexing and generated managed layout.
@@ -536,14 +531,6 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
                 .map_err(|_| BoundaryError::InvalidEncoding)?;
             Ok(encode_campaign_progress(stars))
         }
-        // The one Daily anyone can prepare now: the program's own rule.
-        30 => Ok(zkube_core::preparable_daily(
-            input.u32("Today"),
-            input.u32("Launch"),
-            input.u32("SuspendedUntil"),
-        )
-        .to_le_bytes()
-        .to_vec()),
         // The day an instant belongs to: the core's one day boundary.
         29 => zkube_core::day_id_at(i64::from_le_bytes(
             b("Timestamp").try_into().expect("timestamp"),

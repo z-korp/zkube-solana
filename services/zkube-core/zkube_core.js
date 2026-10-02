@@ -43,17 +43,6 @@ export function dayIdAt(timestamp) {
     }
     return ret[0] >>> 0;
 }
-
-/**
- * @param {number} today
- * @param {number} launch
- * @param {number} suspended
- * @returns {number}
- */
-export function preparableDaily(today, launch, suspended) {
-    const ret = wasm.preparableDaily(today, launch, suspended);
-    return ret >>> 0;
-}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,

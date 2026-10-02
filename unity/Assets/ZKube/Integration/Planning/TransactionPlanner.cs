@@ -67,7 +67,9 @@ namespace ZKube.Integration.Planning
         // played again: it finalizes their day so that they can claim.
         public TransactionPlan SettleDailies(PlannerActor actor, uint? prepareDay, IEnumerable<CadenceStep> steps)
         {
-            var instructions = Cadence(actor.Signer, prepareDay, steps);
+            // Today's Daily is prepared only when a finished day finalizes into it.
+            var list = (steps ?? Enumerable.Empty<CadenceStep>()).ToArray();
+            var instructions = Cadence(actor.Signer, list.Any(step => step.Following == prepareDay) ? prepareDay : null, list);
             if (instructions.Count == 0) throw new InvalidOperationException("No Daily is due");
             return Plan(actor, PlanRoute.Base, instructions, PlanningConstants.SettlementReserveLamports,
                 computeUnitLimit: PlanningConstants.CadenceComputeUnitLimit);

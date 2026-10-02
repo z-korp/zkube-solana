@@ -209,10 +209,6 @@ mod wasm {
         let (opens, closes, recovery) = zkube_core::daily_window(day);
         vec![opens, closes, recovery]
     }
-    #[wasm_bindgen(js_name = preparableDaily)]
-    pub fn js_preparable_daily(today: u32, launch: u32, suspended: u32) -> u32 {
-        zkube_core::preparable_daily(today, launch, suspended)
-    }
     #[wasm_bindgen(js_name = compareBoardEntries)]
     pub fn js_compare_board_entries(
         left_metric: u64,
