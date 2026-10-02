@@ -460,6 +460,47 @@ namespace ZKube.Tests.Presentation
             finally { AppPreferences.SetReducedMotion(reduced); Phones.Clear(shell); }
         }
 
+        // The menu music plays under Home, Campaign (and a level's preview),
+        // Profile, Settings and an identity page under a tab, at the player's
+        // music level, from the catalog's menu-music slot; a result and the board
+        // (the pages hidden) stop it.
+        [UnityTest] public IEnumerator MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAndTheBoard()
+        {
+            root = new GameObject("Menu music");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Menu music");
+            Phones.Seeker(shell);
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Actions = new[] { new PageAction { Label = "Play today" } } };
+            source.Result = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
+                Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals,
+                Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+            var music = views.MenuMusic;
+            Assert.IsFalse(music.isPlaying, "Nothing plays before a page is drawn");
+            foreach (var page in new[] { AppPage.Home, AppPage.Campaign, AppPage.Level, AppPage.Profile, AppPage.Settings })
+            {
+                views.Render(page); yield return null;
+                Assert.IsTrue(music.isPlaying, page + " plays the menu music");
+                Assert.IsTrue(music.loop);
+                Assert.AreEqual(.2f, music.volume, .001f, page + " plays it at the music level");
+            }
+            StringAssert.EndsWith("menu", PageCatalog.Load().menuMusicResource);
+            Assert.AreEqual(Resources.Load<AudioClip>(PageCatalog.Load().menuMusicResource), music.clip, "The clip is the catalog's menu-music slot");
+            views.RenderPanel(new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Blocks = new PanelBlock[0] }); yield return null;
+            Assert.IsTrue(music.isPlaying, "An identity page under a tab keeps it");
+            views.Render(AppPage.Result); yield return null;
+            Assert.IsFalse(music.isPlaying, "A result stops it");
+            views.Render(AppPage.Home); yield return null;
+            Assert.IsTrue(music.isPlaying);
+            views.Hide();
+            Assert.IsFalse(music.isPlaying, "The board, with the pages hidden, stops it");
+            Phones.Clear(shell);
+        }
+
         // The Daily card shows the day's own guardian: its portrait, its name
         // and, on the Arcade, its realm all come from the Daily, in every realm,
         // whatever realm the page's painting is from.

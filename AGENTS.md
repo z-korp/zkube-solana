@@ -394,7 +394,9 @@ path owns both products, and money-only schemas stay out of store packages.
 `TeardownDuringDelayedReadWaitsWithoutLateInputOrSigning` guard content and lifecycle. Native preferences
 are shared across settings and board controls, checked by
 `SettingsBeforeStartAreAppliedAndPersistAcrossControllerRecreation` and
-`SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount`.
+`SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount`. One menu track, the catalog's
+menu-music slot (assets/common/sounds/musics/menu.mp3), plays under the tab pages at the music level and stops
+for a result and the board; `MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAndTheBoard` guards it.
 
 Skins live in assets/skins/<id>/ and are listed in assets/catalog.json; Lumen is the only skin and the first is
 the default. The codegen owns the slot and token list, emits it to C# and rejects a missing or unknown slot for

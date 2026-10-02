@@ -28,7 +28,7 @@ class PortraitImports(unittest.TestCase):
     def test_imports_only_the_assets_loaded_by_the_game(self):
         _, catalog = imports.asset_plan()
         skins = json.loads((ROOT / 'assets/catalog.json').read_text())['skins']
-        expected = {'assets/common/mark.png'}
+        expected = {'assets/common/mark.png', 'assets/common/sounds/musics/menu.mp3'}
         expected.update(f'assets/common/sounds/effects/{name}.mp3'
                         for name in ('swipe', 'explode', 'bonus-activate', 'star', 'over', 'levelup', 'victory', 'boss-intro'))
         for realm in range(1, 11):

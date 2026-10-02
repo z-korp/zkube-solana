@@ -175,7 +175,7 @@ def asset_plan():
     files = {}
     entries = []
     scopes = ["common"] + [theme["id"] for theme in catalog["themes"]]
-    references = set(catalog["effects"].values()) | set(catalog["commonImages"].values())
+    references = set(catalog["effects"].values()) | set(catalog["commonImages"].values()) | {catalog["menuMusic"]}
     for theme in catalog["themes"]:
         references.update(theme["images"].values())
         references.update(theme["music"].values())
@@ -258,6 +258,7 @@ def asset_plan():
                           for key, value in theme["music"].items()]
     catalog["effectResources"] = [{"name": key, "resource": by_source[value]["resource"]}
                                   for key, value in catalog["effects"].items()]
+    catalog["menuMusicResource"] = by_source[catalog["menuMusic"]]["resource"]
     catalog_path = GENERATED / RESOURCE / "Catalog.json"
     files[catalog_path] = encoded(catalog)
     return files, catalog

@@ -867,6 +867,7 @@
       "trigger": 4
     }
   ],
+  "menuMusic": "/assets/common/sounds/musics/menu.mp3",
   "schema": 1,
   "skins": [
     {

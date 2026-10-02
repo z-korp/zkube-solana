@@ -14,6 +14,8 @@ namespace ZKube.Presentation
         public GuardianRule[] guardianRules;
         public ConstraintCaption[] constraintCaptions;
         public SkinEntry[] skins;
+        // The music under the pages, staged by build.py from the catalog's menu-music slot.
+        public string menuMusicResource;
         private static PageCatalog cached;
         [Serializable] public sealed class SkinEntry { public string id, name; public Swatch[] tokens; public UiSlot[] ui; public SkinRealm[] realms; }
         [Serializable] public sealed class UiSlot { public string slot, image; public int[] border; }
@@ -141,6 +143,7 @@ namespace ZKube.Presentation
                 throw new FormatException("Generated guardian descriptions are missing");
             foreach (var realm in themes) Rule(realm.realmId);
             if (skins == null || skins.Length == 0) throw new FormatException("Regenerate the catalog with its skin list");
+            if (string.IsNullOrEmpty(menuMusicResource)) throw new FormatException("Regenerate the catalog with its menu music");
             foreach (var skin in skins)
                 if (string.IsNullOrEmpty(skin.id) || skin.tokens == null || skin.ui == null || skin.realms == null ||
                     skin.realms.Any(realm => realm.tokens == null || realm.light?.source == null || realm.light.source.Length != 2) ||

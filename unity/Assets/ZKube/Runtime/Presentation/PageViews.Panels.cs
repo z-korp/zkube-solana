@@ -41,6 +41,7 @@ namespace ZKube.Presentation
             FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(reducedMotion, ui.Density);
+            Music(page.Tab.HasValue);
         }
 
         // A page's blocks under its title: a page without tabs centres them

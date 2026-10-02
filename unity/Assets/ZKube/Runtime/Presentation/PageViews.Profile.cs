@@ -272,6 +272,7 @@ namespace ZKube.Presentation
                 SkinSlider slider = null;
                 Action<double> apply = next => {
                     actions.Run(() => set(next)); value = next;
+                    if (music) Music(true);
                     if (next > 0) { if (music) lastMusic = next; else lastEffects = next; }
                     level.text = next > 0 ? Math.Round(next * 100) + "%" : "Off";
                     slider?.SetWithoutNotify((float)next);

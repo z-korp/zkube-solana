@@ -42,6 +42,10 @@ namespace ZKube.Presentation
         private bool reducedMotion;
         private byte shownRealm;
         public AppPage? Shown { get; private set; }
+        // The menu music: it plays under Home, Campaign (the map and a level's
+        // preview), Profile and Settings and the identity pages under their
+        // tabs, at the player's music level, and stops for a result and the board.
+        public AudioSource MenuMusic { get; private set; }
 
         // homeTabName is the Home tab's word ("Home", or the Arena's "Arcade");
         // brandName names the product's wordmark: "realms" or "arena".
@@ -55,6 +59,19 @@ namespace ZKube.Presentation
             density = displayDensity ?? BoardController.ReadDisplayDensity;
             if (actions == null) actions = new PageActions(source.Report);
             if (catalog == null) catalog = PageCatalog.Load();
+            if (MenuMusic == null)
+            {
+                MenuMusic = gameObject.AddComponent<AudioSource>(); MenuMusic.playOnAwake = false; MenuMusic.loop = true;
+            }
+        }
+        private void Music(bool on)
+        {
+            var settings = source.SettingsPage();
+            MenuMusic.volume = settings.Muted ? 0 : (float)settings.Music;
+            if (!on) { MenuMusic.Stop(); return; }
+            if (MenuMusic.clip == null) MenuMusic.clip = Resources.Load<AudioClip>(catalog.menuMusicResource)
+                ?? throw new InvalidOperationException("The menu music is not imported");
+            if (!MenuMusic.isPlaying) MenuMusic.Play();
         }
 
         public void Render(AppPage page, IEnumerable<string> notices = null)
@@ -108,6 +125,7 @@ namespace ZKube.Presentation
             FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(source.SettingsPage().ReducedMotion, ui.Density);
+            Music(page != AppPage.Result);
         }
         // A page that fits its body does not scroll; one that overflows scrolls
         // to its last piece and a little past it, clear of the fade.
@@ -126,7 +144,7 @@ namespace ZKube.Presentation
         }
 
         // Removes the drawn page, so the next page enters without a page to leave.
-        public void Hide() { Retire(); Shown = null; shownPanel = null; shell.Clear(shell.SafeArea); }
+        public void Hide() { Retire(); Shown = null; shownPanel = null; shell.Clear(shell.SafeArea); Music(false); }
 
         // A page that could not load its realm art has no skin kit to draw with.
         public void Unavailable(string title, string message, PageAction retry)

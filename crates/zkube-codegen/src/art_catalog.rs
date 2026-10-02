@@ -298,6 +298,8 @@ pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<St
         "commonImages": {
             "mark": "/assets/common/mark.png",
         },
+        // The music under the pages: Home, Campaign, Profile and Settings.
+        "menuMusic": "/assets/common/sounds/musics/menu.mp3",
         "skins": super::skins::render(root, &authored, realms.len())?,
     });
     serde_json::to_string_pretty(&output)
