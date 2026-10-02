@@ -25,7 +25,9 @@ namespace ZKube.Presentation
         {
             public readonly float Height;
             public readonly Action<Rect> Draw;
-            public Piece(float height, Action<Rect> draw) { Height = height; Draw = draw; }
+            // How far it draws above its box (a title plate's outset).
+            public readonly float Above;
+            public Piece(float height, Action<Rect> draw, float above = 0) { Height = height; Draw = draw; Above = above; }
             public static readonly Piece Grow = new Piece(-1, null);
         }
         // What a row holds on its right: its size and how it draws.
@@ -63,6 +65,13 @@ namespace ZKube.Presentation
         public float Width => width;
         // The column's foot: the safe bottom less its 16 dp (10 on a compact phone), or a tab page's tab bar.
         public float Bottom => bottom;
+        // The top of a page: nothing drawn rises past Edge, TopClearDp under the
+        // safe top, so a cutout or the screen's corner never crops a title plate
+        // or a header card. A column starts there, less what its first piece
+        // draws above its box; Top is a titled column's.
+        public const float TopClearDp = 8;
+        public float Edge => Safe.yMax - TopClearDp * Ui.Density;
+        public float Top => Edge - PlateOutsetU * U;
         // A card's inside: the column less its 12u padding each side.
         public ScreenKit Inside(float padU = 12) => new ScreenKit(this, width - 2 * padU * U);
         public float Inner => width - 24 * U;
@@ -95,8 +104,8 @@ namespace ZKube.Presentation
             var face = label.font.faceInfo;
             float natural = (face.ascentLine - face.descentLine) / face.pointSize, size = sizeDp * Ui.Scale * Ui.Density;
             float spill = Mathf.Max(0, (natural - leading) * size / 2);
-            // The words never rise past the safe top: a box there spills downward.
-            float top = Mathf.Min(box.yMax + spill, Mathf.Max(box.yMax, Safe.yMax));
+            // The words never rise past the page's edge: a box there spills downward.
+            float top = Mathf.Min(box.yMax + spill, Mathf.Max(box.yMax, Edge));
             if (spill > 0) SkinUi.Place(label.rectTransform, new Rect(box.x, top - box.height - 2 * spill, box.width, box.height + 2 * spill), parent ?? Parent);
             label.lineSpacing = SkinUi.LineSpacing(label.font, leading);
             return label;
@@ -107,7 +116,8 @@ namespace ZKube.Presentation
         // is left. Returns the column, from the bottom of its last piece up.
         public Rect Compose(params Piece[] pieces)
         {
-            float u = U, left = Safe.center.x - width / 2, top = Safe.yMax, gap = 10 * u;
+            float u = U, left = Safe.center.x - width / 2, gap = 10 * u;
+            float top = Edge - pieces.Where(piece => piece.Height >= 0).Select(piece => piece.Above).FirstOrDefault();
             float taken = pieces.Where(piece => piece.Height >= 0).Sum(piece => piece.Height) + gap * (pieces.Length - 1);
             int spacers = pieces.Count(piece => piece.Height < 0);
             float spare = Mathf.Max(0, top - bottom - taken) / Mathf.Max(1, spacers), y = top;
@@ -158,7 +168,7 @@ namespace ZKube.Presentation
                 if (subtitle != null)
                     Text("Screen subtitle", subtitle, new Rect(rect.center.x - inner / 2, rect.y, inner, subtitleHeight - 2 * u), SubtitleDp, subtitleToken,
                         SkinUi.Type.Caption, NoteLeading);
-            });
+            }, PlateOutsetU * u);
         }
 
         // A card (.card3): padding 10u by 12u, its header in the display face's

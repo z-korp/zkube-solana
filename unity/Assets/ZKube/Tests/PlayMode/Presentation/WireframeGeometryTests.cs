@@ -138,7 +138,11 @@ namespace ZKube.Tests.Presentation
                         Near(GuardianStand(w), got["talk"][0].y - h.y, "stand");
                         continue;
                     }
-                    Near(w.y, h.y, "top");
+                    // A page's top hangs TopClearDp and the plate's outset under the
+                    // safe top (DECISIONS 2026-10-02: nothing is cropped by the screen
+                    // top), so a piece may sit up to that much under the wireframe's.
+                    float lowered = ScreenKit.TopClearDp + ScreenKit.PlateOutsetU * u;
+                    Assert.That(h.y, Is.InRange(w.y - Tolerance, w.y + lowered + Tolerance), at + " (top)");
                     if (role != "guardians") Near(w.height, h.height, "height");
                 }
             }
@@ -264,6 +268,85 @@ namespace ZKube.Tests.Presentation
                         var rect = SkinUi.ScreenRect(piece.rectTransform);
                         Assert.IsTrue(rect.xMin >= inside.xMin - .5f && rect.xMax <= inside.xMax + .5f && rect.yMin >= inside.yMin - .5f && rect.yMax <= inside.yMax + .5f,
                             phone + " " + name + ": " + piece.name + " " + rect + " stays inside the Daily card " + inside);
+                    }
+                }
+            }
+            Phones.Clear(shell);
+        }
+
+        // Nothing a page draws is cropped by the screen top (DECISIONS
+        // 2026-10-02): on the compact phone, the emulator's default and the
+        // Seeker, every piece of every page, its title plate and header card
+        // first, ends at least ScreenKit.TopClearDp under the safe top. Only the
+        // painting, its veils and the lights placed over it reach past.
+        [UnityTest] public IEnumerator NoPageDrawsIntoTheScreenTopOnAnyPhone()
+        {
+            root = new GameObject("Top edges");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Top edges");
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            long now = 20705L * 86400 + 6 * 3600;
+            var daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
+                Actions = new[] { new PageAction { Label = "Play today" } } };
+            var arcade = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
+                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 00:00 UTC" } };
+            var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
+                Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
+                Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+            var dailyResult = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,
+                ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, NewBest = true, NextOpensAt = 20705L * 86400,
+                Now = () => 20705L * 86400 - 7 * 3600, Done = new PageAction { Label = "Continue" } };
+            var panel = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "One Kredit enters one Daily", Tab = AppPage.Home,
+                Back = new PageAction { Label = "Back", Name = "Back" }, Blocks = new[] { PanelBlock.Card("Balance card", PanelBlock.Figure("Balance", "Kredits", "3")) } };
+            var pages = new (string name, Action draw)[] {
+                ("home", () => { source.Daily = daily; views.Render(AppPage.Home); }),
+                ("arcade", () => { source.Daily = arcade; views.Render(AppPage.Home); }),
+                ("preview", () => views.Render(AppPage.Level)),
+                ("map", () => views.Render(AppPage.Campaign)),
+                ("result", () => { source.Result = campaign; views.Render(AppPage.Result); }),
+                ("daily result", () => { source.Result = dailyResult; views.Render(AppPage.Result); }),
+                ("profile", () => views.Render(AppPage.Profile)),
+                ("settings", () => views.Render(AppPage.Settings)),
+                ("titled panel", () => views.RenderPanel(panel)),
+                ("greeting", () => { greeted = 0; views.Render(AppPage.Campaign); greeted = ~0; }) };
+            foreach (var (phone, use) in new (string, Action)[] { ("compact", () => Phones.Compact(shell)), ("emulator default", () => Phones.EmulatorDefault(shell)),
+                ("Seeker", () => Phones.Seeker(shell)) })
+            {
+                use();
+                foreach (var (name, draw) in pages)
+                {
+                    draw(); yield return null;
+                    foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                    Canvas.ForceUpdateCanvases();
+                    yield return Captures.Snap(shell, "top " + phone + " " + name);
+                    var screen = shell.ScreenArea; float edge = shell.SafeArea.yMax - ScreenKit.TopClearDp;
+                    bool Backdrop(Graphic graphic)
+                    {
+                        if (graphic == shell.Background || graphic == shell.Veil || graphic == shell.Scrim) return true;
+                        // The map path's rect maps its authored points; only its strokes, inside the room, are ink.
+                        if (graphic is CampaignPathGraphic) return true;
+                        var rect = SkinUi.ScreenRect(graphic.rectTransform);
+                        if (rect.width >= screen.width - .5f && rect.height >= shell.SafeArea.height - .5f) return true;
+                        return graphic is Image image && image.sprite != null && image.sprite.name.StartsWith("fx-");
+                    }
+                    foreach (var graphic in root.GetComponentsInChildren<Graphic>().Where(graphic => graphic.enabled && graphic.gameObject.activeInHierarchy &&
+                        graphic.color.a > 0 && !Backdrop(graphic)))
+                    {
+                        var rect = SkinUi.ScreenRect(graphic.rectTransform);
+                        if (graphic is TMP_Text text)
+                        {
+                            if (string.IsNullOrEmpty(text.text)) continue;
+                            text.ForceMeshUpdate();
+                            var bounds = text.textBounds;
+                            rect = new Rect(rect.x, rect.y + bounds.min.y, rect.width, bounds.size.y);
+                        }
+                        Assert.LessOrEqual(rect.yMax, edge + .5f, phone + " " + name + ": " + graphic.name + " " + rect + " stays " + ScreenKit.TopClearDp +
+                            " dp under the safe top " + shell.SafeArea.yMax);
                     }
                 }
             }

@@ -82,11 +82,11 @@ namespace ZKube.Presentation
             pieces.Add(Piece.Grow);
             pieces.Add(Buttons(kit, (value.Play, ScreenKit.Kind.Primary, SkinSlots.IconPlay)));
             Compose(pieces.ToArray());
-            // The close (.x3): 40u (48 dp at least), 12u in from the right and 4 dp under the safe top.
+            // The close (.x3): 40u (48 dp at least), 12u in from the right, hanging from the page's edge.
             if (value.Back != null)
             {
                 float size = kit.Touch(40);
-                HeaderButton(value.Back, new Rect(shell.SafeArea.xMax - 12 * u - size, shell.SafeArea.yMax - 4 * d - size, size, size), SkinSlots.IconClose, false);
+                HeaderButton(value.Back, new Rect(shell.SafeArea.xMax - 12 * u - size, kit.Edge - size, size, size), SkinSlots.IconClose, false);
             }
         }
 

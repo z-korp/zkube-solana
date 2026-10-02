@@ -35,6 +35,8 @@ namespace ZKube.Presentation
             var header = MapHeader(value, kit);
             Rect headerRect = default, room = default, playRect = default;
             Compose(new Piece(header.Height, rect => headerRect = rect), new Piece(-1, rect => room = rect), new Piece(buttons.Height, rect => playRect = rect));
+            // The path's room runs from the header's foot to Play's top, the gaps between them included.
+            room = Rect.MinMaxRect(room.x, playRect.yMax, room.xMax, headerRect.yMin);
             // The header is drawn over the map, so the guardian's glow passes under it.
             Map(value, room);
             header.Draw(headerRect);
@@ -309,8 +311,8 @@ namespace ZKube.Presentation
                 if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); }
             }, true);
             talk = root.GetComponentInChildren<GuardianTalk>();
-            // The guardian stays under the top of the safe area.
-            float lift = Mathf.Min(kit.Bottom + 40 * kit.U - box.y, safe.yMax - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
+            // The guardian stays under the page's edge.
+            float lift = Mathf.Min(kit.Bottom + 40 * kit.U - box.y, kit.Edge - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
             foreach (Transform piece in root) if (piece != scrim.transform) ((RectTransform)piece).anchoredPosition += new Vector2(0, lift);
             box.y += lift;
             if (!reducedMotion)

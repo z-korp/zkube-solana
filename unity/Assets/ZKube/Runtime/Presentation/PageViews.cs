@@ -177,24 +177,24 @@ namespace ZKube.Presentation
             // Scrolling content fades out over its last 24 dp at the tab bar.
             shell.Clear(body, fullBleed ? 0 : FadeDp * d); shell.Hold(ui.Dispose);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background));
-            // Utility tablets (.x3) sit 4 dp under the top safe inset, 12u in
-            // from the edges. An action that cannot be taken is not drawn.
+            // Utility tablets (.x3) hang from the page's edge, 12u in from the
+            // sides. An action that cannot be taken is not drawn.
             var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
             icon = kit.Touch(40);
-            float iconY = safe.yMax - 4 * d - icon;
+            float iconY = kit.Edge - icon;
             back = left;
             var parent = fullBleed ? shell.Overlay : shell.Page;
             if (left != null && left.Enabled) HeaderButton(left, new Rect(safe.x + 12 * kit.U, iconY, icon, icon), leftIcon, false, parent);
             if (right != null && right.Enabled) HeaderButton(right, new Rect(safe.xMax - 12 * kit.U - icon, iconY, icon, icon), SkinSlots.IconBack, true, parent);
             if (tab >= 0) TabBar(safe, tab);
             float width = Mathf.Min(body.width - 2 * GutterDp * d, ColumnDp * d);
-            column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, body.yMax - 4 * d);
+            column = new PageColumn(ui, shell.Page, actions, body.center.x - width / 2, width, Mathf.Min(body.yMax, kit.Edge) - 4 * d);
             if ((title ?? subtitle) != null)
             {
                 // The plate keeps clear of the tablets on both sides.
                 var plate = Kit.Title(title ?? subtitle, title == null ? null : subtitle, room: TitleRoom(kit));
-                plate.Draw(new Rect(column.Left, safe.yMax - plate.Height, column.Width, plate.Height));
-                column.Top = safe.yMax - plate.Height - 10 * kit.U;
+                plate.Draw(new Rect(column.Left, kit.Top - plate.Height, column.Width, plate.Height));
+                column.Top = kit.Top - plate.Height - 10 * kit.U;
             }
             foreach (var notice in notices) column.Note("Notice", notice);
         }
