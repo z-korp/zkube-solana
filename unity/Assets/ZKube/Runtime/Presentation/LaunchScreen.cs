@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.U2D;
 using UnityEngine.UI;
+using ZKube.Core.Generated;
 
 namespace ZKube.Presentation
 {

@@ -143,7 +143,11 @@ namespace ZKube.Tests.Presentation
                     // top), so a piece may sit up to that much under the wireframe's.
                     float lowered = ScreenKit.TopClearDp + ScreenKit.PlateOutsetU * u;
                     Assert.That(h.y, Is.InRange(w.y - Tolerance, w.y + lowered + Tolerance), at + " (top)");
-                    if (role != "guardians") Near(w.height, h.height, "height");
+                    // The Daily card's objective line holds its pictogram left of its caption
+                    // (DECISIONS 2026-10-02), which makes the card that row taller than the wireframe's.
+                    if (role == "cards" && i == 0 && (page == "home" || page == "arcade"))
+                        Assert.That(h.height, Is.InRange(w.height - Tolerance, w.height + 12 * u + Tolerance), at + " (height)");
+                    else if (role != "guardians") Near(w.height, h.height, "height");
                 }
             }
             foreach (var card in got["cards"])
