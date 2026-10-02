@@ -3686,13 +3686,13 @@
       ],
       "guardian": {
         "face": [
-          0.2760416666666667,
-          0.18229166666666666,
-          0.46875,
-          0.4947916666666667
+          0.2825520833333333,
+          0.14973958333333334,
+          0.4348958333333333,
+          0.3671875
         ],
-        "railFrontY": 0.8658854166666666,
-        "railY": 0.8333333333333334
+        "railFrontY": 0.7955729166666666,
+        "railY": 0.78515625
       },
       "guardianLines": {
         "dailyGreeting": "The Nile tests all equally today. Precision will separate the worthy from the rest.",
