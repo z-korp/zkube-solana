@@ -2484,6 +2484,8 @@ fn an_early_opened_daily_still_carries_suspended_funding_across_the_gap() {
     assert!(moved.program_result.is_ok(), "{:?}", moved.program_result);
     let after: ArenaDaily = decode(resulting_account(&moved, &recipient));
     assert!(after.predecessor_rollover_applied);
+    // The skipped day leaves the chain the result root archives along.
+    assert_eq!(after.predecessor_day, source_state.predecessor_day);
     assert_eq!(after.status, PeriodStatus::Open);
     assert_eq!(after.ledger.rollover_in_lamports, funded);
     assert_eq!(resulting_account(&moved, &source).lamports, 0);
@@ -2497,4 +2499,56 @@ fn an_early_opened_daily_still_carries_suspended_funding_across_the_gap() {
     );
     let repeated = mollusk().process_instruction(&skip(recipient), &moved.resulting_accounts);
     assert!(repeated.program_result.is_err());
+}
+
+#[test]
+fn the_result_root_cannot_pass_over_a_finalized_daily() {
+    let caller = Pubkey::new_unique();
+    let (protocol, mut root) = protocol_fixture(Pubkey::new_unique(), Pubkey::new_unique(), false);
+    let launch = 20_651;
+    root.launch_day_id = launch;
+    root.last_daily_id = launch;
+    root.daily_root = [7; 32];
+    // Two ordinary finalized days, then the first day after a skipped gap,
+    // which the skip linked to the last day before it.
+    let days = [(launch + 1, launch), (launch + 2, launch + 1), (launch + 6, launch + 2)];
+    let mut accounts = vec![
+        (protocol, program_account(&root, 8 + ProtocolConfig::INIT_SPACE)),
+        (caller, system_account(ACCOUNT_LAMPORTS)),
+    ];
+    let mut archive = Vec::new();
+    for (day_id, predecessor_day) in days {
+        let (daily, mut state) = daily_fixture(day_id, PeriodStatus::Finalized, true);
+        state.predecessor_day = predecessor_day;
+        let (score_board, _, score_account, _) =
+            board_fixture(daily, day_id, DailyBoardKind::Score, 0, 0, &[], &[]);
+        let (theme_board, _, theme_account, _) =
+            board_fixture(daily, day_id, DailyBoardKind::Theme, 0, 0, &[], &[]);
+        accounts.push((daily, program_account(&state, 8 + ArenaDaily::INIT_SPACE)));
+        accounts.push((score_board, score_account));
+        accounts.push((theme_board, theme_account));
+        archive.push(anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts: zkube::accounts::ArchiveArenaDaily {
+                protocol,
+                arena_daily: daily,
+                score_board,
+                theme_board,
+                caller,
+            }
+            .to_account_metas(None),
+            data: zkube::instruction::ArchiveArenaDaily {}.data(),
+        });
+    }
+    for out_of_order in [&archive[1], &archive[2]] {
+        let rejected = mollusk().process_instruction(out_of_order, &accounts);
+        assert!(rejected.program_result.is_err());
+        for (key, original) in &accounts {
+            assert_eq!(resulting_account(&rejected, key), original);
+        }
+    }
+    let archived = mollusk().process_instruction_chain(&archive, &accounts);
+    assert!(archived.program_result.is_ok(), "{:?}", archived.program_result);
+    let after: ProtocolConfig = decode(resulting_account(&archived, &protocol));
+    assert_eq!(after.last_daily_id, launch + 6);
 }

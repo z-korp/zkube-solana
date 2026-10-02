@@ -177,6 +177,9 @@ pub fn handler_skip_suspended_arena_daily(ctx: Context<SkipSuspendedArenaDaily>)
         .checked_add(rollover)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     ctx.accounts.successor_daily.predecessor_rollover_applied = true;
+    // The skipped day leaves the chain: its successor now follows its
+    // predecessor, which is the order the result root archives in.
+    ctx.accounts.successor_daily.predecessor_day = ctx.accounts.suspended_daily.predecessor_day;
     Ok(())
 }
 
@@ -1130,7 +1133,11 @@ pub fn handler_archive_arena_daily(ctx: Context<ArchiveArenaDaily>) -> Result<()
     )?;
     ctx.accounts
         .protocol
-        .append_daily(ctx.accounts.arena_daily.day_id, result_hash)?;
+        .append_daily(
+            ctx.accounts.arena_daily.day_id,
+            ctx.accounts.arena_daily.predecessor_day,
+            result_hash,
+        )?;
     Ok(())
 }
 

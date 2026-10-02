@@ -246,7 +246,7 @@ function appendCadenceArchivePlan(
   const nextArchiveId = state.lastDailyId === undefined ||
       state.lastDailyId < snapshot.launchDayId
     ? snapshot.launchDayId
-    : ordered.find(({ cadenceId }) => cadenceId > state.lastDailyId!)?.cadenceId;
+    : snapshot.dailies.find(({ predecessorDayId }) => predecessorDayId === state.lastDailyId)?.dayId;
   const contextFor = (candidate: CadenceArchiveCandidate) => ({
 
     dayId: candidate.cadenceId,

@@ -237,6 +237,20 @@ describe("v5 Daily keeper reconciliation", () => {
       .toMatchObject({ dayId: DAY });
   });
 
+  it("archives only the next Daily of the chain, never a later sealed one", () => {
+    const archive = (lastDailyId: number, candidates: number[]) => discoverReconciliation({
+      nowUnix: (DAY + 3) * SECONDS_PER_DAY,
+      snapshot: snapshot({ launchDayId: DAY,
+        dailies: [daily(DAY, "finalized"), daily(DAY + 1, "finalized"), daily(DAY + 2, "finalized")],
+        archiveState: { lastDailyId },
+        archiveCandidates: candidates.map(dayId => candidate(dayId, dayId <= lastDailyId, false)) }),
+    }).filter(({ operation }) => operation === "archive_arena_daily").map(({ context }) => context.dayId);
+    // DAY + 1 is not sealed yet: DAY + 2 waits rather than passing over it.
+    expect(archive(DAY, [DAY, DAY + 2])).toEqual([]);
+    expect(archive(DAY, [DAY, DAY + 1, DAY + 2])).toEqual([DAY + 1]);
+    expect(archive(DAY + 1, [DAY, DAY + 1, DAY + 2])).toEqual([DAY + 2]);
+  });
+
   it("follows the recorded funding edge and never prepares behind the last Daily", () => {
     const resolved = { ...daily(DAY, "open"), predecessorRolloverApplied: true };
     const plan = (dailies: DailySnapshot[], overrides: Partial<ProtocolSnapshot> = {}) =>

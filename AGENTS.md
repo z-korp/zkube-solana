@@ -499,9 +499,12 @@ share one workspace and configuration; `workspace_has_one_dependency_and_configu
 
 ### Keeper and archival
 
-ProtocolConfig advances a sequential result root from launch day. Daily closure requires root coverage;
-`archive_is_strictly_sequential` and `sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard
-it. The ledger is the archive; indexing is a separate deployment decision. The keeper has no inbound HTTP or
+ProtocolConfig advances a sequential result root from launch day. Its next member is exactly the Daily whose
+recorded predecessor is the last member; a skipped suspended Daily leaves that chain when its funding is
+forwarded, so a gap is one step and no finalized Daily can be passed over. Daily closure requires root coverage;
+`archive_is_strictly_sequential`, `the_result_root_cannot_pass_over_a_finalized_daily`, `archives only the next
+Daily of the chain, never a later sealed one` and
+`sbf_daily_archive_and_close_return_only_rent_to_cadence_funding` guard it. The ledger is the archive; indexing is a separate deployment decision. The keeper has no inbound HTTP or
 notification service; a missed notification never changes a claim window. Notification controls remain
 parked; any future notification is only a courtesy.
 

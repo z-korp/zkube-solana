@@ -945,10 +945,24 @@ mod tests {
             last_daily_id: launch_day - 1,
             ..ProtocolConfig::default()
         };
-        assert!(archive.append_daily(launch_day + 1, [2; 32]).is_err());
-        archive.append_daily(launch_day, [1; 32]).unwrap();
-        assert!(archive.append_daily(launch_day, [1; 32]).is_err());
-        archive.append_daily(launch_day + 9, [3; 32]).unwrap();
+        assert!(archive
+            .append_daily(launch_day + 1, launch_day, [2; 32])
+            .is_err());
+        archive.append_daily(launch_day, 0, [1; 32]).unwrap();
+        assert!(archive.append_daily(launch_day, 0, [1; 32]).is_err());
+        // A finalized Daily further along the chain cannot pass over the
+        // next member, and a gap is one step only when the chain records it.
+        let root = archive.daily_root;
+        assert!(archive
+            .append_daily(launch_day + 2, launch_day + 1, [3; 32])
+            .is_err());
+        assert_eq!((archive.last_daily_id, archive.daily_root), (launch_day, root));
+        archive
+            .append_daily(launch_day + 1, launch_day, [2; 32])
+            .unwrap();
+        archive
+            .append_daily(launch_day + 9, launch_day + 1, [3; 32])
+            .unwrap();
         assert_eq!(archive.last_daily_id, launch_day + 9);
         assert_ne!(archive.daily_root, [0; 32]);
     }

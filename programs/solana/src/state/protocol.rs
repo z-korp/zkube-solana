@@ -49,12 +49,22 @@ impl ProtocolConfig {
         Ok(core::mem::replace(&mut self.last_prepared_day, day_id))
     }
 
-    pub fn append_daily(&mut self, day_id: u32, result_hash: [u8; 32]) -> Result<()> {
+    /// Appends the next member of the result root. After the launch day,
+    /// that is exactly the Daily whose recorded predecessor is the last
+    /// member, so no finalized Daily can be passed over.
+    pub fn append_daily(
+        &mut self,
+        day_id: u32,
+        predecessor_day: u32,
+        result_hash: [u8; 32],
+    ) -> Result<()> {
         require!(
             self.launch_day_id > 0
                 && day_id >= self.launch_day_id
                 && ((self.last_daily_id < self.launch_day_id && day_id == self.launch_day_id)
-                    || (self.last_daily_id >= self.launch_day_id && day_id > self.last_daily_id)),
+                    || (self.last_daily_id >= self.launch_day_id
+                        && day_id > self.last_daily_id
+                        && predecessor_day == self.last_daily_id)),
             ErrorCode::InvalidPeriod
         );
         self.daily_root = zkube_core::sha256v_with::<crate::state::arcade::SolanaSha256>(&[
