@@ -71,37 +71,37 @@ namespace ZKube.Presentation
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
+            pageNotices = messages;
             switch (page)
             {
                 case AppPage.Home:
                     var daily = source.DailyPage();
-                    Frame(AppPage.Home, null, null, null, null, daily.Arcade != null ? messages : Array.Empty<string>()); Home(daily, messages); break;
+                    Frame(AppPage.Home, null, null, null, null); Home(daily); break;
                 case AppPage.Campaign:
                     var campaign = source.CampaignView(); var realm = catalog.Realm(campaign.Realm);
                     // Another realm is another page: it opens at its own start.
                     if (campaign.Realm != shownRealm) kept = -1;
                     shownRealm = campaign.Realm;
-                    if (campaign.Locked != null) Frame(AppPage.Campaign, realm.realmName, "Realm " + campaign.Realm + " of " + Protocol.Realms.Length, campaign.Previous, null,
-                        Array.Empty<string>());
-                    else Frame(AppPage.Campaign, null, null, null, null, Array.Empty<string>(), fullBleed: true);
-                    Campaign(campaign, messages); break;
+                    if (campaign.Locked != null) Frame(AppPage.Campaign, realm.realmName, "Realm " + campaign.Realm + " of " + Protocol.Realms.Length, campaign.Previous, null);
+                    else Frame(AppPage.Campaign, null, null, null, null, fullBleed: true);
+                    Campaign(campaign); break;
                 case AppPage.Level:
                     var level = source.LevelPage();
-                    Frame(null, null, null, null, null, Array.Empty<string>(), fullBleed: true);
+                    Frame(null, null, null, null, null, fullBleed: true);
                     back = level.Back;
-                    LevelScreen(level, messages); break;
+                    LevelScreen(level); break;
                 case AppPage.Profile:
                     var profile = source.ProfilePage();
-                    Frame(AppPage.Profile, null, null, null, null, Array.Empty<string>()); Profile(profile, messages); break;
+                    Frame(AppPage.Profile, null, null, null, null); Profile(profile); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
-                    Frame(AppPage.Settings, null, null, null, null, Array.Empty<string>());
-                    Settings(settings, messages); break;
+                    Frame(AppPage.Settings, null, null, null, null);
+                    Settings(settings); break;
                 case AppPage.Result:
                     var result = source.ResultPage();
-                    if (result.HasResult && result.ShowStars) { Frame(null, null, null, null, null, messages, fullBleed: true); back = result.Done; CampaignScreen(result); }
-                    else if (result.HasResult) { Frame(null, null, null, null, null, messages, fullBleed: true); back = result.Done; DailyResultScreen(result); }
-                    else { Frame(AppPage.Home, result.Mode, null, null, null, messages); NoResult(result); }
+                    if (result.HasResult && result.ShowStars) { Frame(null, null, null, null, null, fullBleed: true); back = result.Done; CampaignScreen(result); }
+                    else if (result.HasResult) { Frame(null, null, null, null, null, fullBleed: true); back = result.Done; DailyResultScreen(result); }
+                    else { Frame(AppPage.Home, result.Mode, null, null, null); NoResult(result); }
                     break;
                 default: throw new ArgumentOutOfRangeException(nameof(page));
             }
@@ -157,13 +157,23 @@ namespace ZKube.Presentation
             shell.Finish(y - 56 * d);
         }
 
+        // The page's notices and errors, drawn at its bottom (DECISIONS
+        // 2026-10-02): Compose sets them after the page's last spacer, so they
+        // sit over its foot buttons, or over the tab bar; a page drawn without
+        // the kit floats them over its foot.
+        private string[] pageNotices = Array.Empty<string>();
+        private ScreenKit.Piece Notices(ScreenKit kit)
+        {
+            var inside = kit.Inside();
+            return kit.Card(null, pageNotices.Select(notice => inside.Note(notice, "Notice", SkinTokens.Text)), "Notice card");
+        }
         // Body frame, title and tab bar for one page. The tab bar sits inside the
         // side gutters and above the bottom safe inset; the body scrolls between
         // the safe top and the top of the tab bar. A titled page carries its title
         // on the screens' title plate at the top of its body, with its left and
         // right tablets beside it; they scroll with it. A full-bleed page (the map,
         // the preview and the results) runs under the tab bar and draws its own.
-        private void Frame(AppPage? page, string title, string subtitle, PageAction left, PageAction right, string[] notices,
+        private void Frame(AppPage? page, string title, string subtitle, PageAction left, PageAction right,
             bool fullBleed = false, string leftIcon = SkinSlots.IconBack)
         {
             var safe = shell.SafeArea; float d = ui.Density;
@@ -196,7 +206,6 @@ namespace ZKube.Presentation
                 plate.Draw(new Rect(column.Left, kit.Top - plate.Height, column.Width, plate.Height));
                 column.Top = kit.Top - plate.Height - 10 * kit.U;
             }
-            foreach (var notice in notices) column.Note("Notice", notice);
         }
         // A title's room between the corner tablets.
         private float TitleRoom(ScreenKit kit) => shell.SafeArea.width - 2 * (12 * kit.U + kit.Touch(40) + 8 * ui.Density);
@@ -229,9 +238,9 @@ namespace ZKube.Presentation
         // bar. Once today's attempt is used, the Daily card counts to the next
         // Daily and its action opens the result. The Arena draws its Arcade
         // instead.
-        private void Home(DailyPageView value, string[] notices)
+        private void Home(DailyPageView value)
         {
-            if (value.Arcade != null) { ArcadeHome(value, notices); return; }
+            if (value.Arcade != null) { ArcadeHome(value); return; }
             var kit = Kit; float u = kit.U;
             var realm = catalog.Realm(value.Realm);
             if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
@@ -258,7 +267,6 @@ namespace ZKube.Presentation
                     PortraitRow(inside, "Campaign", Step(60, 48), image => Portrait(summary.Realm, image), campaign.realmName, "Realm " + summary.Realm + " of " + Protocol.Realms.Length + (level == null ? "" : " · Level " + level), null, count),
                     Buttons(inside, (play, ScreenKit.Kind.Quiet, play == summary.Map ? SkinSlots.IconMap : SkinSlots.IconPlay)) }, "Campaign card"));
             }
-            foreach (var notice in notices) pieces.Add(kit.Note(notice));
             pieces.Add(Piece.Grow);
             Compose(pieces.ToArray());
             ShowPortraits();
@@ -348,7 +356,7 @@ namespace ZKube.Presentation
         // close and Enter inside it, why no entry can be made when none can,
         // then the identity's blocks (the Kredit balance with Kredits and
         // Rewards, and the board rule).
-        private void ArcadeHome(DailyPageView value, string[] notices)
+        private void ArcadeHome(DailyPageView value)
         {
             var kit = Kit; float u = kit.U, k = kit.K;
             var arcade = value.Arcade; var realm = catalog.Realm(value.Realm);
@@ -367,7 +375,6 @@ namespace ZKube.Presentation
                 if (arcade.Detail != null) pieces.Add(Line("Daily reason detail", arcade.Detail, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, kit));
             }
             pieces.AddRange(BlockPieces(value.Blocks, kit, false));
-            foreach (var notice in notices) pieces.Add(kit.Note(notice));
             pieces.Add(Piece.Grow);
             Compose(pieces.ToArray());
             ShowPortraits();
@@ -495,6 +502,7 @@ namespace ZKube.Presentation
 
         public void Retire()
         {
+            pageNotices = Array.Empty<string>();
             epoch++; sharing.Cancel(); sharing.Dispose(); sharing = new CancellationTokenSource();
             actions?.Clear(); pendingPortraits.Clear(); back = null; countdown = null; nextDaily = null; nextDailyResult = null; countdownView = null;
             // The portraits stay with the page that shows them; the shell releases them.

@@ -22,13 +22,12 @@ namespace ZKube.Presentation
         // the border; Edit name or the records on its right), the three stat
         // tiles and the guardian emblems in a card. The identity's own lines
         // and actions (borders, saving) follow.
-        private void Profile(ProfilePageView value, string[] notices)
+        private void Profile(ProfilePageView value)
         {
             var kit = Kit;
             if (value.ChangeName == null) editingName = false;
             if (savedName != value.Name) { savedName = value.Name; editedName = value.Name; }
             var pieces = new List<Piece> { kit.Title("Profile", null) };
-            foreach (var notice in notices) pieces.Add(kit.Note(notice));
             pieces.Add(WearerCard(value, kit));
             if (editingName) { Compose(pieces.ToArray()); NameEditor(value); return; }
             pieces.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
@@ -214,11 +213,10 @@ namespace ZKube.Presentation
         // slider per channel, whose name switches it off and back to the level
         // it had), the card of haptics, reduced motion and the text size, then
         // the identity's own actions.
-        private void Settings(SettingsPageView value, string[] notices)
+        private void Settings(SettingsPageView value)
         {
             var kit = Kit; var inside = kit.Inside();
             var pieces = new List<Piece> { kit.Title("Settings", null) };
-            foreach (var notice in notices) pieces.Add(kit.Note(notice));
             pieces.Add(kit.Card("Sound", new[] { Volume(inside, "Music", SkinSlots.IconMusic, value.Music, value.SetMusic, true, false),
                 Volume(inside, "Effects", SkinSlots.IconSound, value.Effects, value.SetEffects, false, true) }, "Sound card"));
             string current = (value.LargeText ? "Larger" : "Standard") + " ›";

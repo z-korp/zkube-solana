@@ -27,6 +27,12 @@ namespace ZKube.Presentation
         private float Step(float seeker, float compact) => Kit.Step(seeker, compact);
         private void Compose(params Piece[] pieces)
         {
+            if (pageNotices.Length != 0)
+            {
+                var list = pieces.ToList();
+                list.Insert(list.FindLastIndex(piece => piece.Height < 0) + 1, Notices(Kit));
+                pieces = list.ToArray(); pageNotices = Array.Empty<string>();
+            }
             var used = Kit.Compose(pieces);
             column = new PageColumn(ui, shell.Page, actions, used.x, used.width, used.y);
         }
@@ -57,7 +63,7 @@ namespace ZKube.Presentation
         // and realm, the empty crown, the guardian speaking its line over the
         // card of goals (each with its caption and target) and the row of the
         // moves and the guardian's rule, then Play, and the close in the corner.
-        private void LevelScreen(LevelPageView value, string[] notices)
+        private void LevelScreen(LevelPageView value)
         {
             var kit = Kit; float d = ui.Density, u = kit.U, k = kit.K;
             var realm = catalog.Realm(value.Realm);
@@ -77,8 +83,7 @@ namespace ZKube.Presentation
             var line = LevelLine(realm.guardianLines, value.Level).Line;
             var pieces = new List<Piece> { Piece.Grow, kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName),
                 kit.Crown(new bool[3], Step(38, 30), sockets), kit.GuardianCard("talk-open", line, Step(170, 118), kit.Card(null, rows)) };
-            foreach (var notice in notices.Concat(string.IsNullOrEmpty(value.Notice) ? Array.Empty<string>() : new[] { value.Notice }))
-                pieces.Add(kit.Note(notice));
+            if (!string.IsNullOrEmpty(value.Notice)) pageNotices = pageNotices.Append(value.Notice).ToArray();
             pieces.Add(Piece.Grow);
             pieces.Add(Buttons(kit, (value.Play, ScreenKit.Kind.Primary, SkinSlots.IconPlay)));
             Compose(pieces.ToArray());

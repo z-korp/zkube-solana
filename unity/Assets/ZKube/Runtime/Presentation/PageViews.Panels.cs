@@ -32,11 +32,11 @@ namespace ZKube.Presentation
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
-            Frame(page.Tab, null, null, page.Back ?? page.Corner, null, Array.Empty<string>(),
+            pageNotices = messages;
+            Frame(page.Tab, null, null, page.Back ?? page.Corner, null,
                 leftIcon: page.Back == null && page.CornerIcon != null ? page.CornerIcon : SkinSlots.IconBack);
             var kit = Kit; var pieces = new List<Piece>();
             if ((page.Title ?? page.Subtitle) != null) pieces.Add(kit.Title(page.Title ?? page.Subtitle, page.Title == null ? null : page.Subtitle, room: TitleRoom(kit)));
-            foreach (var notice in messages) pieces.Add(kit.Note(notice));
             PanelBody(page.Blocks, pieces, page.Tab.HasValue);
             FinishPage();
             if (kept >= 0) shell.Offset = kept;

@@ -38,6 +38,9 @@ namespace ZKube.Presentation
             var buttons = new PageColumn(ui, shell.Page, actions, PlayRect().x, PlayRect().width, column.Top);
             Pill(buttons, value.Done, true, null, 0);
             column = new PageColumn(ui, shell.Page, actions, column.Left, column.Width, buttons.Top);
+            var notices = pageNotices; pageNotices = Array.Empty<string>();
+            if (notices.Length != 0)
+                Float("Result notice", PlayRect().yMax + 12 * d, card => { foreach (var line in notices) card.Typed("Notice", line, SkinUi.Type.Body, 15, SkinTokens.Text, 8); });
         }
     }
 }

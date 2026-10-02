@@ -353,6 +353,64 @@ namespace ZKube.Tests.Presentation
             Phones.Clear(shell);
         }
 
+        // A page's notices and errors sit at its bottom (DECISIONS 2026-10-02):
+        // over the tab bar on a tab page, over the foot buttons on the others,
+        // on every page at the three phone sizes, and never under the tab bar.
+        [UnityTest] public IEnumerator NoticesSitAtTheBottomAboveTheTabBar()
+        {
+            root = new GameObject("Bottom notices");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Bottom notices");
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            long now = 20705L * 86400 + 6 * 3600;
+            source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
+                Actions = new[] { new PageAction { Label = "Play today" } } };
+            var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
+                Score = 24, StarSources = 3, EndReason = 2, MovesLeft = 0, PrimaryProgress = 6, Goals = source.Level.Goals, NextOpen = false,
+                Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+            var panel = new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Back = new PageAction { Label = "Back", Name = "Back" },
+                Blocks = new[] { PanelBlock.Card("Balance card", PanelBlock.Figure("Balance", "Kredits", "3")) } };
+            const string notice = "The store could not be reached.";
+            var notices = new[] { notice };
+            var pages = new (string name, bool tabs, Action draw)[] {
+                ("home", true, () => views.Render(AppPage.Home, notices)),
+                ("map", true, () => views.Render(AppPage.Campaign, notices)),
+                ("profile", true, () => views.Render(AppPage.Profile, notices)),
+                ("settings", true, () => views.Render(AppPage.Settings, notices)),
+                ("titled panel", true, () => views.RenderPanel(panel, notices)),
+                ("preview", false, () => views.Render(AppPage.Level, notices)),
+                ("result", false, () => { source.Result = campaign; views.Render(AppPage.Result, notices); }) };
+            foreach (var (phone, use) in new (string, Action)[] { ("compact", () => Phones.Compact(shell)), ("emulator default", () => Phones.EmulatorDefault(shell)),
+                ("Seeker", () => Phones.Seeker(shell)) })
+            {
+                use();
+                foreach (var (name, tabs, draw) in pages)
+                {
+                    draw(); yield return null;
+                    foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                    Canvas.ForceUpdateCanvases();
+                    yield return Captures.Snap(shell, "notice " + phone + " " + name);
+                    string at = phone + " " + name;
+                    var shown = root.GetComponentsInChildren<TMP_Text>().Where(text => text.text == notice && text.gameObject.activeInHierarchy).ToArray();
+                    Assert.AreEqual(1, shown.Length, at + " shows its notice once");
+                    var rect = SkinUi.ScreenRect(shown[0].rectTransform); var safe = shell.SafeArea;
+                    Assert.Less(rect.center.y, safe.center.y, at + ": the notice " + rect + " is in the bottom half of " + safe);
+                    float floor = tabs ? SkinUi.ScreenRect((RectTransform)root.GetComponentInChildren<SkinTabBar>().transform).yMax : safe.yMin;
+                    Assert.GreaterOrEqual(rect.yMin, floor - .5f, at + ": the notice stays over the tab bar");
+                    // Nothing but the page's foot (its buttons) and the tab bar lies under it.
+                    foreach (var card in root.GetComponentsInChildren<Image>().Where(image => image.sprite != null && image.sprite.name.Replace("(Clone)", "") == SkinSlots.Card &&
+                        !SkinUi.ScreenRect(image.rectTransform).Contains(rect.center)))
+                        Assert.GreaterOrEqual(SkinUi.ScreenRect(card.rectTransform).yMin, rect.yMax - .5f, at + ": " + card.name + " sits above the notice");
+                }
+            }
+            Phones.Clear(shell);
+        }
+
         // The Daily card shows the day's own guardian: its portrait, its name
         // and, on the Arcade, its realm all come from the Daily, in every realm,
         // whatever realm the page's painting is from.

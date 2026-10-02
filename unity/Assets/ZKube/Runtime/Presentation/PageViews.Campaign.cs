@@ -23,9 +23,11 @@ namespace ZKube.Presentation
         // S-curve edges, the glowstone medallions and the guardian 1.6 times
         // their size, each finished node's stars under it, the current node
         // breathing, and "Play level N" above the tabs.
-        private void Campaign(CampaignPageView value, string[] notices)
+        private void Campaign(CampaignPageView value)
         {
             var realm = catalog.Realm(value.Realm);
+            // The map's notices float over Play with its own lines.
+            var notices = pageNotices; pageNotices = Array.Empty<string>();
             if (value.Locked != null) { Waiting(value, realm, notices); return; }
             var kit = Kit; float d = ui.Density;
             var trial = value.Trials[Focus(value.Trials, 0)];
@@ -248,7 +250,6 @@ namespace ZKube.Presentation
         private void Waiting(CampaignPageView value, PageCatalog.RealmPage realm, string[] notices)
         {
             float d = ui.Density;
-            foreach (var notice in notices) column.Note("Notice", notice);
             // Below 780 dp of safe height (the spec's compact phones) the guardian
             // and the spacing shrink so the way forward stays on screen.
             bool compact = shell.SafeArea.height / d < 780;
@@ -281,6 +282,9 @@ namespace ZKube.Presentation
                     Invoke = value.Previous.Invoke }, true, null, 0);
             }
             column = new PageColumn(ui, shell.Page, actions, column.Left, column.Width, buttons.Top);
+            if (notices.Length != 0)
+                Float("Campaign notice", PlayRect().yMax + 12 * d + (value.Purchase != null && value.Restore != null ? PageColumn.ButtonDp * d + 20 * d : 0),
+                    card => { foreach (var line in notices) card.Typed("Notice", line, SkinUi.Type.Body, 15, SkinTokens.Text, 8); });
         }
 
         // The level preview over the dimmed map: the guardian leans on the dialog's
