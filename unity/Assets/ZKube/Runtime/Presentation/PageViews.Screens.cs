@@ -95,7 +95,7 @@ namespace ZKube.Presentation
         // news or a warning.
         public static (string Title, string Subtitle, string Icon, bool Good) ResultWords(ResultPageView value)
         {
-            int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
+            int stars = HudLayout.StarCount(value.StarSources);
             bool last = value.Realm == Protocol.Realms.Length && value.Level == Protocol.CampaignTargets.Length;
             string next = last ? null : "Level " + HudLayout.LevelNumber(value.Realm, (byte)(value.Level + 1));
             string kept = stars == 0 ? "No stars kept" : stars + (stars == 1 ? " star" : " stars") + " kept";
@@ -108,7 +108,7 @@ namespace ZKube.Presentation
         }
 
         // A Campaign result: the title from the end reason, the crown with the
-        // kept stars (each rising from its goal's row), the guardian's line, the
+        // kept stars (filling in place, left to right), the guardian's line, the
         // goal rows with their final counts and ticks, "New best!" and the
         // actions by outcome. There is no Share on Campaign.
         private void CampaignScreen(ResultPageView value)
@@ -116,7 +116,7 @@ namespace ZKube.Presentation
             var kit = Kit; float d = ui.Density, u = kit.U;
             var realm = catalog.Realm(value.Realm);
             shell.Backdrop(ui.Art.SkinRealm(SkinSlots.Background), scrim: true);
-            int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
+            int stars = HudLayout.StarCount(value.StarSources);
             var (title, subtitle, icon, good) = ResultWords(value);
             bool cleared = value.EndReason == 1;
             // Kept stars speak their star line (the guardian falls on its own level);
@@ -124,7 +124,9 @@ namespace ZKube.Presentation
             var talk = TalkPage.For(realm.guardianLines, value.EndReason == 3 || stars == 0 ? TalkMoment.Ended
                 : cleared && value.Level == Protocol.CampaignTargets.Length ? TalkMoment.GuardianDefeated : TalkMoment.Win, stars);
             string frame = stars == 3 ? "celebrate" : stars == 0 ? "defeated" : "satisfied";
-            var lit = new[] { (value.StarSources & 1) != 0, (value.StarSources & 2) != 0, (value.StarSources & 4) != 0 };
+            // Each goal row ticks for its own goal; the crown fills left to right.
+            var met = new[] { (value.StarSources & 1) != 0, (value.StarSources & 2) != 0, (value.StarSources & 4) != 0 };
+            var lit = new[] { stars > 0, stars > 1, stars > 2 };
             var goals = value.Goals == null ? Array.Empty<ScreenKit.GoalLine>() : ScreenKit.Goals(catalog, value.Goals, RealmBonus(value.Realm));
             if (goals.Length == 3)
             {
@@ -132,10 +134,10 @@ namespace ZKube.Presentation
                 goals[1].Progress = value.PrimaryProgress;
             }
             // As on the HUD, a met goal reads at least its target.
-            for (int i = 0; i < goals.Length; i++) { goals[i].Met = lit[i]; if (lit[i]) goals[i].Progress = Math.Max(goals[i].Progress, goals[i].Target); }
-            var sockets = new Image[3]; var rowIcons = new Image[3];
+            for (int i = 0; i < goals.Length; i++) { goals[i].Met = met[i]; if (met[i]) goals[i].Progress = Math.Max(goals[i].Progress, goals[i].Target); }
+            var sockets = new Image[3];
             var inside = kit.Inside();
-            var rows = inside.GoalRows(goals, ScreenKit.GoalMode.Result, Step(38, 32), rowIcons).ToList();
+            var rows = inside.GoalRows(goals, ScreenKit.GoalMode.Result, Step(38, 32)).ToList();
             if (value.NewBest)
             {
                 // The tag's line is 26u, 2u under the rows.
@@ -156,34 +158,28 @@ namespace ZKube.Presentation
                 var note = kit.Note(value.Notice);
                 note.Draw(new Rect(column.Left, SkinUi.ScreenRect(finish.GetComponentsInChildren<RectTransform>().Skip(1).First()).yMax + 8 * d, column.Width, note.Height));
             }
-            if (!reducedMotion) Rise(lit, sockets, rowIcons, finish, stars == 3);
+            if (!reducedMotion) Fill(stars, sockets, finish);
         }
 
-        // The result's entrance: each kept star rises from its goal row to its
-        // socket and ignites there, 450 ms apart (faster when the level was not
-        // cleared); the actions arrive last. A tap anywhere jumps to the end.
-        private void Rise(bool[] lit, Image[] sockets, Image[] rowIcons, RectTransform finish, bool cleared)
+        // The result's entrance: the kept stars fill in place in their sockets,
+        // left to right, each with a pop, 450 ms apart (faster when the level was
+        // not cleared); the actions arrive last. A tap anywhere jumps to the end.
+        // Reduced motion shows them filled at once.
+        private void Fill(int stars, Image[] sockets, RectTransform finish)
         {
-            float pace = cleared ? 1 : .6f, flight = .45f * pace, apart = .45f * pace, start = .3f * pace;
+            float pace = stars == 3 ? 1 : .6f, apart = .45f * pace, start = .3f * pace;
             var sequence = finish.parent.gameObject.AddComponent<PageSequence>();
-            int order = 0;
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < stars; i++)
             {
-                if (!lit[i] || rowIcons[i] == null) continue;
-                var socket = sockets[i]; var to = SkinUi.ScreenRect(socket.rectTransform); var from = SkinUi.ScreenRect(rowIcons[i].rectTransform).center;
-                var star = ui.Piece("Result star flight", SkinSlots.StarLit, to, shell.Page);
-                var at = star.rectTransform.anchoredPosition; var socketAt = socket.rectTransform.anchoredPosition;
-                float begin = start + order++ * apart;
-                sequence.Add(begin, flight, t => {
-                    float e = PageSequence.EaseOut(t);
-                    var center = Vector2.Lerp(from, to.center, e) + Vector2.up * Mathf.Sin(Mathf.PI * t) * 30 * U;
-                    star.rectTransform.anchoredPosition = at + (center - to.center);
-                    star.enabled = t < 1; socket.sprite = ui.Art.SkinUi(t < 1 ? SkinSlots.StarSocket : SkinSlots.StarLit);
+                var socket = sockets[i]; float begin = start + i * apart; var at = socket.rectTransform.anchoredPosition; var center = SkinUi.ScreenRect(socket.rectTransform).center;
+                socket.sprite = ui.Art.SkinUi(SkinSlots.StarSocket);
+                sequence.Add(begin, .4f, t => {
+                    socket.sprite = ui.Art.SkinUi(t > 0 ? SkinSlots.StarLit : SkinSlots.StarSocket);
+                    PageSequence.ScaleAbout(socket.rectTransform, at, center, t == 0 ? 1 : PageSequence.Ignite(t));
                 });
-                sequence.Add(begin + flight, .4f, t => PageSequence.ScaleAbout(socket.rectTransform, socketAt, to.center, t == 0 ? 1 : PageSequence.Ignite(t)));
             }
             var group = finish.GetComponent<CanvasGroup>();
-            sequence.Add(start + order * apart + .2f, .2f, t => { group.alpha = t; group.interactable = group.blocksRaycasts = t >= 1; });
+            sequence.Add(start + stars * apart + .2f, .2f, t => { group.alpha = t; group.interactable = group.blocksRaycasts = t >= 1; });
             var skip = ui.Rect<Image>("Skip", shell.ScreenArea, shell.Overlay); skip.color = Color.clear; skip.raycastTarget = true;
             skip.gameObject.AddComponent<Button>().onClick.AddListener(sequence.Finish);
             sequence.Finished += () => { if (skip != null) { skip.gameObject.SetActive(false); Destroy(skip.gameObject); } };

@@ -544,6 +544,52 @@ namespace ZKube.Tests
             Assert.That(FindButton(app, "Retry").IsInteractable(), Is.True);
             Assert.That(Buttons().Any(button => button.name == "Skip"), Is.False);
         }
+        // DECISIONS 2026-10-02: on a result the kept stars fill in place in their
+        // sockets, left to right, each with a pop; none is brought in from
+        // elsewhere. Whichever goals earned them, the first sockets fill. Reduced
+        // motion shows them filled at once.
+        [UnityTest] public IEnumerator ResultStarsFillInPlaceLeftToRightAndPop()
+        {
+            var level = Protocol.Realms[0].Levels[0];
+            var goals = new CampaignGoals { Points = Protocol.CampaignTargets[0], PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1],
+                PrimaryCount = level.Primary[2], SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] };
+            yield return NamePlayer(); Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Trial 1"); yield return Page(StorePage.Level);
+            Click(app, "Play"); yield return BoardReady();
+            Image[] Crown() => Enumerable.Range(1, 3).Select(i => app.GetComponentsInChildren<Image>().Last(image => image.name == "Result star " + i)).ToArray();
+            bool Lit(Image socket) => socket.sprite.name.StartsWith(SkinSlots.StarLit);
+            foreach (byte sources in new byte[] { 4, 6, 5, 7 })
+            {
+                int kept = HudLayout.StarCount(sources); string at = "sources " + sources;
+                typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
+                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 8, StarSources = sources, EndReason = (byte)(kept == 3 ? 1 : 2), PrimaryProgress = 4, Goals = goals });
+                yield return Page(StorePage.Result);
+                var crown = Crown(); var places = crown.Select(socket => socket.rectTransform.anchoredPosition).ToArray();
+                Assert.That(crown.Any(Lit), Is.False, at + ": the sockets start empty");
+                float peak = 1;
+                for (float end = Time.realtimeSinceStartup + 3; Time.realtimeSinceStartup < end && app.GetComponentsInChildren<PageSequence>().Any(sequence => sequence.Playing);)
+                {
+                    Assert.That(app.GetComponentsInChildren<Image>().Any(image => image.name.Contains("flight")), Is.False, at + ": no star flies in");
+                    // Left to right: a socket lights only after the one before it.
+                    for (int i = 1; i < 3; i++) Assert.That(Lit(crown[i]) && !Lit(crown[i - 1]), Is.False, at + ": socket " + (i + 1) + " waits for socket " + i);
+                    peak = Mathf.Max(peak, crown[0].rectTransform.localScale.x);
+                    yield return null;
+                }
+                Assert.That(peak, Is.GreaterThan(1.05f), at + ": a filling star pops");
+                for (int i = 0; i < 3; i++)
+                {
+                    Assert.That(Lit(crown[i]), Is.EqualTo(i < kept), at + ": socket " + (i + 1));
+                    Assert.That(crown[i].rectTransform.localScale, Is.EqualTo(Vector3.one), at);
+                    Assert.That(Vector2.Distance(places[i], crown[i].rectTransform.anchoredPosition), Is.LessThan(.5f), at + ": the star stays in its socket");
+                }
+                typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, true);
+                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 8, StarSources = sources, EndReason = (byte)(kept == 3 ? 1 : 2), PrimaryProgress = 4, Goals = goals });
+                yield return Page(StorePage.Result); yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                crown = Crown();
+                for (int i = 0; i < 3; i++) Assert.That(Lit(crown[i]), Is.EqualTo(i < kept), at + ": reduced motion shows socket " + (i + 1) + " at once");
+                Assert.That(app.GetComponentsInChildren<PageSequence>().Any(sequence => sequence.Playing), Is.False);
+            }
+        }
         // The Daily result: the guardian's line, the score, the day's objective
         // count and the streak, with sharing as the primary.
         [UnityTest] public IEnumerator DailyResultShowsTheScoreObjectiveAndStreakWithSharing()

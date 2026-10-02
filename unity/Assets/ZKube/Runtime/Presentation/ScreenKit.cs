@@ -403,7 +403,7 @@ namespace ZKube.Presentation
         // The goal rows (goalRows): target ("10" or a ring), progress (the count
         // over its bar, or a ring and a tick) or result (the count with its tick).
         public enum GoalMode { Target, Progress, Result }
-        public Piece[] GoalRows(GoalLine[] goals, GoalMode mode, float iconU, Image[] icons = null)
+        public Piece[] GoalRows(GoalLine[] goals, GoalMode mode, float iconU)
         {
             float u = U;
             return goals.Select((goal, i) => {
@@ -419,7 +419,7 @@ namespace ZKube.Presentation
                     right = Beside(10, new Side(Mathf.Max(86 * u, count.Width), count.Height, rect => count.Draw(new Rect(rect.xMax - count.Width, rect.y, count.Width, rect.height))),
                         goal.Met ? Icon(goal.Name + " tick", SkinSlots.Tick, 24) : Blank(24));
                 }
-                return Row(goal.Name, Pictogram(goal.Name, goal.Pictogram, goal.Chip, iconU, image => { if (icons != null) icons[i] = image; }), goal.Caption, null,
+                return Row(goal.Name, Pictogram(goal.Name, goal.Pictogram, goal.Chip, iconU), goal.Caption, null,
                     right, i > 0);
             }).ToArray();
         }
