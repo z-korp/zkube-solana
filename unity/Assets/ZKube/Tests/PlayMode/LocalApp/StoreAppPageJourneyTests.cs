@@ -103,7 +103,10 @@ namespace ZKube.Tests
             while (!predicate()) { if (Time.realtimeSinceStartup > deadline) Assert.Fail(reason); yield return null; }
             yield return null;
         }
-        private bool PageDrawn() => !(bool)typeof(StoreAppAdapter).GetField("dirty", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
+        // A page is ready once it is drawn and the page before it has left: a
+        // leaving page keeps its pieces for its fade, however fast frames run.
+        private bool PageDrawn() => ((System.Collections.ICollection)typeof(PageShell).GetField("leaving", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app.GetComponent<PageShell>())).Count == 0 &&
+            !(bool)typeof(StoreAppAdapter).GetField("dirty", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
             !(bool)typeof(StoreAppAdapter).GetField("loading", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(app) &&
             app.GetComponentsInChildren<Image>().Where(image => image.name == "Guardian portrait").All(image => image.enabled && image.sprite != null);
         private IEnumerator Page(StorePage page) => Wait(() => app != null && app.Flow.Page == page && PageDrawn(), "Page did not become ready: " + page);
