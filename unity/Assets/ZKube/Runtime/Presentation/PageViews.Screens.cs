@@ -269,7 +269,8 @@ namespace ZKube.Presentation
             if (value.Share != null)
                 share = ShareAction(value, ResultShareText.Build(value.ProductName, value.Mode, value.PlayerName, realm.guardianName, realm.realmName,
                     objective ?? "Score only", value.ObjectiveTotal, value.Score, value.Streak), "Share");
-            pieces.Add(Buttons(kit, (value.Done, ScreenKit.Kind.Primary, SkinSlots.IconPlay), (share, ScreenKit.Kind.Secondary, SkinSlots.IconShare)));
+            pieces.Add(Buttons(kit, (value.Done, ScreenKit.Kind.Primary, SkinSlots.IconPlay), (share, ScreenKit.Kind.Secondary, SkinSlots.IconShare),
+                (value.Leaderboard, ScreenKit.Kind.Quiet, SkinSlots.IconTrophy)));
             Compose(pieces.ToArray());
         }
         private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + DayClock(seconds) + ".";

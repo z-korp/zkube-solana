@@ -30,7 +30,7 @@ namespace ZKube.Editor
             // The identity's own Maven dependencies (the store's Play Games), as
             // exact coordinates, and its Play Games project once the owner has one.
             public string[] dependencies;
-            public string playGamesAppId;
+            public string playGamesAppId, playGamesDailyLeaderboard;
         }
         [Serializable] internal sealed class AndroidAbi
         {

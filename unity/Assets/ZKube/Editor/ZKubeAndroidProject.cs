@@ -105,8 +105,11 @@ namespace ZKube.Editor
                 appId.SetAttributeValue(android + "value", "@string/zkube_play_games_app_id");
                 application.Add(appId);
                 Directory.CreateDirectory(Path.GetDirectoryName(strings));
+                string board = identity.playGamesDailyLeaderboard ?? "";
+                if (!Regex.IsMatch(board, "^[A-Za-z0-9_-]{0,64}$")) throw new BuildFailedException("The Play Games leaderboard ID is the one Play Console shows");
                 File.WriteAllText(strings, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n" +
-                    "  <string name=\"zkube_play_games_app_id\" translatable=\"false\">" + identity.playGamesAppId + "</string>\n</resources>\n");
+                    "  <string name=\"zkube_play_games_app_id\" translatable=\"false\">" + identity.playGamesAppId + "</string>\n" +
+                    "  <string name=\"zkube_play_games_daily_leaderboard\" translatable=\"false\">" + board + "</string>\n</resources>\n");
             }
             manifest.Save(manifestPath);
 

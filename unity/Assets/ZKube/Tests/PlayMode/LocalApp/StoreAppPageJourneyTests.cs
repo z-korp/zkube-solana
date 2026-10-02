@@ -27,6 +27,12 @@ namespace ZKube.Tests
             public PlayerAccount Player;
             public Exception Failure;
             public Task<PlayerAccount> SignIn() => Failure != null ? Task.FromException<PlayerAccount>(Failure) : Task.FromResult(Player);
+            public bool Leaderboard = true;
+            public readonly List<ulong> Submitted = new List<ulong>();
+            public int Shown;
+            public bool HasDailyLeaderboard => Leaderboard;
+            public void SubmitDailyScore(ulong score) => Submitted.Add(score);
+            public void ShowDailyLeaderboard() => Shown++;
         }
         private Accounts accounts;
         private sealed class Driver : ICampaignStoreDriver
@@ -202,6 +208,40 @@ namespace ZKube.Tests
             Click(app, "Home"); yield return Page(StorePage.Home);
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
             UnityEngine.Object.Destroy(avatar);
+        }
+        // Signed in, each finished Daily's score goes to the platform's Daily
+        // leaderboard, and a Leaderboard button on the Daily card and the Daily
+        // result opens the platform's own screen. Signed out there is no button
+        // and no submission, and the Daily plays the same.
+        [UnityTest] public IEnumerator AFinishedDailyGoesToThePlatformLeaderboardOnlyWhenSignedIn()
+        {
+            Assert.That(Buttons().Any(button => button.name == "Leaderboard"), Is.False, "Signed out, Home has no Leaderboard button");
+            accounts.Player = new PlayerAccount { Name = "Mira of the Reef" };
+            var signIn = app.Flow.SignIn(); yield return Wait(() => signIn.IsCompleted, "The sign-in did not answer"); yield return Page(StorePage.Home);
+            Click(app, "Leaderboard"); Assert.That(accounts.Shown, Is.EqualTo(1), "The Daily card opens the platform's leaderboard");
+            Click(app, "Play today"); yield return BoardReady();
+            Assert.That(accounts.Submitted, Is.Empty, "Nothing is submitted while the run plays");
+            yield return EndRun(); yield return Page(StorePage.Result);
+            Assert.That(product.Read.DailyAttempt.Finished, Is.True);
+            Assert.That(accounts.Submitted, Is.EqualTo(new[] { product.Read.DailyAttempt.DailyScore }), "The finished Daily's score is submitted once");
+            Click(app, "Leaderboard"); Assert.That(accounts.Shown, Is.EqualTo(2), "The Daily result opens it too");
+            Click(app, "Continue"); yield return Page(StorePage.Home);
+            Click(app, "View result"); yield return Page(StorePage.Result);
+            Assert.That(accounts.Submitted.Count, Is.EqualTo(1), "Viewing the result again submits nothing");
+        }
+        [UnityTest] public IEnumerator ASignedOutDailySubmitsNothingAndShowsNoLeaderboard()
+        {
+            Click(app, "Play today"); yield return BoardReady();
+            yield return EndRun(); yield return Page(StorePage.Result);
+            Assert.That(product.Read.DailyAttempt.Finished, Is.True, "The Daily plays the same signed out");
+            Assert.That(accounts.Submitted, Is.Empty);
+            Assert.That(Buttons().Any(button => button.name == "Leaderboard"), Is.False, "No Leaderboard button on the result");
+            Click(app, "Continue"); yield return Page(StorePage.Home);
+            Assert.That(Buttons().Any(button => button.name == "Leaderboard"), Is.False);
+            // A platform without a leaderboard configured shows none either, signed in.
+            accounts.Player = new PlayerAccount { Name = "Mira of the Reef" }; accounts.Leaderboard = false;
+            var signIn = app.Flow.SignIn(); yield return Wait(() => signIn.IsCompleted, "The sign-in did not answer"); yield return Page(StorePage.Home);
+            Assert.That(Buttons().Any(button => button.name == "Leaderboard"), Is.False);
         }
         // A finished run holds on the board for a moment, then its result page opens.
         [UnityTest] public IEnumerator PageButtonBindsLocalBoardAndTerminalOpensTheResultPage()

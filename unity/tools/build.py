@@ -55,6 +55,8 @@ def _identity(toolchain, name):
     # The Play Games project is the owner's; empty until there is one.
     if not re.fullmatch(r'|[0-9]{6,20}', profile.get('playGamesAppId', '')):
         raise RuntimeError("The Play Games app ID is its project's number")
+    if not re.fullmatch(r'[A-Za-z0-9_-]{0,64}', profile.get('playGamesDailyLeaderboard', '')):
+        raise RuntimeError('The Play Games leaderboard ID is the one Play Console shows')
     if not isinstance(profile['excludedAssemblies'], list):
         raise RuntimeError('Android identity requires excluded assemblies')
     brand = PurePosixPath(profile['brand'])

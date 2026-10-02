@@ -46,6 +46,19 @@ namespace ZKube.Local.App
             catch (Exception) { return null; }
         }
 
+        public bool HasDailyLeaderboard
+        {
+            get { try { return Call<bool>("hasDailyLeaderboard"); } catch (Exception) { return false; } }
+        }
+        public void SubmitDailyScore(ulong score)
+        {
+            try { Call("submitDailyScore", (long)Math.Min(score, long.MaxValue)); } catch (Exception) { }
+        }
+        public void ShowDailyLeaderboard()
+        {
+            try { Call("showDailyLeaderboard"); } catch (Exception) { }
+        }
+
         private static void Call(string method, params object[] arguments) => Call<object>(method, arguments);
         private static T Call<T>(string method, params object[] arguments)
         {

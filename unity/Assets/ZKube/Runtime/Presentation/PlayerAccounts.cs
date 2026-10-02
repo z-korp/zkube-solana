@@ -19,11 +19,20 @@ namespace ZKube.Presentation
     {
         // The signed-in player, or null. It never throws.
         Task<PlayerAccount> SignIn();
+        // Whether the platform has a Daily leaderboard for the signed-in player.
+        bool HasDailyLeaderboard { get; }
+        // A finished Daily's score; the platform keeps the player's best per day, week and all time.
+        void SubmitDailyScore(ulong score);
+        // Opens the platform's own leaderboard screen.
+        void ShowDailyLeaderboard();
     }
 
     // Where no platform account exists (the Editor, a desktop player).
     public sealed class NoPlayerAccounts : IPlayerAccounts
     {
         public Task<PlayerAccount> SignIn() => Task.FromResult<PlayerAccount>(null);
+        public bool HasDailyLeaderboard => false;
+        public void SubmitDailyScore(ulong score) { }
+        public void ShowDailyLeaderboard() { }
     }
 }

@@ -102,6 +102,11 @@ namespace ZKube.Local.App
             if (disposed) return;
             Account = account; Changed?.Invoke();
         }
+        // The platform's Daily leaderboard, for a signed-in player: each finished
+        // Daily's score goes to it, and its own screen shows it. Signed out
+        // there is neither, and nothing else changes.
+        public bool HasLeaderboard => Account != null && accounts.HasDailyLeaderboard;
+        public void ShowLeaderboard() { Check(); if (HasLeaderboard) accounts.ShowDailyLeaderboard(); }
         public void SelectRealm(byte realm)
         {
             Check();
@@ -165,6 +170,8 @@ namespace ZKube.Local.App
             bool daily = Provider?.Daily == true;
             if (!daily && outcome != null) { outcome.PreviousStars = startingStars; startingStars = LevelStars(outcome.Realm, outcome.Level); }
             LastCampaign = daily ? null : outcome;
+            var attempt = Product.Read.DailyAttempt;
+            if (daily && attempt != null && attempt.Finished && HasLeaderboard) accounts.SubmitDailyScore(attempt.DailyScore);
             Navigate(daily || outcome != null ? StorePage.Result : StorePage.Campaign);
         }
         public void ObservePersistence()

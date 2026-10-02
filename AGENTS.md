@@ -129,6 +129,11 @@ spending approval.
   `SeekerIdsResolveFromTheirSkrRecordsOncePerAddress` and
   `SeekerLookupsNeverThrowAndShowNothingWhenTheyCannotResolve` guard immediate Campaign play, the account and
   the lookup.
+- **Realms leaderboard:** signed in, each finished Daily's score goes to one platform leaderboard (Play Games on
+  Android) and a Leaderboard button on the Daily card and the Daily result opens the platform's own screen; it is
+  behind the platform-account interface. Signed out there is no button and no submission, and nothing else
+  changes. `AFinishedDailyGoesToThePlatformLeaderboardOnlyWhenSignedIn` and
+  `ASignedOutDailySubmitsNothingAndShowsNoLeaderboard` guard both.
 - **Campaign is free and optional on Arena:** one shared local client plays it in both products. Realms
   alone overlays the realm purchase policy and adds a local UTC Daily.
   `store_gate_is_a_store_identity_policy_over_shared_progression`,

@@ -206,8 +206,10 @@ namespace ZKube.Local.App
             return new DailyPageView { Day = today.DayId, Realm = today.Realm, ClosesAt = today.FreezesAt, Now = Flow.Runs.Now,
                 NextOpensAt = attempt == null ? 0 : today.FreezesAt, Score = attempt?.DailyScore ?? 0, ObjectiveTotal = attempt?.ObjectiveTotal ?? 0,
                 ObjectiveKind = today.ObjectiveKind, ObjectiveValue = today.ObjectiveValue,
-                Actions = new[] { Action(Flow.DailyAction, Flow.PlayDaily) } };
+                Actions = Flow.HasLeaderboard ? new[] { Action(Flow.DailyAction, Flow.PlayDaily), Leaderboard() } : new[] { Action(Flow.DailyAction, Flow.PlayDaily) } };
         }
+        // Opens the platform's own leaderboard; drawn only for a signed-in player.
+        private PageAction Leaderboard() => Action("Leaderboard", Flow.ShowLeaderboard);
         public ProfilePageView ProfilePage()
         {
             var state = Flow.Product.Read;
@@ -255,7 +257,7 @@ namespace ZKube.Local.App
                 Speaks = attempt != null && attempt.DailyScore > 0 && attempt.DailyScore >= Flow.Product.Read.BestDailyScore ? TalkMoment.NewBest : TalkMoment.Win,
                 SpeaksStars = attempt != null && attempt.DailyScore > 0 ? 2 : 1,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
-                Share = ResultSharing.Open,
+                Share = ResultSharing.Open, Leaderboard = Flow.HasLeaderboard ? Leaderboard() : null,
                 Done = Action("Continue", () => Flow.Show(StorePage.Home)) };
         }
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;

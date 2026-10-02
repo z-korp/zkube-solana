@@ -152,6 +152,8 @@ class StaticTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'exact Maven coordinates'): identity(self.toolchain, 'store')
         store['dependencies'] = []; store['playGamesAppId'] = 'my-project'
         with self.assertRaisesRegex(RuntimeError, 'Play Games app ID'): identity(self.toolchain, 'store')
+        store['playGamesAppId'] = '123456789012'; store['playGamesDailyLeaderboard'] = 'not an id'
+        with self.assertRaisesRegex(RuntimeError, 'leaderboard ID'): identity(self.toolchain, 'store')
 
 
     def test_display_name_checks_reject_wrong_missing_and_localized_names(self):

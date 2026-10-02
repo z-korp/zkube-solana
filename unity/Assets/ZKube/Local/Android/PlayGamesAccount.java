@@ -25,13 +25,35 @@ public final class PlayGamesAccount {
 
     private PlayGamesAccount() {}
 
-    // The build writes this from unity/toolchain.json once the owner has a Play
-    // Games project; without it there is no account.
+    // The build writes these from unity/toolchain.json once the owner has a Play
+    // Games project and its leaderboard; without them there is no account and
+    // no leaderboard.
     private static String configured(Activity activity, String name) {
         int id = activity.getResources().getIdentifier(name, "string", activity.getPackageName());
         String value = id == 0 ? null : activity.getString(id);
         return value == null || value.isEmpty() ? null : value;
     }
+    private static boolean signedIn;
+
+    public static boolean hasDailyLeaderboard(Activity activity) {
+        return signedIn && configured(activity, "zkube_play_games_daily_leaderboard") != null;
+    }
+
+    // A finished Daily's score; Play Games keeps the player's best per day, week and all time.
+    public static void submitDailyScore(final Activity activity, final long score) {
+        final String board = configured(activity, "zkube_play_games_daily_leaderboard");
+        if (!signedIn || board == null) return;
+        activity.runOnUiThread(() -> PlayGames.getLeaderboardsClient(activity).submitScore(board, score));
+    }
+
+    // The platform's own leaderboard screen, with its daily, weekly and all-time tabs.
+    public static void showDailyLeaderboard(final Activity activity) {
+        final String board = configured(activity, "zkube_play_games_daily_leaderboard");
+        if (!signedIn || board == null) return;
+        activity.runOnUiThread(() -> PlayGames.getLeaderboardsClient(activity).getLeaderboardIntent(board)
+            .addOnSuccessListener(intent -> activity.startActivityForResult(intent, 9004)));
+    }
+
     public static void signIn(final Activity activity, final Listener listener) {
         activity.runOnUiThread(() -> {
             try {
@@ -43,6 +65,7 @@ public final class PlayGamesAccount {
                         Player player = current.isSuccessful() ? current.getResult() : null;
                         if (player == null || player.getDisplayName() == null) { listener.unavailable("no player"); return; }
                         final String name = player.getDisplayName();
+                        signedIn = true;
                         Uri icon = player.getIconImageUri();
                         if (icon == null) { listener.signedIn(name, null); return; }
                         ImageManager.create(activity).loadImage((uri, drawable, requested) -> listener.signedIn(name, pixels(drawable)), icon);

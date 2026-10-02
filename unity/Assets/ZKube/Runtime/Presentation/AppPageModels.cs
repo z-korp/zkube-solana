@@ -176,7 +176,8 @@ namespace ZKube.Presentation
         public Func<long> Now;
         public bool Arcade;
         public Func<string, CancellationToken, Task<bool>> Share;
-        public PageAction Done, Retry;
+        // Leaderboard opens the platform's own leaderboard where the identity has one.
+        public PageAction Done, Retry, Leaderboard;
         // The guardian's line on a Daily result: the identity's own moment (a
         // star or new-best line), or its daily greeting when unset.
         public TalkMoment? Speaks;

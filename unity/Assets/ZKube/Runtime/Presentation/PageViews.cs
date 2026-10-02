@@ -268,7 +268,7 @@ namespace ZKube.Presentation
             long? clock = used ? value.NextOpensAt - countdownSecond : value.ClosesAt > 0 && value.Now != null ? value.ClosesAt - countdownSecond : (long?)null;
             var pieces = new List<Piece> { Lockup(kit, 94), DailyCard(kit, value, realm.guardianName, clock, used, Array.Empty<Piece>(),
                 Buttons(kit.Inside(), value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
-                    i == 0 ? SkinSlots.IconPlay : (string)null)).ToArray())) };
+                    i == 0 ? SkinSlots.IconPlay : SkinSlots.IconTrophy)).ToArray())) };
             if (!string.IsNullOrEmpty(value.Status)) pieces.Add(kit.Note(value.Status));
             foreach (var fact in value.Facts) pieces.Add(kit.Note(fact));
             var summary = source.CampaignSummary();
