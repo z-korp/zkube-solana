@@ -4,14 +4,16 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { parseOperatorArgs } from "./cli.js";
-import { RELEASE_BUILD, buildRelease, releaseArtifact, type RunCargo } from "./releaseBuild.js";
+import { RELEASE_BUILD, UNGATED_SYSCALLS, buildRelease, importedSyscalls, releaseArtifact, requireUngatedSyscalls,
+  type RunCargo } from "./releaseBuild.js";
 
 const scratch = fileURLToPath(new URL("../../build/release-build-tests", import.meta.url));
 beforeEach(() => mkdirSync(scratch, { recursive: true }));
 afterEach(() => rmSync(scratch, { recursive: true, force: true }));
 
 const VERSIONS = `solana-cargo-build-sbf ${RELEASE_BUILD.cargoBuildSbf}\nplatform-tools ${RELEASE_BUILD.platformTools}\nrustc ${RELEASE_BUILD.rustc}\n`;
-const elf = (fill: number) => Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.alloc(64, fill)]);
+/** A 64-bit little-endian ELF with no sections, and so no imports, distinct by its fill. */
+const elf = (fill: number) => Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1]), Buffer.alloc(58), Buffer.alloc(64, fill)]);
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 
 /** cargo, as far as the build asks: its version, then one build that writes the ELF. */
@@ -121,7 +123,7 @@ it("release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_wha
     NO_DNA: "1", CARGO_NET_OFFLINE: "true", CARGO_BUILD_JOBS: "6",
     CARGO_TARGET_DIR: `${scratch}/${RELEASE_BUILD.targetDirectory}` } });
   expect(RELEASE_BUILD.arguments.slice(-2)).toEqual(["--", "--locked"]);
-  expect(record).toEqual({ recipe: RELEASE_BUILD, sha256: hash(elf(1)), bytes: 68 });
+  expect(record).toEqual({ recipe: RELEASE_BUILD, sha256: hash(elf(1)), bytes: elf(1).length });
   expect(parseOperatorArgs(["build-release"])).toEqual({ help: false, mode: "build-release" });
 });
 
@@ -129,7 +131,7 @@ it("a_deploy_plan_quotes_only_the_recorded_release_build_at_the_reviewed_hash", 
   expect(() => releaseArtifact(scratch, hash(elf(1)))).toThrow("No release build found");
   const record = buildRelease(scratch, tools(VERSIONS, elf(1)).run, inherited);
   expect(releaseArtifact(scratch, record.sha256)).toEqual({ artifactPath: `${scratch}/${RELEASE_BUILD.artifact}`,
-    artifactSha256: record.sha256, artifactBytes: 68 });
+    artifactSha256: record.sha256, artifactBytes: elf(1).length });
   // Another hash than the one built, however obtained, is not this release.
   expect(() => releaseArtifact(scratch, hash(elf(2)))).toThrow("differs from release input");
   // An ELF swapped in after the build, even at the same size, is refused.
@@ -140,9 +142,37 @@ it("a_deploy_plan_quotes_only_the_recorded_release_build_at_the_reviewed_hash", 
   const path = `${scratch}/build/chain/release/solana.release.json`;
   for (const recipe of [{ ...RELEASE_BUILD, arguments: [...RELEASE_BUILD.arguments, "--disable-remap-cwd"] },
     { ...RELEASE_BUILD, platformTools: "v1.51" }, undefined]) {
-    writeFileSync(path, JSON.stringify({ recipe, sha256: hash(elf(2)), bytes: 68 }));
+    writeFileSync(path, JSON.stringify({ recipe, sha256: hash(elf(2)), bytes: elf(1).length }));
     expect(() => releaseArtifact(scratch, hash(elf(2)))).toThrow("pinned build configuration");
   }
   writeFileSync(path, "{");
   expect(() => releaseArtifact(scratch, hash(elf(2)))).toThrow("pinned build configuration");
+});
+
+// The program as built by `anchor build` / `cargo build-sbf` before the suite runs.
+const program = fileURLToPath(new URL("../../target/deploy/solana.so", import.meta.url));
+
+it("the_program_imports_only_syscalls_every_cluster_has", () => {
+  // Devnet refused to deploy a program importing sol_remaining_compute_units:
+  // its feature gate is off there. Every import must be a syscall the loader
+  // registers with no gate (see UNGATED_SYSCALLS for how that list is checked).
+  const imports = importedSyscalls(readFileSync(program));
+  expect(imports).toEqual(["abort", "sol_create_program_address", "sol_get_clock_sysvar", "sol_get_rent_sysvar",
+    "sol_invoke_signed_rust", "sol_log_", "sol_log_data", "sol_log_pubkey", "sol_memcmp_", "sol_memcpy_", "sol_memmove_",
+    "sol_memset_", "sol_panic_", "sol_sha256", "sol_try_find_program_address"]);
+  expect(imports.filter((name) => !UNGATED_SYSCALLS.includes(name))).toEqual([]);
+});
+
+it("a_release_importing_a_gated_syscall_is_refused_before_it_is_recorded", () => {
+  // The same program, its sol_sha256 import renamed to a gated syscall of the same length.
+  const bytes = readFileSync(program);
+  const at = bytes.indexOf(Buffer.from("sol_sha256\0"));
+  expect(at).toBeGreaterThan(0);
+  const gated = Buffer.from(bytes); gated.write("sol_blake3", at, "latin1");
+  expect(importedSyscalls(gated)).toContain("sol_blake3");
+  expect(() => requireUngatedSyscalls(gated)).toThrow("not active on every cluster: sol_blake3");
+  // The release build refuses it and records nothing a deploy plan could quote.
+  expect(() => buildRelease(scratch, tools(VERSIONS, gated).run, inherited)).toThrow("not active on every cluster");
+  expect(() => releaseArtifact(scratch, hash(gated))).toThrow("No release build found");
+  expect(() => importedSyscalls(Buffer.from("not an elf"))).toThrow("not a little-endian 64-bit ELF");
 });
