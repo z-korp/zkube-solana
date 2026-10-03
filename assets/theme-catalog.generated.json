@@ -2965,6 +2965,146 @@
             0,
             0
           ],
+          "image": "/assets/skins/lumen/ui/hand-pointer.png",
+          "slot": "hand-pointer"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-key.png",
+          "slot": "icon-key"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-slide.png",
+          "slot": "lesson-slide"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-clear.png",
+          "slot": "lesson-clear"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-next-row.png",
+          "slot": "lesson-next-row"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-top.png",
+          "slot": "lesson-top"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-stars.png",
+          "slot": "lesson-stars"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-charge.png",
+          "slot": "lesson-charge"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-wave.png",
+          "slot": "lesson-wave"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-hammer.png",
+          "slot": "lesson-hammer"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-totem.png",
+          "slot": "lesson-totem"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-reroll.png",
+          "slot": "lesson-reroll"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-guardian.png",
+          "slot": "lesson-guardian"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/lesson-daily.png",
+          "slot": "lesson-daily"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/lumen/ui/goal-all-widths.png",
           "slot": "goal-all-widths"
         },

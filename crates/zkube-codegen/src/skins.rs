@@ -54,7 +54,7 @@ pub const UI_STRETCH_SLOTS: [&str; 35] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 69] = [
+pub const UI_FIXED_SLOTS: [&str; 83] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -143,6 +143,23 @@ pub const UI_FIXED_SLOTS: [&str; 69] = [
     // earned).
     "counter-ring",
     "tick",
+    // The tutorial: the guardian's pointing hand (its fingertip at the top
+    // centre), the key on a guardian level's "Opens" chip, and one card per
+    // lesson, shown in the board's lesson bubble and on How to play.
+    "hand-pointer",
+    "icon-key",
+    "lesson-slide",
+    "lesson-clear",
+    "lesson-next-row",
+    "lesson-top",
+    "lesson-stars",
+    "lesson-charge",
+    "lesson-wave",
+    "lesson-hammer",
+    "lesson-totem",
+    "lesson-reroll",
+    "lesson-guardian",
+    "lesson-daily",
 ];
 
 /// The ladder's tiers, from the core's own progression.
