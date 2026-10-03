@@ -2185,115 +2185,8 @@ fn finalization_never_exceeds_its_worst_case() {
 }
 
 #[test]
-fn a_finalization_without_the_compute_it_could_need_yields_unchanged() {
-    let day = 20_710;
-    let mut game = Game::launched(day, SEED);
-    full_day(&mut game, day, 1_000_000_000_000);
-    game.at(day + 1, 60);
-    assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
-    let needed = zkube_core::finalization_worst_case_units(2 * ARENA_BOARD_CAPACITY as u32)
-        + zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS;
-    // One unit short of its worst case and the reserve: it yields, a no-op
-    // that logs nothing, and the Daily waits for the next transaction.
-    let before = game.accounts.clone();
-    let (landed, used) = game.send_metered(&[game.finalize(day, day + 1)], needed - 1);
-    assert!(landed);
-    assert!(used < 50_000, "a yield costs only its checks: {used} CU");
-    assert_eq!(game.accounts, before);
-    assert!(!game.state(day).finalized());
-    // With enough, counting what loading its accounts takes before the check, it finalizes.
-    let (landed, _) = game.send_metered(&[game.finalize(day, day + 1)], needed + 100_000);
-    assert!(landed);
-    assert!(game.state(day).finalized());
-    assert_eq!(game.root().last_daily_id, day);
-}
-
-#[test]
 fn optional_cadence_never_overruns_an_entry_after_a_concurrent_expiry_rollover() {
-    // An entry carries both finalizations of two full days after a quiet
-    // month. Between its simulation and its landing, anyone closes the old
-    // Daily, rolling its unclaimed prize into the second finalization's pot,
-    // which raises that board's paying width. Whatever happens, the entry
-    // lands: a finalization that could not fit yields. Without the Daily's
-    // prize claimed, and with half of it claimed first.
-    for partial_claim in [false, true] {
-        let old = 20_710;
-        let day = old + 1;
-        let pool = 100_000_000_000_000;
-        let mut game = Game::unlaunched(old);
-        game.accounts
-            .insert(game.authority, system_account(pool * 3));
-        assert!(game.send(&game.launch(old, pool)).program_result.is_ok());
-        let winner = Pubkey::new_unique();
-        game.player(winner);
-        assert!(game.send(&[game.enter(winner, old)]).program_result.is_ok());
-        assert!(game.settle(winner, old, 100, 5).program_result.is_ok());
-        game.at(day, 60);
-        assert!(game
-            .send(&[game.prepare(day), game.finalize(old, day)])
-            .program_result
-            .is_ok());
-        if partial_claim {
-            assert!(game
-                .send(&[game.claim(winner, old, DailyBoardKind::Theme, 0)])
-                .program_result
-                .is_ok());
-        }
-        // A full field on both later days, the second with a narrow pot at first.
-        // The first already holds what the old day sent it, so its account
-        // keeps those lamports beside the full pot.
-        full_day(&mut game, day, pool);
-        let state = game.state(day);
-        let rent =
-            anchor_lang::prelude::Rent::default().minimum_balance(8 + ArenaDaily::INIT_SPACE);
-        game.accounts.get_mut(&Game::daily(day)).unwrap().lamports =
-            rent + state.ledger.available_lamports().unwrap() + state.ledger.next_pot_lamports;
-        game.at(day + 1, 60);
-        assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
-        full_day(&mut game, day + 1, 0);
-        let entrant = Pubkey::new_unique();
-        game.player(entrant);
-        let today = old + 31;
-        game.at(today, 61);
-        let carried = [
-            game.prepare(today),
-            game.finalize(day, day + 1),
-            game.finalize(day + 1, today),
-            game.enter(entrant, today),
-        ];
-        let start = game.accounts.clone();
-        let (simulated, simulated_units) = game.send_metered(&carried, TRANSACTION_COMPUTE_UNITS);
-        assert!(simulated);
-        assert!(simulated_units + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
-        game.accounts = start;
-        // The rollover lands first.
-        let total = game.total();
-        let narrow = game.state(day + 1).ledger.available_lamports().unwrap();
-        assert!(game
-            .send(&[game.close(old, Some(day + 1))])
-            .program_result
-            .is_ok());
-        assert!(game.state(day + 1).ledger.available_lamports().unwrap() > narrow);
-        let (landed, units) = game.send_metered(&carried, TRANSACTION_COMPUTE_UNITS);
-        println!(
-            "partial_claim={partial_claim}: simulated {simulated_units} CU, landed {units} CU"
-        );
-        assert!(
-            landed,
-            "the entry must land whatever its optional steps meet"
-        );
-        assert!(units + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
-        assert_eq!(game.state(today).entries_paid, 1);
-        assert!(game.state(day).finalized());
-        // The second full day yielded and is still waiting; it finalizes in
-        // a transaction of its own, which has the compute for it.
-        assert!(!game.state(day + 1).finalized());
-        let (sealed, _) =
-            game.send_metered(&[game.finalize(day + 1, today)], TRANSACTION_COMPUTE_UNITS);
-        assert!(sealed);
-        assert!(game.state(day + 1).finalized());
-        assert_eq!(game.total(), total);
-    }
+    rollover_after_the_stated_limit(false);
 }
 
 #[test]
@@ -4697,12 +4590,13 @@ const DELEGATION_HEADROOM_UNITS: u64 = 200_000;
 #[test]
 fn the_largest_cadence_carrying_entry_fits_one_transaction() {
     // Every composition the client can send, at its worst: two finished days
-    // in a row, both with a full field, at three pot sizes, each transaction
-    // on one shared compute budget. A finalization that would not fit beside
-    // the rest yields, so every one of them lands with room for delegation.
+    // in a row, both with a full field, at three pot sizes. Each transaction
+    // runs on one shared budget, the compute the client states for it: the
+    // reserve and each carried finalization's worst case. Each lands within
+    // it, leaving the delegation its room.
     for pool in [u64::MAX / 4, 100_000_000_000_000, 65_000_000_000_000] {
         let day = 20_710;
-        let world = |finished: bool| {
+        let world = || {
             let mut game = Game::launched(day, SEED);
             full_day(&mut game, day, pool);
             game.at(day + 1, 60);
@@ -4711,75 +4605,57 @@ fn the_largest_cadence_carrying_entry_fits_one_transaction() {
             let player = Pubkey::new_unique();
             game.player(player);
             game.at(day + 2, 60);
-            if finished {
-                assert!(game
-                    .send(&[game.finalize(day, day + 1)])
-                    .program_result
-                    .is_ok());
-            }
             (game, player)
         };
-        let units = |game: &mut Game, transaction: &[Ix]| {
-            let (landed, used) = game.send_metered(transaction, TRANSACTION_COMPUTE_UNITS);
-            assert!(landed);
+        let units = |game: &mut Game, transaction: &[Ix], stated: u64| {
+            let (landed, used) = game.send_metered(transaction, stated);
+            assert!(landed && used <= stated);
             used
         };
-        // Both finalizations with the entry: the first runs, the second
-        // yields to a later transaction, and the entry lands.
-        let (mut game, player) = world(false);
-        let transaction = [
-            game.prepare(day + 2),
-            game.finalize(day, day + 1),
-            game.finalize(day + 1, day + 2),
-            game.enter(player, day + 2),
-        ];
-        let both = units(&mut game, &transaction);
-        assert!(game.state(day).finalized() && !game.state(day + 1).finalized());
-        assert_eq!(game.state(day + 2).entries_paid, 1);
+        // Both full days' worst cases do not fit one transaction beside the
+        // reserve: the client carries the oldest and leaves the other.
+        let (game, _) = world();
+        assert_eq!(client_stated(&game, &[day, day + 1]).0, 1);
         // One finalization with the entry: the oldest day, then on the next
-        // entry the one after it. Each must fit with the delegation.
-        let (mut game, player) = world(false);
+        // entry the one after it.
+        let (mut game, player) = world();
+        let (_, stated) = client_stated(&game, &[day]);
         let transaction = [
             game.prepare(day + 2),
             game.finalize(day, day + 1),
             game.enter(player, day + 2),
         ];
-        let first = units(&mut game, &transaction);
+        let first = units(&mut game, &transaction, stated);
+        assert!(first + DELEGATION_HEADROOM_UNITS <= stated);
         let other = Pubkey::new_unique();
         game.player(other);
+        let (_, stated) = client_stated(&game, &[day + 1]);
         let transaction = [
             game.prepare(day + 2),
             game.finalize(day + 1, day + 2),
             game.enter(other, day + 2),
         ];
-        let second = units(&mut game, &transaction);
+        let second = units(&mut game, &transaction, stated);
+        assert!(second + DELEGATION_HEADROOM_UNITS <= stated);
         assert_eq!(game.root().last_daily_id, day + 1);
         assert_eq!(game.state(day + 2).entries_paid, 2);
-        // No finalization at all: the entry alone, preparing its day.
-        let (mut game, player) = world(false);
+        // No finalization at all: the entry alone, preparing its day, under
+        // the reserve alone.
+        let (mut game, player) = world();
+        let stated = zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS;
         let transaction = [game.prepare(day + 2), game.enter(player, day + 2)];
-        let alone = units(&mut game, &transaction);
+        let alone = units(&mut game, &transaction, stated);
+        assert!(alone + DELEGATION_HEADROOM_UNITS <= stated);
         assert_eq!(game.state(day + 2).entries_paid, 1);
-        // A winner sealing days without entering: one day, and two.
-        let (mut game, _) = world(false);
+        // A winner sealing a day without entering.
+        let (mut game, _) = world();
+        let (_, stated) = client_stated(&game, &[day]);
         let transaction = [game.prepare(day + 2), game.finalize(day, day + 1)];
-        let seal = units(&mut game, &transaction);
-        let (mut game, _) = world(false);
-        let transaction = [
-            game.prepare(day + 2),
-            game.finalize(day, day + 1),
-            game.finalize(day + 1, day + 2),
-        ];
-        let seal_both = units(&mut game, &transaction);
-        assert!(game.state(day).finalized() && !game.state(day + 1).finalized());
+        let seal = units(&mut game, &transaction, stated);
         println!(
-            "pool {pool}: entry with two full finalizations {both} CU, with one {first} and {second}, \
-             alone {alone}; sealing one {seal}, two {seal_both}"
+            "pool {pool}: entry with one full finalization {first} and {second} CU, alone {alone}; \
+             sealing one {seal}; stated {stated} per finalization"
         );
-        for fitting in [both, first, second, alone] {
-            assert!(fitting + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
-        }
-        assert!(seal.max(seal_both) <= TRANSACTION_COMPUTE_UNITS);
         let board: ArenaBoard = decode(game.board(day, DailyBoardKind::Score));
         assert_eq!(board.payout_count as usize, ARENA_BOARD_CAPACITY);
     }
@@ -4972,71 +4848,85 @@ fn device_entry(game: &mut Game, day: u32) -> Ix {
 }
 
 #[test]
-fn a_dependent_optional_finalization_after_a_yield_never_fails_the_entry() {
-    // Two finished full days ride a device entry. Under a smaller budget the
-    // first yields; the second, which depends on the first having forwarded
-    // its funding, must then yield too rather than reject the entry. With and
-    // without today's preparation in front, at 800,000 and 1,200,000 units.
+fn a_finalization_whose_predecessor_has_not_reached_it_never_fails_the_entry() {
+    // Another sender's entry carries only the second of two due days, whose
+    // predecessor has not finalized into it. That finalization waits, a no-op
+    // after its accounts are checked, and the entry lands; nothing finalizes,
+    // the root and every lamport stay. With and without today's preparation
+    // in front, under the limit the client would state.
     for prepare_today in [false, true] {
-        for budget in [800_000u64, 1_200_000] {
-            let day = 20_710;
-            let mut game = Game::launched(day, SEED);
-            full_day(&mut game, day, 1_000_000_000_000);
-            game.at(day + 1, 60);
-            assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
-            full_day(&mut game, day + 1, 0);
-            let today = day + 2;
-            game.at(today, 60);
-            if !prepare_today {
-                assert!(game.send(&[game.prepare(today)]).program_result.is_ok());
-            }
-            let entry = device_entry(&mut game, today);
-            let prefix = if prepare_today {
-                vec![game.prepare(today)]
-            } else {
-                vec![]
-            };
-            let mut carried = prefix.clone();
-            carried.extend([
-                game.finalize(day, day + 1),
-                game.finalize(day + 1, today),
-                entry.clone(),
-            ]);
-            let before = game.accounts.clone();
-            let total = game.total();
-            let root = game.root();
-            let (landed, used) = game.send_metered(&carried, budget);
-            println!("prepare={prepare_today} budget={budget}: landed={landed}, {used} CU");
-            assert!(
-                landed,
-                "prepare={prepare_today} budget={budget}: the entry must land"
-            );
-            assert_eq!(game.state(today).entries_paid, 1);
-            assert!(!game.state(day).finalized() && !game.state(day + 1).finalized());
-            let after = game.root();
-            assert_eq!(
-                (after.last_daily_id, after.daily_root),
-                (root.last_daily_id, root.daily_root)
-            );
-            assert_eq!(game.total(), total);
-            // Each step alone, or none, also lands.
-            for optional in [vec![game.finalize(day, day + 1)], vec![]] {
-                game.accounts = before.clone();
-                let mut smaller = prefix.clone();
-                smaller.extend(optional);
-                smaller.push(entry.clone());
-                assert!(game.send_metered(&smaller, budget).0);
-                assert_eq!(game.state(today).entries_paid, 1);
-                assert_eq!(game.total(), total);
-            }
+        let day = 20_710;
+        let mut game = Game::launched(day, SEED);
+        full_day(&mut game, day, 1_000_000_000_000);
+        game.at(day + 1, 60);
+        assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
+        full_day(&mut game, day + 1, 0);
+        let today = day + 2;
+        game.at(today, 60);
+        if !prepare_today {
+            assert!(game.send(&[game.prepare(today)]).program_result.is_ok());
         }
+        let entry = device_entry(&mut game, today);
+        let mut transaction = if prepare_today {
+            vec![game.prepare(today)]
+        } else {
+            vec![]
+        };
+        transaction.extend([game.finalize(day + 1, today), entry]);
+        let (_, stated) = client_stated(&game, &[day + 1]);
+        let total = game.total();
+        let root = game.root();
+        let (landed, used) = game.send_metered(&transaction, stated);
+        println!("prepare={prepare_today}: landed={landed}, {used} of {stated} CU");
+        assert!(landed, "prepare={prepare_today}: the entry must land");
+        assert_eq!(game.state(today).entries_paid, 1);
+        assert!(!game.state(day).finalized() && !game.state(day + 1).finalized());
+        let after = game.root();
+        assert_eq!(
+            (after.last_daily_id, after.daily_root),
+            (root.last_daily_id, root.daily_root)
+        );
+        assert_eq!(game.total(), total);
     }
 }
 
 #[test]
 fn optional_cadence_survives_the_rollover_with_the_auditors_original_fields() {
-    // The rollover regression as first found: the first later Daily's field is
-    // 1,536 qualifiers, the second's 262,144.
+    rollover_after_the_stated_limit(true);
+}
+
+/// The rows a Daily's boards keep, as the client counts them: each board's
+/// qualifiers, up to its capacity.
+fn retained_rows(game: &Game, day: u32) -> u32 {
+    let state = game.state(day);
+    let capacity = ARENA_BOARD_CAPACITY as u32;
+    state.score_qualified_players.min(capacity) + state.theme_qualified_players.min(capacity)
+}
+
+/// What the client states for a transaction carrying these due Dailies'
+/// finalizations, oldest first: the reserve for its preparation and entry, and
+/// each finalization's worst case while they fit one transaction. Returns how
+/// many ride and the compute it states.
+fn client_stated(game: &Game, due: &[u32]) -> (usize, u64) {
+    let (mut carried, mut limit) = (0, zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS);
+    for day in due {
+        let next = limit + zkube_core::finalization_worst_case_units(retained_rows(game, *day));
+        if next > zkube_core::TRANSACTION_COMPUTE_UNITS {
+            break;
+        }
+        (carried, limit) = (carried + 1, next);
+    }
+    (carried, limit)
+}
+
+/// The audit 8 regression under a client-stated limit. An entry carries the
+/// finalization of a full day whose pot is narrow; the client states its
+/// compute from the day's retained rows. Before the entry lands, anyone closes
+/// an older Daily and rolls its unclaimed prize into that pot, widening the
+/// paying board. The stated limit still holds: the rows did not change. With
+/// the prize unclaimed and half claimed, and with the auditor's original
+/// fields (1,536 then 262,144 qualifiers) or two full fields.
+fn rollover_after_the_stated_limit(original_fields: bool) {
     for partial_claim in [false, true] {
         let old = 20_710;
         let day = old + 1;
@@ -5060,15 +4950,26 @@ fn optional_cadence_survives_the_rollover_with_the_auditors_original_fields() {
                 .program_result
                 .is_ok());
         }
+        // The first later day: a full field, keeping what the old day sent it.
         full_day(&mut game, day, pool);
-        let qualified = ARENA_BOARD_CAPACITY as u32;
         let mut state = game.state(day);
-        state.unique_players = qualified;
-        state.score_qualified_players = qualified;
-        state.theme_qualified_players = qualified;
-        state.entries_paid = u64::from(qualified);
-        state.entries_scored = u64::from(qualified);
-        state.ledger.next_pot_lamports = u64::from(qualified) * zkube_core::ENTRY_DAILY_LAMPORTS;
+        if original_fields {
+            let qualified = ARENA_BOARD_CAPACITY as u32;
+            state.unique_players = qualified;
+            state.score_qualified_players = qualified;
+            state.theme_qualified_players = qualified;
+            state.entries_paid = u64::from(qualified);
+            state.entries_scored = u64::from(qualified);
+            state.ledger.next_pot_lamports =
+                u64::from(qualified) * zkube_core::ENTRY_DAILY_LAMPORTS;
+            let rows = (0..qualified)
+                .map(|rank| ranked_row(qualified, rank))
+                .collect::<Vec<_>>();
+            for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
+                let (address, account) = open_board(Game::daily(day), day, kind, &rows, qualified);
+                game.accounts.insert(address, account);
+            }
+        }
         let rent =
             anchor_lang::prelude::Rent::default().minimum_balance(8 + ArenaDaily::INIT_SPACE);
         game.accounts.insert(
@@ -5080,47 +4981,50 @@ fn optional_cadence_survives_the_rollover_with_the_auditors_original_fields() {
                 rent + state.ledger.available_lamports().unwrap() + state.ledger.next_pot_lamports,
             ),
         );
-        let rows = (0..qualified)
-            .map(|rank| ranked_row(qualified, rank))
-            .collect::<Vec<_>>();
-        for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
-            let (address, account) = open_board(Game::daily(day), day, kind, &rows, qualified);
-            game.accounts.insert(address, account);
-        }
+        // The second later day: a full field with a narrow pot.
         game.at(day + 1, 60);
         assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
         full_day(&mut game, day + 1, 0);
+        // Both full days are due. Their worst cases do not both fit beside the
+        // reserve, so a transaction carries only the oldest.
         let today = old + 31;
         game.at(today, 61);
+        assert_eq!(client_stated(&game, &[day, day + 1]).0, 1);
+        // A winner seals the oldest in a transaction of its own.
+        let (_, stated) = client_stated(&game, &[day]);
+        let (sealed, used) = game.send_metered(&[game.finalize(day, day + 1)], stated);
+        assert!(sealed && used <= stated);
+        // The next entry carries the other day, its compute stated from the
+        // rows that day retains, ahead of today's preparation.
+        let (carried, stated) = client_stated(&game, &[day + 1]);
+        assert_eq!(carried, 1);
         let entry = device_entry(&mut game, today);
-        let carried = [
-            game.prepare(today),
-            game.finalize(day, day + 1),
-            game.finalize(day + 1, today),
-            entry.clone(),
-        ];
+        let transaction = [game.prepare(today), game.finalize(day + 1, today), entry];
         let start = game.accounts.clone();
-        let (simulated, simulated_units) = game.send_metered(&carried, TRANSACTION_COMPUTE_UNITS);
+        let (simulated, simulated_units) = game.send_metered(&transaction, stated);
         assert!(simulated);
-        assert!(simulated_units + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
         game.accounts = start;
+        // The rollover lands first, into the newest prepared Daily: the very
+        // day this entry carries, whose paying board widens.
         let total = game.total();
+        let narrow = game.state(day + 1).ledger.available_lamports().unwrap();
         assert!(game
             .send(&[game.close(old, Some(day + 1))])
             .program_result
             .is_ok());
-        let (landed, units) = game.send_metered(&carried, TRANSACTION_COMPUTE_UNITS);
-        println!("original fields, partial_claim={partial_claim}: simulated {simulated_units} CU, landed {units} CU");
-        assert!(landed);
-        assert!(units + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
-        assert_eq!(game.state(today).entries_paid, 1);
-        assert!(game.state(day).finalized() && !game.state(day + 1).finalized());
-        assert_eq!(game.root().last_daily_id, day);
-        assert!(
-            game.send_metered(&[game.finalize(day + 1, today)], TRANSACTION_COMPUTE_UNITS)
-                .0
+        assert!(game.state(day + 1).ledger.available_lamports().unwrap() > narrow);
+        let (landed, units) = game.send_metered(&transaction, stated);
+        println!(
+            "original_fields={original_fields} partial_claim={partial_claim}: stated {stated} CU, \
+             simulated {simulated_units}, landed {units}"
         );
+        assert!(
+            landed,
+            "the entry must land under the limit the client stated"
+        );
+        assert!(units <= stated);
         assert!(game.state(day + 1).finalized());
+        assert_eq!(game.state(today).entries_paid, 1);
         assert_eq!(game.total(), total);
     }
 }

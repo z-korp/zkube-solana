@@ -6,6 +6,10 @@ namespace ZKube.Core.Generated
         public const ulong EntryLamports = 10000000UL;
         public const ulong ClaimWindowSeconds = 2592000UL;
         public const ulong RunRecoverySeconds = 21600UL;
+        public const ulong FinalizationBaseUnits = 80000UL;
+        public const ulong FinalizationRowUnits = 240UL;
+        public const ulong FinalizationFollowingReserveUnits = 400000UL;
+        public const ulong TransactionComputeUnits = 1400000UL;
         public const ulong FirstEntryPeakRentLamports = 12193920UL;
         public const ulong ArenaPlayerRentLamports = 2463840UL;
         public const ulong PayoutUnitLamports = 1000000UL;

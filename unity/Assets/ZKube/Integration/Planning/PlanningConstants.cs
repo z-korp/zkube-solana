@@ -4,10 +4,6 @@ namespace ZKube.Integration.Planning
     {
         public const uint ComputeUnitLimit = 400000U;
         public const uint ComputeUnitPrice = 1000U;
-        // A transaction that carries a finalization asks for the most one
-        // transaction may use: a day with full boards needs about 640,000 units
-        // on top of the entry, and the next player must not be the one it fails for.
-        public const uint CadenceComputeUnitLimit = 1400000U;
         public const uint LargestKreditPack = 25U;
         public const uint SettlementReserveLamports = 5000U;
         public const uint SessionLifetimeSeconds = 604500U;

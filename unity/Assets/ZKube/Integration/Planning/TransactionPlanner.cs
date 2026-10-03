@@ -54,7 +54,8 @@ namespace ZKube.Integration.Planning
             if (prepareDay.HasValue)
                 instructions.Add(Instruction("prepare_arena_daily", new JObject { ["day_id"] = prepareDay.Value }, Keys(prepareDay.Value)));
             var list = (steps ?? Enumerable.Empty<CadenceStep>()).ToArray();
-            if (list.Length > DailyCadence.MaximumSteps) throw new ArgumentException("Too many finalizations for one transaction");
+            if (list.Length > DailyCadence.MaximumSteps || DailyCadence.ComputeLimit(list) > Protocol.TransactionComputeUnits)
+                throw new ArgumentException("Too many finalizations for one transaction");
             foreach (var step in list)
             {
                 var keys = Keys(step.Day); keys["following_daily"] = Daily(step.Following);
@@ -72,7 +73,7 @@ namespace ZKube.Integration.Planning
             var instructions = Cadence(actor.Signer, list.Any(step => step.Following == prepareDay) ? prepareDay : null, list);
             if (instructions.Count == 0) throw new InvalidOperationException("No Daily is due");
             return Plan(actor, PlanRoute.Base, instructions, PlanningConstants.SettlementReserveLamports,
-                computeUnitLimit: PlanningConstants.CadenceComputeUnitLimit);
+                computeUnitLimit: DailyCadence.ComputeLimit(list));
         }
 
         public TransactionPlan Purchase(string owner, uint count, string teamDestination)
@@ -153,7 +154,8 @@ namespace ZKube.Integration.Planning
         {
             RequireFreeSlot(actor, player, occupied, now);
             if (player.Kredits < 1) throw new InvalidOperationException("Buy a Kredit before entering Daily");
-            var cadence = Cadence(actor.Signer, daily.PrepareToday ? daily.DayId : (uint?)null, finalize);
+            var list = (finalize ?? Enumerable.Empty<CadenceStep>()).ToArray();
+            var cadence = Cadence(actor.Signer, daily.PrepareToday ? daily.DayId : (uint?)null, list);
             // When a cadence step is due the entry carries it and leaves the
             // optional claims out: they go in their own transaction, as they always can.
             var claims = cadence.Count != 0 ? Array.Empty<ValidatedBoardReward>() : SelectEntryClaims(rewards, actor.Owner, daily.DayId, now);
@@ -167,10 +169,8 @@ namespace ZKube.Integration.Planning
             keys["cadence_funding"] = CadenceFundingAddress;
             var instructions = cadence.Concat(claims.SelectMany(c => Claim(actor, c.DayId, c.Kind, c.Position).Instructions))
                 .Concat(new[] { Instruction("enter_arena", new JObject { ["run_id"] = player.NextRunId }, keys) });
-            return Plan(actor, PlanRoute.Base, instructions, runId: player.NextRunId, computeUnitLimit: CadenceLimit(cadence));
+            return Plan(actor, PlanRoute.Base, instructions, runId: player.NextRunId, computeUnitLimit: list.Length == 0 ? PlanningConstants.ComputeUnitLimit : DailyCadence.ComputeLimit(list));
         }
-        private static uint CadenceLimit(IEnumerable<SolanaInstruction> cadence) =>
-            cadence.Any() ? PlanningConstants.CadenceComputeUnitLimit : PlanningConstants.ComputeUnitLimit;
 
         public TransactionPlan Delegate(PlannerActor actor, ulong runId, string validator)
         {

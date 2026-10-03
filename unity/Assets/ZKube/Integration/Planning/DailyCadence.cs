@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Newtonsoft.Json.Linq;
 using ZKube.Core;
 using ZKube.Core.Generated;
@@ -11,11 +13,16 @@ namespace ZKube.Integration.Planning
     {
         public uint Day { get; }
         public uint Following { get; }
-        public CadenceStep(uint day, uint following)
+        // The rows the Daily's two boards retain, fixed once it can finalize:
+        // what its finalization can cost at most.
+        public uint RetainedRows { get; }
+        public CadenceStep(uint day, uint following, uint retainedRows)
         {
             if (following <= day) throw new ArgumentException("A Daily finalizes into a later Daily");
-            Day = day; Following = following;
+            if (retainedRows > 2 * Protocol.ArenaBoardCapacity) throw new ArgumentOutOfRangeException(nameof(retainedRows));
+            Day = day; Following = following; RetainedRows = retainedRows;
         }
+        public ulong WorstCaseUnits => Protocol.FinalizationBaseUnits + Protocol.FinalizationRowUnits * RetainedRows;
     }
 
     // The one owner, on the client, of the rules a player's own transaction
@@ -27,6 +34,31 @@ namespace ZKube.Integration.Planning
         // The most finalizations one transaction is offered. How many it
         // carries is what fits when it is simulated; the rest wait for the next.
         public const int MaximumSteps = 2;
+
+        // The rows a Daily's boards keep: each its qualifiers, up to its capacity.
+        public static uint RetainedRows(JObject daily) =>
+            Math.Min((uint)daily["score_qualified_players"], Protocol.ArenaBoardCapacity) +
+            Math.Min((uint)daily["theme_qualified_players"], Protocol.ArenaBoardCapacity);
+
+        // The compute a transaction states for the finalizations it carries:
+        // each one's worst case, beside the reserve for what else it does
+        // (today's preparation, the entry and its delegation, or a claim). It
+        // is stated, never measured, so no state that changes after a
+        // simulation can make the transaction run out.
+        public static uint ComputeLimit(IEnumerable<CadenceStep> steps) =>
+            checked((uint)(Protocol.FinalizationFollowingReserveUnits + steps.Aggregate(0UL, (sum, step) => sum + step.WorstCaseUnits)));
+
+        // The due finalizations, oldest first, as many as fit one transaction's maximum.
+        public static IReadOnlyList<CadenceStep> Affordable(IEnumerable<CadenceStep> steps)
+        {
+            var kept = new List<CadenceStep>();
+            foreach (var step in steps)
+            {
+                if (ComputeLimit(kept.Append(step)) > Protocol.TransactionComputeUnits) break;
+                kept.Add(step);
+            }
+            return kept.AsReadOnly();
+        }
 
         // A Daily has no status: it is finalized once it carries the time it was.
         public static bool Finalized(JObject daily) => (long)daily["finalized_at"] != 0;

@@ -51,7 +51,7 @@ namespace ZKube.Integration.Client
                 uint? following = index + 1 < waiting.Count ? (uint)waiting[index + 1]["day_id"]
                     : (uint)daily["day_id"] == newest ? result.PrepareDay : null;
                 if (DailyCadence.Finalized(daily) || !following.HasValue || !DailyCadence.WindowDone(daily, now)) break;
-                steps.Add(new CadenceStep((uint)daily["day_id"], following.Value));
+                steps.Add(new CadenceStep((uint)daily["day_id"], following.Value, DailyCadence.RetainedRows(daily)));
             }
             result.Steps = steps.AsReadOnly();
             return result;

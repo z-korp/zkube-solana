@@ -142,10 +142,33 @@ namespace ZKube.Tests.ProductReads
         }
 
         [Test]
+        public void TheEntryStatesItsComputeFromTheWorstCaseOfWhatItCarries()
+        {
+            // The client's worst case is the core's, row for row.
+            var world = new World();
+            foreach (var vector in world.Cadence["backlog"]["worstCase"])
+                Assert.That(new CadenceStep(1, 2, (uint)vector["rows"]).WorstCaseUnits, Is.EqualTo(ulong.Parse((string)vector["units"])));
+            // A Daily's rows are its qualifiers on each board, up to a board's capacity.
+            Assert.That(DailyCadence.RetainedRows(world.Daily("yesterday")), Is.EqualTo(8u));
+            // Two full days: each alone fits beside the reserve, both together do not,
+            // so the oldest rides and the other waits for the next transaction.
+            uint full = 2 * Protocol.ArenaBoardCapacity;
+            var due = new[] { new CadenceStep(world.Day - 2, world.Day - 1, full), new CadenceStep(world.Day - 1, world.Day, full) };
+            Assert.That(DailyCadence.Affordable(due).Select(step => step.Day), Is.EqualTo(new[] { world.Day - 2 }));
+            Assert.That(DailyCadence.ComputeLimit(due.Take(1)), Is.EqualTo(400000u + 80000u + 240u * full));
+            Assert.That(DailyCadence.ComputeLimit(due.Take(1)), Is.LessThanOrEqualTo(Protocol.TransactionComputeUnits));
+            Assert.Throws<ArgumentException>(() => world.Planner.SettleDailies(world.Device(), world.Day, due));
+            var (plan, _) = Entry(world, true, due.Take(1).ToArray());
+            Assert.That(plan.ComputeUnitLimit, Is.EqualTo(DailyCadence.ComputeLimit(due.Take(1))));
+            // An entry carrying no finalization states the ordinary limit.
+            Assert.That(Entry(world, true, null).Plan.ComputeUnitLimit, Is.EqualTo(PlanningConstants.ComputeUnitLimit));
+        }
+
+        [Test]
         public void AWinnerBackOnAQuietDayFinalizesTheirDayThemselves()
         {
             var world = new World(); var actor = world.Device();
-            var plan = world.Planner.SettleDailies(actor, world.Day, new[] { new CadenceStep(world.Day - 1, world.Day) });
+            var plan = world.Planner.SettleDailies(actor, world.Day, new[] { new CadenceStep(world.Day - 1, world.Day, 0) });
             var calls = plan.Instructions.Select(world.Protocol.DecodeInstruction).ToArray();
             Assert.That(calls.Select(call => call.Name), Is.EqualTo(new[] { "prepare_arena_daily", "finalize_arena_daily" }));
             Assert.That((uint)calls[0].Arguments["day_id"], Is.EqualTo(world.Day));
@@ -155,7 +178,7 @@ namespace ZKube.Tests.ProductReads
             Assert.That(plan.FeePayer, Is.EqualTo(actor.Signer)); Assert.That(plan.OwnerSignatureRequired, Is.False);
             Assert.That(calls.All(call => call.Accounts["caller"] == actor.Signer && call.Accounts["cadence_funding"] == world.Planner.CadenceFundingAddress));
             // A day that finalizes into a Daily already prepared leaves today's alone.
-            var older = world.Planner.SettleDailies(actor, world.Day, new[] { new CadenceStep(world.Day - 2, world.Day - 1) });
+            var older = world.Planner.SettleDailies(actor, world.Day, new[] { new CadenceStep(world.Day - 2, world.Day - 1, 0) });
             Assert.That(older.Instructions.Select(world.Protocol.DecodeInstruction).Select(call => call.Name), Is.EqualTo(new[] { "finalize_arena_daily" }));
             Assert.Throws<InvalidOperationException>(() => world.Planner.SettleDailies(actor, null, Array.Empty<CadenceStep>()));
         }
@@ -178,7 +201,7 @@ namespace ZKube.Tests.ProductReads
         {
             var world = new World();
             Assert.That(Entry(world, false, null).Names, Is.EqualTo(new[] { "claim_daily_prize", "claim_daily_prize", "enter_arena", "delegate_active_run" }));
-            Assert.That(Entry(world, false, new[] { new CadenceStep(world.Day - 1, world.Day) }).Names,
+            Assert.That(Entry(world, false, new[] { new CadenceStep(world.Day - 1, world.Day, 0) }).Names,
                 Is.EqualTo(new[] { "finalize_arena_daily", "enter_arena", "delegate_active_run" }));
             Assert.That(Entry(world, true, null).Names, Is.EqualTo(new[] { "prepare_arena_daily", "enter_arena", "delegate_active_run" }));
         }
@@ -189,17 +212,17 @@ namespace ZKube.Tests.ProductReads
             var world = new World();
             // The first entry of a day after two finished days nobody finalized:
             // today's preparation, both finalizations, the entry and its delegation.
-            var steps = new[] { new CadenceStep(world.Day - 2, world.Day - 1), new CadenceStep(world.Day - 1, world.Day) };
+            var steps = new[] { new CadenceStep(world.Day - 2, world.Day - 1, 0), new CadenceStep(world.Day - 1, world.Day, 0) };
             var (plan, names) = Entry(world, true, steps);
             Assert.That(names, Is.EqualTo(new[] { "prepare_arena_daily", "finalize_arena_daily", "finalize_arena_daily", "enter_arena", "delegate_active_run" }));
-            Assert.That(plan.ComputeUnitLimit, Is.EqualTo(PlanningConstants.CadenceComputeUnitLimit));
+            Assert.That(plan.ComputeUnitLimit, Is.EqualTo(DailyCadence.ComputeLimit(steps)));
             int packet = SolanaWire.UnsignedTransaction(plan.CompileMessage((string)world.Plans["inputs"]["blockhash"])).Length;
             TestContext.WriteLine("Largest cadence-carrying entry packet: " + packet + " bytes");
             Assert.That(packet, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
-            Assert.Throws<ArgumentException>(() => Entry(world, true, steps.Append(new CadenceStep(world.Day - 3, world.Day - 2)).ToArray()));
+            Assert.Throws<ArgumentException>(() => Entry(world, true, steps.Append(new CadenceStep(world.Day - 3, world.Day - 2, 0)).ToArray()));
             // Today's Daily exists and the two due days are older ones, each
             // with its own successor: three more accounts than above.
-            var older = new[] { new CadenceStep(world.Day - 19, world.Day - 8), new CadenceStep(world.Day - 8, world.Day - 7) };
+            var older = new[] { new CadenceStep(world.Day - 19, world.Day - 8, 0), new CadenceStep(world.Day - 8, world.Day - 7, 0) };
             var (entered, _) = Entry(world, false, older);
             int bytes = SolanaWire.UnsignedTransaction(entered.CompileMessage((string)world.Plans["inputs"]["blockhash"])).Length;
             TestContext.WriteLine("Entry with two older finalizations, today already prepared: " + bytes + " bytes");

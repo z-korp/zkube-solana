@@ -53,10 +53,11 @@ namespace ZKube.Integration.Client
                 return ExecutionResult.Rejected("settle-daily", "pending-transaction-exists");
             using var session = await sessions.Load(lease).ConfigureAwait(false);
             var cadence = (await products.Cadence(linked.Token).ConfigureAwait(false)).Value;
-            if (cadence.Steps.Count == 0) throw new InvalidOperationException("No Daily is ready to finalize");
-            // Both due days when they fit one transaction, the oldest alone when not.
-            var sizes = Enumerable.Range(0, cadence.Steps.Count).Select(dropped => planner.SettleDailies(session.Actor,
-                cadence.PrepareDay, cadence.Steps.Take(cadence.Steps.Count - dropped))).ToArray();
+            var due = DailyCadence.Affordable(cadence.Steps);
+            if (due.Count == 0) throw new InvalidOperationException("No Daily is ready to finalize");
+            // Both due days when their worst cases fit one transaction, the oldest alone when not.
+            var sizes = Enumerable.Range(0, due.Count).Select(dropped => planner.SettleDailies(session.Actor,
+                cadence.PrepareDay, due.Take(due.Count - dropped))).ToArray();
             return await executor.Execute(sizes, "settle-daily", new[] { session.Signer }, reconciler, linked.Token).ConfigureAwait(false);
         }
         public async Task<ExecutionResult> Claim(uint day, string kind, CancellationToken cancellation = default)

@@ -80,6 +80,12 @@ fn cadence() -> Value {
     let mut entered = accounts::daily(DAY);
     entered.predecessor_day = days[8];
     entered.predecessor_rollover_applied = false;
+    let worst_case: Vec<_> = [0u32, 8, 3_072]
+        .map(|rows| {
+            json!({"rows": rows,
+                "units": zkube_core::finalization_worst_case_units(rows).to_string()})
+        })
+        .into();
     json!({"yesterday": row(&yesterday), "today": row(&today),
         "yesterdayFinalized": row(&finalized), "todayReceived": row(&received),
         "forwarded": settlement.forwarded_lamports.to_string(),
@@ -87,6 +93,9 @@ fn cadence() -> Value {
         "backlog": {"days": days, "dailies": backlog, "start": root(DAY - 40, DAY - 3),
             "advanced": root(DAY - 20, DAY - 3), "last": root(DAY - 4, DAY - 3),
             "today": row(&entered), "enteredToday": root(DAY - 20, DAY),
+            // The core's worst case for a finalization by retained rows: what
+            // the client states as compute, checked against these.
+            "worstCase": worst_case,
             // A prize the player won on a day the root already holds: claims
             // are only ever on days older than any waiting one.
             "claimDaily": self::finalized(DAY - 21),

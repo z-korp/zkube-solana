@@ -251,6 +251,16 @@ fn protocol(catalog: &CampaignCatalog) -> String {
             "RunRecoverySeconds",
             zkube_core::RUN_RECOVERY_SECONDS as u64,
         ),
+        // What the client states as a transaction's compute: the core's worst
+        // case for each finalization it carries, beside a reserve, within the
+        // transaction maximum.
+        ("FinalizationBaseUnits", zkube_core::FINALIZATION_BASE_UNITS),
+        ("FinalizationRowUnits", zkube_core::FINALIZATION_ROW_UNITS),
+        (
+            "FinalizationFollowingReserveUnits",
+            zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS,
+        ),
+        ("TransactionComputeUnits", zkube_core::TRANSACTION_COMPUTE_UNITS),
         // What a device holds at once to enter and delegate a first run of
         // the day, the part that returns when the daily player closes, and
         // the floor of the device's own account.

@@ -3400,7 +3400,21 @@
           "data": "5J15UvYZWdgI4VAAAN5QAAAA3jI8JGDD3WJIFcJA8M5act5L19dChig/8eFhELjFKZgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8=",
           "executable": false,
           "owner": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx"
-        }
+        },
+        "worstCase": [
+          {
+            "rows": 0,
+            "units": "80000"
+          },
+          {
+            "rows": 8,
+            "units": "81920"
+          },
+          {
+            "rows": 3072,
+            "units": "817280"
+          }
+        ]
       },
       "forwarded": "67456789",
       "protocol": {

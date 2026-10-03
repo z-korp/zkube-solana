@@ -128,7 +128,7 @@ namespace ZKube.Integration.Client.Runs
                 // entry is alone. The executor sends the first size that fits and
                 // that its simulation accepts. Sizes with the same instructions
                 // are offered once; any two that differ are both offered.
-                long at = now(); var due = observation.Cadence.Steps;
+                long at = now(); var due = DailyCadence.Affordable(observation.Cadence.Steps);
                 TransactionPlan Size(IEnumerable<CadenceStep> steps, IEnumerable<ValidatedBoardReward> rewards) => planner.PrepareAndDelegate(
                     planner.PrepareDaily(session.Actor, player, entry.Snapshot, rewards, at, observation.Occupied, steps), session.Actor, validator.Identity);
                 var sizes = Enumerable.Range(0, due.Count + 1).Select(dropped => Size(due.Take(due.Count - dropped), claims))

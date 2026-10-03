@@ -224,7 +224,9 @@ namespace ZKube.Integration.Client.Runs.Tests
             // but not for the larger fee a finalization's limit asks: those sizes
             // step down, unsimulated, and the claims ride the entry.
             var env = await TodayWithBacklogAndClaims();
-            env.Http.ActualDeviceBalance = 901880;
+            // Rent floor 890,880 and a 5,000 reserve: the entry at 400,000 units costs
+            // 5,400 in fees (901,280); one finalization states 480,000 (901,360), two 560,000.
+            env.Http.ActualDeviceBalance = 901300;
             Assert.That((await env.Client.StartDaily()).Phase, Is.EqualTo("delegated"));
             Assert.That(env.Http.Sent, Is.EqualTo(new[] { "claim_daily_prize", "enter_arena", "delegate_active_run" }));
             Assert.That(env.Http.Simulated.Select(names => string.Join(" ", names)), Is.EqualTo(new[] {
