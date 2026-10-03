@@ -176,3 +176,40 @@ it("a_release_importing_a_gated_syscall_is_refused_before_it_is_recorded", () =>
   expect(() => releaseArtifact(scratch, hash(gated))).toThrow("No release build found");
   expect(() => importedSyscalls(Buffer.from("not an elf"))).toThrow("not a little-endian 64-bit ELF");
 });
+
+/** The section the loader reaches through DT_SYMTAB, in the real program. */
+function symbolSection(elf: Buffer): number {
+  const at = Number(elf.readBigUInt64LE(0x28)), size = elf.readUInt16LE(0x3a), count = elf.readUInt16LE(0x3c);
+  for (let index = 0; index < count; index++) if (elf.readUInt32LE(at + index * size + 4) === 11) return at + index * size;
+  throw new Error("no symbol section");
+}
+
+it("every_symbol_table_encoding_the_loader_reads_is_read_and_an_unreadable_one_is_refused", () => {
+  // The loader finds imports through the dynamic table, accepts the symbol
+  // section as SYMTAB as well as DYNSYM, and reads its entries at their real
+  // size whatever the header says. Each encoding still shows the gated import,
+  // and the build and the plan refuse it.
+  const real = readFileSync(program);
+  const gated = Buffer.from(real); gated.write("sol_blake3", gated.indexOf(Buffer.from("sol_sha256\0")), "latin1");
+  const section = symbolSection(gated);
+  const encodings: Record<string, Buffer> = {
+    "symbol section typed SYMTAB": Buffer.from(gated),
+    "symbol entry size zero": Buffer.from(gated),
+  };
+  encodings["symbol section typed SYMTAB"]!.writeUInt32LE(2, section + 4);
+  encodings["symbol entry size zero"]!.writeBigUInt64LE(0n, section + 0x38);
+  for (const [encoding, bytes] of Object.entries(encodings)) {
+    expect(importedSyscalls(bytes), encoding).toContain("sol_blake3");
+    expect(() => requireUngatedSyscalls(bytes), encoding).toThrow("not active on every cluster: sol_blake3");
+    expect(() => buildRelease(scratch, tools(VERSIONS, bytes).run, inherited), encoding).toThrow("not active on every cluster");
+    expect(() => releaseArtifact(scratch, hash(bytes)), encoding).toThrow("No release build found");
+  }
+  // The same encodings of the real program read as its real imports.
+  const symtab = Buffer.from(real); symtab.writeUInt32LE(2, section + 4);
+  expect(importedSyscalls(symtab)).toEqual(importedSyscalls(real));
+  // A symbol table the loader would not accept is refused, never read as no imports.
+  const unreadable = Buffer.from(real); unreadable.writeUInt32LE(1, section + 4);
+  expect(() => importedSyscalls(unreadable)).toThrow("cannot be read as the loader reads them");
+  const truncated = Buffer.from(real); truncated.writeBigUInt64LE(BigInt(real.length), section + 0x18);
+  expect(() => importedSyscalls(truncated)).toThrow("cannot be read as the loader reads them");
+});
