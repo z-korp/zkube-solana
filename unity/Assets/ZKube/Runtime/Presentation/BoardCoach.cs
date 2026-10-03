@@ -31,6 +31,7 @@ namespace ZKube.Presentation
         private Vector2 handFrom, handTo;
         private readonly List<Image> glows = new List<Image>();
         private readonly List<string> said = new List<string>();
+        private readonly List<Rect> bubbles = new List<Rect>();
         private readonly Queue<Moment> moments = new Queue<Moment>();
         // What the guardian says on the board now, and the slide it points at.
         public IReadOnlyList<string> Said => said;
@@ -184,6 +185,9 @@ namespace ZKube.Presentation
             float x = Mathf.Clamp(target.center.x - width / 2, Layout.Rim.x + 4 * d, Layout.Rim.xMax - 4 * d - width);
             float y = above ? target.yMax + tail : target.y - tail - height;
             var body = new Rect(x, y, width, height);
+            // A bubble never covers another: it moves down below the one it would overlap.
+            foreach (var other in bubbles) if (body.Overlaps(other)) body.y = other.y - 8 * u - height;
+            bubbles.Add(body);
             var bubble = Ui.Piece("Lesson bubble", SkinSlots.TapBubble, body, overlay); bubble.raycastTarget = false;
             var tip = Ui.Piece("Lesson bubble tail", SkinSlots.TapBubbleTail,
                 new Rect(Mathf.Clamp(target.center.x, body.x + 18 * u, body.xMax - 18 * u) - 9 * u, above ? body.y - tail : body.yMax, 18 * u, tail), overlay);
@@ -207,7 +211,7 @@ namespace ZKube.Presentation
         private void Clear()
         {
             if (overlay != null) foreach (Transform child in overlay.Cast<Transform>().ToArray()) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
-            glows.Clear(); said.Clear(); hand = null; Pointing = null;
+            glows.Clear(); said.Clear(); bubbles.Clear(); hand = null; Pointing = null;
         }
         private void OnDestroy() { if (canvas != null) Destroy(canvas.gameObject); }
     }

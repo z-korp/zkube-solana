@@ -46,6 +46,12 @@ namespace ZKube.Tests.Presentation
                 Assert.That(rect.xMin >= -1 && rect.yMin >= -1 && rect.xMax <= screen.xMax + 1 && rect.yMax <= screen.yMax + 1, Is.True,
                     name + ": " + piece.name + " " + rect + " stands on the " + screen.width + " x " + screen.height + " screen");
             }
+            // No lesson bubble covers another.
+            var bubbles = scope.GetComponentsInChildren<RectTransform>().Where(rect => rect.gameObject.activeInHierarchy && rect.name == "Lesson bubble")
+                .Select(SkinUi.ScreenRect).ToArray();
+            for (int i = 0; i < bubbles.Length; i++)
+                for (int j = i + 1; j < bubbles.Length; j++)
+                    Assert.That(bubbles[i].Overlaps(bubbles[j]), Is.False, name + ": two lesson bubbles overlap");
             yield return Captures.Snap(screen, name);
         }
     }
