@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   Connection, Keypair, PublicKey, Transaction, TransactionInstruction,
-  TransactionMessage, VersionedTransaction,
+  TransactionMessage, VersionedTransaction, type SignatureStatus,
 } from "@solana/web3.js";
 
 export interface PublicTransaction {
@@ -75,6 +75,8 @@ function confirmed(status: string | null | undefined): boolean {
 
 export async function executeTransaction(args: {
   connection: Connection; plan: PublicTransaction; existing?: TransactionReceipt;
+  // The existing receipt's status, when the run read it with the others.
+  status?: SignatureStatus | null;
   loadSigner: (publicKey: string) => Keypair;
   beforeFresh?: () => Promise<void>;
   persist: (receipt: TransactionReceipt) => void;
@@ -108,7 +110,8 @@ export async function executeTransaction(args: {
         !["pending", "confirmed"].includes(receipt.state) || !signaturesValid) {
       throw new Error("Receipt differs from the approved transaction");
     }
-    const status = await connection.getSignatureStatus(receipt.signature, { searchTransactionHistory: true });
+    const status = args.status !== undefined ? { value: args.status }
+      : await connection.getSignatureStatus(receipt.signature, { searchTransactionHistory: true });
     if (status.value?.err) throw new Error("The recorded transaction failed; a new plan is required");
     if (confirmed(status.value?.confirmationStatus)) {
       const done = { ...receipt, state: "confirmed" as const };

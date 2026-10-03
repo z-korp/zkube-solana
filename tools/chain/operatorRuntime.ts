@@ -1,4 +1,7 @@
-import { type Connection, type Keypair } from "@solana/web3.js";
+import { type Connection, type Keypair, type SignatureStatus } from "@solana/web3.js";
+
+/** The most signatures one getSignatureStatuses call takes. */
+const STATUS_BATCH = 256;
 import { assertDevnetRelease, requireInteger, OPERATOR_RESERVE_LAMPORTS } from "./chainRelease.js";
 import { checkFreshTransaction, checkLaunchResult, checkLaunchWindow } from "./operatorState.js";
 import { readBundle, rebuildTransactions, type OperatorBundle } from "./operatorPlan.js";
@@ -37,8 +40,19 @@ export async function executeBundle(source: string, options: {
   }
   await assertDevnetRelease(connection, release, operation.kind === "deploy");
   await checkLaunchWindow(connection, operation);
+  // A resumed run has a receipt per transaction already sent: their statuses
+  // are read together, in batches the endpoint accepts, not one call each.
+  const recorded = transactions.slice(0, until + 1).map((_, index) => index).filter((index) => bundle.receipts[index]);
+  const statuses = new Map<number, SignatureStatus | null>();
+  for (let start = 0; start < recorded.length; start += STATUS_BATCH) {
+    const batch = recorded.slice(start, start + STATUS_BATCH);
+    const { value } = await connection.getSignatureStatuses(batch.map((index) => bundle.receipts[index]!.signature),
+      { searchTransactionHistory: true });
+    batch.forEach((index, position) => statuses.set(index, value[position] ?? null));
+  }
   for (let index = 0; index <= until; index++) {
     await executeTransaction({ connection, plan: transactions[index]!, existing: bundle.receipts[index],
+      status: statuses.get(index),
       loadSigner: options.loadSigner,
       beforeFresh: () => checkFreshTransaction(connection, bundle, index),
       persist: receipt => { bundle.receipts[index] = receipt; options.persist(bundle); },

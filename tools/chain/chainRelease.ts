@@ -41,8 +41,33 @@ export function devnetEndpoint(rpc: string): string {
   return url.toString().replace(/\/$/, "");
 }
 
-export function devnetConnection(rpc: string): Connection {
-  return new Connection(devnetEndpoint(rpc), "confirmed");
+/** How many times one call is retried after the endpoint answers 429. */
+export const RATE_LIMIT_RETRIES = 8;
+
+/**
+ * A shared Devnet endpoint answers 429 Too Many Requests when it is busy, and
+ * a deployment makes thousands of calls. One such answer must not end the run:
+ * the call waits (the endpoint's Retry-After, else a backoff doubling from one
+ * second to thirty) and is made again, at most RATE_LIMIT_RETRIES times. Every
+ * call goes through here, so a resent transaction is the same signed bytes and
+ * the same signature; nothing is re-signed.
+ */
+export function rateLimitedFetch(
+  base: typeof fetch = fetch,
+  sleep: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((done) => setTimeout(done, milliseconds)),
+): typeof fetch {
+  return async (input, init) => {
+    for (let attempt = 0; ; attempt++) {
+      const response = await base(input, init);
+      if (response.status !== 429 || attempt === RATE_LIMIT_RETRIES) return response;
+      const after = Number(response.headers.get("retry-after"));
+      await sleep(Number.isFinite(after) && after > 0 ? Math.min(after, 60) * 1_000 : Math.min(1_000 * 2 ** attempt, 30_000));
+    }
+  };
+}
+
+export function devnetConnection(rpc: string, transport: typeof fetch = rateLimitedFetch()): Connection {
+  return new Connection(devnetEndpoint(rpc), { commitment: "confirmed", fetch: transport, disableRetryOnRateLimit: true });
 }
 
 export async function assertDevnetRelease(connection: Connection, release: ReleaseBinding,

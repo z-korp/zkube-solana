@@ -775,6 +775,14 @@ keeper authority. The approval boundary above applies to every execution.
   selects an inclusive printed index;
   `operator_until_stops_after_the_requested_transaction_and_resumes_that_prefix` and
   `operator_until_is_an_inclusive_bounded_index_and_activation_requires_the_keeper` guard staging.
+  SOLANA_DEVNET_RPC_URL picks the endpoint when a bundle is planned, and the shared MagicBlock Devnet endpoint is
+  the default; execute uses the endpoint recorded in the approved bundle and takes no override. A resumed run
+  reads its recorded receipts' statuses in batches of 256, and a call the endpoint answers with 429 waits (its
+  Retry-After, else a backoff doubling to thirty seconds) and is made again, at most eight times, never
+  re-signing. `operator_resume_reads_every_recorded_status_in_batches_not_one_call_each`,
+  `every_operator_rpc_call_waits_out_a_429_and_is_made_again`, `a_run_continues_through_429s_and_signs_once` and
+  `a_run_gives_up_after_the_bound_and_keeps_its_signed_receipt_without_signing_again` guard the resume and the
+  rate limit.
 - **Worker release:** pnpm build writes dist/worker, which services/worker/wrangler.toml deploys as built. A
   deployment needs its own approval and always starts planning only: each pass logs its release fingerprint.
   Review that read-only pass, then separately approve enablement by storing the fingerprint in the

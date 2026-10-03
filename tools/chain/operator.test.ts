@@ -45,6 +45,8 @@ function io() {
     sendRawTransaction: vi.fn(async () => { order.push("send"); expect(saved?.state).toBe("pending"); return saved!.signature; }),
     confirmTransaction: vi.fn(async () => { order.push("confirm"); return { value: { err: null } }; }),
     getSignatureStatus: vi.fn(async () => ({ value: { err: null, confirmationStatus: "confirmed" } })),
+    getSignatureStatuses: vi.fn(async (signatures: string[]) => ({ context: { slot: 1 },
+      value: signatures.map(() => ({ err: null as unknown, confirmationStatus: "confirmed" })) })),
     isBlockhashValid: vi.fn(async () => ({ value: true })),
     getBlockHeight: vi.fn(async () => 20),
   };
@@ -205,6 +207,36 @@ describe("one operator plan and execution pipeline", () => {
     test.loadSigner.mockClear(); calls.sendRawTransaction.mockClear();
     await executeBundle(JSON.stringify(result), options);
     expect(test.loadSigner).not.toHaveBeenCalled(); expect(calls.sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  it("operator_resume_reads_every_recorded_status_in_batches_not_one_call_each", async () => {
+    // A deployment interrupted after 353 transactions resumes with two status
+    // calls, not 353: a public endpoint limits each method to a few dozen a second.
+    const test = io();
+    mkdirSync(scratch, { recursive: true });
+    const artifact = Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.alloc(353 * 512 + 96, 1)]);
+    const artifactPath = scratch + "/long.so";
+    writeFileSync(artifactPath, artifact);
+    const input: DeploymentInput = { ...fixture.deployment, artifactPath, artifactBytes: artifact.length,
+      artifactSha256: createHash("sha256").update(artifact).digest("hex") };
+    const calls = { ...test.calls, getGenesisHash: vi.fn(async () => SOLANA_DEVNET_GENESIS_HASH),
+      getMultipleAccountsInfo: vi.fn(async (addresses: PublicKey[]) => addresses.map(() => null)) };
+    const connection = calls as unknown as Connection;
+    const bundle = await quoteBundle({ kind: "deploy", input }, deploymentRelease(input, "https://api.devnet.solana.com"), connection);
+    const options = { approval: bundle.fingerprint, until: 352, connect: () => connection, loadSigner: test.loadSigner,
+      persist: (saved: OperatorBundle) => test.persist(saved.receipts[Math.max(...Object.keys(saved.receipts).map(Number))]!) };
+    const sent = await executeBundle(JSON.stringify(bundle), options);
+    expect(Object.keys(sent.receipts)).toHaveLength(353);
+    for (const call of [calls.getSignatureStatuses, calls.getSignatureStatus, test.loadSigner, calls.sendRawTransaction]) call.mockClear();
+    const resumed = await executeBundle(JSON.stringify(sent), options);
+    expect(calls.getSignatureStatuses.mock.calls.map(([signatures]) => signatures.length)).toEqual([256, 97]);
+    expect(calls.getSignatureStatus).not.toHaveBeenCalled();
+    expect(test.loadSigner).not.toHaveBeenCalled(); expect(calls.sendRawTransaction).not.toHaveBeenCalled();
+    expect(Object.values(resumed.receipts).every((receipt) => receipt.state === "confirmed")).toBe(true);
+    // A recorded transaction that failed is still refused, read from the batch.
+    calls.getSignatureStatuses.mockImplementationOnce(async (signatures: string[]) => ({ context: { slot: 1 },
+      value: signatures.map((_, index) => ({ err: index === 7 ? { InstructionError: [0, "Custom"] } : null, confirmationStatus: "confirmed" })) }));
+    await expect(executeBundle(JSON.stringify(sent), options)).rejects.toThrow("recorded transaction failed");
   });
 
   it("operator_top_up_rejects_seeded_balance_drift_and_a_closed_window", async () => {
