@@ -9,12 +9,12 @@ runbooks or approval policy in README.md.
 - Read README.md first. Inspect program state and instructions for contract work, services for keeper work,
   and Unity only when client work is in scope. Source is not deployed state.
 - Preserve unrelated and in-flight work. Use focused patches and fast text searches; no destructive
-  restoration or blanket cleanup. The reference repositories at /home/djizus/zkube and
-  /home/djizus/cycling-sim are read-only.
+  restoration or blanket cleanup. The reference repositories at /home/djizus/projects/zkube and
+  /home/djizus/projects/cycling-sim are read-only.
 - All verification is offline. Prefix Solana, Anchor and chain commands with NO_DNA=1. No signer bytes, seed
   phrases, environment contents, keeper secrets, Android credentials or ignored program keypairs in output
   or commits.
-- The read-only Devnet deployment fee payer is /home/djizus/cycling-sim/.devnet/deployer.json, public
+- The read-only Devnet deployment fee payer is /home/djizus/projects/cycling-sim/.devnet/deployer.json, public
   address 7WFy4QkiUx9GZHkVz3wdWJbdMgMf6gtK8JnbWDYqZDRA. Do not access, copy, modify, expose, delete or
   commit that file during routine work.
 - Signing or sending needs exact approval for instructions, accounts, signers, cluster and spend. A short
