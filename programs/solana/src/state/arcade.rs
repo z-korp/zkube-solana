@@ -148,6 +148,14 @@ pub struct ArenaBoardEntry {
     pub replay_hash: [u8; 32],
 }
 
+/// Logged when a Daily really finalizes: not when a finalization finds it done
+/// already, and not when one yields for lack of compute. The public read model
+/// records a finalization only from this.
+#[event]
+pub struct DailyFinalized {
+    pub day_id: u32,
+}
+
 /// Logged when a scored run is consumed. A finalized board keeps only its
 /// paying rows and daily player accounts close, so this is the public record
 /// of every result, including the ranks below the paying rows. It grants

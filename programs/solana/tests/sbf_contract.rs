@@ -2139,6 +2139,155 @@ fn full_board_finalization_stays_below_one_million_compute_units() {
 }
 
 #[test]
+fn finalization_never_exceeds_its_worst_case() {
+    // The compute a finalization can take is bounded by the rows its boards
+    // retain, whatever its pot: that bound is what it checks before running.
+    for qualified in [
+        0,
+        1,
+        9,
+        400,
+        ARENA_BOARD_CAPACITY as u32,
+        ARENA_DAILY_PLAYER_CAPACITY,
+    ] {
+        for pool in [0, 1_000_000_000, 65_000_000_000_000, u64::MAX / 4] {
+            let fixture = finalize_board_capacity(qualified, pool, PeriodStatus::Open, true, 0);
+            assert!(
+                fixture.result.program_result.is_ok(),
+                "{:?}",
+                fixture.result.program_result
+            );
+            let rows = 2 * qualified.min(ARENA_BOARD_CAPACITY as u32);
+            let bound = zkube_core::finalization_worst_case_units(rows);
+            println!(
+                "qualified {qualified}, pool {pool}: {} CU of {bound}",
+                fixture.result.compute_units_consumed
+            );
+            assert!(fixture.result.compute_units_consumed <= bound);
+        }
+    }
+    // With the bound and the reserve behind it, a full Daily's finalization
+    // still fits a transaction after preparing today's Daily.
+    assert!(
+        zkube_core::finalization_worst_case_units(2 * ARENA_BOARD_CAPACITY as u32)
+            + zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS
+            + 100_000
+            <= TRANSACTION_COMPUTE_UNITS
+    );
+}
+
+#[test]
+fn a_finalization_without_the_compute_it_could_need_yields_unchanged() {
+    let day = 20_710;
+    let mut game = Game::launched(day, SEED);
+    full_day(&mut game, day, 1_000_000_000_000);
+    game.at(day + 1, 60);
+    assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
+    let needed = zkube_core::finalization_worst_case_units(2 * ARENA_BOARD_CAPACITY as u32)
+        + zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS;
+    // One unit short of its worst case and the reserve: it yields, a no-op
+    // that logs nothing, and the Daily waits for the next transaction.
+    let before = game.accounts.clone();
+    let (landed, used) = game.send_metered(&[game.finalize(day, day + 1)], needed - 1);
+    assert!(landed);
+    assert!(used < 50_000, "a yield costs only its checks: {used} CU");
+    assert_eq!(game.accounts, before);
+    assert!(!game.state(day).finalized());
+    // With enough, counting what loading its accounts takes before the check, it finalizes.
+    let (landed, _) = game.send_metered(&[game.finalize(day, day + 1)], needed + 100_000);
+    assert!(landed);
+    assert!(game.state(day).finalized());
+    assert_eq!(game.root().last_daily_id, day);
+}
+
+#[test]
+fn optional_cadence_never_overruns_an_entry_after_a_concurrent_expiry_rollover() {
+    // An entry carries both finalizations of two full days after a quiet
+    // month. Between its simulation and its landing, anyone closes the old
+    // Daily, rolling its unclaimed prize into the second finalization's pot,
+    // which raises that board's paying width. Whatever happens, the entry
+    // lands: a finalization that could not fit yields. Without the Daily's
+    // prize claimed, and with half of it claimed first.
+    for partial_claim in [false, true] {
+        let old = 20_710;
+        let day = old + 1;
+        let pool = 100_000_000_000_000;
+        let mut game = Game::unlaunched(old);
+        game.accounts
+            .insert(game.authority, system_account(pool * 3));
+        assert!(game.send(&game.launch(old, pool)).program_result.is_ok());
+        let winner = Pubkey::new_unique();
+        game.player(winner);
+        assert!(game.send(&[game.enter(winner, old)]).program_result.is_ok());
+        assert!(game.settle(winner, old, 100, 5).program_result.is_ok());
+        game.at(day, 60);
+        assert!(game
+            .send(&[game.prepare(day), game.finalize(old, day)])
+            .program_result
+            .is_ok());
+        if partial_claim {
+            assert!(game
+                .send(&[game.claim(winner, old, DailyBoardKind::Theme, 0)])
+                .program_result
+                .is_ok());
+        }
+        // A full field on both later days, the second with a narrow pot at first.
+        // The first already holds what the old day sent it, so its account
+        // keeps those lamports beside the full pot.
+        full_day(&mut game, day, pool);
+        let state = game.state(day);
+        let rent = anchor_lang::prelude::Rent::default().minimum_balance(8 + ArenaDaily::INIT_SPACE);
+        game.accounts.get_mut(&Game::daily(day)).unwrap().lamports =
+            rent + state.ledger.available_lamports().unwrap() + state.ledger.next_pot_lamports;
+        game.at(day + 1, 60);
+        assert!(game.send(&[game.prepare(day + 1)]).program_result.is_ok());
+        full_day(&mut game, day + 1, 0);
+        let entrant = Pubkey::new_unique();
+        game.player(entrant);
+        let today = old + 31;
+        game.at(today, 61);
+        let carried = [
+            game.prepare(today),
+            game.finalize(day, day + 1),
+            game.finalize(day + 1, today),
+            game.enter(entrant, today),
+        ];
+        let start = game.accounts.clone();
+        let (simulated, simulated_units) = game.send_metered(&carried, TRANSACTION_COMPUTE_UNITS);
+        assert!(simulated);
+        assert!(simulated_units + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
+        game.accounts = start;
+        // The rollover lands first.
+        let total = game.total();
+        let narrow = game.state(day + 1).ledger.available_lamports().unwrap();
+        assert!(game
+            .send(&[game.close(old, Some(day + 1))])
+            .program_result
+            .is_ok());
+        assert!(game.state(day + 1).ledger.available_lamports().unwrap() > narrow);
+        let (landed, units) = game.send_metered(&carried, TRANSACTION_COMPUTE_UNITS);
+        println!(
+            "partial_claim={partial_claim}: simulated {simulated_units} CU, landed {units} CU"
+        );
+        assert!(
+            landed,
+            "the entry must land whatever its optional steps meet"
+        );
+        assert!(units + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
+        assert_eq!(game.state(today).entries_paid, 1);
+        assert!(game.state(day).finalized());
+        // The second full day yielded and is still waiting; it finalizes in
+        // a transaction of its own, which has the compute for it.
+        assert!(!game.state(day + 1).finalized());
+        let (sealed, _) =
+            game.send_metered(&[game.finalize(day + 1, today)], TRANSACTION_COMPUTE_UNITS);
+        assert!(sealed);
+        assert!(game.state(day + 1).finalized());
+        assert_eq!(game.total(), total);
+    }
+}
+
+#[test]
 fn finalization_sizes_a_full_daily_field_in_one_transaction() {
     // The payout width and its denominator are never capped: both boards pay
     // across every qualifier a Daily admits while each retains only its
@@ -3283,6 +3432,28 @@ impl Game {
                 .extend(result.resulting_accounts.iter().cloned());
         }
         result
+    }
+
+    /// One transaction on a cluster: its instructions share one compute
+    /// budget, and if any fails none of them happened. Returns whether it
+    /// landed and what it used.
+    fn send_metered(&mut self, instructions: &[Ix], budget: u64) -> (bool, u64) {
+        let before = self.accounts.clone();
+        let limit = self.runtime.compute_budget.compute_unit_limit;
+        let (mut left, mut used) = (budget, 0);
+        for instruction in instructions {
+            self.runtime.compute_budget.compute_unit_limit = left;
+            let result = self.send(std::slice::from_ref(instruction));
+            used += result.compute_units_consumed;
+            if result.program_result.is_err() {
+                self.accounts = before;
+                self.runtime.compute_budget.compute_unit_limit = limit;
+                return (false, used);
+            }
+            left = left.saturating_sub(result.compute_units_consumed);
+        }
+        self.runtime.compute_budget.compute_unit_limit = limit;
+        (true, used)
     }
 
     /// Every lamport in the world: nothing a program does creates or loses one.
@@ -4508,10 +4679,10 @@ const DELEGATION_HEADROOM_UNITS: u64 = 200_000;
 
 #[test]
 fn the_largest_cadence_carrying_entry_fits_one_transaction() {
-    // The client sizes what it attaches by simulation and drops finalizations
-    // that do not fit, so the entry is never the one that fails. These are
-    // the worst cases of what it can end up sending: two finished days in a
-    // row, both with a full field, at three pot sizes.
+    // Every composition the client can send, at its worst: two finished days
+    // in a row, both with a full field, at three pot sizes, each transaction
+    // on one shared compute budget. A finalization that would not fit beside
+    // the rest yields, so every one of them lands with room for delegation.
     for pool in [u64::MAX / 4, 100_000_000_000_000, 65_000_000_000_000] {
         let day = 20_710;
         let world = |finished: bool| {
@@ -4532,12 +4703,12 @@ fn the_largest_cadence_carrying_entry_fits_one_transaction() {
             (game, player)
         };
         let units = |game: &mut Game, transaction: &[Ix]| {
-            let result = game.send(transaction);
-            assert!(result.program_result.is_ok(), "{:?}", result.program_result);
-            result.compute_units_consumed
+            let (landed, used) = game.send_metered(transaction, TRANSACTION_COMPUTE_UNITS);
+            assert!(landed);
+            used
         };
-        // Both finalizations with the entry: more than one transaction holds.
-        // The client's simulation rejects it and it falls back.
+        // Both finalizations with the entry: the first runs, the second
+        // yields to a later transaction, and the entry lands.
         let (mut game, player) = world(false);
         let transaction = [
             game.prepare(day + 2),
@@ -4546,6 +4717,8 @@ fn the_largest_cadence_carrying_entry_fits_one_transaction() {
             game.enter(player, day + 2),
         ];
         let both = units(&mut game, &transaction);
+        assert!(game.state(day).finalized() && !game.state(day + 1).finalized());
+        assert_eq!(game.state(day + 2).entries_paid, 1);
         // One finalization with the entry: the oldest day, then on the next
         // entry the one after it. Each must fit with the delegation.
         let (mut game, player) = world(false);
@@ -4581,14 +4754,15 @@ fn the_largest_cadence_carrying_entry_fits_one_transaction() {
             game.finalize(day + 1, day + 2),
         ];
         let seal_both = units(&mut game, &transaction);
+        assert!(game.state(day).finalized() && !game.state(day + 1).finalized());
         println!(
             "pool {pool}: entry with two full finalizations {both} CU, with one {first} and {second}, \
              alone {alone}; sealing one {seal}, two {seal_both}"
         );
-        for fitting in [first, second, alone] {
+        for fitting in [both, first, second, alone] {
             assert!(fitting + DELEGATION_HEADROOM_UNITS <= TRANSACTION_COMPUTE_UNITS);
         }
-        assert!(seal <= TRANSACTION_COMPUTE_UNITS);
+        assert!(seal.max(seal_both) <= TRANSACTION_COMPUTE_UNITS);
         let board: ArenaBoard = decode(game.board(day, DailyBoardKind::Score));
         assert_eq!(board.payout_count as usize, ARENA_BOARD_CAPACITY);
     }

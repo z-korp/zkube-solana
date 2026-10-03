@@ -27,6 +27,9 @@ anchor-lang = { version = "=1.0.2", features = ["init-if-needed"] }
 # undelegation buffer and System program callback accounts unconstrained.
 ephemeral-rollups-sdk = { version = "=0.16.2", features = ["anchor", "vrf"] }
 session-keys = { version = "3.1.1", features = ["no-entrypoint"] }
+# Already built through the MagicBlock SDK; named here for the one call Anchor
+# does not re-export, the compute a transaction has left.
+solana-program = "=3.0.0"
 solana-sha256-hasher = { version = "3.1.0", features = ["sha2"] }
 zkube-core = { path = "../../crates/zkube-core", default-features = false }
 

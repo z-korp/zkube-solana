@@ -712,6 +712,21 @@ pub fn handler_finalize_arena_daily(
             && theme_board.bound_to(source_info.key(), DailyBoardKind::Theme),
         ErrorCode::InvalidOwner
     );
+    // Finalization is optional for whoever carries it. It runs only when the
+    // most it could cost, plus what the rest of the transaction needs, is
+    // still there; otherwise it yields, unchanged, to the next transaction.
+    // Its cost depends only on rows fixed by now, so no rollover or claim
+    // landing after a simulation can make it overrun the entry behind it.
+    let retained = ArenaBoard::open_rows(score_info.data_len())?
+        .checked_add(ArenaBoard::open_rows(theme_info.data_len())?)
+        .and_then(|rows| u32::try_from(rows).ok())
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    if solana_program::compute_units::sol_remaining_compute_units()
+        < zkube_core::finalization_worst_case_units(retained)
+            + zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS
+    {
+        return Ok(());
+    }
     let source = &mut source;
 
     let settlement = source.settle_into(&mut following, now)?;
@@ -774,7 +789,11 @@ pub fn handler_finalize_arena_daily(
     )?;
     ctx.accounts
         .protocol
-        .append_daily(source.day_id, source.predecessor_day, result_hash)
+        .append_daily(source.day_id, source.predecessor_day, result_hash)?;
+    emit!(DailyFinalized {
+        day_id: source.day_id
+    });
+    Ok(())
 }
 
 #[derive(Accounts)]

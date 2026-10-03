@@ -2784,6 +2784,19 @@ export type Solana = {
   ],
   "events": [
     {
+      "name": "dailyFinalized",
+      "discriminator": [
+        137,
+        20,
+        11,
+        151,
+        190,
+        138,
+        60,
+        80
+      ]
+    },
+    {
       "name": "runScored",
       "discriminator": [
         182,
@@ -3468,6 +3481,23 @@ export type Solana = {
           },
           {
             "name": "theme"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dailyFinalized",
+      "docs": [
+        "Logged when a Daily really finalizes: not when a finalization finds it done",
+        "already, and not when one yields for lack of compute. The public read model",
+        "records a finalization only from this."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "dayId",
+            "type": "u32"
           }
         ]
       }

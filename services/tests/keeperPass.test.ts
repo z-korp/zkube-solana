@@ -146,6 +146,10 @@ it("keeper_messages_carry_a_compute_budget_sized_from_simulation", async () => {
     expect(Buffer.from((connection.sendRawTransaction.mock.calls as unknown as [Uint8Array][])[0]![0]))
       .toEqual(Buffer.from(simulated[1]!.serialize()));
   }
-  expect(() => keeperComputeUnitLimit(0)).toThrow("compute consumption");
-  expect(() => keeperComputeUnitLimit(MAX_TRANSACTION_COMPUTE_UNITS + 1)).toThrow("compute consumption");
+  expect(() => keeperComputeUnitLimit("close_arena_player", 0)).toThrow("compute consumption");
+  expect(() => keeperComputeUnitLimit("close_arena_player", MAX_TRANSACTION_COMPUTE_UNITS + 1)).toThrow("compute consumption");
+  // A finalization sized to what it used would yield: it always asks for the maximum.
+  for (const consumed of [6_398, 640_000]) {
+    expect(keeperComputeUnitLimit("finalize_arena_daily", consumed)).toBe(MAX_TRANSACTION_COMPUTE_UNITS);
+  }
 });

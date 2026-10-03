@@ -158,6 +158,17 @@ function interpret(db: D1Like, raw: RawTransaction, signature: string): D1Statem
       try { statements.push(scoredRow(db, event.data as Record<string, unknown>, signature, raw.slot)); }
       catch { throw new UnreadableTransaction("a result event is malformed"); }
     }
+    // Only a Daily that really finalized logs this: a finalization that found
+    // it done already, or yielded for want of compute, logs nothing. Stored by
+    // address, whenever it lands.
+    if (event?.name === "dailyFinalized") {
+      const day = (event.data as { dayId?: unknown }).dayId;
+      if (typeof day !== "number" || !Number.isInteger(day) || day < 0 || day > 0xffff_ffff) {
+        throw new UnreadableTransaction("a finalization event is malformed");
+      }
+      statements.push(db.prepare("INSERT OR IGNORE INTO finalized_dailies (daily, slot) VALUES (?, ?)")
+        .bind(arenaDailyPda(day).toBase58(), raw.slot));
+    }
   }
   return statements;
 }
@@ -220,11 +231,6 @@ function instructionRows(db: D1Like, name: string, account: (name: string) => st
     case "closeArenaPlayer":
       return [db.prepare(`INSERT INTO daily_players (address, daily, owner, closed_slot) VALUES (?1, '', '', ?2)
         ON CONFLICT (address) DO UPDATE SET closed_slot = MAX(COALESCE(closed_slot, 0), ?2)`).bind(account("arena_player"), raw.slot)];
-    case "finalizeArenaDaily":
-      // Stored by address: a Daily finalizes whenever its last run resolves, so
-      // no window of days around the block bounds which Daily this is.
-      return [db.prepare("INSERT OR IGNORE INTO finalized_dailies (daily, slot) VALUES (?, ?)")
-        .bind(account("arena_daily"), raw.slot)];
     default:
       return [];
   }

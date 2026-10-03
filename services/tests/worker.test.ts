@@ -80,6 +80,14 @@ function scoredLog(row: { dayId: number; runId: bigint; player: PublicKey; score
   return `Program data: ${data.toString("base64")}`;
 }
 
+/** The log a real finalization writes, laid out as the program's DailyFinalized event. */
+function finalizedLog(dayId: number) {
+  const data = Buffer.alloc(8 + 4);
+  Buffer.from((IDL.events as readonly { name: string; discriminator: number[] }[]).find((event) => event.name === "DailyFinalized")!.discriminator).copy(data);
+  data.writeUInt32LE(dayId, 8);
+  return `Program data: ${data.toString("base64")}`;
+}
+
 /**
  * The same transaction with its zKube instructions called by another program
  * instead of sent directly: they move to the inner instructions the runtime
@@ -119,7 +127,7 @@ const history = () => [
   confirmed(fixtures.consume, "consume-1", NOW + 60, [fixtures.scored[0].log]),
   confirmed(fixtures.consume, "consume-2", NOW + 120, [fixtures.scored[1].log, fixtures.scored[2].log]),
   confirmed(fixtures.consume, "consume-3", NOW + 300, [fixtures.scored[3].log]),
-  confirmed(fixtures.finalize, "finalize", NOW + 86_400 + 600),
+  confirmed(fixtures.finalize, "finalize", NOW + 86_400 + 600, [finalizedLog(DAY)]),
   confirmed(fixtures.closePlayer, "close", NOW + 86_400 + 660),
 ];
 
@@ -364,7 +372,7 @@ describe("read model", () => {
     const rejected = [
       { ...viaCpi(confirmed(fixtures.entry, "caught-entry", NOW + 10)) },
       { ...viaCpi(confirmed(fixtures.consume, "caught-consume", NOW + 60)) },
-      { ...viaCpi(confirmed(fixtures.finalize, "caught-finalize", NOW + 90_000)) },
+      { ...viaCpi(confirmed(fixtures.finalize, "caught-finalize", NOW + 90_000, [finalizedLog(DAY)])) },
       { ...viaCpi(confirmed(fixtures.closePlayer, "caught-close", NOW + 90_060)) },
     ];
     for (const item of rejected) {
@@ -377,12 +385,16 @@ describe("read model", () => {
     expect((await dump(["transactions"])).transactions).toHaveLength(4);
     // A call that succeeded inside a caller that then failed changed nothing either.
     const undone = confirmed(fixtures.finalize, "undone", NOW + 90_100, [`Program ${wrapper} invoke [1]`,
-      `Program ${wrapper} invoke [2]`, `Program ${PROGRAM} invoke [3]`, `Program ${PROGRAM} success`,
+      `Program ${wrapper} invoke [2]`, `Program ${PROGRAM} invoke [3]`, finalizedLog(DAY), `Program ${PROGRAM} success`,
       `Program ${wrapper} failed: custom program error: 0x1`, `Program ${wrapper} success`]);
     await ingest([{ ...undone, ...viaCpiShape(undone) }]);
     expect((await dump(MODEL)).finalized_dailies).toEqual([]);
     // The same calls, succeeding, count; so the rule is the log's, not the instruction's position.
-    await ingest([viaCpi(confirmed(fixtures.finalize, "real-finalize", NOW + 90_200))]);
+    // A finalization that found the Daily done already, or yielded for want of compute, succeeds
+    // without its event: it records nothing.
+    await ingest([viaCpi(confirmed(fixtures.finalize, "yielded-finalize", NOW + 90_150))]);
+    expect((await dump(MODEL)).finalized_dailies).toEqual([]);
+    await ingest([viaCpi(confirmed(fixtures.finalize, "real-finalize", NOW + 90_200, [finalizedLog(DAY)]))]);
     expect((await dump(MODEL)).finalized_dailies).toHaveLength(1);
     // A log that does not account for every zKube instruction (truncated, or stripped) is not read at all.
     for (const logs of [frames([`Program ${PROGRAM} invoke [2]`, "Log truncated"]), [], frames([])]) {
@@ -435,7 +447,7 @@ describe("read model", () => {
   it("a_finalization_however_late_is_recorded_and_one_unreadable_transaction_never_stops_the_walk", async () => {
     const all = history();
     // The Daily's last run resolves a hundred days on: its finalization is as valid then as on the day.
-    const late = confirmed(fixtures.finalize, "late-finalize", NOW + 100 * 86_400);
+    const late = confirmed(fixtures.finalize, "late-finalize", NOW + 100 * 86_400, [finalizedLog(DAY)]);
     // A transaction of the program this model cannot interpret: an entry naming too few accounts.
     const broken = confirmed(fixtures.entry, "broken", NOW + 100 * 86_400 + 60);
     const entry = broken.transaction.message.instructions.find((call) =>

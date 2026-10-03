@@ -163,7 +163,14 @@ spending approval.
 - **Carried cadence:** an entry is offered with today's preparation and up to two due finalizations, then with
   fewer, then without its optional claims, every distinct size once; each is priced and simulated once at the
   limit it states, and the client sends the first that fits one packet, that its payer can fund and that
-  passes. Only the entry alone can fail the entry. A finalization of a Daily someone else has already finalized,
+  passes. Only the entry alone can fail the entry. Simulation cannot bound a state that changes after it, so
+  the program does: a finalization runs only while the compute left covers its worst case, set by the rows its
+  boards retain (fixed once it can finalize), and the core's reserve for the entry and delegation behind it;
+  otherwise it yields unchanged to a later transaction, and the keeper sends every finalization at the
+  transaction maximum. `finalization_never_exceeds_its_worst_case`,
+  `a_finalization_without_the_compute_it_could_need_yields_unchanged` and
+  `optional_cadence_never_overruns_an_entry_after_a_concurrent_expiry_rollover` guard the bound and the
+  yield. A finalization of a Daily someone else has already finalized,
   closed or not, is a no-op that still requires the canonical accounts of the days it names, so a size that
   passed its simulation cannot fail later for that. A winner back on a quiet day seals days the same way, then
   claims. The waiting Dailies are read forward from the result root, which names the last finalized day,
@@ -610,8 +617,10 @@ One Cloudflare Worker (services/src/worker, schema in services/worker/schema.sql
 and the keeper over one D1 database. The read model ingests the program's Base transactions, by webhook and
 by a bounded catch-up walk that closes any gap. An instruction counts wherever it ran, sent directly or called
 by another program, and only where the runtime's own log shows that call and every caller above it succeeding:
-the outer transaction's status says nothing about one inner call. A Daily is known by its address, so a
-finalization is recorded however late it comes. A transaction the model cannot interpret is kept as
+the outer transaction's status says nothing about one inner call. A finalization is recorded from the
+`DailyFinalized` log the program writes only when a Daily really finalizes, never from the instruction, so one
+that found the Daily done or yielded records nothing; a Daily is known by its address, so a finalization is
+recorded however late it comes. A transaction the model cannot interpret is kept as
 unreadable: the walk goes past it, the model reports itself incomplete while one remains, and a readable copy
 replaces the marker. A storage failure is not that: the walk stops, advances nothing and reads the transaction
 again. It records every scored run from the `RunScored` log a

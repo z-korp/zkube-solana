@@ -2778,6 +2778,19 @@
   ],
   "events": [
     {
+      "name": "DailyFinalized",
+      "discriminator": [
+        137,
+        20,
+        11,
+        151,
+        190,
+        138,
+        60,
+        80
+      ]
+    },
+    {
       "name": "RunScored",
       "discriminator": [
         182,
@@ -3462,6 +3475,23 @@
           },
           {
             "name": "Theme"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DailyFinalized",
+      "docs": [
+        "Logged when a Daily really finalizes: not when a finalization finds it done",
+        "already, and not when one yields for lack of compute. The public read model",
+        "records a finalization only from this."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "day_id",
+            "type": "u32"
           }
         ]
       }

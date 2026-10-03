@@ -12,6 +12,7 @@ import {
 import {
   cadenceFundingPda,
   type KeeperInstructionPlan,
+  type KeeperOperation,
   KEEPER_PLAN_INSTRUCTION,
 } from "./arcadeChain.js";
 import {
@@ -37,13 +38,16 @@ export const MAX_TRANSACTION_COMPUTE_UNITS = 1_400_000;
  * The one owner of a keeper transaction's compute budget: what the
  * instructions used under the transaction maximum, plus a quarter for state
  * that moves before the send. An ordinary 200,000-unit default cannot run a
- * wide finalization, so every keeper message states its limit.
+ * wide finalization, so every keeper message states its limit. A
+ * finalization asks for the maximum: it runs only when its worst case and the
+ * program's reserve are left, and yields under a limit sized to what it used.
  */
-export function keeperComputeUnitLimit(unitsConsumed: number): number {
+export function keeperComputeUnitLimit(operation: KeeperOperation, unitsConsumed: number): number {
   if (!Number.isSafeInteger(unitsConsumed) || unitsConsumed <= 0 ||
       unitsConsumed > MAX_TRANSACTION_COMPUTE_UNITS) {
     throw new Error("simulation reported no usable compute consumption");
   }
+  if (operation === "finalize_arena_daily") return MAX_TRANSACTION_COMPUTE_UNITS;
   return Math.min(MAX_TRANSACTION_COMPUTE_UNITS, Math.ceil(unitsConsumed * 1.25) + 5_000);
 }
 
@@ -254,7 +258,7 @@ export async function runKeeperPass(input: KeeperDependencies): Promise<KeeperPa
       if (sizing.value.err) {
         throw new Error(`simulation failed: ${JSON.stringify(sizing.value.err)}`);
       }
-      const transaction = compile(keeperComputeUnitLimit(sizing.value.unitsConsumed ?? 0));
+      const transaction = compile(keeperComputeUnitLimit(plan.operation, sizing.value.unitsConsumed ?? 0));
       transaction.sign([requiredKeeperSigner(input.keeper)]);
       const simulation = await connection.simulateTransaction(transaction, {
         sigVerify: true,

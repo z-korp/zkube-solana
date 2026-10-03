@@ -204,6 +204,12 @@ namespace ZKube.Tests.ProductReads
             int bytes = SolanaWire.UnsignedTransaction(entered.CompileMessage((string)world.Plans["inputs"]["blockhash"])).Length;
             TestContext.WriteLine("Entry with two older finalizations, today already prepared: " + bytes + " bytes");
             Assert.That(bytes, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
+            // The largest of all: today's preparation as well, before the two older finalizations.
+            var (largest, largestNames) = Entry(world, true, older);
+            Assert.That(largestNames, Is.EqualTo(new[] { "prepare_arena_daily", "finalize_arena_daily", "finalize_arena_daily", "enter_arena", "delegate_active_run" }));
+            int most = SolanaWire.UnsignedTransaction(largest.CompileMessage((string)world.Plans["inputs"]["blockhash"])).Length;
+            TestContext.WriteLine("Entry preparing today with two older finalizations: " + most + " bytes");
+            Assert.That(most, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
         }
     }
 }

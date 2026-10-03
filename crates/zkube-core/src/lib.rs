@@ -81,6 +81,19 @@ pub const ARENA_BOARD_CAPACITY: usize = 1_536;
 /// could not finalize in one transaction.
 pub const ARENA_DAILY_PLAYER_CAPACITY: u32 = 262_144;
 
+/// The most compute finalizing a Daily can take, from the rows its two boards
+/// retain. Those rows are fixed once the Daily can be finalized, so nothing that
+/// happens afterwards (a rollover into its pot, a claim) can raise it.
+/// `finalization_never_exceeds_its_worst_case` measures it at every size.
+#[must_use]
+pub const fn finalization_worst_case_units(retained_rows: u32) -> u64 {
+    80_000 + 240 * retained_rows as u64
+}
+
+/// What a finalization always leaves for the rest of a player's transaction:
+/// the entry it rides ahead of, and that entry's delegation.
+pub const FINALIZATION_FOLLOWING_RESERVE_UNITS: u64 = 400_000;
+
 /// Canonical account schema versions consumed by the Solana program and
 /// generated TypeScript boundaries.
 pub const PROTOCOL_ACCOUNT_VERSION: u8 = 8;
