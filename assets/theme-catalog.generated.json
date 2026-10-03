@@ -4493,13 +4493,13 @@
       ],
       "guardian": {
         "face": [
-          0.1875,
-          0.08333333333333333,
-          0.625,
-          0.7552083333333334
+          0.3203125,
+          0.2421875,
+          0.359375,
+          0.2890625
         ],
-        "railFrontY": 0.8658854166666666,
-        "railY": 0.8333333333333334
+        "railFrontY": 0.81640625,
+        "railY": 0.8059895833333334
       },
       "guardianLines": {
         "dailyGreeting": "The dragon's gaze falls on all challengers today. Outlast them all.",
