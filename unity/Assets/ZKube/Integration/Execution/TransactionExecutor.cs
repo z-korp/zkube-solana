@@ -55,8 +55,9 @@ namespace ZKube.Integration.Execution
                 var lease = await rpc.LatestBlockhash(endpoint, cancellation).ConfigureAwait(false);
                 bool fastEr = plan.Route == PlanRoute.ResolvedEr && !plan.OwnerSignatureRequired;
                 // Each size is compiled, priced and simulated once, largest first.
-                // A size that does not fit a packet or that its simulation
-                // rejects steps down to the next; the last is the intent alone.
+                // A size that does not fit a packet, that its payer cannot fund
+                // or that its simulation rejects steps down to the next; only
+                // the last, the intent alone, can fail the intent.
                 byte[] transaction = null;
                 for (int index = 0; ; index++)
                 {
@@ -69,11 +70,19 @@ namespace ZKube.Integration.Execution
                     var rentTask = plan.FeePayer == plan.Owner ? Task.FromResult(0UL) : rpc.RentFloor(endpoint, 0, cancellation);
                     await Task.WhenAll(feeTask, balanceTask, rentTask).ConfigureAwait(false);
                     ulong fee = feeTask.Result;
+                    // A larger size asks for more compute and so a larger fee:
+                    // one the payer cannot cover gives way to a smaller size too.
                     if (plan.FeePayer == plan.Owner && balanceTask.Result < fee)
+                    {
+                        if (!last) continue;
                         return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage");
+                    }
                     try { plan.RequireDeviceFunding(balanceTask.Result, rentTask.Result, fee); }
                     catch (InvalidOperationException)
-                    { return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill"); }
+                    {
+                        if (!last) continue;
+                        return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill");
+                    }
                     foreach (var signer in signers) transaction = signer.PartialSign(transaction);
                     if (fastEr) break;
                     var simulation = await rpc.Simulate(endpoint, transaction, lease, cancellation).ConfigureAwait(false);

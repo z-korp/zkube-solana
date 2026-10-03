@@ -778,24 +778,18 @@ pub fn handler_finalize_arena_daily(
 }
 
 #[derive(Accounts)]
-#[instruction(board: DailyBoardKind)]
+#[instruction(day_id: u32, board: DailyBoardKind)]
 pub struct ClaimDailyPrize<'info> {
-    #[account(
-        mut,
-        seeds = [ARENA_DAILY_SEED, arena_daily.day_id.to_le_bytes().as_ref()],
-        bump = arena_daily.bump,
-        constraint = arena_daily.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion,
-        constraint = arena_daily.finalized() @ ErrorCode::InvalidState
-    )]
-    pub arena_daily: Box<Account<'info, ArenaDaily>>,
-    #[account(
-        mut,
-        seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), board.seed()],
-        bump = arena_board.bump,
-        constraint = arena_board.arena_daily == arena_daily.key() @ ErrorCode::InvalidOwner,
-        constraint = arena_board.kind == board @ ErrorCode::InvalidOwner
-    )]
-    pub arena_board: Box<Account<'info, ArenaBoard>>,
+    #[account(seeds = [PROTOCOL_CONFIG_SEED], bump = protocol.bump,
+        constraint = protocol.version == ACCOUNT_VERSION @ ErrorCode::InvalidVersion)]
+    pub protocol: Box<Account<'info, ProtocolConfig>>,
+    /// CHECK: The canonical Daily of `day_id`: finalized, or closed after its
+    /// claim window. Read in the handler.
+    #[account(mut, seeds = [ARENA_DAILY_SEED, day_id.to_le_bytes().as_ref()], bump)]
+    pub arena_daily: UncheckedAccount<'info>,
+    /// CHECK: The Daily's canonical board of this kind, read in the handler.
+    #[account(mut, seeds = [ARENA_BOARD_SEED, arena_daily.key().as_ref(), board.seed()], bump)]
+    pub arena_board: UncheckedAccount<'info>,
     #[account(
         mut,
         seeds = [PLAYER_STATE_SEED, owner_authority.key().as_ref()],
@@ -811,8 +805,13 @@ pub struct ClaimDailyPrize<'info> {
     pub actor: Signer<'info>,
 }
 
+/// Pays a sealed board's position to its player, once. A position already
+/// claimed or past its window is a no-op, and so is one whose Daily has closed
+/// since: closing waits for the window, so nothing there is still owed. A
+/// claim riding a player's entry therefore never fails it.
 pub fn handler_claim_daily_prize(
     ctx: Context<ClaimDailyPrize>,
+    day_id: u32,
     board: DailyBoardKind,
     position: u32,
 ) -> Result<()> {
@@ -821,45 +820,64 @@ pub fn handler_claim_daily_prize(
         ctx.accounts.actor.key(),
         ctx.accounts.session_token.as_ref(),
     )?;
+    let daily_info = ctx.accounts.arena_daily.to_account_info();
     let board_info = ctx.accounts.arena_board.to_account_info();
+    if *daily_info.owner != crate::ID {
+        // Closed: the result root holds every Daily that was ever finalized.
+        let root = &ctx.accounts.protocol;
+        require!(
+            root.launch_day_id != 0 && day_id >= root.launch_day_id && day_id <= root.last_daily_id,
+            ErrorCode::InvalidState
+        );
+        return Ok(());
+    }
+    let daily: ArenaDaily = load(&daily_info)?;
+    let mut arena_board: ArenaBoard = load(&board_info)?;
+    require!(
+        daily.version == ACCOUNT_VERSION && daily.day_id == day_id,
+        ErrorCode::InvalidVersion
+    );
+    require!(daily.finalized(), ErrorCode::InvalidState);
+    require!(
+        arena_board.arena_daily == daily_info.key() && arena_board.kind == board,
+        ErrorCode::InvalidOwner
+    );
     // The program computed and stored the payout plan when it allocated this
     // board. Claims recheck the sealed board's structural and ledger binding;
     // the immutable plan is not rebuilt once per claim.
     validate_finalized_board_binding(
-        &ctx.accounts.arena_daily,
-        ctx.accounts.arena_daily.key(),
-        &ctx.accounts.arena_board,
+        &daily,
+        daily_info.key(),
+        &arena_board,
         board_info.data_len(),
         board,
     )?;
     let now = Clock::get()?.unix_timestamp;
     let prize = arcade_prize_at_position(
-        &ctx.accounts.arena_board,
+        &arena_board,
         &board_info,
         ctx.accounts.owner_authority.key(),
         position,
     )?;
-    if now > daily_claim_deadline(&ctx.accounts.arena_daily)?
-        || board_bitmap_is_set(&board_info, &ctx.accounts.arena_board, prize.position)?
+    if now > daily_claim_deadline(&daily)?
+        || board_bitmap_is_set(&board_info, &arena_board, prize.position)?
     {
         return Ok(());
     }
-    let source = ctx.accounts.arena_daily.to_account_info();
+    let source = daily_info;
     let destination = ctx.accounts.owner_authority.to_account_info();
     validate_wallet(&destination, ctx.accounts.player_state.owner)?;
     require_spendable(&source, prize.amount)?;
-    let claimed_lamports = ctx
-        .accounts
-        .arena_board
+    let claimed_lamports = arena_board
         .claimed_lamports
         .checked_add(prize.amount)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
     require!(
-        claimed_lamports <= ctx.accounts.arena_board.paid_lamports,
+        claimed_lamports <= arena_board.paid_lamports,
         ErrorCode::AccountingInvariant
     );
     let points = zkube_core::ladder_points(
-        ctx.accounts.arena_board.qualified_count,
+        arena_board.qualified_count,
         u32::from(prize.rank),
     )
     .map_err(|_| error!(ErrorCode::AccountingInvariant))?;
@@ -869,15 +887,13 @@ pub fn handler_claim_daily_prize(
         .record_prize(prize.rank, prize.amount)?;
     ctx.accounts.player_state.record_ladder_points(points)?;
     move_program_lamports(&source, &destination, prize.amount)?;
-    set_board_bitmap(&board_info, &ctx.accounts.arena_board, prize.position)?;
-    ctx.accounts.arena_board.claimed_lamports = claimed_lamports;
-    ctx.accounts.arena_board.claimed_count = ctx
-        .accounts
-        .arena_board
+    set_board_bitmap(&board_info, &arena_board, prize.position)?;
+    arena_board.claimed_lamports = claimed_lamports;
+    arena_board.claimed_count = arena_board
         .claimed_count
         .checked_add(1)
         .ok_or(ErrorCode::ArithmeticOverflow)?;
-    Ok(())
+    store(&board_info, &arena_board)
 }
 
 #[derive(Accounts)]

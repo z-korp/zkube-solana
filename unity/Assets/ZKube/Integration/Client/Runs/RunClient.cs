@@ -126,13 +126,14 @@ namespace ZKube.Integration.Client.Runs
                 // Everything optional is dropped one step at a time: the due
                 // finalizations, oldest kept longest, then any claims, until the
                 // entry is alone. The executor sends the first size that fits and
-                // that its simulation accepts; a size the same as the next is offered once.
+                // that its simulation accepts. Sizes with the same instructions
+                // are offered once; any two that differ are both offered.
                 long at = now(); var due = observation.Cadence.Steps;
                 TransactionPlan Size(IEnumerable<CadenceStep> steps, IEnumerable<ValidatedBoardReward> rewards) => planner.PrepareAndDelegate(
                     planner.PrepareDaily(session.Actor, player, entry.Snapshot, rewards, at, observation.Occupied, steps), session.Actor, validator.Identity);
                 var sizes = Enumerable.Range(0, due.Count + 1).Select(dropped => Size(due.Take(due.Count - dropped), claims))
                     .Append(Size(null, Array.Empty<ValidatedBoardReward>()))
-                    .GroupBy(size => size.Instructions.Count).Select(group => group.First()).ToArray();
+                    .GroupBy(Identity).Select(group => group.First()).ToArray();
                 // Persist the locator before any signing/send. A failed or
                 // expired preparation clears it only through fresh absence proof.
                 await markers.Save(new RunMarker(lease.Owner, player.NextRunId,
@@ -380,6 +381,12 @@ namespace ZKube.Integration.Client.Runs
         }
         private static RunClientState ForRun(RunClientState state, string address) =>
             state.Marker?.ActiveRun == address ? state : new RunClientState("consumed");
+        // What a transaction does, instruction by instruction: program,
+        // accounts with their roles, and data. Two sizes are the same only if this is.
+        private static string Identity(TransactionPlan plan) => string.Join("|", plan.Instructions.Select(instruction =>
+            instruction.ProgramId + ":" + string.Join(",", instruction.Accounts.Select(meta => meta.Address + (meta.Signer ? "s" : "") + (meta.Writable ? "w" : ""))) +
+            ":" + Convert.ToBase64String(instruction.Data)));
+
         private async Task<IReadOnlyList<ValidatedBoardReward>> EntryClaims(string owner, uint day, CancellationToken cancellation)
         {
             uint first = day > PlanningConstants.ClaimLookbackDays ? day - PlanningConstants.ClaimLookbackDays : 0;

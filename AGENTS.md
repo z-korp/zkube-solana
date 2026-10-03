@@ -161,8 +161,9 @@ spending approval.
   `a_day_with_an_abandoned_run_finalizes_on_the_first_claim_after_the_recovery_window` and
   `empty_dailies_are_bounded_finalize_empty_and_close_at_once` guard the program.
 - **Carried cadence:** an entry is offered with today's preparation and up to two due finalizations, then with
-  fewer, then without its optional claims; each size is simulated once at the limit it states, and the client
-  sends the first that fits one packet and passes. A finalization of a Daily someone else has already finalized,
+  fewer, then without its optional claims, every distinct size once; each is priced and simulated once at the
+  limit it states, and the client sends the first that fits one packet, that its payer can fund and that
+  passes. Only the entry alone can fail the entry. A finalization of a Daily someone else has already finalized,
   closed or not, is a no-op that still requires the canonical accounts of the days it names, so a size that
   passed its simulation cannot fail later for that. A winner back on a quiet day seals days the same way, then
   claims. The waiting Dailies are read forward from the result root, which names the last finalized day,
@@ -171,6 +172,8 @@ spending approval.
   room for delegation; `a_backlog_of_empty_dailies_finalizes_from_the_root_forward_whatever_its_length`,
   `an_optional_finalization_someone_else_already_made_never_fails_the_entry`,
   `AnEntryCarriesOnlyTheFinalizationsItsSimulationAccepts`, `AClaimItsSimulationRejectsStepsDownToTheEntryAlone`,
+  `EveryDistinctSizeIsOfferedAndAClaimSizeOutlastsRejectedFinalizations`,
+  `ASizeItsPayerCannotFundStepsDownInsteadOfFailingTheEntry`,
   `AWinnerSealsOnlyAsManyFinishedDaysAsFitOneTransaction`, `ABacklogOfAnyLengthIsReadFromTheRootForward`,
   `TheLargestCadenceCarryingEntryFitsOnePacket`, `TheCadenceIsReadFromTheChainOfPreparedDailiesOldestFirst` and
   `AWinnerBackOnAQuietDayFinalizesTheirDayThemselves` guard the program and the client.
@@ -279,9 +282,12 @@ spending approval.
   `board_rows_never_exceed_the_row_rent_their_entrants_paid` and
   `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` guard the invariant and the refusal.
 - **Claims:** an explicit position is checked against its sealed board and payout is recomputed. A claim of
-  an already-claimed or expired position is a no-op: no transfer, points or other changes. A Daily that is
-  not finalized has no sealed board and rejects; `ladder_points_are_credited_once_per_claim` guards
-  successful, failed and no-op outcomes.
+  an already-claimed or expired position is a no-op: no transfer, points or other changes. So is a claim on a
+  Daily closed since, which the result root must hold and the player must still authorize: closing waits for
+  the claim window, so nothing there is owed. A Daily that is not finalized has no sealed board and rejects;
+  `ladder_points_are_credited_once_per_claim` and
+  `a_claim_whose_daily_closed_since_never_fails_the_entry_it_rides` guard successful, failed and no-op
+  outcomes.
 - **Claim window:** both boards seal when their Daily is finalized, and rewards remain claimable for thirty
   days from that one moment. Closing the Daily after the window moves unclaimed money into the newest pot, not
   revenue; a Daily that paid nothing closes at once. `one_claim_clock_runs_from_the_dailys_finalization`,

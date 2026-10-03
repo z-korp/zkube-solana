@@ -80,10 +80,11 @@ pub mod solana {
 
     pub fn claim_daily_prize(
         ctx: Context<ClaimDailyPrize>,
+        day_id: u32,
         board: DailyBoardKind,
         position: u32,
     ) -> Result<()> {
-        instructions::arcade_instructions::handler_claim_daily_prize(ctx, board, position)
+        instructions::arcade_instructions::handler_claim_daily_prize(ctx, day_id, board, position)
     }
 
     pub fn close_arena_player(ctx: Context<CloseArenaPlayer>) -> Result<()> {

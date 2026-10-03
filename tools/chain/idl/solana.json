@@ -112,7 +112,30 @@
       ],
       "accounts": [
         {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "arena_daily",
+          "docs": [
+            "claim window. Read in the handler."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -133,9 +156,8 @@
                 ]
               },
               {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "ArenaDaily"
+                "kind": "arg",
+                "path": "day_id"
               }
             ]
           }
@@ -209,6 +231,10 @@
         }
       ],
       "args": [
+        {
+          "name": "day_id",
+          "type": "u32"
+        },
         {
           "name": "board",
           "type": {

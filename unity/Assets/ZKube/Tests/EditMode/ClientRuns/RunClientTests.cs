@@ -191,6 +191,46 @@ namespace ZKube.Integration.Client.Runs.Tests
             Assert.That(env.Http.SentTransactions, Has.Count.EqualTo(1));
         }
 
+        // Somebody entered today already, two finished days are due and a
+        // claim is proven on an older day the root holds: the sizes are both
+        // finalizations, one, the claim, then the entry alone. The claim size
+        // has as many instructions as the one-finalization size and is still its own.
+        private static async Task<Environment> TodayWithBacklogAndClaims()
+        {
+            var backlog = Fixture("economy")["cadence"]["backlog"];
+            var env = await Environment.Create(); env.Http.Prepare("daily");
+            env.Http.Extra.Add(backlog["enteredToday"]); env.Http.Extra.Add(backlog["today"]); env.Http.Extra.AddRange(backlog["dailies"]);
+            env.Http.Extra.Add(backlog["claimDaily"]); env.Http.Extra.Add(backlog["claimBoard"]);
+            return env;
+        }
+
+        [Test]
+        public async Task EveryDistinctSizeIsOfferedAndAClaimSizeOutlastsRejectedFinalizations()
+        {
+            var env = await TodayWithBacklogAndClaims();
+            env.Http.SimulationFits = names => !names.Contains("finalize_arena_daily");
+            Assert.That((await env.Client.StartDaily()).Phase, Is.EqualTo("delegated"));
+            Assert.That(env.Http.Sent, Is.EqualTo(new[] { "claim_daily_prize", "enter_arena", "delegate_active_run" }));
+            Assert.That(env.Http.Simulated.Select(names => string.Join(" ", names)), Is.EqualTo(new[] {
+                "finalize_arena_daily finalize_arena_daily enter_arena delegate_active_run",
+                "finalize_arena_daily enter_arena delegate_active_run",
+                "claim_daily_prize enter_arena delegate_active_run" }));
+        }
+
+        [Test]
+        public async Task ASizeItsPayerCannotFundStepsDownInsteadOfFailingTheEntry()
+        {
+            // The device holds enough for an entry at the ordinary compute limit
+            // but not for the larger fee a finalization's limit asks: those sizes
+            // step down, unsimulated, and the claims ride the entry.
+            var env = await TodayWithBacklogAndClaims();
+            env.Http.ActualDeviceBalance = 901880;
+            Assert.That((await env.Client.StartDaily()).Phase, Is.EqualTo("delegated"));
+            Assert.That(env.Http.Sent, Is.EqualTo(new[] { "claim_daily_prize", "enter_arena", "delegate_active_run" }));
+            Assert.That(env.Http.Simulated.Select(names => string.Join(" ", names)), Is.EqualTo(new[] {
+                "claim_daily_prize enter_arena delegate_active_run" }));
+        }
+
         [Test]
         public async Task ArcadeRecoversWithoutADeviceKeyAndUsesProgramSnapshots()
         {
@@ -564,6 +604,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             public readonly HashSet<string> Hidden = new HashSet<string>();
             public Func<string[], bool> SimulationFits;
             public int Simulations;
+            public readonly List<string[]> Simulated = new List<string[]>();
             public void Prepare(string mode) { player = Runs["initialPlayers"][mode]; States["daily"] = null; Delegated.Clear(); }
             public void ReplaceWithSuccessor(bool opening, bool delegated, string mode = "daily")
             {
@@ -627,12 +668,18 @@ namespace ZKube.Integration.Client.Runs.Tests
                         result = new JObject { ["isDelegated"] = delegated, ["fqdn"] = delegated ? "https://er.invalid/" : null }; break;
                     case "getIdentity": result = new JObject { ["identity"] = plans["inputs"]["validator"], ["fqdn"] = "https://er.invalid/" }; break;
                     case "getLatestBlockhash": result = Context(new JObject { ["blockhash"] = plans["inputs"]["blockhash"], ["lastValidBlockHeight"] = 11000 }); break;
-                    case "getFeeForMessage": result = Context(new JValue(5000)); break;
+                    // One signature plus the priority fee on the compute the message asks for.
+                    case "getFeeForMessage":
+                        var quoted = Convert.FromBase64String((string)request["params"][0]);
+                        var budget = TransactionSignatures.Describe(SolanaWire.UnsignedTransaction(quoted))
+                            .Instructions.SingleOrDefault(ix => ix.ProgramId == PlanningConstants.ComputeBudgetProgram && ix.Data[0] == 2)?.Data;
+                        result = Context(new JValue(5000UL + (budget == null ? 0UL : BitConverter.ToUInt32(budget, 1) * (ulong)PlanningConstants.ComputeUnitPrice / 1000000UL))); break;
                     case "getBalance": result = Context(new JValue((string)request["params"][0] == (string)plans["inputs"]["device"] ? ActualDeviceBalance : 1000000000UL)); break;
                     case "simulateTransaction":
                         Simulations++;
                         var simulated = TransactionSignatures.Describe(Convert.FromBase64String((string)request["params"][0])).Instructions
                             .Where(ix => ix.ProgramId == protocol.ProgramId).Select(ix => protocol.DecodeInstruction(ix).Name).ToArray();
+                        Simulated.Add(simulated);
                         result = Context(new JObject { ["err"] = SimulationFits == null || SimulationFits(simulated) ? null :
                             new JObject { ["InstructionError"] = new JArray(2, "ComputationalBudgetExceeded") }, ["logs"] = new JArray(), ["unitsConsumed"] = 1 }); break;
                     case "sendTransaction":

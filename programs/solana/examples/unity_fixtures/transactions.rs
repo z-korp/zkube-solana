@@ -278,10 +278,12 @@ pub fn claim(day: u32, kind: DailyBoardKind) -> Value {
         device(),
         vec![instruction(
             solana::instruction::ClaimDailyPrize {
+                day_id: day,
                 board: kind,
                 position: 0,
             },
             solana::accounts::ClaimDailyPrize {
+                protocol: accounts::singleton(PROTOCOL_CONFIG_SEED),
                 arena_daily: accounts::daily_address(day),
                 arena_board: boards::address(day, kind),
                 player_state: accounts::player_address(),

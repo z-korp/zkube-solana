@@ -736,9 +736,10 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
         .to_account_metas(None),
         data: zkube::instruction::EnterArena { run_id }.data(),
     };
-    let claim = |daily, board| anchor_lang::solana_program::instruction::Instruction {
+    let claim = |day: u32, daily, board| anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::ClaimDailyPrize {
+            protocol,
             arena_daily: daily,
             arena_board: board,
             player_state: player,
@@ -748,14 +749,15 @@ fn sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths() {
         }
         .to_account_metas(None),
         data: zkube::instruction::ClaimDailyPrize {
+            day_id: day,
             board: DailyBoardKind::Score,
             position: 0,
         }
         .data(),
     };
     let instructions = [
-        claim(duplicate_daily, duplicate_board),
-        claim(claim_daily, claim_board),
+        claim(day_id - 2, duplicate_daily, duplicate_board),
+        claim(day_id - 1, claim_daily, claim_board),
         instruction.clone(),
     ];
     let actor_before = 100_000_000;
@@ -1353,9 +1355,11 @@ fn ladder_points_are_credited_once_per_claim() {
         ..PoolLedger::default()
     };
     let (player, player_state) = player_fixture(owner);
+    let (protocol, protocol_account) = root_fixture(day_id);
     let instruction = anchor_lang::solana_program::instruction::Instruction {
         program_id: zkube::ID,
         accounts: zkube::accounts::ClaimDailyPrize {
+            protocol,
             arena_daily: daily,
             arena_board: score_board,
             player_state: player,
@@ -1365,6 +1369,7 @@ fn ladder_points_are_credited_once_per_claim() {
         }
         .to_account_metas(None),
         data: zkube::instruction::ClaimDailyPrize {
+            day_id,
             board: DailyBoardKind::Score,
             position: 1,
         }
@@ -1388,6 +1393,7 @@ fn ladder_points_are_credited_once_per_claim() {
             program_account(&player_state, 8 + PlayerState::INIT_SPACE),
         ),
         (owner, system_account(owner_before)),
+        (protocol, protocol_account.clone()),
     ];
     let mut runtime = mollusk();
     runtime.sysvars.clock.unix_timestamp = finalized_at(day_id) + 1;
@@ -1427,6 +1433,7 @@ fn ladder_points_are_credited_once_per_claim() {
             ),
             (player, resulting_account(&claimed, &player).clone()),
             (owner, resulting_account(&claimed, &owner).clone()),
+            (protocol, protocol_account.clone()),
         ],
     );
     assert!(duplicate.program_result.is_ok());
@@ -1451,6 +1458,7 @@ fn ladder_points_are_credited_once_per_claim() {
     let (outsider_state, outsider_player) = player_fixture(outsider);
     let outsider_instruction = anchor_lang::solana_program::instruction::Instruction {
         accounts: zkube::accounts::ClaimDailyPrize {
+            protocol,
             arena_daily: daily,
             arena_board: score_board,
             player_state: outsider_state,
@@ -1471,6 +1479,7 @@ fn ladder_points_are_credited_once_per_claim() {
                 program_account(&outsider_player, 8 + PlayerState::INIT_SPACE),
             ),
             (outsider, system_account(owner_before)),
+            (protocol, protocol_account.clone()),
         ],
     );
     assert!(outsider_result.program_result.is_err());
@@ -3476,6 +3485,7 @@ impl Game {
         Ix {
             program_id: zkube::ID,
             accounts: zkube::accounts::ClaimDailyPrize {
+                protocol: self.protocol,
                 arena_daily: daily,
                 arena_board: board_address(daily, kind).0,
                 player_state: player_fixture(owner).0,
@@ -3485,6 +3495,7 @@ impl Game {
             }
             .to_account_metas(None),
             data: zkube::instruction::ClaimDailyPrize {
+                day_id: day,
                 board: kind,
                 position,
             }
@@ -3918,9 +3929,11 @@ fn closing_a_daily_moves_what_was_never_claimed_into_the_newest_pot_and_returns_
     );
     assert!(!game.exists(&Game::daily(day)));
     assert_eq!(game.total(), total);
-    // A late claim finds no Daily: there is nothing left to pay twice.
+    // A late claim finds the Daily closed: a no-op, with nothing left to pay twice.
     let second = game.claim(players[1], day, DailyBoardKind::Score, 1);
-    assert!(game.send(&[second]).program_result.is_err());
+    let before = game.accounts.clone();
+    assert!(game.send(&[second]).program_result.is_ok());
+    assert_eq!(game.accounts, before);
     assert!(game
         .send(&[game.close(day, Some(today))])
         .program_result
@@ -4654,4 +4667,85 @@ fn an_optional_finalization_someone_else_already_made_never_fails_the_entry() {
         assert!(game.send(&[forged]).program_result.is_err());
     }
     assert_eq!(game.accounts, before);
+}
+
+#[test]
+fn a_claim_whose_daily_closed_since_never_fails_the_entry_it_rides() {
+    // A winner's entry carries a claim proven a second before its window
+    // ends; before it lands, anyone closes the Daily, rolling the unclaimed
+    // prize into the newest pot. The claim is then a no-op: the entry goes
+    // through, and nothing is paid or credited twice. Both when the Daily was
+    // sealed on time and when it was sealed a day late.
+    for late in [0, 1] {
+        let day = 20_710;
+        let mut game = Game::launched(day, SEED);
+        let winner = Pubkey::new_unique();
+        game.player(winner);
+        assert!(game.send(&[game.enter(winner, day)]).program_result.is_ok());
+        game.at(day, 600);
+        assert!(game.settle(winner, day, 10, 5).program_result.is_ok());
+        let sealed_on = day + 1 + late;
+        game.at(sealed_on, 60);
+        assert!(game
+            .send(&[game.prepare(sealed_on), game.finalize(day, sealed_on)])
+            .program_result
+            .is_ok());
+        let deadline = daily_claim_deadline(&game.state(day)).unwrap();
+        let today = day_id_at(deadline).unwrap();
+        game.at(today, 60);
+        if !game.exists(&Game::daily(today)) {
+            assert!(game.send(&[game.prepare(today)]).program_result.is_ok());
+        }
+        let position = game.position(winner, day, DailyBoardKind::Score).unwrap();
+        let carried = [
+            game.claim(winner, day, DailyBoardKind::Score, position),
+            game.enter(winner, today),
+        ];
+        // It would have paid, had it landed before the close.
+        game.runtime.sysvars.clock.unix_timestamp = deadline - 1;
+        let before = game.accounts.clone();
+        assert!(game.send(&carried).program_result.is_ok());
+        game.accounts = before;
+        // Someone closes the day once its window has passed.
+        game.runtime.sysvars.clock.unix_timestamp = deadline + 1;
+        assert!(game
+            .send(&[game.close(day, Some(today))])
+            .program_result
+            .is_ok());
+        let total = game.total();
+        let profile: PlayerState = decode(&game.accounts[&player_fixture(winner).0]);
+        let entered = game.send(&carried);
+        assert!(
+            entered.program_result.is_ok(),
+            "sealed {late} day(s) late: {:?}",
+            entered.program_result
+        );
+        let after: PlayerState = decode(&game.accounts[&player_fixture(winner).0]);
+        assert_eq!(after.ladder_points, profile.ladder_points);
+        assert_eq!(
+            after.score_record.rewards_lamports,
+            profile.score_record.rewards_lamports
+        );
+        assert_eq!(after.kredit_balance + 1, profile.kredit_balance);
+        assert_eq!(game.state(today).entries_paid, 1);
+        assert_eq!(game.total(), total);
+
+        // The no-op still checks what it can: the player's own authorization,
+        // and a day the result root actually holds.
+        let stranger = Pubkey::new_unique();
+        game.player(stranger);
+        let mut forged = game.claim(winner, day, DailyBoardKind::Score, position);
+        forged
+            .accounts
+            .iter_mut()
+            .filter(|meta| meta.pubkey == winner && meta.is_signer)
+            .for_each(|meta| meta.pubkey = stranger);
+        let before = game.accounts.clone();
+        assert!(game.send(&[forged]).program_result.is_err());
+        assert!(game
+            .send(&[game.claim(winner, today + 1, DailyBoardKind::Score, 0)])
+            .program_result
+            .is_err());
+        assert_eq!(game.accounts, before);
+    }
 }

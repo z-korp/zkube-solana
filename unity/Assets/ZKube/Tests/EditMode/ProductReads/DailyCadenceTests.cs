@@ -197,6 +197,13 @@ namespace ZKube.Tests.ProductReads
             TestContext.WriteLine("Largest cadence-carrying entry packet: " + packet + " bytes");
             Assert.That(packet, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
             Assert.Throws<ArgumentException>(() => Entry(world, true, steps.Append(new CadenceStep(world.Day - 3, world.Day - 2)).ToArray()));
+            // Today's Daily exists and the two due days are older ones, each
+            // with its own successor: three more accounts than above.
+            var older = new[] { new CadenceStep(world.Day - 19, world.Day - 8), new CadenceStep(world.Day - 8, world.Day - 7) };
+            var (entered, _) = Entry(world, false, older);
+            int bytes = SolanaWire.UnsignedTransaction(entered.CompileMessage((string)world.Plans["inputs"]["blockhash"])).Length;
+            TestContext.WriteLine("Entry with two older finalizations, today already prepared: " + bytes + " bytes");
+            Assert.That(bytes, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
         }
     }
 }

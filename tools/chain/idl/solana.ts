@@ -118,7 +118,30 @@ export type Solana = {
       ],
       "accounts": [
         {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "arenaDaily",
+          "docs": [
+            "claim window. Read in the handler."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -139,9 +162,8 @@ export type Solana = {
                 ]
               },
               {
-                "kind": "account",
-                "path": "arena_daily.day_id",
-                "account": "arenaDaily"
+                "kind": "arg",
+                "path": "dayId"
               }
             ]
           }
@@ -215,6 +237,10 @@ export type Solana = {
         }
       ],
       "args": [
+        {
+          "name": "dayId",
+          "type": "u32"
+        },
         {
           "name": "board",
           "type": {

@@ -99,8 +99,9 @@ namespace ZKube.Integration.Planning
             if ((kind != "score" && kind != "theme") || position >= Protocol.ArenaBoardCapacity)
                 throw new ArgumentException("Invalid board claim position");
             var keys = ActorAccounts(actor);
+            keys["protocol"] = ProtocolAddress;
             keys["arena_daily"] = Daily(day); keys["arena_board"] = Board(day, kind); keys["player_state"] = Player(actor.Owner);
-            return Plan(actor, PlanRoute.Base, new[] { Instruction("claim_daily_prize", new JObject {
+            return Plan(actor, PlanRoute.Base, new[] { Instruction("claim_daily_prize", new JObject { ["day_id"] = day,
                 ["board"] = new JObject { [kind] = new JObject() }, ["position"] = position }, keys) });
         }
 

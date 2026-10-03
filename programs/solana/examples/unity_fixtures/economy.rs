@@ -75,12 +75,22 @@ fn cadence() -> Value {
             row(&daily)
         })
         .collect();
+    // The same backlog after somebody has already entered today: today's Daily
+    // names the newest waiting one as its predecessor.
+    let mut entered = accounts::daily(DAY);
+    entered.predecessor_day = days[8];
+    entered.predecessor_rollover_applied = false;
     json!({"yesterday": row(&yesterday), "today": row(&today),
         "yesterdayFinalized": row(&finalized), "todayReceived": row(&received),
         "forwarded": settlement.forwarded_lamports.to_string(),
         "protocol": root(DAY - 2, DAY), "quietProtocol": root(DAY - 2, DAY - 1),
         "backlog": {"days": days, "dailies": backlog, "start": root(DAY - 40, DAY - 3),
-            "advanced": root(DAY - 20, DAY - 3), "last": root(DAY - 4, DAY - 3)}})
+            "advanced": root(DAY - 20, DAY - 3), "last": root(DAY - 4, DAY - 3),
+            "today": row(&entered), "enteredToday": root(DAY - 20, DAY),
+            // A prize the player won on a day the root already holds: claims
+            // are only ever on days older than any waiting one.
+            "claimDaily": self::finalized(DAY - 21),
+            "claimBoard": boards::board(DAY - 21, DailyBoardKind::Score, false, true, owner())}})
 }
 
 pub fn scenarios() -> Value {
