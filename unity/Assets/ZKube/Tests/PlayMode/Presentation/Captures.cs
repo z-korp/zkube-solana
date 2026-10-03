@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
@@ -52,6 +53,29 @@ namespace ZKube.Tests.Presentation
             for (int i = 0; i < bubbles.Length; i++)
                 for (int j = i + 1; j < bubbles.Length; j++)
                     Assert.That(bubbles[i].Overlaps(bubbles[j]), Is.False, name + ": two lesson bubbles overlap");
+            // On the board a bubble leaves visible every piece it pulses (the glow's
+            // own piece, 1/1.4 of it), the stack with the row about to rise, and the
+            // next row with everything under it.
+            var board = scope.GetComponentsInChildren<BoardController>().FirstOrDefault(value => value.isActiveAndEnabled && value.View != null && value.State != null);
+            if (board != null && bubbles.Length > 0)
+            {
+                var layout = board.View.Layout; var grid = board.State.Grid;
+                int height = Enumerable.Range(0, 10).Where(row => Enumerable.Range(0, 8).Any(column => grid[row * 8 + column] != 0)).Select(row => row + 1).DefaultIfEmpty(0).Max();
+                var clear = new List<(string what, Rect rect)> {
+                    ("the stack", new Rect(layout.Board.x, layout.Board.y, layout.Board.width, Mathf.Min(10, height + 1) * layout.Cell)),
+                    ("the next row and the controls", new Rect(0, 0, Screen.width, Mathf.Max(layout.Tray.yMax, board.View.Hud.NextLabel.yMax))) };
+                foreach (var glow in scope.GetComponentsInChildren<RectTransform>().Where(rect => rect.gameObject.activeInHierarchy && rect.name == "Lesson glow"))
+                {
+                    var halo = SkinUi.ScreenRect(glow); float w = halo.width / 1.4f, h = halo.height / 1.4f;
+                    clear.Add(("a pulsing piece", new Rect(halo.x + .2f * w, halo.y + .2f * h, w, h)));
+                }
+                foreach (var bubble in bubbles)
+                    foreach (var (what, rect) in clear)
+                        Assert.That(bubble.Overlaps(rect), Is.False, name + ": a lesson bubble " + bubble + " covers " + what + " " + rect);
+            }
+            // Every lesson line is at least the pages' readable caption size.
+            foreach (var line in scope.GetComponentsInChildren<TMPro.TMP_Text>().Where(text => text.gameObject.activeInHierarchy && text.name == "Lesson line"))
+                Assert.That(line.fontSize, Is.GreaterThanOrEqualTo(13 - .01f), name + ": a lesson line is at least 13 dp");
             yield return Captures.Snap(screen, name);
         }
     }

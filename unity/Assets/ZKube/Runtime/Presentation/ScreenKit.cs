@@ -82,7 +82,9 @@ namespace ZKube.Presentation
         // The type sizes, in dp, as the wireframe's CSS sets them.
         public float TitleDp => 28 * K;
         public float SubtitleDp => Mathf.Max(12, 13 * K);
-        public float CaptionDp => Mathf.Max(13, 15 * K);
+        public float CaptionDp => Caption(K);
+        // The caption size at scale k: 15 dp, never under 13 (the pages' readable minimum).
+        public static float Caption(float k) => Mathf.Max(13, 15 * k);
         public float SmallDp => Mathf.Max(12, 12 * K);
         public float HeaderDp => Mathf.Max(13, 15 * K);
         public float NumeralDp => 24 * K;

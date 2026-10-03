@@ -17,10 +17,10 @@ namespace ZKube.Presentation
     public sealed class BoardCoach : MonoBehaviour
     {
         public const float HandSeconds = 1.1f, HandRest = .4f, HintDelay = 2.5f;
-        // The hand is drawn 32 dp high; its fingertip is at this share of its
-        // width from the left and of its height from the bottom (the art's notes).
-        public const float HandDp = 32, FingerX = .45f, FingerY = .948f;
-        private struct Moment { public Lesson Lesson; public string Line, Picture; public Rect Target; public bool Above; }
+        // The hand is a block row and a half high; its fingertip is at this share
+        // of its width from the left and of its height from the bottom (the art's notes).
+        public const float HandRows = 1.5f, FingerX = .45f, FingerY = .948f;
+        private struct Moment { public Lesson Lesson; public string Line, Picture; public Rect Target; }
         private BoardController board;
         private Canvas canvas;
         private RectTransform overlay;
@@ -31,7 +31,7 @@ namespace ZKube.Presentation
         private Vector2 handFrom, handTo;
         private readonly List<Image> glows = new List<Image>();
         private readonly List<string> said = new List<string>();
-        private readonly List<Rect> bubbles = new List<Rect>();
+        private readonly List<Rect> bubbles = new List<Rect>(), pulsed = new List<Rect>();
         private readonly Queue<Moment> moments = new Queue<Moment>();
         // What the guardian says on the board now, and the slide it points at.
         public IReadOnlyList<string> Said => said;
@@ -69,20 +69,20 @@ namespace ZKube.Presentation
 
         private void Settled(RunSummary before, RunSummary now)
         {
-            if (before == null) { if (guided && now.Moves == 0) { Point(); Say(Lessons.Slide, null, Head(), false, true); } return; }
+            if (before == null) { if (guided && now.Moves == 0) { Point(); Say(Lessons.Slide, null, Head(), true); } return; }
             if (now.ActionCounter == before.ActionCounter) return;
             // A new action ends what the last one said.
             Clear();
             if (guided && now.Moves != before.Moves) Guide(now, now.Score > before.Score);
             foreach (var lesson in Moments(before, now, Lessons.Device))
                 moments.Enqueue(lesson == Lesson.Star ? new Moment { Lesson = lesson, Line = Lessons.Star, Picture = SkinSlots.LessonStars, Target = Hud.Crown }
-                    : lesson == Lesson.EmptyBoard ? new Moment { Lesson = lesson, Line = Lessons.EmptyBoard, Picture = SkinSlots.LessonReroll, Target = Layout.RerollButton, Above = true }
-                    : new Moment { Lesson = lesson, Line = Lessons.Charge(now.BonusType), Picture = Lessons.ChargeCard(now.BonusType), Target = Layout.GuardianButton, Above = true });
+                    : lesson == Lesson.EmptyBoard ? new Moment { Lesson = lesson, Line = Lessons.EmptyBoard, Picture = SkinSlots.LessonReroll, Target = Layout.RerollButton }
+                    : new Moment { Lesson = lesson, Line = Lessons.Charge(now.BonusType), Picture = Lessons.ChargeCard(now.BonusType), Target = Layout.GuardianButton });
             if (said.Count == 0 && moments.Count > 0)
             {
                 var moment = moments.Dequeue(); Lessons.Device.Teach(moment.Lesson);
                 Glow(moment.Target, SkinTokens.Accent);
-                Say(moment.Line, moment.Picture, moment.Above ? moment.Target : Head(), moment.Above, false);
+                Say(moment.Line, moment.Picture, moment.Target, false);
             }
         }
 
@@ -103,20 +103,20 @@ namespace ZKube.Presentation
             switch (now.Moves)
             {
                 case 1:
-                    Say(cleared ? Lessons.Clears : Lessons.Falls, null, Head(), false, true);
                     Glow(layout.Tray, SkinTokens.Accent);
-                    Say(Lessons.Rises, null, layout.Tray, true, false);
+                    Say(cleared ? Lessons.Clears : Lessons.Falls, null, Head(), true);
+                    Say(Lessons.Rises, null, layout.Tray, false);
                     hintAt = Time.unscaledTime + HintDelay;
                     break;
                 case 2:
                     Glow(Hud.Moves, SkinTokens.Accent); Glow(Hud.Plates[0], SkinTokens.Accent);
                     Glow(new Rect(layout.Board.x, layout.Board.y + 9 * layout.Cell, layout.Board.width, layout.Cell), SkinTokens.Negative);
-                    Say(Lessons.MovesLeft(board.Session.Rules.MaxMoves - now.Moves), null, Head(), false, true);
-                    Say(Lessons.TapGoal, null, Hud.Plates[2], false, false);
+                    Say(Lessons.MovesLeft(board.Session.Rules.MaxMoves - now.Moves), null, Head(), true);
+                    Say(Lessons.TapGoal, null, Hud.Plates[2], false);
                     break;
                 default:
                     Glow(layout.RerollButton, SkinTokens.Accent);
-                    Say(Lessons.Reroll, null, layout.RerollButton, true, false);
+                    Say(Lessons.Reroll, null, layout.RerollButton, false);
                     Lessons.Device.Teach(Lesson.GuidedRun); guided = false;
                     break;
             }
@@ -138,7 +138,7 @@ namespace ZKube.Presentation
             var to = new Rect(Layout.Board.x + slide.Destination * cell, Layout.Board.y + slide.Row * cell, slide.Width * cell, cell);
             Glow(from, SkinTokens.Accent); Glow(to, SkinTokens.Accent);
             var sprite = Ui.Art.SkinUi(SkinSlots.HandPointer);
-            float height = HandDp * d * Hud.K, width = height * sprite.rect.width / sprite.rect.height;
+            float height = HandRows * cell, width = height * sprite.rect.width / sprite.rect.height;
             var image = Ui.Rect<Image>("Guardian hand", new Rect(0, 0, width, height), overlay);
             image.sprite = sprite; image.preserveAspect = true; image.raycastTarget = false;
             hand = image.rectTransform; handFrom = from.center; handTo = to.center; handStart = Time.unscaledTime;
@@ -153,25 +153,61 @@ namespace ZKube.Presentation
         private void Animate()
         {
             bool still = board.ReducedMotion;
-            float breath = still ? .7f : .55f + .3f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f);
+            // Strong enough to read on the darkest painting, breathing between 80 and 100%.
+            float breath = still ? 1 : .9f + .1f * Mathf.Sin(2 * Mathf.PI * Time.unscaledTime / 1.2f);
             foreach (var glow in glows) if (glow != null) glow.color = SkinUi.WithAlpha(glow.color, breath);
             if (hand == null || still) return;
             float t = Mathf.Repeat(Time.unscaledTime - handStart, HandSeconds + HandRest) / HandSeconds;
             Place(Vector2.Lerp(handFrom, handTo, Mathf.SmoothStep(0, 1, Mathf.Min(1, t))));
         }
 
+        // A pulse of light behind a piece, a little wider than it; the piece stays clear of bubbles.
         private void Glow(Rect target, string token)
         {
             var rect = new Rect(target.x - target.width * .2f, target.y - target.height * .2f, target.width * 1.4f, target.height * 1.4f);
             var image = Ui.Rect<Image>("Lesson glow", rect, overlay);
             image.sprite = Ui.Art.SkinUi(SkinSlots.FxGlow); image.raycastTarget = false;
-            image.color = SkinUi.WithAlpha(Ui.Art.Token(token), .7f);
-            glows.Add(image);
+            image.color = SkinUi.WithAlpha(Ui.Art.Token(token), 1);
+            glows.Add(image); pulsed.Add(target);
         }
 
-        // The guardian's bubble (the goal bubble's piece), above or under target
-        // with its tail towards it, the lesson's card at its left when it has one.
-        private void Say(string line, string picture, Rect target, bool above, bool skip)
+        // What a bubble must leave visible: what it teaches, every piece pulsing,
+        // the guardian, the stack with the row about to rise, and everything from
+        // the next row down (the tray and the controls).
+        private IEnumerable<Rect> KeepClear(Rect target)
+        {
+            var layout = Layout;
+            yield return target; foreach (var piece in pulsed) yield return piece;
+            yield return Hud.Guardian;
+            int height = 0;
+            for (int row = 9; row >= 0 && height == 0; row--)
+                for (int column = 0; column < 8; column++) if (board.State.Grid[row * 8 + column] != 0) { height = row + 1; break; }
+            yield return new Rect(layout.Board.x, layout.Board.y, layout.Board.width, Mathf.Min(10, height + 1) * layout.Cell);
+            yield return new Rect(0, 0, Screen.width, Mathf.Max(layout.Tray.yMax, Hud.NextLabel.yMax));
+        }
+        // Where a bubble goes: beside its target if that leaves everything clear,
+        // else in the board's free space over the stack, else over the top band.
+        private Rect Room(Rect target, float width, float height, float tail)
+        {
+            float d = Layout.Density, step = 4 * d;
+            var keep = KeepClear(target).ToArray(); var frame = Layout.Frame;
+            bool Free(Rect body) => body.xMin >= frame.xMin - .5f && body.xMax <= frame.xMax + .5f && body.yMin >= frame.yMin - .5f && body.yMax <= frame.yMax + .5f &&
+                !keep.Any(body.Overlaps) && !bubbles.Any(body.Overlaps);
+            float x = Mathf.Clamp(target.center.x - width / 2, Layout.Rim.x + 4 * d, Layout.Rim.xMax - 4 * d - width);
+            foreach (var body in new[] { new Rect(x, target.yMax + tail, width, height), new Rect(x, target.y - tail - height, width, height) })
+                if (Free(body)) return body;
+            for (float y = Layout.Rim.yMax - tail - 4 * d - height; y >= Layout.Board.y; y -= step)
+                if (Free(new Rect(x, y, width, height))) return new Rect(x, y, width, height);
+            foreach (float left in new[] { x, frame.x + 4 * d, frame.xMax - 4 * d - width })
+                for (float y = frame.yMax - 4 * d - height; y >= Layout.Rim.y; y -= step)
+                    if (Free(new Rect(left, y, width, height))) return new Rect(left, y, width, height);
+            return new Rect(x, target.yMax + tail, width, height);
+        }
+
+        // The guardian's bubble (the goal bubble's piece) where Room finds it, its
+        // tail towards target when it stands against it, the lesson's card at its
+        // left when it has one; its line in the pages' caption size.
+        private void Say(string line, string picture, Rect target, bool skip)
         {
             float d = Layout.Density, k = Hud.K, u = k * d;
             float width = Mathf.Min(Layout.Rim.width - 16 * d, 280 * u), pad = 12 * u;
@@ -179,25 +215,24 @@ namespace ZKube.Presentation
             var card = picture == null ? null : Ui.Art.SkinUi(picture);
             float cardHeight = card == null ? 0 : 64 * u, art = card == null ? 0 : cardHeight * card.rect.width / card.rect.height;
             float inner = width - 2 * pad - (art > 0 ? art + 10 * u : 0);
-            float text = Ui.TextHeight(line, inner, Hud.BubblePt, SkinUi.Type.Caption, HudLayout.BubbleLeading);
+            float size = ScreenKit.Caption(k), text = Ui.TextHeight(line, inner, size, SkinUi.Type.Caption, HudLayout.BubbleLeading);
             float skipHeight = skip ? 36 * d : 0;
             float height = Mathf.Max(text, cardHeight) + 2 * pad + skipHeight, tail = 14 * u;
-            float x = Mathf.Clamp(target.center.x - width / 2, Layout.Rim.x + 4 * d, Layout.Rim.xMax - 4 * d - width);
-            float y = above ? target.yMax + tail : target.y - tail - height;
-            var body = new Rect(x, y, width, height);
-            // A bubble never covers another: it moves down below the one it would overlap.
-            foreach (var other in bubbles) if (body.Overlaps(other)) body.y = other.y - 8 * u - height;
-            bubbles.Add(body);
+            var body = Room(target, width, height, tail); bubbles.Add(body);
             var bubble = Ui.Piece("Lesson bubble", SkinSlots.TapBubble, body, overlay); bubble.raycastTarget = false;
-            var tip = Ui.Piece("Lesson bubble tail", SkinSlots.TapBubbleTail,
-                new Rect(Mathf.Clamp(target.center.x, body.x + 18 * u, body.xMax - 18 * u) - 9 * u, above ? body.y - tail : body.yMax, 18 * u, tail), overlay);
-            tip.raycastTarget = false; tip.rectTransform.localEulerAngles = new Vector3(0, 0, above ? -90 : 90);
+            bool above = Mathf.Abs(body.y - tail - target.yMax) < 1, below = Mathf.Abs(body.yMax + tail - target.y) < 1;
+            if (above || below)
+            {
+                var tip = Ui.Piece("Lesson bubble tail", SkinSlots.TapBubbleTail,
+                    new Rect(Mathf.Clamp(target.center.x, body.x + 18 * u, body.xMax - 18 * u) - 9 * u, above ? body.y - tail : body.yMax, 18 * u, tail), overlay);
+                tip.raycastTarget = false; tip.rectTransform.localEulerAngles = new Vector3(0, 0, above ? -90 : 90);
+            }
             if (card != null)
             {
                 var image = Ui.Rect<Image>("Lesson card", new Rect(body.x + pad, body.yMax - pad - cardHeight, art, cardHeight), overlay);
                 image.sprite = card; image.preserveAspect = true; image.raycastTarget = false;
             }
-            var label = Ui.Label("Lesson line", line, new Rect(body.xMax - pad - inner, body.yMax - pad - text, inner, text), Hud.BubblePt,
+            var label = Ui.Label("Lesson line", line, new Rect(body.xMax - pad - inner, body.yMax - pad - text, inner, text), size,
                 SkinTokens.TextOnPrimary, overlay, SkinUi.Type.Caption, TextAlignmentOptions.TopLeft);
             label.lineSpacing = SkinUi.LineSpacing(label.font, HudLayout.BubbleLeading); label.raycastTarget = false;
             if (skip)
@@ -211,7 +246,7 @@ namespace ZKube.Presentation
         private void Clear()
         {
             if (overlay != null) foreach (Transform child in overlay.Cast<Transform>().ToArray()) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
-            glows.Clear(); said.Clear(); bubbles.Clear(); hand = null; Pointing = null;
+            glows.Clear(); said.Clear(); bubbles.Clear(); pulsed.Clear(); hand = null; Pointing = null;
         }
         private void OnDestroy() { if (canvas != null) Destroy(canvas.gameObject); }
     }
