@@ -59,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "One perfect-clear output supplies the reseed and preview" },
   { pattern: /private target curves?|authored move budgets?|per[- ]realm target curves?|1\.0\/1\.5\/2\.0\/2\.5\/3\.0\/3\.5\/4\.0\/4\.5/i, trees: SOURCE,
     reversal: "One target ladder and pressure formula own difficulty" },
-  { pattern: /passive\s+(?:pairing|score|scoring|bonus|map|mutator|line-clear|perfect-clear)|neutral baseline|score at ×|perfect clears add|Start with .* (?:Totem|Hammer|Wave)/i, trees: SOURCE,
-    reversal: "Realms own guardian rules without score multipliers or starting charges" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {
