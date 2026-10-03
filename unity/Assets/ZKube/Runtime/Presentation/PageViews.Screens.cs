@@ -44,6 +44,20 @@ namespace ZKube.Presentation
             return kit.Buttons(items.Select(item => (item.action.Name ?? item.action.Label, item.action.Label, actions.Click(item.action), item.kind, item.icon))
                 .ToArray(), (i, button, text) => actions.Bind(button, items[i].action, relabel: value => text.text = value), shorter: items.Select(item => item.action.Short).ToArray());
         }
+        // The owner (2026-10-03): on a level's preview and every result the
+        // guardian is the hero, growing into the screen's free room up to this.
+        private const float HeroGuardianU = 260;
+        // Its title plate stays narrower than the guardian as it will draw:
+        // the screen is measured with the plain title, then titled within 90%
+        // of the guardian's width. A compact phone keeps the column.
+        private Piece[] HeroTitled(List<Piece> pieces, Func<float?, Piece> title, float guardianU)
+        {
+            int at = pieces.FindIndex(piece => piece.Height >= 0), hero = pieces.FindIndex(piece => piece.Stretch > 0);
+            pieces[at] = title(null);
+            if (hero >= 0 && Kit.Step(1, 0) != 0)
+                pieces[at] = title(.9f * Kit.HeroWidth(guardianU, pieces[hero], Kit.Spare(pieces.ToArray())));
+            return pieces.ToArray();
+        }
         private static byte RealmBonus(byte realm) => (byte)Protocol.Realms.Single(value => value.MapId == realm).GuardianAndHeight[0];
         // A tag (.tag): its words in the caption face at 11u on a pill of its
         // token's light, padded 2u by 8u. "New best!" is the gold one.
@@ -81,12 +95,13 @@ namespace ZKube.Presentation
                 rule.description, "Earns a " + HudLayout.BonusName(bonus), null, true));
             var sockets = new Image[3];
             var line = LevelLine(realm.guardianLines, value.Level).Line;
-            var pieces = new List<Piece> { Piece.Grow, kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName),
-                kit.Crown(new bool[3], Step(38, 30), sockets), kit.GuardianCard("talk-open", line, Step(170, 118), kit.Card(null, rows)) };
+            var pieces = new List<Piece> { Piece.Grow, default,
+                kit.Crown(new bool[3], Step(38, 30), sockets), kit.GuardianCard("talk-open", line, Step(170, 118), kit.Card(null, rows), HeroGuardianU) };
             if (!string.IsNullOrEmpty(value.Notice)) pageNotices = pageNotices.Append(value.Notice).ToArray();
             pieces.Add(Piece.Grow);
             pieces.Add(Buttons(kit, (value.Play, ScreenKit.Kind.Primary, SkinSlots.IconPlay)));
-            Compose(pieces.ToArray());
+            Compose(HeroTitled(pieces, room => kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName, room: room, sizeDp: kit.HeroTitleDp),
+                Step(170, 118)));
             // The close (.x3): 40u (48 dp at least), 12u in from the right, hanging from the page's edge.
             if (value.Back != null)
             {
@@ -153,11 +168,12 @@ namespace ZKube.Presentation
             var buttons = Buttons(kit, (first, ScreenKit.Kind.Primary, stars > 0 ? SkinSlots.IconPlay : SkinSlots.IconRetry),
                 (second, ScreenKit.Kind.Secondary, second == value.Retry ? SkinSlots.IconRetry : SkinSlots.IconMap));
             RectTransform finish = null;
-            Compose(Piece.Grow, kit.Title(title, subtitle, good ? SkinTokens.Positive : SkinTokens.Negative, icon),
+            Compose(HeroTitled(new List<Piece> { Piece.Grow, default,
                 kit.Crown(lit, Step(54, 40), sockets),
-                kit.GuardianCard(frame, talk.Line, Step(156, 112), kit.Card(null, rows)),
+                kit.GuardianCard(frame, talk.Line, Step(156, 112), kit.Card(null, rows), HeroGuardianU),
                 Piece.Grow,
-                new Piece(buttons.Height, rect => finish = Group("Result actions", shell.Page, () => buttons.Draw(rect))));
+                new Piece(buttons.Height, rect => finish = Group("Result actions", shell.Page, () => buttons.Draw(rect))) },
+                room => kit.Title(title, subtitle, good ? SkinTokens.Positive : SkinTokens.Negative, icon, room, kit.HeroTitleDp), Step(156, 112)));
             if (!string.IsNullOrEmpty(value.Notice))
             {
                 var note = kit.Note(value.Notice);
@@ -241,7 +257,7 @@ namespace ZKube.Presentation
             float plateWidth = 32 * u + spark + 8 * u + scoreWidth + (best.HasValue ? 8 * u + best.Value.Width : 0);
             float plateHeight = 12 * u + Mathf.Max(spark, scoreDp * ui.Scale * ui.Density);
             var pieces = new List<Piece> { Piece.Grow,
-                kit.Title(value.Arcade ? "Daily run complete" : "Daily complete", DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName),
+                default,
                 new Piece(plateHeight, rect => {
                     var plate = new Rect(rect.center.x - plateWidth / 2, rect.y, plateWidth, rect.height);
                     ui.Piece("Score plate", SkinSlots.Card, plate, shell.Page);
@@ -253,7 +269,7 @@ namespace ZKube.Presentation
                     total.textWrappingMode = TextWrappingModes.NoWrap;
                     if (best.HasValue) best.Value.Draw(new Rect(x + scoreWidth + 8 * u, plate.center.y - best.Value.Height / 2, best.Value.Width, best.Value.Height));
                 }),
-                kit.GuardianCard(line.Mood == "surprised" || line.Mood == "celebrate" ? "satisfied" : line.Mood, line.Line, Step(156, 112), kit.Card(null, rows)) };
+                kit.GuardianCard(line.Mood == "surprised" || line.Mood == "celebrate" ? "satisfied" : line.Mood, line.Line, Step(156, 112), kit.Card(null, rows), HeroGuardianU) };
             if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(kit.Note(value.Notice));
             if (value.NextOpensAt > 0 && value.Now != null)
             {
@@ -271,7 +287,8 @@ namespace ZKube.Presentation
                     objective ?? "Score only", value.ObjectiveTotal, value.Score, value.Streak), "Share");
             pieces.Add(Buttons(kit, (value.Done, ScreenKit.Kind.Primary, SkinSlots.IconPlay), (share, ScreenKit.Kind.Secondary, SkinSlots.IconShare),
                 (value.Leaderboard, ScreenKit.Kind.Quiet, SkinSlots.IconTrophy)));
-            Compose(pieces.ToArray());
+            Compose(HeroTitled(pieces, room => kit.Title(value.Arcade ? "Daily run complete" : "Daily complete", DayLabel(value.Day) + " · " + realm.realmName + " · " + realm.guardianName,
+                room: room, sizeDp: kit.HeroTitleDp), Step(156, 112)));
         }
         private static string UsedLine(long seconds) => "Today’s attempt is used. Next Daily in " + DayClock(seconds) + ".";
     }

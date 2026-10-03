@@ -27,7 +27,10 @@ namespace ZKube.Presentation
             public readonly Action<Rect> Draw;
             // How far it draws above its box (a title plate's outset).
             public readonly float Above;
-            public Piece(float height, Action<Rect> draw, float above = 0) { Height = height; Draw = draw; Above = above; }
+            // How much taller it may draw when the screen has room to spare;
+            // spacers take what is left.
+            public readonly float Stretch;
+            public Piece(float height, Action<Rect> draw, float above = 0, float stretch = 0) { Height = height; Draw = draw; Above = above; Stretch = stretch; }
             public static readonly Piece Grow = new Piece(-1, null);
         }
         // What a row holds on its right: its size and how it draws.
@@ -114,16 +117,30 @@ namespace ZKube.Presentation
 
         // Lays the pieces down the column; spacers take an equal share of what
         // is left. Returns the column, from the bottom of its last piece up.
+        // The room Compose would leave over these pieces, before stretching and spacers.
+        public float Spare(params Piece[] pieces)
+        {
+            float top = Edge - pieces.Where(piece => piece.Height >= 0).Select(piece => piece.Above).FirstOrDefault();
+            float taken = pieces.Where(piece => piece.Height >= 0).Sum(piece => piece.Height) + 10 * U * (pieces.Length - 1);
+            return Mathf.Max(0, top - bottom - taken);
+        }
+        // How wide a hero guardian card of sizeU draws when the screen leaves it spare room.
+        public float HeroWidth(float sizeU, Piece guardian, float spare) => sizeU * U + Mathf.Min(guardian.Stretch, spare) / Ui.Art.GuardianRailY;
         public Rect Compose(params Piece[] pieces)
         {
             float u = U, left = Safe.center.x - width / 2, gap = 10 * u;
             float top = Edge - pieces.Where(piece => piece.Height >= 0).Select(piece => piece.Above).FirstOrDefault();
             float taken = pieces.Where(piece => piece.Height >= 0).Sum(piece => piece.Height) + gap * (pieces.Length - 1);
             int spacers = pieces.Count(piece => piece.Height < 0);
-            float spare = Mathf.Max(0, top - bottom - taken) / Mathf.Max(1, spacers), y = top;
-            foreach (var piece in pieces)
+            float leftOver = Mathf.Max(0, top - bottom - taken);
+            var grown = new float[pieces.Length];
+            for (int i = 0; i < pieces.Length; i++)
+                if (pieces[i].Height >= 0) { grown[i] = Mathf.Min(pieces[i].Stretch, leftOver); leftOver -= grown[i]; }
+            float spare = leftOver / Mathf.Max(1, spacers), y = top;
+            for (int i = 0; i < pieces.Length; i++)
             {
-                float height = piece.Height < 0 ? spare : piece.Height;
+                var piece = pieces[i];
+                float height = piece.Height < 0 ? spare : piece.Height + grown[i];
                 piece.Draw?.Invoke(new Rect(left, y - height, width, height));
                 y -= height + gap;
             }
@@ -141,20 +158,27 @@ namespace ZKube.Presentation
         }
         public Piece Space(float heightU) => new Piece(heightU * U, null);
 
-        // A title too wide for its room shrinks toward 20u before it wraps.
-        public float TitleFit(string title, float room)
+        // A title too wide for its room shrinks toward 20u before it wraps,
+        // 2% under the room so rounding never wraps a line that just fits.
+        public float TitleFit(string title, float room, float? sizeDp = null)
         {
-            float wide = TextWidth(title, TitleDp, SkinUi.Type.Display);
-            return wide > room ? Mathf.Max(20 * K, TitleDp * room / wide) : TitleDp;
+            float size = sizeDp ?? TitleDp, wide = TextWidth(title, size, SkinUi.Type.Display);
+            return wide > room ? Mathf.Max(Mathf.Min(20 * K, size), .98f * size * room / wide) : size;
         }
+        // A screen whose guardian is its hero (a level's preview, a result)
+        // titles it smaller, under the guardian's size.
+        public float HeroTitleDp => 18 * K;
         // A screen's title (.t3): the 28u title at 1.05 and the subtitle under it
         // 2u down at 1.3, centred; the plate is drawn 6u outside the words, so
         // the layout keeps the wireframe's box.
         public const float PlateOutsetU = 6;
-        public Piece Title(string title, string subtitle, string subtitleToken = SkinTokens.TextMuted, string icon = null, float? room = null)
+        public Piece Title(string title, string subtitle, string subtitleToken = SkinTokens.TextMuted, string icon = null, float? room = null, float? sizeDp = null)
         {
-            float u = U, space = Mathf.Min(room ?? float.PositiveInfinity, width) - 32 * u, iconSize = icon == null ? 0 : 30 * u, lead = icon == null ? 0 : iconSize + 6 * u;
-            float titleDp = TitleFit(title, space - lead);
+            float u = U, iconSize = icon == null ? 0 : 30 * u, lead = icon == null ? 0 : iconSize + 6 * u;
+            // A room the title cannot keep to one line in, even at its 20u floor, is not taken.
+            if (room.HasValue && TextWidth(title, Mathf.Min(20 * K, sizeDp ?? TitleDp), SkinUi.Type.Display) + lead + 32 * u > .98f * room.Value) room = null;
+            float space = Mathf.Min(room ?? float.PositiveInfinity, width) - 32 * u;
+            float titleDp = TitleFit(title, space - lead, sizeDp);
             float titleWidth = Mathf.Min(space, TextWidth(title, titleDp, SkinUi.Type.Display) + lead);
             float subtitleWidth = subtitle == null ? 0 : Mathf.Min(space, TextWidth(subtitle, SubtitleDp, SkinUi.Type.Caption));
             float inner = Mathf.Max(titleWidth, subtitleWidth);
@@ -346,21 +370,28 @@ namespace ZKube.Presentation
 
         // The guardian over its card (.gw then .card3): the c-wide canvas stands
         // over the card's top by its own rail line, which rests there, the paws
-        // drawn over the card's edge, its line in a bubble beside its head.
-        public Piece GuardianCard(string frame, string line, float sizeU, Piece card)
+        // drawn over the card's edge, its line in a bubble beside its head. As
+        // a screen's hero it grows from sizeU into the room the screen has to
+        // spare, up to heroU and as wide as leaves its bubble room beside it.
+        public Piece GuardianCard(string frame, string line, float sizeU, Piece card, float heroU = 0)
         {
-            float u = U, c = sizeU * u, above = Ui.Art.GuardianRailY * c;
-            return new Piece(above + card.Height, rect => {
+            float u = U, rail = Ui.Art.GuardianRailY, least = sizeU * u, most = Mathf.Max(least, HeroGuardian(heroU));
+            return new Piece(rail * least + card.Height, rect => {
+                float c = Mathf.Clamp((rect.height - card.Height) / rail, least, most);
                 var cardRect = new Rect(rect.x, rect.y, rect.width, card.Height);
-                var canvas = new Rect(rect.center.x - c / 2, rect.yMax - c, c, c);
+                var canvas = new Rect(rect.center.x - c / 2, cardRect.yMax - (1 - rail) * c, c, c);
                 var body = Ui.Rect<Image>("Screen guardian", canvas, Parent);
                 body.preserveAspect = true; body.raycastTarget = false; SkinUi.GuardianFrame(Ui.Art, body, frame);
                 card.Draw(cardRect);
                 var paws = Ui.Rect<Image>("Screen guardian paws", canvas, Parent);
                 paws.sprite = Ui.Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;
                 if (line != null) Bubble(line, canvas, c, cardRect.yMax);
-            });
+            }, 0, (most - least) * rail);
         }
+        // The widest a hero guardian may grow: up to heroU, and no wider than
+        // leaves its bubble's 122u beside it, from 0.8c of a centred canvas to
+        // 4u in from the safe edge.
+        public float HeroGuardian(float heroU) => Mathf.Min(heroU * U, (Safe.xMax - 4 * U - 122 * U - Safe.center.x) / .3f);
         public const float TailDp = 15;
         // The guardian's line (.bub): 122u wide, 0.8c from the canvas's left and
         // 0.06c down, padded 8u by 10u, 12.5u at 1.25, its tail toward the head.

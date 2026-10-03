@@ -925,6 +925,57 @@ namespace ZKube.Tests
                 Assert.That(Buttons().Any(button => button.name == "Share"), Is.False, title + ": no Share on Campaign");
             }
         }
+        // The owner (2026-10-03): on a level's preview, every Campaign result
+        // and the Daily result the guardian is the hero: larger than the title
+        // plate, grown into the free room, still leaning on its card with its
+        // bubble beside it on screen; no scrolling
+        // at the emulator default or the Seeker.
+        [UnityTest] public IEnumerator TheGuardianIsTheHeroOfThePreviewAndEveryResult()
+        {
+            var level = Protocol.Realms[0].Levels[0];
+            var goals = new CampaignGoals { Points = Protocol.CampaignTargets[0], PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1],
+                PrimaryCount = level.Primary[2], SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] };
+            var shell = app.GetComponent<PageShell>();
+            void Hero(string at, bool scrolls)
+            {
+                Canvas.ForceUpdateCanvases();
+                Rect Of(string name) => SkinUi.ScreenRect(app.GetComponentsInChildren<Image>().Single(image => image.name == name).rectTransform);
+                var guardian = Of("Screen guardian"); var plate = Of("Screen title plate"); var bubble = Of("Guardian bubble");
+                // A compact phone has no room to spare; it may scroll and keeps its guardian's former size.
+                if (!scrolls) Assert.That(plate.width, Is.LessThan(guardian.width), at + ": the title plate is smaller than the guardian");
+                Assert.That(bubble.xMin >= shell.SafeArea.xMin - .5f && bubble.xMax <= shell.SafeArea.xMax + .5f, Is.True, at + ": the bubble stays on screen");
+                Assert.That(bubble.xMin, Is.GreaterThan(guardian.center.x), at + ": the bubble stands beside the guardian's head");
+                if (!scrolls) Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Viewport.rect.height + 1), at + ": nothing scrolls");
+            }
+            foreach (var (phone, name, scrolls) in new (System.Action<PageShell>, string, bool)[] {
+                (value => ZKube.Tests.Presentation.Phones.Compact(value), "360 x 640", true),
+                (value => ZKube.Tests.Presentation.Phones.EmulatorDefault(value), "emulator default", false),
+                (value => ZKube.Tests.Presentation.Phones.Seeker(value), "Seeker", false) })
+            {
+                phone(shell);
+                try
+                {
+                    app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
+                    app.Flow.Preview(1); yield return Page(StorePage.Level);
+                    Hero(name + " preview", scrolls);
+                    foreach (var (reason, stars, moves) in new[] { ((byte)3, (byte)0, 4u), ((byte)2, (byte)1, 0u), ((byte)2, (byte)3, 6u), ((byte)2, (byte)0, 0u), ((byte)1, (byte)7, 3u) })
+                    {
+                        app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = stars, EndReason = reason, MovesLeft = moves, Goals = goals });
+                        yield return Page(StorePage.Result);
+                        foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                        yield return null;
+                        Hero(name + " result " + reason + "/" + stars, scrolls);
+                    }
+                    product.Write(state => { state.DailyAttempt = new LocalDailyAttempt { DayId = runs.Today().DayId, DailyScore = 840, ObjectiveTotal = 13, Tier = 4, Finished = true }; return state; });
+                    app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
+                    Click(app, "View result"); yield return Page(StorePage.Result);
+                    yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                    Hero(name + " Daily result", scrolls);
+                    product.Write(state => { state.DailyAttempt = null; return state; });
+                }
+                finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+            }
+        }
         // The preview and every Campaign result, as the v3 wireframes draw them
         // for Tiki 1, on the Seeker and a 360 x 640 phone in their safe areas:
         // every text inside its rect and the screen, the pieces apart, and 48 dp

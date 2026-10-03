@@ -180,6 +180,10 @@ namespace ZKube.Tests.Presentation
                 if (page.StartsWith("greet")) Match(page, pieces, shell.ScreenArea, 1.1f, "guardians", "talk");
                 // The platform account names the player (DECISIONS 2026-10-02): the wireframe's quiet button is gone.
                 else if (page == "profile") Match(page, pieces, shell.ScreenArea, 1.1f, "titles", "cards", "stats", "tabs");
+                // The owner (2026-10-03) over the wireframe: on a level's preview and the results the
+                // guardian is the hero, grown into the free room under a smaller title, so only their
+                // actions and tabs keep the wireframe's places.
+                else if (page == "preview" || page.StartsWith("res") || page == "dres") Match(page, pieces, shell.ScreenArea, 1.1f, "primaries", "quiet", "tabs");
                 else Match(page, pieces, shell.ScreenArea, 1.1f);
             }
             source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
