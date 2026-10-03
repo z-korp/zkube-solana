@@ -17,7 +17,7 @@ use ephemeral_rollups_sdk::anchor::ephemeral;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd");
+declare_id!("Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx");
 
 #[ephemeral]
 #[program]

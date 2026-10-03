@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/solana.json`.
  */
 export type Solana = {
-  "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd",
+  "address": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx",
   "metadata": {
     "name": "solana",
     "version": "0.1.0",
@@ -844,38 +844,38 @@ export type Solana = {
             "program": {
               "kind": "const",
               "value": [
-                192,
-                239,
-                223,
-                189,
-                129,
-                90,
-                221,
-                244,
-                43,
-                175,
-                103,
-                74,
-                250,
-                80,
-                216,
-                222,
-                183,
-                107,
+                203,
+                108,
+                95,
+                118,
+                32,
+                203,
+                152,
+                6,
+                135,
+                177,
                 122,
-                17,
-                194,
-                162,
-                97,
-                121,
-                40,
-                92,
-                223,
-                48,
-                145,
-                250,
-                214,
-                224
+                94,
+                45,
+                116,
+                169,
+                251,
+                83,
+                205,
+                9,
+                201,
+                91,
+                134,
+                2,
+                93,
+                242,
+                18,
+                114,
+                193,
+                105,
+                60,
+                176,
+                63
               ]
             }
           }
@@ -957,7 +957,7 @@ export type Solana = {
         },
         {
           "name": "ownerProgram",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+          "address": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx"
         },
         {
           "name": "delegationProgram",
@@ -1800,7 +1800,7 @@ export type Solana = {
         },
         {
           "name": "program",
-          "address": "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+          "address": "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx"
         },
         {
           "name": "programData"

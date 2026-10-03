@@ -7,10 +7,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana = "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+solana = "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx"
 
 [programs.devnet]
-solana = "Dz9RaTXpp4vadhBS6oT3RPLjqTT4M4RVwfpowjumSJyd"
+solana = "Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx"
 
 [provider]
 cluster = "devnet"
