@@ -32,6 +32,8 @@ namespace ZKube.Local
         public CampaignOutcome Last { get; private set; }
         // A run's accepted progress could not be saved.
         public bool Unsaved => unsaved || current?.PersistenceFailure != null;
+        // The level to play is the first one, never starred: its run is guided.
+        public bool FirstRun => Realm == 1 && Level == 1 && LevelStars(1, 1) == 0;
 
         public CampaignJourney(LocalProductStore product, LocalRunClient runs, Action<AppPage> show, Action<LocalBoardActionProvider> openBoard,
             Func<bool> identityCurrent = null, Action resultSaved = null)

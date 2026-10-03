@@ -43,7 +43,7 @@ namespace ZKube.Integration.Presentation
         {
             if (runBoard == null) { runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(); }
             var journey = campaign;
-            runBoard.Open(provider.Bind(), () => journey.Unsaved, journey.Finished, journey.Left);
+            runBoard.Open(provider.Bind(), () => journey.Unsaved, journey.Finished, journey.Left, journey.FirstRun);
             HidePages();
         }
         private void CloseCampaignView() { campaignPage = null; campaign?.Forget(); }

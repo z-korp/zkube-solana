@@ -19,6 +19,8 @@ namespace ZKube.Tests.Presentation
     // line too: it shrinks, then takes its shorter words.
     public sealed class PageNumberTests
     {
+        // Every lesson is taught: these pages are measured without a lesson over them.
+        [SetUp] public void TaughtEveryLesson() => Lessons.Device = Lessons.Memory(taught: true);
         private sealed class Largest : IAppPageSource
         {
             public byte Kind, Value;

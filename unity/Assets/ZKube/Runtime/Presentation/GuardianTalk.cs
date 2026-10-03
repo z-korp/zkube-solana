@@ -11,17 +11,18 @@ namespace ZKube.Presentation
     // The moments a guardian speaks, each with its authored line and mood.
     public enum TalkMoment { Greeting, Passage, Daily, TrialIntro, Win, Ended, GuardianDefeated, NewBest }
 
-    // One page of dialogue: the line and the face the guardian rests on after
-    // it; or the rule page, which shows the guardian's Earn panel at size (the
-    // trigger's pictogram, an arrow and the bonus), the rule and its effect.
+    // One page of dialogue: the line, the face the guardian rests on after it
+    // and a lesson's card shown over the scene (a skin slot, or none); or the
+    // rule page, which shows the guardian's Earn panel at size (the trigger's
+    // pictogram, an arrow and the bonus), the rule and its effect.
     public sealed class TalkPage
     {
-        public string Line, Mood;
+        public string Line, Mood, Picture;
         public PageCatalog.GuardianRule Rule;
-        public TalkPage(string line, string mood)
+        public TalkPage(string line, string mood, string picture = null)
         {
             if (string.IsNullOrWhiteSpace(line)) throw new ArgumentException("A guardian page needs a line", nameof(line));
-            Line = line; Mood = mood ?? "idle";
+            Line = line; Mood = mood ?? "idle"; Picture = picture;
         }
         private TalkPage(PageCatalog.GuardianRule rule) { Rule = rule ?? throw new ArgumentNullException(nameof(rule)); Mood = "idle"; }
         public static TalkPage RulePage(PageCatalog.GuardianRule rule) => new TalkPage(rule);
@@ -78,6 +79,9 @@ namespace ZKube.Presentation
         private float nextLetter, flapUntil, nextBlink, blinkUntil;
         private int flap;
         public int Page => page;
+        public TalkPage Current => pages[page];
+        // Each page as it opens, the first one included.
+        public event Action<TalkPage> Opened;
         public bool Typing { get; private set; }
         public string Face { get; private set; }
         public string Shown => line.text.Substring(0, Mathf.Min(shown, line.text.Length));
@@ -119,6 +123,7 @@ namespace ZKube.Presentation
             if (AppPreferences.ReducedMotion || ruled) Complete();
             else Show(Flaps[0]);
             line.maxVisibleCharacters = shown;
+            Opened?.Invoke(current);
         }
 
         // Shows the whole line and rests on the page's mood.

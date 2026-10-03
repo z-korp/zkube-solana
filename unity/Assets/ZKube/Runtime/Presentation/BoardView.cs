@@ -23,6 +23,8 @@ namespace ZKube.Presentation
         private SkinUi ui;
         public float TextScale => hud.Scale;
         public HudLayout Hud => hud;
+        // The skin kit the HUD is drawn from, for pieces drawn over the board (the guardian's lessons).
+        public SkinUi Kit => ui;
         public bool NeedsTextReflow { get; private set; }
         private Canvas canvas;
         private Transform boardRoot;
@@ -1310,6 +1312,7 @@ namespace ZKube.Presentation
         // its progress, beside the plate with the tail pointing at it. The next
         // touch anywhere closes it.
         public bool BubbleOpen => bubble != null;
+        public bool ModalOpen => modal != null;
         public void OpenBubble(int index)
         {
             if (bubble != null || plates[index] == null || owner.Session == null) return;

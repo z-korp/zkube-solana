@@ -23,6 +23,8 @@ namespace ZKube.Tests.Presentation
     // wireframe-geometry.json. Every card is centred with equal gutters.
     public sealed class WireframeGeometryTests
     {
+        // Every lesson is taught: these pages are measured without a lesson over them.
+        [SetUp] public void TaughtEveryLesson() => Lessons.Device = Lessons.Memory(taught: true);
         public const float Tolerance = 4;
         private sealed class Wireframe : IAppPageSource
         {

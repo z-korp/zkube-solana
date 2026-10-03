@@ -21,11 +21,14 @@ namespace ZKube.Tests.MoneyOverview
     public sealed partial class MoneyOverviewTests
     {
         // The Campaign journey under each identity, as the player sees it: every
-        // change of page, talk scene, board, board dialog and menu music is one
-        // line, in order, and each step says whether a page left and art loaded.
+        // change of page, talk scene, board, board dialog, the guardian's board
+        // lesson and menu music is one line, in order, and each step says whether a
+        // page left and art loaded. The guided first run is taught in both.
         [UnityTest] public IEnumerator TheCampaignJourneyIsTheSameUnderBothIdentityImplementations()
         {
+            int taught = ~(1 << (int)Lesson.GuidedRun);
             if (EventSystem.current == null) input = new GameObject("Journey test input", typeof(EventSystem), typeof(StandaloneInputModule));
+            Lessons.Device = new Lessons(() => taught, value => taught = value);
             var realms = new List<string>();
             var local = new GameObject("Store journey");
             CampaignBilling billing = null;
@@ -43,7 +46,9 @@ namespace ZKube.Tests.MoneyOverview
             yield return null;
 
             var arena = new List<string>();
-            yield return PrepareScenario("campaign-playable"); Click("Connect"); yield return Idle();
+            yield return PrepareScenario("campaign-playable");
+            taught = ~(1 << (int)Lesson.GuidedRun); Lessons.Device = new Lessons(() => taught, value => taught = value);
+            Click("Connect"); yield return Idle();
             var money = host.GetComponent<MoneyIdentity>().Controller;
             yield return Journey("arena", money, host, arena, () => environment.Services.Campaign(environment.Owner).Runs.StartCampaign(1, 1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -161,8 +166,10 @@ namespace ZKube.Tests.MoneyOverview
             string dialog = board?.View == null ? "" : string.Join("+", board.View.GetComponentsInChildren<Button>()
                 .Where(button => button.gameObject.activeInHierarchy && button.name.StartsWith("Dialog ")).Select(button => button.name.Substring(7)));
             bool talk = scope.GetComponentsInChildren<GuardianTalk>().Any(value => value.isActiveAndEnabled);
+            var coach = scope.GetComponentInChildren<BoardCoach>();
+            string lesson = coach == null || board == null || coach.Said.Count == 0 ? "" : " lesson=" + string.Join("|", coach.Said);
             return "  page=" + page + (talk ? " talk" : "") +
-                " board=" + (board == null ? "off" : "on") + (dialog.Length == 0 ? "" : " dialog=" + dialog) + " music=" + (views.MenuMusic.isPlaying ? "on" : "off");
+                " board=" + (board == null ? "off" : "on") + (dialog.Length == 0 ? "" : " dialog=" + dialog) + lesson + " music=" + (views.MenuMusic.isPlaying ? "on" : "off");
         }
         private static IEnumerable<Button> Active(GameObject scope) =>
             scope.GetComponentsInChildren<Button>().Where(button => button.gameObject.activeInHierarchy && button.interactable);

@@ -23,6 +23,8 @@ namespace ZKube.Tests.MoneyOverview
         private TextAsset solana, session;
         private MoneyTestEnvironment environment;
         private HeldCall delay;
+        // Every lesson is taught unless a test asks for one; the device's own record is never touched.
+        [SetUp] public void TaughtEveryLesson() => Lessons.Device = Lessons.Memory(taught: true);
         [UnityTearDown] public IEnumerator Cleanup()
         {
             delay?.Release();

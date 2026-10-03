@@ -202,7 +202,7 @@ namespace ZKube.Local.App
             if (provider.Daily)
                 runBoard.Open(provider.Bind(new DailyContext { Best = Flow.Product.Read.BestDailyScore, ClosesAt = Flow.Today.FreezesAt, Now = Flow.Runs.Now }),
                     () => Flow.Unsaved, _ => Flow.LeaveDaily(), Flow.LeaveDaily);
-            else runBoard.Open(provider.Bind(), () => Flow.Unsaved, Flow.Campaign.Finished, Flow.Campaign.Left);
+            else runBoard.Open(provider.Bind(), () => Flow.Unsaved, Flow.Campaign.Finished, Flow.Campaign.Left, Flow.Campaign.FirstRun);
             if (pageRoot != null) pageRoot.SetActive(false);
             // The page that opened the board is not shown again on the way back.
             views.Hide();

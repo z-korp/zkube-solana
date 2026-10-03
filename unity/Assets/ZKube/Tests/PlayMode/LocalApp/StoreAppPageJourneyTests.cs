@@ -19,7 +19,7 @@ using ZKube.Presentation;
 
 namespace ZKube.Tests
 {
-    public sealed class StoreAppPageJourneyTests
+    public sealed partial class StoreAppPageJourneyTests
     {
         // The platform's player accounts, as a test sets them: signed out until Player is set.
         private sealed class Accounts : IPlayerAccounts
@@ -65,6 +65,8 @@ namespace ZKube.Tests
 
         [UnitySetUp] public IEnumerator SetUp()
         {
+            // Every lesson is taught unless a test asks for one; the device's own record is never touched.
+            Lessons.Device = Lessons.Memory(taught: true);
             root = new GameObject("Isolated store page journey");
             if (EventSystem.current == null)
                 new GameObject("Shared test EventSystem", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);

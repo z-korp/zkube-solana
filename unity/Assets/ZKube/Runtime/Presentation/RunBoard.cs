@@ -17,6 +17,8 @@ namespace ZKube.Presentation
         // Over the board it is a banner; on a page it is one of the page's notices, at the bottom.
         public const string UnsavedWarning = "Progress is not saved. Keep the app open; closing it may lose this result.";
         public BoardController Board { get; private set; }
+        // The guardian teaching on this board.
+        public BoardCoach Coach { get; private set; }
         public bool Playing => Board != null && Board.gameObject.activeSelf;
         private Func<bool> unsaved;
         private Action<CampaignOutcome> finished;
@@ -45,11 +47,12 @@ namespace ZKube.Presentation
             Board = board;
             Board.Host = new BoardHostHooks { Exit = Exit, Terminal = Terminal };
             Board.gameObject.SetActive(false);
+            Coach = gameObject.AddComponent<BoardCoach>(); Coach.Initialize(board);
         }
 
         // Plays session; finished receives the run's outcome, left is called when
-        // the board is left without one.
-        public void Open(BoardSession session, Func<bool> unsavedProgress, Action<CampaignOutcome> finishedRun, Action leftRun)
+        // the board is left without one. The first run of the first level is guided.
+        public void Open(BoardSession session, Func<bool> unsavedProgress, Action<CampaignOutcome> finishedRun, Action leftRun, bool firstRun = false)
         {
             if (Board == null)
             {
@@ -59,11 +62,13 @@ namespace ZKube.Presentation
             StopOutcome();
             unsaved = unsavedProgress; finished = finishedRun; left = leftRun;
             Board.gameObject.SetActive(true); Board.Bind(session);
+            Coach.Begin(firstRun);
         }
         // Hides the board without leaving to a page: its identity is gone.
         public void Close()
         {
             StopOutcome(); unsaved = null; finished = null; left = null;
+            if (Coach != null) Coach.Stop();
             if (Board != null) Board.gameObject.SetActive(false);
             if (warningRoot != null) warningRoot.SetActive(false);
         }
