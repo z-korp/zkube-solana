@@ -13,24 +13,26 @@ namespace ZKube.Presentation
         public byte Id { get; }
         public ProfileEmblemKind Kind { get; }
         public byte Realm { get; }
-        public string Name { get; }
-        public ProfileEmblemDefinition(byte id, ProfileEmblemKind kind, byte realm, string name)
-        { Id = id; Kind = kind; Realm = realm; Name = name; }
+        private readonly string name;
+        // A guardian's emblem carries its guardian's name, from the catalog that names it.
+        public string Name => Kind == ProfileEmblemKind.Guardian ? PageCatalog.Load().Realm(Realm).guardianName : name;
+        public ProfileEmblemDefinition(byte id, ProfileEmblemKind kind, byte realm, string name = null)
+        { Id = id; Kind = kind; Realm = realm; this.name = name; }
     }
     public static class ProfileEmblems
     {
         public static readonly IReadOnlyList<ProfileEmblemDefinition> All = System.Array.AsReadOnly(new[] {
             new ProfileEmblemDefinition(0, ProfileEmblemKind.Automatic, 0, "Automatic"),
-            new ProfileEmblemDefinition(1, ProfileEmblemKind.Guardian, 1, "Mako"),
-            new ProfileEmblemDefinition(2, ProfileEmblemKind.Guardian, 2, "Sobek"),
-            new ProfileEmblemDefinition(3, ProfileEmblemKind.Guardian, 3, "Fenris"),
-            new ProfileEmblemDefinition(4, ProfileEmblemKind.Guardian, 4, "Noctua"),
-            new ProfileEmblemDefinition(5, ProfileEmblemKind.Guardian, 5, "Long"),
-            new ProfileEmblemDefinition(6, ProfileEmblemKind.Guardian, 6, "Lamassu"),
-            new ProfileEmblemDefinition(7, ProfileEmblemKind.Guardian, 7, "Kitsune"),
-            new ProfileEmblemDefinition(8, ProfileEmblemKind.Guardian, 8, "Balam"),
-            new ProfileEmblemDefinition(9, ProfileEmblemKind.Guardian, 9, "Mamba"),
-            new ProfileEmblemDefinition(10, ProfileEmblemKind.Guardian, 10, "Kuntur"),
+            new ProfileEmblemDefinition(1, ProfileEmblemKind.Guardian, 1),
+            new ProfileEmblemDefinition(2, ProfileEmblemKind.Guardian, 2),
+            new ProfileEmblemDefinition(3, ProfileEmblemKind.Guardian, 3),
+            new ProfileEmblemDefinition(4, ProfileEmblemKind.Guardian, 4),
+            new ProfileEmblemDefinition(5, ProfileEmblemKind.Guardian, 5),
+            new ProfileEmblemDefinition(6, ProfileEmblemKind.Guardian, 6),
+            new ProfileEmblemDefinition(7, ProfileEmblemKind.Guardian, 7),
+            new ProfileEmblemDefinition(8, ProfileEmblemKind.Guardian, 8),
+            new ProfileEmblemDefinition(9, ProfileEmblemKind.Guardian, 9),
+            new ProfileEmblemDefinition(10, ProfileEmblemKind.Guardian, 10),
             new ProfileEmblemDefinition(11, ProfileEmblemKind.Realm, 0, "Realm Conqueror"),
             new ProfileEmblemDefinition(12, ProfileEmblemKind.World, 0, "World Perfect")
         });
