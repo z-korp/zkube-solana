@@ -508,21 +508,21 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
     }
     // Focused presentation evidence starts from validated snapshots. The prior
     // counters are explicit setup, not a claimed opening-to-action history.
-    // All three use Balam's published guardian and height, with protocol themes.
-    let balam = catalog
+    // All three use the Mayan realm's published guardian and height, with protocol themes.
+    let mayan = catalog
         .maps
         .iter()
         .find(|map| map.map_id == 8)
-        .ok_or("missing published Balam realm")?;
-    let balam_rules = campaign_rules(balam, 1, balam.levels[0])?;
-    if balam_rules.guardian
+        .ok_or("missing published Mayan realm")?;
+    let mayan_rules = campaign_rules(mayan, 1, mayan.levels[0])?;
+    if mayan_rules.guardian
         != (Guardian {
             bonus: Bonus::Totem,
             trigger: 1,
             threshold: 3,
         })
     {
-        return Err("Balam evidence requires its published three-line Totem trigger".into());
+        return Err("Mayan evidence requires its published three-line Totem trigger".into());
     }
     let before_pressure = zkube_core::PRESSURE_STEP
         .checked_sub(1)
@@ -531,7 +531,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
         u16::try_from(before_pressure).map_err(|_| "pressure evidence move count exceeds u16")?;
     for (name, lines, theme, moves, score, prior_lines, prior_combo, gain, combo, charges, tier) in [
         (
-            "balam-combo-2",
+            "mayan-combo-2",
             2_u8,
             1_usize,
             1_u16,
@@ -543,7 +543,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
             0_u8,
             0_u8,
         ),
-        ("balam-earned-totem", 3, 9, 0, 0, 0, 0, 6, 1, 1, 0),
+        ("mayan-earned-totem", 3, 9, 0, 0, 0, 0, 6, 1, 1, 0),
         (
             "daily-pressure-crossing",
             1,
@@ -565,7 +565,7 @@ pub fn render(catalog: &CampaignCatalog) -> Result<String, String> {
             objective: (DAILY_THEMES[theme].kind != ConstraintKind::None)
                 .then_some(DAILY_THEMES[theme]),
             max_moves: DAILY_MAX_MOVES,
-            ..balam_rules
+            ..mayan_rules
         };
         let cfg = config(rules, 98);
         let mut run = Run::new(cfg).map_err(|e| format!("{name}: {e:?}"))?;

@@ -42,7 +42,7 @@ namespace ZKube.Presentation.Tests
             return new Fixture {
                 name = raw.name, configHex = raw.configHex, initialStateHex = raw.initialStateHex,
                 configRequestHex = raw.steps.First(s => s.operation == NativeOperation.BuildConfig).requestHex,
-                // Synthetic probes use Balam's visual composition explicitly.
+                // Synthetic probes use the Mayan realm's visual composition explicitly.
                 realmId = authored ? byte.Parse(raw.name.Split('-')[1]) : (byte)8,
                 steps = raw.steps.Where(s => s.operation >= NativeOperation.ApplyVrf && s.operation <= NativeOperation.Finish)
                     .Select(s => s.gesture != null && s.gesture.operation == s.operation ? new Step { operation = s.gesture.operation, row = s.gesture.row, start = s.gesture.start,

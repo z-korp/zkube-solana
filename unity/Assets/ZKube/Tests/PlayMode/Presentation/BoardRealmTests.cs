@@ -283,7 +283,7 @@ namespace ZKube.Presentation.Tests
             var font = boardArt.Font(SkinUi.Type.Body);
             yield return pageArt.Load(2); yield return null;
             Assert.AreEqual(1, AtlasOwners(realmPath), "The board retains the sole old-realm lease after page navigation");
-            Assert.IsTrue(sharedAtlas != null, "The board still owns Balam's atlas");
+            Assert.IsTrue(sharedAtlas != null, "The board still owns the Mayan realm's atlas");
             Assert.IsNotNull(boardArt.Sprite("boss__celebrate"), "An uncached sprite proves the atlas itself survived");
             pageArt.Dispose(); yield return null;
             Assert.IsNotNull(boardArt.Sprite("boss__defeated"));

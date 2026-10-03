@@ -63,7 +63,7 @@ namespace ZKube.Presentation.Tests
 
         [UnityTest] public IEnumerator EveryBoardTextThroughPlayAndDialogsUsesThePlayersWords()
         {
-            foreach (string fixture in new[] { "realm-8-daily", "balam-combo-2", "move-perfect-clear-grant", "realm-8-campaign", "shape-latch", "display-long-campaign-constraint" })
+            foreach (string fixture in new[] { "realm-8-daily", "mayan-combo-2", "move-perfect-clear-grant", "realm-8-campaign", "shape-latch", "display-long-campaign-constraint" })
             {
                 evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
                 AssertPlainWords(fixture);

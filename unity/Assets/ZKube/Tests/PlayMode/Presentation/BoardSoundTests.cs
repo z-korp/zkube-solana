@@ -62,7 +62,7 @@ namespace ZKube.Presentation.Tests
         {
             int moves = 0, breaks = 0;
             foreach (bool reduced in new[] { false, true })
-                foreach (string fixture in new[] { "realm-1-campaign", "balam-combo-2", "daily-pressure-crossing", "move-perfect-clear-grant",
+                foreach (string fixture in new[] { "realm-1-campaign", "mayan-combo-2", "daily-pressure-crossing", "move-perfect-clear-grant",
                     "Wave-perfect-clear-continuation", "score-latch", "all-star-completion", "blocked-eleventh-row", "move-budget-exhaustion" })
                 {
                     board.SetReducedMotion(reduced); evidence.Load(fixture);

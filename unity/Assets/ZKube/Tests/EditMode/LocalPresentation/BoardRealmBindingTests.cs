@@ -30,7 +30,7 @@ namespace ZKube.Local.Tests
             var run = client.StartCampaign(1, 1); var provider = new LocalBoardActionProvider(client, run);
             foreach (byte invalid in new byte[] { 0, 11, 255 })
                 Assert.Throws<ArgumentOutOfRangeException>(() => new BoardSession(run.View.Token, run.View.Rules, provider, invalid));
-            // Synthetic native probes may intentionally reuse the Balam visual
+            // Synthetic native probes may intentionally reuse the Mayan realm's visual
             // composition; a non-unique rules tuple cannot determine identity.
             var first = new BoardSession(run.View.Token, run.View.Rules, provider, 1);
             var eighth = new BoardSession(run.View.Token, run.View.Rules, provider, 8);

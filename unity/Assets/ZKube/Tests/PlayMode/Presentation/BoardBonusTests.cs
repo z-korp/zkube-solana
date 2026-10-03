@@ -288,7 +288,7 @@ namespace ZKube.Presentation.Tests
                 yield return Wait(() => Label("Accepted bonus cap") == null && Label("Accepted bonus chip") == null);
             }
             // A real earned charge, through the controller.
-            yield return Load("balam-earned-totem");
+            yield return Load("mayan-earned-totem");
             byte before = board.State.BonusCharges;
             var input = evidence.PlayNextInput(); bool rose = false;
             while (input.MoveNext()) { yield return input.Current; rose |= Label("Accepted bonus chip") != null; }

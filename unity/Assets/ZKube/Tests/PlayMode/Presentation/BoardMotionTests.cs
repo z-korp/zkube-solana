@@ -73,7 +73,7 @@ namespace ZKube.Presentation.Tests
 
         [UnityTest] public IEnumerator AnimatedClearsFallsAndInsertsEndOnTheNativeGridAndReleaseTheirEffects()
         {
-            yield return Load("balam-combo-2", false);
+            yield return Load("mayan-combo-2", false);
             for (int i = 0; i < Inputs(); i++)
             {
                 yield return evidence.PlayNextInput();
@@ -88,7 +88,7 @@ namespace ZKube.Presentation.Tests
 
         [UnityTest] public IEnumerator TheIncomingRowNeverCrossesAVisibleNextRowLabel()
         {
-            yield return Load("balam-combo-2", false);
+            yield return Load("mayan-combo-2", false);
             var label = board.View.GetComponentsInChildren<TMPro.TMP_Text>().Single(t => t.name == "Next row label");
             float resting = label.color.a; int crossings = 0;
             var zone = SkinUi.ScreenRect(label.rectTransform);
@@ -130,7 +130,7 @@ namespace ZKube.Presentation.Tests
 
         [UnityTest] public IEnumerator ReducedMotionThrowsNoParticlesKeepsTheGuardianStillAndSettles()
         {
-            yield return Load("balam-combo-2", true);
+            yield return Load("mayan-combo-2", true);
             var guardianScale = Guardian().transform.localScale; var guardianPosition = Guardian().transform.position;
             for (int i = 0; i < Inputs(); i++)
             {
@@ -217,7 +217,7 @@ namespace ZKube.Presentation.Tests
 
         [UnityTest] public IEnumerator ScoreCountsUpToTheAcceptedValueAndNeverPastIt()
         {
-            yield return Load("balam-combo-2", false);
+            yield return Load("mayan-combo-2", false);
             var score = board.View.GetComponentsInChildren<TMPro.TMP_Text>().Single(text => text.name == "Score");
             uint before = board.State.DailyScore;
             uint highest = 0;
