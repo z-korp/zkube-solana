@@ -689,14 +689,18 @@ pub fn handler_finalize_arena_daily(
     let mut following: ArenaDaily = load(&successor_info)?;
     require!(following.day_id == following_day, ErrorCode::InvalidPeriod);
     source.require_funding_successor(&following)?;
+    // Dailies finalize in chain order. One whose predecessor has not reached
+    // it yet waits, as a no-op: the earlier step it depends on may have
+    // yielded in this same transaction, and that must not fail what follows.
+    if !source.predecessor_rollover_applied {
+        return Ok(());
+    }
     let (_, closes_at, recovery_ends_at) = day_window(source.day_id)?;
     // Until the recovery deadline a run in flight can still score, so the
     // day waits for it. After it nothing can, and the day never waits on
     // anyone resolving an abandoned run.
     require!(
-        source.predecessor_rollover_applied
-            && now >= closes_at
-            && (source.resolved() || now >= recovery_ends_at),
+        now >= closes_at && (source.resolved() || now >= recovery_ends_at),
         ErrorCode::InvalidPeriod
     );
     require!(

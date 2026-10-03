@@ -167,10 +167,12 @@ spending approval.
   the program does: a finalization runs only while the compute left covers its worst case, set by the rows its
   boards retain (fixed once it can finalize), and the core's reserve for the entry and delegation behind it;
   otherwise it yields unchanged to a later transaction, and the keeper sends every finalization at the
-  transaction maximum. `finalization_never_exceeds_its_worst_case`,
-  `a_finalization_without_the_compute_it_could_need_yields_unchanged` and
-  `optional_cadence_never_overruns_an_entry_after_a_concurrent_expiry_rollover` guard the bound and the
-  yield. A finalization of a Daily someone else has already finalized,
+  transaction maximum. One whose predecessor has not reached it yet, because an earlier step of the same
+  transaction yielded or for any other reason, waits the same way. `finalization_never_exceeds_its_worst_case`,
+  `a_finalization_without_the_compute_it_could_need_yields_unchanged`,
+  `optional_cadence_never_overruns_an_entry_after_a_concurrent_expiry_rollover`,
+  `optional_cadence_survives_the_rollover_with_the_auditors_original_fields` and
+  `a_dependent_optional_finalization_after_a_yield_never_fails_the_entry` guard the bound and the yields. A finalization of a Daily someone else has already finalized,
   closed or not, is a no-op that still requires the canonical accounts of the days it names, so a size that
   passed its simulation cannot fail later for that. A winner back on a quiet day seals days the same way, then
   claims. The waiting Dailies are read forward from the result root, which names the last finalized day,
