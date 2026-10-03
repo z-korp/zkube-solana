@@ -142,7 +142,11 @@ spending approval.
   alone overlays the realm purchase policy and adds a local Daily on the same day as Arena's.
   `store_gate_is_a_store_identity_policy_over_shared_progression`,
   `money_identity_cannot_start_a_local_daily` and
-  `test_money_metadata_excludes_the_local_daily_and_store_policy` guard the split.
+  `test_money_metadata_excludes_the_local_daily_and_store_policy` guard the split. The journey itself (map,
+  greeting, preview, board, pause, result, retry and the way back) is one owner, `CampaignJourney`, played on one
+  `RunBoard`; Arena adds only its identity slots and starts the star write once a result is durable, without the
+  next page waiting on it. `TheCampaignJourneyIsTheSameUnderBothIdentityImplementations` and
+  `TheStarWriteStartsAfterAResultWithoutDelayingTheResultPage` guard both.
 - **Campaign save:** the packed on-chain star array is the player's save, written by their own device and
   synchronized across devices. The program does not verify it, it has no effect on money, and emblems 1–12
   reflect that reported progress. `record_campaign_stars_is_idempotent_and_touches_no_other_field` and
