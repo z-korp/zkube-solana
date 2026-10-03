@@ -5577,30 +5577,30 @@
       ],
       "guardian": {
         "face": [
-          0.328125,
-          0.19661458333333334,
-          0.34375,
-          0.28515625
+          0.3372395833333333,
+          0.19270833333333334,
+          0.3255208333333333,
+          0.37109375
         ],
         "railFrontY": 0.7981770833333334,
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
       "guardianLines": {
-        "dailyGreeting": "The same beat for all today. Match the rhythm longer than anyone else.",
-        "defeatLine": "The rhythm... fades. Yours plays louder.",
-        "greeting": "Listen. The rhythm pulses through the earth. Follow it or fall.",
-        "incomplete": "You lost the rhythm. Listen again, and return.",
-        "newBestLine": "...The drums skipped. You broke your own record.",
-        "oneStar": "You kept the beat, but stumbled on the drops.",
-        "respectLine": "You move like shadow. The mamba acknowledges its equal.",
-        "threeStar": "Thunder itself dances to your beat. Flawless.",
-        "trialIntro": "The mamba strikes without warning. Match its speed or be consumed.",
-        "twoStar": "Your rhythm is strong. The drums resonate."
+        "dailyGreeting": "The same savanna for everyone today. Walk it your own way.",
+        "defeatLine": "You out-walked an elephant. Bravo!",
+        "greeting": "Welcome to the plains, little one. I'll walk beside you.",
+        "incomplete": "The grass grew tall this time. Try again?",
+        "newBestLine": "...Your best yet. The whole herd will hear.",
+        "oneStar": "You made it across! The plains have more.",
+        "respectLine": "The herd makes room for you now.",
+        "threeStar": "A flawless crossing. I'll never forget it.",
+        "trialIntro": "Here comes the herd. Keep your footing and match my stride.",
+        "twoStar": "Good, steady steps. The herd noticed."
       },
-      "guardianName": "Mamba",
+      "guardianName": "Tembo",
       "guardianPortrait": "/assets/theme-9/boss/portrait.png",
-      "guardianTitle": "The Shadow Mamba",
+      "guardianTitle": "The Gentle Giant",
       "id": "theme-9",
       "images": {
         "background": "/assets/theme-9/background.png",
