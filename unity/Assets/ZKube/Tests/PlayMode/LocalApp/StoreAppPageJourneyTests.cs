@@ -252,7 +252,7 @@ namespace ZKube.Tests
             Assert.That(product.Read.DailyAttempt.DayId, Is.EqualTo(runs.Today().DayId));
             yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(board.gameObject.activeSelf, Is.False); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
-            Assert.That(app.Flow.LastCampaign, Is.Null);
+            Assert.That(app.Flow.Campaign.Last, Is.Null);
             // The result has no tab bar; Continue returns to Home.
             Click(app, "Continue"); yield return Page(StorePage.Home);
             // A used Daily gives its reason where Play was, never a greyed-out
@@ -354,7 +354,7 @@ namespace ZKube.Tests
             Assert.That(texts.Where(text => text != null).Any(text => new[] { "Theme", "Shape", "Blow", "★", "☆" }.Any(text.Contains)), Is.False);
             Click(app, "Play"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
-            var outcome = app.Flow.LastCampaign;
+            var outcome = app.Flow.Campaign.Last;
             Assert.That(outcome, Is.Not.Null); Assert.That(outcome.Realm, Is.EqualTo(1)); Assert.That(outcome.Level, Is.EqualTo(1));
             Assert.That(outcome.EndReason, Is.EqualTo(3));
             // The guardian says how it went; an ended run lights no star.
@@ -385,7 +385,7 @@ namespace ZKube.Tests
             Assert.That(art.RealmId, Is.EqualTo(app.DailyPage().Realm));
             Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Wordmark").sprite, Is.EqualTo(art.SkinRealm("wordmark-realms")));
             Click(app, "Play level 21"); yield return Page(StorePage.Level);
-            Assert.That(app.Flow.Realm, Is.EqualTo(3)); Assert.That(app.Flow.Level, Is.EqualTo(1));
+            Assert.That(app.Flow.Campaign.Realm, Is.EqualTo(3)); Assert.That(app.Flow.Campaign.Level, Is.EqualTo(1));
         }
         // The Campaign card's place line sits on one line at every phone size, at
         // its longest: the last realm, with the last level on the button under it.
@@ -424,7 +424,7 @@ namespace ZKube.Tests
             string name = catalog.Realm(realm).realmName;
             int levels = Protocol.CampaignTargets.Length;
             product.Write(state => { for (int i = 0; i < (realm - 1) * levels; i++) state.Stars[i] = 3; state.CampaignOwned = true; return state; });
-            Assert.That(app.Flow.FurthestRealm, Is.EqualTo(realm));
+            Assert.That(app.Flow.Campaign.FurthestRealm, Is.EqualTo(realm));
             var shell = app.GetComponent<PageShell>();
             void OneLine(string at, Component page = null)
             {
@@ -446,9 +446,9 @@ namespace ZKube.Tests
                 {
                     app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
                     app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home); OneLine(size + " Home");
-                    app.Flow.SelectRealm(realm); yield return Page(StorePage.Campaign); OneLine(size + " map");
-                    app.Flow.Preview(realm, 1); yield return Page(StorePage.Level); OneLine(size + " preview");
-                    app.Flow.PlayCampaign(); yield return BoardReady();
+                    app.Flow.Campaign.SelectRealm(realm); yield return Page(StorePage.Campaign); OneLine(size + " map");
+                    app.Flow.Campaign.Preview(realm, 1); yield return Page(StorePage.Level); OneLine(size + " preview");
+                    app.Flow.Campaign.Play(); yield return BoardReady();
                     Click(board.View, "Pause"); yield return null; OneLine(size + " pause", board.View);
                     Click(board.View, "End run"); yield return null; Click(board.View, "End run");
                     yield return Wait(() => !board.Busy && board.State.Phase == (byte)CorePhase.Finished, "Run did not end");
@@ -535,7 +535,7 @@ namespace ZKube.Tests
             Assert.That(Buttons().Any(button => button.name == "Previous"), Is.False);
             Assert.That(FindButton(app, "Next").interactable, Is.True);
             Click(app, "Play level 3"); yield return Page(StorePage.Level);
-            Assert.That(app.Flow.Level, Is.EqualTo(3));
+            Assert.That(app.Flow.Campaign.Level, Is.EqualTo(3));
             Assert.That(Texts(), Does.Contain("Level 3"));
         }
         // The map fits its whole path between the header and Play on both
@@ -570,7 +570,7 @@ namespace ZKube.Tests
                         });
                         for (byte realm = 1; realm <= 10; realm++)
                         {
-                            app.Flow.SelectRealm(realm); yield return Page(StorePage.Campaign);
+                            app.Flow.Campaign.SelectRealm(realm); yield return Page(StorePage.Campaign);
                             yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                             string where = at + " of realm " + realm + " with " + finished + " finished";
                             Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Scroll.viewport.rect.height + .5f), where + " does not scroll");
@@ -600,7 +600,7 @@ namespace ZKube.Tests
                         }
                         product.Write(state => { state.CampaignOwned = false; for (int index = 0; index < state.Stars.Length; index++) state.Stars[index] = 0; return state; });
                     }
-                    app.Flow.SelectRealm(1); yield return Page(StorePage.Campaign);
+                    app.Flow.Campaign.SelectRealm(1); yield return Page(StorePage.Campaign);
                 }
             }
             finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
@@ -612,13 +612,13 @@ namespace ZKube.Tests
         {
             Click(app, "Campaign"); yield return Page(StorePage.Campaign);
             Click(app, "Next"); yield return Page(StorePage.Campaign);
-            Assert.That(app.Flow.Realm, Is.EqualTo(2));
+            Assert.That(app.Flow.Campaign.Realm, Is.EqualTo(2));
             Assert.That(Nodes(), Is.Empty);
             Assert.That(Texts(), Does.Contain("The path is waiting").And.Contain("Clear Mako’s final trial in Tiki to open Egypt."));
             Click(app, "Return to Tiki"); yield return Page(StorePage.Campaign);
-            Assert.That(app.Flow.Realm, Is.EqualTo(1));
+            Assert.That(app.Flow.Campaign.Realm, Is.EqualTo(1));
             product.Write(state => { state.Stars[9] = 1; state.Stars[19] = 1; state.Stars[29] = 1; return state; });
-            app.Flow.SelectRealm(4); yield return Page(StorePage.Campaign);
+            app.Flow.Campaign.SelectRealm(4); yield return Page(StorePage.Campaign);
             Assert.That(Texts(), Does.Contain("Realms 4–10 open with the full Campaign purchase."));
             Assert.That(FindButton(app, "Restore purchases").interactable, Is.True);
             Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock full Campaign"))), Is.True);
@@ -628,7 +628,7 @@ namespace ZKube.Tests
             var appRoot = new GameObject("Store page controller"); appRoot.transform.SetParent(root.transform);
             app = appRoot.AddComponent<StoreAppAdapter>(); app.Initialize(product, runs, billing, board); Greet(app);
             yield return Wait(() => app.Flow.StoreUnavailable && !billing.Busy, "The store query did not fail");
-            app.Flow.SelectRealm(4); yield return Page(StorePage.Campaign);
+            app.Flow.Campaign.SelectRealm(4); yield return Page(StorePage.Campaign);
             Assert.That(Texts(), Does.Contain("Store purchase unavailable").And.Contain("Check your connection and try again."));
             Assert.That(FindButton(app, "Try again").interactable, Is.True);
             Assert.That(Buttons().Any(button => button.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Unlock full Campaign"))), Is.False);
@@ -649,7 +649,7 @@ namespace ZKube.Tests
             FindButton(app, "Skip").onClick.Invoke(); yield return null;
             Assert.That(retry.IsInteractable(), Is.True);
             Assert.That(Buttons().Any(button => button.name == "Skip"), Is.False);
-            Assert.That(Texts().Any(text => text != null && text.StartsWith(app.Flow.LastCampaign.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "<")),
+            Assert.That(Texts().Any(text => text != null && text.StartsWith(app.Flow.Campaign.Last.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + "<")),
                 "The score row reads the run's final score");
             typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, true);
             Click(app, "Retry"); yield return BoardReady();
@@ -675,7 +675,7 @@ namespace ZKube.Tests
             {
                 int kept = HudLayout.StarCount(sources); string at = "sources " + sources;
                 typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, false);
-                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 8, StarSources = sources, EndReason = (byte)(kept == 3 ? 1 : 2), PrimaryProgress = 4, Goals = goals });
+                app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 8, StarSources = sources, EndReason = (byte)(kept == 3 ? 1 : 2), PrimaryProgress = 4, Goals = goals });
                 yield return Page(StorePage.Result);
                 var crown = Crown(); var places = crown.Select(socket => socket.rectTransform.anchoredPosition).ToArray();
                 Assert.That(crown.Any(Lit), Is.False, at + ": the sockets start empty");
@@ -696,7 +696,7 @@ namespace ZKube.Tests
                     Assert.That(Vector2.Distance(places[i], crown[i].rectTransform.anchoredPosition), Is.LessThan(.5f), at + ": the star stays in its socket");
                 }
                 typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, true);
-                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 8, StarSources = sources, EndReason = (byte)(kept == 3 ? 1 : 2), PrimaryProgress = 4, Goals = goals });
+                app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 8, StarSources = sources, EndReason = (byte)(kept == 3 ? 1 : 2), PrimaryProgress = 4, Goals = goals });
                 yield return Page(StorePage.Result); yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
                 crown = Crown();
                 for (int i = 0; i < 3; i++) Assert.That(Lit(crown[i]), Is.EqualTo(i < kept), at + ": reduced motion shows socket " + (i + 1) + " at once");
@@ -807,7 +807,7 @@ namespace ZKube.Tests
                     yield return Wait(() => !app.GetComponentsInChildren<Transform>().Any(value => value.name == "Leaving page"), "The page did not settle");
                     AssertLastPieceClearsTheBar(shell, page + " at " + textScale);
                 }
-                app.Flow.SelectRealm(4); yield return Page(StorePage.Campaign);
+                app.Flow.Campaign.SelectRealm(4); yield return Page(StorePage.Campaign);
                 AssertLastPieceClearsTheBar(shell, "Closed realm at " + textScale);
             }
             ZKube.Tests.Presentation.Phones.Clear(shell);
@@ -845,15 +845,15 @@ namespace ZKube.Tests
             }
             yield return Words(StorePage.Home, "Home");
             greeted = 0; app.Flow.Show(StorePage.Campaign); yield return Words(StorePage.Campaign, "Map with its greeting");
-            app.Flow.Preview(1); yield return Words(StorePage.Level, "Level preview");
-            app.Flow.SelectRealm(2); yield return Words(StorePage.Campaign, "Realm closed by stars");
-            app.Flow.SelectRealm(4); yield return Words(StorePage.Campaign, "Realm closed by the purchase");
+            app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Words(StorePage.Level, "Level preview");
+            app.Flow.Campaign.SelectRealm(2); yield return Words(StorePage.Campaign, "Realm closed by stars");
+            app.Flow.Campaign.SelectRealm(4); yield return Words(StorePage.Campaign, "Realm closed by the purchase");
             app.Flow.Show(StorePage.Profile); yield return Words(StorePage.Profile, "Profile");
             app.Flow.Show(StorePage.Settings); yield return Words(StorePage.Settings, "Settings");
             var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
-            app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 168, StarSources = 7, EndReason = 1, Goals = goals });
+            app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 168, StarSources = 7, EndReason = 1, Goals = goals });
             yield return Words(StorePage.Result, "Level won");
-            app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = 1, EndReason = 2, Goals = goals });
+            app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = 1, EndReason = 2, Goals = goals });
             yield return Words(StorePage.Result, "Level lost");
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             Click(app, "Play today"); yield return BoardReady();
@@ -868,7 +868,7 @@ namespace ZKube.Tests
             yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(app.ResultPage().Mode, Is.EqualTo("Daily"));
             app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
-            app.Flow.Preview(1); yield return Page(StorePage.Level);
+            app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Page(StorePage.Level);
             Click(app, "Play"); yield return BoardReady();
             yield return EndRun(); yield return Page(StorePage.Result);
             Assert.That(app.ResultPage().Mode, Is.EqualTo("Campaign"), "A finished Campaign run opens its own result");
@@ -902,7 +902,7 @@ namespace ZKube.Tests
                 Assert.That(rect.yMax, Is.LessThanOrEqualTo(shell.SafeArea.yMax + .5f), page + ": " + button + " is above the screen");
             }
             app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
-            app.Flow.Preview(1); yield return Page(StorePage.Level);
+            app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Page(StorePage.Level);
             OnScreen("Play", "Level preview");
             var goals = new CampaignGoals { Points = 60, PrimaryKind = 3, PrimaryCount = 4, SecondaryKind = 1, SecondaryValue = 2, SecondaryCount = 1 };
             // Level 1 has never been starred here, so a starless run says how to open Level 2.
@@ -913,7 +913,7 @@ namespace ZKube.Tests
                 ((byte)2, (byte)0, 0u, "Out of moves", "No stars kept · earn one to open Level 2"),
                 ((byte)1, (byte)7, 3u, "Level cleared!", "Level 2 is open") })
             {
-                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = stars, EndReason = reason, MovesLeft = moves, Goals = goals });
+                app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = stars, EndReason = reason, MovesLeft = moves, Goals = goals });
                 yield return Page(StorePage.Result);
                 foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
                 yield return null;
@@ -956,11 +956,11 @@ namespace ZKube.Tests
                 try
                 {
                     app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
-                    app.Flow.Preview(1); yield return Page(StorePage.Level);
+                    app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Page(StorePage.Level);
                     Hero(name + " preview", scrolls);
                     foreach (var (reason, stars, moves) in new[] { ((byte)3, (byte)0, 4u), ((byte)2, (byte)1, 0u), ((byte)2, (byte)3, 6u), ((byte)2, (byte)0, 0u), ((byte)1, (byte)7, 3u) })
                     {
-                        app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = stars, EndReason = reason, MovesLeft = moves, Goals = goals });
+                        app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 12, StarSources = stars, EndReason = reason, MovesLeft = moves, Goals = goals });
                         yield return Page(StorePage.Result);
                         foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
                         yield return null;
@@ -993,14 +993,14 @@ namespace ZKube.Tests
                 try
                 {
                     app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
-                    app.Flow.Preview(1); yield return Page(StorePage.Level);
+                    app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Page(StorePage.Level);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                     yield return ZKube.Tests.Presentation.Captures.Snap(shell, name + " preview");
                     ScreenFits(shell, name + " preview", "Play", "Back to map");
                     // In a player's order: starless runs on a fresh level, its first three
                     // stars (a new best), then runs that keep fewer.
                     product.Write(state => { state.Stars[0] = 0; return state; });
-                    typeof(StoreAppFlow).GetField("startingStars", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(app.Flow, (byte)0);
+                    typeof(CampaignJourney).GetField("startingStars", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(app.Flow.Campaign, (byte)0);
                     foreach (var (reason, stars, moves, buttons) in new[] {
                         ((byte)2, (byte)0, 0u, new[] { "Retry", "Map" }),
                         ((byte)3, (byte)0, 5u, new[] { "Retry", "Map" }),
@@ -1009,7 +1009,7 @@ namespace ZKube.Tests
                         ((byte)2, (byte)4, 0u, new[] { "Continue", "Retry" }) })
                     {
                         if (stars == 7) product.Write(state => { state.Stars[0] = 3; return state; });
-                        app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = stars == 7 ? 24u : 8u, StarSources = stars, EndReason = reason,
+                        app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = stars == 7 ? 24u : 8u, StarSources = stars, EndReason = reason,
                             MovesLeft = moves, PrimaryProgress = 4, Goals = goals });
                         yield return Page(StorePage.Result);
                         foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
@@ -1034,7 +1034,7 @@ namespace ZKube.Tests
                 ((byte)2, (byte)0, lines.incomplete), ((byte)3, (byte)0, lines.incomplete) })
             {
                 // A low score with its star lit: the row still reads its target.
-                app.Flow.LeaveBoard(new CampaignOutcome { Realm = 1, Level = 1, Score = 3, StarSources = stars, EndReason = reason,
+                app.Flow.Campaign.Finished(new CampaignOutcome { Realm = 1, Level = 1, Score = 3, StarSources = stars, EndReason = reason,
                     MovesLeft = 0, PrimaryProgress = 1, Goals = goals });
                 yield return Page(StorePage.Result);
                 foreach (var sequence in app.GetComponentsInChildren<PageSequence>()) sequence.Finish();
@@ -1214,7 +1214,7 @@ namespace ZKube.Tests
             IEnumerator Settled(StorePage page) { yield return Page(page); yield return new WaitForSecondsRealtime(1); }
             app.Flow.Show(StorePage.Home); yield return Settled(StorePage.Home); Painted("Home", SkinSlots.Background, false);
             app.Flow.Show(StorePage.Campaign); yield return Settled(StorePage.Campaign); Painted("Map", SkinSlots.Map, false);
-            app.Flow.Preview(1); yield return Settled(StorePage.Level); Painted("Preview", SkinSlots.Map, true);
+            app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Settled(StorePage.Level); Painted("Preview", SkinSlots.Map, true);
             app.Flow.Show(StorePage.Profile); yield return Settled(StorePage.Profile); Painted("Profile", SkinSlots.Background, false);
             app.Flow.Show(StorePage.Settings); yield return Settled(StorePage.Settings); Painted("Settings", SkinSlots.Background, false);
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
@@ -1249,7 +1249,7 @@ namespace ZKube.Tests
                     finally { UnityEngine.Object.Destroy(texture); }
                 }
                 app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
-                app.Flow.Preview(1); yield return Page(StorePage.Level);
+                app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, 1); yield return Page(StorePage.Level);
                 yield return TopThird("Tiki preview", .160f);
                 Click(app, "Play"); yield return BoardReady(); yield return EndRun(); yield return Page(StorePage.Result);
                 yield return TopThird("Tiki ended result", .172f);
@@ -1265,7 +1265,7 @@ namespace ZKube.Tests
             app.Flow.Show(StorePage.Campaign); yield return Page(StorePage.Campaign);
             for (byte level = 1; level <= 10; level++)
             {
-                app.Flow.Preview(level); yield return Page(StorePage.Level);
+                app.Flow.Campaign.Preview(app.Flow.Campaign.Realm, level); yield return Page(StorePage.Level);
                 // The previous preview leaves on its own layer; read the shown one.
                 yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
                 var spoken = app.GetComponentsInChildren<TMP_Text>().Where(text => text.name == "Guardian line").ToArray();
@@ -1357,7 +1357,7 @@ namespace ZKube.Tests
             Assert.That(leases.Contains("ZKube/Atlases/portraits"), Is.False);
             Assert.That((IntPtr)nativePointer.GetValue(portraitAtlas), Is.EqualTo(IntPtr.Zero));
             Assert.That(app.GetComponentsInChildren<Image>().Any(value => value.name == "Guardian portrait"), Is.False);
-            Assert.That(app.Flow.Realm, Is.EqualTo(2)); Assert.That(retainedArt.Sprite("boss__celebrate"), Is.Not.Null);
+            Assert.That(app.Flow.Campaign.Realm, Is.EqualTo(2)); Assert.That(retainedArt.Sprite("boss__celebrate"), Is.Not.Null);
             var common = (UnityEngine.U2D.SpriteAtlas)typeof(BoardArt).GetField("common", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(retainedArt);
             var uncached = common.GetSprite("mark");
             Assert.That(uncached, Is.Not.Null);
@@ -1372,7 +1372,7 @@ namespace ZKube.Tests
             // the old page's renderer is deliberately retired during loading.
             app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
             Assert.That(Nodes(), Is.Empty);
-            app.Flow.SelectRealm(3); yield return null;
+            app.Flow.Campaign.SelectRealm(3); yield return null;
             UnityEngine.Object.Destroy(app.gameObject); yield return null; yield return null;
             Assert.That(app == null, Is.True); Assert.That(root.GetComponentsInChildren<StoreAppAdapter>().Length, Is.Zero);
             LogAssert.NoUnexpectedReceived();

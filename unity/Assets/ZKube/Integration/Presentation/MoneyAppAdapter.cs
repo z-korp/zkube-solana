@@ -65,7 +65,9 @@ namespace ZKube.Integration.Presentation
         public Task RefreshOverview() => Run(RefreshVisiblePage);
         private Task RefreshVisiblePage(long epoch, CancellationToken token) =>
             browsingProfile ? RefreshProfilePage(epoch, token) : browsingRewards ? RefreshRewardPage(epoch, token) : browsingKredits ? RefreshKreditPage(epoch, token) : browsingDaily ? RefreshDailyPage(epoch, token) : browsingSession ? RefreshSessionPage(epoch, token) :
-            browsingCampaign ? RefreshCampaignPage(epoch, token) : sharedPage.HasValue ? RefreshSharedPage(epoch, token) : Refresh(epoch, token);
+            campaignPage != null ? RedrawCampaign() : sharedPage.HasValue ? RefreshSharedPage(epoch, token) : Refresh(epoch, token);
+        // The Campaign reads its play record on this device: there is nothing to fetch.
+        private Task RedrawCampaign() { Present(); return Task.CompletedTask; }
         // Connecting reads the owner (its last operation's receipt with it),
         // then opens the Arcade.
         public Task Connect() => Run(async (epoch, token) => {
@@ -85,7 +87,8 @@ namespace ZKube.Integration.Presentation
         public async Task Disconnect()
         {
             if (detached || !isActiveAndEnabled || Flow == null || paused) return;
-            if (PlayingRun) boardHost.Board.SetHostInputEnabled(false);
+            if (ArcadeRun) boardHost.Board.SetHostInputEnabled(false);
+            runBoard?.Close(); campaign = null;
             // Disconnect is available even during a wallet/read callback.
             CloseProductViews(); RetireRead(); ownerRead = null; ForgetReceipt(); failure = null;
             Busy = true; Status = "Disconnected"; Present(); long epoch = generation;
@@ -93,15 +96,6 @@ namespace ZKube.Integration.Presentation
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
             finally { if (Current(epoch)) { Busy = false; Present(); } }
         }
-        private async Task RunCampaign(Func<long, CancellationToken, Task> operation)
-        {
-            if (detached || !isActiveAndEnabled || paused || Flow == null || PlayingRun || identity.Owner == null) return;
-            long epoch = generation;
-            try { await operation(epoch, CancellationToken.None); }
-            catch (Exception error) { if (Current(epoch)) ShowError(error); }
-            finally { if (Current(epoch)) Present(); }
-        }
-
         private async Task Run(Func<long, CancellationToken, Task> operation)
         {
             if (detached || !isActiveAndEnabled || paused || Flow == null || Busy || PlayingRun) return;
@@ -184,13 +178,14 @@ namespace ZKube.Integration.Presentation
         private void Update()
         {
             if (!initialized || detached) return;
+            RefreshCampaignIdentity();
             if (PlayingRun) return;
             if (Flow == null || paused) return;
             if (ownerRead != null && !ownerRead.IsCurrent) { ownerRead = null; Present(); }
             if (receiptOwner != null && !identity.IsCurrent(receiptLease)) { ForgetReceipt(); Present(); }
-            RefreshCampaignIdentity(); RefreshSessionIdentity(); RefreshDailyIdentity(); RefreshKreditIdentity(); RefreshRewardIdentity(); RefreshProfileIdentity();
+            RefreshSessionIdentity(); RefreshDailyIdentity(); RefreshKreditIdentity(); RefreshRewardIdentity(); RefreshProfileIdentity();
             if (dirty && !presenting && shell.Root.activeSelf) StartCoroutine(Render());
-            if (Busy || browsingCampaign || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
+            if (Busy || campaignPage != null || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
                 sharedPage.HasValue) return;
             long timestamp = now(), day = Today;
             long? freeze = publicRead != null && publicRead.IsCurrent ? publicRead.Value.FreezesAt : null;
@@ -233,7 +228,9 @@ namespace ZKube.Integration.Presentation
         {
             if (detached || paused == value) return;
             paused = value;
-            if (PlayingRun) { boardHost.Suspend(value); return; }
+            if (ArcadeRun) { boardHost.Suspend(value); return; }
+            // The run board pauses itself.
+            if (PlayingRun) return;
             if (value)
             {
                 RetireRead(); Busy = false; publicRead = null; ownerRead = null;
@@ -245,7 +242,8 @@ namespace ZKube.Integration.Presentation
         private void OnDisable()
         {
             if (!initialized || detached) return;
-            if (PlayingRun) boardHost.Close();
+            if (ArcadeRun) boardHost.Close();
+            runBoard?.Close();
             RetireRead(); Busy = false; ownerRead = null; publicRead = null;
             ClearProductObservations(); HidePages();
             RetireArtwork();
@@ -272,7 +270,8 @@ namespace ZKube.Integration.Presentation
         public void Detach()
         {
             if (detached) return; detached = true; RetireRead();
-            if (PlayingRun) boardHost.Close();
+            if (ArcadeRun) boardHost.Close();
+            runBoard?.Close();
             publicRead = null; ownerRead = null; ClearProductObservations();
             if (shell != null) { HidePages(); RetireArtwork(); }
         }
@@ -285,7 +284,7 @@ namespace ZKube.Integration.Presentation
         private void ClearProductObservations()
         {
             settingsRead = null;
-            ClearCampaignObservation(); ClearSessionObservation(); ClearDailyObservation(); ClearKreditObservation(); ClearRewardObservation(); ClearProfileObservation();
+            ClearSessionObservation(); ClearDailyObservation(); ClearKreditObservation(); ClearRewardObservation(); ClearProfileObservation();
         }
         private void RetireArtwork() => shell.ReleaseArtwork();
 

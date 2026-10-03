@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using NUnit.Framework;
 using ZKube.Local;
 using ZKube.Integration.Execution;
+using ZKube.Presentation;
 
 namespace ZKube.Integration.App.Tests
 {
@@ -23,18 +24,19 @@ namespace ZKube.Integration.App.Tests
         [Test] public async Task money_campaign_needs_an_address_and_no_session()
         {
             var e = new MoneyTestEnvironment();
-            await ZKube.Integration.Tests.AsyncAssert.Throws<InvalidOperationException>(async () => await e.Flow.StartCampaignRun(1, 1));
+            LocalBoardActionProvider opened = null;
+            Assert.Throws<InvalidOperationException>(() => e.Flow.Campaign(_ => { }, provider => opened = provider));
             await e.Flow.Connect(e.Owner);
-            var run = await e.Flow.StartCampaignRun(1, 1);
-            Assert.That(run.Value.Bind().Accepted, Is.Not.Null);
+            var journey = e.Flow.Campaign(_ => { }, provider => opened = provider);
+            journey.Preview(1, 1); journey.Play();
+            var run = opened;
+            Assert.That(run.Bind().Accepted, Is.Not.Null);
             Assert.That(e.Native.KeyLoads, Is.Zero);
-            var browse = await e.Flow.RefreshCampaign();
-            Assert.That(browse.Value.Browse.Realms.Count, Is.EqualTo(10));
-            CollectionAssert.AreEqual(run.Value.Bind().Accepted.State, (await e.Flow.OpenSavedCampaign()).Value.Bind().Accepted.State);
+            // The saved run resumes from its level's preview.
+            opened = null; journey.Play();
+            CollectionAssert.AreEqual(run.Bind().Accepted.State, opened.Bind().Accepted.State);
             await e.Flow.Disconnect();
-            Assert.That(run.IsCurrent, Is.False);
-            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await run.Value.Recover(CancellationToken.None));
-            Assert.That(browse.IsCurrent, Is.False);
+            await ZKube.Integration.Tests.AsyncAssert.Throws<OperationCanceledException>(async () => await run.Recover(CancellationToken.None));
             e.AssertReadOnly(); await e.Flow.StopAsync();
         }
 
@@ -55,12 +57,14 @@ namespace ZKube.Integration.App.Tests
             try
             {
                 var pending = e.Purchase(); await e.Services.Journal.Begin(pending);
-                var run = await e.Flow.StartCampaignRun(1, 1);
-                Assert.That(run.Value.Bind().Accepted, Is.Not.Null);
+                LocalBoardActionProvider run = null;
+                var journey = e.Flow.Campaign(_ => { }, provider => run = provider);
+                journey.Preview(1, 1); journey.Play();
+                Assert.That(run.Bind().Accepted, Is.Not.Null);
                 Assert.That((await e.Services.Journal.Load(e.Owner)).Signature, Is.EqualTo(pending.Signature));
                 var result = await e.Services.Executor.Resume(e.Owner, e.Services.Reconciler);
                 Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), result.Code);
-                Assert.That(run.IsCurrent, Is.True, "Economy preserves the Campaign identity lease");
+                Assert.That(await run.Recover(CancellationToken.None), Is.Not.Null, "Economy preserves the Campaign identity lease");
                 Assert.That(sync.Pending.IsCompleted, Is.False, "Write remains pending");
                 Assert.That(local.Product.Read.CampaignWritePending, Is.True, "Retry intent remains durable");
             }

@@ -64,7 +64,7 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(store, Is.InstanceOf<IAppPageSource>());
                 yield return Rendered(store, AppPage.Home);
                 store.Navigate(AppPage.Campaign); yield return Rendered(store, AppPage.Campaign);
-                store.Flow.Preview(1); yield return Rendered(store, AppPage.Level);
+                store.Flow.Campaign.Preview(store.Flow.Campaign.Realm, 1); yield return Rendered(store, AppPage.Level);
                 store.Navigate(AppPage.Profile); yield return Rendered(store, AppPage.Profile);
                 store.Navigate(AppPage.Settings); yield return Rendered(store, AppPage.Settings);
                 store.Flow.PlayDaily(); yield return Rendered(store, AppPage.Result);

@@ -10,24 +10,22 @@ using ZKube.Integration.App;
 using ZKube.Integration.Client.Runs;
 using ZKube.Integration.Execution;
 using ZKube.Presentation;
-using ZKube.Local;
 
 namespace ZKube.Integration.Presentation
 {
-    // Owns one visible run. All network operations pass through the flow's
+    // Owns one visible Arcade run. All network operations pass through the flow's
     // identity gate and shutdown drain; the shared board owns animation/input.
     public sealed class MoneyBoardHost : MonoBehaviour
     {
         private MoneyAppFlow flow;
         private Func<long> now;
         private MoneyRunHandle run;
-        private MoneyRead<LocalBoardActionProvider> campaign;
         private BoardController board;
         private CancellationTokenSource lifetime;
         private bool paused, observing, foregroundNeeded, settling, settlementAttempted, settled, frozenShown;
         private string terminalTitle, terminalBody, settlementError;
         private long generation, foregroundGeneration;
-        public bool HasRun => run != null || campaign != null;
+        public bool HasRun => run != null;
         public BoardController Board => board;
         public bool OperationPending => observing || settling;
         public event Action Closed;
@@ -64,21 +62,6 @@ namespace ZKube.Integration.Presentation
             board.SetHostInputEnabled(!paused && !Frozen());
         }
 
-        public void Open(MoneyRead<LocalBoardActionProvider> launch, float textScale)
-        {
-            if (flow == null || HasRun || !launch.IsCurrent)
-                throw new InvalidOperationException("No current local run can be opened");
-            campaign = launch; lifetime = new CancellationTokenSource(); generation++;
-            settlementAttempted = settled = true;
-            settling = observing = foregroundNeeded = frozenShown = false;
-            terminalTitle = terminalBody = settlementError = null;
-            var root = new GameObject("Money local Campaign"); root.transform.SetParent(transform, false);
-            board = root.AddComponent<BoardController>(); board.SetTextScale(textScale);
-            board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
-            board.Bind(launch.Value.Bind());
-            board.SetHostInputEnabled(!paused);
-        }
-
         private async Task<RunClientState> Execute(
             MoneyRunHandle expected,
             Func<CancellationToken, Task<MoneyRead<MoneyRunOperation>>> operation, CancellationToken caller)
@@ -92,8 +75,7 @@ namespace ZKube.Integration.Presentation
             return result.Value.RequireState();
         }
 
-        private bool Current(long epoch) => this != null && HasRun && epoch == generation &&
-            (campaign != null ? campaign.IsCurrent : flow.RunIdentityCurrent(run));
+        private bool Current(long epoch) => this != null && HasRun && epoch == generation && flow.RunIdentityCurrent(run);
         private bool CurrentForeground(long epoch, long visit) => Current(epoch) &&
             visit == foregroundGeneration && !paused && isActiveAndEnabled;
         private bool Frozen() => run != null && now() >= run.DeadlineAt;
@@ -105,12 +87,6 @@ namespace ZKube.Integration.Presentation
             if (!HasRun) return;
             if (!Current(generation)) { Close(); return; }
             if (paused || !board.PresentationInitialized) return;
-            if (campaign != null)
-            {
-                if (foregroundNeeded && !board.Busy) { foregroundNeeded = false; board.Pause(); }
-                board.SetHostInputEnabled(!Terminal() && !board.RecoveryRequired);
-                return;
-            }
             if (foregroundNeeded)
             {
                 board.SetHostInputEnabled(false);
@@ -139,7 +115,7 @@ namespace ZKube.Integration.Presentation
             if (source != board) return;
             var state = board.State;
             terminalTitle = state.Phase == (byte)CorePhase.LevelComplete || state.EndReason == 1 ? "Level complete" : "Run ended";
-            terminalBody = "Score " + (board.Session.Daily ? state.DailyScore : state.Score);
+            terminalBody = "Score " + state.DailyScore;
             RenderTerminal();
         }
         private void RenderTerminal()
@@ -232,21 +208,10 @@ namespace ZKube.Integration.Presentation
             if (!HasRun) return;
             if (Current(generation) && Terminal() && settled)
                 ResultClosed?.Invoke(new ResultPageView { HasResult = true, ProductName = Application.productName,
-                    Mode = board.Session.Daily ? "Daily" : "Campaign", Realm = board.Session.RealmId,
-                    Day = run == null ? 0 : NativeEngine.DayAt(run.DeadlineAt),
-                    ObjectiveKind = board.Session.Daily ? board.Session.Rules.ObjectiveKind : board.Session.Rules.PrimaryKind,
-                    ObjectiveValue = board.Session.Daily ? board.Session.Rules.ObjectiveValue : board.Session.Rules.PrimaryValue,
-                    Score = board.Session.Daily ? board.State.DailyScore : board.State.Score,
-                    ObjectiveTotal = board.Session.Daily ? board.State.ObjectiveTotal : board.State.PrimaryProgress, ShowStars = !board.Session.Daily,
-                    StarSources = board.State.LatchedStarSources, Notice = "Result saved.",
-                    // A Campaign run's level, end and goals, for its result's words and rows.
-                    Level = HudLayout.CampaignLevel(board.Session), EndReason = board.State.EndReason,
-                    MovesLeft = HudLayout.MovesLeft(board.State, board.Session), PrimaryProgress = board.State.PrimaryProgress,
-                    Goals = board.Session.Daily ? null : new CampaignGoals { Points = board.Session.Rules.PointsRequired,
-                        PrimaryKind = board.Session.Rules.PrimaryKind, PrimaryValue = board.Session.Rules.PrimaryValue, PrimaryCount = board.Session.Rules.PrimaryCount,
-                        SecondaryKind = board.Session.Rules.SecondaryKind, SecondaryValue = board.Session.Rules.SecondaryValue,
-                        SecondaryCount = board.Session.Rules.SecondaryCount } });
-            generation++; run = null; campaign = null;
+                    Mode = "Daily", Realm = board.Session.RealmId, Day = NativeEngine.DayAt(run.DeadlineAt),
+                    ObjectiveKind = board.Session.Rules.ObjectiveKind, ObjectiveValue = board.Session.Rules.ObjectiveValue,
+                    Score = board.State.DailyScore, ObjectiveTotal = board.State.ObjectiveTotal, Notice = "Result saved." });
+            generation++; run = null;
             var previous = board; board = null;
             try { lifetime?.Cancel(); }
             finally

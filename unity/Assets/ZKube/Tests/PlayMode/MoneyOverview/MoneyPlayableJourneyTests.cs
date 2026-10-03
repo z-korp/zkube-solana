@@ -19,17 +19,23 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick("Campaign"); yield return Idle();
             yield return SessionClick("Trial 1"); yield return Idle();
-            yield return SessionClick("Play"); yield return Idle();
-            var board = host.GetComponent<MoneyBoardHost>().Board;
+            yield return SessionClick("Play");
             yield return BoardReady();
+            var board = PlayedBoard();
             Assert.That(board.Session.Daily, Is.False);
             Click("Reroll action"); yield return null; Click("Dialog " + BoardController.RerollConfirm); yield return BoardAccepted(1);
             Click("Pause"); yield return null;
             Click("Dialog End run"); yield return null;
             Click("Dialog End run"); yield return BoardFinished();
-            StringAssert.Contains("Result saved", SessionText());
-            Click("Dialog Continue"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyIdentity>().Controller.PlayingRun, Is.False);
+            // The ended run opens its result, then its map, as in Realms.
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
+            float until = Time.realtimeSinceStartup + 15;
+            while (host.GetComponent<PageViews>().Shown != AppPage.Result && Time.realtimeSinceStartup < until) yield return null;
+            yield return Idle();
+            Assert.That(controller.PlayingRun, Is.False);
+            StringAssert.Contains("Run ended", SessionText());
+            yield return SessionClick("Map"); yield return Idle();
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Campaign));
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
         }
 
@@ -112,15 +118,17 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // The board playing: an Arcade run's, or the run board's Campaign run.
+        private BoardController PlayedBoard() => host.GetComponent<MoneyBoardHost>()?.Board ?? host.GetComponent<RunBoard>()?.Board;
         private IEnumerator BoardReady()
         {
             float until = Time.realtimeSinceStartup + 15;
-            while (ZKube.Tests.Presentation.BoardTestState.Idle(host.GetComponent<MoneyBoardHost>()?.Board) != true && Time.realtimeSinceStartup < until) yield return null;
-            Assert.That(ZKube.Tests.Presentation.BoardTestState.Idle(host.GetComponent<MoneyBoardHost>()?.Board), Is.True);
+            while (ZKube.Tests.Presentation.BoardTestState.Idle(PlayedBoard()) != true && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(ZKube.Tests.Presentation.BoardTestState.Idle(PlayedBoard()), Is.True);
         }
         private IEnumerator BoardAccepted(uint count)
         {
-            var board = host.GetComponent<MoneyBoardHost>().Board;
+            var board = PlayedBoard();
             float until = Time.realtimeSinceStartup + 15;
             while (board.State.ActionCounter != count && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(board.State.ActionCounter, Is.EqualTo(count));
@@ -129,7 +137,7 @@ namespace ZKube.Tests.MoneyOverview
         }
         private IEnumerator BoardFinished()
         {
-            var board = host.GetComponent<MoneyBoardHost>().Board;
+            var board = PlayedBoard();
             float until = Time.realtimeSinceStartup + 15;
             while (board.State.Phase != (byte)CorePhase.Finished && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.Finished));

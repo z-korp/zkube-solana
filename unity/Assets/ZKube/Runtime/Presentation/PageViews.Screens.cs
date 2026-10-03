@@ -97,7 +97,6 @@ namespace ZKube.Presentation
             var line = LevelLine(realm.guardianLines, value.Level).Line;
             var pieces = new List<Piece> { Piece.Grow, default,
                 kit.Crown(new bool[3], Step(38, 30), sockets), kit.GuardianCard("talk-open", line, Step(170, 118), kit.Card(null, rows), HeroGuardianU) };
-            if (!string.IsNullOrEmpty(value.Notice)) pageNotices = pageNotices.Append(value.Notice).ToArray();
             pieces.Add(Piece.Grow);
             pieces.Add(Buttons(kit, (value.Play, ScreenKit.Kind.Primary, SkinSlots.IconPlay)));
             Compose(HeroTitled(pieces, room => kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName, room: room, sizeDp: kit.HeroTitleDp),
@@ -174,11 +173,6 @@ namespace ZKube.Presentation
                 Piece.Grow,
                 new Piece(buttons.Height, rect => finish = Group("Result actions", shell.Page, () => buttons.Draw(rect))) },
                 room => kit.Title(title, subtitle, good ? SkinTokens.Positive : SkinTokens.Negative, icon, room, kit.HeroTitleDp), Step(156, 112)));
-            if (!string.IsNullOrEmpty(value.Notice))
-            {
-                var note = kit.Note(value.Notice);
-                note.Draw(new Rect(column.Left, SkinUi.ScreenRect(finish.GetComponentsInChildren<RectTransform>().Skip(1).First()).yMax + 8 * d, column.Width, note.Height));
-            }
             if (!reducedMotion) Fill(stars, sockets, finish);
         }
 

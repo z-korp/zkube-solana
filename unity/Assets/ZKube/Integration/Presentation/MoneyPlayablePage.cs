@@ -1,4 +1,3 @@
-using ZKube.Local;
 using System;
 using ZKube.Integration.Client;
 using System.Linq;
@@ -10,7 +9,9 @@ namespace ZKube.Integration.Presentation
     public sealed partial class MoneyAppAdapter
     {
         private MoneyBoardHost boardHost;
-        public bool PlayingRun => boardHost != null && boardHost.HasRun;
+        // An Arcade run on its host, or a Campaign run on the run board.
+        public bool PlayingRun => ArcadeRun || runBoard != null && runBoard.Playing;
+        private bool ArcadeRun => boardHost != null && boardHost.HasRun;
 
         public void AttachRunHost(MoneyBoardHost host)
         {
@@ -29,22 +30,6 @@ namespace ZKube.Integration.Presentation
             };
             boardHost.Closed += ReturnFromRun;
         }
-
-        public Task StartSelectedTrial()
-        {
-            if (!CanBrowse() || browseLevel == 0 || boardHost == null) return Task.CompletedTask;
-            byte realm = browseRealm, trial = browseLevel;
-            return OpenLocalCampaign(() => Flow.StartCampaignRun(realm, trial));
-        }
-        public Task ResumeCampaignRun() => boardHost == null ? Task.CompletedTask :
-            OpenLocalCampaign(() => Flow.OpenSavedCampaign());
-
-        private Task OpenLocalCampaign(Func<Task<MoneyRead<LocalBoardActionProvider>>> action) => RunCampaign(async (epoch, token) => {
-            var result = await action();
-            if (!Current(epoch) || !result.IsCurrent) return;
-            boardHost.Open(result, textScale);
-            HidePages(); RetireArtwork();
-        });
 
         private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
             Status = "Opening your accepted run…";

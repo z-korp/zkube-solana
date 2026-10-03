@@ -76,21 +76,12 @@ namespace ZKube.Integration.Presentation
                     PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable())) };
             return view;
         }
+        // The Campaign's result is the journey's; the Arcade's is its last kept run.
         public ResultPageView ResultPage()
         {
+            if (campaignPage == AppPage.Result) return campaign.ResultPage(Application.productName, identity.Owner);
             var value = lastResult != null && lastResult.PlayerName == identity.Owner ? lastResult :
                 new ResultPageView { ProductName = Application.productName, Mode = "Daily", Realm = 1, PlayerName = identity.Owner ?? "" };
-            if (value.HasResult && value.Mode == "Campaign")
-            {
-                // A Campaign result continues on the map, or replays its level; it has no Share.
-                byte realm = value.Realm, level = value.Level;
-                int stars = (value.StarSources & 1) + (value.StarSources >> 1 & 1) + (value.StarSources >> 2 & 1);
-                value.Share = null;
-                value.Done = PageAction(stars > 0 ? "Continue" : "Map", () => _ = OpenCampaign(), () => PageAvailable() && !Busy);
-                value.Retry = PageAction("Retry", () => _ = OpenLocalCampaign(() => Flow.StartCampaignRun(realm, level)),
-                    () => PageAvailable() && !Busy && level > 0);
-                return value;
-            }
             value.Share = ResultSharing.Open; value.Arcade = true;
             value.Done = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             return value;
@@ -99,14 +90,14 @@ namespace ZKube.Integration.Presentation
             lastResult.PlayerName == identity.Owner && lastResult.Mode == mode;
 
         // The page to draw, by what the player is browsing.
-        private string Family() => identity?.Owner == null ? "Connect" : browsingCampaign ? "Campaign" : browsingDaily ? "Daily" :
+        private string Family() => identity?.Owner == null ? "Connect" : campaignPage != null ? "Campaign" : browsingDaily ? "Daily" :
             browsingKredits ? "Kredits" : browsingRewards ? "Rewards" : browsingSession ? "Device" : browsingProfile ? "Profile" :
             browsingOperation ? "Operation" : sharedPage.HasValue ? sharedPage.Value.ToString() : "Daily";
         private string PageKey()
         {
             string family = Family();
             return family switch {
-                "Campaign" => browseLevel == 0 ? "Campaign" : "Level",
+                "Campaign" => campaignPage.Value.ToString(),
                 "Daily" => confirmingDaily ? "Entry" : "Daily",
                 "Rewards" => "Rewards " + rewardDay + (boardKind == null ? "" : " " + boardKind),
                 "Device" => revokeConfirming ? "Revoke" : "Device",
@@ -115,7 +106,7 @@ namespace ZKube.Integration.Presentation
             };
         }
         private byte PageRealm() => Family() switch {
-            "Campaign" => browseRealm,
+            "Campaign" => campaignPage == AppPage.Result ? campaign.Last.Realm : campaign.Realm,
             "Profile" => profileRead != null && profileRead.IsCurrent ? ProfileRealm() : TodayRealm,
             "Rewards" => NativeEngine.Daily(rewardDay).Realm,
             "Result" => lastResult != null && lastResult.HasResult ? lastResult.Realm : TodayRealm,
@@ -129,8 +120,7 @@ namespace ZKube.Integration.Presentation
             {
                 case "Connect": views.RenderPanel(ConnectPage()); break;
                 case "Campaign":
-                    if (CanBrowse() && campaignRead.Value.Browse.Realms.Count != 0) views.Render(browseLevel == 0 ? AppPage.Campaign : AppPage.Level, notices);
-                    else views.RenderPanel(Waiting("Campaign", "Campaign", null, AppPage.Campaign, pageNotice ?? "Campaign trial data is unavailable.")); break;
+                    views.Render(campaignPage.Value, campaign.Unsaved ? notices.Append(RunBoard.UnsavedWarning) : notices); break;
                 case "Daily":
                     if (dailyRead == null) views.RenderPanel(Waiting("Daily", null, "Arena", AppPage.Home, pageNotice));
                     else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);

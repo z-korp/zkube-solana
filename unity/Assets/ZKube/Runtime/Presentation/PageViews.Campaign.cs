@@ -43,12 +43,10 @@ namespace ZKube.Presentation
             Map(value, room);
             header.Draw(headerRect);
             buttons.Draw(playRect);
-            var lines = notices.Concat(new[] { value.Notice, value.SavedRun }).Where(text => !string.IsNullOrEmpty(text)).ToArray();
-            var more = new[] { value.Resume, value.Result }.Where(action => action != null).ToArray();
-            if (lines.Length != 0 || more.Length != 0)
+            var lines = notices.Where(text => !string.IsNullOrEmpty(text)).ToArray();
+            if (lines.Length != 0)
                 Float("Campaign notice", playRect.yMax + 12 * d, card => {
                     foreach (var line in lines) card.Typed("Campaign notice text", line, SkinUi.Type.Body, 15, SkinTokens.Text, 8);
-                    for (int i = 0; i < more.Length; i++) card.Button(more[i], false, i == more.Length - 1 ? 0 : 10);
                 });
             if (!Greetings.Greeted(value.Realm)) Greeting(value.Realm, realm);
         }

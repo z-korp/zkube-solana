@@ -19,11 +19,11 @@ namespace ZKube.Local.App
     public sealed class StoreAppAdapter : MonoBehaviour, IAppPageSource
     {
         public StoreAppFlow Flow { get; private set; }
-        private BoardController board;
+        private RunBoard runBoard;
+        private BoardController board => runBoard.Board;
         private PageShell shell;
         private PageViews views;
-        private GameObject pageRoot, warningRoot;
-        private TMP_Text warning;
+        private GameObject pageRoot;
         private bool loading, dirty, lastBusy, lastUnsaved;
         private uint lastDay;
         private LocalProductState lastProduct;
@@ -31,18 +31,14 @@ namespace ZKube.Local.App
         private Rect lastSafe;
         private Vector2Int lastSize;
         private Exception lastFulfillment;
-        private PageCatalog pages;
-        public const float TerminalHoldSeconds = 1.2f;
-        // Over the board it is a banner; on a page it is one of the page's notices, at the bottom.
-        public const string UnsavedWarning = "Progress is not saved. Keep the app open; closing it may lose this result.";
-        private Coroutine outcome;
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
         public void Initialize(LocalProductStore product, StoreRunClient runs, CampaignBilling billing, BoardController boardController,
             IPlayerAccounts accounts = null)
         {
             if (Flow != null) throw new InvalidOperationException("Store app was already initialized");
-            board = boardController ?? throw new ArgumentNullException(nameof(boardController));
+            if (boardController == null) throw new ArgumentNullException(nameof(boardController));
+            runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(boardController);
             Flow = new StoreAppFlow(product, runs, billing, accounts);
             if (EventSystem.current == null || EventSystem.current.transform.IsChildOf(board.transform))
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");
@@ -50,18 +46,7 @@ namespace ZKube.Local.App
             pageRoot = shell.Root;
             views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Home", "realms", TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
-            board.Host = new BoardHostHooks { Exit = ExitBoard, Accepted = Accepted, Rejected = Rejected, Terminal = Terminal };
-            board.gameObject.SetActive(false);
-            warningRoot = CanvasRoot("Unsaved progress", 80);
-            var banner = Rect("Save warning", warningRoot.transform);
-            banner.anchorMin = new Vector2(0, 1); banner.anchorMax = Vector2.one; banner.pivot = new Vector2(.5f, 1);
-            banner.sizeDelta = new Vector2(0, 76); banner.gameObject.AddComponent<Image>().color = new Color(.35f, .12f, .03f, .98f);
-            warning = Rect("Save warning text", banner).gameObject.AddComponent<TextMeshProUGUI>();
-            warning.font = Resources.Load<TMP_FontAsset>("ZKube/Fonts/" + SkinUi.FontName(SkinUi.Type.Body)); warning.fontSize = 18; warning.color = Color.white;
-            warning.alignment = TextAlignmentOptions.Center; warning.raycastTarget = false;
-            warning.text = UnsavedWarning;
-            Stretch(warning.rectTransform, 14);
-            warningRoot.SetActive(false); Refresh();
+            Refresh();
             _ = Flow.RefreshBilling(); _ = Flow.SignIn();
         }
         private void Update()
@@ -81,9 +66,9 @@ namespace ZKube.Local.App
             if (dirty && !loading && Flow.Page != StorePage.Board) StartCoroutine(Render());
         }
         private byte PageRealm => Flow.Page == StorePage.Home ? Flow.Today.Realm :
-            Flow.Page == StorePage.Result && Flow.LastCampaign != null ? Flow.LastCampaign.Realm :
+            Flow.Page == StorePage.Result && Flow.Campaign.Last != null ? Flow.Campaign.Last.Realm :
             Flow.Page == StorePage.Result && Flow.Product.Read.DailyAttempt != null ? NativeEngine.Daily(Flow.Product.Read.DailyAttempt.DayId).Realm :
-            Flow.Page == StorePage.Profile ? WornRealm : Flow.Realm;
+            Flow.Page == StorePage.Profile ? WornRealm : Flow.Campaign.Realm;
         // The realm behind the profile: the worn guardian's, or the first realm.
         private byte WornRealm => (byte)(ProfileEmblems.All.FirstOrDefault(emblem => emblem.Id == Flow.Product.Read.WornEmblem)?.Realm is byte realm && realm > 0 ? realm : 1);
         private void Refresh()
@@ -91,14 +76,6 @@ namespace ZKube.Local.App
             if (this == null || Flow == null) return;
             dirty = true;
             shell.Show(Flow.Page != StorePage.Board);
-            if (warningRoot != null)
-            {
-                warningRoot.SetActive(Flow.Unsaved && Flow.Page == StorePage.Board);
-                var rect = (RectTransform)warning.transform.parent;
-                rect.anchorMin = new Vector2(Screen.safeArea.xMin / Screen.width, Screen.safeArea.yMax / Screen.height);
-                rect.anchorMax = new Vector2(Screen.safeArea.xMax / Screen.width, Screen.safeArea.yMax / Screen.height);
-                rect.anchoredPosition = Vector2.zero;
-            }
         }
         // A new page, or the same page in another realm, sends the drawn page
         // leaving while the next one loads its art and draws.
@@ -131,14 +108,13 @@ namespace ZKube.Local.App
         }
         private void Draw()
         {
-            if (pages == null) pages = PageCatalog.Load();
             views.Initialize(this, shell, "Home", "realms", TextScale);
             views.Render((AppPage)Enum.Parse(typeof(AppPage), Flow.Page.ToString()), Notices());
         }
         private IEnumerable<string> Notices()
         {
             yield return Flow.Error;
-            if (Flow.Unsaved) yield return UnsavedWarning;
+            if (Flow.Unsaved) yield return RunBoard.UnsavedWarning;
             // Store status belongs where its purchase and restore actions are.
             if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Settings) yield break;
             // The Campaign page states an unreachable store in place of its purchase.
@@ -148,56 +124,22 @@ namespace ZKube.Local.App
         }
         private static PageAction Action(string label, Action invoke, bool enabled = true) =>
             new PageAction { Label = label, Invoke = invoke, Enabled = enabled };
+        // The shared map, with the store's purchase where the purchase closes the realm.
         public CampaignPageView CampaignView()
         {
-            string locked = Flow.Runs.CampaignLock(Flow.Realm);
-            if (pages == null) pages = PageCatalog.Load();
-            var here = pages.Realm(Flow.Realm); var before = Flow.Realm > 1 ? pages.Realm((byte)(Flow.Realm - 1)) : null;
-            bool purchase = locked == "purchase", offline = purchase && Flow.StoreUnavailable;
-            return new CampaignPageView {
-                Realm = Flow.Realm, Stars = Flow.Stars(Flow.Realm),
-                Previous = Action("Previous", () => Flow.SelectRealm((byte)(Flow.Realm - 1)), Flow.Realm > 1),
-                Next = Action("Next", () => Flow.SelectRealm((byte)(Flow.Realm + 1)), Flow.Realm < Protocol.Realms.Length),
-                Locked = locked == "stars" ? "Clear " + before.guardianName + "’s final trial in " + before.realmName + " to open " + here.realmName + "." :
-                    purchase ? "Realms " + StoreCampaignPolicy.FirstPurchasedRealm + "–" + Protocol.Realms.Length + " open with the full Campaign purchase." : null,
-                StoreProblem = offline ? "Store purchase unavailable" : null,
-                Purchase = !purchase ? null : offline ? Action("Try again", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) :
-                    Action("Unlock full Campaign" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice),
-                        () => _ = Flow.RefreshBilling(purchase: true), !Flow.Billing.Busy),
-                Restore = purchase && !offline ? Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) : null,
-                Trials = Trials(Flow.Realm)
-            };
+            var view = Flow.Campaign.CampaignView();
+            if (Flow.Runs.CampaignLock(view.Realm) != "purchase") return view;
+            bool offline = Flow.StoreUnavailable;
+            view.Locked = "Realms " + StoreCampaignPolicy.FirstPurchasedRealm + "–" + Protocol.Realms.Length + " open with the full Campaign purchase.";
+            view.StoreProblem = offline ? "Store purchase unavailable" : null;
+            view.Purchase = offline ? Action("Try again", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) :
+                Action("Unlock full Campaign" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice),
+                    () => _ = Flow.RefreshBilling(purchase: true), !Flow.Billing.Busy);
+            view.Restore = offline ? null : Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy);
+            return view;
         }
-        // A realm's trials, each opening its level's preview.
-        private CampaignTrialView[] Trials(byte realm)
-        {
-            var active = Flow.Runs.Active("campaign");
-            return Enumerable.Range(1, Protocol.CampaignTargets.Length).Select(index => {
-                byte level = (byte)index;
-                return new CampaignTrialView { Level = level, Stars = Flow.LevelStars(realm, level),
-                    Available = Flow.LevelAvailable(realm, level), Playing = active?.Realm == realm && active.Level == level,
-                    Open = () => Flow.Preview(realm, level) };
-            }).ToArray();
-        }
-        public CampaignSummaryView CampaignSummary()
-        {
-            byte realm = Flow.FurthestRealm;
-            var trials = Trials(realm);
-            return new CampaignSummaryView { Realm = realm, Stars = trials.Sum(trial => (int)trial.Stars), Levels = trials.Length, Trials = trials,
-                Map = Action("Explore map", () => Flow.SelectRealm(realm)) };
-        }
-        public LevelPageView LevelPage()
-        {
-            var level = Protocol.Realms.Single(value => value.MapId == Flow.Realm).Levels[Flow.Level - 1];
-            return new LevelPageView { Realm = Flow.Realm, Level = Flow.Level,
-                Stars = Flow.Product.Read.Stars[(Flow.Realm - 1) * Protocol.CampaignTargets.Length + Flow.Level - 1],
-                Moves = NativeEngine.CampaignMoveBudget(Flow.Level, level.Tier),
-                Goals = new CampaignGoals { Points = Protocol.CampaignTargets[Flow.Level - 1],
-                    PrimaryKind = level.Primary[0], PrimaryValue = level.Primary[1], PrimaryCount = level.Primary[2],
-                    SecondaryKind = level.Secondary[0], SecondaryValue = level.Secondary[1], SecondaryCount = level.Secondary[2] },
-                Play = Action(Flow.Runs.Active("campaign") == null ? "Play" : "Resume run", Flow.PlayCampaign),
-                Back = Action("Back to map", () => Flow.Show(StorePage.Campaign)) };
-        }
+        public CampaignSummaryView CampaignSummary() => Flow.Campaign.CampaignSummary();
+        public LevelPageView LevelPage() => Flow.Campaign.LevelPage();
         public DailyPageView DailyPage()
         {
             var today = Flow.Today;
@@ -232,16 +174,7 @@ namespace ZKube.Local.App
         }
         public ResultPageView ResultPage()
         {
-            var outcome = Flow.LastCampaign;
-            if (outcome != null)
-                return new ResultPageView { ProductName = Application.productName, Mode = "Campaign", PlayerName = Flow.Account?.Name,
-                    HasResult = true, ShowStars = true, Realm = outcome.Realm, Level = outcome.Level, Score = outcome.Score,
-                    StarSources = outcome.StarSources, EndReason = outcome.EndReason, MovesLeft = outcome.MovesLeft,
-                    PrimaryProgress = outcome.PrimaryProgress, Goals = outcome.Goals,
-                    NewBest = outcome.Stars > outcome.PreviousStars, NextOpen = outcome.PreviousStars > 0,
-                    // A kept star continues on the map; none leaves for it. Campaign results have no Share.
-                    Done = Action(outcome.Stars > 0 ? "Continue" : "Map", () => Flow.Show(StorePage.Campaign)),
-                    Retry = Action("Retry", Flow.Retry) };
+            if (Flow.Campaign.Last != null) return Flow.Campaign.ResultPage(Application.productName, Flow.Account?.Name);
             var attempt = Flow.Product.Read.DailyAttempt;
             var pair = attempt == null ? null : NativeEngine.Daily(attempt.DayId);
             return new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Account?.Name,
@@ -263,40 +196,18 @@ namespace ZKube.Local.App
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));
         public void Report(Exception error) => Flow.Report(error);
+        // A Campaign run and the Daily play on the one run board; each leaves to its own page.
         private void OpenBoard(LocalBoardActionProvider provider)
         {
-            var daily = provider.Daily ? new DailyContext { Best = Flow.Product.Read.BestDailyScore, ClosesAt = Flow.Today.FreezesAt, Now = Flow.Runs.Now } : null;
-            board.gameObject.SetActive(true); board.Bind(provider.Bind(daily)); if (pageRoot != null) pageRoot.SetActive(false);
+            if (provider.Daily)
+                runBoard.Open(provider.Bind(new DailyContext { Best = Flow.Product.Read.BestDailyScore, ClosesAt = Flow.Today.FreezesAt, Now = Flow.Runs.Now }),
+                    () => Flow.Unsaved, _ => Flow.LeaveDaily(), Flow.LeaveDaily);
+            else runBoard.Open(provider.Bind(), () => Flow.Unsaved, Flow.Campaign.Finished, Flow.Campaign.Left);
+            if (pageRoot != null) pageRoot.SetActive(false);
             // The page that opened the board is not shown again on the way back.
             views.Hide();
         }
-        private void ExitBoard() { StopOutcome(); board.gameObject.SetActive(false); Flow.LeaveBoard(); }
-        // A finished run stays on the board for a moment, then opens its result page.
-        private void Terminal(BoardController source)
-        { if (source == board && outcome == null) outcome = StartCoroutine(Outcome()); }
-        private IEnumerator Outcome()
-        {
-            yield return new WaitForSecondsRealtime(TerminalHoldSeconds);
-            outcome = null;
-            if (board == null || !board.gameObject.activeSelf || board.State == null || board.Session == null || board.RecoveryRequired) yield break;
-            var state = board.State; var session = board.Session;
-            var result = session.Daily ? null : new CampaignOutcome { Realm = session.RealmId, Level = Flow.Level,
-                Score = state.Score, StarSources = state.LatchedStarSources, EndReason = state.EndReason, PrimaryProgress = state.PrimaryProgress,
-                Goals = new CampaignGoals { Points = session.Rules.PointsRequired, PrimaryKind = session.Rules.PrimaryKind,
-                    PrimaryValue = session.Rules.PrimaryValue, PrimaryCount = session.Rules.PrimaryCount,
-                    SecondaryKind = session.Rules.SecondaryKind, SecondaryValue = session.Rules.SecondaryValue, SecondaryCount = session.Rules.SecondaryCount },
-                MovesLeft = (uint)Math.Max(0L, (long)session.Rules.MaxMoves - state.Moves) };
-            board.gameObject.SetActive(false); Flow.LeaveBoard(result);
-        }
-        private void StopOutcome() { if (outcome != null) StopCoroutine(outcome); outcome = null; }
-        private void Accepted(CoreRunToken _) { Flow.ObservePersistence(); Refresh(); }
-        private void Rejected(string _) { Flow.ObservePersistence(); Refresh(); }
         private void OnApplicationPause(bool paused) { if (!paused && Flow != null) { Refresh(); _ = Flow.RefreshBilling(); } }
-        private static RectTransform Rect(string name, Transform parent)
-        { var value = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>(); value.SetParent(parent, false); return value; }
-        private static void Stretch(RectTransform rect, float inset = 0)
-        { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = Vector2.one * inset; rect.offsetMax = -Vector2.one * inset; }
-        private GameObject CanvasRoot(string name, int order) => AppShell.CanvasRoot(name, transform, order);
         private void RetirePage()
         {
             views.Retire(); shell.Backdrop(null);
@@ -304,7 +215,6 @@ namespace ZKube.Local.App
         private void OnDestroy()
         {
             if (Flow != null) { Flow.Changed -= Refresh; Flow.BoardOpened -= OpenBoard; Flow.Dispose(); Flow = null; }
-            if (board != null) board.Host = null;
             RetirePage(); shell.ReleaseArtwork();
         }
     }

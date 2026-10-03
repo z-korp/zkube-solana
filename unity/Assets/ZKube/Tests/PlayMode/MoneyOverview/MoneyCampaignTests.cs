@@ -44,7 +44,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Trial ") && !button.interactable).All(button => !button.interactable), Is.True);
             Click("Trial 1"); yield return null;
             Assert.That(controller.SelectedTrial, Is.EqualTo(1));
-            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Rules of your saved run"), Is.True);
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Resume run"), Is.True);
             int before = environment.Calls.Count;
             environment.AdvanceClock(86400); yield return null; yield return null;
             Assert.That(controller.BrowsingCampaign, Is.True); Assert.That(controller.SelectedTrial, Is.EqualTo(1));
@@ -62,9 +62,10 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator CampaignDisconnectRetiresDelayedRecordReadAndRealmArtwork()
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
-            Click("Campaign"); yield return Idle(); Click("Next"); yield return Idle();
+            // Opening the Campaign starts the background read of the address's stars.
             var controller = host.GetComponent<MoneyIdentity>().Controller;
-            delay = environment.HoldNextRead("getAccountInfo"); _ = controller.RefreshOverview();
+            delay = environment.HoldNextRead("getAccountInfo");
+            Click("Campaign"); yield return Idle(); Click("Next"); yield return Idle();
             try
             {
                 yield return Wait(delay.Entered);
@@ -75,7 +76,6 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(environment.Services.Identity.Owner, Is.Null);
                 Assert.That(controller.LastReceipt, Is.Null);
                 Assert.That(host.GetComponentsInChildren<CampaignPathGraphic>(), Is.Empty);
-                Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text.StartsWith("Saved Campaign run")), Is.False);
                 Assert.That(environment.ForbiddenCalls, Is.Zero);
             }
             finally { delay.Release(); }

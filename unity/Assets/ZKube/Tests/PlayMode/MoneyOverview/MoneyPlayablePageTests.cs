@@ -18,9 +18,11 @@ namespace ZKube.Tests.MoneyOverview
             var local = environment.Services.Campaign(environment.Owner).Runs;
             var start = local.StartCampaign(1, 1);
             var accepted = local.Act(start.View.RunId, new ZKube.Local.LocalRunAction(ZKube.Local.LocalActionKind.Reroll));
+            // The saved run resumes from its level's node and preview, as in Realms.
             yield return SessionClick("Campaign"); yield return Idle();
+            yield return SessionClick("Trial 1"); yield return Idle();
             yield return SessionClick("Resume run"); yield return Idle();
-            var board = host.GetComponent<MoneyBoardHost>().Board;
+            var board = PlayedBoard();
             float until = Time.realtimeSinceStartup + 15;
             while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) && Time.realtimeSinceStartup < until) yield return null;
             Assert.That(ZKube.Tests.Presentation.BoardTestState.Idle(board), Is.True, "Board is still busy or loading");
