@@ -70,6 +70,19 @@ namespace ZKube.Integration.Tests
         public void Dispose() { Disposed = true; }
     }
 
+    // The Clock sysvar account a cluster would return at this Unix time.
+    public static class TestClock
+    {
+        public static JObject Sysvar(long unixTime)
+        {
+            var data = new byte[40];
+            BitConverter.GetBytes(unixTime).CopyTo(data, 32);
+            return new JObject { ["address"] = ZKube.Integration.Client.CadenceObservation.ClockSysvar,
+                ["owner"] = "Sysvar1111111111111111111111111111111111111", ["executable"] = false,
+                ["data"] = Convert.ToBase64String(data) };
+        }
+    }
+
     public sealed class TestHttp : IJsonRpcHttp, IPublicReadHttp, IDisposable
     {
         public readonly ConcurrentQueue<JObject> Requests = new ConcurrentQueue<JObject>();

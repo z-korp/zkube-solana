@@ -364,6 +364,8 @@ namespace ZKube.Integration.Execution.Tests
             http.ExtraAccounts[(string)tokenRow["address"]] = tokenRow; http.AbsentNonPlayer = true;
             http.ExtraAccounts[device] = new JObject { ["address"] = device, ["owner"] = PlanningConstants.SystemProgram, ["executable"] = false, ["data"] = "", ["lamports"] = 5000000 };
             foreach (var daily in backlog["dailies"]) http.ExtraAccounts[(string)daily["address"]] = daily;
+            // The chain's clock at the read: the backlog's days are long over.
+            http.ExtraAccounts[ZKube.Integration.Client.CadenceObservation.ClockSysvar] = TestClock.Sysvar((long)plans["inputs"]["now"]);
             var rpc = new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId);
             var protocol = new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson);
             var journal = new TransactionJournal(store);

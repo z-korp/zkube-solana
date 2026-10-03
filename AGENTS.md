@@ -179,14 +179,19 @@ spending approval.
   passes. Only the entry alone can fail the entry. Simulation cannot bound a state that changes after it, so
   the client states each transaction's compute instead of measuring it: the core's reserve for the preparation,
   entry and delegation (or claim), plus each carried finalization's worst case, which the core sets from the
-  rows its boards retain, fixed once it can finalize, so no later rollover or claim can raise it. A finalization
+  rows its boards retain. Those rows are final only once the Daily has finished, closed and resolved or past
+  recovery, and the client takes that from the Clock sysvar read with the Daily in the same batch, never from
+  the device's clock; a Daily that clock does not prove finished is not carried. A finalization
   whose worst case does not fit beside the others within the transaction maximum is not carried, and the
   keeper sends every finalization at the maximum. The program uses no syscall a cluster may lack. One whose
   predecessor has not reached it yet waits, a no-op. `finalization_never_exceeds_its_worst_case`,
   `optional_cadence_never_overruns_an_entry_after_a_concurrent_expiry_rollover`,
   `optional_cadence_survives_the_rollover_with_the_auditors_original_fields`,
-  `a_finalization_whose_predecessor_has_not_reached_it_never_fails_the_entry` and
-  `TheEntryStatesItsComputeFromTheWorstCaseOfWhatItCarries` guard the bound, the stated limit and the wait. A finalization of a Daily someone else has already finalized,
+  `a_finalization_whose_predecessor_has_not_reached_it_never_fails_the_entry`,
+  `an_entry_survives_growth_after_a_read_the_chain_clock_does_not_prove_finished`,
+  `ADailyTheChainClockDoesNotProveFinishedIsNotCarried` and
+  `TheEntryStatesItsComputeFromTheWorstCaseOfWhatItCarries` guard the bound, the stated limit, the chain-clock
+  proof and the wait. A finalization of a Daily someone else has already finalized,
   closed or not, is a no-op that still requires the canonical accounts of the days it names, so a size that
   passed its simulation cannot fail later for that. A winner back on a quiet day seals days the same way, then
   claims. The waiting Dailies are read forward from the result root, which names the last finalized day,

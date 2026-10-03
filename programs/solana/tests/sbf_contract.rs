@@ -4910,6 +4910,9 @@ fn retained_rows(game: &Game, day: u32) -> u32 {
 fn client_stated(game: &Game, due: &[u32]) -> (usize, u64) {
     let (mut carried, mut limit) = (0, zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS);
     for day in due {
+        if !client_carries(game, *day) {
+            break;
+        }
         let next = limit + zkube_core::finalization_worst_case_units(retained_rows(game, *day));
         if next > zkube_core::TRANSACTION_COMPUTE_UNITS {
             break;
@@ -4917,6 +4920,134 @@ fn client_stated(game: &Game, due: &[u32]) -> (usize, u64) {
         (carried, limit) = (carried + 1, next);
     }
     (carried, limit)
+}
+
+/// Whether the client carries a due Daily: only when the chain's clock, read
+/// with it, proves it finished (closed, and resolved or past recovery), so
+/// the rows it retains are final.
+fn client_carries(game: &Game, day: u32) -> bool {
+    let state = game.state(day);
+    let now = game.runtime.sysvars.clock.unix_timestamp;
+    let (_, closes, recovered) = day_window(day).unwrap();
+    !state.finalized() && now >= closes && (state.resolved() || now >= recovered)
+}
+
+#[test]
+fn an_entry_survives_growth_after_a_read_the_chain_clock_does_not_prove_finished() {
+    // Audit 11's reproductions. A phone whose clock runs ahead reads a Daily
+    // two seconds before the chain closes it, with 128 retained rows. Before
+    // the entry lands, more runs are consumed into it and an older Daily's
+    // expired prize rolls into its pot. Sized from that read, its finalization
+    // would overrun the limit; read by the chain's clock, it is not carried,
+    // and the entry lands. A fresh read once it has finished carries it at its
+    // final rows. With the old prize unclaimed and half claimed.
+    for partial_claim in [false, true] {
+        let old = 20_710;
+        let day = old + 1;
+        let pool = 100_000_000_000_000;
+        let mut game = Game::unlaunched(old);
+        game.accounts
+            .insert(game.authority, system_account(pool * 3));
+        assert!(game.send(&game.launch(old, pool)).program_result.is_ok());
+        let winner = Pubkey::new_unique();
+        game.player(winner);
+        assert!(game.send(&[game.enter(winner, old)]).program_result.is_ok());
+        assert!(game.settle(winner, old, 100, 5).program_result.is_ok());
+        game.at(day, 60);
+        assert!(game
+            .send(&[game.prepare(day), game.finalize(old, day)])
+            .program_result
+            .is_ok());
+        if partial_claim {
+            assert!(game
+                .send(&[game.claim(winner, old, DailyBoardKind::Theme, 0)])
+                .program_result
+                .is_ok());
+        }
+        let growing = old + 30;
+        game.at(growing, 60);
+        assert!(game.send(&[game.prepare(growing)]).program_result.is_ok());
+        assert!(game
+            .send(&[game.finalize(day, growing)])
+            .program_result
+            .is_ok());
+        // The read: two seconds before the chain closes the day, 64 runs on each board.
+        game.at(growing, 86_338);
+        let small = 64u32;
+        let mut snapshot = game.state(growing);
+        snapshot.unique_players = small;
+        snapshot.score_qualified_players = small;
+        snapshot.theme_qualified_players = small;
+        snapshot.entries_paid = u64::from(small);
+        snapshot.entries_scored = u64::from(small);
+        snapshot.ledger.next_pot_lamports = u64::from(small) * zkube_core::ENTRY_DAILY_LAMPORTS;
+        let rent =
+            anchor_lang::prelude::Rent::default().minimum_balance(8 + ArenaDaily::INIT_SPACE);
+        game.accounts.insert(
+            Game::daily(growing),
+            serialized_account(
+                &snapshot,
+                8 + ArenaDaily::INIT_SPACE,
+                zkube::ID,
+                rent + snapshot.ledger.available_lamports().unwrap()
+                    + snapshot.ledger.next_pot_lamports,
+            ),
+        );
+        let rows = (0..small)
+            .map(|rank| ranked_row(small, rank))
+            .collect::<Vec<_>>();
+        for kind in [DailyBoardKind::Score, DailyBoardKind::Theme] {
+            let (key, account) = open_board(Game::daily(growing), growing, kind, &rows, small);
+            game.accounts.insert(key, account);
+        }
+        assert_eq!(retained_rows(&game, growing), 128);
+        // The chain's clock does not prove the day finished: not carried.
+        assert!(!client_carries(&game, growing));
+        assert_eq!(
+            client_stated(&game, &[growing]),
+            (0, zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS)
+        );
+        // The day grows to a full field before its close, then the next day comes.
+        full_day(&mut game, growing, 0);
+        let grown = game.state(growing);
+        game.accounts
+            .get_mut(&Game::daily(growing))
+            .unwrap()
+            .lamports =
+            rent + grown.ledger.available_lamports().unwrap() + grown.ledger.next_pot_lamports;
+        let today = old + 31;
+        game.at(today, 61);
+        // What the client built from that read: today's preparation and the entry.
+        let entry = device_entry(&mut game, today);
+        let built = [game.prepare(today), entry];
+        let later = device_entry(&mut game, today);
+        // The old prize rolls into the growing day's pot first.
+        let total = game.total();
+        let narrow = game.state(growing).ledger.available_lamports().unwrap();
+        assert!(game
+            .send(&[game.close(old, Some(growing))])
+            .program_result
+            .is_ok());
+        assert!(game.state(growing).ledger.available_lamports().unwrap() > narrow);
+        let (landed, used) =
+            game.send_metered(&built, zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS);
+        assert!(landed && used <= zkube_core::FINALIZATION_FOLLOWING_RESERVE_UNITS);
+        assert_eq!(game.state(today).entries_paid, 1);
+        // A fresh read now proves it finished: carried, sized at its final rows.
+        assert!(client_carries(&game, growing));
+        assert_eq!(
+            retained_rows(&game, growing),
+            2 * ARENA_BOARD_CAPACITY as u32
+        );
+        let (carried, stated) = client_stated(&game, &[growing]);
+        assert_eq!(carried, 1);
+        let (landed, used) = game.send_metered(&[game.finalize(growing, today), later], stated);
+        println!("partial_claim={partial_claim}: carried at final rows, {used} of {stated} CU");
+        assert!(landed && used <= stated);
+        assert!(game.state(growing).finalized());
+        assert_eq!(game.state(today).entries_paid, 2);
+        assert_eq!(game.total(), total);
+    }
 }
 
 /// The audit 8 regression under a client-stated limit. An entry carries the

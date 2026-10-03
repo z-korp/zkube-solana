@@ -77,7 +77,7 @@ namespace ZKube.Integration.Client
             long timestamp = Clock(); uint day = CurrentDay(timestamp);
             var read = await rpc.ReadAccount(rpc.Base, addresses.ProtocolAddress, cancellation: token).ConfigureAwait(false);
             return await CadenceObservation.Read(accounts, addresses, rpc,
-                read.Envelope == null ? null : accounts.ProtocolConfig(read.Envelope), day, timestamp, read.Slot, token).ConfigureAwait(false);
+                read.Envelope == null ? null : accounts.ProtocolConfig(read.Envelope), day, read.Slot, token).ConfigureAwait(false);
         });
 
         // Explicit day reads have no discovery lookback restriction: an old

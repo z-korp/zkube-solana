@@ -164,6 +164,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             {
                 var env = await Environment.Create(); env.Http.Prepare("daily"); env.Http.IncludeClaims = true;
                 env.Http.Extra.Add(backlog["start"]); env.Http.Extra.AddRange(backlog["dailies"]);
+                env.Http.Extra.Add(TestClock.Sysvar((long)Fixture("plans")["inputs"]["now"]));
                 env.Http.Hidden.Add((string)Fixture("plans")["accounts"]["daily"]["address"]);
                 env.Http.SimulationFits = names => names.Count(name => name == "finalize_arena_daily") <= fitting;
                 var result = await env.Client.StartDaily();
@@ -200,6 +201,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             var backlog = Fixture("economy")["cadence"]["backlog"];
             var env = await Environment.Create(); env.Http.Prepare("daily");
             env.Http.Extra.Add(backlog["enteredToday"]); env.Http.Extra.Add(backlog["today"]); env.Http.Extra.AddRange(backlog["dailies"]);
+            env.Http.Extra.Add(TestClock.Sysvar((long)Fixture("plans")["inputs"]["now"]));
             env.Http.Extra.Add(backlog["claimDaily"]); env.Http.Extra.Add(backlog["claimBoard"]);
             return env;
         }

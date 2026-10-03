@@ -59,8 +59,12 @@ namespace ZKube.Tests.ProductReads
             public JObject Config(JToken row) => Accounts.ProtocolConfig(Envelope(row));
             // The moment yesterday's last unresolved run can no longer score.
             public long YesterdayRecovered => (long)NativeEngine.Daily(Day - 1).FreezesAt + (long)ZKube.Core.Generated.Protocol.RunRecoverySeconds;
-            public Task<CadenceObservation> Read(JToken protocol, long now) => CadenceObservation.Read(Accounts, Planner, Rpc,
-                Config(protocol), Day, now, null, CancellationToken.None);
+            // A read at a slot whose Clock sysvar says `chainNow`.
+            public Task<CadenceObservation> Read(JToken protocol, long chainNow)
+            {
+                Put(TestClock.Sysvar(chainNow));
+                return CadenceObservation.Read(Accounts, Planner, Rpc, Config(protocol), Day, null, CancellationToken.None);
+            }
             public PlannerActor Device() => PlannerActor.Device(Owner, (string)Plans["inputs"]["device"], Envelope(Plans["accounts"]["session"]),
                 Tokens, Protocol.ProgramId, Now);
         }
@@ -115,6 +119,31 @@ namespace ZKube.Tests.ProductReads
             world.Put(world.Cadence["yesterdayFinalized"], world.Cadence["todayReceived"]);
             var done = await world.Read(world.Plans["accounts"]["protocol"], late);
             Assert.That(done.Steps, Is.Empty); Assert.That(done.PrepareDay, Is.Null);
+        }
+
+        [Test]
+        public async Task ADailyTheChainClockDoesNotProveFinishedIsNotCarried()
+        {
+            // A Daily can still gain rows until the chain's clock passes its
+            // close (and every run resolves, or its recovery ends). Its rows then
+            // size the stated compute, so they must be final when read: the
+            // client asks the chain's clock in the same read, not its own.
+            var world = new World(); long close = (long)NativeEngine.Daily(world.Day - 1).FreezesAt;
+            world.Put(world.Cadence["yesterday"], world.Cadence["today"]);
+            // Two seconds before the close by the chain, whatever the phone says: not carried.
+            Assert.That((await world.Read(world.Cadence["protocol"], close - 2)).Steps, Is.Empty);
+            // Closed, but a run is unresolved until the recovery deadline: not carried.
+            Assert.That((await world.Read(world.Cadence["protocol"], close)).Steps, Is.Empty);
+            Assert.That((await world.Read(world.Cadence["protocol"], world.YesterdayRecovered)).Steps.Select(step => step.Day),
+                Is.EqualTo(new[] { world.Day - 1 }));
+            // No readable clock in the read proves nothing: not carried.
+            world.Chain.Remove(CadenceObservation.ClockSysvar);
+            Assert.That((await CadenceObservation.Read(world.Accounts, world.Planner, world.Rpc, world.Config(world.Cadence["protocol"]),
+                world.Day, null, CancellationToken.None)).Steps, Is.Empty);
+            var wrong = TestClock.Sysvar(world.YesterdayRecovered); wrong["owner"] = world.Protocol.ProgramId;
+            world.Put(wrong);
+            Assert.That((await CadenceObservation.Read(world.Accounts, world.Planner, world.Rpc, world.Config(world.Cadence["protocol"]),
+                world.Day, null, CancellationToken.None)).Steps, Is.Empty);
         }
 
         [Test]

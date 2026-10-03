@@ -54,7 +54,7 @@ namespace ZKube.Integration.Client
             if (value.protocol != null && value.Assess(accounts, timestamp).Snapshot != null)
             {
                 value.Cadence = await CadenceObservation.Read(accounts, planner, rpc, accounts.ProtocolConfig(value.protocol),
-                    value.Day, timestamp, value.Slot, token).ConfigureAwait(false);
+                    value.Day, value.Slot, token).ConfigureAwait(false);
                 value.Slot = Math.Max(value.Slot, value.Cadence.Slot);
             }
             return value;
