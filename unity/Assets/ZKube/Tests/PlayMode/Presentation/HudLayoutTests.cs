@@ -530,6 +530,26 @@ namespace ZKube.Presentation.Tests
                 board.View.gameObject.SetActive(true);
             }
         }
+        // The owner (2026-10-03): the star crown sits clear above the guardian's
+        // head, crest, horns or ears, for every guardian and on every phone,
+        // placed from that guardian's own head top and inside the safe area.
+        [UnityTest] public IEnumerator TheCrownStandsClearAboveEveryGuardiansHead()
+        {
+            foreach (int realm in Enumerable.Range(1, 10))
+                foreach (string fixture in new[] { "realm-" + realm + "-campaign", "realm-" + realm + "-daily" })
+                {
+                    evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                    var art = Art();
+                    foreach (var (name, screen, safe, density) in Screens(emulator: true))
+                    {
+                        var plan = HudLayout.Build(new SkinUi(art, density, 1), board.State, board.Session, safe, density, screen);
+                        float head = plan.Guardian.yMax - art.GuardianTopY * plan.Guardian.height;
+                        string at = fixture + " on " + name;
+                        Assert.GreaterOrEqual(plan.Crown.yMin, head + HudLayout.CrownClearDp * density - .5f, at + ": the crown clears the guardian's head");
+                        Assert.IsTrue(Inside(safe, plan.Crown), at + ": the crown stays in the safe area");
+                    }
+                }
+        }
         [UnityTest] public IEnumerator NothingEntersTheTopInset()
         {
             evidence.Load("realm-1-campaign"); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));

@@ -3423,7 +3423,8 @@
           0.3411458333333333
         ],
         "railFrontY": 0.7981770833333334,
-        "railY": 0.7877604166666666
+        "railY": 0.7877604166666666,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "Today the tides shift for all challengers equally. Ride them better than anyone.",
@@ -3692,7 +3693,8 @@
           0.3671875
         ],
         "railFrontY": 0.7955729166666666,
-        "railY": 0.78515625
+        "railY": 0.78515625,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "The Nile tests all equally today. Precision will separate the worthy from the rest.",
@@ -3961,7 +3963,8 @@
           0.33984375
         ],
         "railFrontY": 0.828125,
-        "railY": 0.8177083333333334
+        "railY": 0.8177083333333334,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "The storm rages equally for all today. Strike harder than your rivals.",
@@ -4230,7 +4233,8 @@
           0.3111979166666667
         ],
         "railFrontY": 0.7994791666666666,
-        "railY": 0.7890625
+        "railY": 0.7890625,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "The same puzzle for all minds today. Prove yours is the sharpest.",
@@ -4499,7 +4503,8 @@
           0.2890625
         ],
         "railFrontY": 0.81640625,
-        "railY": 0.8059895833333334
+        "railY": 0.8059895833333334,
+        "topY": 0.08984375
       },
       "guardianLines": {
         "dailyGreeting": "The dragon's gaze falls on all challengers today. Outlast them all.",
@@ -4768,7 +4773,8 @@
           0.2786458333333333
         ],
         "railFrontY": 0.7981770833333334,
-        "railY": 0.7877604166666666
+        "railY": 0.7877604166666666,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "The same mosaic for all eyes today. See the pattern faster than anyone.",
@@ -5037,7 +5043,8 @@
           0.23958333333333334
         ],
         "railFrontY": 0.7981770833333334,
-        "railY": 0.7877604166666666
+        "railY": 0.7877604166666666,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "The same trick for all challengers today. Let's see who falls for it last.",
@@ -5306,7 +5313,8 @@
           0.3111979166666667
         ],
         "railFrontY": 0.7981770833333334,
-        "railY": 0.7877604166666666
+        "railY": 0.7877604166666666,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "The jungle offers the same gifts to all today. Use them wisely, others won't hesitate.",
@@ -5575,7 +5583,8 @@
           0.28515625
         ],
         "railFrontY": 0.7981770833333334,
-        "railY": 0.7877604166666666
+        "railY": 0.7877604166666666,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "The same beat for all today. Match the rhythm longer than anyone else.",
@@ -5844,7 +5853,8 @@
           0.3190104166666667
         ],
         "railFrontY": 0.7981770833333334,
-        "railY": 0.7877604166666666
+        "railY": 0.7877604166666666,
+        "topY": 0.09375
       },
       "guardianLines": {
         "dailyGreeting": "One path. One summit. All climbers face the same mountain today. Reach highest.",

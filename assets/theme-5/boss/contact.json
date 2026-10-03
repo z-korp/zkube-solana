@@ -20,6 +20,7 @@
   "paws": "paws.png",
   "rail_y_px": 619,
   "rail_front_y_px": 627,
+  "top_y_px": 69,
   "face_rect_px": [
     246,
     186,

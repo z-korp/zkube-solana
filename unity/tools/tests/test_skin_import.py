@@ -106,6 +106,14 @@ class KitArt(unittest.TestCase):
                 r, g, b = face.getpixel((face.width // 2, face.height // 2))
                 self.assertTrue(g > r + 20 and b > r + 20 and min(g, b) > 60, f"{skin} {slot}: its face {(r, g, b)} is a filled teal")
 
+    def test_each_guardians_recorded_head_top_is_its_first_opaque_row(self):
+        """The HUD stands the crown over top_y_px: the first row any idle or acting frame is a quarter opaque in."""
+        for contact_path in sorted((ROOT / "assets").glob("theme-*/boss/contact.json")):
+            contact = json.loads(contact_path.read_text())
+            top = min(Image.open(contact_path.parent / f"{name}.png").getchannel("A").point(lambda value: 255 if value >= 64 else 0).getbbox()[1]
+                      for name in contact["frame_names"] if name != "portrait")
+            self.assertEqual(top, contact["top_y_px"], contact_path.parent.parent.name)
+
     def test_only_the_wordmark_letters_change_colour_between_realms(self):
         """Each product's plaque keeps one colour in every realm and on the loading screen: from the letters'
         foot down, and around the letters' box, every colourway and the brand lockup carry the same pixels."""

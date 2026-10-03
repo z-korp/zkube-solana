@@ -93,8 +93,8 @@ namespace ZKube.Presentation
         public const float PromptPt = 12;
         // The Earn caption's size, the Caption role's 11 dp, 10 on a compact screen.
         private static float EarnCaptionPt(bool compact) => compact ? 10 : 11;
-        // The crown overlaps the top eighth of the guardian's canvas, clear above its head.
-        private const float CrownOverGuardian = .124f;
+        // The crown stands this far clear above the top of the guardian's head.
+        public const float CrownClearDp = 2;
         // Digit tops sit this far (in em) below the font's ascender, where a
         // top-aligned TMP line starts.
         public static float DigitTop = .31f;
@@ -178,11 +178,12 @@ namespace ZKube.Presentation
             // height past that opens above the header, over the painting. A
             // compact screen lets its plates shrink to CompactFloorK, which keeps
             // a 360 x 640 phone's cells at MinCompactCellDp.
-            float gap = compact ? 4 : 6, rail = ui.Art.GuardianRailY - CrownOverGuardian;
+            // The guardian's figure above the frame, from its rail line to its head's top.
+            float gap = compact ? 4 : 6, rail = ui.Art.GuardianRailY - ui.Art.GuardianTopY;
             float below = new BoardLayout(safe, density, 1, earn * d, label * d).BelowHeader / d;
             float Leaves(float cell) => safe.height / d - below - 11 * cell - 2;
             float Stack(float scale) => 3 * 46 * scale + 2 * gap + 2;
-            float CrownDp(float scale) => result.Campaign ? 1.34f * StarDp * scale : (58 + BestAboveDp) * scale;
+            float CrownDp(float scale) => (result.Campaign ? 1.34f * StarDp * scale : (58 + BestAboveDp) * scale) + CrownClearDp;
             float widestCell = BoardLayout.WidestCellDp(safe.width / d);
             float floorK = compact ? CompactFloorK : HeaderFloorK;
             float header = Mathf.Max(Leaves(widestCell), Stack(floorK));
@@ -238,7 +239,7 @@ namespace ZKube.Presentation
             float between = Mathf.Min(safe.center.x - (safe.x + 8 * d + movesWidth * d), plateRight - plateWidth * d - safe.center.x) / d - 2;
             guardianDp = Mathf.Max(72, Mathf.Min(guardianDp, 2 * between / (1 - 2 * GuardianSideMargin)));
             bool underCrown = plateRight - plateWidth * d < safe.center.x + crownHalf * d;
-            float column = Mathf.Max(crownHeight + rail * guardianDp, underCrown ? crownHeight + gap + stack : 0);
+            float column = Mathf.Max(crownHeight + CrownClearDp + rail * guardianDp, underCrown ? crownHeight + gap + stack : 0);
             float room = inset + 2;
             float rim = Mathf.Max(inset + header, room + Mathf.Max(column, Mathf.Max(stack, moves + movesBelow)));
             float crownTop = rim - column;
