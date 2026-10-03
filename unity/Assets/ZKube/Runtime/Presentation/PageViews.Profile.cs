@@ -159,8 +159,8 @@ namespace ZKube.Presentation
 
         // Settings, as the wireframe draws it: the title, the Sound card (a
         // slider per channel, whose name switches it off and back to the level
-        // it had), the card of haptics, reduced motion and the text size, then
-        // the identity's own actions.
+        // it had), the card of haptics, reduced motion, the text size and How to
+        // play, then the identity's own actions.
         private void Settings(SettingsPageView value)
         {
             var kit = Kit; var inside = kit.Inside();
@@ -171,7 +171,10 @@ namespace ZKube.Presentation
             pieces.Add(kit.Card(null, new[] { Switch(inside, "Haptics", value.Haptics, value.ToggleHaptics, false),
                 Switch(inside, "Reduced motion", value.ReducedMotion, value.ToggleMotion, true),
                 Tapped(inside.Row("Text size", null, "Text size", null, inside.Value("Text size value", current, SkinTokens.Text), true),
-                    "Text size: " + (value.LargeText ? "larger" : "standard"), value.ToggleText) }, "Switches card"));
+                    "Text size: " + (value.LargeText ? "larger" : "standard"), value.ToggleText),
+                // How to play replays every lesson over its card.
+                Tapped(inside.Row("How to play", null, "How to play", null, inside.Value("How to play value", "›", SkinTokens.Text), true),
+                    "How to play", () => Teach(Lessons.HowToPlay(brand == "arena"), null)) }, "Switches card"));
             if (value.Muted) pieces.Add(Buttons(kit, (new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, ScreenKit.Kind.Quiet, SkinSlots.IconSound)));
             // The identity's own actions are quiet buttons.
             if (value.Identity.Length != 0)

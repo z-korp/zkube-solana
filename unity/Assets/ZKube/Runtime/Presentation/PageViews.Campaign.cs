@@ -296,38 +296,70 @@ namespace ZKube.Presentation
                     card => { foreach (var line in notices) card.Typed("Notice", line, SkinUi.Type.Body, 15, SkinTokens.Text, 8); });
         }
 
-        // The level preview over the dimmed map: the guardian leans on the dialog's
-        // rail and states its rule, then the level, its goals in plain words, the
-        // moves and Play. Progress shows only once there is some, so a new level
-        // shows its targets.
         // The first visit to a realm: over the dimmed map the guardian greets the
         // player with its line and its rule. A tap anywhere continues.
-        private void Greeting(byte realmId, PageCatalog.RealmPage realm)
+        private void Greeting(byte realmId, PageCatalog.RealmPage realm) =>
+            TalkScene("Guardian greeting", realm, TalkPage.MapGreeting(realm, catalog.Rule(realmId), realmId > 1), () => Greetings.Greet(realmId), false);
+
+        // A lesson over the page drawn: its guardian teaches the pages, then done
+        // runs, once, whether the player read them through or skipped.
+        public void Teach(TalkPage[] pages, Action done)
+        {
+            if (shell.Artwork == null) throw new InvalidOperationException("Draw the page before teaching over it");
+            // A redraw of the page keeps the lesson it is already showing.
+            if (shell.Chrome.Find("Lesson") != null) return;
+            TalkScene("Lesson", catalog.Realm(shell.Artwork.RealmId), pages, done, true);
+        }
+
+        // The guardian's talk scene over the dimmed page, taking the whole screen
+        // as the wireframe draws it (the tab bar waits under it). A tap anywhere is
+        // a tap on the talk; a page's lesson card shows above the guardian; Skip,
+        // where offered, finishes at once.
+        private void TalkScene(string name, PageCatalog.RealmPage realm, TalkPage[] pages, Action finished, bool skip)
         {
             float d = ui.Density; var safe = shell.SafeArea;
-            var root = Holder("Guardian greeting", shell.ScreenArea, shell.Chrome);
-            var scrim = ui.Rect<Image>("Greeting scrim", shell.ScreenArea, root);
+            var root = Holder(name, shell.ScreenArea, shell.Chrome);
+            var scrim = ui.Rect<Image>(name + " scrim", shell.ScreenArea, root);
             scrim.color = ui.Art.Token(SkinTokens.Scrim); scrim.raycastTarget = true;
             // The talk box (.talkbox) spans the column, its bottom 30u and a gap over the column's foot.
             var kit = new ScreenKit(ui, null, shell.ScreenArea, safe);
-            float width = kit.Width, left = safe.center.x - width / 2;
-            // The passage line first on a realm opened by beating the guardian
-            // before it, then the greeting with the rule and what its bonus does.
-            var pages = TalkPage.MapGreeting(realm, catalog.Rule(realmId), realmId > 1);
-            GuardianTalk talk = null;
-            // The talk scene takes the whole screen, as the wireframe draws it: the tab bar waits under it.
+            float width = kit.Width, left = safe.center.x - width / 2, u = kit.U;
             var tabs = shell.Chrome.GetComponentInChildren<SkinTabBar>();
             if (tabs != null) tabs.gameObject.SetActive(false);
-            var box = Speak("Guardian greeting talk", root, left, safe.center.y, width, realm, pages, () => {
-                Greetings.Greet(realmId);
+            bool closed = false;
+            void Close()
+            {
+                if (closed) return; closed = true;
                 if (tabs != null) tabs.gameObject.SetActive(true);
                 if (root != null) { root.gameObject.SetActive(false); Destroy(root.gameObject); }
-            }, true);
-            talk = root.GetComponentInChildren<GuardianTalk>();
+                finished?.Invoke();
+            }
+            var box = Speak(name + " talk", root, left, safe.center.y, width, realm, pages, Close, true);
+            var talk = root.GetComponentInChildren<GuardianTalk>();
             // The guardian stays under the page's edge.
             float lift = Mathf.Min(kit.Bottom + 40 * kit.U - box.y, kit.Edge - SkinUi.ScreenRect(Guardian(root).rectTransform).yMax);
             foreach (Transform piece in root) if (piece != scrim.transform) ((RectTransform)piece).anchoredPosition += new Vector2(0, lift);
             box.y += lift;
+            float top = kit.Edge;
+            if (skip)
+            {
+                // Skip (.x3 corner): a quiet pill hanging from the page's edge, 12u in from the right.
+                float h = kit.Touch(40), w = ui.TextWidth("Skip", 15, SkinUi.Type.Number) + 32 * u;
+                var rect = new Rect(safe.xMax - 12 * u - w, kit.Edge - h, w, h);
+                ui.TextButton("Skip lesson", rect, "Skip", Close, false, root, out _, sizeDp: 15);
+                top = rect.y - 8 * u;
+            }
+            if (pages.Any(page => page.Picture != null))
+            {
+                // The card sits between the corner and the guardian's head, as wide as its room allows.
+                var guardian = SkinUi.ScreenRect(Guardian(root).rectTransform);
+                float bottom = guardian.y + guardian.height * .82f + 8 * u, room = Mathf.Max(0, top - bottom);
+                float cardWidth = Mathf.Min(width * .86f, 320 * d * kit.K, room * 1.5f), cardHeight = cardWidth / 1.5f;
+                var card = ui.Rect<Image>(name + " card", new Rect(safe.center.x - cardWidth / 2, bottom + (room - cardHeight) / 2, cardWidth, cardHeight), root);
+                card.preserveAspect = true; card.raycastTarget = false;
+                void Show(TalkPage page) { card.enabled = page.Picture != null; if (page.Picture != null) card.sprite = ui.Art.SkinUi(page.Picture); }
+                Show(talk.Current); talk.Opened += Show;
+            }
             if (!reducedMotion)
             {
                 // The scrim fades in, then the guardian rises onto the rail.

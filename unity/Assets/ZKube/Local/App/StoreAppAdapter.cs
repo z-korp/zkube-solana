@@ -148,7 +148,13 @@ namespace ZKube.Local.App
             return new DailyPageView { Day = today.DayId, Realm = today.Realm, ClosesAt = today.FreezesAt, Now = Flow.Runs.Now,
                 NextOpensAt = attempt == null ? 0 : today.FreezesAt, Score = attempt?.DailyScore ?? 0, ObjectiveTotal = attempt?.ObjectiveTotal ?? 0,
                 ObjectiveKind = today.ObjectiveKind, ObjectiveValue = today.ObjectiveValue,
-                Actions = Flow.HasLeaderboard ? new[] { Action(Flow.DailyAction, Flow.PlayDaily), Leaderboard() } : new[] { Action(Flow.DailyAction, Flow.PlayDaily) } };
+                Actions = Flow.HasLeaderboard ? new[] { Action(Flow.DailyAction, PlayDaily), Leaderboard() } : new[] { Action(Flow.DailyAction, PlayDaily) } };
+        }
+        // The first Play today teaches the Daily before its board opens; read or skipped, the run starts.
+        private void PlayDaily()
+        {
+            if (Flow.TodayRun != null || Flow.AttemptedToday || Lessons.Device.Taught(Lesson.RealmsDaily)) { Flow.PlayDaily(); return; }
+            views.Teach(Lessons.RealmsDaily(Flow.HasLeaderboard), () => { Lessons.Device.Teach(Lesson.RealmsDaily); Flow.PlayDaily(); });
         }
         // Opens the platform's own leaderboard; drawn only for a signed-in player.
         private PageAction Leaderboard() => Action("Leaderboard", Flow.ShowLeaderboard);

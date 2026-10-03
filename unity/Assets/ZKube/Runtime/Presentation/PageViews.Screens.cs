@@ -97,16 +97,38 @@ namespace ZKube.Presentation
             var line = LevelLine(realm.guardianLines, value.Level).Line;
             var pieces = new List<Piece> { Piece.Grow, default,
                 kit.Crown(new bool[3], Step(38, 30), sockets), kit.GuardianCard("talk-open", line, Step(170, 118), kit.Card(null, rows), HeroGuardianU) };
+            // A guardian's level names the realm it opens, with its key.
+            if (value.Level == Protocol.CampaignTargets.Length && value.Realm < Protocol.Realms.Length)
+                pieces.Add(Opens(kit, catalog.Realm((byte)(value.Realm + 1)).realmName));
             pieces.Add(Piece.Grow);
             pieces.Add(Buttons(kit, (value.Play, ScreenKit.Kind.Primary, SkinSlots.IconPlay)));
             Compose(HeroTitled(pieces, room => kit.Title("Level " + Number(value.Realm, value.Level), realm.realmName + " · " + realm.guardianName, room: room, sizeDp: kit.HeroTitleDp),
                 Step(170, 118)));
+            // The first preview of the first level teaches its stars once.
+            if (value.Realm == 1 && value.Level == 1 && !Lessons.Device.Taught(Lesson.Stars))
+                Teach(Lessons.Stars, () => Lessons.Device.Teach(Lesson.Stars));
             // The close (.x3): 40u (48 dp at least), 12u in from the right, hanging from the page's edge.
             if (value.Back != null)
             {
                 float size = kit.Touch(40);
                 HeaderButton(value.Back, new Rect(shell.SafeArea.xMax - 12 * u - size, kit.Edge - size, size, size), SkinSlots.IconClose, false);
             }
+        }
+
+        // The "Opens" chip (.tag): the key and the realm's name in the caption face
+        // on a pill, centred under the goals.
+        private Piece Opens(ScreenKit kit, string realm)
+        {
+            float u = kit.U, size = Mathf.Max(13, 13 * kit.K), icon = 20 * u;
+            string text = Lessons.Opens(realm);
+            float w = icon + 6 * u + ui.TextWidth(text, size, SkinUi.Type.Caption) + 24 * u, h = Mathf.Max(icon, ui.TextHeight(text, w, size, SkinUi.Type.Caption)) + 8 * u;
+            return new Piece(h, rect => {
+                var pill = new Rect(rect.center.x - w / 2, rect.y, w, h);
+                ui.Pill("Opens chip", pill, shell.Page);
+                ui.Piece("Opens key", SkinSlots.IconKey, new Rect(pill.x + 12 * u, pill.center.y - icon / 2, icon, icon), shell.Page);
+                ui.Label("Opens", text, new Rect(pill.x + 18 * u + icon, pill.y, w - 30 * u - icon, h), size, SkinTokens.Text, shell.Page, SkinUi.Type.Caption,
+                    TMPro.TextAlignmentOptions.Left).textWrappingMode = TMPro.TextWrappingModes.NoWrap;
+            });
         }
 
         // What a Campaign result says, from how the run ended and the stars it

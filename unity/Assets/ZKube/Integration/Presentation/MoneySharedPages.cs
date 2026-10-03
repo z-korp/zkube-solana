@@ -124,7 +124,12 @@ namespace ZKube.Integration.Presentation
                 case "Daily":
                     if (dailyRead == null) views.RenderPanel(Waiting("Daily", null, "Arena", AppPage.Home, pageNotice));
                     else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);
-                    else views.Render(AppPage.Home, notices);
+                    else
+                    {
+                        views.Render(AppPage.Home, notices);
+                        // The first Arcade with an address teaches the Arena Daily, over the page and never on the entry sheet.
+                        if (!Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
+                    }
                     break;
                 // A page without its read shows its failure itself.
                 case "Kredits": views.RenderPanel(KreditPage(), kreditRead == null ? null : notices); break;
