@@ -147,6 +147,15 @@ spending approval.
   `RunBoard`; Arena adds only its identity slots and starts the star write once a result is durable, without the
   next page waiting on it. `TheCampaignJourneyIsTheSameUnderBothIdentityImplementations` and
   `TheStarWriteStartsAfterAResultWithoutDelayingTheResultPage` guard both.
+- **Tutorial:** the guardian teaches through that same path, each lesson once per device (`Lessons`, beside the
+  realm greetings). The first run of Tiki's level 1 is guided by the slide the core scores best (`BoardHint`), the
+  board never waiting for it; each bonus's first charge, the first star and the first empty board are taught on
+  the board; the first preview, each product's first Daily and How to play in Settings teach over their pages. A
+  Daily run is never taught and no lesson stands between Enter and a paid run.
+  `TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
+  `TheHintIsTheSlideClearingTheMostLinesThenTheLowestStack`, `EachBoardMomentIsTaughtWhenItFirstHappensAndOnlyThen`,
+  `NoLessonAppearsOnADailyRun`, `TheFirstArcadeVisitTeachesTheArenaDailyWithoutTouchingEntry` and
+  `HowToPlayReplaysEveryLessonFromSettings` guard it.
 - **Campaign save:** the packed on-chain star array is the player's save, written by their own device and
   synchronized across devices. The program does not verify it, it has no effect on money, and emblems 1–12
   reflect that reported progress. `record_campaign_stars_is_idempotent_and_touches_no_other_field` and
