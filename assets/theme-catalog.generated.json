@@ -5847,30 +5847,30 @@
       ],
       "guardian": {
         "face": [
-          0.3489583333333333,
-          0.17838541666666666,
-          0.3020833333333333,
-          0.3190104166666667
+          0.3424479166666667,
+          0.27734375,
+          0.3151041666666667,
+          0.3111979166666667
         ],
         "railFrontY": 0.7981770833333334,
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
       "guardianLines": {
-        "dailyGreeting": "One path. One summit. All climbers face the same mountain today. Reach highest.",
-        "defeatLine": "The peak... belongs to you. Fly higher than I.",
-        "greeting": "The mountain path is narrow and the air is thin. Only the focused reach the summit.",
-        "incomplete": "The mountain rejects the unprepared. Train and return.",
-        "newBestLine": "...Higher than your highest. The sun saw it.",
-        "oneStar": "You reached the ledge, but the summit is far above.",
-        "respectLine": "You stand at the peak. The sun condor carries your name to the heavens.",
-        "threeStar": "The peak is yours. The sun shines on no one brighter.",
-        "trialIntro": "The summit awaits. With nothing but your will, prove you belong among the stars.",
-        "twoStar": "The altitude tests you, and you endure."
+        "dailyGreeting": "One mountain for everyone today. Pick your path and climb.",
+        "defeatLine": "You passed me on my own mountain. Bravo!",
+        "greeting": "Welcome to the mountains. Breathe slow and climb steady.",
+        "incomplete": "The path got steep. Catch your breath and try again.",
+        "newBestLine": "...Your best climb yet. What a view!",
+        "oneStar": "You reached the top! Next time, enjoy the view.",
+        "respectLine": "You climb like one of the herd. Welcome to the heights.",
+        "threeStar": "Not one stone slipped. A perfect climb.",
+        "trialIntro": "This is my highest peak. Show me how well you climb.",
+        "twoStar": "Sure-footed and calm. Well climbed."
       },
-      "guardianName": "Kuntur",
+      "guardianName": "Wayra",
       "guardianPortrait": "/assets/theme-10/boss/portrait.png",
-      "guardianTitle": "The Sun Condor",
+      "guardianTitle": "The Highland Friend",
       "id": "theme-10",
       "images": {
         "background": "/assets/theme-10/background.png",
