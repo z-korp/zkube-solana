@@ -5307,30 +5307,30 @@
       ],
       "guardian": {
         "face": [
-          0.3515625,
-          0.17317708333333334,
-          0.296875,
-          0.3111979166666667
+          0.34765625,
+          0.26171875,
+          0.30859375,
+          0.3098958333333333
         ],
         "railFrontY": 0.7981770833333334,
         "railY": 0.7877604166666666,
         "topY": 0.09375
       },
       "guardianLines": {
-        "dailyGreeting": "The jungle offers everyone the same gifts today. Use them well.",
-        "defeatLine": "The jaguar closes its eyes. The jungle is yours.",
-        "greeting": "Welcome. Move softly, and clear whole rows at once.",
-        "incomplete": "The jungle hid the path this time. Try again.",
-        "newBestLine": "...The jaguar's eyes widen. The jungle will remember this.",
-        "oneStar": "You found the path. There's more to learn.",
-        "respectLine": "The jungle welcomes you as its own. Walk softly.",
-        "threeStar": "A perfect hunt. The jungle sings your name.",
-        "trialIntro": "My third eye opens. Show me you can keep pace with a jaguar.",
-        "twoStar": "Nicely done. The jungle hums along with you."
+        "dailyGreeting": "One canopy for everyone today. Find your own way through.",
+        "defeatLine": "You flew past my brightest feathers. Well done!",
+        "greeting": "Welcome! Clear whole rows and let the light in.",
+        "incomplete": "The leaves hid the way this time. Try again?",
+        "newBestLine": "...Your best flight yet. I'll keep a feather for it.",
+        "oneStar": "You found the path! There's more to see.",
+        "respectLine": "You fly like one of the flock now.",
+        "threeStar": "A perfect flight. The jungle is singing.",
+        "trialIntro": "My feathers catch every light. Can you keep up with me?",
+        "twoStar": "Nicely flown. The canopy hums with you."
       },
-      "guardianName": "Balam",
+      "guardianName": "K'uk'",
       "guardianPortrait": "/assets/theme-8/boss/portrait.png",
-      "guardianTitle": "The Jungle Jaguar",
+      "guardianTitle": "The Jade Feather",
       "id": "theme-8",
       "images": {
         "background": "/assets/theme-8/background.png",
