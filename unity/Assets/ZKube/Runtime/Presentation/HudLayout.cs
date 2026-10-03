@@ -123,7 +123,7 @@ namespace ZKube.Presentation
         public static string PressureValue(RunSummary state) =>
             "×" + (Protocol.PressureMultiplierPercent(state.CurrentTier) / 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         // How far the pressure score has run toward the next multiplier.
-        // A countdown to 00:00 UTC, in seconds: never below zero and at most a
+        // A countdown to 07:00 UTC, in seconds: never below zero and at most a
         // second under a day, so no day clock reads 24 hours.
         public static long DayCountdown(long seconds) => Math.Min(Math.Max(0, seconds), 24 * 3600 - 1);
         public static float PressureProgress(RunSummary state) => state.PressureScore % Protocol.PressureStep / (float)Protocol.PressureStep;

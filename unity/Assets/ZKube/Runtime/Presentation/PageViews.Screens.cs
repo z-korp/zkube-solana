@@ -231,7 +231,7 @@ namespace ZKube.Presentation
                 if (objective != null)
                     rows.Add(inside.Row("Objective board", inside.Pictogram("Objective board", picture, goal.chip, 34), "Objective board", objective,
                         inside.Value("Objective board value", N(value.ObjectiveTotal)), true));
-                const string boards = "Places are final when each board is sealed after the day closes at 00:00 UTC.";
+                const string boards = "Places are final when each board is sealed after the day closes at 07:00 UTC.";
                 float size = inside.SmallDp, height = inside.Block(boards, inside.Width, size, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
                 rows.Add(new Piece(height, rect => inside.Text("Boards note", boards, rect, size, SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading,
                     TextAlignmentOptions.Left)));

@@ -521,7 +521,7 @@ namespace ZKube.Presentation
         private float clockEm;
         private string Tabular(string clock) => System.Text.RegularExpressions.Regex.Replace(clock, "[0-9]+",
             "<mspace=" + clockEm.ToString("0.###", CultureInfo.InvariantCulture) + "em>$0</mspace>");
-        // A countdown to 00:00 UTC, when the day closes and the next Daily opens:
+        // A countdown to 07:00 UTC, when the day closes and the next Daily opens:
         // at most 23:59:59, even at the day's first second.
         public static string DayClock(long seconds) => Clock(HudLayout.DayCountdown(seconds));
         private static string Clock(long seconds)

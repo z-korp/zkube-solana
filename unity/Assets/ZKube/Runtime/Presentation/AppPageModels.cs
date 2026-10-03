@@ -99,7 +99,7 @@ namespace ZKube.Presentation
     {
         // The prize pool, or null when the Daily has none to show.
         public string Pot;
-        // Under the headline: when entries close ("Closes 23:59 UTC").
+        // Under the headline: when entries close ("Closes 06:59 UTC").
         public string Closes;
         // In place of the countdown when entries are not open ("Entries closed").
         public string Headline;

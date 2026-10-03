@@ -76,7 +76,7 @@ namespace ZKube.Tests.MoneyOverview
             var arcade = SessionText();
             StringAssert.Contains("Daily run complete", arcade); StringAssert.Contains("Score board", arcade);
             StringAssert.Contains("Your best run counts", arcade);
-            StringAssert.Contains("Places are final when each board is sealed after the day closes at 00:00 UTC.", arcade);
+            StringAssert.Contains("Places are final when each board is sealed after the day closes at 07:00 UTC.", arcade);
             Assert.That(Find("Back to Arcade").GetComponent<UnityEngine.UI.Image>().sprite.name, Does.StartWith(ZKube.Core.Generated.SkinSlots.ButtonPrimary));
             var shell = host.GetComponent<PageShell>();
             foreach (var (phone, name) in new (System.Action<PageShell>, string)[] {
