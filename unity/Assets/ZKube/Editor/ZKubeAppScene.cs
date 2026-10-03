@@ -23,9 +23,14 @@ namespace ZKube.Editor
             else if (identity == "money")
             {
                 var money = root.AddComponent<MoneyIdentity>();
+                // The cluster comes from the identity in toolchain.json; without it
+                // the scene has no network and the app says so.
+                var network = ZKubeBuild.IdentityNamed(identity).network;
                 money.Configuration = new MoneyConfiguration {
                     SolanaSchema = Load<TextAsset>("Assets/ZKube/Integration/Generated/solana.json"),
-                    SessionSchema = Load<TextAsset>("Assets/ZKube/Integration/Generated/session.json") };
+                    SessionSchema = Load<TextAsset>("Assets/ZKube/Integration/Generated/session.json"),
+                    BaseUri = network?.baseUri, RouterUri = network?.routerUri, ExpectedGenesis = network?.expectedGenesis,
+                    StandingsUri = network?.standingsUri, NameUri = network?.nameUri };
                 product = money;
             }
             else throw new ArgumentException("Unknown application identity", nameof(identity));

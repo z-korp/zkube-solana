@@ -595,7 +595,10 @@ progress and eligibility, while one Daily query supplies content and time.
 `nulls_aliasing_versions_and_lengths_are_rejected` and `rejected_calls_publish_nothing` guard the native
 pointer boundary and atomic output.
 
-The root assets directory is authoritative. unity/toolchain.json owns identity metadata;
+The root assets directory is authoritative. unity/toolchain.json owns identity metadata, including the money
+identity's cluster (Base and Router endpoints, genesis, standings), which the build copies into the App scene;
+`SelectedSceneHasOneSharedStartupAndOnlyItsIdentityConfiguration` and
+`the_arena_clients_network_is_the_devnet_the_services_use` guard the copy and its agreement with the services;
 unity/tools/build.py owns imports, fixtures, builds and each identity's dependency locks (the store's carry
 its one own dependency, Play Games, named in unity/toolchain.json).
 `test_money_lock_update_requires_both_resolved_modules` guards lock replacement. Services and tools/chain

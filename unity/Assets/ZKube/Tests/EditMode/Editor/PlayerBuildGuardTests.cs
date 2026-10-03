@@ -65,6 +65,10 @@ namespace ZKube.Editor.Tests
             CollectionAssert.AreEqual(assemblies, guard.OnFilterAssemblies(BuildOptions.None, assemblies));
         }
 
+        [Serializable] private sealed class ToolchainNetworks { public NamedNetwork[] androidIdentities; }
+        [Serializable] private sealed class NamedNetwork { public string name; public NetworkValues network; }
+        [Serializable] private sealed class NetworkValues { public string baseUri, routerUri, expectedGenesis, standingsUri; }
+
         [TestCase("store", "ZKube.Store")]
         [TestCase("money", "ZKube.Money")]
         public void SelectedSceneHasOneSharedStartupAndOnlyItsIdentityConfiguration(string identity, string assembly)
@@ -86,6 +90,16 @@ namespace ZKube.Editor.Tests
                     var config = new SerializedObject(startup.Configuration.Identity).FindProperty("Configuration");
                     Assert.That(config.FindPropertyRelative("SolanaSchema").objectReferenceValue, Is.Not.Null);
                     Assert.That(config.FindPropertyRelative("SessionSchema").objectReferenceValue, Is.Not.Null);
+                    // The cluster is the identity's own, copied from toolchain.json, in every
+                    // scene the money identity gets, including the one a test restores.
+                    var network = JsonUtility.FromJson<ToolchainNetworks>(System.IO.File.ReadAllText("toolchain.json"))
+                        .androidIdentities.Single(item => item.name == "money").network;
+                    foreach (var (field, expected) in new[] { ("BaseUri", network.baseUri), ("RouterUri", network.routerUri),
+                        ("ExpectedGenesis", network.expectedGenesis), ("StandingsUri", network.standingsUri) })
+                    {
+                        Assert.That(config.FindPropertyRelative(field).stringValue, Is.Not.Empty, field);
+                        Assert.That(config.FindPropertyRelative(field).stringValue, Is.EqualTo(expected), field);
+                    }
                 }
             }
             finally { ZKubeAppScene.Create(previousIdentity ?? "money"); }

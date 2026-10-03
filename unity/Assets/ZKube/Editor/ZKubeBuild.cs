@@ -23,6 +23,10 @@ namespace ZKube.Editor
             public AndroidAbi[] androidAbis;
         }
 
+        [Serializable] internal sealed class Network
+        {
+            public string baseUri, routerUri, expectedGenesis, standingsUri, nameUri;
+        }
         [Serializable] internal sealed class AndroidIdentity
         {
             public string name, package, format, locks, productName;
@@ -31,23 +35,24 @@ namespace ZKube.Editor
             // exact coordinates, and its Play Games project once the owner has one.
             public string[] dependencies;
             public string playGamesAppId, playGamesDailyLeaderboard;
+            // The money identity's cluster: one place, copied into its scene.
+            public Network network;
         }
         [Serializable] internal sealed class AndroidAbi
         {
             public string name, rustTarget, linkerPrefix, unityCpu;
             public int elfMachine;
         }
-        internal static AndroidIdentity Identity
+        internal static AndroidIdentity Identity =>
+            IdentityNamed(Environment.GetEnvironmentVariable("ZKUBE_UNITY_IDENTITY") ?? "money");
+
+        internal static AndroidIdentity IdentityNamed(string name)
         {
-            get
-            {
-                var name = Environment.GetEnvironmentVariable("ZKUBE_UNITY_IDENTITY") ?? "money";
-                var config = JsonUtility.FromJson<Toolchain>(File.ReadAllText("toolchain.json"));
-                var profile = config.androidIdentities.SingleOrDefault(item => item.name == name);
-                if (profile == null || (name != "money" && name != "store"))
-                    throw new InvalidOperationException("Unknown Android identity");
-                return profile;
-            }
+            var config = JsonUtility.FromJson<Toolchain>(File.ReadAllText("toolchain.json"));
+            var profile = config.androidIdentities.SingleOrDefault(item => item.name == name);
+            if (profile == null || (name != "money" && name != "store"))
+                throw new InvalidOperationException("Unknown Android identity");
+            return profile;
         }
 
         public static void Configure()
