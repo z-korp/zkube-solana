@@ -20,14 +20,14 @@ binding = "CF_VERSION_METADATA"
 [[d1_databases]]
 binding = "DB"
 database_name = "zkube-arena"
-database_id = "00000000-0000-0000-0000-000000000000" # the owner's database, set before deploying
+database_id = "a8d073e7-019f-40d4-beab-23b011614157" # Devnet
 
 # Public values. The launch day and keeper key are part of the approved release.
 # Secrets (set with `wrangler secret put`, never here): SOLANA_DEVNET_RPC_URL,
 # WEBHOOK_SECRET, KEEPER_SECRET_KEY.
 [vars]
-ZKUBE_KEEPER_PUBLIC_KEY = ""
-ZKUBE_LAUNCH_DAY_ID = ""
+ZKUBE_KEEPER_PUBLIC_KEY = "CwwJQVsFcFBbx76Cc4RUMGXAjZpjFHLA1iBxeNX8dJcr"
+ZKUBE_LAUNCH_DAY_ID = "20730" # 2026-10-04, opens 07:00 UTC
 
 [observability]
 enabled = true
