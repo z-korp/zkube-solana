@@ -25,7 +25,11 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Words(), Does.Contain(Lessons.ArenaDaily[0].Line));
             var talk = LessonScene.GetComponentInChildren<GuardianTalk>();
             for (int i = 0; i < Lessons.ArenaDaily.Length; i++)
-            { Assert.That(talk.Current.Line, Is.EqualTo(Lessons.ArenaDaily[i].Line)); talk.Complete(); talk.Tap(); yield return null; }
+            {
+                Assert.That(talk.Current.Line, Is.EqualTo(Lessons.ArenaDaily[i].Line)); talk.Complete();
+                yield return ZKube.Tests.Presentation.LessonEvidence.Snap(host.transform, "arena daily " + (i + 1));
+                talk.Tap(); yield return null;
+            }
             Assert.That(LessonScene, Is.Null); Assert.That(Lessons.Device.Taught(Lesson.ArenaDaily), Is.True);
             Assert.That(environment.SentSignature, Is.Null, "Teaching signs and sends nothing");
             var controller = host.GetComponent<MoneyIdentity>().Controller;

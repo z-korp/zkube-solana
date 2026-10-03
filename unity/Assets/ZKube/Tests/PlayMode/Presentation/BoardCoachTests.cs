@@ -101,7 +101,7 @@ namespace ZKube.Presentation.Tests
             Assert.That(Lessons.Device.Taught(Lessons.ChargeLesson(bonus)), Is.True);
             Assert.That(root.GetComponentsInChildren<UnityEngine.UI.Image>().Any(image => image.name == "Lesson card" && image.sprite.name.StartsWith(Lessons.ChargeCard(bonus))),
                 Is.True, "The bubble shows the bonus's card");
-            yield return ZKube.Tests.Presentation.Captures.Snap(new Rect(0, 0, Screen.width, Screen.height), "board first charge");
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(root.transform, "board first charge");
             // Taught once: the same run again says nothing of it.
             yield return Play(run.realm, run.level, run.slides);
             Assert.That(coach.Said, Does.Not.Contain(Lessons.Charge(bonus)));
@@ -112,7 +112,7 @@ namespace ZKube.Presentation.Tests
             var run = Find((before, after) => before.LatchedStarSources == 0 && after.LatchedStarSources != 0 && after.ChargesEarned == before.ChargesEarned);
             yield return Play(run.realm, run.level, run.slides);
             Assert.That(coach.Said, Does.Contain(Lessons.Star)); Assert.That(Lessons.Device.Taught(Lesson.Star), Is.True);
-            yield return ZKube.Tests.Presentation.Captures.Snap(new Rect(0, 0, Screen.width, Screen.height), "board first star");
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(root.transform, "board first star");
             yield return Play(run.realm, run.level, run.slides);
             Assert.That(coach.Said, Does.Not.Contain(Lessons.Star));
         }

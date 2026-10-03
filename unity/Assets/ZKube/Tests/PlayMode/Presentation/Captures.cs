@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
+using NUnit.Framework;
 using UnityEngine;
 using ZKube.Presentation;
 
@@ -26,6 +28,25 @@ namespace ZKube.Tests.Presentation
                     texture.GetRawTextureData());
             }
             finally { UnityEngine.Object.Destroy(texture); }
+        }
+    }
+
+    // A lesson's evidence: every piece the guardian teaches with stands on the
+    // screen, and with ZKUBE_CAPTURES set the screen is captured.
+    public static class LessonEvidence
+    {
+        private static readonly string[] Pieces = { "Lesson bubble", "Lesson card", "Guardian hand", "Lesson talk", "Skip lesson", "Skip tips", "Opens chip" };
+        public static IEnumerator Snap(Component scope, string name)
+        {
+            yield return null; Canvas.ForceUpdateCanvases();
+            var screen = new Rect(0, 0, Screen.width, Screen.height);
+            foreach (var piece in scope.GetComponentsInChildren<RectTransform>().Where(rect => rect.gameObject.activeInHierarchy && Pieces.Contains(rect.name)))
+            {
+                var rect = SkinUi.ScreenRect(piece);
+                Assert.That(rect.xMin >= -1 && rect.yMin >= -1 && rect.xMax <= screen.xMax + 1 && rect.yMax <= screen.yMax + 1, Is.True,
+                    name + ": " + piece.name + " " + rect + " stands on the " + screen.width + " x " + screen.height + " screen");
+            }
+            yield return Captures.Snap(screen, name);
         }
     }
 }

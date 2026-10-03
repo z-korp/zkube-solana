@@ -41,6 +41,7 @@ namespace ZKube.Tests
             Assert.That(Texts(), Does.Contain(Lessons.Stars[0].Line));
             var card = PageLesson.GetComponentsInChildren<Image>().Single(image => image.name == "Lesson card");
             Assert.That(card.sprite.name, Does.StartWith(SkinSlots.LessonStars));
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "preview stars");
             yield return ReadPageLesson();
             Assert.That(Lessons.Device.Taught(Lesson.Stars), Is.True);
             Click(app, "Back to map"); yield return Page(StorePage.Campaign);
@@ -54,6 +55,7 @@ namespace ZKube.Tests
             app.Flow.Campaign.Preview(1, 10); yield return Page(StorePage.Level);
             Assert.That(Texts(), Does.Contain(Lessons.Opens(PageCatalog.Load().Realm(2).realmName)));
             Assert.That(app.GetComponentsInChildren<Image>().Single(image => image.name == "Opens key").sprite.name, Does.StartWith(SkinSlots.IconKey));
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "guardian level opens");
             app.Flow.Campaign.Preview(1, 9); yield return Page(StorePage.Level);
             Assert.That(Texts().Any(text => text != null && text.StartsWith("Opens ")), Is.False, "Only a guardian's level opens a realm");
         }
@@ -65,6 +67,7 @@ namespace ZKube.Tests
             yield return null;
             Assert.That(PageLesson, Is.Not.Null); Assert.That(board.gameObject.activeSelf, Is.False, "The board waits for the lesson");
             Assert.That(Texts(), Does.Contain(Lessons.RealmsDaily(false)[0].Line));
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "realms daily");
             yield return ReadPageLesson();
             yield return BoardReady();
             Assert.That(board.Session.Daily, Is.True); Assert.That(Lessons.Device.Taught(Lesson.RealmsDaily), Is.True);
@@ -83,7 +86,7 @@ namespace ZKube.Tests
             {
                 Assert.That(talk.Current.Line, Is.EqualTo(pages[i].Line), "page " + i);
                 Assert.That(card.sprite.name, Does.StartWith(pages[i].Picture), "page " + i);
-                if (i == 5) yield return ZKube.Tests.Presentation.Captures.Snap(app.GetComponent<PageShell>(), "realms how to play");
+                talk.Complete(); yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "how to play " + (i + 1).ToString("00"));
                 talk.Complete(); talk.Tap(); yield return null;
             }
             Assert.That(PageLesson, Is.Null, "The last page finishes");

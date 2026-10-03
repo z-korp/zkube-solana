@@ -12,7 +12,10 @@ namespace ZKube.Editor
         public static void Configure()
         {
             if (Application.isBatchMode) throw new InvalidOperationException("Rendered board tests require the graphics Editor");
-            SetViewport(430, 932);
+            // A capture run may ask for another phone's screen as WIDTHxHEIGHT points.
+            var asked = Environment.GetEnvironmentVariable("ZKUBE_VIEWPORT");
+            var size = string.IsNullOrEmpty(asked) ? new[] { 430, 932 } : Array.ConvertAll(asked.Split('x'), int.Parse);
+            SetViewport(size[0], size[1]);
         }
 
         private static void SetViewport(int width, int height)

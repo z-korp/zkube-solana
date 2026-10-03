@@ -351,10 +351,12 @@ namespace ZKube.Presentation
             }
             if (pages.Any(page => page.Picture != null))
             {
-                // The card sits between the corner and the guardian's head, as wide as its room allows.
+                // The card sits between the corner and the guardian's head, as tall as its room allows, at its own shape.
                 var guardian = SkinUi.ScreenRect(Guardian(root).rectTransform);
+                var first = ui.Art.SkinUi(pages.First(page => page.Picture != null).Picture).rect;
+                float aspect = first.width / first.height;
                 float bottom = guardian.y + guardian.height * .82f + 8 * u, room = Mathf.Max(0, top - bottom);
-                float cardWidth = Mathf.Min(width * .86f, 320 * d * kit.K, room * 1.5f), cardHeight = cardWidth / 1.5f;
+                float cardHeight = Mathf.Min(room, 320 * d * kit.K, width * .86f / aspect), cardWidth = cardHeight * aspect;
                 var card = ui.Rect<Image>(name + " card", new Rect(safe.center.x - cardWidth / 2, bottom + (room - cardHeight) / 2, cardWidth, cardHeight), root);
                 card.preserveAspect = true; card.raycastTarget = false;
                 void Show(TalkPage page) { card.enabled = page.Picture != null; if (page.Picture != null) card.sprite = ui.Art.SkinUi(page.Picture); }

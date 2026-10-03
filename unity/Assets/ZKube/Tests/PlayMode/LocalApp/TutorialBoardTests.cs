@@ -50,17 +50,21 @@ namespace ZKube.Tests
             var best = Coach.Pointing.Value;
             Assert.That(best.ToString(), Is.EqualTo(BoardHint.Best(board.Session.Accepted).Value.ToString()), "It is the core's best slide");
             Assert.That(Buttons().Any(button => button.name == Lessons.Skip), Is.True, "The guide can be skipped");
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "guided 1 slide");
             yield return Play(best);
             Assert.That(Coach.Said.Count, Is.EqualTo(2));
             Assert.That(new[] { Lessons.Clears, Lessons.Falls }, Does.Contain(Coach.Said[0])); Assert.That(Coach.Said[1], Is.EqualTo(Lessons.Rises));
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "guided 2 clear and next row");
             // The board never waits for the hint: any slide a drag can make is accepted.
             var hint = BoardHint.Best(board.Session.Accepted).Value;
             var other = BoardHint.Slides(board.State.Grid).FirstOrDefault(slide => slide.ToString() != hint.ToString());
             Assert.That(other.Width, Is.GreaterThan(0), "This board has another slide");
             yield return Play(other);
             Assert.That(Coach.Said, Is.EqualTo(new[] { Lessons.MovesLeft(board.Session.Rules.MaxMoves - board.State.Moves), Lessons.TapGoal }));
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "guided 3 moves and the top");
             yield return Play(BoardHint.Best(board.Session.Accepted).Value);
             Assert.That(Coach.Said, Is.EqualTo(new[] { Lessons.Reroll }));
+            yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "guided 4 reroll");
             Assert.That(Lessons.Device.Taught(Lesson.GuidedRun), Is.True); Assert.That(Coach.Guiding, Is.False);
             yield return Play(BoardHint.Best(board.Session.Accepted).Value);
             Assert.That(Coach.Said.Intersect(new[] { Lessons.Slide, Lessons.Clears, Lessons.Falls, Lessons.Rises, Lessons.TapGoal, Lessons.Reroll }), Is.Empty,

@@ -17,6 +17,9 @@ namespace ZKube.Presentation
     public sealed class BoardCoach : MonoBehaviour
     {
         public const float HandSeconds = 1.1f, HandRest = .4f, HintDelay = 2.5f;
+        // The hand is drawn 32 dp high; its fingertip is at this share of its
+        // width from the left and of its height from the bottom (the art's notes).
+        public const float HandDp = 32, FingerX = .45f, FingerY = .948f;
         private struct Moment { public Lesson Lesson; public string Line, Picture; public Rect Target; public bool Above; }
         private BoardController board;
         private Canvas canvas;
@@ -133,17 +136,18 @@ namespace ZKube.Presentation
             var from = new Rect(Layout.Board.x + slide.Start * cell, Layout.Board.y + slide.Row * cell, slide.Width * cell, cell);
             var to = new Rect(Layout.Board.x + slide.Destination * cell, Layout.Board.y + slide.Row * cell, slide.Width * cell, cell);
             Glow(from, SkinTokens.Accent); Glow(to, SkinTokens.Accent);
-            float height = 66 * d * Hud.K, width = height * 2 / 3;
+            var sprite = Ui.Art.SkinUi(SkinSlots.HandPointer);
+            float height = HandDp * d * Hud.K, width = height * sprite.rect.width / sprite.rect.height;
             var image = Ui.Rect<Image>("Guardian hand", new Rect(0, 0, width, height), overlay);
-            image.sprite = Ui.Art.SkinUi(SkinSlots.HandPointer); image.preserveAspect = true; image.raycastTarget = false;
+            image.sprite = sprite; image.preserveAspect = true; image.raycastTarget = false;
             hand = image.rectTransform; handFrom = from.center; handTo = to.center; handStart = Time.unscaledTime;
             Place(handFrom);
         }
-        // The fingertip, at the hand's top centre, on point.
+        // The fingertip on point.
         private void Place(Vector2 point)
         {
             var size = SkinUi.ScreenRect(hand).size;
-            SkinUi.Place(hand, new Rect(point.x - size.x / 2, point.y - size.y, size.x, size.y), overlay);
+            SkinUi.Place(hand, new Rect(point.x - FingerX * size.x, point.y - FingerY * size.y, size.x, size.y), overlay);
         }
         private void Animate()
         {
@@ -170,10 +174,13 @@ namespace ZKube.Presentation
         {
             float d = Layout.Density, k = Hud.K, u = k * d;
             float width = Mathf.Min(Layout.Rim.width - 16 * d, 280 * u), pad = 12 * u;
-            float art = picture == null ? 0 : 72 * u, inner = width - 2 * pad - (art > 0 ? art + 10 * u : 0);
+            // The lesson's card, 64u high at its own shape.
+            var card = picture == null ? null : Ui.Art.SkinUi(picture);
+            float cardHeight = card == null ? 0 : 64 * u, art = card == null ? 0 : cardHeight * card.rect.width / card.rect.height;
+            float inner = width - 2 * pad - (art > 0 ? art + 10 * u : 0);
             float text = Ui.TextHeight(line, inner, Hud.BubblePt, SkinUi.Type.Caption, HudLayout.BubbleLeading);
             float skipHeight = skip ? 36 * d : 0;
-            float height = Mathf.Max(text, art / 1.5f) + 2 * pad + skipHeight, tail = 14 * u;
+            float height = Mathf.Max(text, cardHeight) + 2 * pad + skipHeight, tail = 14 * u;
             float x = Mathf.Clamp(target.center.x - width / 2, Layout.Rim.x + 4 * d, Layout.Rim.xMax - 4 * d - width);
             float y = above ? target.yMax + tail : target.y - tail - height;
             var body = new Rect(x, y, width, height);
@@ -181,10 +188,10 @@ namespace ZKube.Presentation
             var tip = Ui.Piece("Lesson bubble tail", SkinSlots.TapBubbleTail,
                 new Rect(Mathf.Clamp(target.center.x, body.x + 18 * u, body.xMax - 18 * u) - 9 * u, above ? body.y - tail : body.yMax, 18 * u, tail), overlay);
             tip.raycastTarget = false; tip.rectTransform.localEulerAngles = new Vector3(0, 0, above ? -90 : 90);
-            if (art > 0)
+            if (card != null)
             {
-                var card = Ui.Rect<Image>("Lesson card", new Rect(body.x + pad, body.yMax - pad - art / 1.5f, art, art / 1.5f), overlay);
-                card.sprite = Ui.Art.SkinUi(picture); card.preserveAspect = true; card.raycastTarget = false;
+                var image = Ui.Rect<Image>("Lesson card", new Rect(body.x + pad, body.yMax - pad - cardHeight, art, cardHeight), overlay);
+                image.sprite = card; image.preserveAspect = true; image.raycastTarget = false;
             }
             var label = Ui.Label("Lesson line", line, new Rect(body.xMax - pad - inner, body.yMax - pad - text, inner, text), Hud.BubblePt,
                 SkinTokens.TextOnPrimary, overlay, SkinUi.Type.Caption, TextAlignmentOptions.TopLeft);
