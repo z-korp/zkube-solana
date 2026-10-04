@@ -122,6 +122,8 @@ namespace ZKube.Local.App
                 Flow.Page == StorePage.Campaign && Flow.StoreUnavailable ? null : Flow.BillingNotice;
             if (Flow.Billing.LastFulfillmentError != null) yield return "Store confirmation needs attention. Restore purchases to retry.";
         }
+        // The profile's name without a platform account: a fixed label, not a name to edit.
+        public const string SignedOutName = "Player";
         private static PageAction Action(string label, Action invoke, bool enabled = true) =>
             new PageAction { Label = label, Invoke = invoke, Enabled = enabled };
         // The shared map, with the store's purchase where the purchase closes the realm.
@@ -162,8 +164,8 @@ namespace ZKube.Local.App
         {
             var state = Flow.Product.Read;
             var worn = ProfileEmblems.All.FirstOrDefault(emblem => emblem.Id != 0 && emblem.Id == state.WornEmblem);
-            // The platform account names the player; without one the profile shows the emblem alone.
-            return new ProfilePageView { Name = Flow.Account?.Name, Avatar = Flow.Account?.Avatar, Realm = WornRealm, Emblem = worn?.Id ?? 0,
+            // The platform account names the player; signed out the panel says Player. Nothing is editable.
+            return new ProfilePageView { Name = Flow.Account?.Name ?? SignedOutName, Avatar = Flow.Account?.Avatar, Realm = WornRealm, Emblem = worn?.Id ?? 0,
                 Worn = worn == null ? null : "Wearing " + worn.Name + (worn.Realm != 0 ? "’s emblem" : ""),
                 Stars = state.Stars.Sum(value => (int)value), Streak = state.Streak, BestDailyScore = state.BestDailyScore,
                 Emblems = ProfileEmblems.All.Where(emblem => emblem.Id != 0).Select(emblem => {

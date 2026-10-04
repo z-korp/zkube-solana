@@ -182,15 +182,17 @@ namespace ZKube.Tests
         // Realms names its player from the platform account (Google Play Games on
         // Android): signed in, the profile shows the account's name and avatar,
         // and a shared result carries the name; signed out, refused or failing,
-        // it shows the emblem alone. There is no name to edit, and play never
-        // waits for the sign-in.
-        [UnityTest] public IEnumerator StoreShowsThePlayerAccountAndPlaysWithoutIt()
+        // the name line says Player and a shared result carries no name. There
+        // is no name to edit, and play never waits for the sign-in. Both states
+        // fit the compact phone and the Seeker.
+        [UnityTest] public IEnumerator StoreShowsThePlayerAccountOrPlayerAndPlaysWithoutIt()
         {
             Assert.That(FindButton(app, "Play today").interactable, Is.True, "Play is open before any sign-in answers");
             Click(app, "Profile"); yield return Page(StorePage.Profile);
-            Assert.That(app.ProfilePage().Name, Is.Null);
-            Assert.That(app.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Name text"), Is.False, "Signed out, the profile shows no name");
-            Assert.That(app.GetComponentsInChildren<Image>().Count(image => image.name == "Worn emblem"), Is.EqualTo(1), "The emblem stands alone");
+            Assert.That(app.ProfilePage().Name, Is.EqualTo(StoreAppAdapter.SignedOutName));
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name text").text, Is.EqualTo("Player"), "Signed out, the name line says Player");
+            Assert.That(app.GetComponentsInChildren<RawImage>().Any(image => image.name == "Player avatar picture"), Is.False, "No account, no picture");
+            yield return ProfileOnBothPhones("signed out");
             Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null);
             Assert.That(Buttons().Any(button => button.name.EndsWith(" name")), Is.False, "There is no name to edit");
             Assert.That(app.ResultPage().PlayerName, Is.Null);
@@ -200,6 +202,7 @@ namespace ZKube.Tests
             var signIn = app.Flow.SignIn(); yield return Wait(() => signIn.IsCompleted, "The sign-in did not answer"); yield return Page(StorePage.Profile);
             Assert.That(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name text").text, Is.EqualTo("Mira of the Reef"));
             Assert.That(app.GetComponentsInChildren<RawImage>().Single(image => image.name == "Player avatar picture").texture, Is.SameAs(avatar));
+            yield return ProfileOnBothPhones("signed in");
             Assert.That(app.GetComponentInChildren<TMP_InputField>(), Is.Null, "Nor a name to edit once signed in");
             Assert.That(app.ResultPage().PlayerName, Is.EqualTo("Mira of the Reef"));
             Assert.That(LocalProductCodec.Encode(product.Read), Does.Not.Contain("name"), "The save keeps no name");
@@ -207,9 +210,35 @@ namespace ZKube.Tests
             accounts.Player = null; accounts.Failure = new InvalidOperationException("Play Games is unavailable");
             signIn = app.Flow.SignIn(); yield return Wait(() => signIn.IsCompleted, "The failed sign-in did not answer"); yield return Page(StorePage.Profile);
             Assert.That(app.Flow.Account, Is.Null); Assert.That(app.Flow.Error, Is.Null);
+            Assert.That(app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name text").text, Is.EqualTo("Player"), "A failed sign-in says Player");
             Click(app, "Home"); yield return Page(StorePage.Home);
             Assert.That(FindButton(app, "Play today").interactable, Is.True);
             UnityEngine.Object.Destroy(avatar);
+        }
+        // The profile at the compact phone and the Seeker: its name on one line inside the card, captured.
+        private IEnumerator ProfileOnBothPhones(string state)
+        {
+            var shell = app.GetComponent<PageShell>();
+            foreach (var (phone, size) in new (System.Action<PageShell>, string)[] {
+                (value => ZKube.Tests.Presentation.Phones.Compact(value), "compact"), (value => ZKube.Tests.Presentation.Phones.Seeker(value), "seeker") })
+            {
+                phone(shell);
+                try
+                {
+                    app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
+                    app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
+                    var name = app.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Name text"); name.ForceMeshUpdate();
+                    Assert.That(name.textInfo.lineCount, Is.EqualTo(1), size + ": the name is on one line");
+                    var card = app.GetComponentsInChildren<Image>().Single(image => image.name == "Wearer card");
+                    var inside = SkinUi.ScreenRect(card.rectTransform); var drawn = SkinUi.ScreenRect(name.rectTransform);
+                    Assert.That(drawn.xMin >= inside.xMin - .5f && drawn.xMax <= inside.xMax + .5f && drawn.yMin >= inside.yMin - .5f && drawn.yMax <= inside.yMax + .5f,
+                        Is.True, size + ": the name stands inside its card");
+                    yield return ZKube.Tests.Presentation.Captures.Snap(shell, "profile " + state + " " + size);
+                }
+                finally { ZKube.Tests.Presentation.Phones.Clear(shell); }
+            }
+            app.Flow.Show(StorePage.Settings); yield return Page(StorePage.Settings);
+            app.Flow.Show(StorePage.Profile); yield return Page(StorePage.Profile);
         }
         // Signed in, each finished Daily's score goes to the platform's Daily
         // leaderboard, and a Leaderboard button on the Daily card and the Daily

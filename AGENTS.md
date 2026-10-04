@@ -127,8 +127,8 @@ spending approval.
   address, and a verified-Seeker badge when the wallet holds a Seeker Genesis Token: cached display reads from
   mainnet that never gate play, carry no perk and that no Kredit, entry, prize or ladder rule reads. Realms shows
   the platform player account, Google Play Games on Android behind one interface for other platforms, with no
-  name to edit; signed out or refused, the profile shows the emblem alone and everything stays playable.
-  `money_campaign_needs_an_address_and_no_session`, `StoreShowsThePlayerAccountAndPlaysWithoutIt`,
+  name to edit; signed out or refused, its name line reads Player, a fixed label nothing edits, and everything
+  stays playable. `money_campaign_needs_an_address_and_no_session`, `StoreShowsThePlayerAccountOrPlayerAndPlaysWithoutIt`,
   `SeekerIdsResolveFromTheirSkrRecordsOncePerAddress`, `AVerifiedSeekerHoldsAGenesisTokenWithABalance`,
   `SeekerLookupsNeverThrowAndShowNothingWhenTheyCannotResolve` and
   `TheProfileShowsTheSeekerIdAndBadgeWithoutWaitingForThem` guard immediate Campaign play, the account and the
