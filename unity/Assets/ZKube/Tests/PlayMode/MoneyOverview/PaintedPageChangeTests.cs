@@ -56,7 +56,7 @@ namespace ZKube.Tests.MoneyOverview
                 string profile = Painting();
                 yield return Step("Settings", AppPage.Settings);
                 Assert.That(Painting(), Is.EqualTo(profile), "Settings keeps the painting it is opened over");
-                yield return Step("Arcade", AppPage.Home);
+                yield return Step("Arena", AppPage.Home);
                 yield return Step("Profile again", AppPage.Profile, once: false);
                 yield return Step("Campaign from the profile", AppPage.Campaign);
                 watch.AssertCovered();

@@ -133,7 +133,7 @@ namespace ZKube.Tests.Presentation
             shell.RequestRealm(1);
             while (shell.Loading) yield return null;
             var source = new Largest();
-            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Arcade", "arena", 1);
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Arena", "arena", 1);
             foreach (var (phone, size) in new (Action<PageShell, float>, string)[] { (Phones.Compact, "compact"), (Phones.Seeker, "seeker") })
                 foreach (ulong points in new[] { 0UL, 987654321012UL })
                 {
