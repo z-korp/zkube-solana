@@ -150,7 +150,7 @@ namespace ZKube.Integration.Presentation
             if (ensure ? assessment.Current : disable ? assessment.ValidUntil <= 0 : !assessment.Current || assessment.Funding == "ready")
                 return Task.CompletedTask;
             bool recovered = false;
-            return Act(true, async token => {
+            return Act(ensure ? "device setup" : disable ? "device disable" : "deposit top-up", true, async token => {
                 if (!ensure) return (await (disable ? Flow.RevokeSession() : Flow.RefillSession())).Value;
                 var ensured = (await Flow.EnsureSession()).Value;
                 recovered = ensured.Action == "recover"; return ensured.Operation;

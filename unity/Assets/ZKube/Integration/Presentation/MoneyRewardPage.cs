@@ -85,7 +85,7 @@ namespace ZKube.Integration.Presentation
         public Task SealResults()
         {
             if (!CanSealResults()) return Task.CompletedTask;
-            return Act(false, async token => (await Flow.SettleDailies(token)).Value, RefreshRewardPage, () => _ = SealResults());
+            return Act("seal results", false, async token => (await Flow.SettleDailies(token)).Value, RefreshRewardPage, () => _ = SealResults());
         }
         // A board by its name on this day.
         private string RewardName(string kind) => MoneyText.Board(kind, catalog, rewardDay);
@@ -271,7 +271,7 @@ namespace ZKube.Integration.Presentation
             var payment = new RewardPayment { Owner = identity.Lease(), Day = rewardDay, Kind = kind, Amount = board.Yours.PayoutLamports,
                 Points = NativeEngine.LadderPoints(board.Account.QualifiedCount, board.Yours.Rank), PreviousPoints = rewardRead.Value.Profile.LadderPoints };
             rewardPayment = payment;
-            return Act(false, async token => (await Flow.ClaimDaily(payment.Day, kind, token)).Value, RefreshRewardPage,
+            return Act("reward claim", false, async token => (await Flow.ClaimDaily(payment.Day, kind, token)).Value, RefreshRewardPage,
                 () => _ = CollectReward(kind), result => payment.Signature = result.Signature);
         }
     }

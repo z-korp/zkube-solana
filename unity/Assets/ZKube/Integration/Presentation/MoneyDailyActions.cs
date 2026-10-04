@@ -198,7 +198,7 @@ namespace ZKube.Integration.Presentation
         private DailyPageView WaitingHome()
         {
             if (failure != null && !Busy)
-                return Home(new ArcadeView { Headline = "No connection", Reason = failure, Warning = true },
+                return Home(new ArcadeView { Headline = "Not loaded", Reason = failure, Warning = true },
                     0, PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy),
                     PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()));
             if (!Busy && pageNotice != null)

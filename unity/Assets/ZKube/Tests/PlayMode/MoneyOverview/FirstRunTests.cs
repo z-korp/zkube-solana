@@ -44,7 +44,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
             Assert.That(Adapter.LastReceipt.Code, Is.EqualTo("simulation-rejected"));
             Assert.That(Asked("signTransactions"), Is.Zero, "The wallet is never asked for a transaction the cluster refuses");
-            Assert.That(Text("Action refused"), Is.EqualTo("The network refused this request. Check your wallet’s SOL."));
+            Assert.That(Text("Action refused"), Is.EqualTo("Solana refused this request. Check your wallet’s SOL."));
             Assert.That(Offers("Enable device"), Is.False); Assert.That(Offers("View operation"), Is.False);
             yield return SessionClick("Try again"); yield return Idle();
             Assert.That(Asked("signTransactions"), Is.EqualTo(1));
@@ -161,7 +161,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
             environment.RefuseNextSimulation();
             yield return SessionClick(ZKube.Integration.Presentation.MoneyAppAdapter.KreditPurchaseLabel(10)); yield return Idle();
-            Assert.That(Text("Action refused"), Is.EqualTo("The network refused this request. Check your wallet’s SOL."));
+            Assert.That(Text("Action refused"), Is.EqualTo("Solana refused this request. Check your wallet’s SOL."));
             Assert.That(Asked("signTransactions"), Is.Zero);
             Assert.That(host.GetComponentsInChildren<Button>().Any(value => value.name.StartsWith("Buy ")), Is.False);
             yield return SessionClick("Try again"); yield return Idle();

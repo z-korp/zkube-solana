@@ -151,7 +151,7 @@ namespace ZKube.Integration.Presentation
         {
             if (!ProfileEditable() || !ProfileSelectionChanged() || !profileRead.Value.Identity.CanWear(selectedEmblem, selectedBorder)) return Task.CompletedTask;
             byte emblem = selectedEmblem, border = selectedBorder;
-            return Act(false, async token => (await Flow.SetFeaturedIdentity(emblem, border, token)).Value, RefreshProfilePage,
+            return Act("profile look", false, async token => (await Flow.SetFeaturedIdentity(emblem, border, token)).Value, RefreshProfilePage,
                 () => _ = WearProfileSelection());
         }
 

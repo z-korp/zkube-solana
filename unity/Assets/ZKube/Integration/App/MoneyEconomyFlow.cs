@@ -50,7 +50,7 @@ namespace ZKube.Integration.App
         public async Task<ulong?> DailyTop(uint day)
         {
             try { return (await services.Products.ScoreTop(day).ConfigureAwait(false)).Value; }
-            catch (Exception) { return null; }
+            catch (Exception error) { ZKube.Integration.Transport.ClientLog.Failure("daily top", error); return null; }
         }
 
         // A reward page observes each sealing window and the actual profile.

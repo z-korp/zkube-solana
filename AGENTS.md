@@ -311,6 +311,16 @@ spending approval.
   front of the app, a pause). `TheArenaHasOneHomePageInEveryState`,
   `TheArenaLoadsAfterConnectingThroughAWalletThatPausedTheApp` and `APageWhoseReadIsAbsentReadsItWithoutATap`
   guard them.
+- **Failed requests:** a request that fails has one classification, `RequestFailure`: a timeout, no network, an
+  insecure connection, a busy endpoint (429), a refusal (401, 403), a server error, another HTTP status, an RPC
+  error reply, a reply that cannot be read, or an error on the device. The page words it with the service that
+  was asked (Solana, the game server, the leaderboard), and only a request that reached nothing says the
+  network could not be reached. Every failed wallet, device or read request, the optional ones a page carries
+  on without included, writes one line to the device log: the action, the host, the call, the status and the
+  exception's type and message, with every URL cut to its host and every address, key or byte string removed.
+  `EveryKindOfFailureIsToldApartAndOnlyAConnectivityFailureIsTheNetworks`,
+  `AFailedRequestLogsOneLineWithItsHostAndNothingOfThePlayers` and
+  `AFailedRequestSaysWhatFailedOnThePageAndInTheLog` guard it.
 - **Saved authorization:** the device keeps the address the wallet last authorized, with the wallet's token,
   in the native vault. A start enters with that address and asks no wallet; the next wallet request proves it.
   A wallet that answers for another account ends it: the vault drops the entry, the client drops the address

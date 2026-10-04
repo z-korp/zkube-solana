@@ -53,7 +53,7 @@ namespace ZKube.Integration.Presentation
         public Task PurchaseKredits(uint pack)
         {
             if (!CanBuyKredits() || !SessionViewPolicy.KreditPacks.Contains(pack)) return Task.CompletedTask;
-            return Act(false, async token => (await Flow.BuyKredits(pack, token)).Value, RefreshKreditPage, () => _ = PurchaseKredits(pack));
+            return Act("kredit purchase", false, async token => (await Flow.BuyKredits(pack, token)).Value, RefreshKreditPage, () => _ = PurchaseKredits(pack));
         }
 
         // The shop: the confirmed balance, then one unit price and its packs, or

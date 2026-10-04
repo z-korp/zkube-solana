@@ -84,7 +84,8 @@ namespace ZKube.Integration.App
                 if (await writeWhenReady(submitted, cancellation).ConfigureAwait(false))
                     AcknowledgeCampaignRecord(submitted);
             }
-            catch (Exception) { /* Durable progress remains pending for the next start. */ }
+            // Durable progress remains pending for the next start.
+            catch (Exception error) { ZKube.Integration.Transport.ClientLog.Failure("campaign stars", error); }
         }
     }
 }

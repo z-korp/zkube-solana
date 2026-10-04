@@ -168,9 +168,8 @@ namespace ZKube.Integration.Presentation
             var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab };
             if (failure != null && !Busy)
                 page.Blocks = new[] {
-                    PanelBlock.Talk(failure == "Network configuration is unavailable." ? failure :
-                        "We could not refresh the Arena. Check your connection, or continue your saved Campaign.", "defeated"),
-                    PanelBlock.Title("No connection"),
+                    PanelBlock.Talk(failure, "defeated"),
+                    PanelBlock.Title("Not loaded"),
                     PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true),
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
             else if (Busy || message == null)

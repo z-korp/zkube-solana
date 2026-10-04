@@ -1,4 +1,5 @@
 using ZKube.Integration.Execution;
+using ZKube.Integration.Transport;
 
 namespace ZKube.Integration.Presentation
 {
@@ -33,19 +34,44 @@ namespace ZKube.Integration.Presentation
             ExecutionOutcome.ExpiredReconciled => "The transaction expired before it was sent.",
             ExecutionOutcome.FeeShortage => result.Code == "device-deposit-low" ?
                 "This device’s deposit is too low." : "Your wallet needs more SOL.",
-            _ => Refusal(result.Code)
+            _ => result.Failure != null ? Refusal(result.Failure) : result.Code == "simulation-rejected" ? Simulation(result.ChainError) : Refusal(result.Code)
         };
+        // A request an error stopped, by what was asked and how it failed. Only a
+        // request that never reached anything is the network's.
+        public static string Refusal(RequestFailure failure)
+        {
+            string service = failure.Service ?? "the service", Service = char.ToUpperInvariant(service[0]) + service.Substring(1);
+            return failure.Kind switch {
+                FailureKind.Timeout => Service + " took too long to answer.",
+                FailureKind.NoNetwork => "The network could not be reached.",
+                FailureKind.Insecure => "A secure connection to " + service + " could not be made.",
+                FailureKind.Busy => Service + " is busy. Try again in a moment.",
+                FailureKind.Refused => Service + " refused this device’s request.",
+                FailureKind.ServerError => Service + " is having trouble. Try again.",
+                FailureKind.HttpError => Service + " answered with an error.",
+                FailureKind.RpcError => Service + " could not handle this request.",
+                FailureKind.UnreadableReply => Service + " answered in a way this app could not read.",
+                _ => "This request could not be prepared on this device."
+            };
+        }
+        // What Solana said when it tried the transaction before the wallet was asked.
+        private static string Simulation(string chainError) => chainError == null ? "Solana refused this request." :
+            chainError.Contains("AccountNotFound") ? "Your wallet has no SOL on this network." :
+            chainError.Contains("InsufficientFunds") ? "Your wallet needs more SOL." :
+            chainError.Contains("BlockhashNotFound") ? "The request went stale. Try again." :
+            "Solana refused this request. Check your wallet’s SOL.";
         // The same line for a request the wallet, the network or this app refused, by its code.
         public static string Refusal(string code) => code switch {
-            "wallet-rejected" or "wallet-interrupted" or "activity-recreated" or "cancelled" => "Not approved in your wallet.",
+            "wallet-rejected" or "wallet-interrupted" or "activity-recreated" => "Not approved in your wallet.",
+            "cancelled" => "The request was cancelled.",
             "wallet-unavailable" or "activity-unavailable" => "No wallet app was found.",
             "sign-only-unavailable" or "unsupported-transaction-version" => "This wallet cannot sign this request.",
             "wrong-chain" => "Your wallet is on another network.",
             "account-changed" or "authorization-required" => "The wallet account changed. Connect again.",
             "wallet-busy" or "execution-busy" => "Another request is still open.",
             "pending-transaction-exists" or "pending-transaction-changed" => "An earlier transaction needs checking first.",
-            "simulation-rejected" => "The network refused this request. Check your wallet’s SOL.",
-            "preparation-failed" => "The network could not be reached.",
+            "simulation-rejected" => "Solana refused this request.",
+            "preparation-failed" => "This request could not be prepared on this device.",
             _ => "The request was not sent."
         };
 

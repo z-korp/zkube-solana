@@ -112,10 +112,48 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Offers("Resume Daily"), Is.True);
 
             Set("dailyRead", null); Set("failure", "Could not refresh. Try again."); Redraw(); yield return Idle(); Home("failed read");
-            Assert.That(Text("Daily headline"), Is.EqualTo("No connection"));
+            Assert.That(Text("Daily headline"), Is.EqualTo("Not loaded"));
             Assert.That(Offers("Play Campaign"), Is.True);
             Click("Try again"); yield return Idle(); Home("read again");
             Assert.That(Offers("Resume Daily"), Is.True);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // A request that fails says what failed, on the page and in one log line:
+        // a busy endpoint, a timeout and a network that cannot be reached are told
+        // apart, the wallet is never asked for a transaction that was not prepared,
+        // and the line carries the action, the host and the call, never a path.
+        [UnityTest] public IEnumerator AFailedRequestSaysWhatFailedOnThePageAndInTheLog()
+        {
+            yield return PrepareScenario("session-enable-success"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Idle();
+            var lines = new System.Collections.Generic.List<string>(); var sink = ZKube.Integration.Transport.ClientLog.Sink;
+            ZKube.Integration.Transport.ClientLog.Sink = lines.Add;
+            try
+            {
+                environment.Http.FailNext("getLatestBlockhash", new ZKube.Integration.Transport.HttpStatusException(429));
+                yield return SessionClick("Enable device"); yield return Idle();
+                Assert.That(Text("Action refused"), Is.EqualTo("Solana is busy. Try again in a moment."));
+                Assert.That(lines.Count, Is.EqualTo(1), string.Join("\n", lines));
+                StringAssert.StartsWith("zKube request failed: action=session-renew kind=Busy service=Solana host=base.invalid call=getLatestBlockhash status=429", lines[0]);
+                StringAssert.DoesNotContain("base.invalid/", lines[0]); StringAssert.DoesNotContain(environment.Owner, lines[0]);
+
+                environment.Http.FailNext("simulateTransaction", new System.TimeoutException("No answer within 30 s"));
+                yield return SessionClick("Try again"); yield return Idle();
+                Assert.That(Text("Action refused"), Is.EqualTo("Solana took too long to answer."));
+                Assert.That(Asked("signTransactions"), Is.Zero);
+
+                lines.Clear();
+                environment.Http.FailNext("getMultipleAccounts", new System.Net.Http.HttpRequestException("An error occurred while sending the request",
+                    new System.Net.WebException("Error: NameResolutionFailure", System.Net.WebExceptionStatus.NameResolutionFailure)));
+                yield return Wait(Adapter.OpenDaily()); yield return Idle();
+                Assert.That(Text("Daily headline"), Is.EqualTo("Not loaded"));
+                Assert.That(Text("Daily reason"), Is.EqualTo("The network could not be reached."));
+                Assert.That(lines.Count(line => line.StartsWith("zKube request failed: action=read Daily kind=NoNetwork service=Solana host=base.invalid call=getMultipleAccounts")), Is.EqualTo(1), string.Join("\n", lines));
+                Click("Try again"); yield return Idle();
+                Assert.That(Offers("Resume Daily"), Is.True);
+            }
+            finally { ZKube.Integration.Transport.ClientLog.Sink = sink; }
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

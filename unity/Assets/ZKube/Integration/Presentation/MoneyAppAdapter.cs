@@ -9,6 +9,7 @@ using ZKube.Core;
 using ZKube.Integration.App;
 using ZKube.Integration.Client;
 using ZKube.Integration.Execution;
+using ZKube.Integration.Transport;
 using ZKube.Presentation;
 
 namespace ZKube.Integration.Presentation
@@ -73,7 +74,8 @@ namespace ZKube.Integration.Presentation
         public Task Connect() => Run(async (epoch, token) => {
             ClearRefusal();
             try { await Flow.Connect(); }
-            catch (WalletRequestException error) { if (Current(epoch)) Refuse("Connect", Reason(error), () => _ = Connect()); return; }
+            catch (WalletRequestException error)
+            { ClientLog.Outcome("connect", error.Code, null); if (Current(epoch)) Refuse("Connect", Reason(error), () => _ = Connect()); return; }
             if (Current(epoch)) await Enter(epoch, token);
         });
         // Entering with an address: its last operation (and that receipt), then the Arena.
@@ -173,8 +175,8 @@ namespace ZKube.Integration.Presentation
             if (Busy || detached || paused || !isActiveAndEnabled || string.IsNullOrEmpty(LastReceipt?.Signature)) return;
             fullReceipt = !fullReceipt; Present();
         }
-        private void ShowError(Exception error) =>
-            Fail(error is MoneyConfigurationException || error is WalletRequestException ? Reason(error) : "Could not refresh. Try again.");
+        // A read that failed: one log line, and on the page what failed in plain words.
+        private void ShowError(Exception error) { ClientLog.Failure("read " + Family(), error); Fail(Reason(error)); }
         private void Fail(string message) { failure = message; Status = message; Present(); }
         // What the player should know about the last operation, shown on its page.
         private void Inform(string message) { info = message; Status = message; Present(); }

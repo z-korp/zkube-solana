@@ -139,8 +139,8 @@ namespace ZKube.Integration.Client
         {
             if (!inspect) return new SessionEnsureResult(action, null, operation);
             try { return new SessionEnsureResult(action, await Inspect(lease).ConfigureAwait(false), operation); }
-            catch (Exception) when (!lease.Cancellation.IsCancellationRequested && identity.IsCurrent(lease))
-            { return new SessionEnsureResult(action, null, operation); }
+            catch (Exception error) when (!lease.Cancellation.IsCancellationRequested && identity.IsCurrent(lease))
+            { ClientLog.Failure("session read-back", error); return new SessionEnsureResult(action, null, operation); }
         }
         private async Task<T> Change<T>(Func<IdentityLease, Task<T>> action)
         {

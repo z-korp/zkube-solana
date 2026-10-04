@@ -42,7 +42,8 @@ namespace ZKube.Integration.Transport.Tests
             Exception failure = null;
             try { await transport.Post(new Uri("https://fixture.invalid/"), "{}", 1024, default); }
             catch (Exception error) { failure = error; }
-            Assert.That(failure, Is.InstanceOf<OperationCanceledException>());
+            Assert.That(failure, Is.InstanceOf<TimeoutException>(), "A deadline is a timeout, not the caller cancelling");
+            Assert.That(RequestFailure.Of(failure).Kind, Is.EqualTo(FailureKind.Timeout));
             Assert.That(handler.Body.ReadStarted, Is.True);
             Assert.That(handler.Body.Disposed, Is.True);
         }

@@ -120,7 +120,7 @@ namespace ZKube.Integration.Transport
                     .ConfigureAwait(false) as JObject;
                 return (accounts?["value"] as JArray)?.Any(GenesisMint) == true;
             }
-            catch (Exception) { return false; }
+            catch (Exception error) { ClientLog.Failure("seeker badge", error); return false; }
         }
         private async Task<string> Name(string owner)
         {
@@ -140,12 +140,12 @@ namespace ZKube.Integration.Transport
                         ? RecordName(Convert.FromBase64String((string)value["data"][0])) : null)
                     .Where(name => name != null).OrderBy(name => name, StringComparer.Ordinal).FirstOrDefault();
             }
-            catch (Exception) { return null; }
+            catch (Exception error) { ClientLog.Failure("seeker name", error); return null; }
         }
         private async Task<bool> Mainnet()
         {
             try { return (string)await Call("getGenesisHash", new JArray(), 4096).ConfigureAwait(false) == MainnetGenesis; }
-            catch (Exception) { mainnet = null; return false; }
+            catch (Exception error) { ClientLog.Failure("seeker cluster", error); mainnet = null; return false; }
         }
         private static JObject Filter(int offset, string bytes) => new JObject { ["memcmp"] = new JObject { ["offset"] = offset, ["bytes"] = bytes } };
         private async Task<JToken> Call(string method, JArray parameters, int maximumBytes)
@@ -153,9 +153,13 @@ namespace ZKube.Integration.Transport
             var request = new JObject { ["jsonrpc"] = "2.0", ["id"] = Interlocked.Increment(ref requestId), ["method"] = method, ["params"] = parameters };
             using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
             {
-                var response = JObject.Parse(await http.Post(endpoint, request.ToString(Newtonsoft.Json.Formatting.None), maximumBytes, timeout.Token).ConfigureAwait(false));
-                if (response["error"] != null) throw new FormatException("Name lookup failed");
-                return response["result"];
+                try
+                {
+                    var response = JObject.Parse(await http.Post(endpoint, request.ToString(Newtonsoft.Json.Formatting.None), maximumBytes, timeout.Token).ConfigureAwait(false));
+                    if (response["error"] != null) throw new FormatException("Name lookup failed");
+                    return response["result"];
+                }
+                catch (Exception error) when (RequestFailure.Mark(error, "the name service", endpoint, method)) { throw; }
             }
         }
     }

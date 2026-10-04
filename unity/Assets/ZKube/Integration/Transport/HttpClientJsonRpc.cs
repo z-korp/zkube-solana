@@ -33,11 +33,19 @@ namespace ZKube.Integration.Transport
         private async Task<string> Send(HttpRequestMessage message, int maximumResponseBytes, CancellationToken cancellation)
         {
             using var request = message;
+            var caller = cancellation;
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             deadline.CancelAfter(requestTimeout);
             cancellation = deadline.Token;
+            // The deadline is a timeout, not the caller changing its mind.
+            try { return await Receive(request, maximumResponseBytes, cancellation).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (!caller.IsCancellationRequested)
+            { throw new TimeoutException("No answer within " + (int)requestTimeout.TotalSeconds + " s"); }
+        }
+        private async Task<string> Receive(HttpRequestMessage request, int maximumResponseBytes, CancellationToken cancellation)
+        {
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode) throw new HttpStatusException((int)response.StatusCode);
             if (response.Content.Headers.ContentLength > maximumResponseBytes) throw new FormatException("RPC response exceeds its bound");
             using var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
             using var output = new MemoryStream();

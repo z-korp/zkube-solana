@@ -30,6 +30,8 @@ namespace ZKube.Integration.App
         private MoneyAppFlow flow;
         public override void Open(AppStartup startup)
         {
+            // Every failed request writes its one cleaned line to the device log.
+            ZKube.Integration.Transport.ClientLog.Sink = Debug.LogWarning;
             var clock = Configuration.Clock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             var services = Configuration.Services;
             if (services == null)

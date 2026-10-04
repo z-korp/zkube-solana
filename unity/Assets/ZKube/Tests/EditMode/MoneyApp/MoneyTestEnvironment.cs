@@ -77,6 +77,9 @@ namespace ZKube.Integration.App.Tests
             public readonly HashSet<string> Delegated = new HashSet<string>();
             public string Genesis, Er, Program, Validator, Confirmation = "confirmed", DelayMethod, Blockhash;
             public bool AllowFeeQuote;
+            // The next call of this method fails the way a real endpoint would.
+            public string FailMethod; public Exception Failure;
+            public void FailNext(string method, Exception failure) { FailMethod = method; Failure = failure; }
             public JToken StatusError;
             public bool ThrowOnCancellation;
             public int CancellationCallbacks;
@@ -85,6 +88,7 @@ namespace ZKube.Integration.App.Tests
             private async Task<JToken> Respond(Uri endpoint, JObject request, CancellationToken cancellation)
             {
                 cancellation.ThrowIfCancellationRequested(); string method = (string)request["method"];
+                if (method == FailMethod) { FailMethod = null; throw Failure; }
                 using var registration = method == DelayMethod && ThrowOnCancellation ? cancellation.Register(() => {
                     Interlocked.Increment(ref CancellationCallbacks);
                     throw new InvalidOperationException("Injected cancellation callback: " + method);

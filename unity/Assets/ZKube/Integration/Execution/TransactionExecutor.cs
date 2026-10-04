@@ -75,20 +75,23 @@ namespace ZKube.Integration.Execution
                     if (plan.FeePayer == plan.Owner && balanceTask.Result < fee)
                     {
                         if (!last) continue;
+                        ClientLog.Outcome(intent, "owner-fee-shortage", null);
                         return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage");
                     }
                     try { plan.RequireDeviceFunding(balanceTask.Result, rentTask.Result, fee); }
                     catch (InvalidOperationException)
                     {
                         if (!last) continue;
+                        ClientLog.Outcome(intent, "device-deposit-low", null);
                         return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-deposit-low");
                     }
                     foreach (var signer in signers) transaction = signer.PartialSign(transaction);
                     if (fastEr) break;
                     var simulation = await rpc.Simulate(endpoint, transaction, lease, cancellation).ConfigureAwait(false);
                     if (simulation.Succeeded) break;
-                    if (last) return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "simulation-rejected",
-                        chainError: simulation.ErrorJson);
+                    if (!last) continue;
+                    ClientLog.Outcome(intent, "simulation-rejected", simulation.ErrorJson);
+                    return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "simulation-rejected", chainError: simulation.ErrorJson);
                 }
                 cancellation.ThrowIfCancellationRequested();
                 if (plan.OwnerSignatureRequired) transaction = await wallet.Sign(plan.Owner, transaction).ConfigureAwait(false);
@@ -107,14 +110,19 @@ namespace ZKube.Integration.Execution
                 }
                 try { await rpc.Send(endpoint, transaction, fastEr ? RpcSubmissionPolicy.ErSession : RpcSubmissionPolicy.Wallet,
                     lease, cancellation).ConfigureAwait(false); }
-                catch (Exception) { /* The persisted signature is the only retry/recovery identity. */ }
+                // The persisted signature is the only retry/recovery identity.
+                catch (Exception error) { ClientLog.Failure(intent + " send", error); }
                 return await Reconcile(pending, reconciler, cancellation).ConfigureAwait(false);
             }
-            catch (WalletRequestException error) { return Rejected(intent, error.Code); }
+            catch (WalletRequestException error) { ClientLog.Outcome(intent, error.Code, null); return Rejected(intent, error.Code); }
             catch (OperationCanceledException)
             { return pending == null ? Rejected(intent, "cancelled") : Pending(pending, "observation-cancelled"); }
-            catch (Exception)
-            { return pending == null ? Rejected(intent, "preparation-failed") : Pending(pending, "outcome-unknown"); }
+            catch (Exception error)
+            {
+                ClientLog.Failure(intent, error);
+                return pending == null ? new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "preparation-failed", failure: RequestFailure.Of(error))
+                    : Pending(pending, "outcome-unknown");
+            }
             finally { executing.Release(); }
         }
 
@@ -191,7 +199,7 @@ namespace ZKube.Integration.Execution
                     pending.Intent, pending.Signature, chainError: status.ErrorJson);
             }
             catch (OperationCanceledException) { return Pending(pending, "observation-cancelled"); }
-            catch (Exception) { return Pending(pending, "outcome-unknown"); }
+            catch (Exception error) { ClientLog.Failure(pending.Intent + " confirmation", error); return Pending(pending, "outcome-unknown"); }
         }
         private static bool IsConfirmed(RpcSignatureStatus status) => status.Confirmation == RpcConfirmation.Confirmed || status.Confirmation == RpcConfirmation.Finalized;
         private static ExecutionResult Pending(PendingTransaction transaction, string code) =>

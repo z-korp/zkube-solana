@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ZKube.Core.Generated;
 using ZKube.Integration.App;
 using ZKube.Integration.Execution;
+using ZKube.Integration.Transport;
 using ZKube.Presentation;
 
 namespace ZKube.Integration.Presentation
@@ -26,12 +27,12 @@ namespace ZKube.Integration.Presentation
         private void Refuse(string family, string reason, Action retry) { refusal = reason; refusalFamily = family; refusalRetry = retry; Present(); }
         private void ClearRefusal() { refusal = null; refusalFamily = null; refusalRetry = null; }
         private string Reason(Exception error) => error is MoneyConfigurationException ? "Network configuration is unavailable." :
-            error is WalletRequestException wallet ? MoneyReceiptText.Refusal(wallet.Code) : "The network could not be reached.";
+            error is WalletRequestException wallet ? MoneyReceiptText.Refusal(wallet.Code) : MoneyReceiptText.Refusal(RequestFailure.Of(error));
 
         // Every wallet and device action runs here. Its page shows the request
         // while it is open; a result that is not a success, or an error on the
         // way, stays on that page as a reason with a retry.
-        private Task Act(bool device, Func<CancellationToken, Task<ExecutionResult>> request,
+        private Task Act(string action, bool device, Func<CancellationToken, Task<ExecutionResult>> request,
             Func<long, CancellationToken, Task> readBack, Action retry, Action<ExecutionResult> sent = null)
         {
             string family = Family();
@@ -42,7 +43,7 @@ namespace ZKube.Integration.Presentation
                 {
                     ExecutionResult result = null; string reason;
                     try { result = await request(token); reason = MoneyReceiptText.Refusal(result); }
-                    catch (Exception error) when (!(error is OperationCanceledException)) { reason = Reason(error); }
+                    catch (Exception error) when (!(error is OperationCanceledException)) { ClientLog.Failure(action, error); reason = Reason(error); }
                     if (result != null) sent?.Invoke(result);
                     if (!Current(epoch)) return;
                     // The wallet no longer answers for this address: the saved

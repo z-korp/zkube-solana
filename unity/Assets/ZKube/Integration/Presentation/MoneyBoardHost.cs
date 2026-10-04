@@ -143,8 +143,9 @@ namespace ZKube.Integration.Presentation
                 settled = state.Phase == "consumed";
                 if (!settled) settlementError = "The result is still settling. Check again.";
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                ZKube.Integration.Transport.ClientLog.Failure("run settlement", error);
                 if (Current(epoch)) settlementError = "Settlement could not be confirmed. Your accepted result is retained.";
             }
             finally
@@ -179,8 +180,9 @@ namespace ZKube.Integration.Presentation
                 board.SetHostInputEnabled(!Frozen() && !Terminal());
                 if (!Terminal() && !Frozen()) board.Pause();
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                ZKube.Integration.Transport.ClientLog.Failure("run check", error);
                 if (CurrentForeground(epoch, visit)) board.RequireRecovery("The current run could not be checked. Recover before playing again.");
             }
             finally { if (Current(epoch)) observing = false; }

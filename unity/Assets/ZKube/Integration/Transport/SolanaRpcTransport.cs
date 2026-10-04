@@ -259,7 +259,11 @@ namespace ZKube.Integration.Transport
         {
             long id = Interlocked.Increment(ref requestId);
             var request = new JObject { ["jsonrpc"] = "2.0", ["id"] = id, ["method"] = method, ["params"] = parameters };
-            string json = await http.Post(endpoint, request.ToString(Formatting.None), bound, cancellation).ConfigureAwait(false);
+            try { return Result(await http.Post(endpoint, request.ToString(Formatting.None), bound, cancellation).ConfigureAwait(false), id, bound); }
+            catch (Exception error) when (RequestFailure.Mark(error, endpoint == Base.Address ? "Solana" : "the game server", endpoint, method)) { throw; }
+        }
+        private static JToken Result(string json, long id, int bound)
+        {
             if (json == null || System.Text.Encoding.UTF8.GetByteCount(json) > bound) throw new FormatException("RPC response exceeds its bound");
             using var reader = new JsonTextReader(new StringReader(json)) { MaxDepth = 32, DateParseHandling = DateParseHandling.None };
             var response = JObject.Load(reader, new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });

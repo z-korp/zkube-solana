@@ -411,7 +411,8 @@ namespace ZKube.Integration.Client.Runs
                     }
                 }
                 catch (OperationCanceledException) { throw; }
-                catch (Exception) { cancellation.ThrowIfCancellationRequested(); /* Optional attachments never block entry. */ }
+                // Optional attachments never block entry.
+                catch (Exception error) { cancellation.ThrowIfCancellationRequested(); ZKube.Integration.Transport.ClientLog.Failure("entry claims", error); }
             }
             return TransactionPlanner.ReadEntryClaims(accounts, boards, owner);
         }

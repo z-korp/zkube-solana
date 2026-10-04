@@ -63,7 +63,9 @@ namespace ZKube.Integration.Transport
                     !(bool)body["final"] || body["complete"]?.Type != JTokenType.Boolean || !(bool)body["complete"]) return null;
                 return new PublicStandings((uint)body["total"], rows(body));
             }
-            catch (Exception) when (!cancellation.IsCancellationRequested) { return null; }
+            // The board stands without it; the failure is logged, never shown.
+            catch (Exception error) when (!cancellation.IsCancellationRequested)
+            { RequestFailure.Mark(error, "the leaderboard", endpoint, "boards"); ClientLog.Failure("standings", error); return null; }
         }
 
         private static PublicStandingRow Row(JToken row)
