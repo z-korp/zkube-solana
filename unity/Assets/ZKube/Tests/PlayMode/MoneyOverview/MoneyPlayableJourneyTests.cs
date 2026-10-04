@@ -34,6 +34,9 @@ namespace ZKube.Tests.MoneyOverview
             yield return Idle();
             Assert.That(controller.PlayingRun, Is.False);
             StringAssert.Contains("Run ended", SessionText());
+            // The result's stars play under a tap-to-skip layer: the map is reached once they have.
+            foreach (var sequence in host.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+            yield return null;
             yield return SessionClick("Map"); yield return Idle();
             Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Campaign));
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
