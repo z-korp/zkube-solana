@@ -46,7 +46,7 @@ namespace ZKube.Presentation
         // tabs, at the player's music level, and stops for a result and the board.
         public AudioSource MenuMusic { get; private set; }
 
-        // homeTabName is the Home tab's word ("Home", or the Arena's "Arcade");
+        // homeTabName is the Home tab's word ("Home", or the Arena's own name);
         // brandName names the product's wordmark: "realms" or "arena".
         public void Initialize(IAppPageSource pageSource, PageShell pageShell, string homeTabName, string brandName, float scale,
             Func<float> displayDensity = null)
@@ -96,7 +96,7 @@ namespace ZKube.Presentation
             {
                 case AppPage.Home:
                     var daily = source.DailyPage();
-                    Frame(AppPage.Home, null, null, null, null); Home(daily); break;
+                    Frame(daily.NoTabs ? (AppPage?)null : AppPage.Home, null, null, null, null); Home(daily); break;
                 case AppPage.Campaign:
                     var campaign = source.CampaignView(); var realm = catalog.Realm(campaign.Realm);
                     // Another realm is another page: it opens at its own start.

@@ -59,7 +59,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator BeforeTheArenaOpensNoPageOffersAnActionThatCannotWork()
         {
             yield return FirstRun("arena-not-open", null);
-            Assert.That(Text("Connect cost"), Is.EqualTo("Arena opens soon. Campaign is open now."));
+            Assert.That(Text("Daily headline"), Is.EqualTo("Opens soon")); Assert.That(Text("Daily reason detail"), Is.EqualTo("Campaign is open now."));
             Click("Connect"); yield return Idle();
             Assert.That(Text("Daily headline"), Is.EqualTo("Opens soon"));
             foreach (string action in new[] { "Set up device", "Enter · 1 Kredit", "Kredits", "Rewards" }) Assert.That(Offers(action), Is.False, action);
@@ -86,7 +86,7 @@ namespace ZKube.Tests.MoneyOverview
             IEnumerator Later() { environment.AdvanceClock(31); yield return null; yield return Idle(); }
             yield return FirstRun("arena-not-open", null);
             environment.Stage(); yield return Later();
-            Assert.That(Text("Connect cost"), Is.EqualTo("Arena opens soon. Campaign is open now."), "An initialized protocol has not launched");
+            Assert.That(Text("Daily headline"), Is.EqualTo("Opens soon"), "An initialized protocol has not launched");
             Click("Connect"); yield return Idle();
             Assert.That(Text("Daily headline"), Is.EqualTo("Opens soon")); Assert.That(Offers("Set up device"), Is.False);
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
@@ -152,7 +152,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return FirstRun("kredit-buy-10", null);
             environment.Native.Reject = true; Click("Connect"); yield return Idle();
             Assert.That(environment.Services.Identity.Owner, Is.Null);
-            Assert.That(Text("Action refused"), Is.EqualTo("Not approved in your wallet."));
+            Assert.That(Text("Daily reason"), Is.EqualTo("Not approved in your wallet."));
             Assert.That(Offers("Connect"), Is.False);
             Click("Try again"); yield return Idle();
             Assert.That(environment.Services.Identity.Owner, Is.EqualTo(environment.Owner));

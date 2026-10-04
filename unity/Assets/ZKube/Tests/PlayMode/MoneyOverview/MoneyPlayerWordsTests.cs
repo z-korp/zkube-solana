@@ -46,7 +46,7 @@ namespace ZKube.Tests.MoneyOverview
             Refuse("Connect"); yield return Words("Connect refused");
             yield return EndScenario();
 
-            yield return Compact("owner-overview"); Click("Connect"); yield return Words("Arcade with a saved run");
+            yield return Compact("owner-overview"); Click("Connect"); yield return Words("Arena with a saved run");
             Click("Settings"); yield return Words("Settings");
             Click("Manage"); yield return Words("This device");
             Click("Back"); yield return Idle(); Click("Last operation"); yield return Words("No operation yet");
@@ -64,14 +64,14 @@ namespace ZKube.Tests.MoneyOverview
             yield return Words("Entries closed");
             yield return EndScenario();
 
-            yield return Compact("daily-playable"); Click("Connect"); yield return Words("Arcade");
+            yield return Compact("daily-playable"); Click("Connect"); yield return Words("Arena");
             Click("Enter · 1 Kredit"); yield return Words("Entry confirmation");
             Set("confirmingDaily", false);
             var lobby = ((MoneyRead<MoneyDailyState>)typeof(MoneyAppAdapter).GetField("dailyRead", BindingFlags.Instance | BindingFlags.NonPublic)
                 .GetValue(Adapter)).Value.Lobby;
             Set("lastResult", new ResultPageView { HasResult = true, ProductName = Application.productName, Mode = "Daily", PlayerName = environment.Owner,
                 Realm = lobby.Realm, Day = lobby.DayId, ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Score = 1840, ObjectiveTotal = 24, Streak = 7 });
-            Redraw(); yield return Words("Arcade with the last run");
+            Redraw(); yield return Words("Arena with the last run");
             Adapter.Navigate(AppPage.Result); yield return Words("Daily result");
             yield return EndScenario();
 

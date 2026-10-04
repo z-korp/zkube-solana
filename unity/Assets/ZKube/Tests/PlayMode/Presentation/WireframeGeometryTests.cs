@@ -243,7 +243,7 @@ namespace ZKube.Tests.Presentation
             var arcade = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 06:59 UTC" },
                 Blocks = new[] { PanelBlock.Bar("Kredit balance", SkinSlots.IconKredit, "3", "Kredits", false, new PageAction { Label = "Kredits" }, new PageAction { Label = "Rewards" }),
-                    PanelBlock.Text("Arcade rule", "Your best run on each board counts.", SkinTokens.TextMuted) } };
+                    PanelBlock.Text("Arena rule", "Your best run on each board counts.", SkinTokens.TextMuted) } };
             var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
                 Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
@@ -575,7 +575,7 @@ namespace ZKube.Tests.Presentation
                     var portrait = root.GetComponentsInChildren<Image>(true).Single(image => image.name == "Daily guardian");
                     for (float end = Time.realtimeSinceStartup + 10; !portrait.enabled && Time.realtimeSinceStartup < end;) yield return null;
                     var page = catalog.Realm(realm);
-                    string at = (arcade ? "Arcade" : "Home") + " for realm " + realm;
+                    string at = (arcade ? "Arena" : "Home") + " for realm " + realm;
                     Assert.IsTrue(portrait.enabled, at + ": the portrait loads");
                     Assert.AreEqual(catalog.Portrait(realm).sprite, portrait.sprite.name.Replace("(Clone)", ""), at + ": the day's guardian's portrait");
                     Assert.AreEqual(arcade ? page.guardianName + " · " + page.realmName : page.guardianName,
@@ -674,7 +674,7 @@ namespace ZKube.Tests.Presentation
             {
                 source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Actions = new[] { new PageAction { Label = "Play today" } },
                     Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL" } : null };
-                yield return Page(arcade ? "Arcade" : "Home", () => views.Render(AppPage.Home), new[] { (catalog.Goal(1, 3).Pictogram(Bonus(3)), catalog.Goal(1, 3).chip) });
+                yield return Page(arcade ? "Arena" : "Home", () => views.Render(AppPage.Home), new[] { (catalog.Goal(1, 3).Pictogram(Bonus(3)), catalog.Goal(1, 3).chip) });
             }
             source.Result = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20704,
                 ObjectiveKind = 2, ObjectiveValue = 2, Score = 3480, ObjectiveTotal = 9, Streak = 3, Tier = 2, Done = new PageAction { Label = "Continue" } };
@@ -682,7 +682,7 @@ namespace ZKube.Tests.Presentation
                 (catalog.Goal(2, 2).Pictogram(Bonus(1)), catalog.Goal(2, 2).chip) });
             Assert.AreEqual("×", root.GetComponentsInChildren<TMP_Text>().Single(label => label.name == "Multiplier sign").text, "The multiplier's ring holds its ×");
             source.Result.Arcade = true;
-            yield return Page("Arcade result", () => views.Render(AppPage.Result), new[] { (SkinSlots.GoalScore, (string)null),
+            yield return Page("Arena result", () => views.Render(AppPage.Result), new[] { (SkinSlots.GoalScore, (string)null),
                 (catalog.Goal(2, 2).Pictogram(Bonus(1)), catalog.Goal(2, 2).chip) });
             greeted = 0;
             yield return Page("greeting rule", () => { views.Render(AppPage.Campaign); var talk = root.GetComponentInChildren<GuardianTalk>(); talk.Complete(); talk.Tap(); },

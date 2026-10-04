@@ -50,7 +50,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Campaign"); yield return Idle();
             Assert.That(controller.BrowsingSession, Is.False);
             Assert.That(views.ShownPanel, Is.Null); Assert.That(views.Shown, Is.EqualTo(AppPage.Campaign));
-            yield return SessionClick("Arcade"); yield return Idle();
+            yield return SessionClick("Arena"); yield return Idle();
             yield return OpenDevice();
             Assert.That(controller.BrowsingSession, Is.True); Assert.That(controller.BrowsingCampaign, Is.False);
             Assert.That(views.ShownPanel, Is.EqualTo("Device")); Assert.That(views.Shown, Is.Null);

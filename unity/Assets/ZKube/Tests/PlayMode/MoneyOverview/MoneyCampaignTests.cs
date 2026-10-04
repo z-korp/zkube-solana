@@ -54,7 +54,7 @@ namespace ZKube.Tests.MoneyOverview
             // A closed realm shows why it waits, with no trial to open.
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Trial ") && button.interactable), Is.False);
             StringAssert.Contains("final trial", string.Join("\n", host.GetComponentsInChildren<TMP_Text>().Select(text => text.text)));
-            Click("Arcade"); yield return Idle();
+            Click("Arena"); yield return Idle();
             Assert.That(controller.LastReceipt, Is.SameAs(receipt)); Assert.That(controller.BrowsingCampaign, Is.False);
             Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

@@ -18,7 +18,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario(scenario);
             yield return SessionClick("Connect"); yield return Idle();
-            Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingDaily, Is.True, "Connect opens the Arcade");
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingDaily, Is.True, "Connect opens the Arena");
         }
 
         [UnityTest] public IEnumerator DailyNavigationReadsThePublicChallengeAndOffersOnlySavedRunResume()
@@ -65,7 +65,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareScenario("pending-confirmed-failure");
             yield return SessionClick("Connect"); yield return Idle();
             int checks = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
-            yield return SessionClick("Arcade"); yield return Idle();
+            yield return SessionClick("Arena"); yield return Idle();
             StringAssert.Contains("pending transaction", DailyText());
             Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Check transaction"), Is.True);
@@ -91,7 +91,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Campaign"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.BrowsingDaily, Is.False); Assert.That(controller.BrowsingCampaign, Is.True);
-            yield return SessionClick("Arcade"); yield return Idle();
+            yield return SessionClick("Arena"); yield return Idle();
             yield return OpenDevice();
             Assert.That(controller.BrowsingDaily, Is.False); Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.False);
@@ -106,7 +106,7 @@ namespace ZKube.Tests.MoneyOverview
             var shell = host.GetComponent<PageShell>(); ZKube.Tests.Presentation.Phones.Compact(shell);
             yield return SessionClick("Connect"); yield return Idle();
             // The map opens at the current level, so it is not among them.
-            foreach (string control in new[] { "Kredits", "Arcade", "Rewards", "Arcade", "Profile", "Arcade" })
+            foreach (string control in new[] { "Kredits", "Arena", "Rewards", "Arena", "Profile", "Arena" })
             {
                 var scroll = shell.Scroll; Canvas.ForceUpdateCanvases();
                 if (scroll.content.rect.height > scroll.viewport.rect.height)
@@ -132,7 +132,7 @@ namespace ZKube.Tests.MoneyOverview
                 controller.enabled = true; yield return Idle();
                 Assert.That(controller.SessionActionPending, Is.True);
                 yield return SessionClick("Back"); yield return Idle();
-                yield return SessionClick("Arcade"); yield return Idle();
+                yield return SessionClick("Arena"); yield return Idle();
                 var resume = host.GetComponentsInChildren<Button>().Single(button => button.name == "Resume Daily");
                 Assert.That(resume.interactable, Is.False);
                 int before = environment.Calls.Count;

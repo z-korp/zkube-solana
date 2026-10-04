@@ -83,7 +83,7 @@ namespace ZKube.Integration.Presentation
             var value = lastResult != null && lastResult.PlayerName == identity.Owner ? lastResult :
                 new ResultPageView { ProductName = Application.productName, Mode = "Daily", Realm = 1, PlayerName = identity.Owner ?? "" };
             value.Share = ResultSharing.Open; value.Arcade = true;
-            value.Done = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            value.Done = PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             return value;
         }
         private bool ResultAvailable(string mode) => lastResult != null && lastResult.HasResult &&
@@ -98,6 +98,8 @@ namespace ZKube.Integration.Presentation
             string family = Family();
             return family switch {
                 "Campaign" => campaignPage.Value.ToString(),
+                // The Arena's page is one page with or without an address.
+                "Connect" => "Daily",
                 "Daily" => confirmingDaily ? "Entry" : "Daily",
                 "Rewards" => "Rewards " + rewardDay + (boardKind == null ? "" : " " + boardKind),
                 "Device" => revokeConfirming ? "Revoke" : "Device",
@@ -122,16 +124,18 @@ namespace ZKube.Integration.Presentation
             var notices = new[] { NoticeFor(Family()) };
             switch (Family())
             {
-                case "Connect": views.RenderPanel(ConnectPage()); break;
+                // The Arena has one home page. Without an address it carries the connect
+                // request, and before its read lands what it is waiting for, in its own slots.
+                case "Connect": views.Render(AppPage.Home); break;
                 case "Campaign":
                     views.Render(campaignPage.Value, campaign.Unsaved ? notices.Append(RunBoard.UnsavedWarning) : notices); break;
                 case "Daily":
-                    if (dailyRead == null) views.RenderPanel(Waiting("Daily", null, "Arena", AppPage.Home, pageNotice));
+                    if (dailyRead == null) views.Render(AppPage.Home);
                     else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);
                     else
                     {
                         views.Render(AppPage.Home, notices);
-                        // The first Arcade with an address teaches the Arena Daily, over the page and never on the entry sheet.
+                        // The first Arena with an address teaches the Arena Daily, over the page and never on the entry sheet.
                         if (dailyRead.Value.Lobby.Launched && !Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
                     }
                     break;
@@ -165,7 +169,7 @@ namespace ZKube.Integration.Presentation
             if (failure != null && !Busy)
                 page.Blocks = new[] {
                     PanelBlock.Talk(failure == "Network configuration is unavailable." ? failure :
-                        "We could not refresh Arcade. Check your connection, or continue your saved Campaign.", "defeated"),
+                        "We could not refresh the Arena. Check your connection, or continue your saved Campaign.", "defeated"),
                     PanelBlock.Title("No connection"),
                     PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true),
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
@@ -180,22 +184,6 @@ namespace ZKube.Integration.Presentation
             return page;
         }
         private void Notice(string message) { pageNotice = message; Present(); }
-
-        // Connect: the guardian of today's realm, what connecting is, and the
-        // one wallet request, or why it did not connect.
-        private PanelPageView ConnectPage()
-        {
-            bool waiting = publicRead != null && publicRead.IsCurrent && !publicRead.Value.Launched;
-            var blocks = new List<PanelBlock> {
-                PanelBlock.Portrait(TodayRealm),
-                PanelBlock.Card("Connect card",
-                    PanelBlock.Title("Your address. Your play.", centered: true),
-                    PanelBlock.Text("Connect cost", waiting ? "Arena opens soon. Campaign is open now." : "Connecting is free.", SkinTokens.TextMuted, true)) };
-            if (failure != null && !Busy) blocks.Add(PanelBlock.Text("Connect failure", failure, SkinTokens.Negative, true));
-            if (!Refused("Connect", blocks, () => PageAvailable() && !Busy))
-                blocks.Add(PanelBlock.Button(PageAction("Connect wallet", () => _ = Connect(), () => PageAvailable() && !Busy, "Connect"), true));
-            return new PanelPageView { Key = "Connect", Subtitle = "Arena", Blocks = blocks.ToArray() };
-        }
 
         // The last operation: its outcome, what it was, the receipt and the one
         // thing to do next. Tapping the receipt shows the whole signature.
@@ -223,7 +211,7 @@ namespace ZKube.Integration.Presentation
             var back = PageAction("Back", ReturnFromOperation, () => PageAvailable() && !Busy);
             var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "Arena", Back = back };
             var receipt = LastReceipt;
-            var arcade = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            var arcade = PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             if (receipt == null)
             {
                 page.Blocks = new[] {

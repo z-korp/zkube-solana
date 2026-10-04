@@ -303,6 +303,14 @@ spending approval.
   answer; a page that found it not launched reads again every thirty seconds, so it opens by itself.
   `BeforeTheArenaOpensNoPageOffersAnActionThatCannotWork` and
   `TheArenaOpensByItselfOnceItsLaunchDailyExists` guard the state and its end.
+- **One Arena page:** the paid game has one name on screen, Arena, and one home page, the one under the
+  wordmark, behind the Arena tab. It carries the connect request (with no tab bar until there is an address), a
+  refused connection, the wait for its read, a failed read and the Arena itself in its own slots; no titled
+  panel stands in for it. No page waits on a read nobody is making: a page whose read is absent, with no
+  failure or notice shown for that, starts it, whatever retired the operation that would have (the wallet in
+  front of the app, a pause). `TheArenaHasOneHomePageInEveryState`,
+  `TheArenaLoadsAfterConnectingThroughAWalletThatPausedTheApp` and `APageWhoseReadIsAbsentReadsItWithoutATap`
+  guard them.
 - **Device deposit:** what the owner's wallet puts on a device is a deposit on every page, never a fee: the
   amount asked for, what a run costs, that the rest returns when the device is disabled, the deposit a device
   in use has left, and the top-up. `TheDeviceDepositIsADepositOnEveryPageAndNeverAFee` guards the words.

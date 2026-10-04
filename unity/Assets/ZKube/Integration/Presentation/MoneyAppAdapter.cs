@@ -58,7 +58,7 @@ namespace ZKube.Integration.Presentation
             observedDay = Today;
             _ = RefreshOverview();
         }
-        private void InitializeViews() => views.Initialize(this, shell, "Arcade", "arena", textScale, Density);
+        private void InitializeViews() => views.Initialize(this, shell, "Arena", "arena", textScale, Density);
         private float Density() => injectedDensity ?? BoardController.ReadDisplayDensity();
 
         public Task RefreshOverview() => Run(RefreshVisiblePage);

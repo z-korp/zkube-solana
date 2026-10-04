@@ -45,7 +45,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview");
             Assert.That(environment.Services.Identity.Owner, Is.Null);
-            Assert.That(Text("Connect cost"), Is.EqualTo("Connecting is free."));
+            Assert.That(Text("Daily reason detail"), Is.EqualTo("Connecting is free."));
             Assert.That(environment.Calls.Any(call => call.Operation == "authorize"), Is.False);
             Click("Connect"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
@@ -195,7 +195,7 @@ namespace ZKube.Tests.MoneyOverview
             // (the kit's tab bar fits its own labels and has its own test).
             foreach (var button in host.GetComponentsInChildren<Button>())
                 Assert.That(((RectTransform)button.transform).rect.height, Is.GreaterThanOrEqualTo(48), button.name);
-            ZKube.Tests.Presentation.PageText.AssertPillLabelsOnOneLine(host.transform, "Arcade at larger text");
+            ZKube.Tests.Presentation.PageText.AssertPillLabelsOnOneLine(host.transform, "Arena at larger text");
             yield return Wait(host.GetComponent<MoneyIdentity>().Controller.RefreshOverview()); yield return Idle();
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

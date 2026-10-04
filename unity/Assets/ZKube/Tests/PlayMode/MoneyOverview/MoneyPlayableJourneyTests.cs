@@ -47,7 +47,7 @@ namespace ZKube.Tests.MoneyOverview
 
         [UnityTest] public IEnumerator DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce()
         {
-            yield return PrepareDeviceScenario("daily-playable", page: "Arcade");
+            yield return PrepareDeviceScenario("daily-playable", page: "Arena");
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(environment.SentSignature, Is.Null);
             yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
@@ -91,12 +91,12 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));
             Assert.That(controller.ResultPage().ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
             // The Arcade result names the two boards the run counts on and when
-            // places become final; Back to Arcade leads, with Share beside it.
+            // places become final; Back to Arena leads, with Share beside it.
             var arcade = SessionText();
             StringAssert.Contains("Daily run complete", arcade); StringAssert.Contains("Score board", arcade);
             StringAssert.Contains("Your best run counts", arcade);
             StringAssert.Contains("Places are final when each board is sealed after the day closes at 07:00 UTC.", arcade);
-            Assert.That(Find("Back to Arcade").GetComponent<UnityEngine.UI.Image>().sprite.name, Does.StartWith(ZKube.Core.Generated.SkinSlots.ButtonPrimary));
+            Assert.That(Find("Back to Arena").GetComponent<UnityEngine.UI.Image>().sprite.name, Does.StartWith(ZKube.Core.Generated.SkinSlots.ButtonPrimary));
             var shell = host.GetComponent<PageShell>();
             foreach (var (phone, name) in new (System.Action<PageShell>, string)[] {
                 (value => ZKube.Tests.Presentation.Phones.Seeker(value), "Seeker"), (value => ZKube.Tests.Presentation.Phones.Compact(value), "360 x 640") })
@@ -111,7 +111,7 @@ namespace ZKube.Tests.MoneyOverview
                     var card = host.GetComponentsInChildren<UnityEngine.UI.Image>().Single(image => image.name == "Screen card");
                     Assert.That(SkinUi.ScreenRect(bubble.rectTransform).yMin, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(card.rectTransform).yMax - .5f),
                         name + ": the bubble stays above the card");
-                    foreach (var button in new[] { Find("Back to Arcade"), Find("Share") })
+                    foreach (var button in new[] { Find("Back to Arena"), Find("Share") })
                     {
                         var rect = SkinUi.ScreenRect((RectTransform)button.transform);
                         Assert.That(rect.height, Is.GreaterThanOrEqualTo(48 - .01f), name + ": " + button.name + " is 48 dp to touch");

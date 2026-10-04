@@ -83,6 +83,8 @@ namespace ZKube.Integration.Presentation
         // entry action or the reason there is none, then the Kredits and rewards.
         public DailyPageView DailyPage()
         {
+            if (identity.Owner == null) return ConnectHome();
+            if (dailyRead == null) return WaitingHome();
             var state = dailyRead.Value; var lobby = state.Lobby;
             var actions = new List<PageAction>();
             var arcade = new ArcadeView { Pot = lobby.PotLamports.HasValue ? Sol(lobby.PotLamports.Value) : null };
@@ -160,13 +162,49 @@ namespace ZKube.Integration.Presentation
             blocks.Add(PanelBlock.Bar("Kredit balance", SkinSlots.IconKredit, NumberFit.Figure(lobby.Profile.Kredits), lobby.Profile.Kredits == 1 ? "Kredit" : "Kredits",
                 false, PageAction("Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy),
                 PageAction("Rewards", () => _ = OpenRewards(), () => PageAvailable() && !Busy)));
-            blocks.Add(PanelBlock.Text("Arcade rule", lobby.ObjectiveKind == 0 ? "Classic pays the whole prize pool to Score." :
+            blocks.Add(PanelBlock.Text("Arena rule", lobby.ObjectiveKind == 0 ? "Classic pays the whole prize pool to Score." :
                 "Your best run on each board counts.", SkinTokens.TextMuted));
             var receipt = ReceiptRow("Daily");
             if (receipt != null) blocks.Add(receipt);
             return new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm, ClosesAt = freezes, Now = now,
                 ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Status = PublicStatus(lobby.Status),
                 Arcade = arcade, Actions = actions.ToArray(), Blocks = blocks.ToArray() };
+        }
+        // The page before its read: today's realm and objective come from the day alone.
+        private DailyPageView Home(ArcadeView arcade, long closesAt, params PageAction[] actions)
+        {
+            var today = NativeEngine.Daily(Today);
+            return new DailyPageView { Day = Today, Realm = today.Realm, ObjectiveKind = today.Kind, ObjectiveValue = today.Value,
+                ClosesAt = closesAt, Now = now, Arcade = arcade, Actions = actions };
+        }
+        // Without an address the page asks for the wallet, or says why it did not connect.
+        private DailyPageView ConnectHome()
+        {
+            var today = publicRead != null && publicRead.IsCurrent ? publicRead.Value : null;
+            var arcade = new ArcadeView { Headline = today != null && !today.Launched ? "Opens soon" : null };
+            var connect = PageAction("Connect wallet", () => _ = Connect(), () => PageAvailable() && !Busy, "Connect");
+            string refused = RefusalOn("Connect");
+            if (refused != null)
+            {
+                arcade.Reason = refused; arcade.Warning = true;
+                connect = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy);
+            }
+            else if (failure != null && !Busy) { arcade.Reason = failure; arcade.Warning = true; }
+            else { arcade.Reason = "Your address. Your play."; arcade.Detail = arcade.Headline != null ? "Campaign is open now." : "Connecting is free."; }
+            var page = Home(arcade, today?.FreezesAt ?? 0, connect);
+            page.NoTabs = true; return page;
+        }
+        // With an address and no read yet: what the page waits for, or why the read is not there.
+        private DailyPageView WaitingHome()
+        {
+            if (failure != null && !Busy)
+                return Home(new ArcadeView { Headline = "No connection", Reason = failure, Warning = true },
+                    0, PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy),
+                    PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()));
+            if (!Busy && pageNotice != null)
+                return Home(new ArcadeView { Headline = "Needs refreshing", Reason = pageNotice },
+                    0, PageAction("Refresh", () => _ = RefreshOverview(), () => PageAvailable() && !Busy));
+            return Home(new ArcadeView { Headline = "Checking…" }, 0);
         }
         private static void Reason(ArcadeView arcade, string reason, string detail)
         { if (arcade.Reason != null) return; arcade.Reason = reason; arcade.Detail = detail; }

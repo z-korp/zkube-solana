@@ -63,7 +63,7 @@ namespace ZKube.Integration.Presentation
         {
             var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "One Kredit enters one Daily", Back = back, Tab = AppPage.Home };
-            var arcade = PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            var arcade = PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
             var refresh = PageAction("Refresh balance", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Refresh Kredits");
             var blocks = new List<PanelBlock>();
             if (kreditRead == null)

@@ -136,7 +136,7 @@ namespace ZKube.Integration.Presentation
                     "You have no placed position on a sealed board for this day.", "idle"));
                 blocks.Add(PanelBlock.Icon(SkinSlots.IconTrophy, SkinTokens.Text));
                 blocks.Add(PanelBlock.Title("No rewards yet"));
-                blocks.Add(PanelBlock.Button(PageAction("Back to Arcade", () => _ = OpenDaily(), () => PageAvailable() && !Busy), true));
+                blocks.Add(PanelBlock.Button(PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy), true));
                 foreach (var board in boards.Where(board => board.Rows.Count != 0))
                     blocks.Add(PanelBlock.Button(Shorter(PageAction("View " + RewardName(board.Kind) + " board", () => OpenBoard(board.Kind),
                         () => PageAvailable() && !Busy), "View " + MoneyText.Board(board.Kind, catalog) + " board"), false));

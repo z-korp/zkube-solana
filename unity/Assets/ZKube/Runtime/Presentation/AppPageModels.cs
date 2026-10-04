@@ -99,6 +99,8 @@ namespace ZKube.Presentation
         public ArcadeView Arcade;
         // The identity's own blocks under the Daily panel.
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
+        // An identity with nowhere else to go yet (the Arena before an address) draws no tab bar.
+        public bool NoTabs;
     }
 
     // The Arcade's Daily panel: the prize pool beside the entry clock, and the

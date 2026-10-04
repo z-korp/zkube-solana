@@ -83,7 +83,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.RewardDay, Is.EqualTo(environment.ClaimDay));
             yield return SessionClick("View Score board"); yield return Idle();
             Assert.That(controller.BoardKind, Is.EqualTo("score"));
-            yield return SessionClick("Arcade"); yield return Idle();
+            yield return SessionClick("Arena"); yield return Idle();
             Assert.That(controller.BrowsingRewards, Is.False); Assert.That(controller.BrowsingDaily, Is.True);
             Assert.That(host.GetComponent<PageViews>().ShownPanel, Is.Null);
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);

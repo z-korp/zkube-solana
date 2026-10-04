@@ -34,7 +34,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.SentSignature, Is.Null, "Teaching signs and sends nothing");
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.ConfirmingDailyEntry, Is.False, "Teaching never opens the entry sheet");
-            Click("Campaign"); yield return Idle(); Click("Arcade"); yield return Idle();
+            Click("Campaign"); yield return Idle(); Click("Arena"); yield return Idle();
             Assert.That(LessonScene, Is.Null, "Taught once");
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

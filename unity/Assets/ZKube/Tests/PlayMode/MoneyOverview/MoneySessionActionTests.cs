@@ -20,7 +20,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Connect"); yield return Idle();
             // Connect opens the Arcade; the device is managed from Settings.
             if (page == "This device") yield return OpenDevice();
-            else if (page != "Arcade") { yield return SessionClick(page); yield return Idle(); }
+            else if (page != "Arena") { yield return SessionClick(page); yield return Idle(); }
         }
         [UnityTest] public IEnumerator EnableButtonConfirmsAndReadsBackReadyWithoutGameplay()
         {
@@ -163,7 +163,8 @@ namespace ZKube.Tests.MoneyOverview
                 hold.Release(); yield return null; yield return Idle();
                 Assert.That(controller.LastReceipt, Is.Null);
                 Assert.That(environment.SentSignature, Is.Null);
-                Assert.That(host.GetComponent<ZKube.Presentation.PageViews>().ShownPanel, Is.EqualTo("Connect"));
+                Assert.That(host.GetComponent<ZKube.Presentation.PageViews>().Shown, Is.EqualTo(ZKube.Presentation.AppPage.Home));
+                Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Connect"), Is.True);
                 StringAssert.DoesNotContain("Session active", SessionText());
                 Assert.That(environment.ForbiddenCalls, Is.Zero);
             }

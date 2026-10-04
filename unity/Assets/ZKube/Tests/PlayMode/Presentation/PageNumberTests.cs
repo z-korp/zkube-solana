@@ -84,7 +84,7 @@ namespace ZKube.Tests.Presentation
                 Blocks = new[] { PanelBlock.Card("Last run", PanelBlock.Row("Last score", "Score", Max), PanelBlock.Row("Last objective", "Objective", Max)),
                     PanelBlock.Text("Kredit balance", NumberFit.Figure(ulong.MaxValue) + " confirmed Kredits"),
                     PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(ulong.MaxValue) + " points") } };
-            yield return Check("Arcade", () => views.Render(AppPage.Home));
+            yield return Check("Arena", () => views.Render(AppPage.Home));
             yield return Check("Level", () => views.Render(AppPage.Level));
             yield return Check("Profile", () => views.Render(AppPage.Profile));
             source.Result = new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = 1, Day = 20705,
