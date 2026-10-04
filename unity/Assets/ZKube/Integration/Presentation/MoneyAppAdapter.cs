@@ -67,18 +67,27 @@ namespace ZKube.Integration.Presentation
             campaignPage != null ? RedrawCampaign() : sharedPage.HasValue ? RefreshSharedPage(epoch, token) : Refresh(epoch, token);
         // The Campaign reads its play record on this device: there is nothing to fetch.
         private Task RedrawCampaign() { Present(); return Task.CompletedTask; }
-        // Connecting reads the owner (its last operation's receipt with it),
-        // then opens the Arcade.
+        // The wallet in front of the app pauses it, which retires this operation:
+        // the address it brings back is then entered by the page's own rule (Update).
         public Task Connect() => Run(async (epoch, token) => {
             ClearRefusal();
             try { await Flow.Connect(); }
             catch (WalletRequestException error) { if (Current(epoch)) Refuse("Connect", Reason(error), () => _ = Connect()); return; }
-            if (!Current(epoch)) return;
+            if (Current(epoch)) await Enter(epoch, token);
+        });
+        // Entering with an address: its last operation (and that receipt), then the Arena.
+        private async Task Enter(long epoch, CancellationToken token)
+        {
             await RefreshOwner(epoch, token);
             if (!Current(epoch)) return;
             CloseProductViews(); browsingDaily = true;
             await RefreshDailyPage(epoch, token);
-        });
+        }
+        // The read the visible page waits on is absent, and the page shows no
+        // reason for that (a failure, or a notice asking to refresh).
+        private bool ReadMissing() => failure == null && pageNotice == null && Family() switch {
+            "Daily" => dailyRead == null, "Kredits" => kreditRead == null, "Rewards" => rewardRead == null,
+            "Device" => sessionRead == null, "Profile" => profileRead == null, _ => false };
         public Task CheckTransaction() => Run(async (epoch, token) => {
             var result = await Flow.ResumePending(token);
             if (!Current(epoch)) return;
@@ -111,7 +120,7 @@ namespace ZKube.Integration.Presentation
         // with one and no page open, the Arcade opens.
         private async Task Refresh(long epoch, CancellationToken token)
         {
-            if (identity.Owner != null) { CloseProductViews(); browsingDaily = true; await RefreshDailyPage(epoch, token); return; }
+            if (identity.Owner != null) { await Enter(epoch, token); return; }
             var publication = await Flow.RefreshPublic(token);
             if (!Current(epoch)) return;
             var value = publication.Value; publicRead = publication; AwaitLaunch(value.Launched);
@@ -180,6 +189,10 @@ namespace ZKube.Integration.Presentation
             if (receiptOwner != null && !identity.IsCurrent(receiptLease)) { ForgetReceipt(); Present(); }
             RefreshSessionIdentity(); RefreshDailyIdentity(); RefreshKreditIdentity(); RefreshRewardIdentity(); RefreshProfileIdentity();
             if (!Busy && now() >= launchRecheckAt) { launchRecheckAt = long.MaxValue; _ = RefreshOverview(); }
+            // No page waits on a read nobody is making. Whatever retired the operation
+            // that would have read it (the wallet in front of the app, a pause, a
+            // superseded request), the visible page starts its own read.
+            if (!Busy && identity.Owner != null && ReadMissing()) _ = RefreshOverview();
             if (dirty && !presenting && shell.Root.activeSelf) StartCoroutine(Render());
             if (Busy || campaignPage != null || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
                 sharedPage.HasValue) return;
