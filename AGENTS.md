@@ -286,12 +286,19 @@ spending approval.
 - **Wallet requests:** connecting, a device change and a Kredit purchase each show the open request on their
   page, and one that does not go through stays there as one plain reason with a retry; a device action that
   fails is noted on its page. One runner owns that for every action, so a tap never ends looking like nothing
-  happened. Until the protocol account exists, the Arcade, the device page and the Kredits page say the Arena
-  opens soon and offer the Campaign, never an action that cannot work.
-  `ARefusedDeviceSetupSaysWhyAndItsRetryReachesTheWallet`,
-  `EveryOwnerWalletActionThatFailsShowsItsReasonWithARetry` and
-  `BeforeTheArenaOpensNoPageOffersAnActionThatCannotWork` guard them;
+  happened. `ARefusedDeviceSetupSaysWhyAndItsRetryReachesTheWallet` and
+  `EveryOwnerWalletActionThatFailsShowsItsReasonWithARetry` guard them;
   `EachFirstRunStepAsksForOneThingOnBothPhones` guards the first-run screens.
+- **Before launch:** the game has launched once the protocol account names a launch day and that day has come,
+  which the launch transaction does together with the launch Daily. Until then the connect page, the Arcade,
+  the device page and the Kredits page say the Arena opens soon and offer the Campaign, never an action that
+  cannot work. Each page takes that from the protocol account in its own read and nothing remembers the
+  answer; a page that found it not launched reads again every thirty seconds, so it opens by itself.
+  `BeforeTheArenaOpensNoPageOffersAnActionThatCannotWork` and
+  `TheArenaOpensByItselfOnceItsLaunchDailyExists` guard the state and its end.
+- **Device deposit:** what the owner's wallet puts on a device is a deposit on every page, never a fee: the
+  amount asked for, what a run costs, that the rest returns when the device is disabled, the deposit a device
+  in use has left, and the top-up. `TheDeviceDepositIsADepositOnEveryPageAndNeverAFee` guards the words.
 - **Money routing:** purchase sends the operator share directly to the pinned team address; the vault holds
   prize money only. Spending never joins the competing pot: it waits in the Daily it was spent on and moves
   to the next prepared Daily when its own finalizes. The lobby shows a Daily's pot together with what the Daily
@@ -482,7 +489,7 @@ display-only. `sbf_featured_emblem_accepts_owner_and_only_unlocked_campaign_badg
 
 | Boundary | Owner and recovery |
 | --- | --- |
-| Owner wallet | Identity, Kredit purchases and device fee/rent funding |
+| Owner wallet | Identity, Kredit purchases and the device deposit |
 | Device session | One install key; atomic revoke-and-create renewal, bounded by owner funding |
 | Cadence funding PDA | System-owned recyclable rent; signs only Daily preparation and finalization creation paths |
 | ProtocolConfig | Launch/suspension and sequential finalized-result root |
@@ -501,7 +508,7 @@ persistence.
 
 What the owner's wallet puts on a device has one owner. The program states the accounts a first entry of the
 day pays for, including the pinned delegation program's record, metadata and buffer; the codegen turns them
-into rents; the client's DeviceFunding adds its own fees and the delegation charge. The funded target is one
+into rents; the client's DeviceFunding adds its own fees and the delegation charge. The deposit is one
 first entry plus the run costs of the largest Kredit pack, and a device is ready to enter only when it holds
 the cost of that entry. `first_entry_accounts_are_the_real_account_and_delegation_sizes`,
 `sbf_device_paid_entry_spends_a_kredit_and_resolves_both_paths` and

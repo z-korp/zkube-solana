@@ -305,7 +305,7 @@ namespace ZKube.Integration.Execution.Tests
             var journal = new TransactionJournal(store); var reconciler = new ExecutionReconciler(new ProtocolBindings(ZKube.Integration.Tests.TestBootstrap.ProtocolJson), accounts, sessions, records, planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
             executor = new TransactionExecutor(planner, rpc, wallet, journal);
             var lifecycle = new SessionLifecycle(identity, wallet, records, sessions, planner, rpc, journal, executor, reconciler, accounts.ProgramId, () => (long)plans["inputs"]["now"]);
-            http.AfterSend = () => funded["lamports"] = DeviceFunding.AllowanceLamports;
+            http.AfterSend = () => funded["lamports"] = DeviceFunding.DepositLamports;
             Assert.That((await lifecycle.Refill()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(native.Seed, Is.Not.Null); Assert.That((await records.Load(owner)).Active.Signer, Is.EqualTo(device));
             http.AfterSend = () => { funded["lamports"] = 0; http.ExtraAccounts[(string)tokenRow["address"]] = JValue.CreateNull(); http.Confirmation = "processed"; };

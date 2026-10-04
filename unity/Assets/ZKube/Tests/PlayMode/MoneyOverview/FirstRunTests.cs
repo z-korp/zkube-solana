@@ -77,6 +77,74 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // Nothing remembers that the Arena was closed: each page reads the
+        // protocol account, and reads it again while the game has not launched.
+        // An initialized protocol without a launch day is still closed; once the
+        // launch Daily exists the page in front of the player opens by itself.
+        [UnityTest] public IEnumerator TheArenaOpensByItselfOnceItsLaunchDailyExists()
+        {
+            IEnumerator Later() { environment.AdvanceClock(31); yield return null; yield return Idle(); }
+            yield return FirstRun("arena-not-open", null);
+            environment.Stage(); yield return Later();
+            Assert.That(Text("Connect cost"), Is.EqualTo("Arena opens soon. Campaign is open now."), "An initialized protocol has not launched");
+            Click("Connect"); yield return Idle();
+            Assert.That(Text("Daily headline"), Is.EqualTo("Opens soon")); Assert.That(Offers("Set up device"), Is.False);
+            yield return Wait(Adapter.OpenKredits()); yield return Idle();
+            Assert.That(Says("Arena opens soon"), Is.True);
+            yield return Wait(Adapter.OpenSession()); yield return Idle();
+            Assert.That(Offers("Enable device"), Is.False); Assert.That(Says("Arena opens soon"), Is.True);
+            yield return Later();
+            Assert.That(Offers("Enable device"), Is.False, "Reading again finds the same chain state");
+
+            environment.Launch(); yield return Later();
+            Assert.That(Offers("Enable device"), Is.True, "The device page opens without being reopened");
+            Assert.That(Says("Arena opens soon"), Is.False);
+            int reads = Asked("getAccountInfo");
+            yield return Later();
+            Assert.That(Asked("getAccountInfo"), Is.EqualTo(reads), "A launched Arena is not read again on a timer");
+            yield return Wait(Adapter.OpenKredits()); yield return Idle();
+            Assert.That(host.GetComponentsInChildren<Button>().Any(value => value.name.StartsWith("Buy ")), Is.True);
+            yield return Wait(Adapter.OpenDaily()); yield return Idle();
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(value => value.name == "Daily headline" && value.text == "Opens soon"), Is.False);
+            Assert.That(Offers("Set up device"), Is.True);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // What the wallet puts on a device is a deposit on every page: the amount
+        // asked for, what a run costs, that the rest returns, the deposit left on a
+        // device in use, and the top-up. No page calls it a fee.
+        [UnityTest] public IEnumerator TheDeviceDepositIsADepositOnEveryPageAndNeverAFee()
+        {
+            string deposit = ZKube.Integration.Presentation.MoneyText.Sol(ZKube.Integration.Planning.DeviceFunding.DepositLamports);
+            void NoFee(string page) => Assert.That(host.GetComponentsInChildren<TMP_Text>().Select(value => value.text)
+                .Where(text => text.ToLowerInvariant().Contains("fee") || text.ToLowerInvariant().Contains("allowance")), Is.Empty, page);
+            yield return FirstRun("session-enable-success", null); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Idle();
+            Assert.That(deposit, Is.EqualTo("0.021 SOL"));
+            Assert.That(Text("Deposit"), Is.EqualTo(deposit));
+            Assert.That(Text("Device guide"), Is.EqualTo("About 0.0003 SOL per run. The rest returns when you disable this device."));
+            NoFee("setup");
+            yield return Wait(Adapter.EnsureDeviceSession()); yield return Idle();
+            Assert.That(Text("Deposit"), Is.EqualTo(deposit), "A device in use shows the deposit it has left");
+            NoFee("in use");
+            yield return SessionClick("Disable this device"); yield return Idle();
+            Assert.That(Says("The deposit left returns to your wallet."), Is.True); NoFee("disable");
+            yield return EndScenario();
+
+            yield return FirstRun("session-refill-success", null); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Idle();
+            Assert.That(Text("Device state"), Is.EqualTo("Deposit low"));
+            Assert.That(Text("Deposit"), Is.EqualTo("0.00 SOL"));
+            Assert.That(Text("Device guide"), Is.EqualTo("Top up the deposit to continue. Your wallet brings it back to " + deposit + "."));
+            NoFee("low");
+            yield return SessionClick("Top up deposit"); yield return Idle();
+            Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(Text("Deposit"), Is.EqualTo(deposit));
+            yield return SessionClick("View operation"); yield return Idle();
+            Assert.That(Says("Deposit top-up confirmed"), Is.True); NoFee("receipt");
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // Connecting and buying are owner-wallet requests like the setup: a
         // refusal stays on the page with its reason, and its retry asks again.
         [UnityTest] public IEnumerator EveryOwnerWalletActionThatFailsShowsItsReasonWithARetry()
@@ -126,10 +194,14 @@ namespace ZKube.Tests.MoneyOverview
                 yield return FirstRun("session-enable-success", phone); Click("Connect"); yield return Idle();
                 yield return Wait(Adapter.OpenSession()); yield return Step(phone, "6 device setup");
                 Assert.That(Offers("Enable device"), Is.True); Assert.That(Offers("Back to Campaign"), Is.False);
-                Assert.That(Text("Fee allowance"), Is.EqualTo(ZKube.Integration.Presentation.MoneyText.Sol(ZKube.Integration.Planning.DeviceFunding.AllowanceLamports)));
                 environment.RefuseNextSimulation();
                 yield return Wait(Adapter.EnsureDeviceSession()); yield return Step(phone, "4 device refused");
                 yield return Wait(Adapter.EnsureDeviceSession()); yield return Step(phone, "7 device active");
+                Click("Disable this device"); yield return Step(phone, "10 disable confirmation");
+                yield return EndScenario();
+
+                yield return FirstRun("session-refill-success", phone); Click("Connect"); yield return Idle();
+                yield return Wait(Adapter.OpenSession()); yield return Step(phone, "11 deposit low");
                 yield return EndScenario();
 
                 yield return FirstRun("session-owner-decline", phone); Click("Connect"); yield return Idle();

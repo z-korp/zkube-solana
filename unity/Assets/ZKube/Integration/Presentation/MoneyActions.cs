@@ -16,8 +16,12 @@ namespace ZKube.Integration.Presentation
         private string refusal, refusalFamily;
         private Action refusalRetry;
         private const string WalletOpen = "Approve the request in your wallet.";
-        // The program is not on the cluster yet: no page offers what cannot work.
-        private bool arenaClosed;
+        // Whether the Arena has launched is read from the protocol account by each
+        // page's own read and never remembered. A page that found it not launched
+        // reads again shortly, so it opens by itself once the launch Daily exists.
+        private const long LaunchRecheckSeconds = 30;
+        private long launchRecheckAt = long.MaxValue;
+        private void AwaitLaunch(bool launched) => launchRecheckAt = launched ? long.MaxValue : now() + LaunchRecheckSeconds;
 
         private void Refuse(string family, string reason, Action retry) { refusal = reason; refusalFamily = family; refusalRetry = retry; Present(); }
         private void ClearRefusal() { refusal = null; refusalFamily = null; refusalRetry = null; }
@@ -70,7 +74,7 @@ namespace ZKube.Integration.Presentation
             blocks.Add(PanelBlock.Text("Action open", WalletOpen, SkinTokens.TextMuted, true));
             blocks.Add(DisconnectButton());
         }
-        // Until the Arena opens, its pages say so and lead to the Campaign.
+        // Until the Arena launches, its pages say so and lead to the Campaign.
         private PanelBlock[] OpensSoon() => new[] {
             PanelBlock.Talk("Arena opens soon.", "idle"),
             PanelBlock.Card("Opens soon card", PanelBlock.Row("Campaign open", "Campaign", "Open", tagToken: SkinTokens.Positive)),

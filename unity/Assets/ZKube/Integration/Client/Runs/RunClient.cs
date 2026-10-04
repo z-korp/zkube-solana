@@ -263,7 +263,7 @@ namespace ZKube.Integration.Client.Runs
                 if (current.Phase != "base" && current.Phase != "settleable") throw new InvalidOperationException("Wait for terminal Base copy-back");
                 binding?.Accept(current);
                 // Re-read after copy-back: a session may expire, be revoked or lose
-                // its allowance while ER settlement is pending. Normal settlement
+                // its deposit while ER settlement is pending. Normal settlement
                 // uses the funded device payer, matching the TS finalization plan.
                 // Known unavailability retains owner recovery; malformed reads,
                 // fee failures and uncertain sends never switch signers implicitly.

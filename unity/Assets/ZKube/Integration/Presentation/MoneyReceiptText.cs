@@ -13,7 +13,7 @@ namespace ZKube.Integration.Presentation
                 ExecutionOutcome.ConfirmedFailure => "Transaction failed.",
                 ExecutionOutcome.ConfirmedSuccess => "Transaction confirmed.",
                 ExecutionOutcome.ExpiredReconciled => "Transaction expired. Refresh before trying again.",
-                ExecutionOutcome.FeeShortage => "There is not enough SOL to cover the transaction fee.",
+                ExecutionOutcome.FeeShortage => "There is not enough SOL for this transaction.",
                 ExecutionOutcome.CompletedLocally => "No transaction was needed.",
                 _ => result.Code == "execution-busy" ? "Another transaction is being checked. Try again shortly." :
                     result.Code == "pending-transaction-changed" ? "A different transaction is waiting. Check again." :
@@ -31,8 +31,8 @@ namespace ZKube.Integration.Presentation
             ExecutionOutcome.ConfirmedSuccess or ExecutionOutcome.CompletedLocally or ExecutionOutcome.Pending => null,
             ExecutionOutcome.ConfirmedFailure => "The transaction failed. Nothing changed.",
             ExecutionOutcome.ExpiredReconciled => "The transaction expired before it was sent.",
-            ExecutionOutcome.FeeShortage => result.Code == "device-allowance-refill" ?
-                "This device’s fee allowance is too low." : "Your wallet needs more SOL for the fee.",
+            ExecutionOutcome.FeeShortage => result.Code == "device-deposit-low" ?
+                "This device’s deposit is too low." : "Your wallet needs more SOL.",
             _ => Refusal(result.Code)
         };
         // The same line for a request the wallet, the network or this app refused, by its code.
@@ -54,7 +54,7 @@ namespace ZKube.Integration.Presentation
             ExecutionOutcome.ConfirmedFailure => "Transaction failed",
             ExecutionOutcome.ConfirmedSuccess => Intent(result) + " confirmed",
             ExecutionOutcome.ExpiredReconciled => "Transaction expired",
-            ExecutionOutcome.FeeShortage => "Not enough for the fee",
+            ExecutionOutcome.FeeShortage => "Not enough SOL",
             ExecutionOutcome.CompletedLocally => "Nothing to send",
             _ => "Request not sent"
         };
@@ -62,7 +62,7 @@ namespace ZKube.Integration.Presentation
         public static string Intent(ExecutionResult result) => result.Intent switch {
             "purchase-kredits" => "Purchase",
             "session-renew" or "session-ensure" => "Device setup",
-            "session-refill" => "Allowance refill",
+            "session-refill" => "Deposit top-up",
             "session-revoke" => "Device disabling",
             "claim-daily" => "Reward claim",
             "set-featured-identity" => "New look",
@@ -74,7 +74,7 @@ namespace ZKube.Integration.Presentation
             ExecutionOutcome.ConfirmedFailure => "The operation did not complete. Refresh before trying again.",
             ExecutionOutcome.ConfirmedSuccess => "The operation is confirmed.",
             ExecutionOutcome.ExpiredReconciled => "Refresh before starting a new operation.",
-            ExecutionOutcome.FeeShortage => "Refill this device’s fee allowance or fund your wallet before retrying.",
+            ExecutionOutcome.FeeShortage => "Top up this device’s deposit or fund your wallet before retrying.",
             ExecutionOutcome.CompletedLocally => "Nothing needed to be sent.",
             _ => "Nothing was sent. Refresh before trying again."
         };

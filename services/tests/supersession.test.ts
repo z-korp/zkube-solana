@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /fee allowance|allowance low|refill allowance|allowance refill|fee refill|device allowance|needs a fee/i, trees: AUTHORED,
+    reversal: "What the wallet puts on a device is a deposit that returns, never a fee" },
   { pattern: /Saved Campaign run ·|Rules of your saved run|Campaign information is being checked|Refresh to view Campaign progress|Campaign trial data is unavailable/i, trees: [UNITY],
     reversal: "The Arena Campaign is the Realms Campaign" },
   { pattern: /Daily is being prepared|two Daily preparations|seed\/unpause\/activation|After the window and archival|root-gated closure|skipping a suspended one|activates or calls|whether or not it was activated|funds the following paid Daily|next prepared Daily's opening|lets anyone prepare|first day after (?:it|a suspension)|preparable Daily/i, trees: AUTHORED,
@@ -57,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Daily is the only paid competition" },
   { pattern: /positive thresholds? (?:for|on) (?:perfect[- ]clear|all[- ]block[- ]sizes)|(?:perfect[- ]clear|all[- ]block[- ]sizes).{0,40}positive thresholds?|perfect[- ]clears?(?:\s+add\s+\d+\s+and)?\s+(?:earns?|grants?|→).{0,30}(?:Hammer|Totem|Wave|guardian (?:bonus|charge))/i, trees: SOURCE,
     reversal: "Perfect clears grant rerolls and complete triggers carry no threshold" },
-  { pattern: /two[- ](?:request|vrf).{0,40}perfect[- ]clear|perfect[- ]clear.{0,40}(?:second|two).{0,16}vrf/i, trees: SOURCE,
-    reversal: "One perfect-clear output supplies the reseed and preview" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

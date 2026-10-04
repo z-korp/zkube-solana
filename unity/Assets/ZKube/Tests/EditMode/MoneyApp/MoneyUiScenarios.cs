@@ -54,7 +54,7 @@ namespace ZKube.Integration.App.Tests
             Http.Blockhash = (string)Plans["inputs"]["blockhash"];
             if (scenario == "public-disconnected" || scenario == "campaign-playable") return;
             // The program is not on the cluster: no account of it exists and nothing that calls it simulates.
-            if (scenario == "arena-not-open") { Http.Accounts.Clear(); return; }
+            if (scenario == "arena-not-open") { Http.Accounts.Clear(); programMissing = true; return; }
             if (scenario == "owner-overview" || scenario == "pending-confirmed-failure")
             {
                 UseDailyRun();
@@ -115,11 +115,11 @@ namespace ZKube.Integration.App.Tests
                 }
                 if (scenario.Contains("refill") || scenario.EndsWith("-zero")) SetBalance((string)Plans["inputs"]["device"], 0);
                 if (scenario.Contains("refill"))
-                { after.Add(SystemAccount((string)Plans["inputs"]["device"], DeviceFunding.AllowanceLamports)); }
+                { after.Add(SystemAccount((string)Plans["inputs"]["device"], DeviceFunding.DepositLamports)); }
                 else if (!scenario.Contains("disable") && scenario != "session-current")
                 {
                     after.Add(Ui["renewedToken"]);
-                    after.Add(SystemAccount((string)Fixture("device")["inputs"]["device"], DeviceFunding.AllowanceLamports));
+                    after.Add(SystemAccount((string)Fixture("device")["inputs"]["device"], DeviceFunding.DepositLamports));
                 }
             }
         }
@@ -133,6 +133,23 @@ namespace ZKube.Integration.App.Tests
             var hold = new HeldCall(); Http.DelayMethod = method; Http.Entered = hold.Started; Http.Release = hold.Completion; return hold;
         }
         public HeldCall HoldNextWallet() => walletHold = new HeldCall();
+        // The program is deployed and the protocol initialized, paused, with no launch day yet.
+        public void Stage()
+        {
+            var row = (JObject)Plans["accounts"]["protocol"].DeepClone();
+            var data = Convert.FromBase64String((string)row["data"]);
+            // paused, then launch_day_id, last_prepared_day and last_daily_id, after the three keys and the suspension day.
+            data[105] = 1; Array.Clear(data, 110, 12);
+            row["data"] = Convert.ToBase64String(data);
+            Http.Add(row); programMissing = false;
+        }
+        // The launch transaction has landed: the protocol names its launch day and that Daily exists.
+        public void Launch()
+        {
+            foreach (var name in new[] { "protocol", "daily" }) Http.Add(Plans["accounts"][name]);
+            programMissing = false;
+        }
+        private bool programMissing;
         // The cluster refuses the next transaction it is asked to simulate.
         public void RefuseNextSimulation() => refuseSimulation = true;
         private bool refuseSimulation;
@@ -201,7 +218,7 @@ namespace ZKube.Integration.App.Tests
                     ulong balance = address == Owner ? 10_000_000_000 : Http.Accounts.TryGetValue(address, out var account) ? (ulong?)account["lamports"] ?? 0 : 0;
                     return Context(new JValue(UiScenario.Contains("fee-shortage") ? 0 : balance));
                 case "simulateTransaction":
-                    JToken refusal = UiScenario == "arena-not-open" ? new JValue("ProgramAccountNotFound") :
+                    JToken refusal = programMissing ? new JValue("ProgramAccountNotFound") :
                         refuseSimulation ? new JObject { ["InstructionError"] = new JArray(0, new JObject { ["Custom"] = 1 }) } : JValue.CreateNull();
                     refuseSimulation = false;
                     return Context(new JObject { ["err"] = refusal, ["logs"] = new JArray(), ["unitsConsumed"] = 1000 });

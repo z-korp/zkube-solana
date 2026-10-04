@@ -23,10 +23,14 @@ namespace ZKube.Integration.Planning
             Protocol.SystemAccountRentLamports + Protocol.FirstEntryPeakRentLamports -
             (dailyPlayerExists ? Protocol.ArenaPlayerRentLamports : 0UL) + RunCostLamports;
 
-        // The funded target: a first entry of the day, then the run costs of the
-        // rest of the largest Kredit pack, so one pack plays without a refill.
-        // Rounded up to the protocol's 0.001 SOL unit, the figure a player reads.
-        public static readonly ulong AllowanceLamports = Protocol.PayoutUnitLamports * (
+        // What a run costs, as the figure a player reads: the nearest 0.0001 SOL.
+        public const ulong RunCostShownLamports = (RunCostLamports + 50000UL) / 100000UL * 100000UL;
+
+        // The deposit: a first entry of the day, then the run costs of the rest
+        // of the largest Kredit pack, so one pack plays without a top-up. Rounded
+        // up to the protocol's 0.001 SOL unit, the figure a player reads. What a
+        // device has left of it returns to the wallet when the device is disabled.
+        public static readonly ulong DepositLamports = Protocol.PayoutUnitLamports * (
             (EntryBalanceLamports(false) + (PlanningConstants.LargestKreditPack - 1UL) * RunCostLamports +
              Protocol.PayoutUnitLamports - 1UL) / Protocol.PayoutUnitLamports);
     }

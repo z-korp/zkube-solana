@@ -98,7 +98,7 @@ namespace ZKube.Tests.Presentation
                 PanelBlock.Card("Balance", PanelBlock.Figure("Balance", "Confirmed balance", Max, "Kredits", SkinSlots.IconKredit)),
                 PanelBlock.Card("Position", PanelBlock.Split("Position", "Your position", "#" + uint.MaxValue.ToString("N0", CultureInfo.InvariantCulture), MaxSol)),
                 PanelBlock.Card("Ladder", PanelBlock.Split("Ladder", null, Max, "Prism", SkinSlots.LadderBadge(4))),
-                PanelBlock.Card("Rows", PanelBlock.Row("Fee allowance", "Fee allowance", MaxSol), PanelBlock.Row("Best", "Best paid place", "#" + uint.MaxValue)),
+                PanelBlock.Card("Rows", PanelBlock.Row("Deposit", "Deposit", MaxSol), PanelBlock.Row("Best", "Best paid place", "#" + uint.MaxValue)),
                 PanelBlock.Pair(new PageAction { Label = "Score" }, new PageAction { Label = "Clears leaving three rows or fewer on the board in one single move, twice over", Short = "Objective" }, 0),
                 PanelBlock.Card("Device", new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = "Session active",
                     Token = SkinTokens.Positive, Action = new PageAction { Label = "Manage" } }),

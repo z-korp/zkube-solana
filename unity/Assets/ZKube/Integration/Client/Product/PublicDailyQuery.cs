@@ -14,8 +14,9 @@ namespace ZKube.Integration.Client
     // Public facts only. No owner, profile, session, personal record or entry promise.
     public sealed class PublicDaily
     {
-        private readonly bool exists;
         private readonly DailyInfo window;
+        // The game has launched: the protocol names its launch day and that day has come.
+        public bool Launched { get; }
         public uint DayId { get; }
         public long ObservedAt { get; }
         public string Status { get; }
@@ -25,14 +26,14 @@ namespace ZKube.Integration.Client
         public byte ObjectiveKind { get; }
         public byte ObjectiveValue { get; }
         public ulong? PotLamports { get; }
-        public long? FreezesAt => !exists ? (long?)null : (long)window.FreezesAt;
+        public long? FreezesAt => !Launched ? (long?)null : (long)window.FreezesAt;
         internal PublicDaily(uint day, long timestamp, string status, bool suspended,
-            bool paused, DailyInfo facts, ulong? pool, bool exists)
+            bool paused, DailyInfo facts, ulong? pool, bool launched)
         {
             DayId = day; window = facts; ObservedAt = timestamp; Status = status;
             Suspended = suspended; ProtocolPaused = paused; Realm = facts.Realm;
             ObjectiveKind = facts.Kind; ObjectiveValue = facts.Value; PotLamports = pool;
-            this.exists = exists;
+            Launched = launched;
         }
     }
 
@@ -48,6 +49,18 @@ namespace ZKube.Integration.Client
         public PublicDailyQuery(AccountBindings accounts, TransactionPlanner addresses,
             SolanaRpcTransport rpc, Func<long> now)
         { this.accounts = accounts; this.addresses = addresses; this.rpc = rpc; this.now = now; }
+
+        // The one launch rule, for a page that needs nothing else of the Daily:
+        // read from the protocol account each time, never remembered.
+        public async Task<bool> Launched(CancellationToken cancellation = default)
+        {
+            uint day = CurrentDay(ValidateClock(now()));
+            var read = await rpc.ReadAccount(rpc.Base, addresses.ProtocolAddress, cancellation: cancellation).ConfigureAwait(false);
+            cancellation.ThrowIfCancellationRequested();
+            return Launched(read.Envelope == null ? null : accounts.ProtocolConfig(read.Envelope), day);
+        }
+        internal static bool Launched(JObject protocol, uint day) =>
+            protocol != null && (uint)protocol["launch_day_id"] != 0 && day >= (uint)protocol["launch_day_id"];
 
         public async Task<PublicDaily> Current(CancellationToken cancellation = default)
         {
@@ -93,7 +106,7 @@ namespace ZKube.Integration.Client
             bool suspended = protocol != null && day < (uint)protocol["suspended_until_day"];
             // A launched game has a Daily every day: its account appears with the
             // first entry, and until then the day is open by the clock.
-            bool published = protocol != null && (uint)protocol["launch_day_id"] != 0 && day >= (uint)protocol["launch_day_id"];
+            bool published = Launched(protocol, day);
             string status = protocol == null ? "missing-config"
                 : suspended ? "suspended" : !published ? "missing-daily"
                 : paused ? "paused" : DailyStatus(daily, timestamp, pair);

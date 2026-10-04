@@ -114,7 +114,7 @@ namespace ZKube.Integration.Presentation
             if (identity.Owner != null) { CloseProductViews(); browsingDaily = true; await RefreshDailyPage(epoch, token); return; }
             var publication = await Flow.RefreshPublic(token);
             if (!Current(epoch)) return;
-            var value = publication.Value; publicRead = publication; arenaClosed = value.Status == "missing-config";
+            var value = publication.Value; publicRead = publication; AwaitLaunch(value.Launched);
             if (value.FreezesAt.HasValue && value.ObservedAt >= value.FreezesAt.Value) freezeAttempt = value.FreezesAt.Value;
             Status = "Daily updated"; Present();
         }
@@ -128,7 +128,7 @@ namespace ZKube.Integration.Presentation
             Present();
         }
         private static string PublicStatus(string value) => value switch {
-            "missing-config" => "Arena opens soon", "missing-daily" => "Today's Daily is not available",
+            "missing-config" or "missing-daily" => "Arena opens soon",
             "suspended" => "Daily is suspended", "paused" => "Daily play is paused", "not-open" => "Opens later today",
             "open" => "Daily is open", "frozen" => "Entries are closed",
             "finalized" => "Daily complete", _ => "Daily status unavailable"
@@ -138,7 +138,7 @@ namespace ZKube.Integration.Presentation
             if (value == null) return "Device session not checked yet";
             if (value.Status == "none") return "Device session not set up";
             if (!value.Current) return value.TokenMayClose ? "Device session expired" : "Device session needs renewal";
-            if (value.Funding != "ready") return "Device session needs a fee refill";
+            if (value.Funding != "ready") return "Device deposit needs a top-up";
             return value.Status == "expiring" ? "Device session expires soon" : "Device session ready";
         }
         private void ShowReceipt(ExecutionResult result, string address)
@@ -179,6 +179,7 @@ namespace ZKube.Integration.Presentation
             if (ownerRead != null && !ownerRead.IsCurrent) { ownerRead = null; Present(); }
             if (receiptOwner != null && !identity.IsCurrent(receiptLease)) { ForgetReceipt(); Present(); }
             RefreshSessionIdentity(); RefreshDailyIdentity(); RefreshKreditIdentity(); RefreshRewardIdentity(); RefreshProfileIdentity();
+            if (!Busy && now() >= launchRecheckAt) { launchRecheckAt = long.MaxValue; _ = RefreshOverview(); }
             if (dirty && !presenting && shell.Root.activeSelf) StartCoroutine(Render());
             if (Busy || campaignPage != null || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
                 sharedPage.HasValue) return;
@@ -274,7 +275,7 @@ namespace ZKube.Integration.Presentation
         private void CloseProductViews()
         {
             CloseSharedView(); CloseSessionView(); CloseCampaignView(); CloseDailyView(); CloseKreditView(); CloseRewardView(); CloseProfileView();
-            browsingOperation = false; ClearRefusal(); Present();
+            browsingOperation = false; launchRecheckAt = long.MaxValue; ClearRefusal(); Present();
         }
         private void ClearProductObservations()
         {

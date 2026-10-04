@@ -12,8 +12,10 @@ namespace ZKube.Integration.App
         public PlayerProfile Profile { get; }
         public PendingTransaction Pending { get; }
         public ExecutionResult PreviousOperation { get; }
-        internal MoneyKreditState(PlayerProfile profile, PendingTransaction pending, ExecutionResult previous)
-        { Profile = profile; Pending = pending; PreviousOperation = previous; }
+        // Whether the game has launched, as the protocol account said in this read.
+        public bool Launched { get; }
+        internal MoneyKreditState(PlayerProfile profile, PendingTransaction pending, ExecutionResult previous, bool launched)
+        { Profile = profile; Pending = pending; PreviousOperation = previous; Launched = launched; }
     }
 
     public sealed class MoneyRewardState
@@ -36,7 +38,8 @@ namespace ZKube.Integration.App
             var read = await ReadOwnerProduct(cancellation, async (lease, token) => {
                 var profile = await services.Products.Profile(token).ConfigureAwait(false);
                 var pending = await services.Journal.Load(lease.Owner).ConfigureAwait(false);
-                return new MoneyKreditState(profile.Value, pending, ReadOwnerOperation(out _));
+                bool launched = await services.PublicDaily.Launched(token).ConfigureAwait(false);
+                return new MoneyKreditState(profile.Value, pending, ReadOwnerOperation(out _), launched);
             }).ConfigureAwait(false);
             var value = read.Value;
             return new MoneyRead<MoneyKreditState>(value, () => read.IsCurrent && CurrentOwnerOperation(value.PreviousOperation));

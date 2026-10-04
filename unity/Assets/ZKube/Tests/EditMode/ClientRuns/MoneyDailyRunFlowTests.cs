@@ -56,8 +56,8 @@ namespace ZKube.Integration.Client.Runs.Tests
                 2 * DeviceFunding.TransactionFeeLamports + DeviceFunding.DelegationChargeLamports));
             // The funded target pays a first entry and then the largest pack's other runs.
             ulong pack = needed + (SessionViewPolicy.KreditPacks.Max() - 1UL) * DeviceFunding.RunCostLamports;
-            Assert.That(DeviceFunding.AllowanceLamports, Is.InRange(pack, pack + Protocol.PayoutUnitLamports - 1));
-            Assert.That(DeviceFunding.AllowanceLamports % Protocol.PayoutUnitLamports, Is.Zero);
+            Assert.That(DeviceFunding.DepositLamports, Is.InRange(pack, pack + Protocol.PayoutUnitLamports - 1));
+            Assert.That(DeviceFunding.DepositLamports % Protocol.PayoutUnitLamports, Is.Zero);
             // Later the same day the daily player exists and its rent is not paid again.
             Assert.That(needed - DeviceFunding.EntryBalanceLamports(true), Is.EqualTo(Protocol.ArenaPlayerRentLamports));
             foreach (bool funded in new[] { false, true })

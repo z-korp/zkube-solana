@@ -37,7 +37,7 @@ namespace ZKube.Integration.Presentation
             Status = "Checking Daily…"; Notice("Checking today's challenge and your saved run.");
             var result = await Flow.RefreshDaily(token);
             if (!Current(epoch) || !browsingDaily) return;
-            dailyRead = result; pageNotice = null; arenaClosed = result.Value.Lobby.Status == "missing-config";
+            dailyRead = result; pageNotice = null; AwaitLaunch(result.Value.Lobby.Launched);
             if (ResultAvailable("Daily") && lastResult.Day == result.Value.Lobby.DayId)
                 lastResult.Streak = (uint?)result.Value.Lobby.Profile.Fields?["entry_streak_days"];
             var value = result.Value.Lobby; long timestamp = now();
@@ -99,8 +99,8 @@ namespace ZKube.Integration.Presentation
             }
             if (ResultAvailable("Daily")) actions.Add(PageAction("View result", () => OpenSharedPage(AppPage.Result), CanUseDaily));
             if (sessionActionPending) Reason(arcade, "Your device request is still finishing.", "Wait before opening a run.");
-            // Before the Arena opens there is no entry, device or Kredit to offer: the Campaign is the way on.
-            if (arenaClosed)
+            // Before the Arena launches there is no entry, device or Kredit to offer: the Campaign is the way on.
+            if (!lobby.Launched)
             {
                 arcade.Headline = "Opens soon";
                 return new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm, ClosesAt = freezes, Now = now,
@@ -120,7 +120,7 @@ namespace ZKube.Integration.Presentation
                 case "needs-session": case "missing-player":
                     actions.Add(PageAction("Set up device", () => _ = OpenSession(), CanUseDaily)); break;
                 case "needs-refill":
-                    Reason(arcade, "Refill this device's fee allowance before entering.", null);
+                    Reason(arcade, "Top up this device’s deposit to enter.", null);
                     actions.Add(PageAction("Manage device", () => _ = OpenSession(), CanUseDaily)); break;
                 case "suspended":
                     arcade.Headline = "Entries paused"; arcade.Closes = "Until further notice"; arcade.Warning = true;

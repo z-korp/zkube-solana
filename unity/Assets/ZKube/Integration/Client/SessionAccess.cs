@@ -45,7 +45,7 @@ namespace ZKube.Integration.Client
                 var assessment = SessionReadiness.Inspect(saved.Active, signer.Address, observation.Accounts[0].Envelope,
                     observation.Accounts[1], rent, observedNow, tokens, program);
                 if (!assessment.Current) throw new SessionUnavailableException("Renew the device session before playing");
-                if (assessment.Funding != "ready") throw new SessionUnavailableException("Refill the device allowance before playing");
+                if (assessment.Funding != "ready") throw new SessionUnavailableException("Top up the device deposit before playing");
                 var actor = PlannerActor.Device(lease.Owner, signer.Address, observation.Accounts[0].Envelope, tokens, program, observedNow);
                 lease.Cancellation.ThrowIfCancellationRequested();
                 return new AuthorizedDeviceSession(signer, actor, assessment);

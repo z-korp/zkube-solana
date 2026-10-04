@@ -81,7 +81,7 @@ namespace ZKube.Integration.Execution
                     catch (InvalidOperationException)
                     {
                         if (!last) continue;
-                        return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-allowance-refill");
+                        return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-deposit-low");
                     }
                     foreach (var signer in signers) transaction = signer.PartialSign(transaction);
                     if (fastEr) break;

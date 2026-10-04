@@ -35,7 +35,7 @@ namespace ZKube.Integration.Presentation
             Notice("Checking this device…"); Status = "Checking device session…";
             var result = await Flow.RefreshSession(token);
             if (!Current(epoch) || !browsingSession) return;
-            sessionRead = result; sessionReadbackNeeded = false; pageNotice = null; Present();
+            sessionRead = result; sessionReadbackNeeded = false; pageNotice = null; AwaitLaunch(result.Value.Launched); Present();
             var state = result.Value;
             if (state.PreviousOperation != null) ShowReceipt(state.PreviousOperation, state.Owner);
             Status = state.RecoveredOperation ? "Checked the existing transaction. No new device setup was requested." : "Device session updated";
@@ -69,14 +69,14 @@ namespace ZKube.Integration.Presentation
                     ("Device disabled", "Disabled", SkinTokens.Text,
                         "This device can no longer spend Kredits or sign game actions. You can enable it again when ready.") :
                     ("Set up this device", "Not set up", SkinTokens.Text,
-                        "What is left returns to your wallet when you disable this device.");
+                        "About " + Sol(DeviceFunding.RunCostShownLamports) + " per run. The rest returns when you disable this device.");
             if (!session.Current)
                 return ("Renew authorization", "Renewal needed", SkinTokens.Text, session.TokenMayClose ?
                     "The authorization has ended. Your wallet replaces it with a new one for this device." :
                     "Renew before playing. Your wallet replaces the current authorization with a new one for this device.");
             if (session.Funding != "ready")
-                return ("Fee allowance low", "Allowance low", SkinTokens.Text,
-                    "Refill the fee allowance to continue. Your wallet funds the " + Sol(DeviceFunding.AllowanceLamports) + " target and shows any fees.");
+                return ("Deposit low", "Deposit low", SkinTokens.Text,
+                    "Top up the deposit to continue. Your wallet brings it back to " + Sol(DeviceFunding.DepositLamports) + ".");
             return (session.Status == "expiring" ? "Session expires soon" : "Session active", session.Status == "expiring" ? "Expires soon" : "Session active",
                 SkinTokens.Positive, "This device enters Dailies with your Kredits.");
         }
@@ -89,13 +89,14 @@ namespace ZKube.Integration.Presentation
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
             var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "Device session", Back = back, Tab = sessionFromSettings ? AppPage.Settings : AppPage.Home };
-            if (arenaClosed && session.ValidUntil <= 0) { page.Blocks = OpensSoon(); return page; }
+            if (!state.Launched && session.ValidUntil <= 0) { page.Blocks = OpensSoon(); return page; }
             // A device to set up shows what the wallet puts on it; a device in use, how it stands.
             bool fresh = session.Status == "none" && look.Title == "Set up this device";
             var rows = new List<PanelBlock>();
             if (!fresh) rows.Add(PanelBlock.Row("Device state", "Status", look.Title, tagToken: look.Token));
             rows.Add(PanelBlock.Row("Device owner", "Owner", Short(state.Owner)));
-            rows.Add(PanelBlock.Row("Fee allowance", "Fee allowance", session.ValidUntil > 0 ? Sol(session.Balance) : fresh ? Sol(DeviceFunding.AllowanceLamports) : "—"));
+            // A device in use shows the deposit it has left; one to set up, the deposit it asks for.
+            rows.Add(PanelBlock.Row("Deposit", "Deposit", session.ValidUntil > 0 ? Sol(session.Balance) : fresh ? Sol(DeviceFunding.DepositLamports) : "—"));
             if (session.ValidUntil > 0) rows.Add(PanelBlock.Row("Device expiry", "Authorization ends", Utc(session.ValidUntil)));
             var blocks = new List<PanelBlock> { PanelBlock.Card("Device card", rows.ToArray()) };
             var receipt = ReceiptRow("Device");
@@ -117,7 +118,7 @@ namespace ZKube.Integration.Presentation
                 else if (!session.Current)
                     blocks.Add(PanelBlock.Button(PageAction(session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession(), DeviceChangeable), true));
                 else if (session.Funding != "ready")
-                    blocks.Add(PanelBlock.Button(PageAction("Refill allowance", () => _ = RefillDeviceSession(), DeviceChangeable), true));
+                    blocks.Add(PanelBlock.Button(PageAction("Top up deposit", () => _ = RefillDeviceSession(), DeviceChangeable), true));
             }
             page.Blocks = blocks.ToArray();
             return page;
@@ -131,7 +132,7 @@ namespace ZKube.Integration.Presentation
             return new PanelPageView { Key = "Revoke", Title = "Disable this device", Subtitle = "Arena", Back = keep, Blocks = new[] {
                 PanelBlock.Card("Revoke card", PanelBlock.Title("Revoke device access?", centered: true),
                     PanelBlock.Text("Revoke effect", "This device will stop signing game actions and spending your prepaid Kredits."),
-                    PanelBlock.Text("Revoke return", "The remaining fee allowance returns to your wallet. Your Kredits remain in your balance, and this device keeps its install key for later reauthorization.")),
+                    PanelBlock.Text("Revoke return", "The deposit left returns to your wallet. Your Kredits remain in your balance, and this device keeps its install key for later reauthorization.")),
                 PanelBlock.Button(keep, true),
                 PanelBlock.Button(PageAction("Disable in wallet", () => { revokeConfirming = false; _ = DisableDeviceSession(); }, DeviceChangeable), false) } };
         }
@@ -142,9 +143,10 @@ namespace ZKube.Integration.Presentation
 
         private Task ChangeDeviceSession(bool ensure, bool disable)
         {
-            if (arenaClosed || !browsingSession || sessionActionPending || economyActionPending || sessionRead == null || !sessionRead.IsCurrent || sessionRead.Value.Pending != null)
+            if (!browsingSession || sessionActionPending || economyActionPending || sessionRead == null || !sessionRead.IsCurrent || sessionRead.Value.Pending != null)
                 return Task.CompletedTask;
             var assessment = sessionRead.Value.Session;
+            if (!sessionRead.Value.Launched && assessment.ValidUntil <= 0) return Task.CompletedTask;
             if (ensure ? assessment.Current : disable ? assessment.ValidUntil <= 0 : !assessment.Current || assessment.Funding == "ready")
                 return Task.CompletedTask;
             bool recovered = false;

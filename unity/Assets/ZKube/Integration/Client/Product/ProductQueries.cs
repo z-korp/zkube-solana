@@ -69,7 +69,7 @@ namespace ZKube.Integration.Client
             var profile = Profile(lease.Owner, read.Accounts[2]);
             return new DailyLobby(day, projection.Status, projection.Suspended, projection.ProtocolPaused,
                 projection.Realm, projection.ObjectiveKind, projection.ObjectiveValue, projection.PotLamports,
-                profile);
+                profile, projection.Launched);
         });
 
         // What a transaction sent now would prepare and finalize.

@@ -148,7 +148,7 @@ namespace ZKube.Integration.Presentation
             if (state.Pending == null && !economyActionPending && !sessionActionPending)
             {
                 if (!state.Session.Current) blocks.Add(PanelBlock.Text("Reward notice", "Set up this device to collect rewards."));
-                else if (state.Session.Funding != "ready") blocks.Add(PanelBlock.Text("Reward notice", "Refill this device's fee allowance to collect rewards."));
+                else if (state.Session.Funding != "ready") blocks.Add(PanelBlock.Text("Reward notice", "Top up this device’s deposit to collect rewards."));
             }
             foreach (var board in boards) blocks.Add(BoardCard(board, state));
             blocks.Add(Days(state));

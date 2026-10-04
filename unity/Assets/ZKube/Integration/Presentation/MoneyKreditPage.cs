@@ -33,7 +33,7 @@ namespace ZKube.Integration.Presentation
             Notice("Checking your Kredit balance…"); Status = "Checking Kredits…";
             var result = await Flow.RefreshKredits(token);
             if (!Current(epoch) || !browsingKredits) return;
-            kreditRead = result; economyReadbackNeeded = false; pageNotice = null;
+            kreditRead = result; economyReadbackNeeded = false; pageNotice = null; AwaitLaunch(result.Value.Launched);
             if (result.Value.PreviousOperation != null) ShowReceipt(result.Value.PreviousOperation, identity.Owner);
             Present(); Status = "Kredits updated";
         }
@@ -45,8 +45,8 @@ namespace ZKube.Integration.Presentation
             ClearKreditObservation(); Notice("Your balance changed. Refresh before buying Kredits.");
             Status = "Kredits need refreshing";
         }
-        private bool CanBuyKredits() => browsingKredits && !arenaClosed && !Busy && !sessionActionPending && !economyActionPending &&
-            !paused && !detached && isActiveAndEnabled && kreditRead != null && kreditRead.IsCurrent && kreditRead.Value.Pending == null;
+        private bool CanBuyKredits() => browsingKredits && !Busy && !sessionActionPending && !economyActionPending &&
+            !paused && !detached && isActiveAndEnabled && kreditRead != null && kreditRead.IsCurrent && kreditRead.Value.Pending == null && kreditRead.Value.Launched;
 
         public static string KreditPurchaseLabel(uint pack) => "Buy " + pack + (pack == 1 ? " Kredit" : " Kredits") + " · " + Price(pack);
         private static string Price(uint pack) => MoneyText.Sol(checked(pack * (ulong)Protocol.EntryLamports));
@@ -83,8 +83,8 @@ namespace ZKube.Integration.Presentation
                 var waiting = Waiting("Kredits", page.Title, page.Subtitle, AppPage.Home, pageNotice);
                 waiting.Back = back; return waiting;
             }
-            if (arenaClosed) { page.Blocks = OpensSoon(); return page; }
             var state = kreditRead.Value;
+            if (!state.Launched) { page.Blocks = OpensSoon(); return page; }
             blocks.Add(PanelBlock.Card("Balance card", PanelBlock.Figure("Kredit balance", "Confirmed balance",
                 state.Profile.Kredits.ToString(CultureInfo.InvariantCulture), "Kredits", SkinSlots.IconKredit)));
             if (economyActionPending || sessionActionPending) Requesting(blocks);

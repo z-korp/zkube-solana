@@ -26,7 +26,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("session-enable-success", 1.3f);
             Assert.That(environment.SentSignature, Is.Null);
-            StringAssert.Contains("returns to your wallet when you disable this device", SessionText());
+            StringAssert.Contains("The rest returns when you disable this device.", SessionText());
             yield return SessionClick("Enable device"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -44,13 +44,13 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("session-refill-success");
             Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Renew device"), Is.False);
-            yield return SessionClick("Refill allowance"); yield return Idle();
+            yield return SessionClick("Top up deposit"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             var exact = controller.LastReceipt; var signature = environment.SentSignature;
             // Refilling funds the existing token; it does not extend its expiry.
             Assert.That(Text("Device state"), Is.EqualTo("Session expires soon"));
-            StringAssert.DoesNotContain("Fee allowance low", SessionText());
+            StringAssert.DoesNotContain("Deposit low", SessionText());
             int calls = environment.Calls.Count(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions");
             controller.SendMessage("OnApplicationPause", true);
             controller.SendMessage("OnApplicationPause", false); yield return Idle();
@@ -65,7 +65,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("session-disable-pending-success");
             yield return SessionClick("Disable this device"); yield return Idle();
             StringAssert.Contains("Revoke device access?", SessionText());
-            StringAssert.Contains("The remaining fee allowance returns to your wallet.", SessionText());
+            StringAssert.Contains("The deposit left returns to your wallet.", SessionText());
             yield return SessionClick("Disable in wallet"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
@@ -88,7 +88,7 @@ namespace ZKube.Tests.MoneyOverview
             StringAssert.Contains(signature, Text("Transaction receipt"));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
-        [UnityTest] public IEnumerator EmptyAllowanceDisableStillRevokesTheToken()
+        [UnityTest] public IEnumerator EmptyDepositDisableStillRevokesTheToken()
         {
             yield return PrepareDeviceScenario("session-disable-zero");
             yield return SessionClick("Disable this device"); yield return Idle();
@@ -184,7 +184,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("session-fee-shortage");
             yield return SessionClick("Enable device"); yield return Idle();
             Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage));
-            Assert.That(Text("Action refused"), Is.EqualTo("Your wallet needs more SOL for the fee."));
+            Assert.That(Text("Action refused"), Is.EqualTo("Your wallet needs more SOL."));
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

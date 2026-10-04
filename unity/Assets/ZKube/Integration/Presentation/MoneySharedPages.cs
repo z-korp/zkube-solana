@@ -128,7 +128,7 @@ namespace ZKube.Integration.Presentation
                     {
                         views.Render(AppPage.Home, notices);
                         // The first Arcade with an address teaches the Arena Daily, over the page and never on the entry sheet.
-                        if (!arenaClosed && !Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
+                        if (dailyRead.Value.Lobby.Launched && !Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
                     }
                     break;
                 // A page without its read shows its failure itself.
@@ -181,11 +181,12 @@ namespace ZKube.Integration.Presentation
         // one wallet request, or why it did not connect.
         private PanelPageView ConnectPage()
         {
+            bool waiting = publicRead != null && publicRead.IsCurrent && !publicRead.Value.Launched;
             var blocks = new List<PanelBlock> {
                 PanelBlock.Portrait(TodayRealm),
                 PanelBlock.Card("Connect card",
                     PanelBlock.Title("Your address. Your play.", centered: true),
-                    PanelBlock.Text("Connect cost", arenaClosed ? "Arena opens soon. Campaign is open now." : "Connecting is free.", SkinTokens.TextMuted, true)) };
+                    PanelBlock.Text("Connect cost", waiting ? "Arena opens soon. Campaign is open now." : "Connecting is free.", SkinTokens.TextMuted, true)) };
             if (failure != null && !Busy) blocks.Add(PanelBlock.Text("Connect failure", failure, SkinTokens.Negative, true));
             if (!Refused("Connect", blocks, () => PageAvailable() && !Busy))
                 blocks.Add(PanelBlock.Button(PageAction("Connect wallet", () => _ = Connect(), () => PageAvailable() && !Busy, "Connect"), true));

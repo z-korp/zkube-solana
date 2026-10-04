@@ -13,8 +13,10 @@ namespace ZKube.Integration.App
         public PendingTransaction Pending { get; }
         public ExecutionResult PreviousOperation { get; }
         public bool RecoveredOperation { get; }
-        internal MoneySessionState(string owner, SessionAssessment session, PendingTransaction pending, ExecutionResult operation, bool recovered)
-        { Owner = owner; Session = session; Pending = pending; PreviousOperation = operation; RecoveredOperation = recovered; }
+        // Whether the game has launched, as the protocol account said in this read.
+        public bool Launched { get; }
+        internal MoneySessionState(string owner, SessionAssessment session, PendingTransaction pending, ExecutionResult operation, bool recovered, bool launched)
+        { Owner = owner; Session = session; Pending = pending; PreviousOperation = operation; RecoveredOperation = recovered; Launched = launched; }
     }
 
     public sealed partial class MoneyAppFlow
@@ -30,8 +32,9 @@ namespace ZKube.Integration.App
                 {
                     var session = await services.SessionLifecycle.Inspect().ConfigureAwait(false); Require(read, lease);
                     var pending = await services.Journal.Load(lease.Owner).ConfigureAwait(false); Require(read, lease);
+                    bool launched = await services.PublicDaily.Launched(read.Token).ConfigureAwait(false); Require(read, lease);
                     var operation = ReadOwnerOperation(out bool recovered);
-                    return new MoneyRead<MoneySessionState>(new MoneySessionState(lease.Owner, session, pending, operation, recovered),
+                    return new MoneyRead<MoneySessionState>(new MoneySessionState(lease.Owner, session, pending, operation, recovered, launched),
                         () => Current(read, lease) &&
                             CurrentOwnerOperation(operation));
                 }

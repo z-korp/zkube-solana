@@ -81,9 +81,10 @@ namespace ZKube.Integration.Client
         public byte ObjectiveValue { get; }
         public ulong? PotLamports { get; }
         public PlayerProfile Profile { get; }
+        public bool Launched { get; }
         internal DailyLobby(uint day, string status, bool suspended, bool paused, byte realm, byte kind, byte value,
-            ulong? pool, PlayerProfile profile)
-        { DayId = day; Status = status; Suspended = suspended; ProtocolPaused = paused;
+            ulong? pool, PlayerProfile profile, bool launched)
+        { DayId = day; Status = status; Suspended = suspended; ProtocolPaused = paused; Launched = launched;
             Realm = realm; ObjectiveKind = kind; ObjectiveValue = value; PotLamports = pool; Profile = profile;
         }
     }

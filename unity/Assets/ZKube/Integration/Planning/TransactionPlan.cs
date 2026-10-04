@@ -58,7 +58,7 @@ namespace ZKube.Integration.Planning
         {
             if (FeePayer == Owner) return;
             ulong required = checked(systemRentFloor + quotedFee + PostFeeReserveLamports);
-            if (balance < required) throw new InvalidOperationException("Device fee allowance requires refill");
+            if (balance < required) throw new InvalidOperationException("Device deposit requires a top-up");
         }
     }
 }
