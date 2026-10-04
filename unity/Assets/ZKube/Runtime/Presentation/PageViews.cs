@@ -148,6 +148,9 @@ namespace ZKube.Presentation
 
         // Removes the drawn page, so the next page enters without a page to leave.
         public void Hide() { Retire(); Shown = null; shownPanel = null; shell.Clear(shell.SafeArea); Music(false); }
+        // A board takes the screen: its music replaces the page's now, and the
+        // page stays, taking no input, until the board has drawn (PageShell.HandOver).
+        public void HandOver(BoardController board) { Music(false); shell.HandOver(board, Hide); }
 
         // A page that could not load its realm art has no skin kit to draw with.
         public void Unavailable(string title, string message, PageAction retry)

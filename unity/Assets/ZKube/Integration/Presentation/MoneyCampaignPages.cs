@@ -44,7 +44,7 @@ namespace ZKube.Integration.Presentation
             if (runBoard == null) { runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(); }
             var journey = campaign;
             runBoard.Open(provider.Bind(), () => journey.Unsaved, journey.Finished, journey.Left, journey.FirstRun);
-            HidePages();
+            HidePages(runBoard.Board);
         }
         private void CloseCampaignView() { campaignPage = null; campaign?.Forget(); }
         // A changed address ends the journey, and its run's board with it.

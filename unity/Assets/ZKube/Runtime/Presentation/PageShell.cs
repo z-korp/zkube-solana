@@ -46,9 +46,10 @@ namespace ZKube.Presentation
             backdrop.transform.SetParent(transform, false); backdrop.clearFlags = CameraClearFlags.SolidColor;
             backdrop.backgroundColor = new Color(.02f, .06f, .05f, 1); backdrop.cullingMask = 0; backdrop.depth = -100;
             backdrop.allowHDR = backdrop.allowMSAA = false;
-            Root = new GameObject(title, typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
+            Root = new GameObject(title, typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster), typeof(CanvasGroup));
             Root.transform.SetParent(transform, false);
             var canvas = Root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 20;
+            shown = Root.GetComponent<CanvasGroup>();
             Background = Child<Image>("Realm backdrop", Root.transform); Background.color = Color.clear; Background.raycastTarget = false;
             Veil = Child<Image>("Backdrop veil", Root.transform); Veil.sprite = Gradient(VeilStops, new Color(2 / 255f, 10 / 255f, 18 / 255f)); Veil.raycastTarget = false;
             Veil.enabled = false;
@@ -63,7 +64,8 @@ namespace ZKube.Presentation
         private void Stage()
         {
             stage = Child<RectTransform>("Page stage", Root.transform);
-            stage.SetSiblingIndex(Scrim.transform.GetSiblingIndex() + 1 + leaving.Count);
+            // Over the painting and any page still leaving, under the chrome.
+            if (Chrome != null) stage.SetSiblingIndex(Chrome.GetSiblingIndex());
             fade = stage.gameObject.AddComponent<CanvasGroup>();
             Viewport = Child<RectTransform>("Page viewport", stage);
             Viewport.gameObject.AddComponent<RectMask2D>();
@@ -77,7 +79,40 @@ namespace ZKube.Presentation
             Overlay = Child<RectTransform>("Page overlay", stage);
         }
 
-        public void Show(bool visible) { Root.SetActive(visible); backdrop.enabled = visible; }
+        public void Show(bool visible)
+        {
+            StopHandOver();
+            Root.SetActive(visible); backdrop.enabled = visible;
+        }
+        // The picture stays until the next one is drawn. A board taking the
+        // screen draws its own: the page stays whole, taking no input, until
+        // the board has drawn, then fades away over it (reduced motion: a cut)
+        // and covered retires it. Showing a page again calls the handover off,
+        // and the page it kept is retired all the same.
+        public void HandOver(BoardController board, Action covered)
+        {
+            if (board == null) throw new ArgumentNullException(nameof(board));
+            if (handOver != null || !Root.activeSelf) { covered?.Invoke(); return; }
+            shown.blocksRaycasts = false; retire = covered;
+            handOver = StartCoroutine(Cover(board));
+        }
+        private Action retire;
+        public bool HandingOver => handOver != null;
+        private Coroutine handOver;
+        private CanvasGroup shown;
+        private IEnumerator Cover(BoardController board)
+        {
+            do yield return null; while (board != null && !board.Drawn);
+            if (board != null && !board.ReducedMotion) yield return Tween(LeaveSeconds, t => shown.alpha = 1 - t);
+            Show(false);
+        }
+        private void StopHandOver()
+        {
+            if (handOver != null) StopCoroutine(handOver);
+            handOver = null;
+            var covered = retire; retire = null; covered?.Invoke();
+            if (shown != null) { shown.alpha = 1; shown.blocksRaycasts = true; }
+        }
 
         // Art a drawn page uses is released only once no page that drew with it
         // is on screen: the page itself, the tab bar drawn beside it, or the page
@@ -161,24 +196,27 @@ namespace ZKube.Presentation
         // Reduced motion keeps a short cross-fade and no movement.
         // The outgoing page leaves on its own layer, keeping the art it drew with
         // until it is gone, so the next page can load and draw while it leaves.
-        // When the next page is in another realm the painting leaves with it and
-        // the new painting rises with the next page.
-        public void Depart(bool reducedMotion, float density, bool painting = false)
+        // Its painting stays whole until the next page draws its own (Backdrop).
+        public void Depart(bool reducedMotion, float density)
         {
             if (Input.touchCount > 0) { tap = Input.GetTouch(0).position; tapTime = Time.unscaledTime; }
             else if (Input.GetMouseButton(0) || Input.GetMouseButtonUp(0)) { tap = Input.mousePosition; tapTime = Time.unscaledTime; }
-            if (!Root.activeInHierarchy || Page.childCount == 0 && Overlay.childCount == 0) return;
-            StopTransition();
+            if (!Root.activeInHierarchy) return;
+            // A painting fading in ends whole; one still waiting for its page keeps its outgoing picture.
+            StopTransition(); if (revealing != null) Reveal();
+            changing = true; cut = reducedMotion;
+            if (Background.sprite != null && outgoing == null)
+            {
+                outgoing = Child<Image>("Leaving painting", Root.transform); outgoing.raycastTarget = false;
+                outgoing.sprite = Background.sprite; outgoing.color = Background.color;
+                outgoing.transform.SetSiblingIndex(Background.transform.GetSiblingIndex());
+                SkinUi.Place(outgoing.rectTransform, SkinUi.ScreenRect(Background.rectTransform), Root.transform);
+                leaving.Add((outgoing.gameObject, current == null ? new List<Action>() : new List<Action> { current }));
+            }
+            if (Page.childCount == 0 && Overlay.childCount == 0) return;
             var layer = stage.gameObject; layer.name = "Leaving page";
             var group = fade; group.interactable = group.blocksRaycasts = false;
             var art = new List<Action>(held);
-            if (painting && Background.sprite != null)
-            {
-                var copy = Child<Image>("Leaving painting", stage); copy.raycastTarget = false;
-                copy.sprite = Background.sprite; copy.color = Background.color; copy.transform.SetAsFirstSibling();
-                SkinUi.Place(copy.rectTransform, SkinUi.ScreenRect(Background.rectTransform), stage);
-                var hidden = Background.color; hidden.a = 0; Background.color = hidden; paintingHidden = true;
-            }
             leaving.Add((layer, art));
             Stage();
             StartCoroutine(Leave(layer, group, art, reducedMotion, density));
@@ -235,16 +273,14 @@ namespace ZKube.Presentation
                 float eased = 1 - (1 - page) * (1 - page);
                 fade.alpha = eased; stage.anchoredPosition = anchor - new Vector2(0, rise * (1 - eased));
                 if (vignette != null && !reducedMotion) vignette.color = SkinUi.WithAlpha(scrim, .42f * Mathf.Sin(Mathf.PI * page));
-                if (paintingHidden) { var shown = Background.color; shown.a = eased; Background.color = shown; }
                 if (!swell.enabled) return;
                 var color = glow; color.a = .5f * (1 - t);
                 swell.color = color;
                 float grown = size * (.6f + t);
                 SkinUi.Place(swell.rectTransform, new Rect(origin.Value.x - grown / 2, origin.Value.y - grown / 2, grown, grown), Root.transform);
             });
-            swell.enabled = false; transition = null; paintingHidden = false;
+            swell.enabled = false; transition = null;
         }
-        private bool paintingHidden;
         private static IEnumerator Tween(float seconds, Action<float> step)
         {
             float start = Time.unscaledTime;
@@ -278,18 +314,54 @@ namespace ZKube.Presentation
         // the veil that darkens its top and bottom. A screen drawn over the
         // painting (the preview, the results) adds the scrim, light over the
         // scene at the top and deep behind its card and actions.
+        // The one owner of the picture on screen: after a page change the
+        // outgoing painting stays whole under the incoming one, which fades in
+        // over it with the scrim's change, then the outgoing one goes. Reduced
+        // motion, or a page redrawn in place, cuts. No frame is without a painting.
         public void Backdrop(Sprite sprite, bool scrim = false, float focus = .5f)
         {
-            Background.sprite = sprite; Background.color = sprite == null ? Color.clear : Color.white;
-            Veil.enabled = sprite != null; Scrim.enabled = sprite != null && scrim;
-            if (sprite == null) return;
-            var area = ScreenArea;
-            float scale = Mathf.Max(area.width / sprite.rect.width, area.height / sprite.rect.height);
-            var size = sprite.rect.size * scale;
-            float top = area.yMax + (size.y - area.height) * focus;
-            SkinUi.Place(Background.rectTransform, new Rect(area.center.x - size.x / 2, top - size.y, size.x, size.y), Root.transform);
-            SkinUi.Place(Veil.rectTransform, area, Root.transform); SkinUi.Place(Scrim.rectTransform, area, Root.transform);
+            if (revealing != null) Reveal();
+            float scrimFrom = Scrim.enabled ? Scrim.color.a : 0;
+            scrimShown = sprite != null && scrim ? 1 : 0;
+            Background.sprite = sprite; Veil.enabled = sprite != null;
+            bool fades = changing && !cut && sprite != null && (outgoing != null && outgoing.sprite != sprite || scrimFrom != scrimShown);
+            changing = false;
+            if (sprite != null)
+            {
+                var area = ScreenArea;
+                float scale = Mathf.Max(area.width / sprite.rect.width, area.height / sprite.rect.height);
+                var size = sprite.rect.size * scale;
+                float top = area.yMax + (size.y - area.height) * focus;
+                SkinUi.Place(Background.rectTransform, new Rect(area.center.x - size.x / 2, top - size.y, size.x, size.y), Root.transform);
+                SkinUi.Place(Veil.rectTransform, area, Root.transform); SkinUi.Place(Scrim.rectTransform, area, Root.transform);
+            }
+            if (!fades || !isActiveAndEnabled) { Reveal(); return; }
+            bool painting = outgoing != null && outgoing.sprite != sprite;
+            Background.color = new Color(1, 1, 1, painting ? 0 : 1); ShowScrim(scrimFrom);
+            revealing = StartCoroutine(Tween(EnterSeconds, t => {
+                float eased = 1 - (1 - t) * (1 - t);
+                if (painting) Background.color = new Color(1, 1, 1, eased);
+                ShowScrim(Mathf.Lerp(scrimFrom, scrimShown, eased));
+                if (t >= 1) { revealing = null; Reveal(); }
+            }));
         }
+        // The painting that was on screen, the scrim's alpha the page asked for,
+        // and whether the next Backdrop follows a page change and may fade.
+        private Image outgoing;
+        private float scrimShown;
+        private bool changing, cut;
+        private Coroutine revealing;
+        // Ends a painting change where it would end: the incoming painting whole,
+        // its scrim as asked, the outgoing one gone.
+        private void Reveal()
+        {
+            if (revealing != null) { StopCoroutine(revealing); revealing = null; }
+            if (outgoing != null) { var layer = outgoing.gameObject; outgoing = null; Retire(layer); }
+            if (Background == null || Scrim == null) return;
+            Background.color = Background.sprite == null ? Color.clear : Color.white;
+            ShowScrim(Background.sprite == null ? 0 : scrimShown);
+        }
+        private void ShowScrim(float alpha) { Scrim.enabled = alpha > 0; Scrim.color = new Color(1, 1, 1, alpha); }
         // The veil, top to bottom: #020A12 at 67%, 33% at 30% down, 53% at 70% and 80% at the bottom.
         public static readonly (float at, float alpha)[] VeilStops = { (0, .667f), (.3f, .333f), (.7f, .533f), (1, .8f) };
         // The scrim, #02070E: light where the scene shows above the card, 80% under it.
@@ -346,7 +418,9 @@ namespace ZKube.Presentation
         }
         public void ReleaseArtwork()
         {
-            StopAllCoroutines(); StopTransition(); Loading = false; requestedRealm = 0; ArtworkError = null;
+            StopAllCoroutines(); handOver = null; retire = null; transition = null; revealing = null; outgoing = null; changing = false;
+            StopTransition(); StopHandOver();
+            Loading = false; requestedRealm = 0; ArtworkError = null;
             if (Background != null) { Background.sprite = null; Background.color = Color.clear; Veil.enabled = Scrim.enabled = false; }
             foreach (var entry in leaving.ToArray()) if (entry.layer != null) { entry.layer.SetActive(false); Destroy(entry.layer); }
             var art = held.Concat(leaving.SelectMany(entry => entry.art)).Append(current).Where(release => release != null).Distinct().ToArray();
@@ -354,7 +428,7 @@ namespace ZKube.Presentation
             foreach (var release in art) release();
         }
         // A leaving page's motion stops with this component; it goes with it.
-        private void OnDisable() { foreach (var entry in leaving.ToArray()) Retire(entry.layer); }
+        private void OnDisable() { Reveal(); foreach (var entry in leaving.ToArray()) Retire(entry.layer); outgoing = null; }
         private void OnDestroy() => ReleaseArtwork();
 
         private static T Child<T>(string name, Transform parent) where T : Component

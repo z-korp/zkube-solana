@@ -46,7 +46,7 @@ namespace ZKube.Integration.Presentation
             }
             ulong best = profileRead != null && profileRead.IsCurrent ? (ulong)((uint?)profileRead.Value.Profile.Fields?["best_daily_score"] ?? 0) : 0;
             boardHost.Open(result.Value, textScale, best, Flow.DailyTop(NativeEngine.DayAt(result.Value.Run.DeadlineAt)));
-            HidePages(); RetireArtwork();
+            HidePages(boardHost.Board);
         });
 
         private void ReturnFromRun()

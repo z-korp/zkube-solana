@@ -18,8 +18,10 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareScenario("campaign-playable");
             yield return SessionClick("Connect"); yield return Idle();
             yield return SessionClick("Campaign"); yield return Idle();
+            // From the drawn map on, no page change shows the clear colour.
+            var watch = ZKube.Tests.Presentation.PaintWatch.On(host.GetComponent<PageShell>());
             yield return SessionClick("Trial 1"); yield return Idle();
-            yield return SessionClick("Play");
+            watch.Step = "the board"; yield return SessionClick("Play");
             yield return BoardReady();
             var board = PlayedBoard();
             Assert.That(board.Session.Daily, Is.False);
@@ -37,8 +39,9 @@ namespace ZKube.Tests.MoneyOverview
             // The result's stars play under a tap-to-skip layer: the map is reached once they have.
             foreach (var sequence in host.GetComponentsInChildren<PageSequence>()) sequence.Finish();
             yield return null;
-            yield return SessionClick("Map"); yield return Idle();
+            watch.Step = "the map"; yield return SessionClick("Map"); yield return Idle();
             Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Campaign));
+            watch.AssertCovered(); watch.Stop();
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
         }
 
@@ -53,6 +56,8 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Cancel entry"); yield return Idle();
             Assert.That(controller.ConfirmingDailyEntry, Is.False);
             yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
+            // From the Arcade into the board and back, no frame shows the clear colour.
+            var watch = ZKube.Tests.Presentation.PaintWatch.On(host.GetComponent<PageShell>()); watch.Step = "the Daily's board";
             yield return SessionClick("Confirm 1 Kredit"); yield return Idle();
             yield return BoardReady();
             var board = host.GetComponent<MoneyBoardHost>().Board;
@@ -80,7 +85,8 @@ namespace ZKube.Tests.MoneyOverview
             Click("Dialog Continue"); yield return Idle();
             Assert.That(controller.PlayingRun, Is.False);
             Assert.That(controller.BrowsingDaily, Is.True);
-            yield return SessionClick("View result"); yield return Idle();
+            watch.Step = "the Daily's result"; yield return SessionClick("View result"); yield return Idle();
+            watch.AssertCovered(); watch.Stop();
             Assert.That(controller.ResultPage().HasResult, Is.True);
             Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));
             Assert.That(controller.ResultPage().ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));

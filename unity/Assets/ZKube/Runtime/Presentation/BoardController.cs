@@ -46,6 +46,8 @@ namespace ZKube.Presentation
         [NonSerialized] private bool bootstrapped, loadingRealm;
         [NonSerialized] private bool playReloadInvalidated;
         public bool PresentationInitialized => initialized && !loadingRealm && !playReloadInvalidated && View != null && View.HasRuntimeGraph;
+        // The board is on screen with its run drawn; a page handing the screen to it may go.
+        public bool Drawn => isActiveAndEnabled && PresentationInitialized;
         public bool Busy => busy;
         public bool RecoveryRequired => recoveryRequired;
         public bool Paused => paused;

@@ -23,7 +23,6 @@ namespace ZKube.Local.App
         private BoardController board => runBoard.Board;
         private PageShell shell;
         private PageViews views;
-        private GameObject pageRoot;
         private bool loading, dirty, lastBusy, lastUnsaved;
         private uint lastDay;
         private LocalProductState lastProduct;
@@ -43,7 +42,6 @@ namespace ZKube.Local.App
             if (EventSystem.current == null || EventSystem.current.transform.IsChildOf(board.transform))
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");
             shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
-            pageRoot = shell.Root;
             views = gameObject.AddComponent<PageViews>(); views.Initialize(this, shell, "Home", "realms", TextScale);
             Flow.Changed += Refresh; Flow.BoardOpened += OpenBoard;
             Refresh();
@@ -75,7 +73,7 @@ namespace ZKube.Local.App
         {
             if (this == null || Flow == null) return;
             dirty = true;
-            shell.Show(Flow.Page != StorePage.Board);
+            if (Flow.Page != StorePage.Board) shell.Show(true);
         }
         // A new page, or the same page in another realm, sends the drawn page
         // leaving while the next one loads its art and draws.
@@ -85,7 +83,7 @@ namespace ZKube.Local.App
             byte realm = PageRealm; StorePage page = Flow.Page;
             bool load = !shell.RealmReady(realm);
             if (load || views.Shown.HasValue && views.Shown.Value.ToString() != page.ToString())
-                shell.Depart(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()), load);
+                shell.Depart(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()));
             if (load)
             {
                 shell.RequestRealm(realm);
@@ -212,9 +210,9 @@ namespace ZKube.Local.App
                     ClosesAt = Flow.Today.FreezesAt, Now = Flow.Runs.Now }),
                     () => Flow.Unsaved, _ => Flow.LeaveDaily(), Flow.LeaveDaily);
             else runBoard.Open(provider.Bind(), () => Flow.Unsaved, Flow.Campaign.Finished, Flow.Campaign.Left, Flow.Campaign.FirstRun);
-            if (pageRoot != null) pageRoot.SetActive(false);
-            // The page that opened the board is not shown again on the way back.
-            views.Hide();
+            // The page that opened the board stays until the board has drawn,
+            // and is not shown again on the way back.
+            views.HandOver(board);
         }
         private void OnApplicationPause(bool paused) { if (!paused && Flow != null) { Refresh(); _ = Flow.RefreshBilling(); } }
         private void RetirePage()

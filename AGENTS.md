@@ -557,7 +557,11 @@ purchase/name editing or money address/device/Kredit/claim/receipt controls.
 `EverySharedPageRendersUnderBothIdentityImplementations`,
 `DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce`,
 `ForegroundPreservesArcadeWithoutDeviceKeysOrNewTransactions` and
-`CampaignStaysVisibleWhenAnEarlierOverviewReadCompletes` guard the journeys and active page.
+`CampaignStaysVisibleWhenAnEarlierOverviewReadCompletes` guard the journeys and active page. No page change
+shows the bare clear colour: `PageShell` keeps the outgoing painting whole until the incoming one is drawn and
+fades it in over it (reduced motion cuts), and a page stays until the board taking the screen has drawn.
+`EveryPageChangeKeepsAPaintingOnEveryFrame` guards every Realms page, realm and board change, and
+`PaintWatch` the Arena's Campaign and Daily journeys.
 
 One parsed theme catalog and generated constraint captions serve pages and boards. One startup/configuration
 path owns both products, and money-only schemas stay out of store packages.

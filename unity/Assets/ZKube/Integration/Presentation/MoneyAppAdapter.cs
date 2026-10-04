@@ -197,7 +197,7 @@ namespace ZKube.Integration.Presentation
             string key = PageKey(); byte realm = PageRealm();
             bool load = !shell.RealmReady(realm);
             if (load || key != shownKey)
-                shell.Depart(AppPreferences.ReducedMotion, Mathf.Max(.5f, Density()), load);
+                shell.Depart(AppPreferences.ReducedMotion, Mathf.Max(.5f, Density()));
             if (load)
             {
                 shell.RequestRealm(realm);
@@ -250,10 +250,12 @@ namespace ZKube.Integration.Presentation
             shell.Show(true);
             if (Flow != null) _ = RefreshOverview();
         }
-        // Nothing an earlier identity or read drew survives a hidden page.
-        private void HidePages()
+        // Nothing an earlier identity or read drew survives a hidden page. A
+        // board taking the screen gets the page's painting until it has drawn.
+        private void HidePages(BoardController coveredBy = null)
         {
             StopAllCoroutines(); presenting = false; dirty = false; shownKey = null;
+            if (coveredBy != null) { views.HandOver(coveredBy); return; }
             views.Hide(); shell.Show(false);
         }
         private void RetireRead()
