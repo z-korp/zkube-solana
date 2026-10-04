@@ -195,8 +195,10 @@ namespace ZKube.Presentation
         // glow swelling from where the player tapped. The tab bar stays still.
         // Reduced motion keeps a short cross-fade and no movement.
         // The outgoing page leaves on its own layer, keeping the art it drew with
-        // until it is gone, so the next page can load and draw while it leaves.
-        // Its painting stays whole until the next page draws its own (Backdrop).
+        // until it is gone. Its painting stays whole until the next page draws
+        // its own (Backdrop). A caller departs once the next page's realm is
+        // loaded, in the frame it draws that page: a page that left earlier
+        // would leave its painting standing bare for the length of the load.
         public void Depart(bool reducedMotion, float density)
         {
             if (Input.touchCount > 0) { tap = Input.GetTouch(0).position; tapTime = Time.unscaledTime; }
@@ -211,7 +213,8 @@ namespace ZKube.Presentation
                 outgoing.sprite = Background.sprite; outgoing.color = Background.color;
                 outgoing.transform.SetSiblingIndex(Background.transform.GetSiblingIndex());
                 SkinUi.Place(outgoing.rectTransform, SkinUi.ScreenRect(Background.rectTransform), Root.transform);
-                leaving.Add((outgoing.gameObject, current == null ? new List<Action>() : new List<Action> { current }));
+                // The painting keeps the art its page drew with, whatever realm is loaded by now.
+                leaving.Add((outgoing.gameObject, new List<Action>(held)));
             }
             if (Page.childCount == 0 && Overlay.childCount == 0) return;
             var layer = stage.gameObject; layer.name = "Leaving page";
@@ -281,15 +284,20 @@ namespace ZKube.Presentation
             });
             swell.enabled = false; transition = null;
         }
+        // Motion advances frame by frame, a slow frame counting for MaxStep at
+        // most: the frame that builds a page can take longer than a whole fade,
+        // and would otherwise carry it straight to its end.
+        public const float MaxStep = 1 / 30f;
         private static IEnumerator Tween(float seconds, Action<float> step)
         {
-            float start = Time.unscaledTime;
+            float elapsed = 0;
             while (true)
             {
-                float t = Mathf.Clamp01((Time.unscaledTime - start) / seconds);
+                float t = Mathf.Clamp01(elapsed / seconds);
                 step(t);
                 if (t >= 1) yield break;
                 yield return null;
+                elapsed += Mathf.Min(Time.unscaledDeltaTime, MaxStep);
             }
         }
         private void StopTransition()
@@ -316,16 +324,16 @@ namespace ZKube.Presentation
         // scene at the top and deep behind its card and actions.
         // The one owner of the picture on screen: after a page change the
         // outgoing painting stays whole under the incoming one, which fades in
-        // over it with the scrim's change, then the outgoing one goes. Reduced
-        // motion, or a page redrawn in place, cuts. No frame is without a painting.
+        // over it with the scrim's change, then the outgoing one goes. A page
+        // that states its painting again while that fade plays (its map over
+        // its realm's background, or a redraw as a read lands) carries the
+        // fade on to the painting stated last. Reduced motion, or a page
+        // redrawn in place, cuts. No frame is without a painting.
         public void Backdrop(Sprite sprite, bool scrim = false, float focus = .5f)
         {
-            if (revealing != null) Reveal();
-            float scrimFrom = Scrim.enabled ? Scrim.color.a : 0;
+            float scrimNow = Scrim.enabled ? Scrim.color.a : 0;
             scrimShown = sprite != null && scrim ? 1 : 0;
             Background.sprite = sprite; Veil.enabled = sprite != null;
-            bool fades = changing && !cut && sprite != null && (outgoing != null && outgoing.sprite != sprite || scrimFrom != scrimShown);
-            changing = false;
             if (sprite != null)
             {
                 var area = ScreenArea;
@@ -335,21 +343,29 @@ namespace ZKube.Presentation
                 SkinUi.Place(Background.rectTransform, new Rect(area.center.x - size.x / 2, top - size.y, size.x, size.y), Root.transform);
                 SkinUi.Place(Veil.rectTransform, area, Root.transform); SkinUi.Place(Scrim.rectTransform, area, Root.transform);
             }
+            risesOver = sprite != null && outgoing != null && outgoing.sprite != sprite;
+            bool fading = revealing != null && sprite != null;
+            // A page change fades whatever its page states first: a page may state the painting on screen, then its own.
+            bool fades = fading || changing && !cut && sprite != null;
+            changing = false;
             if (!fades || !isActiveAndEnabled) { Reveal(); return; }
-            bool painting = outgoing != null && outgoing.sprite != sprite;
-            Background.color = new Color(1, 1, 1, painting ? 0 : 1); ShowScrim(scrimFrom);
+            if (fading) { Background.color = new Color(1, 1, 1, risesOver ? risen : 1); return; }
+            scrimFrom = scrimNow;
+            Background.color = new Color(1, 1, 1, risesOver ? 0 : 1); ShowScrim(scrimFrom);
             revealing = StartCoroutine(Tween(EnterSeconds, t => {
-                float eased = 1 - (1 - t) * (1 - t);
-                if (painting) Background.color = new Color(1, 1, 1, eased);
-                ShowScrim(Mathf.Lerp(scrimFrom, scrimShown, eased));
+                risen = 1 - (1 - t) * (1 - t);
+                Background.color = new Color(1, 1, 1, risesOver ? risen : 1);
+                ShowScrim(Mathf.Lerp(scrimFrom, scrimShown, risen));
                 if (t >= 1) { revealing = null; Reveal(); }
             }));
         }
-        // The painting that was on screen, the scrim's alpha the page asked for,
-        // and whether the next Backdrop follows a page change and may fade.
+        // The painting that was on screen, how far the incoming one has risen
+        // over it, the scrim's alpha the fade began at and the one the page
+        // asked for, whether the incoming painting rises over another, and
+        // whether the next Backdrop follows a page change and may fade.
         private Image outgoing;
-        private float scrimShown;
-        private bool changing, cut;
+        private float risen, scrimFrom, scrimShown;
+        private bool risesOver, changing, cut;
         private Coroutine revealing;
         // Ends a painting change where it would end: the incoming painting whole,
         // its scrim as asked, the outgoing one gone.
@@ -387,9 +403,12 @@ namespace ZKube.Presentation
         }
 
         public bool RealmReady(byte realm) => !Loading && ArtworkError == null && Artwork?.RealmId == realm;
+        // The page on screen stays whole while the next one's realm loads, and
+        // takes no input: it is leaving. The next draw gives the stage its input back.
         public void RequestRealm(byte realm)
         {
             requestedRealm = realm; ArtworkError = null;
+            if (!RealmReady(realm) && fade != null) fade.interactable = fade.blocksRaycasts = false;
             if (!Loading && isActiveAndEnabled && !RealmReady(realm)) StartCoroutine(LoadRealm());
         }
         // A realm loads into its own art; the art already drawn stays whole until

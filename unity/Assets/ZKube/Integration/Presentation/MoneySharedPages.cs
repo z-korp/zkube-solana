@@ -105,14 +105,18 @@ namespace ZKube.Integration.Presentation
                 _ => family
             };
         }
+        // The painting a page wears is decided when it opens, from what the
+        // device already holds. A page with none of its own, or whose own is
+        // not known yet, keeps the painting on screen: no default stands in.
         private byte PageRealm() => Family() switch {
             "Campaign" => campaignPage == AppPage.Result ? campaign.Last.Realm : campaign.Realm,
-            "Profile" => profileRead != null && profileRead.IsCurrent ? ProfileRealm() : TodayRealm,
+            "Profile" => profileRead != null && profileRead.IsCurrent ? ProfileRealm() : KnownProfileRealm() ?? ShownRealm,
             "Rewards" => NativeEngine.Daily(rewardDay).Realm,
             "Result" => lastResult != null && lastResult.HasResult ? lastResult.Realm : TodayRealm,
-            "Settings" => shell.Artwork?.RealmId is byte realm && realm != 0 ? realm : TodayRealm,
+            "Settings" => ShownRealm,
             _ => TodayRealm
         };
+        private byte ShownRealm => shell.Artwork?.RealmId is byte realm && realm != 0 ? realm : TodayRealm;
         private void Draw()
         {
             var notices = new[] { NoticeFor(Family()) };

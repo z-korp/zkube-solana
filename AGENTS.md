@@ -561,7 +561,13 @@ purchase/name editing or money address/device/Kredit/claim/receipt controls.
 shows the bare clear colour: `PageShell` keeps the outgoing painting whole until the incoming one is drawn and
 fades it in over it (reduced motion cuts), and a page stays until the board taking the screen has drawn.
 `EveryPageChangeKeepsAPaintingOnEveryFrame` guards every Realms page, realm and board change, and
-`PaintWatch` the Arena's Campaign and Daily journeys.
+`PaintWatch` the Arena's Campaign and Daily journeys. A change between pages is one change of painting, from
+the page left straight to the page opened: the page on screen stays whole while the next one's realm loads
+and leaves in the frame the next is drawn. A page's painting is decided when it opens, from what the device
+already holds (the Arena profile's from the profile account its overview read), and a page whose painting is
+not known keeps the one on screen; no default stands in. A frame slower than the fade does not skip it.
+`EveryArenaPageChangeIsOneChangeOfPainting` and `ASlowFrameDoesNotSkipThePaintingsCrossFade` guard the Arena's
+tabs and the fade.
 
 One parsed theme catalog and generated constraint captions serve pages and boards. One startup/configuration
 path owns both products, and money-only schemas stay out of store packages.

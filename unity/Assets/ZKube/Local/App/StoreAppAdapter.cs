@@ -75,15 +75,13 @@ namespace ZKube.Local.App
             dirty = true;
             if (Flow.Page != StorePage.Board) shell.Show(true);
         }
-        // A new page, or the same page in another realm, sends the drawn page
-        // leaving while the next one loads its art and draws.
+        // A new page, or the same page in another realm: the drawn page stays
+        // whole while the next one's art loads, then leaves as the next is drawn.
         private IEnumerator Render()
         {
             loading = true; dirty = false;
             byte realm = PageRealm; StorePage page = Flow.Page;
             bool load = !shell.RealmReady(realm);
-            if (load || views.Shown.HasValue && views.Shown.Value.ToString() != page.ToString())
-                shell.Depart(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()));
             if (load)
             {
                 shell.RequestRealm(realm);
@@ -93,6 +91,8 @@ namespace ZKube.Local.App
             loading = false;
             if (this == null || Flow == null) yield break;
             if (Flow.Page != page || PageRealm != realm) { dirty = true; yield break; }
+            if (load || views.Shown.HasValue && views.Shown.Value.ToString() != page.ToString())
+                shell.Depart(board.ReducedMotion, Mathf.Max(.5f, BoardController.ReadDisplayDensity()));
             try { Draw(); }
             catch (Exception error) { DrawLoadError(error); }
         }

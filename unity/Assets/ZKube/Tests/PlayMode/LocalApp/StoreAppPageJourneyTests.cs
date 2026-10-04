@@ -785,9 +785,13 @@ namespace ZKube.Tests
             var leaving = shell.Overlay.parent.GetComponent<CanvasGroup>();
             var bar = SkinUi.ScreenRect((RectTransform)shell.Chrome.GetComponentInChildren<SkinTabBar>().transform);
             Assert.That(shell.Chrome.IsChildOf(leaving.transform), Is.False);
+            // The page takes no input from the tap on and stays whole while the
+            // next one's realm loads; it leaves as the next is drawn.
             Click(app, "Profile"); yield return null;
             Assert.That(leaving.blocksRaycasts, Is.False);
-            yield return null; Assert.That(leaving.alpha, Is.LessThan(1));
+            Assert.That(leaving.alpha, Is.EqualTo(1), "The page stays whole while the profile's realm loads");
+            yield return Wait(() => leaving == null || leaving.alpha < 1, "The page did not leave");
+            Assert.That(app.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Profile), "The page leaves in the frame the next is drawn");
             float start = Time.unscaledTime;
             yield return Page(StorePage.Profile);
             var stage = shell.Overlay.parent.GetComponent<CanvasGroup>();

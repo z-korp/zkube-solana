@@ -53,9 +53,7 @@ namespace ZKube.Integration.Client
 
         public Task<MoneyRead<CampaignProgress>> Campaign(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             var read = await rpc.ReadAccount(rpc.Base, addresses.Player(lease.Owner), cancellation: token).ConfigureAwait(false);
-            var player = Profile(lease.Owner, read);
-            byte[] packed = player.Fields?["campaign_stars"].Values<byte>().ToArray() ?? new byte[25];
-            return CampaignProgress.FromStars(lease.Owner, NativeEngine.CampaignProgress(new byte[100], packed).Stars, player);
+            return CampaignProgress.Of(Profile(lease.Owner, read));
         });
 
         public Task<MoneyRead<DailyLobby>> CurrentDaily(CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {

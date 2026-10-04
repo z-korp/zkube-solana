@@ -60,6 +60,9 @@ namespace ZKube.Integration.Client
         public IReadOnlyList<byte> EmblemUnlocked { get; }
         public IReadOnlyList<byte> EmblemGold { get; }
         public byte StrongestEmblem => facts.StrongestEmblem;
+        // The progress a profile account reports: its packed stars, unpacked by the core.
+        public static CampaignProgress Of(PlayerProfile player) => FromStars(player.Owner,
+            NativeEngine.CampaignProgress(new byte[100], player.Fields?["campaign_stars"].Values<byte>().ToArray() ?? new byte[25]).Stars, player);
         public static CampaignProgress FromStars(string owner, byte[] stars, PlayerProfile player = null) =>
             new CampaignProgress(player ?? new PlayerProfile(owner, null),
                 NativeEngine.CampaignProgress(stars));

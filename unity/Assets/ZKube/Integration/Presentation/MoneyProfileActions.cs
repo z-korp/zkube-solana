@@ -62,6 +62,10 @@ namespace ZKube.Integration.Presentation
         private byte Shown(byte emblem) => emblem == 0 ? profileRead.Value.Campaign.StrongestEmblem : emblem;
         private static byte EmblemRealm(byte emblem) => Math.Max((byte)1, EmblemDefinition(emblem).Realm);
         private byte ProfileRealm() => EmblemRealm(profileView == ProfileView.Selection ? Shown(selectedEmblem) : profileRead.Value.Identity.DisplayedEmblem);
+        // Before the profile's own read lands: the emblem the profile account
+        // the overview already read displays, by the same owner of that rule.
+        private byte? KnownProfileRealm() => ownerRead != null && ownerRead.IsCurrent && ownerRead.Value.Profile != null
+            ? EmblemRealm(new MoneyProfileIdentity(CampaignProgress.Of(ownerRead.Value.Profile)).DisplayedEmblem) : (byte?)null;
         private void ShowProfile(ProfileView view) { if (profileRead == null || !profileRead.IsCurrent) return; profileView = view; Present(); }
 
         // The profile: the worn emblem in the worn ladder border, the standing,

@@ -189,15 +189,13 @@ namespace ZKube.Integration.Presentation
             { observedDay = day; if (freeze.HasValue && timestamp >= freeze.Value) freezeAttempt = freeze.Value; _ = RefreshOverview(); }
         }
 
-        // A new page, or the same page in another realm, sends the drawn page
-        // leaving while the next one loads its art and draws.
+        // A new page, or the same page in another realm: the drawn page stays
+        // whole while the next one's art loads, then leaves as the next is drawn.
         private IEnumerator Render()
         {
             presenting = true; dirty = false;
             string key = PageKey(); byte realm = PageRealm();
             bool load = !shell.RealmReady(realm);
-            if (load || key != shownKey)
-                shell.Depart(AppPreferences.ReducedMotion, Mathf.Max(.5f, Density()));
             if (load)
             {
                 shell.RequestRealm(realm);
@@ -212,6 +210,7 @@ namespace ZKube.Integration.Presentation
             }
             presenting = false;
             if (dirty || PageKey() != key || PageRealm() != realm) yield break;
+            if (load || key != shownKey) shell.Depart(AppPreferences.ReducedMotion, Mathf.Max(.5f, Density()));
             try { Draw(); shownKey = key; }
             catch (Exception error)
             {
