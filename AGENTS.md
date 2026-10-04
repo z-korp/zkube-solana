@@ -773,14 +773,15 @@ keeper authority. The approval boundary above applies to every execution.
   `operator_plan_saves_one_public_bundle_without_loading_a_signer`,
   `deployment_instruction_bytes_and_accounts_match_the_rust_loader` and
   `operator_cli_options_and_exact_amounts_fail_closed` guard planning and the fresh-bootstrap scope.
-  The build and the plan refuse an ELF importing a syscall outside UNGATED_SYSCALLS, those the loader registers
-  with no feature gate, so the cluster's loader accepts the program whatever its feature status. The imports
-  are read the way the pinned loader reads them, through the dynamic table, and a file that cannot be read so
-  is refused; `the_program_imports_only_syscalls_every_cluster_has`,
-  `a_release_importing_a_gated_syscall_is_refused_before_it_is_recorded` and
-  `every_symbol_table_encoding_the_loader_reads_is_read_and_an_unreadable_one_is_refused` guard it. The loader's own check of the
-  final deploy instruction cannot run before the buffer is written; execute simulates that transaction, like
-  every other, before relaying it and stops on a failure.
+  The build and the plan deploy the ELF through the pinned loader and syscall registry with every feature gate
+  off (programs/solana/examples/release-gate.rs) and refuse it if that fails, so the cluster's loader accepts
+  the program whatever its feature status; no reading of the ELF stands in for the loader.
+  `the_release_gate_deploys_the_program_with_every_feature_gate_off`,
+  `the_release_gate_refuses_a_gated_import_in_every_symbol_encoding`,
+  `the_release_and_the_plan_deploy_the_program_through_the_loader_with_every_feature_gate_off` and
+  `a_release_importing_a_gated_syscall_is_refused_in_every_symbol_encoding_before_it_is_recorded` guard it.
+  Execute still simulates the final deploy transaction, like every other, before relaying it and stops on a
+  failure.
 - **Launch plan:** plan launch binds deployed program, keeper, day and cutoff. ZKUBE_LAUNCH_DAY_ID is the core's
   day, which opens at 07:00 UTC, and the cutoff must fall inside that day's entry window; it quotes paused
   protocol/vault initialization signed by the upgrade authority, cadence funding, and one atomic transaction that

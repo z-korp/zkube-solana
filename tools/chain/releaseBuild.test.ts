@@ -1,11 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { parseOperatorArgs } from "./cli.js";
-import { RELEASE_BUILD, UNGATED_SYSCALLS, buildRelease, importedSyscalls, releaseArtifact, requireUngatedSyscalls,
-  type RunCargo } from "./releaseBuild.js";
+import { RELEASE_BUILD, RELEASE_GATE, buildRelease, releaseArtifact, type RunCargo } from "./releaseBuild.js";
 
 const scratch = fileURLToPath(new URL("../../build/release-build-tests", import.meta.url));
 beforeEach(() => mkdirSync(scratch, { recursive: true }));
@@ -16,12 +16,22 @@ const VERSIONS = `solana-cargo-build-sbf ${RELEASE_BUILD.cargoBuildSbf}\nplatfor
 const elf = (fill: number) => Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1]), Buffer.alloc(58), Buffer.alloc(64, fill)]);
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 
-/** cargo, as far as the build asks: its version, then one build that writes the ELF. */
-function tools(versions: string, output: Buffer, rustflags: readonly string[] = RELEASE_BUILD.rustflags) {
+/** The pinned loader's gate, run as the release runs it, in this repository rather than the scratch checkout. */
+const repository = fileURLToPath(new URL("../..", import.meta.url));
+const loader: RunCargo = (args, env) => execFileSync("cargo", [...args],
+  { encoding: "utf8", env, cwd: repository, stdio: ["ignore", "pipe", "pipe"] });
+/** The caller's real tools, which the loader's gate needs to run. */
+const real = { PATH: process.env.PATH, HOME: process.env.HOME };
+/** A gate that deploys anything: the synthetic ELFs below test the build, not the loader. */
+const deploys: RunCargo = () => "";
+
+/** cargo, as far as the build asks: its version, one build that writes the ELF, then the loader's gate. */
+function tools(versions: string, output: Buffer, rustflags: readonly string[] = RELEASE_BUILD.rustflags, gate = deploys) {
   const calls: { args: readonly string[]; env: Record<string, string>; cwd: string }[] = [];
   const run: RunCargo = (args, env, cwd) => {
     calls.push({ args, env, cwd });
     if (args.includes("--version")) return versions;
+    if (args[0] === "run") return gate(args, env, cwd);
     // What cargo leaves behind in the checkout it runs in: the ELF, and the fingerprint of the
     // flags the compiler really got.
     const fingerprint = `${cwd}/${RELEASE_BUILD.targetDirectory}/${RELEASE_BUILD.target}/release/.fingerprint/solana-0123456789abcdef`;
@@ -97,9 +107,10 @@ it("a_checkout_reached_through_a_symlink_is_checked_and_built_where_it_really_li
   // With nothing outside, the build runs in the real checkout and records there.
   const built = tools(VERSIONS, elf(4));
   expect(buildRelease(alias, built.run, inherited).sha256).toBe(hash(elf(4)));
-  expect(built.calls.map(({ cwd }) => cwd)).toEqual([physical, physical]);
-  expect(built.calls.every(({ env }) => env.CARGO_TARGET_DIR === `${physical}/${RELEASE_BUILD.targetDirectory}`)).toBe(true);
-  expect(releaseArtifact(physical, hash(elf(4))).artifactSha256).toBe(hash(elf(4)));
+  expect(built.calls.map(({ cwd }) => cwd)).toEqual([physical, physical, physical]);
+  expect(built.calls.slice(0, 2).every(({ env }) => env.CARGO_TARGET_DIR === `${physical}/${RELEASE_BUILD.targetDirectory}`)).toBe(true);
+  expect(built.calls[2]!.args).toEqual([...RELEASE_GATE, `${physical}/${RELEASE_BUILD.artifact}`]);
+  expect(releaseArtifact(physical, hash(elf(4)), deploys).artifactSha256).toBe(hash(elf(4)));
 });
 
 it("release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_what_built_it", () => {
@@ -130,7 +141,7 @@ it("release_build_uses_only_the_pinned_tools_from_a_clean_target_and_records_wha
 it("a_deploy_plan_quotes_only_the_recorded_release_build_at_the_reviewed_hash", () => {
   expect(() => releaseArtifact(scratch, hash(elf(1)))).toThrow("No release build found");
   const record = buildRelease(scratch, tools(VERSIONS, elf(1)).run, inherited);
-  expect(releaseArtifact(scratch, record.sha256)).toEqual({ artifactPath: `${scratch}/${RELEASE_BUILD.artifact}`,
+  expect(releaseArtifact(scratch, record.sha256, deploys)).toEqual({ artifactPath: `${scratch}/${RELEASE_BUILD.artifact}`,
     artifactSha256: record.sha256, artifactBytes: elf(1).length });
   // Another hash than the one built, however obtained, is not this release.
   expect(() => releaseArtifact(scratch, hash(elf(2)))).toThrow("differs from release input");
@@ -152,31 +163,6 @@ it("a_deploy_plan_quotes_only_the_recorded_release_build_at_the_reviewed_hash", 
 // The program as built by `anchor build` / `cargo build-sbf` before the suite runs.
 const program = fileURLToPath(new URL("../../target/deploy/solana.so", import.meta.url));
 
-it("the_program_imports_only_syscalls_every_cluster_has", () => {
-  // Devnet refused to deploy a program importing sol_remaining_compute_units:
-  // its feature gate is off there. Every import must be a syscall the loader
-  // registers with no gate (see UNGATED_SYSCALLS for how that list is checked).
-  const imports = importedSyscalls(readFileSync(program));
-  expect(imports).toEqual(["abort", "sol_create_program_address", "sol_get_clock_sysvar", "sol_get_rent_sysvar",
-    "sol_invoke_signed_rust", "sol_log_", "sol_log_data", "sol_log_pubkey", "sol_memcmp_", "sol_memcpy_", "sol_memmove_",
-    "sol_memset_", "sol_panic_", "sol_sha256", "sol_try_find_program_address"]);
-  expect(imports.filter((name) => !UNGATED_SYSCALLS.includes(name))).toEqual([]);
-});
-
-it("a_release_importing_a_gated_syscall_is_refused_before_it_is_recorded", () => {
-  // The same program, its sol_sha256 import renamed to a gated syscall of the same length.
-  const bytes = readFileSync(program);
-  const at = bytes.indexOf(Buffer.from("sol_sha256\0"));
-  expect(at).toBeGreaterThan(0);
-  const gated = Buffer.from(bytes); gated.write("sol_blake3", at, "latin1");
-  expect(importedSyscalls(gated)).toContain("sol_blake3");
-  expect(() => requireUngatedSyscalls(gated)).toThrow("not active on every cluster: sol_blake3");
-  // The release build refuses it and records nothing a deploy plan could quote.
-  expect(() => buildRelease(scratch, tools(VERSIONS, gated).run, inherited)).toThrow("not active on every cluster");
-  expect(() => releaseArtifact(scratch, hash(gated))).toThrow("No release build found");
-  expect(() => importedSyscalls(Buffer.from("not an elf"))).toThrow("not a little-endian 64-bit ELF");
-});
-
 /** The section the loader reaches through DT_SYMTAB, in the real program. */
 function symbolSection(elf: Buffer): number {
   const at = Number(elf.readBigUInt64LE(0x28)), size = elf.readUInt16LE(0x3a), count = elf.readUInt16LE(0x3c);
@@ -184,32 +170,69 @@ function symbolSection(elf: Buffer): number {
   throw new Error("no symbol section");
 }
 
-it("every_symbol_table_encoding_the_loader_reads_is_read_and_an_unreadable_one_is_refused", () => {
-  // The loader finds imports through the dynamic table, accepts the symbol
-  // section as SYMTAB as well as DYNSYM, and reads its entries at their real
-  // size whatever the header says. Each encoding still shows the gated import,
-  // and the build and the plan refuse it.
-  const real = readFileSync(program);
-  const gated = Buffer.from(real); gated.write("sol_blake3", gated.indexOf(Buffer.from("sol_sha256\0")), "latin1");
-  const section = symbolSection(gated);
-  const encodings: Record<string, Buffer> = {
-    "symbol section typed SYMTAB": Buffer.from(gated),
-    "symbol entry size zero": Buffer.from(gated),
-  };
-  encodings["symbol section typed SYMTAB"]!.writeUInt32LE(2, section + 4);
-  encodings["symbol entry size zero"]!.writeBigUInt64LE(0n, section + 0x38);
-  for (const [encoding, bytes] of Object.entries(encodings)) {
-    expect(importedSyscalls(bytes), encoding).toContain("sol_blake3");
-    expect(() => requireUngatedSyscalls(bytes), encoding).toThrow("not active on every cluster: sol_blake3");
-    expect(() => buildRelease(scratch, tools(VERSIONS, bytes).run, inherited), encoding).toThrow("not active on every cluster");
-    expect(() => releaseArtifact(scratch, hash(bytes)), encoding).toThrow("No release build found");
+/** The PT_DYNAMIC program header. */
+function dynamicHeader(elf: Buffer): number {
+  const at = Number(elf.readBigUInt64LE(0x20)), size = elf.readUInt16LE(0x36), count = elf.readUInt16LE(0x38);
+  for (let index = 0; index < count; index++) if (elf.readUInt32LE(at + index * size) === 2) return at + index * size;
+  throw new Error("no PT_DYNAMIC header");
+}
+
+/**
+ * The program as built and in each symbol encoding audit 11 found a hand-written
+ * scanner reading differently from the loader: the symbol section typed SYMTAB,
+ * its entry size zero, and an unaligned PT_DYNAMIC header the loader rejects for
+ * the SHT_DYNAMIC section.
+ */
+function encodings(elf: Buffer): [string, Buffer][] {
+  const section = symbolSection(elf), header = dynamicHeader(elf);
+  const symtab = Buffer.from(elf); symtab.writeUInt32LE(2, section + 4);
+  const zeroEntry = Buffer.from(elf); zeroEntry.writeBigUInt64LE(0n, section + 0x38);
+  let empty = 65;
+  while (!(empty % 8 && elf.subarray(empty, empty + 16).every((byte) => byte === 0))) empty += 2;
+  const unaligned = Buffer.from(elf);
+  unaligned.writeBigUInt64LE(BigInt(empty), header + 8); unaligned.writeBigUInt64LE(16n, header + 32);
+  return [["as built", Buffer.from(elf)], ["symbol section typed SYMTAB", symtab], ["symbol entry size zero", zeroEntry],
+    ["unaligned PT_DYNAMIC", unaligned]];
+}
+
+/** The same program, its sol_sha256 import renamed to sol_blake3, whose feature gate a cluster may have off. */
+function gated(elf: Buffer): Buffer {
+  const bytes = Buffer.from(elf), at = bytes.indexOf(Buffer.from("sol_sha256\0"));
+  expect(at).toBeGreaterThan(0);
+  bytes.write("sol_blake3", at, "latin1");
+  return bytes;
+}
+
+it("the_release_and_the_plan_deploy_the_program_through_the_loader_with_every_feature_gate_off", () => {
+  // Devnet refused to deploy a program importing sol_remaining_compute_units: its
+  // feature gate is off there. The release build and the deploy plan both run the
+  // pinned loader, and it deploys the program in every encoding.
+  for (const [encoding, bytes] of encodings(readFileSync(program))) {
+    const record = buildRelease(scratch, tools(VERSIONS, bytes, RELEASE_BUILD.rustflags, loader).run, real);
+    expect(record.sha256, encoding).toBe(hash(bytes));
+    expect(releaseArtifact(scratch, record.sha256, loader, real).artifactSha256, encoding).toBe(hash(bytes));
   }
-  // The same encodings of the real program read as its real imports.
-  const symtab = Buffer.from(real); symtab.writeUInt32LE(2, section + 4);
-  expect(importedSyscalls(symtab)).toEqual(importedSyscalls(real));
-  // A symbol table the loader would not accept is refused, never read as no imports.
-  const unreadable = Buffer.from(real); unreadable.writeUInt32LE(1, section + 4);
-  expect(() => importedSyscalls(unreadable)).toThrow("cannot be read as the loader reads them");
-  const truncated = Buffer.from(real); truncated.writeBigUInt64LE(BigInt(real.length), section + 0x18);
-  expect(() => importedSyscalls(truncated)).toThrow("cannot be read as the loader reads them");
-});
+}, 600_000);
+
+it("a_release_importing_a_gated_syscall_is_refused_in_every_symbol_encoding_before_it_is_recorded", () => {
+  // The loader, not a reading of the ELF, refuses the gated import however the
+  // symbols are encoded, and the build records nothing a deploy plan could quote.
+  for (const [encoding, bytes] of encodings(gated(readFileSync(program)))) {
+    expect(() => buildRelease(scratch, tools(VERSIONS, bytes, RELEASE_BUILD.rustflags, loader).run, real), encoding)
+      .toThrow("refused by the pinned loader with every feature gate off");
+    expect(() => releaseArtifact(scratch, hash(bytes), loader, real), encoding).toThrow("No release build found");
+  }
+  // An ELF swapped for a gated one after a recorded build is refused by the plan too.
+  const record = buildRelease(scratch, tools(VERSIONS, readFileSync(program), RELEASE_BUILD.rustflags, loader).run, real);
+  const swapped = gated(readFileSync(program));
+  writeFileSync(`${scratch}/${RELEASE_BUILD.artifact}`, swapped);
+  writeFileSync(`${scratch}/build/chain/release/solana.release.json`,
+    JSON.stringify({ recipe: RELEASE_BUILD, sha256: hash(swapped), bytes: swapped.length }));
+  expect(record.sha256).not.toBe(hash(swapped));
+  expect(() => releaseArtifact(scratch, hash(swapped), loader, real)).toThrow("refused by the pinned loader");
+  // A file that is not a program is refused, never taken to import nothing.
+  writeFileSync(`${scratch}/${RELEASE_BUILD.artifact}`, "not an elf");
+  writeFileSync(`${scratch}/build/chain/release/solana.release.json`,
+    JSON.stringify({ recipe: RELEASE_BUILD, sha256: hash(Buffer.from("not an elf")), bytes: 10 }));
+  expect(() => releaseArtifact(scratch, hash(Buffer.from("not an elf")), loader, real)).toThrow("refused by the pinned loader");
+}, 600_000);
