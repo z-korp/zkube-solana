@@ -80,6 +80,8 @@ namespace ZKube.Integration.App.Tests
             // The next call of this method fails the way a real endpoint would.
             public string FailMethod; public Exception Failure;
             public void FailNext(string method, Exception failure) { FailMethod = method; Failure = failure; }
+            // The cluster confirms the sent transaction at this status request.
+            public int ConfirmAfter;
             public JToken StatusError;
             public bool ThrowOnCancellation;
             public int CancellationCallbacks;
@@ -89,6 +91,7 @@ namespace ZKube.Integration.App.Tests
             {
                 cancellation.ThrowIfCancellationRequested(); string method = (string)request["method"];
                 if (method == FailMethod) { FailMethod = null; throw Failure; }
+                if (method == "getSignatureStatuses" && ConfirmAfter > 0 && --ConfirmAfter == 0) Environment.ConfirmPendingSuccess();
                 using var registration = method == DelayMethod && ThrowOnCancellation ? cancellation.Register(() => {
                     Interlocked.Increment(ref CancellationCallbacks);
                     throw new InvalidOperationException("Injected cancellation callback: " + method);

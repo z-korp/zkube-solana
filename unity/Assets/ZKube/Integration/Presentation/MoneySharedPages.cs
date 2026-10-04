@@ -136,7 +136,7 @@ namespace ZKube.Integration.Presentation
                     {
                         views.Render(AppPage.Home, notices);
                         // The first Arena with an address teaches the Arena Daily, over the page and never on the entry sheet.
-                        if (dailyRead.Value.Lobby.Launched && !Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
+                        if (dailyRead.TryValue(out var shown) && shown.Lobby.Launched && !Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
                     }
                     break;
                 // A page without its read shows its failure itself.
@@ -159,7 +159,7 @@ namespace ZKube.Integration.Presentation
         // A failure the page itself does not show goes on it as a notice; the
         // Connect, Device and Kredits pages show their refused action themselves.
         private string NoticeFor(string family) => family == "Connect" ? null :
-            refusal != null && refusalFamily == family && family != "Device" && family != "Kredits" ? refusal : failure ?? info;
+            refusal != null && refusalFamily == family && family != "Device" && family != "Kredits" && family != "Daily" && family != "Operation" ? refusal : failure ?? info;
 
         // A page whose read is not there yet: what is being checked, or, when the
         // read failed or went stale, the guardian says why with the way forward.
@@ -174,7 +174,7 @@ namespace ZKube.Integration.Presentation
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
             else if (Busy || message == null)
                 page.Blocks = sessionActionPending || economyActionPending ?
-                    new[] { PanelBlock.Text("Page notice", WalletOpen, SkinTokens.TextMuted), DisconnectButton() } :
+                    new[] { PanelBlock.Text("Page notice", following ? Confirming : WalletOpen, SkinTokens.TextMuted), DisconnectButton() } :
                     new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
             else
                 page.Blocks = new[] {
@@ -237,8 +237,7 @@ namespace ZKube.Integration.Presentation
             }
             var blocks = new List<PanelBlock> { PanelBlock.Card("Operation card", lines.ToArray()) };
             blocks.Add(PanelBlock.Text("Operation next", MoneyReceiptText.Next(receipt), centered: false));
-            if (receipt.Outcome == ExecutionOutcome.Pending)
-                blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
+            if (receipt.Outcome == ExecutionOutcome.Pending) Refused("Operation", blocks, () => PageAvailable() && !Busy);
             else if (receipt.Outcome == ExecutionOutcome.FeeShortage)
                 blocks.Add(PanelBlock.Button(PageAction("Manage device", () => _ = OpenSession(), () => PageAvailable() && !Busy), true));
             else blocks.Add(PanelBlock.Button(arcade, true));
@@ -249,9 +248,9 @@ namespace ZKube.Integration.Presentation
         // last operation.
         private PanelBlock ReceiptRow(string family)
         {
-            // A refused action shows its reason on the page; its receipt would say it twice.
-            if (receiptFamily != family || (refusal != null && refusalFamily == family)) return null;
+            // A refused action that sent nothing shows its reason on the page; its receipt would say it twice.
             var receipt = LastReceipt;
+            if (receiptFamily != family || (RefusalOn(family) != null && string.IsNullOrEmpty(receipt?.Signature))) return null;
             if (receipt == null && receiptNotice == null) return null;
             return PanelBlock.Card("Receipt card", PanelBlock.Eyebrow("Last operation", SkinTokens.TextMuted),
                 PanelBlock.Text("Transaction receipt", receipt == null ? receiptNotice : MoneyReceiptText.Describe(receipt, fullReceipt)),

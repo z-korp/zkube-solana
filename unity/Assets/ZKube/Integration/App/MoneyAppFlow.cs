@@ -162,7 +162,9 @@ namespace ZKube.Integration.App
             return new MoneyRead<SessionEnsureResult>(result, () => CurrentOwnerObservation(observation, lease));
         });
 
-        public Task<MoneyRead<ExecutionResult>> ResumePending(CancellationToken cancellation = default) => Track(async () => {
+        // recovered marks a transaction found waiting from before; one followed
+        // by the action that sent it is that action's own result.
+        public Task<MoneyRead<ExecutionResult>> ResumePending(CancellationToken cancellation = default, bool recovered = true) => Track(async () => {
             var lease = services.Identity.Lease(); var read = BeginRead(false, cancellation, lease);
             try
             {
@@ -172,7 +174,7 @@ namespace ZKube.Integration.App
                     var pending = await services.Journal.Load(lease.Owner).ConfigureAwait(false); Require(read, lease);
                     var result = pending == null ? ExecutionResult.Rejected(null, "no-pending-transaction") :
                         await services.Executor.Resume(lease.Owner, services.Reconciler, read.Token, pending.Signature).ConfigureAwait(false);
-                    RememberOwnerOperation(lease, result, true);
+                    RememberOwnerOperation(lease, result, recovered);
                     read.Epoch = services.Identity.Epoch;
                     Require(read, lease);
                     return new MoneyRead<ExecutionResult>(result, () => Current(read, lease));

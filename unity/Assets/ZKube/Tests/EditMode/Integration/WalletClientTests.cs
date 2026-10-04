@@ -60,6 +60,37 @@ namespace ZKube.Integration.Tests
             disposed.Dispose();
             Assert.Throws<ObjectDisposedException>(() => disposed.PartialSign(new byte[1]));
         }
+        // The rule is unchanged: any other message is refused. What the wallet
+        // changed travels with the refusal as counts, program IDs and yes/no facts.
+        [Test]
+        public async Task AChangedMessageIsRefusedWithASafeAccountOfWhatChanged()
+        {
+            const string system = "11111111111111111111111111111111", budget = "ComputeBudget111111111111111111111111111111",
+                added = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95", blockhash = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi";
+            using var payer = new DeviceSigner(Enumerable.Repeat((byte)3, 32).ToArray()); using var other = new DeviceSigner(Enumerable.Repeat((byte)4, 32).ToArray());
+            string owner = payer.Address, receiver = other.Address;
+            SolanaInstruction Budget(byte kind, byte value) => new SolanaInstruction(budget, Array.Empty<AccountMeta>(), new byte[] { kind, value, 0, 0, 0 });
+            var transfer = new SolanaInstruction(system, new[] { new AccountMeta(owner, true, true), new AccountMeta(receiver, false, true) },
+                new byte[] { 2, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0 });
+            byte[] Message(string hash, params SolanaInstruction[] instructions) => SolanaWire.UnsignedTransaction(SolanaWire.CompileMessage(owner, hash, instructions, true));
+            byte[] before = Message(blockhash, Budget(2, 1), Budget(3, 1), transfer);
+            var native = new TestNative();
+            var wallet = new WalletClient(native);
+            async Task<string> Changed(byte[] returned)
+            {
+                native.Reply = _ => Task.FromResult(new JObject { ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(owner)), ["transaction"] = Convert.ToBase64String(returned) });
+                var refused = await AsyncAssert.Throws<WalletChangedMessageException>(() => wallet.Sign(owner, before));
+                Assert.That(refused.Message, Is.EqualTo("Wallet changed the message"));
+                foreach (string key in new[] { owner, receiver, blockhash }) StringAssert.DoesNotContain(key, refused.Summary);
+                return refused.Summary;
+            }
+            // A priority fee rewritten in place and an instruction of another program appended.
+            Assert.That(await Changed(Message(blockhash, Budget(2, 1), Budget(3, 7), transfer, new SolanaInstruction(added, Array.Empty<AccountMeta>(), new byte[] { 1 }))),
+                Is.EqualTo("instructions 3 to 4; added " + added + "; removed none; rewritten in place 1; fee payer same; blockhash same; signers same; accounts changed (4 to 5); version same"));
+            // Its own budget instructions dropped and another blockhash.
+            Assert.That(await Changed(Message(system, transfer)),
+                Is.EqualTo("instructions 3 to 1; added none; removed " + budget + " x2; rewritten in place 0; fee payer same; blockhash changed; signers same; accounts changed (4 to 3); version same"));
+        }
         [Test]
         public async Task DevicePartialSignatureSurvivesOwnerApprovalAndMissingOrChangedSignaturesFail()
         {

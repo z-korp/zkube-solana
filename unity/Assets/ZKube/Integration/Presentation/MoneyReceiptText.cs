@@ -10,14 +10,14 @@ namespace ZKube.Integration.Presentation
         public static string Describe(ExecutionResult result, bool fullSignature = false)
         {
             string text = result.Outcome switch {
-                ExecutionOutcome.Pending => "Transaction pending. Check again to confirm the outcome.",
+                ExecutionOutcome.Pending => "Transaction sent. Waiting for Solana to confirm it.",
                 ExecutionOutcome.ConfirmedFailure => "Transaction failed.",
                 ExecutionOutcome.ConfirmedSuccess => "Transaction confirmed.",
                 ExecutionOutcome.ExpiredReconciled => "Transaction expired. Refresh before trying again.",
                 ExecutionOutcome.FeeShortage => "There is not enough SOL for this transaction.",
                 ExecutionOutcome.CompletedLocally => "No transaction was needed.",
                 _ => result.Code == "execution-busy" ? "Another transaction is being checked. Try again shortly." :
-                    result.Code == "pending-transaction-changed" ? "A different transaction is waiting. Check again." :
+                    result.Code == "pending-transaction-changed" ? "A different transaction is still being confirmed." :
                     "The transaction request was not accepted. Refresh before trying again."
             };
             if (string.IsNullOrEmpty(result.Signature)) return text;
@@ -34,7 +34,7 @@ namespace ZKube.Integration.Presentation
             ExecutionOutcome.ExpiredReconciled => "The transaction expired before it was sent.",
             ExecutionOutcome.FeeShortage => result.Code == "device-deposit-low" ?
                 "This device’s deposit is too low." : "Your wallet needs more SOL.",
-            _ => result.Failure != null ? Refusal(result.Failure) : result.Code == "simulation-rejected" ? Simulation(result.ChainError) : Refusal(result.Code)
+            _ => result.WalletChange != null ? Refusal(result.Code) + " (" + result.WalletChange + ")" : result.Failure != null ? Refusal(result.Failure) : result.Code == "simulation-rejected" ? Simulation(result.ChainError) : Refusal(result.Code)
         };
         // A request an error stopped, by what was asked and how it failed. Only a
         // request that never reached anything is the network's.
@@ -67,9 +67,10 @@ namespace ZKube.Integration.Presentation
             "wallet-unavailable" or "activity-unavailable" => "No wallet app was found.",
             "sign-only-unavailable" or "unsupported-transaction-version" => "This wallet cannot sign this request.",
             "wrong-chain" => "Your wallet is on another network.",
+            "wallet-changed-message" => "Your wallet changed this request, so it was not sent.",
             "account-changed" or "authorization-required" => "The wallet account changed. Connect again.",
             "wallet-busy" or "execution-busy" => "Another request is still open.",
-            "pending-transaction-exists" or "pending-transaction-changed" => "An earlier transaction needs checking first.",
+            "pending-transaction-exists" or "pending-transaction-changed" => "An earlier transaction is still being confirmed.",
             "simulation-rejected" => "Solana refused this request.",
             "preparation-failed" => "This request could not be prepared on this device.",
             _ => "The request was not sent."
@@ -96,7 +97,7 @@ namespace ZKube.Integration.Presentation
         };
 
         public static string Next(ExecutionResult result) => result.Outcome switch {
-            ExecutionOutcome.Pending => "The outcome is not confirmed yet. Check this transaction before starting another.",
+            ExecutionOutcome.Pending => "The outcome is not confirmed yet. It is followed until it is.",
             ExecutionOutcome.ConfirmedFailure => "The operation did not complete. Refresh before trying again.",
             ExecutionOutcome.ConfirmedSuccess => "The operation is confirmed.",
             ExecutionOutcome.ExpiredReconciled => "Refresh before starting a new operation.",

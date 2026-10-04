@@ -72,7 +72,7 @@ namespace ZKube.Tests.MoneyOverview
             var signature = controller.LastReceipt.Signature;
             Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Disable this device"), Is.False);
-            environment.ConfirmPendingSuccess(); yield return SessionClick("Check transaction"); yield return Idle();
+            environment.ConfirmPendingSuccess(); yield return SessionClick("Try again"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             Assert.That(environment.HasActiveKey, Is.True);
@@ -81,7 +81,7 @@ namespace ZKube.Tests.MoneyOverview
             var exact = controller.LastReceipt;
             // A late duplicate Check callback sees an empty journal. It must
             // keep the signed result even though the button is now absent.
-            yield return Wait(controller.CheckTransaction()); yield return Idle();
+            yield return Wait(controller.FollowTransaction()); yield return Idle();
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
             yield return SessionClick("View operation"); yield return Idle();
             yield return SessionClick("Receipt details"); yield return Idle();
@@ -107,7 +107,7 @@ namespace ZKube.Tests.MoneyOverview
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             var signature = controller.LastReceipt.Signature;
-            environment.ConfirmPendingFailure(); yield return SessionClick("Check transaction"); yield return Idle();
+            environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));

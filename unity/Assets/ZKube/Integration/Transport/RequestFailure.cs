@@ -113,6 +113,12 @@ namespace ZKube.Integration.Transport
             if (error is OperationCanceledException && !(error is TimeoutException)) return;
             try { Sink(RequestFailure.Of(error).Line(action)); } catch (Exception) { /* Logging never fails a request. */ }
         }
+        // Evidence built only from counts, program IDs and yes/no facts: printed as it is.
+        public static void Evidence(string action, string code, string safe)
+        {
+            try { Sink("zKube request failed: action=" + RequestFailure.Clean(action) + " code=" + RequestFailure.Clean(code) + " evidence=\"" + safe + "\""); }
+            catch (Exception) { /* Logging never fails a request. */ }
+        }
         public static void Outcome(string action, string code, string chainError)
         {
             try { Sink("zKube request failed: action=" + RequestFailure.Clean(action) + " code=" + RequestFailure.Clean(code) +

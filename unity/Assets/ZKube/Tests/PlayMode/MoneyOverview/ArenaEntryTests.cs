@@ -157,6 +157,70 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // A sent transaction is followed by the client: the page reaches the
+        // outcome without a tap. A wait that runs out says so and keeps following
+        // on request, and neither the wait nor its retry signs or sends again.
+        [UnityTest] public IEnumerator ASentTransactionIsFollowedToItsOutcomeWithoutATap()
+        {
+            yield return PrepareScenario("session-enable-pending-success"); Follow(.02f, 10);
+            Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Idle();
+            environment.Http.ConfirmAfter = 4;
+            yield return SessionClick("Enable device"); yield return Idle();
+            Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(Text("Device state"), Is.EqualTo("Session active"));
+            Assert.That(Asked("getSignatureStatuses"), Is.GreaterThanOrEqualTo(4));
+            Assert.That(Offers("Try again"), Is.False);
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text.Contains("Checked the existing transaction")), Is.False,
+                "An action's own transaction is not reported as a recovered one");
+            Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
+            yield return EndScenario();
+
+            // The cluster stays silent: the wait is bounded, and its retry only follows.
+            yield return PrepareScenario("session-enable-pending-success"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Idle();
+            yield return SessionClick("Enable device"); yield return Idle();
+            Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.Pending));
+            Assert.That(Text("Action refused"), Is.EqualTo("Solana has not confirmed this yet."));
+            Assert.That(Offers("Enable device"), Is.False);
+            yield return SessionClick("Try again"); yield return Idle();
+            Assert.That(Text("Action refused"), Is.EqualTo("Solana has not confirmed this yet."));
+            Follow(.02f, 10); environment.Http.ConfirmAfter = 3;
+            yield return SessionClick("Try again"); yield return Idle();
+            Assert.That(Text("Device state"), Is.EqualTo("Session active"));
+            Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // A wallet that returns another message than it was given is refused as
+        // before, and what it changed is kept: on the page and in one log line,
+        // as counts, program IDs and yes/no facts, with no other key in it.
+        [UnityTest] public IEnumerator AMessageTheWalletChangedIsNotSentAndSaysWhatChanged()
+        {
+            const string added = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95";
+            yield return PrepareScenario("kredit-buy-10"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenKredits()); yield return Idle();
+            var lines = new System.Collections.Generic.List<string>(); var sink = ZKube.Integration.Transport.ClientLog.Sink;
+            ZKube.Integration.Transport.ClientLog.Sink = lines.Add;
+            try
+            {
+                environment.WalletAdds = added;
+                yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(10)); yield return Idle();
+                Assert.That(Adapter.LastReceipt.Code, Is.EqualTo("wallet-changed-message"));
+                Assert.That(Asked("sendTransaction"), Is.Zero);
+                string summary = "instructions 3 to 4; added " + added + "; removed none; rewritten in place 0; fee payer same; blockhash same; signers same; accounts changed (";
+                StringAssert.StartsWith("Your wallet changed this request, so it was not sent. (" + summary, Text("Action refused"));
+                Assert.That(lines.Count, Is.EqualTo(1), string.Join("\n", lines));
+                StringAssert.StartsWith("zKube request failed: action=purchase-kredits code=wallet-changed-message evidence=\"" + summary, lines[0]);
+                StringAssert.DoesNotContain(environment.Owner, lines[0]); StringAssert.DoesNotContain(environment.Owner, Text("Action refused"));
+                environment.WalletAdds = null;
+                yield return SessionClick("Try again"); yield return Idle();
+                Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess));
+            }
+            finally { ZKube.Integration.Transport.ClientLog.Sink = sink; }
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // Every read an Arena page waits on: with the read gone and no reason
         // shown for it, the page reads again by itself.
         [UnityTest] public IEnumerator APageWhoseReadIsAbsentReadsItWithoutATap()

@@ -15,27 +15,29 @@ namespace ZKube.Tests.MoneyOverview
 {
     public sealed partial class MoneyOverviewTests
     {
-        [UnityTest] public IEnumerator OpeningSessionAndForegroundPreserveAnExistingPendingReceiptWithoutStatusRequests()
+        [UnityTest] public IEnumerator APendingTransactionIsFollowedOnTheDevicePageAndAcrossForegroundWithoutSigningOrSending()
         {
             yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
-            var exact = controller.LastReceipt;
-            int before = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
+            yield return Until(() => Offers("Try again"), "The Arena followed the transaction it found"); yield return Idle();
+            string signature = controller.LastReceipt.Signature;
             yield return OpenDevice();
+            yield return Until(() => Offers("Try again"), "The device page followed it too"); yield return Idle();
             Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(controller.BrowsingCampaign, Is.False);
-            StringAssert.Contains("An existing transaction needs checking", SessionText());
+            Assert.That(Text("Action refused"), Is.EqualTo("Solana has not confirmed this yet."));
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enable device"), Is.False);
-            Assert.That(controller.LastReceipt, Is.SameAs(exact));
+            Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.Pending));
+            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             Assert.That(host.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Transaction receipt").text, Is.Not.Empty);
             controller.SendMessage("OnApplicationPause", true);
             controller.SendMessage("OnApplicationPause", false); yield return Idle();
-            Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(before));
-            Assert.That(controller.LastReceipt, Is.SameAs(exact));
-            environment.ConfirmPendingFailure(); yield return SessionClick("Check transaction"); yield return Idle();
+            Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
+            environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure));
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
             Assert.That(controller.BrowsingSession, Is.True);
+            Assert.That(Asked("signTransactions") + Asked("sendTransaction"), Is.Zero);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

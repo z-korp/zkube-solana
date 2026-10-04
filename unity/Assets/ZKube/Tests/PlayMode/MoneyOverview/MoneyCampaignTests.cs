@@ -35,7 +35,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview"); Click("Connect"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
-            yield return Wait(controller.CheckTransaction()); yield return Idle();
+            yield return Wait(controller.FollowTransaction()); yield return Idle();
             environment.Services.Campaign(environment.Owner).Runs.StartCampaign(1, 1);
             var receipt = controller.LastReceipt;
             Click("Campaign"); yield return Idle(); yield return null;

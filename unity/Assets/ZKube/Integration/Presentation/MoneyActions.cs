@@ -17,6 +17,57 @@ namespace ZKube.Integration.Presentation
         private string refusal, refusalFamily;
         private Action refusalRetry;
         private const string WalletOpen = "Approve the request in your wallet.";
+        // A sent transaction is followed to a definite outcome by the client
+        // itself: confirmed, failed or expired. Nobody is asked to check. The
+        // wait is bounded, a little past the time a transaction can still land;
+        // beyond it the page says so and offers to keep following.
+        private const string Confirming = "Waiting for Solana to confirm…", Unconfirmed = "Solana has not confirmed this yet.";
+        private TimeSpan followEvery = TimeSpan.FromSeconds(2), followFor = TimeSpan.FromSeconds(120);
+        private bool following;
+        // result is the action's own pending result, or null to follow whatever this address has waiting.
+        private async Task<ExecutionResult> Follow(ExecutionResult result, long epoch, CancellationToken token)
+        {
+            if (result != null && result.Outcome != ExecutionOutcome.Pending) return result;
+            bool own = result != null;
+            following = true; Present();
+            try
+            {
+                var until = DateTime.UtcNow + followFor;
+                while (true)
+                {
+                    if (result != null) await Task.Delay(followEvery, token);
+                    if (!Current(epoch)) return result;
+                    var next = (await Flow.ResumePending(token, !own)).Value;
+                    if (!Current(epoch) || next.Code == "no-pending-transaction") return result;
+                    result = next;
+                    if (result.Outcome != ExecutionOutcome.Pending || DateTime.UtcNow >= until) return result;
+                }
+            }
+            finally { following = false; }
+        }
+        // The page in front of the player shows a transaction that is still unconfirmed.
+        private bool PendingShown() => Family() switch {
+            "Daily" => dailyRead != null && dailyRead.TryValue(out var daily) && daily.Entry.Status == "pending-transaction",
+            "Kredits" => kreditRead != null && kreditRead.TryValue(out var kredits) && kredits.Pending != null,
+            "Rewards" => rewardRead != null && rewardRead.TryValue(out var rewards) && rewards.Pending != null,
+            "Device" => sessionRead != null && sessionRead.TryValue(out var device) && device.Pending != null,
+            "Profile" => profileRead != null && profileRead.TryValue(out var profile) && profile.Pending != null,
+            "Operation" => LastReceipt?.Outcome == ExecutionOutcome.Pending,
+            _ => false };
+        // Follows what this address has waiting, from whichever page shows it, and
+        // from the retry of a wait that ran out. It never signs or sends.
+        public Task FollowTransaction() => Run(async (epoch, token) => {
+            string family = Family(); ClearRefusal();
+            ExecutionResult result;
+            try { result = await Follow(null, epoch, token); }
+            catch (Exception error) when (!(error is OperationCanceledException))
+            { ClientLog.Failure("follow transaction", error); if (Current(epoch)) Refuse(family, Reason(error), () => _ = FollowTransaction()); return; }
+            if (!Current(epoch)) return;
+            ShowReceipt(result ?? ExecutionResult.Rejected(null, "no-pending-transaction"), identity.Owner);
+            if (result?.Outcome == ExecutionOutcome.Pending) Refuse(family, Unconfirmed, () => _ = FollowTransaction());
+            else if (result != null && MoneyReceiptText.Refusal(result) is string reason) Inform(reason);
+            await RefreshVisiblePage(epoch, token); // A receipt survives an empty post-confirmation journal.
+        });
         // Whether the Arena has launched is read from the protocol account by each
         // page's own read and never remembered. A page that found it not launched
         // reads again shortly, so it opens by itself once the launch Daily exists.
@@ -42,7 +93,13 @@ namespace ZKube.Integration.Presentation
                 try
                 {
                     ExecutionResult result = null; string reason;
-                    try { result = await request(token); reason = MoneyReceiptText.Refusal(result); }
+                    try
+                    {
+                        result = await Follow(await request(token), epoch, token);
+                        reason = MoneyReceiptText.Refusal(result);
+                        // The wait ran out: the retry keeps following, it never sends again.
+                        if (result.Outcome == ExecutionOutcome.Pending) { reason = Unconfirmed; retry = () => _ = FollowTransaction(); }
+                    }
                     catch (Exception error) when (!(error is OperationCanceledException)) { ClientLog.Failure(action, error); reason = Reason(error); }
                     if (result != null) sent?.Invoke(result);
                     if (!Current(epoch)) return;
@@ -76,7 +133,7 @@ namespace ZKube.Integration.Presentation
         // A request the wallet still has: what to do, and the way out.
         private void Requesting(List<PanelBlock> blocks)
         {
-            blocks.Add(PanelBlock.Text("Action open", WalletOpen, SkinTokens.TextMuted, true));
+            blocks.Add(PanelBlock.Text("Action open", following ? Confirming : WalletOpen, SkinTokens.TextMuted, true));
             blocks.Add(DisconnectButton());
         }
         // Until the Arena launches, its pages say so and lead to the Campaign.

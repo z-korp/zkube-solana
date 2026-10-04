@@ -114,8 +114,8 @@ namespace ZKube.Integration.Presentation
             { blocks.Add(PanelBlock.Text("Reward notice", "Your transaction is still finishing.")); blocks.Add(DisconnectButton()); }
             else if (state.Pending != null)
             {
-                blocks.Add(PanelBlock.Text("Reward notice", "Check your pending transaction before collecting another reward."));
-                blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
+                if (RefusalOn("Rewards") != null) blocks.Add(Retry(() => PageAvailable() && !Busy));
+                else blocks.Add(PanelBlock.Text("Reward notice", Confirming));
             }
             if (boards.All(board => board.ClaimStatus == "unsealed") && paid == null)
             {

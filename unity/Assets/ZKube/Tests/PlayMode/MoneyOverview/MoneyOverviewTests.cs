@@ -54,7 +54,7 @@ namespace ZKube.Tests.MoneyOverview
             var marker = environment.Services.RunMarkers.Load(environment.Owner); yield return Wait(marker);
             StringAssert.DoesNotContain(marker.GetAwaiter().GetResult().ActiveRun, SessionText());
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(true), Is.Empty);
-            yield return Wait(controller.CheckTransaction()); yield return Idle();
+            yield return Wait(controller.FollowTransaction()); yield return Idle();
             Assert.That(controller.LastReceipt, Is.Null);
             StringAssert.Contains("There is no transaction waiting to be checked", Text("Transaction receipt"));
             StringAssert.DoesNotContain("no-pending-transaction", Text("Transaction receipt"));
@@ -70,10 +70,10 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator ActualCheckButtonKeepsConfirmedFailureAfterTheJournalIsCleared()
         {
             yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
-            StringAssert.Contains("Transaction pending", Text("Transaction receipt"));
+            StringAssert.Contains("Transaction sent", Text("Transaction receipt"));
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            environment.ConfirmPendingFailure(); Click("Check transaction"); yield return Idle();
+            environment.ConfirmPendingFailure(); Click("Try again"); yield return Idle();
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
             var exact = controller.LastReceipt;
             Assert.That(exact.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure)); Assert.That(exact.ChainError, Is.Not.Empty);
@@ -149,6 +149,8 @@ namespace ZKube.Tests.MoneyOverview
             environment = build.GetAwaiter().GetResult(); ((MoneyIdentity)startup.Configuration.Identity).Configuration = new MoneyConfiguration {
                 SolanaSchema = solana, SessionSchema = session, Services = environment.Services, Clock = environment.Clock };
             host.SetActive(true); yield return null;
+            // A sent transaction is followed fast here, so one that stays unconfirmed reaches the end of its wait at once.
+            Follow(.02f, .2f);
             // Every guardian has greeted: the first-visit greeting is the store journey's to test.
             int greeted = ~0; var views = host.GetComponent<PageViews>();
             if (views != null) views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
@@ -157,6 +159,13 @@ namespace ZKube.Tests.MoneyOverview
             for (float end = Time.realtimeSinceStartup + 5; startup.Launch != null && Time.realtimeSinceStartup < end;) yield return null;
             Assert.That(startup.Launch == null, "The launch screen leaves once the first page is drawn");
             Assert.That(startup.LaunchWindowReleased, "The launch window's splash is released after the first frame");
+        }
+        private void Follow(float everySeconds, float forSeconds)
+        {
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
+            foreach (var (field, seconds) in new[] { ("followEvery", everySeconds), ("followFor", forSeconds) })
+                typeof(ZKube.Integration.Presentation.MoneyAppAdapter).GetField(field, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    .SetValue(controller, System.TimeSpan.FromSeconds(seconds));
         }
         // The page reflects the latest state once it has drawn.
         private IEnumerator Drawn()

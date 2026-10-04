@@ -115,6 +115,12 @@ namespace ZKube.Integration.Execution
                 return await Reconcile(pending, reconciler, cancellation).ConfigureAwait(false);
             }
             catch (WalletRequestException error) { ClientLog.Outcome(intent, error.Code, null); return Rejected(intent, error.Code); }
+            // The wallet returned another message: nothing is sent, and what it changed is kept as evidence.
+            catch (WalletChangedMessageException error) when (pending == null)
+            {
+                ClientLog.Evidence(intent, "wallet-changed-message", error.Summary);
+                return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "wallet-changed-message", walletChange: error.Summary);
+            }
             catch (OperationCanceledException)
             { return pending == null ? Rejected(intent, "cancelled") : Pending(pending, "observation-cancelled"); }
             catch (Exception error)

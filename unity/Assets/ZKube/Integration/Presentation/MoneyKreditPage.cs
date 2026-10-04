@@ -91,8 +91,8 @@ namespace ZKube.Integration.Presentation
             else if (state.Pending != null)
             {
                 blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Purchase pending"),
-                    PanelBlock.Text("Kredit notice text", "Your confirmed balance has not changed. Check your pending transaction before buying more Kredits.")));
-                blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
+                    PanelBlock.Text("Kredit notice text", RefusalOn("Kredits") ?? Confirming)));
+                if (RefusalOn("Kredits") != null) blocks.Add(Retry(() => PageAvailable() && !Busy));
                 blocks.Add(PanelBlock.Button(arcade, false));
             }
             else if (!Refused("Kredits", blocks, CanBuyKredits))

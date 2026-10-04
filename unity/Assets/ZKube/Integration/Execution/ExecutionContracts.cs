@@ -17,9 +17,11 @@ namespace ZKube.Integration.Execution
         public string ChainError { get; }
         // What stopped the request, when an error did and not the wallet or the chain's own refusal.
         public Transport.RequestFailure Failure { get; }
+        // What a wallet changed in the message it was given, when it changed one.
+        public string WalletChange { get; }
         internal ExecutionResult(ExecutionOutcome outcome, string intent, string signature = null, string code = null,
-            string chainError = null, Transport.RequestFailure failure = null)
-        { Outcome = outcome; Intent = intent; Signature = signature; Code = code; ChainError = chainError; Failure = failure; }
+            string chainError = null, Transport.RequestFailure failure = null, string walletChange = null)
+        { Outcome = outcome; Intent = intent; Signature = signature; Code = code; ChainError = chainError; Failure = failure; WalletChange = walletChange; }
         public static ExecutionResult CompletedLocally(string intent) => new ExecutionResult(ExecutionOutcome.CompletedLocally, intent);
         public static ExecutionResult Rejected(string intent, string code) => new ExecutionResult(ExecutionOutcome.Rejected, intent, code: code);
     }

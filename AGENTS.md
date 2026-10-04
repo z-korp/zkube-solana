@@ -293,7 +293,16 @@ spending approval.
 - **Wallet requests:** connecting, a device change and a Kredit purchase each show the open request on their
   page, and one that does not go through stays there as one plain reason with a retry; a device action that
   fails is noted on its page. One runner owns that for every action, so a tap never ends looking like nothing
-  happened. `ARefusedDeviceSetupSaysWhyAndItsRetryReachesTheWallet` and
+  happened. A sent transaction is followed by that runner to a definite outcome (confirmed, failed or expired)
+  and the page updates without a tap; a page that finds one unconfirmed follows it too. Following only reads:
+  it never signs or sends, its wait is bounded, and past it the page says so and offers to keep following. A
+  wallet that returns another message than it was given is refused, as Gate G1 requires, and what it changed is
+  kept on the page and in the log as counts, program IDs and yes/no facts.
+  `ASentTransactionIsFollowedToItsOutcomeWithoutATap`,
+  `DailyPageFollowsAPendingTransactionItselfAndNeverSignsOrSends`,
+  `AChangedMessageIsRefusedWithASafeAccountOfWhatChanged` and
+  `AMessageTheWalletChangedIsNotSentAndSaysWhatChanged` guard the follow and the evidence.
+  `ARefusedDeviceSetupSaysWhyAndItsRetryReachesTheWallet` and
   `EveryOwnerWalletActionThatFailsShowsItsReasonWithARetry` guard them;
   `EachFirstRunStepAsksForOneThingOnBothPhones` guards the first-run screens.
 - **Before launch:** the game has launched once the protocol account names a launch day and that day has come,

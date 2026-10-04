@@ -137,6 +137,8 @@ namespace ZKube.Integration.App.Tests
         public HeldCall HoldNextWallet() => walletHold = new HeldCall();
         // What a wallet that declines a signature answers with.
         public string WalletError = "wallet-rejected";
+        // The program of an instruction the wallet adds to the message it returns.
+        public string WalletAdds;
         // The program is deployed and the protocol initialized, paused, with no launch day yet.
         public void Stage()
         {
@@ -180,6 +182,14 @@ namespace ZKube.Integration.App.Tests
             if (hold != null) { hold.Started.TrySetResult(true); await hold.Completion.Task; }
             var result = new JObject { ["requestId"] = request["requestId"], ["owner"] = request["owner"], ["ok"] = !UiScenario.Contains("owner-decline") };
             if (!(bool)result["ok"]) result["error"] = WalletError;
+            else if (WalletAdds != null)
+            {
+                // A wallet that returns its own message: the same instructions and one of another program.
+                var given = Convert.FromBase64String((string)request["transaction"]); var message = TransactionSignatures.Describe(given);
+                var changed = message.Instructions.Append(new SolanaInstruction(WalletAdds, Array.Empty<AccountMeta>(), new byte[] { 1 })).ToArray();
+                result["transaction"] = Convert.ToBase64String(SolanaWire.UnsignedTransaction(
+                    SolanaWire.CompileMessage(message.FeePayer, TransactionSignatures.ReadBlockhash(given), changed, true)));
+            }
             else
             {
                 using var signer = new DeviceSigner(Enumerable.Repeat((byte)1, 32).ToArray());

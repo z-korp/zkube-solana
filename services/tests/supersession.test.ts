@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction/i, trees: [UNITY],
+    reversal: "The client follows a sent transaction to its outcome; nobody is asked to check" },
   { pattern: /Back to Arcade|refresh Arcade|"Arcade"|How Arcade works|paid Arcade Daily/, trees: [UNITY, join(ROOT, "README.md")],
     reversal: "The paid game has one name on screen, Arena, and one home page" },
   { pattern: /fee allowance|allowance low|refill allowance|allowance refill|fee refill|device allowance|needs a fee/i, trees: AUTHORED,
@@ -57,8 +59,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Entries spend prepaid Kredits and prizes use bounded claims" },
   { pattern: /\btomorrow\b/i, trees: [UNITY],
     reversal: "The app does not preview the next Daily" },
-  { pattern: /weekly (?:pot|competition)|season (?:pot|competition)|ranked (?:mode|competition)|weekly:current:3SOL/i, trees: [...SOURCE, join(ROOT, "README.md")],
-    reversal: "Daily is the only paid competition" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

@@ -19,6 +19,9 @@ namespace ZKube.Integration.Client
         private readonly Func<bool> current;
         public bool IsCurrent => current();
         public T Value => IsCurrent ? value : throw new OperationCanceledException("Money application observation changed");
+        // The value while the observation still stands, for a draw that must not
+        // throw when another thread has just invalidated it.
+        public bool TryValue(out T current) { current = value; return IsCurrent; }
         public MoneyRead(T value, Func<bool> current) { this.value = value; this.current = current; }
         internal MoneyRead(ClientIdentity identity, IdentityLease lease, T value)
             : this(value, () => identity.HasCurrentData(lease)) { }

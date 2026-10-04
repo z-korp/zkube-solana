@@ -84,8 +84,9 @@ namespace ZKube.Integration.Presentation
         public DailyPageView DailyPage()
         {
             if (identity.Owner == null) return ConnectHome();
-            if (dailyRead == null) return WaitingHome();
-            var state = dailyRead.Value; var lobby = state.Lobby;
+            // A read invalidated since this frame's check is as good as absent: the next frame replaces it.
+            if (dailyRead == null || !dailyRead.TryValue(out var state)) return WaitingHome();
+            var lobby = state.Lobby;
             var actions = new List<PageAction>();
             var arcade = new ArcadeView { Pot = lobby.PotLamports.HasValue ? Sol(lobby.PotLamports.Value) : null };
             long freezes = (long)NativeEngine.Daily(lobby.DayId).FreezesAt;
@@ -112,8 +113,8 @@ namespace ZKube.Integration.Presentation
             switch (state.Entry.Status)
             {
                 case "pending-transaction":
-                    Reason(arcade, "Check your pending transaction before continuing.", null);
-                    actions.Add(PageAction("Check transaction", () => _ = CheckTransaction(), CanUseDaily));
+                    Reason(arcade, RefusalOn("Daily") ?? Confirming, null);
+                    if (RefusalOn("Daily") != null) actions.Add(PageAction("Try again", refusalRetry, CanUseDaily));
                     break;
                 case "resume": break;
                 case "ready": break;

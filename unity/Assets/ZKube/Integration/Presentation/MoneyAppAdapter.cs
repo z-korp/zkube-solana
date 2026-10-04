@@ -91,12 +91,6 @@ namespace ZKube.Integration.Presentation
         private bool ReadMissing() => failure == null && pageNotice == null && Family() switch {
             "Daily" => dailyRead == null, "Kredits" => kreditRead == null, "Rewards" => rewardRead == null,
             "Device" => sessionRead == null, "Profile" => profileRead == null, _ => false };
-        public Task CheckTransaction() => Run(async (epoch, token) => {
-            var result = await Flow.ResumePending(token);
-            if (!Current(epoch)) return;
-            ShowReceipt(result.Value, identity.Owner);
-            await RefreshVisiblePage(epoch, token); // A receipt survives an empty post-confirmation journal.
-        });
         // deauthorize is false when the wallet itself ended the authorization.
         public async Task Disconnect(bool deauthorize = true)
         {
@@ -199,6 +193,8 @@ namespace ZKube.Integration.Presentation
             // that would have read it (the wallet in front of the app, a pause, a
             // superseded request), the visible page starts its own read.
             if (!Busy && identity.Owner != null && ReadMissing()) _ = RefreshOverview();
+            // A transaction still unconfirmed on the page in front of the player is followed without a tap.
+            if (!Busy && identity.Owner != null && refusal == null && failure == null && PendingShown()) _ = FollowTransaction();
             if (dirty && !presenting && shell.Root.activeSelf) StartCoroutine(Render());
             if (Busy || campaignPage != null || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
                 sharedPage.HasValue) return;
@@ -231,6 +227,9 @@ namespace ZKube.Integration.Presentation
             if (dirty || PageKey() != key || PageRealm() != realm) yield break;
             if (load || key != shownKey) shell.Depart(AppPreferences.ReducedMotion, Mathf.Max(.5f, Density()));
             try { Draw(); shownKey = key; }
+            // A read went stale between this frame's check and its draw, invalidated
+            // from another thread: the next frame draws what replaced it.
+            catch (OperationCanceledException) { Present(); }
             catch (Exception error)
             {
                 Debug.LogException(error); shownKey = null;
@@ -312,7 +311,7 @@ namespace ZKube.Integration.Presentation
         private static string Utc(long seconds) => seconds > DateTimeOffset.MaxValue.ToUnixTimeSeconds() ? "a date outside the calendar" :
             DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("d MMM · HH:mm", CultureInfo.InvariantCulture) + " UTC";
         private uint Today => NativeEngine.DayAt(now());
-        private byte TodayRealm => dailyRead != null && dailyRead.IsCurrent ? dailyRead.Value.Lobby.Realm :
-            publicRead != null && publicRead.IsCurrent ? publicRead.Value.Realm : NativeEngine.Daily(Today).Realm;
+        private byte TodayRealm => dailyRead != null && dailyRead.TryValue(out var daily) ? daily.Lobby.Realm :
+            publicRead != null && publicRead.TryValue(out var today) ? today.Realm : NativeEngine.Daily(Today).Realm;
     }
 }

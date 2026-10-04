@@ -104,9 +104,9 @@ namespace ZKube.Integration.Presentation
             if (sessionActionPending) Requesting(blocks);
             else if (state.Pending != null)
             {
-                blocks.Add(PanelBlock.Text("Device guide", "An existing transaction needs checking before this device can change. Checking it will not start a new setup.",
-                    SkinTokens.TextMuted));
-                blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
+                // The page follows it by itself; past the wait it says so and offers to keep following.
+                if (!Refused("Device", blocks, () => PageAvailable() && !Busy))
+                    blocks.Add(PanelBlock.Text("Device guide", Confirming, SkinTokens.TextMuted));
             }
             else
             {

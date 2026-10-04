@@ -60,16 +60,21 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.Calls.Count, Is.EqualTo(before)); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
-        [UnityTest] public IEnumerator DailyPageRetainsPendingReceiptWithoutAnotherStatusCheck()
+        // A transaction found unconfirmed is followed by the page itself. Following
+        // reads its status; it never signs or sends, and past the wait the page
+        // says so and offers to keep following.
+        [UnityTest] public IEnumerator DailyPageFollowsAPendingTransactionItselfAndNeverSignsOrSends()
         {
             yield return PrepareScenario("pending-confirmed-failure");
             yield return SessionClick("Connect"); yield return Idle();
-            int checks = environment.Calls.Count(call => call.Operation == "getSignatureStatuses");
-            yield return SessionClick("Arena"); yield return Idle();
-            StringAssert.Contains("pending transaction", DailyText());
-            Assert.That(environment.Calls.Count(call => call.Operation == "getSignatureStatuses"), Is.EqualTo(checks));
-            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Check transaction"), Is.True);
+            yield return Until(() => Offers("Try again"), "The wait ran out on a transaction that stays unconfirmed"); yield return Idle();
+            Assert.That(Text("Daily reason"), Is.EqualTo("Solana has not confirmed this yet."));
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit"), Is.False);
+            Assert.That(Asked("getSignatureStatuses"), Is.GreaterThan(1));
+            environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
+            Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure));
+            Assert.That(Offers("Try again"), Is.False);
+            Assert.That(Asked("signTransactions") + Asked("sendTransaction"), Is.Zero);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

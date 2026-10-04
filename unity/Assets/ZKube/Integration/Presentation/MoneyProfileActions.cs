@@ -78,8 +78,8 @@ namespace ZKube.Integration.Presentation
             if (!worn.ProgressAvailable) notices.Add("Campaign progress is unavailable. Refresh to check earned emblems.");
             if (state.Pending != null)
             {
-                notices.Add("Check your pending transaction before changing your profile.");
-                actions.Add(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy));
+                if (RefusalOn("Profile") != null) actions.Add(PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy));
+                else notices.Add(Confirming);
             }
             else if (!state.Session.Current || state.Session.Funding != "ready")
             {
@@ -198,8 +198,8 @@ namespace ZKube.Integration.Presentation
                     }
                     else if (state.Pending != null)
                     {
-                        blocks.Add(PanelBlock.Text("Selection notice", "Check your pending transaction before changing your profile."));
-                        blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
+                        if (RefusalOn("Profile") != null) blocks.Add(Retry(() => PageAvailable() && !Busy));
+                        else blocks.Add(PanelBlock.Text("Selection notice", Confirming));
                     }
                     else if (!state.Session.Current || state.Session.Funding != "ready")
                     {

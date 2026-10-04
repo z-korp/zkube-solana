@@ -83,7 +83,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(controller.PurchaseKredits(pack));
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
             if (failure) environment.ConfirmPendingFailure(); else environment.ConfirmPendingSuccess();
-            yield return SessionClick("Check transaction"); yield return Idle();
+            yield return SessionClick("Try again"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(failure ? ExecutionOutcome.ConfirmedFailure : ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             Assert.That(Text("Kredit balance"), Is.EqualTo((failure ? 25 : 25 + pack).ToString()));
