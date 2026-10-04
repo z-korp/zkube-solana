@@ -148,20 +148,8 @@ namespace ZKube.Integration.Presentation
         {
             if (!ProfileEditable() || !ProfileSelectionChanged() || !profileRead.Value.Identity.CanWear(selectedEmblem, selectedBorder)) return Task.CompletedTask;
             byte emblem = selectedEmblem, border = selectedBorder;
-            return Run(async (epoch, token) => {
-                economyActionPending = true; Status = "Saving selection…"; Present();
-                try
-                {
-                    var result = await Flow.SetFeaturedIdentity(emblem, border, token);
-                    if (!Current(epoch)) return;
-                    ShowReceipt(result.Value, identity.Owner); await RefreshProfilePage(epoch, token);
-                }
-                finally
-                {
-                    economyActionPending = false;
-                    if (Current(epoch)) Present(); else economyReadbackNeeded = true;
-                }
-            });
+            return Act(false, async token => (await Flow.SetFeaturedIdentity(emblem, border, token)).Value, RefreshProfilePage,
+                () => _ = WearProfileSelection());
         }
 
         private PanelPageView ProfilePanel()

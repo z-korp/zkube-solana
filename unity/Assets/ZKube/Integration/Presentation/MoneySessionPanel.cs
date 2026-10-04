@@ -69,8 +69,7 @@ namespace ZKube.Integration.Presentation
                     ("Device disabled", "Disabled", SkinTokens.Text,
                         "This device can no longer spend Kredits or sign game actions. You can enable it again when ready.") :
                     ("Set up this device", "Not set up", SkinTokens.Text,
-                        "Your wallet funds a " + Sol(DeviceFunding.AllowanceLamports) +
-                        " fee allowance plus setup rent and fees. This device then spends your prepaid Kredits on Daily entries.");
+                        "What is left returns to your wallet when you disable this device.");
             if (!session.Current)
                 return ("Renew authorization", "Renewal needed", SkinTokens.Text, session.TokenMayClose ?
                     "The authorization has ended. Your wallet replaces it with a new one for this device." :
@@ -79,7 +78,7 @@ namespace ZKube.Integration.Presentation
                 return ("Fee allowance low", "Allowance low", SkinTokens.Text,
                     "Refill the fee allowance to continue. Your wallet funds the " + Sol(DeviceFunding.AllowanceLamports) + " target and shows any fees.");
             return (session.Status == "expiring" ? "Session expires soon" : "Session active", session.Status == "expiring" ? "Expires soon" : "Session active",
-                SkinTokens.Positive, "This device signs game actions and spends your prepaid Kredits on Daily entries. Your wallet approves purchases and device changes.");
+                SkinTokens.Positive, "This device enters Dailies with your Kredits.");
         }
 
         private PanelPageView DevicePage()
@@ -90,19 +89,18 @@ namespace ZKube.Integration.Presentation
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);
             var page = new PanelPageView { Key = "Device", Title = "This device", Subtitle = "Device session", Back = back, Tab = sessionFromSettings ? AppPage.Settings : AppPage.Home };
-            var rows = new List<PanelBlock> {
-                PanelBlock.Row("Device state", "Status", look.Title, tagToken: look.Token),
-                PanelBlock.Row("Device owner", "Owner", Short(state.Owner)),
-                PanelBlock.Row("Fee allowance", "Fee allowance", session.ValidUntil > 0 ? Sol(session.Balance) : "—") };
+            if (arenaClosed && session.ValidUntil <= 0) { page.Blocks = OpensSoon(); return page; }
+            // A device to set up shows what the wallet puts on it; a device in use, how it stands.
+            bool fresh = session.Status == "none" && look.Title == "Set up this device";
+            var rows = new List<PanelBlock>();
+            if (!fresh) rows.Add(PanelBlock.Row("Device state", "Status", look.Title, tagToken: look.Token));
+            rows.Add(PanelBlock.Row("Device owner", "Owner", Short(state.Owner)));
+            rows.Add(PanelBlock.Row("Fee allowance", "Fee allowance", session.ValidUntil > 0 ? Sol(session.Balance) : fresh ? Sol(DeviceFunding.AllowanceLamports) : "—"));
             if (session.ValidUntil > 0) rows.Add(PanelBlock.Row("Device expiry", "Authorization ends", Utc(session.ValidUntil)));
             var blocks = new List<PanelBlock> { PanelBlock.Card("Device card", rows.ToArray()) };
             var receipt = ReceiptRow("Device");
             if (receipt != null) blocks.Add(receipt);
-            if (sessionActionPending)
-            {
-                blocks.Add(PanelBlock.Text("Device guide", "A device request is still finishing. Returning to this page does not cancel a wallet request.", SkinTokens.TextMuted));
-                blocks.Add(DisconnectButton());
-            }
+            if (sessionActionPending) Requesting(blocks);
             else if (state.Pending != null)
             {
                 blocks.Add(PanelBlock.Text("Device guide", "An existing transaction needs checking before this device can change. Checking it will not start a new setup.",
@@ -111,16 +109,15 @@ namespace ZKube.Integration.Presentation
             }
             else
             {
-                blocks.Add(PanelBlock.Text("Device guide", look.Guide, SkinTokens.TextMuted));
-                bool changeable = PageAvailable() && !Busy;
+                string refused = RefusalOn("Device");
+                blocks.Add(refused != null ? RefusalLine(refused) : PanelBlock.Text("Device guide", look.Guide, SkinTokens.TextMuted));
                 if (session.ValidUntil > 0)
                     blocks.Add(PanelBlock.Button(PageAction("Disable this device", () => { revokeConfirming = true; Present(); }, DeviceChangeable), false));
-                if (!session.Current)
-                    blocks.Add(PanelBlock.Button(PageAction(session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession(),
-                        () => changeable && DeviceChangeable()), true));
+                if (refused != null) blocks.Add(Retry(DeviceChangeable));
+                else if (!session.Current)
+                    blocks.Add(PanelBlock.Button(PageAction(session.Status == "none" ? "Enable device" : "Renew device", () => _ = EnsureDeviceSession(), DeviceChangeable), true));
                 else if (session.Funding != "ready")
                     blocks.Add(PanelBlock.Button(PageAction("Refill allowance", () => _ = RefillDeviceSession(), DeviceChangeable), true));
-                if (session.ValidUntil <= 0) blocks.Add(PanelBlock.Button(PageAction("Back to Campaign", () => _ = OpenCampaign(), () => PageAvailable()), false));
             }
             page.Blocks = blocks.ToArray();
             return page;
@@ -145,34 +142,20 @@ namespace ZKube.Integration.Presentation
 
         private Task ChangeDeviceSession(bool ensure, bool disable)
         {
-            if (!browsingSession || sessionActionPending || economyActionPending || sessionRead == null || !sessionRead.IsCurrent || sessionRead.Value.Pending != null)
+            if (arenaClosed || !browsingSession || sessionActionPending || economyActionPending || sessionRead == null || !sessionRead.IsCurrent || sessionRead.Value.Pending != null)
                 return Task.CompletedTask;
             var assessment = sessionRead.Value.Session;
             if (ensure ? assessment.Current : disable ? assessment.ValidUntil <= 0 : !assessment.Current || assessment.Funding == "ready")
                 return Task.CompletedTask;
-            return Run(async (epoch, token) => {
-                sessionActionPending = true; Present();
-                try
-                {
-                    ExecutionResult result; bool recovered = false;
-                    if (ensure)
-                    {
-                        var ensured = (await Flow.EnsureSession()).Value;
-                        result = ensured.Operation; recovered = ensured.Action == "recover";
-                    }
-                    else result = (await (disable ? Flow.RevokeSession() : Flow.RefillSession())).Value;
-                    if (!Current(epoch)) return;
-                    ShowReceipt(result, identity.Owner); // Preserve the exact result before read-back can fail.
-                    await RefreshSessionPage(epoch, token);
-                    if (Current(epoch) && recovered) Inform("Checked the existing transaction. No new device setup was requested.");
-                }
-                finally
-                {
-                    sessionActionPending = false;
-                    if (Current(epoch)) Present();
-                    else sessionReadbackNeeded = true;
-                }
-            });
+            bool recovered = false;
+            return Act(true, async token => {
+                if (!ensure) return (await (disable ? Flow.RevokeSession() : Flow.RefillSession())).Value;
+                var ensured = (await Flow.EnsureSession()).Value;
+                recovered = ensured.Action == "recover"; return ensured.Operation;
+            }, async (epoch, token) => {
+                await RefreshSessionPage(epoch, token);
+                if (Current(epoch) && recovered) Inform("Checked the existing transaction. No new device setup was requested.");
+            }, () => _ = ChangeDeviceSession(ensure, disable));
         }
     }
 }

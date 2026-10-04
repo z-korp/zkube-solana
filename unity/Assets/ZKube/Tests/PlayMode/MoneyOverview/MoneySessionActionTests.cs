@@ -26,7 +26,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareDeviceScenario("session-enable-success", 1.3f);
             Assert.That(environment.SentSignature, Is.Null);
-            StringAssert.Contains("spends your prepaid Kredits", SessionText());
+            StringAssert.Contains("returns to your wallet when you disable this device", SessionText());
             yield return SessionClick("Enable device"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -111,7 +111,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
-            Assert.That(Text("Device state"), Is.Not.EqualTo("Session active"));
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Session active"), Is.False);
             Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
@@ -174,8 +174,9 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("session-owner-decline");
             yield return SessionClick("Enable device"); yield return Idle();
             Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Rejected));
-            StringAssert.Contains("not accepted", Text("Transaction receipt"));
-            Assert.That(Text("Device state"), Is.Not.EqualTo("Session active"));
+            Assert.That(Text("Action refused"), Is.EqualTo("Not approved in your wallet."));
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Try again"), Is.True);
+            Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Session active"), Is.False);
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
         [UnityTest] public IEnumerator FeeShortageDoesNotPromptAndRetainsItsSpecificReceipt()
@@ -183,7 +184,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return PrepareDeviceScenario("session-fee-shortage");
             yield return SessionClick("Enable device"); yield return Idle();
             Assert.That(host.GetComponent<MoneyIdentity>().Controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage));
-            StringAssert.Contains("not enough SOL", Text("Transaction receipt"));
+            Assert.That(Text("Action refused"), Is.EqualTo("Your wallet needs more SOL for the fee."));
             Assert.That(environment.Calls.Any(call => call.Operation == "signTransactions" || call.Operation == "sendTransaction"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

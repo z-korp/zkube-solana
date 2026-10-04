@@ -42,7 +42,6 @@ namespace ZKube.Integration.Presentation
         private long generation, observedDay, freezeAttempt = -1;
         // The player's words for the last failure, shown on the page it happened on.
         private string failure;
-        private bool walletFailure;
         private string shownKey;
 
         public void Initialize(MoneyAppFlow flow, ClientIdentity clientIdentity, Func<long> clock = null, float scale = 1, float? displayDensity = null)
@@ -71,7 +70,9 @@ namespace ZKube.Integration.Presentation
         // Connecting reads the owner (its last operation's receipt with it),
         // then opens the Arcade.
         public Task Connect() => Run(async (epoch, token) => {
-            await Flow.Connect();
+            ClearRefusal();
+            try { await Flow.Connect(); }
+            catch (WalletRequestException error) { if (Current(epoch)) Refuse("Connect", Reason(error), () => _ = Connect()); return; }
             if (!Current(epoch)) return;
             await RefreshOwner(epoch, token);
             if (!Current(epoch)) return;
@@ -100,7 +101,7 @@ namespace ZKube.Integration.Presentation
         {
             if (detached || !isActiveAndEnabled || paused || Flow == null || Busy || PlayingRun) return;
             RetireRead(); reads = new CancellationTokenSource(); long epoch = generation;
-            Busy = true; failure = null; walletFailure = false; info = null; Present();
+            Busy = true; failure = null; info = null; Present();
             try { await operation(epoch, reads.Token); }
             catch (OperationCanceledException) { if (Current(epoch)) Fail("Refresh was cancelled. Refresh to try again."); }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
@@ -113,7 +114,7 @@ namespace ZKube.Integration.Presentation
             if (identity.Owner != null) { CloseProductViews(); browsingDaily = true; await RefreshDailyPage(epoch, token); return; }
             var publication = await Flow.RefreshPublic(token);
             if (!Current(epoch)) return;
-            var value = publication.Value; publicRead = publication;
+            var value = publication.Value; publicRead = publication; arenaClosed = value.Status == "missing-config";
             if (value.FreezesAt.HasValue && value.ObservedAt >= value.FreezesAt.Value) freezeAttempt = value.FreezesAt.Value;
             Status = "Daily updated"; Present();
         }
@@ -127,7 +128,7 @@ namespace ZKube.Integration.Presentation
             Present();
         }
         private static string PublicStatus(string value) => value switch {
-            "missing-config" => "Daily service unavailable", "missing-daily" => "Today's Daily is not available",
+            "missing-config" => "Arena opens soon", "missing-daily" => "Today's Daily is not available",
             "suspended" => "Daily is suspended", "paused" => "Daily play is paused", "not-open" => "Opens later today",
             "open" => "Daily is open", "frozen" => "Entries are closed",
             "finalized" => "Daily complete", _ => "Daily status unavailable"
@@ -159,14 +160,8 @@ namespace ZKube.Integration.Presentation
             if (Busy || detached || paused || !isActiveAndEnabled || string.IsNullOrEmpty(LastReceipt?.Signature)) return;
             fullReceipt = !fullReceipt; Present();
         }
-        private void ShowError(Exception error)
-        {
-            walletFailure = error is WalletRequestException;
-            Fail(error is MoneyConfigurationException ? "Network configuration is unavailable." :
-                error is WalletRequestException wallet ? wallet.Code == "wallet-busy" ? "A wallet request is already open." :
-                    wallet.Code == "account-changed" ? "The wallet account changed. Connect again." : "The wallet request was not completed." :
-                "Could not refresh. Try again.");
-        }
+        private void ShowError(Exception error) =>
+            Fail(error is MoneyConfigurationException || error is WalletRequestException ? Reason(error) : "Could not refresh. Try again.");
         private void Fail(string message) { failure = message; Status = message; Present(); }
         // What the player should know about the last operation, shown on its page.
         private void Inform(string message) { info = message; Status = message; Present(); }
@@ -279,7 +274,7 @@ namespace ZKube.Integration.Presentation
         private void CloseProductViews()
         {
             CloseSharedView(); CloseSessionView(); CloseCampaignView(); CloseDailyView(); CloseKreditView(); CloseRewardView(); CloseProfileView();
-            browsingOperation = false; Present();
+            browsingOperation = false; ClearRefusal(); Present();
         }
         private void ClearProductObservations()
         {

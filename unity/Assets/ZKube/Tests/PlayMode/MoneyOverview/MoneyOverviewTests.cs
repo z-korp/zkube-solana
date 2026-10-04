@@ -45,7 +45,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview");
             Assert.That(environment.Services.Identity.Owner, Is.Null);
-            StringAssert.Contains(System.DateTimeOffset.FromUnixTimeSeconds(environment.Clock()).ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + " · UTC", Text("Daily facts"));
+            Assert.That(Text("Connect cost"), Is.EqualTo("Connecting is free."));
             Assert.That(environment.Calls.Any(call => call.Operation == "authorize"), Is.False);
             Click("Connect"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
@@ -208,14 +208,14 @@ namespace ZKube.Tests.MoneyOverview
             long untilFreeze = daily.FreezesAt.Value - environment.Clock(); Assert.That(untilFreeze, Is.GreaterThan(0));
             int before = environment.Calls.Count(call => call.Operation == "getMultipleAccounts");
             environment.AdvanceClock(untilFreeze); yield return null; yield return Idle();
-            StringAssert.Contains("Entries are closed", Text("Daily facts"));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.Flow.Public.Value.Status, Is.EqualTo("frozen"));
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
             for (int i = 0; i < 5; i++) yield return null;
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 1));
             environment.AdvanceClock((long)ZKube.Core.NativeEngine.Daily(ZKube.Core.NativeEngine.DayAt(environment.Clock()) + 1).OpensAt - environment.Clock());
             yield return null; yield return Idle();
             // Nobody has entered the new day yet: it has no account and is open by the clock.
-            StringAssert.Contains("Daily is open", Text("Daily facts"));
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.Flow.Public.Value.Status, Is.EqualTo("open"));
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));
             for (int i = 0; i < 5; i++) yield return null;
             Assert.That(environment.Calls.Count(call => call.Operation == "getMultipleAccounts"), Is.EqualTo(before + 2));

@@ -43,7 +43,7 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator EveryArenaPageSpeaksThePlayersWords()
         {
             yield return Compact("public-disconnected"); yield return Words("Connect");
-            Set("failure", "The wallet request was not completed."); Set("walletFailure", true); Redraw(); yield return Words("Connect cancelled");
+            Refuse("Connect"); yield return Words("Connect refused");
             yield return EndScenario();
 
             yield return Compact("owner-overview"); Click("Connect"); yield return Words("Arcade with a saved run");
@@ -80,7 +80,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(Adapter.PurchaseKredits(environment.KreditPack)); yield return Words("Purchase pending");
             Click("View operation"); yield return Words("Transaction pending");
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
-            Set("failure", "The wallet request was not completed."); Set("walletFailure", true); Redraw(); yield return Words("Purchase unavailable");
+            Refuse("Kredits"); yield return Words("Purchase refused");
             yield return EndScenario();
 
             yield return Compact("claim-theme-sealed"); Click("Connect"); yield return Idle();
@@ -123,6 +123,8 @@ namespace ZKube.Tests.MoneyOverview
             Click("Emblem 8"); yield return Words("Wear selection");
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
+        private void Refuse(string family)
+        { Set("refusal", "Not approved in your wallet."); Set("refusalFamily", family); Set("refusalRetry", (System.Action)(() => { })); Redraw(); }
         // Every SOL amount has one format, with at least two decimals.
         [Test] public void SolAmountsShowAtLeastTwoDecimals()
         {

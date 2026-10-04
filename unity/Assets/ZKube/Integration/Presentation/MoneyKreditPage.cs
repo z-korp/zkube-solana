@@ -45,7 +45,7 @@ namespace ZKube.Integration.Presentation
             ClearKreditObservation(); Notice("Your balance changed. Refresh before buying Kredits.");
             Status = "Kredits need refreshing";
         }
-        private bool CanBuyKredits() => browsingKredits && !Busy && !sessionActionPending && !economyActionPending &&
+        private bool CanBuyKredits() => browsingKredits && !arenaClosed && !Busy && !sessionActionPending && !economyActionPending &&
             !paused && !detached && isActiveAndEnabled && kreditRead != null && kreditRead.IsCurrent && kreditRead.Value.Pending == null;
 
         public static string KreditPurchaseLabel(uint pack) => "Buy " + pack + (pack == 1 ? " Kredit" : " Kredits") + " · " + Price(pack);
@@ -53,26 +53,12 @@ namespace ZKube.Integration.Presentation
         public Task PurchaseKredits(uint pack)
         {
             if (!CanBuyKredits() || !SessionViewPolicy.KreditPacks.Contains(pack)) return Task.CompletedTask;
-            return Run(async (epoch, token) => {
-                economyActionPending = true; Present();
-                try
-                {
-                    var result = await Flow.BuyKredits(pack, token);
-                    if (!Current(epoch)) return;
-                    ShowReceipt(result.Value, identity.Owner);
-                    await RefreshKreditPage(epoch, token);
-                }
-                finally
-                {
-                    economyActionPending = false;
-                    if (Current(epoch)) Present(); else economyReadbackNeeded = true;
-                }
-            });
+            return Act(false, async token => (await Flow.BuyKredits(pack, token)).Value, RefreshKreditPage, () => _ = PurchaseKredits(pack));
         }
 
         // The shop: the confirmed balance, then one unit price and its packs, or
         // what stands before buying: a request still finishing, a pending
-        // transaction to check, or a wallet request that did not open.
+        // transaction to check, or a purchase that did not go through.
         private PanelPageView KreditPage()
         {
             var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
@@ -97,15 +83,11 @@ namespace ZKube.Integration.Presentation
                 var waiting = Waiting("Kredits", page.Title, page.Subtitle, AppPage.Home, pageNotice);
                 waiting.Back = back; return waiting;
             }
+            if (arenaClosed) { page.Blocks = OpensSoon(); return page; }
             var state = kreditRead.Value;
             blocks.Add(PanelBlock.Card("Balance card", PanelBlock.Figure("Kredit balance", "Confirmed balance",
                 state.Profile.Kredits.ToString(CultureInfo.InvariantCulture), "Kredits", SkinSlots.IconKredit)));
-            if (economyActionPending || sessionActionPending)
-            {
-                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Wallet request open"),
-                    PanelBlock.Text("Kredit notice text", "Your wallet request is still finishing.")));
-                blocks.Add(DisconnectButton());
-            }
+            if (economyActionPending || sessionActionPending) Requesting(blocks);
             else if (state.Pending != null)
             {
                 blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Purchase pending"),
@@ -113,15 +95,7 @@ namespace ZKube.Integration.Presentation
                 blocks.Add(PanelBlock.Button(PageAction("Check transaction", () => _ = CheckTransaction(), () => PageAvailable() && !Busy), true));
                 blocks.Add(PanelBlock.Button(arcade, false));
             }
-            else if (failure != null && walletFailure)
-            {
-                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Text("Kredit rate", "1 Kredit = " + Price(1), SkinTokens.Accent, true),
-                    PanelBlock.Icon(SkinSlots.IconKredit, SkinTokens.TextMuted),
-                    PanelBlock.Title("Purchase unavailable", centered: true),
-                    PanelBlock.Text("Kredit notice text", failure + " Your confirmed balance is unchanged.")));
-                blocks.Add(PanelBlock.Button(PageAction("Try again", () => { failure = null; walletFailure = false; Present(); }, () => PageAvailable() && !Busy), true));
-            }
-            else
+            else if (!Refused("Kredits", blocks, CanBuyKredits))
             {
                 var packs = new List<PanelBlock> { PanelBlock.Eyebrow("Buy Kredits") };
                 bool first = true;
@@ -134,8 +108,7 @@ namespace ZKube.Integration.Presentation
                 }
                 blocks.Add(PanelBlock.Card("Pack card", packs.ToArray()));
             }
-            blocks.Add(PanelBlock.Text("Kredit terms", "Your wallet approves each purchase. Kredits cannot be transferred, withdrawn or exchanged for SOL.",
-                SkinTokens.TextMuted));
+            blocks.Add(PanelBlock.Text("Kredit terms", "Kredits cannot be withdrawn, transferred or exchanged for SOL.", SkinTokens.TextMuted));
             var row = ReceiptRow("Kredits");
             if (row != null) blocks.Insert(1, row);
             page.Blocks = blocks.ToArray();

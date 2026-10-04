@@ -85,21 +85,7 @@ namespace ZKube.Integration.Presentation
         public Task SealResults()
         {
             if (!CanSealResults()) return Task.CompletedTask;
-            return Run(async (epoch, token) => {
-                economyActionPending = true; Present();
-                try
-                {
-                    var result = await Flow.SettleDailies(token);
-                    if (!Current(epoch)) return;
-                    ShowReceipt(result.Value, identity.Owner);
-                    await RefreshRewardPage(epoch, token);
-                }
-                finally
-                {
-                    economyActionPending = false;
-                    if (Current(epoch)) Present(); else economyReadbackNeeded = true;
-                }
-            });
+            return Act(false, async token => (await Flow.SettleDailies(token)).Value, RefreshRewardPage, () => _ = SealResults());
         }
         // A board by its name on this day.
         private string RewardName(string kind) => MoneyText.Board(kind, catalog, rewardDay);
@@ -285,22 +271,8 @@ namespace ZKube.Integration.Presentation
             var payment = new RewardPayment { Owner = identity.Lease(), Day = rewardDay, Kind = kind, Amount = board.Yours.PayoutLamports,
                 Points = NativeEngine.LadderPoints(board.Account.QualifiedCount, board.Yours.Rank), PreviousPoints = rewardRead.Value.Profile.LadderPoints };
             rewardPayment = payment;
-            return Run(async (epoch, token) => {
-                economyActionPending = true; Present();
-                try
-                {
-                    var result = await Flow.ClaimDaily(payment.Day, kind, token);
-                    payment.Signature = result.Value.Signature;
-                    if (!Current(epoch)) return;
-                    ShowReceipt(result.Value, identity.Owner);
-                    await RefreshRewardPage(epoch, token);
-                }
-                finally
-                {
-                    economyActionPending = false;
-                    if (Current(epoch)) Present(); else economyReadbackNeeded = true;
-                }
-            });
+            return Act(false, async token => (await Flow.ClaimDaily(payment.Day, kind, token)).Value, RefreshRewardPage,
+                () => _ = CollectReward(kind), result => payment.Signature = result.Signature);
         }
     }
 }

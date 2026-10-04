@@ -37,7 +37,7 @@ namespace ZKube.Integration.Presentation
             Status = "Checking Daily…"; Notice("Checking today's challenge and your saved run.");
             var result = await Flow.RefreshDaily(token);
             if (!Current(epoch) || !browsingDaily) return;
-            dailyRead = result; pageNotice = null;
+            dailyRead = result; pageNotice = null; arenaClosed = result.Value.Lobby.Status == "missing-config";
             if (ResultAvailable("Daily") && lastResult.Day == result.Value.Lobby.DayId)
                 lastResult.Streak = (uint?)result.Value.Lobby.Profile.Fields?["entry_streak_days"];
             var value = result.Value.Lobby; long timestamp = now();
@@ -99,6 +99,14 @@ namespace ZKube.Integration.Presentation
             }
             if (ResultAvailable("Daily")) actions.Add(PageAction("View result", () => OpenSharedPage(AppPage.Result), CanUseDaily));
             if (sessionActionPending) Reason(arcade, "Your device request is still finishing.", "Wait before opening a run.");
+            // Before the Arena opens there is no entry, device or Kredit to offer: the Campaign is the way on.
+            if (arenaClosed)
+            {
+                arcade.Headline = "Opens soon";
+                return new DailyPageView { Day = lobby.DayId, Realm = lobby.Realm, ClosesAt = freezes, Now = now,
+                    ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Status = PublicStatus(lobby.Status), Arcade = arcade,
+                    Actions = new[] { PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()) }, Blocks = Array.Empty<PanelBlock>() };
+            }
             switch (state.Entry.Status)
             {
                 case "pending-transaction":
@@ -108,8 +116,8 @@ namespace ZKube.Integration.Presentation
                 case "resume": break;
                 case "ready": break;
                 case "needs-kredits": Reason(arcade, "No Kredits available", "Buy a pack to enter today."); break;
+                // The button says what to do; no sentence repeats it.
                 case "needs-session": case "missing-player":
-                    Reason(arcade, state.Entry.Status == "missing-player" ? "Set up your player before entering." : "Set up this device before entering.", null);
                     actions.Add(PageAction("Set up device", () => _ = OpenSession(), CanUseDaily)); break;
                 case "needs-refill":
                     Reason(arcade, "Refill this device's fee allowance before entering.", null);

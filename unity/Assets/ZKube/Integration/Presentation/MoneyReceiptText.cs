@@ -25,6 +25,30 @@ namespace ZKube.Integration.Presentation
             return text + "\nReceipt: " + reference;
         }
 
+        // Why an action did not go through, in one short line; null when it did,
+        // or when its transaction is still to be checked.
+        public static string Refusal(ExecutionResult result) => result.Outcome switch {
+            ExecutionOutcome.ConfirmedSuccess or ExecutionOutcome.CompletedLocally or ExecutionOutcome.Pending => null,
+            ExecutionOutcome.ConfirmedFailure => "The transaction failed. Nothing changed.",
+            ExecutionOutcome.ExpiredReconciled => "The transaction expired before it was sent.",
+            ExecutionOutcome.FeeShortage => result.Code == "device-allowance-refill" ?
+                "This device’s fee allowance is too low." : "Your wallet needs more SOL for the fee.",
+            _ => Refusal(result.Code)
+        };
+        // The same line for a request the wallet, the network or this app refused, by its code.
+        public static string Refusal(string code) => code switch {
+            "wallet-rejected" or "wallet-interrupted" or "activity-recreated" or "cancelled" => "Not approved in your wallet.",
+            "wallet-unavailable" or "activity-unavailable" => "No wallet app was found.",
+            "sign-only-unavailable" or "unsupported-transaction-version" => "This wallet cannot sign this request.",
+            "wrong-chain" => "Your wallet is on another network.",
+            "account-changed" or "authorization-required" => "The wallet account changed. Connect again.",
+            "wallet-busy" or "execution-busy" => "Another request is still open.",
+            "pending-transaction-exists" or "pending-transaction-changed" => "An earlier transaction needs checking first.",
+            "simulation-rejected" => "The network refused this request. Check your wallet’s SOL.",
+            "preparation-failed" => "The network could not be reached.",
+            _ => "The request was not sent."
+        };
+
         public static string Title(ExecutionResult result) => result.Outcome switch {
             ExecutionOutcome.Pending => "Transaction pending",
             ExecutionOutcome.ConfirmedFailure => "Transaction failed",

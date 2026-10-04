@@ -283,6 +283,15 @@ spending approval.
   grant, discount or bonus. The shop's packs share that unit price. The owner buys the balance; device
   spending stays within that owner-set cap. `entry_split_is_exact_and_static` and
   `OneKreditButtonUsesTheOwnerPurchaseAndConfirmedBalance` guard accounting and purchase presentation.
+- **Wallet requests:** connecting, a device change and a Kredit purchase each show the open request on their
+  page, and one that does not go through stays there as one plain reason with a retry; a device action that
+  fails is noted on its page. One runner owns that for every action, so a tap never ends looking like nothing
+  happened. Until the protocol account exists, the Arcade, the device page and the Kredits page say the Arena
+  opens soon and offer the Campaign, never an action that cannot work.
+  `ARefusedDeviceSetupSaysWhyAndItsRetryReachesTheWallet`,
+  `EveryOwnerWalletActionThatFailsShowsItsReasonWithARetry` and
+  `BeforeTheArenaOpensNoPageOffersAnActionThatCannotWork` guard them;
+  `EachFirstRunStepAsksForOneThingOnBothPhones` guards the first-run screens.
 - **Money routing:** purchase sends the operator share directly to the pinned team address; the vault holds
   prize money only. Spending never joins the competing pot: it waits in the Daily it was spent on and moves
   to the next prepared Daily when its own finalizes. The lobby shows a Daily's pot together with what the Daily

@@ -53,6 +53,8 @@ namespace ZKube.Integration.App.Tests
             UiScenario = scenario; Ui = Fixture("ui");
             Http.Blockhash = (string)Plans["inputs"]["blockhash"];
             if (scenario == "public-disconnected" || scenario == "campaign-playable") return;
+            // The program is not on the cluster: no account of it exists and nothing that calls it simulates.
+            if (scenario == "arena-not-open") { Http.Accounts.Clear(); return; }
             if (scenario == "owner-overview" || scenario == "pending-confirmed-failure")
             {
                 UseDailyRun();
@@ -131,6 +133,9 @@ namespace ZKube.Integration.App.Tests
             var hold = new HeldCall(); Http.DelayMethod = method; Http.Entered = hold.Started; Http.Release = hold.Completion; return hold;
         }
         public HeldCall HoldNextWallet() => walletHold = new HeldCall();
+        // The cluster refuses the next transaction it is asked to simulate.
+        public void RefuseNextSimulation() => refuseSimulation = true;
+        private bool refuseSimulation;
         public void ConfirmPendingSuccess() { Http.Confirmation = "confirmed"; Http.StatusError = null; ApplyAfter(); }
         public void ConfirmPendingFailure() { Http.Confirmation = "confirmed"; Http.StatusError = new JArray("InstructionError", 0); }
         public void FailFirstReadAfterJournalClear() => failReadback = true;
@@ -195,7 +200,11 @@ namespace ZKube.Integration.App.Tests
                     string address = (string)request["params"][0];
                     ulong balance = address == Owner ? 10_000_000_000 : Http.Accounts.TryGetValue(address, out var account) ? (ulong?)account["lamports"] ?? 0 : 0;
                     return Context(new JValue(UiScenario.Contains("fee-shortage") ? 0 : balance));
-                case "simulateTransaction": return Context(new JObject { ["err"] = null, ["logs"] = new JArray(), ["unitsConsumed"] = 1000 });
+                case "simulateTransaction":
+                    JToken refusal = UiScenario == "arena-not-open" ? new JValue("ProgramAccountNotFound") :
+                        refuseSimulation ? new JObject { ["InstructionError"] = new JArray(0, new JObject { ["Custom"] = 1 }) } : JValue.CreateNull();
+                    refuseSimulation = false;
+                    return Context(new JObject { ["err"] = refusal, ["logs"] = new JArray(), ["unitsConsumed"] = 1000 });
                 case "sendTransaction":
                     var bytes = Convert.FromBase64String((string)request["params"][0]);
                     string signature = TransactionSignatures.ValidateFullySigned(bytes);

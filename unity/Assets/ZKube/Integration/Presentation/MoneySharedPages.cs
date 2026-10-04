@@ -128,7 +128,7 @@ namespace ZKube.Integration.Presentation
                     {
                         views.Render(AppPage.Home, notices);
                         // The first Arcade with an address teaches the Arena Daily, over the page and never on the entry sheet.
-                        if (!Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
+                        if (!arenaClosed && !Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
                     }
                     break;
                 // A page without its read shows its failure itself.
@@ -148,9 +148,10 @@ namespace ZKube.Integration.Presentation
         }
         // While a wallet request is open, Disconnect stays within reach.
         private PanelBlock DisconnectButton() => PanelBlock.Button(PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()), false);
-        // A failure the page itself does not show goes on it as a notice.
+        // A failure the page itself does not show goes on it as a notice; the
+        // Connect, Device and Kredits pages show their refused action themselves.
         private string NoticeFor(string family) => family == "Connect" ? null :
-            failure != null && !(walletFailure && family == "Kredits") ? failure : info;
+            refusal != null && refusalFamily == family && family != "Device" && family != "Kredits" ? refusal : failure ?? info;
 
         // A page whose read is not there yet: what is being checked, or, when the
         // read failed or went stale, the guardian says why with the way forward.
@@ -166,7 +167,7 @@ namespace ZKube.Integration.Presentation
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
             else if (Busy || message == null)
                 page.Blocks = sessionActionPending || economyActionPending ?
-                    new[] { PanelBlock.Text("Page notice", "Your wallet request is still finishing.", SkinTokens.TextMuted), DisconnectButton() } :
+                    new[] { PanelBlock.Text("Page notice", WalletOpen, SkinTokens.TextMuted), DisconnectButton() } :
                     new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
             else
                 page.Blocks = new[] {
@@ -176,23 +177,18 @@ namespace ZKube.Integration.Presentation
         }
         private void Notice(string message) { pageNotice = message; Present(); }
 
-        // Connect: the guardian of today's realm, what connecting is, today's
-        // Daily from the public read, and the wallet request.
+        // Connect: the guardian of today's realm, what connecting is, and the
+        // one wallet request, or why it did not connect.
         private PanelPageView ConnectPage()
         {
-            var today = publicRead != null && publicRead.IsCurrent ? publicRead.Value : null;
-            string facts = today == null ? "Checking today’s Daily…" : "Today · " + Day(today.DayId) + " · UTC · " + PublicStatus(today.Status);
             var blocks = new List<PanelBlock> {
                 PanelBlock.Portrait(TodayRealm),
                 PanelBlock.Card("Connect card",
                     PanelBlock.Title("Your address. Your play.", centered: true),
-                    PanelBlock.Text("Connect copy", "Connect your Solana wallet to enter Arena. Your address is your player identity."),
-                    PanelBlock.Text("Connect cost", "Campaign is free. Connecting does not spend SOL or enable a device session.", SkinTokens.TextMuted),
-                    PanelBlock.Text("Daily facts", facts, SkinTokens.TextMuted)) };
-            if (failure != null && !Busy) blocks.Add(PanelBlock.Text("Connect failure", walletFailure ? "Connection cancelled" : failure, SkinTokens.Negative));
-            blocks.Add(PanelBlock.Button(PageAction(failure != null ? "Try connecting again" : "Connect wallet", () => _ = Connect(),
-                () => PageAvailable() && !Busy, "Connect"), true));
-            blocks.Add(PanelBlock.Text("Connect hint", "Choose your wallet in the Android wallet sheet.", SkinTokens.TextMuted));
+                    PanelBlock.Text("Connect cost", arenaClosed ? "Arena opens soon. Campaign is open now." : "Connecting is free.", SkinTokens.TextMuted, true)) };
+            if (failure != null && !Busy) blocks.Add(PanelBlock.Text("Connect failure", failure, SkinTokens.Negative, true));
+            if (!Refused("Connect", blocks, () => PageAvailable() && !Busy))
+                blocks.Add(PanelBlock.Button(PageAction("Connect wallet", () => _ = Connect(), () => PageAvailable() && !Busy, "Connect"), true));
             return new PanelPageView { Key = "Connect", Subtitle = "Arena", Blocks = blocks.ToArray() };
         }
 
@@ -261,7 +257,8 @@ namespace ZKube.Integration.Presentation
         // last operation.
         private PanelBlock ReceiptRow(string family)
         {
-            if (receiptFamily != family) return null;
+            // A refused action shows its reason on the page; its receipt would say it twice.
+            if (receiptFamily != family || (refusal != null && refusalFamily == family)) return null;
             var receipt = LastReceipt;
             if (receipt == null && receiptNotice == null) return null;
             return PanelBlock.Card("Receipt card", PanelBlock.Eyebrow("Last operation", SkinTokens.TextMuted),

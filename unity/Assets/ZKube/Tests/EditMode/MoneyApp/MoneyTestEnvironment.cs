@@ -39,6 +39,8 @@ namespace ZKube.Integration.App.Tests
                 if (UiScenario != null && operation == "signTransactions") return JObject.Parse(await SignOwner(request));
                 if (operation == "signTransactions") throw new InvalidOperationException("No signing is allowed in this foreground fixture");
                 if (operation == "authorize") { Native.Entered?.TrySetResult(true); if (Native.Release != null) await Native.Release.Task; }
+                if (operation == "authorize" && Native.Reject)
+                { Native.Reject = false; return new JObject { ["requestId"] = request["requestId"], ["ok"] = false, ["error"] = "wallet-rejected" }; }
                 return new JObject { ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(Native.Owner)) };
             }; Services = Create(Config);
             var publications = Fixture("plans");
