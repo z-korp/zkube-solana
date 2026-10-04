@@ -21,6 +21,14 @@ namespace ZKube.Local.App
             public void unavailable(string reason) => done.TrySetResult((null, null));
         }
 
+        private sealed class TopListener : AndroidJavaProxy
+        {
+            private readonly TaskCompletionSource<ulong?> done;
+            public TopListener(TaskCompletionSource<ulong?> done) : base(Bridge + "$TopListener") { this.done = done; }
+            public void top(long score) => done.TrySetResult(score > 0 ? (ulong)score : (ulong?)null);
+            public void none(string reason) => done.TrySetResult(null);
+        }
+
         public async Task<PlayerAccount> SignIn()
         {
             try
@@ -57,6 +65,17 @@ namespace ZKube.Local.App
         public void ShowDailyLeaderboard()
         {
             try { Call("showDailyLeaderboard"); } catch (Exception) { }
+        }
+
+        public async Task<ulong?> DailyTop()
+        {
+            try
+            {
+                var done = new TaskCompletionSource<ulong?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                Call("dailyTop", new TopListener(done));
+                return await done.Task;
+            }
+            catch (Exception) { return null; }
         }
 
         private static void Call(string method, params object[] arguments) => Call<object>(method, arguments);

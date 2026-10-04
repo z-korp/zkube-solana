@@ -9,7 +9,10 @@ import android.util.Base64;
 import com.google.android.gms.common.images.ImageManager;
 import com.google.android.gms.games.PlayGames;
 import com.google.android.gms.games.PlayGamesSdk;
+import com.google.android.gms.games.LeaderboardsClient;
 import com.google.android.gms.games.Player;
+import com.google.android.gms.games.leaderboard.LeaderboardScoreBuffer;
+import com.google.android.gms.games.leaderboard.LeaderboardVariant;
 import java.nio.ByteBuffer;
 
 // The Play Games player account behind the Realms profile: after the
@@ -21,6 +24,11 @@ public final class PlayGamesAccount {
         // The display name and the avatar's pixels (see pixels), or null without one.
         void signedIn(String name, String avatar);
         void unavailable(String reason);
+    }
+    // Today's top of the Daily leaderboard, heard once: its raw score, or none.
+    public interface TopListener {
+        void top(long score);
+        void none(String reason);
     }
 
     private PlayGamesAccount() {}
@@ -52,6 +60,29 @@ public final class PlayGamesAccount {
         if (!signedIn || board == null) return;
         activity.runOnUiThread(() -> PlayGames.getLeaderboardsClient(activity).getLeaderboardIntent(board)
             .addOnSuccessListener(intent -> activity.startActivityForResult(intent, 9004)));
+    }
+
+    // The first public score of today's Daily leaderboard, read once.
+    public static void dailyTop(final Activity activity, final TopListener listener) {
+        final String board = configured(activity, "zkube_play_games_daily_leaderboard");
+        if (!signedIn || board == null) { listener.none("signed out"); return; }
+        activity.runOnUiThread(() -> {
+            try {
+                PlayGames.getLeaderboardsClient(activity)
+                    .loadTopScores(board, LeaderboardVariant.TIME_SPAN_DAILY, LeaderboardVariant.COLLECTION_PUBLIC, 1)
+                    .addOnCompleteListener(read -> {
+                        LeaderboardsClient.LeaderboardScores scores = read.isSuccessful() ? read.getResult().get() : null;
+                        if (scores == null) { listener.none("unavailable"); return; }
+                        LeaderboardScoreBuffer buffer = scores.getScores();
+                        try {
+                            if (buffer.getCount() == 0) listener.none("empty");
+                            else listener.top(buffer.get(0).getRawScore());
+                        } finally { scores.release(); }
+                    });
+            } catch (RuntimeException error) {
+                listener.none(error.getClass().getSimpleName());
+            }
+        });
     }
 
     public static void signIn(final Activity activity, final Listener listener) {

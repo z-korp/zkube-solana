@@ -57,6 +57,10 @@ namespace ZKube.Tests.MoneyOverview
             yield return BoardReady();
             var board = host.GetComponent<MoneyBoardHost>().Board;
             Assert.That(board.Session.Daily, Is.True);
+            // The crown is the day's Score board top, read once as the run opened.
+            Assert.That(board.Session.DailyFacts.Top, Is.Not.Null);
+            yield return Wait(board.Session.DailyFacts.Top); yield return null;
+            Assert.That(board.View.CrownShown, Is.EqualTo(CrownBadge.State(CrownBadge.Top(board.Session.DailyFacts.Top), board.State.DailyScore)));
             Click("Reroll action"); yield return null; Click("Dialog " + BoardController.RerollConfirm); yield return BoardAccepted(1);
             Click("Pause"); yield return null;
             Click("Dialog End run"); yield return null;

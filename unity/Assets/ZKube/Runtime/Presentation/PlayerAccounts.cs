@@ -25,6 +25,9 @@ namespace ZKube.Presentation
         void SubmitDailyScore(ulong score);
         // Opens the platform's own leaderboard screen.
         void ShowDailyLeaderboard();
+        // Today's top score on the platform's Daily leaderboard, or null (signed
+        // out, no board, no score yet, or a failed read). It never throws.
+        Task<ulong?> DailyTop();
     }
 
     // Where no platform account exists (the Editor, a desktop player).
@@ -34,5 +37,6 @@ namespace ZKube.Presentation
         public bool HasDailyLeaderboard => false;
         public void SubmitDailyScore(ulong score) { }
         public void ShowDailyLeaderboard() { }
+        public Task<ulong?> DailyTop() => Task.FromResult<ulong?>(null);
     }
 }

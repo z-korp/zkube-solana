@@ -208,7 +208,8 @@ namespace ZKube.Local.App
         private void OpenBoard(LocalBoardActionProvider provider)
         {
             if (provider.Daily)
-                runBoard.Open(provider.Bind(new DailyContext { Best = Flow.Product.Read.BestDailyScore, ClosesAt = Flow.Today.FreezesAt, Now = Flow.Runs.Now }),
+                runBoard.Open(provider.Bind(new DailyContext { Top = Flow.DailyTop(), Best = Flow.Product.Read.BestDailyScore,
+                    ClosesAt = Flow.Today.FreezesAt, Now = Flow.Runs.Now }),
                     () => Flow.Unsaved, _ => Flow.LeaveDaily(), Flow.LeaveDaily);
             else runBoard.Open(provider.Bind(), () => Flow.Unsaved, Flow.Campaign.Finished, Flow.Campaign.Left, Flow.Campaign.FirstRun);
             if (pageRoot != null) pageRoot.SetActive(false);

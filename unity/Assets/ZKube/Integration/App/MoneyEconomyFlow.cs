@@ -45,6 +45,14 @@ namespace ZKube.Integration.App
             return new MoneyRead<MoneyKreditState>(value, () => read.IsCurrent && CurrentOwnerOperation(value.PreviousOperation));
         }
 
+        // Today's Score board top for the Daily crown, read once as a run opens.
+        // Any failure is no top: the board then shows no badge.
+        public async Task<ulong?> DailyTop(uint day)
+        {
+            try { return (await services.Products.ScoreTop(day).ConfigureAwait(false)).Value; }
+            catch (Exception) { return null; }
+        }
+
         // A reward page observes each sealing window and the actual profile.
         // Opening it does not reconcile a pending claim or authorize a session.
         public async Task<MoneyRead<MoneyRewardState>> RefreshRewards(uint day, CancellationToken cancellation = default)

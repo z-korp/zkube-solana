@@ -45,7 +45,10 @@ namespace ZKube.Presentation
         public string PromptText => prompt == null ? "" : prompt.text;
         private GameObject bubble;
         private TMP_Text pressure, best, timeLeft;
-        private Image pressureFill, bestCrown;
+        private Image pressureFill, bestCrown, bestPill, bestRing;
+        private Rect bestBadge;
+        private Crown crownShown = Crown.Hidden;
+        private ulong? topShown;
         private readonly bool[] flying = new bool[3];
         private GameObject modal;
         private Image modalShield;
@@ -244,12 +247,15 @@ namespace ZKube.Presentation
                 var facts = session.DailyFacts;
                 if (facts != null)
                 {
-                    // The best: a crown and the best score, on a badge centred over the plate's number.
-                    var badge = hud.Best; float icon = badge.height - 4 * d;
-                    ui.Pill("Best badge", badge, root);
-                    bestCrown = ui.Piece("Best crown", SkinSlots.IconCrown, new Rect(badge.x + 5 * d, badge.y + 2 * d, icon, icon), root);
+                    // The day's top: a crown and the top's score, on a badge centred over the plate's number (CrownBadge).
+                    var badge = bestBadge = hud.Best; float icon = badge.height - 4 * d;
+                    bestPill = ui.Pill("Best badge", badge, root);
+                    var crown = new Rect(badge.x + 5 * d, badge.y + 2 * d, icon, icon);
+                    bestRing = ui.Piece("Best crown ring", SkinSlots.FxRingSoft, crown, root); bestRing.color = art.Token(SkinTokens.Accent); bestRing.enabled = false;
+                    bestCrown = ui.Piece("Best crown", SkinSlots.IconCrown, crown, root);
                     best = Text("Best", "", new Rect(badge.x + 7 * d + icon, badge.y, badge.width - 10 * d - icon, badge.height),
-                        hud.ChipPt + 2, SkinTokens.Accent, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
+                        hud.ChipPt + 2, SkinTokens.TextMuted, root, SkinUi.Type.Display, TextAlignmentOptions.Center);
+                    bestPill.enabled = bestCrown.enabled = best.enabled = false;
                 }
                 // The right column: the multiplier, the objective (a Classic day has none) and the time left.
                 var rules = session.Rules; int slot = 0;
@@ -503,15 +509,7 @@ namespace ZKube.Presentation
                 pressure.text = HudLayout.PressureValue(state);
                 pressureFill.fillAmount = HudLayout.PressureProgress(state);
                 ShowPlate(plates[1], state.ObjectiveTotal, 0, false);
-                var facts = session.DailyFacts;
-                if (facts != null)
-                {
-                    // The badge holds the best so far; its crown lights once this run beats it.
-                    best.text = Math.Max(facts.Best, state.DailyScore).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
-                    bool beaten = state.DailyScore > facts.Best;
-                    bestCrown.sprite = art.SkinUi(SkinSlots.IconCrown); bestCrown.color = SkinUi.WithAlpha(Color.white, beaten ? 1 : .55f);
-                    best.color = art.Token(beaten ? SkinTokens.Accent : SkinTokens.TextMuted);
-                }
+                ShowCrown(state);
                 ShowTimeLeft();
             }
             guardianTablet.Icons(art.SkinUi(HudLayout.BonusIcon(state.BonusType, true)), art.SkinUi(HudLayout.BonusIcon(state.BonusType, false)));
@@ -521,6 +519,32 @@ namespace ZKube.Presentation
             ShowCap(guardianTablet, state.BonusCharges); ShowCap(rerollTablet, state.RerollCharges);
             NeedsTextReflow = new[] { moves, score, objective, earnCaption }
                 .Any(label => label != null && label.gameObject.activeInHierarchy && label.GetPreferredValues(label.text, label.rectTransform.rect.width, float.PositiveInfinity).y > label.rectTransform.rect.height + .5f);
+        }
+        // The crown badge by CrownBadge: hidden without a top, the dim crown with
+        // the top's number below it, and the gold crown alone once this run's
+        // score passes it, which lights it once with a ring, a pop and a cheer.
+        // A read that lands later shows it then (Update).
+        public Crown CrownShown => crownShown;
+        private void ShowCrown(RunSummary state)
+        {
+            var facts = owner.Session?.DailyFacts;
+            if (facts == null || best == null) return;
+            ulong? top = CrownBadge.Top(facts.Top); var crown = CrownBadge.State(top, state.DailyScore);
+            if (crown == crownShown && top == topShown) return;
+            bool passed = crownShown == Crown.Below && crown == Crown.Beaten;
+            crownShown = crown; topShown = top;
+            bestPill.enabled = bestCrown.enabled = crown != Crown.Hidden; best.enabled = crown == Crown.Below;
+            float d = Layout.Density, icon = bestBadge.height - 4 * d;
+            SkinUi.Place(bestPill.rectTransform, crown == Crown.Beaten ? new Rect(bestBadge.x, bestBadge.y, icon + 10 * d, bestBadge.height) : bestBadge, bestPill.rectTransform.parent);
+            bestCrown.color = SkinUi.WithAlpha(Color.white, crown == Crown.Beaten ? 1 : .55f);
+            if (crown == Crown.Below)
+            {
+                best.text = top.Value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+                NumberFit.Apply(ui, best, best.rectTransform.rect.width, hud.ChipPt + 2);
+            }
+            if (!passed) return;
+            Face("celebrate"); guardianCheerUntil = Time.unscaledTime + GuardianCheer;
+            if (!owner.ReducedMotion) { StartCoroutine(Ring(bestRing)); Pop(bestCrown.rectTransform, 1.3f, .4f); }
         }
         // The armed guardian power: its tablet wears its armed face, the Earn
         // panel beside it says what to tap, with a cancel, and the rows that can
@@ -1450,7 +1474,7 @@ namespace ZKube.Presentation
                 foreach (var band in targetRows)
                     if (band != null && band.enabled) band.color = SkinUi.WithAlpha(art.Token(SkinTokens.Accent), TargetAlpha * pulse);
             }
-            if (owner != null && owner.State != null) Breathe(Time.unscaledTime);
+            if (owner != null && owner.State != null) { Breathe(Time.unscaledTime); if (!hud.Campaign) ShowCrown(owner.State); }
             ShowTimeLeft();
             if (guardian == null) return;
             float now = Time.unscaledTime;

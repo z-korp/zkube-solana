@@ -76,6 +76,8 @@ namespace ZKube.Local.App
         // there is neither, and nothing else changes.
         public bool HasLeaderboard => Account != null && accounts.HasDailyLeaderboard;
         public void ShowLeaderboard() { Check(); if (HasLeaderboard) accounts.ShowDailyLeaderboard(); }
+        // Today's top on that leaderboard, read once as a Daily run opens; signed out there is none.
+        public Task<ulong?> DailyTop() => HasLeaderboard ? accounts.DailyTop() : Task.FromResult<ulong?>(null);
         public void PlayDaily()
         {
             Check();

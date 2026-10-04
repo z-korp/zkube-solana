@@ -33,6 +33,11 @@ namespace ZKube.Tests
             public bool HasDailyLeaderboard => Leaderboard;
             public void SubmitDailyScore(ulong score) => Submitted.Add(score);
             public void ShowDailyLeaderboard() => Shown++;
+            // Today's top as the platform answers it: a score, none, or a read that fails.
+            public ulong? Top; public bool TopFails;
+            public System.Threading.Tasks.Task<ulong?> DailyTop() => TopFails
+                ? System.Threading.Tasks.Task.FromException<ulong?>(new InvalidOperationException("Play Games is unavailable"))
+                : System.Threading.Tasks.Task.FromResult(Top);
         }
         private Accounts accounts;
         private sealed class Driver : ICampaignStoreDriver

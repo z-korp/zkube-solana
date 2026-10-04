@@ -275,7 +275,9 @@ namespace ZKube.Presentation
                 // The score plate, with the best badge over its number: centred on
                 // the value and straddling the plate's top edge.
                 result.Crown = new Rect(cx - crownHalf * d, Y(crownTop + crownHeight), 2 * crownHalf * d, score * d);
-                string widest = (bestScore * 10 + 9).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+                // The badge holds the day's top (CrownBadge), unknown until its read lands: room for six
+                // digits, and the player's own best past them; a larger top abbreviates (NumberFit).
+                string widest = Math.Max(bestScore * 10 + 9, 999999).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
                 float badge = Mathf.Max(BestDp * k, H("0", 100 * d, result.ChipPt + 2, SkinUi.Type.Display));
                 float width = badge - 4 + W(widest, result.ChipPt + 2, SkinUi.Type.Display) + 12;
                 var value = PlateLayout.Row(result.Crown, k * d, ScoreIconDp).Value;

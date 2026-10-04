@@ -121,6 +121,16 @@ namespace ZKube.Integration.Client
             return board.WithPublic(page.Rows.ToArray(), yours);
         }
 
+        // The day's Score board top as the board holds it now (it is kept sorted as
+        // runs are consumed): its first row's score, or none on an empty or missing board.
+        public Task<MoneyRead<ulong?>> ScoreTop(uint day, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
+            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score") }, cancellation: token).ConfigureAwait(false);
+            var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
+            var board = read.Accounts[1].Envelope == null || daily == null ? null : accounts.ArenaBoard(read.Accounts[1].Envelope, daily, day, "score");
+            uint top = board == null || board.Rows.Count == 0 ? 0 : board.Rows[0].Score;
+            return top == 0 ? (ulong?)null : top;
+        });
+
         // A single-board action must not depend on the peer board being present.
         // Both the page and preflight use Board for binding, payouts and expiry.
         public Task<MoneyRead<PrizeBoard>> SettledBoard(uint day, string kind, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {

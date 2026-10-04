@@ -31,13 +31,29 @@ namespace ZKube.Presentation
         Task<BoardActionResult> Recover(CancellationToken cancellation);
     }
 
-    // What a Daily board shows beside its run: the player's best score, when
-    // entries close (Unix seconds) and the clock that counts down to it.
+    // What a Daily board shows beside its run: the day's leaderboard top as
+    // its read will give it (read once as the run opens), the player's own best
+    // score (for the result's sound and the score plate's width), when entries
+    // close (Unix seconds) and the clock that counts down to it.
     public sealed class DailyContext
     {
+        public Task<ulong?> Top;
         public ulong Best;
         public long ClosesAt;
         public Func<long> Now;
+    }
+
+    // The Daily's crown badge: hidden without a top, the dim crown with the top's
+    // number below it, the gold crown alone once this run's score passes it.
+    public enum Crown { Hidden, Below, Beaten }
+    public static class CrownBadge
+    {
+        // The top a read gave: none while it is out, when it failed or was
+        // cancelled, and for an empty board.
+        public static ulong? Top(Task<ulong?> read) =>
+            read != null && read.Status == TaskStatus.RanToCompletion && read.Result is ulong top && top > 0 ? top : (ulong?)null;
+        // A score equal to the top has not passed it.
+        public static Crown State(ulong? top, ulong score) => top == null ? Crown.Hidden : score > top.Value ? Crown.Beaten : Crown.Below;
     }
 
     public sealed class BoardSession

@@ -62,8 +62,12 @@ namespace ZKube.Presentation.Tests
             Current = Fixtures.Single(f => f.name == name); journeyCursor = 0;
             var config = BuildConfigRequest.Decode(Hex(Current.configRequestHex));
             var token = new CoreRunToken(Hex(Current.configHex), Hex(Current.initialStateHex));
-            Board.Bind(new BoardSession(token, config, new OfflineActions(Current), Current.realmId));
+            Board.Bind(new BoardSession(token, config, new OfflineActions(Current), Current.realmId, Daily));
         }
+        // What a Daily fixture's board shows beside its run (its leaderboard top), or none.
+        public DailyContext Daily;
+        // Every input of the loaded fixture has been played.
+        public bool Exhausted => Current == null || journeyCursor >= Current.steps.Length;
 
         // A fresh Campaign run of a catalog level, its randomness from the level's name.
         public void LoadCampaign(byte realm, byte level)

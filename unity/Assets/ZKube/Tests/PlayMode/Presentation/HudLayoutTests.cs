@@ -690,16 +690,16 @@ namespace ZKube.Presentation.Tests
                 Assert.AreEqual(SkinUi.FontName(SkinUi.Type.Label), Label("Next row label").font.name);
             }
         }
-        // A Daily bound with the player's best and its close, as both products bind it.
-        private IEnumerator BindDaily(string fixture, ulong best, long closesAt, long now)
+        // A Daily bound with the day's top and its close, as both products bind it.
+        private IEnumerator BindDaily(string fixture, ulong top, long closesAt, long now)
         {
             evidence.Load(fixture); yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             var session = board.Session;
             board.Bind(new BoardSession(session.Accepted, session.Rules, session.Actions, session.RealmId,
-                new DailyContext { Best = best, ClosesAt = closesAt, Now = () => now }));
+                new DailyContext { Top = System.Threading.Tasks.Task.FromResult<ulong?>(top), ClosesAt = closesAt, Now = () => now }));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
         }
-        [UnityTest] public IEnumerator TheDailyHudShowsItsScoreBestMultiplierObjectiveAndTimeLeftWithoutStars()
+        [UnityTest] public IEnumerator TheDailyHudShowsItsScoreTopMultiplierObjectiveAndTimeLeftWithoutStars()
         {
             yield return BindDaily("realm-8-daily", 1240, 100000 + 7 * 3600 + 42 * 60 + 30, 100000);
             var view = board.View; var state = board.State; var rules = board.Session.Rules;
@@ -707,7 +707,7 @@ namespace ZKube.Presentation.Tests
             Assert.IsFalse(view.GetComponentsInChildren<Image>().Any(image => image.name.StartsWith("Star ", StringComparison.Ordinal)), "The Daily has no stars");
             Assert.IsFalse(view.GetComponentsInChildren<Image>().Any(image => image.name == "Level medal"));
             Assert.AreEqual(state.DailyScore.ToString("N0", System.Globalization.CultureInfo.InvariantCulture), Label("Score").text);
-            Assert.AreEqual("1,240", Label("Best").text, "The badge holds the best so far");
+            Assert.AreEqual("1,240", Label("Best").text, "The badge holds the day's top");
             Assert.AreEqual(HudLayout.PressureValue(state), Label("Pressure").text);
             Assert.AreEqual(HudLayout.PressureProgress(state), Named("Pressure fill").fillAmount, 1e-4f);
             Assert.AreEqual("7:42", Label("Time left").text);
@@ -719,18 +719,18 @@ namespace ZKube.Presentation.Tests
                 Assert.AreEqual(state.ObjectiveTotal.ToString(), Label("Theme").text);
             }
             foreach (string name in new[] { "Score", "Best", "Pressure", "Time left", "Moves remaining" }) Fits(Label(name));
-            // A run past the best lights its crown and carries the badge.
+            // A run past the top lights its crown alone.
             var plan = HudLayout.Build(new SkinUi(Art(), 1, 1), state, board.Session, view.Layout.Frame, 1);
             Assert.IsTrue(Inside(plan.Crown, new Rect(plan.Best.x, plan.Crown.y, plan.Best.width, 1)), "The badge sits over the score plate");
             ulong saved = state.DailyScore;
             try
             {
                 state.DailyScore = 2000; view.Summary(state, board.Session, true);
-                Assert.AreEqual("2,000", Label("Best").text);
-                Assert.AreEqual(1, Named("Best crown").color.a, 1e-4f, "A new best lights the crown");
+                Assert.IsFalse(Label("Best").enabled, "Past the top the number goes");
+                Assert.AreEqual(1, Named("Best crown").color.a, 1e-4f, "A new top lights the crown");
             }
             finally { state.DailyScore = (uint)saved; view.Summary(state, board.Session, true); }
-            Assert.Less(Named("Best crown").color.a, 1, "An unbeaten best keeps its crown dim");
+            Assert.Less(Named("Best crown").color.a, 1, "Below the top the crown is dim");
         }
         [UnityTest] public IEnumerator TheDailyHudFitsTheSeekerAndA360x640PhoneAtBothTextSizes()
         {

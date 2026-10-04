@@ -135,9 +135,16 @@ spending approval.
   lookups.
 - **Realms leaderboard:** signed in, each finished Daily's score goes to one platform leaderboard (Play Games on
   Android) and a Leaderboard button on the Daily card and the Daily result opens the platform's own screen; it is
-  behind the platform-account interface. Signed out there is no button and no submission, and nothing else
+  behind the platform-account interface. Signed out there is no button, submission or crown, and nothing else
   changes. `AFinishedDailyGoesToThePlatformLeaderboardOnlyWhenSignedIn` and
   `ASignedOutDailySubmitsNothingAndShowsNoLeaderboard` guard both.
+- **Daily crown:** the Daily HUD's crown shows the day's top score, read once at run start: Arena's from the top
+  row of today's Score board on Base, Realms' from the platform leaderboard when signed in. Below the top it
+  shows a dim crown and the top's number; once the run passes it the crown lights alone and its moment plays
+  once. Without a top (signed out, empty board or a failed read) there is no badge, never a copy of the score.
+  `CrownBadge` owns the rule; `TheCrownShowsTheTopUntilTheScorePassesItAndNothingWithoutATop`,
+  `TheDailyCrownShowsTheDaysTopAndNeverACopyOfTheScore` and `TheRealmsDailyCrownIsThePlatformTopWhenSignedIn`
+  guard it.
 - **Campaign is free and optional on Arena:** one shared local client plays it in both products. Realms
   alone overlays the realm purchase policy and adds a local Daily on the same day as Arena's.
   `store_gate_is_a_store_identity_policy_over_shared_progression`,
