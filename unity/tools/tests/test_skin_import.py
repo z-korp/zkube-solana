@@ -96,7 +96,67 @@ def point_lights(path):
             if spots.getpixel((x, y)) and not (abs(x - width / 2) < width * .06 and y < height * .08)]
 
 
+def lost_inner_marks(path):
+    """Inner marks a tab icon loses when it is selected.
+
+    PageViews.TabBar tints a tab's icon with the text ink, and the selected one
+    with the dark chip ink, which flattens every colour of the art to one dark
+    fill: only what the art cuts out of its alpha still shows the chip through
+    it. The unselected icon shows its marks as the art draws them over the dark
+    bar. A mark is a blob inside the icon's outline darker than its fill; each
+    one must be cut out of the alpha, or the selected icon loses it.
+    """
+    image = Image.open(path).convert('RGBA')
+    width, height = image.size
+    alpha = image.getchannel('A')
+    shown = Image.alpha_composite(Image.new('RGBA', image.size, (0, 0, 0, 255)), image).convert('L')
+    # The filled shape: every pixel the outside's transparency cannot reach.
+    outside, edge = set(), [(x, y) for x in range(width) for y in (0, height - 1)] + [(x, y) for y in range(height) for x in (0, width - 1)]
+    while edge:
+        x, y = edge.pop()
+        if (x, y) in outside or not (0 <= x < width and 0 <= y < height) or alpha.getpixel((x, y)) > 128: continue
+        outside.add((x, y)); edge += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+    hull = Image.new('L', image.size, 255)
+    for point in outside: hull.putpixel(point, 0)
+    # Well inside the outline stroke, the fill and the marks against it.
+    inside = hull.filter(ImageFilter.MinFilter(17))
+    filled = sorted(shown.getpixel((x, y)) for y in range(height) for x in range(width)
+                    if inside.getpixel((x, y)) and alpha.getpixel((x, y)) > 128)
+    fill = filled[len(filled) // 2]
+    marks = {(x, y) for y in range(height) for x in range(width) if inside.getpixel((x, y)) and shown.getpixel((x, y)) < fill - 60}
+    lost = []
+    while marks:
+        blob, todo = set(), [marks.pop()]
+        while todo:
+            x, y = todo.pop(); blob.add((x, y))
+            for near in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if near in marks: marks.remove(near); todo.append(near)
+        # A remnant of the outline is no mark; a mark is cut out where it is mostly transparent.
+        if len(blob) >= 40 and sum(alpha.getpixel(point) < 128 for point in blob) < len(blob) / 2: lost.append(min(blob))
+    return lost
+
+
 class KitArt(unittest.TestCase):
+    def test_every_tab_icon_keeps_its_inner_lines_when_selected(self):
+        """The map's two folds, the gear's hole: what an unselected tab icon shows inside its outline is cut out of
+        its alpha, so the selected icon shows the chip through it rather than losing it in its dark fill."""
+        for slot in ("icon-home", "icon-campaign", "icon-profile", "icon-settings"):
+            with self.subTest(slot=slot):
+                self.assertEqual([], lost_inner_marks(ROOT / f"assets/skins/lumen/ui/{slot}.png"))
+
+    def test_the_detector_finds_a_painted_line_and_passes_a_cut_one(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'build') as temporary:
+            for cut, expected in ((False, 1), (True, 0)):
+                image = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
+                for x in range(8, 88):
+                    for y in range(8, 88):
+                        image.putpixel((x, y), (20, 20, 20, 255) if x < 12 or x > 83 or y < 12 or y > 83 else (220, 210, 190, 255))
+                for x in range(46, 50):
+                    for y in range(24, 72):
+                        image.putpixel((x, y), (0, 0, 0, 0) if cut else (90, 80, 70, 255))
+                path = Path(temporary) / f'line-{cut}.png'
+                image.save(path)
+                self.assertEqual(expected, len(lost_inner_marks(path)), "cut" if cut else "painted")
     def test_the_secondary_button_is_filled_moonstone_teal(self):
         """design/hud-brief-amend-2: the secondary button is deep moonstone-teal in every realm, one skin-global
         piece; an outline plate is the tertiary (quiet) button's look, drawn by code."""
