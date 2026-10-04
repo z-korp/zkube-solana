@@ -33,9 +33,10 @@ namespace ZKube.Tests.Presentation
                 Play = new PageAction { Label = "Play" }, Back = new PageAction { Label = "Back to map" } };
             public DailyPageView Daily;
             public DailyPageView DailyPage() => Daily;
-            public ProfilePageView ProfilePage() => new ProfilePageView { Name = "Player", Realm = 1, Emblem = 1, Tier = 4, Stars = int.MaxValue,
-                Streak = ulong.MaxValue, BestDailyScore = ulong.MaxValue, Standing = "Mako · Prism · " + NumberFit.Figure(ulong.MaxValue) + " ladder points",
-                ChooseBorder = new PageAction { Label = "Choose a border" } };
+            public ulong Ladder = ulong.MaxValue;
+            public ProfilePageView ProfilePage() => new ProfilePageView { Name = "7WFy…ZDRA", Realm = 1, Emblem = 1, Tier = 4, Stars = int.MaxValue,
+                Streak = ulong.MaxValue, BestDailyScore = ulong.MaxValue, LadderPoints = Ladder, LadderTier = NativeEngine.LadderTier(Ladder),
+                Records = new PageAction { Label = "Records" }, ChooseBorder = new PageAction { Label = "Choose a border" } };
             public SettingsPageView SettingsPage() => AppPreferences.Read(() => { });
             public ResultPageView Result;
             public ResultPageView ResultPage() => Result;
@@ -119,6 +120,46 @@ namespace ZKube.Tests.Presentation
             Assert.That(NumberFit.Figure(9_999_999), Is.EqualTo("9,999,999"));
             Assert.That(NumberFit.Figure(10_000_000), Is.EqualTo("10.0M"));
             Assert.That(NumberFit.Figure(9007199254740993), Is.EqualTo("9.0Qa"));
+        }
+
+        // The Arena profile's panel at both phones, with no ladder points yet
+        // and with a large figure: under the name stands the figure alone, led
+        // by its tier's badge, on one line inside the card and clear of Records.
+        [UnityTest] public IEnumerator TheLadderFigureFitsThePanelAtBothPhonesFromZeroToALargeFigure()
+        {
+            root = new GameObject("Ladder figure");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Ladder figure");
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Largest();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Arcade", "arena", 1);
+            foreach (var (phone, size) in new (Action<PageShell, float>, string)[] { (Phones.Compact, "compact"), (Phones.Seeker, "seeker") })
+                foreach (ulong points in new[] { 0UL, 987654321012UL })
+                {
+                    phone(shell, 1); source.Ladder = points;
+                    views.Render(AppPage.Settings); yield return null;
+                    views.Render(AppPage.Profile); yield return null;
+                    foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                    yield return null;
+                    string at = points + " points on the " + size + " phone";
+                    var figure = root.GetComponentsInChildren<TMPro.TMP_Text>().Single(text => text.name == "Ladder points");
+                    figure.ForceMeshUpdate();
+                    Assert.That(figure.text, Is.EqualTo(NumberFit.Figure(points)), at);
+                    Assert.That(figure.textInfo.lineCount, Is.EqualTo(1), at + ": one line");
+                    var images = root.GetComponentsInChildren<UnityEngine.UI.Image>();
+                    var badge = images.Single(image => image.name == "Ladder badge");
+                    Assert.That(badge.sprite.name, Does.StartWith(SkinSlots.LadderBadge(NativeEngine.LadderTier(points))), at + ": led by its tier's badge");
+                    var card = SkinUi.ScreenRect(images.Single(image => image.name == "Wearer card").rectTransform);
+                    var drawn = SkinUi.ScreenRect(figure.rectTransform); var lead = SkinUi.ScreenRect(badge.rectTransform);
+                    var records = SkinUi.ScreenRect((RectTransform)root.GetComponentsInChildren<UnityEngine.UI.Button>().Single(button => button.name == "Records").transform);
+                    Assert.That(lead.xMax, Is.LessThanOrEqualTo(drawn.xMin + .5f), at + ": the badge leads the figure");
+                    Assert.That(card.Contains(lead.min) && card.Contains(new Vector2(drawn.xMax - .01f, drawn.yMax - .01f)), Is.True, at + ": inside the card");
+                    Assert.That(drawn.xMax, Is.LessThanOrEqualTo(records.xMin + .5f), at + ": clear of Records");
+                    Assert.That(root.GetComponentsInChildren<TMPro.TMP_Text>().Any(text => text.name == "Standing line" || text.name == "Worn"), Is.False, at + ": no words under the name");
+                    yield return Captures.Snap(shell, "arena profile " + points + " points " + size);
+                }
+            Phones.Clear(shell);
         }
     }
 }

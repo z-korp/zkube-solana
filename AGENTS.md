@@ -361,7 +361,9 @@ spending approval.
   `committed_ladder_vectors_match_integer_ln` and
   `ladder_points_accumulate_and_promote` guard arithmetic and progression; native
   and program paths use the same core. Campaign stars and ladder tiers grant no SOL, entries, mint odds or
-  prize eligibility.
+  prize eligibility. The Arena profile's panel shows the points as a figure led by their tier's badge, under
+  the name; it prints neither the emblem's mode nor the tier's name, which is the border round the emblem.
+  `TheProfilePanelShowsOnlyItsLadderPointsUnderTheName` guards the panel.
 - **Qualifying credit:** a positive flat award applies once per player, board and day on first
   qualification, including players outside the paying rows. It is never per entry.
   `qualifying_on_both_boards_credits_the_ladder_twice`, `qualifying_on_one_board_credits_the_ladder_once`

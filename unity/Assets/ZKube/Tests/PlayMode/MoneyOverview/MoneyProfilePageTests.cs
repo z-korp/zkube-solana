@@ -5,6 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using ZKube.Core.Generated;
 using ZKube.Integration.App;
 using ZKube.Integration.Execution;
 using ZKube.Presentation;
@@ -32,7 +33,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Text("Name text"), Is.EqualTo(owner.Substring(0, 4) + "…" + owner.Substring(owner.Length - 4)), "Without a Seeker ID, the shortened address");
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Your records" && button.interactable), Is.True);
             Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.name == "Profile badge"), Is.False, "No badge until a Genesis Token is found");
-            string standing = Text("Standing line");
+            string standing = Text("Ladder points");
             // The lookup's answer for this address arrives.
             Set("seekerOwner", owner); Set("seeker", new ZKube.Integration.Transport.SeekerProfile { Name = "alice.skr" });
             yield return Wait(controller.OpenProfile()); yield return Idle();
@@ -41,8 +42,31 @@ namespace ZKube.Tests.MoneyOverview
             Set("seeker", new ZKube.Integration.Transport.SeekerProfile { Name = "alice.skr", Verified = true });
             yield return Wait(controller.OpenProfile()); yield return Idle();
             Assert.That(Text("Profile badge"), Is.EqualTo(ZKube.Integration.Presentation.MoneyAppAdapter.VerifiedSeekerBadge));
-            Assert.That(Text("Standing line"), Is.EqualTo(standing), "The badge changes no standing");
+            Assert.That(Text("Ladder points"), Is.EqualTo(standing), "The badge changes no standing");
             Assert.That(environment.SentSignature, Is.Null, "Showing a name sends nothing");
+        }
+        // The identity panel says who and how far: the name, and the ladder
+        // points as a figure led by their tier's badge. The emblem mode and the
+        // tier's name are not printed on it: Automatic is a choice in the
+        // picker, and the tier is the border round the emblem.
+        [UnityTest] public IEnumerator TheProfilePanelShowsOnlyItsLadderPointsUnderTheName()
+        {
+            // The automatic emblem on the first border: the panel that printed its mode and its tier's name.
+            yield return PrepareProfilePage("profile-auto");
+            var page = host.GetComponent<MoneyIdentity>().Controller.ProfilePage();
+            Assert.That(Text("Ladder points"), Is.EqualTo(NumberFit.Figure(page.LadderPoints.Value)));
+            var badge = host.GetComponentsInChildren<Image>().Single(image => image.name == "Ladder badge");
+            Assert.That(badge.sprite.name, Does.StartWith(SkinSlots.LadderBadge(page.LadderTier)), "The figure's pictogram is its tier's badge");
+            var card = SkinUi.ScreenRect(host.GetComponentsInChildren<Image>().Single(image => image.name == "Wearer card").rectTransform);
+            var words = host.GetComponentsInChildren<TMP_Text>().Where(text => text.isActiveAndEnabled && card.Contains(SkinUi.ScreenRect(text.rectTransform).center))
+                .Select(text => text.text).ToArray();
+            foreach (string printed in words)
+            {
+                StringAssert.DoesNotContain("automatic", printed.ToLowerInvariant());
+                StringAssert.DoesNotContain("ladder", printed.ToLowerInvariant());
+                foreach (var tier in ProfileIdentityCatalog.Tiers) StringAssert.DoesNotContain(tier.Name, printed);
+            }
+            Assert.That(words.Length, Is.EqualTo(3), "The name, the figure and the Records button; printed " + string.Join(" | ", words));
         }
         [UnityTest] public IEnumerator FeaturedIdentityRequiresAnExplicitWearAndShowsConfirmedReadback() => WearProfile("profile-success", 8, 3);
         [UnityTest] public IEnumerator AutomaticCanBeRestoredWithItsSelectedBorder() => WearProfile("profile-auto", 0, 0);
@@ -77,8 +101,10 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
             Assert.That(controller.SelectedEmblem, Is.EqualTo(latestEmblem ?? emblem));
             Assert.That(controller.SelectedBorder, Is.EqualTo(latestBorder ?? border));
-            var worn = ProfileEmblems.All.Single(value => value.Id == (latestEmblem ?? emblem));
-            StringAssert.Contains(worn.Id == 0 ? "(automatic)" : worn.Name, Text("Standing line"));
+            // The emblem card marks the stored emblem as worn; Automatic stores none.
+            byte stored = latestEmblem ?? emblem;
+            CollectionAssert.AreEqual(stored == 0 ? new byte[0] : new[] { stored },
+                controller.ProfilePage().Emblems.Where(choice => choice.Detail == "Worn").Select(choice => choice.Id).ToArray());
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Wear selection" && button.interactable), Is.False);
             yield return Wait(controller.WearProfileSelection());
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));

@@ -135,10 +135,12 @@ namespace ZKube.Presentation
         public UnityEngine.Texture2D Avatar;
         // The realm behind the page, and the worn emblem (0 when none is worn).
         public byte Realm, Emblem;
-        // The worn ladder tier, whose border rings the medallion and whose badge
-        // leads the standing line under the name; absent where there is no ladder.
+        // The worn ladder tier, whose border rings the medallion, and the ladder
+        // points under the name: a figure led by the badge of the tier they
+        // reach, without words. Both absent where there is no ladder.
         public byte? Tier;
-        public string Standing;
+        public ulong? LadderPoints;
+        public byte LadderTier;
         public PageAction Records, ChooseBorder;
         public int Stars;
         public ulong Streak, BestDailyScore;

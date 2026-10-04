@@ -91,8 +91,7 @@ namespace ZKube.Integration.Presentation
                     () => ProfileEditable() && worn.CanWear(0, selectedBorder), "Emblem 0"));
             return new ProfilePageView {
                 Name = SeekerName(player.Owner), Badge = VerifiedSeeker(player.Owner) ? VerifiedSeekerBadge : null, Emblem = worn.DisplayedEmblem, Realm = EmblemRealm(worn.DisplayedEmblem), Tier = player.WornTier,
-                Standing = EmblemDefinition(worn.DisplayedEmblem).Name + (worn.StoredEmblem == 0 && worn.DisplayedEmblem != 0 ? " (automatic)" : "") + " · " +
-                    TierDefinition(player.WornTier).Name + " · " + NumberFit.Figure(player.LadderPoints) + " ladder points",
+                LadderPoints = player.LadderPoints, LadderTier = player.CurrentTier,
                 Records = PageAction("Records", () => ShowProfile(ProfileView.Records), () => PageAvailable() && !Busy, "Your records"),
                 ChooseBorder = PageAction("Choose a border", () => ShowProfile(ProfileView.Borders), () => PageAvailable() && !Busy),
                 Stars = state.Campaign.TotalStars ?? 0,
