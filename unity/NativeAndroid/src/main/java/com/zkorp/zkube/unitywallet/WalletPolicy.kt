@@ -24,6 +24,27 @@ internal object WalletPolicy {
     }
 }
 
+// The wallet authorization the app keeps between launches: the connected
+// address and the wallet's token for it. A start reads the address back without
+// asking the wallet; the token never leaves the vault. An entry that cannot be
+// read as both is dropped, so a start never restores a stale address.
+internal object SavedAuthorization {
+    private const val NAME = "wallet-authorization"
+    fun load(vault: SecretVault): org.json.JSONObject? {
+        val stored = vault.get(NAME) ?: return null
+        val saved = runCatching { org.json.JSONObject(stored.toString(Charsets.UTF_8)) }.getOrNull()
+        val valid = saved != null && runCatching {
+            android.util.Base64.decode(saved.getString("owner"), android.util.Base64.NO_WRAP).size == 32 && saved.getString("authToken").isNotEmpty()
+        }.getOrDefault(false)
+        if (!valid) { vault.remove(NAME); return null }
+        return saved
+    }
+    fun owner(vault: SecretVault): String? = load(vault)?.getString("owner")
+    fun save(vault: SecretVault, owner: String, authToken: String) =
+        vault.put(NAME, org.json.JSONObject().put("owner", owner).put("authToken", authToken).toString().toByteArray(Charsets.UTF_8))
+    fun forget(vault: SecretVault) = vault.remove(NAME)
+}
+
 fun interface BridgeCallback { fun onComplete(resultJson: String) }
 
 // A process-local callback is consumed exactly once. No request is relaunched

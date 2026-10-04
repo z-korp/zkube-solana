@@ -57,7 +57,34 @@ namespace ZKube.Integration.Client
             }
             finally { Volatile.Write(ref connecting, 0); }
         }
-        public async Task Disconnect(Func<string, Task> cleanup = null)
+        // The address the wallet last authorized comes back from the device at a
+        // start, without asking the wallet. The next wallet request proves it, or
+        // ends it: the wallet answers for that address or the request is refused.
+        public async Task<string> Restore()
+        {
+            if (Interlocked.CompareExchange(ref connecting, 1, 0) != 0) throw new InvalidOperationException("Identity change is already pending");
+            try
+            {
+                long requestedEpoch;
+                lock (gate)
+                {
+                    if (owner != null || disconnecting) return owner;
+                    requestedEpoch = epoch;
+                }
+                string saved = await wallet.Restore().ConfigureAwait(false);
+                lock (gate)
+                {
+                    if (saved == null || requestedEpoch != epoch) return null;
+                    lifetime = new CancellationTokenSource();
+                    Volatile.Write(ref owner, saved);
+                    return saved;
+                }
+            }
+            finally { Volatile.Write(ref connecting, 0); }
+        }
+        // deauthorize is false when the wallet has already ended the authorization:
+        // the identity is dropped here without asking the wallet again.
+        public async Task Disconnect(Func<string, Task> cleanup = null, bool deauthorize = true)
         {
             string previous;
             CancellationTokenSource cancelled;
@@ -77,7 +104,7 @@ namespace ZKube.Integration.Client
                 catch (AggregateException error) { errors.Add(error); }
                 if (previous != null)
                 {
-                    try { await wallet.Disconnect(previous).ConfigureAwait(false); }
+                    try { if (deauthorize) await wallet.Disconnect(previous).ConfigureAwait(false); }
                     catch (WalletRequestException error) when (error.Code == "wallet-busy")
                     { /* The invalidated identity lease rejects the outstanding result. */ }
                     catch (Exception error) { errors.Add(error); }

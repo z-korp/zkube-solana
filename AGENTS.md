@@ -311,6 +311,14 @@ spending approval.
   front of the app, a pause). `TheArenaHasOneHomePageInEveryState`,
   `TheArenaLoadsAfterConnectingThroughAWalletThatPausedTheApp` and `APageWhoseReadIsAbsentReadsItWithoutATap`
   guard them.
+- **Saved authorization:** the device keeps the address the wallet last authorized, with the wallet's token,
+  in the native vault. A start enters with that address and asks no wallet; the next wallet request proves it.
+  A wallet that answers for another account ends it: the vault drops the entry, the client drops the address
+  without asking the wallet again, and the page is Connect with no stale account. Disconnecting forgets it
+  whatever the wallet answers. `ARestartWithASavedAuthorizationEntersWithItsAddressWithoutAskingTheWallet`,
+  `AWalletThatNoLongerAnswersForTheSavedAddressFallsBackToConnect` and
+  `savedAuthorizationGivesBackItsAddressUntilForgottenAndDropsAnEntryItCannotRead` guard it. A real wallet's
+  token expiry is a Gate G1 observation (Restart).
 - **Device deposit:** what the owner's wallet puts on a device is a deposit on every page, never a fee: the
   amount asked for, what a run costs, that the rest returns when the device is disabled, the deposit a device
   in use has left, and the top-up. `TheDeviceDepositIsADepositOnEveryPageAndNeverAFee` guards the words.

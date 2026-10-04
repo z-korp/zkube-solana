@@ -42,6 +42,7 @@ namespace ZKube.Integration.Presentation
         private long generation, observedDay, freezeAttempt = -1;
         // The player's words for the last failure, shown on the page it happened on.
         private string failure;
+        private bool restored;
         private string shownKey;
 
         public void Initialize(MoneyAppFlow flow, ClientIdentity clientIdentity, Func<long> clock = null, float scale = 1, float? displayDensity = null)
@@ -94,7 +95,8 @@ namespace ZKube.Integration.Presentation
             ShowReceipt(result.Value, identity.Owner);
             await RefreshVisiblePage(epoch, token); // A receipt survives an empty post-confirmation journal.
         });
-        public async Task Disconnect()
+        // deauthorize is false when the wallet itself ended the authorization.
+        public async Task Disconnect(bool deauthorize = true)
         {
             if (detached || !isActiveAndEnabled || Flow == null || paused) return;
             if (ArcadeRun) boardHost.Board.SetHostInputEnabled(false);
@@ -102,7 +104,7 @@ namespace ZKube.Integration.Presentation
             // Disconnect is available even during a wallet/read callback.
             CloseProductViews(); RetireRead(); ownerRead = null; ForgetReceipt(); failure = null;
             Busy = true; Status = "Disconnected"; Present(); long epoch = generation;
-            try { await Flow.Disconnect(); if (Current(epoch)) Status = "Disconnected"; }
+            try { await Flow.Disconnect(deauthorize); if (Current(epoch)) Status = "Disconnected"; }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
             finally { if (Current(epoch)) { Busy = false; Present(); } }
         }
@@ -120,6 +122,8 @@ namespace ZKube.Integration.Presentation
         // with one and no page open, the Arcade opens.
         private async Task Refresh(long epoch, CancellationToken token)
         {
+            // A start with a saved authorization enters with its address, asking no wallet; tried once.
+            if (identity.Owner == null && !restored) { restored = true; await Flow.Restore(); if (!Current(epoch)) return; }
             if (identity.Owner != null) { await Enter(epoch, token); return; }
             var publication = await Flow.RefreshPublic(token);
             if (!Current(epoch)) return;

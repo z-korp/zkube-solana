@@ -22,6 +22,9 @@ object UnityWalletBridge {
         } catch (cause: WalletFailure) { callback.onComplete(failure(id, cause.code)) }
     }
 
+    // The address the wallet last authorized, for a start that asks no wallet.
+    @JvmStatic fun savedOwner(context: Context): String? = SavedAuthorization.owner(SecretVault(context))
+
     @JvmStatic fun loadDeviceSeed(context: Context, create: Boolean): String? =
         DeviceSeeds.load(SecretVault(context), create)?.let {
             try { Base64.encodeToString(it, Base64.NO_WRAP) } finally { it.fill(0) }

@@ -12,6 +12,8 @@ namespace ZKube.Integration
     {
         Task<string> Request(string requestJson);
         Task<byte[]> LoadDeviceSeed(bool create);
+        // The address the wallet last authorized, kept by the device, or null. No wallet is asked.
+        Task<byte[]> LoadAuthorizedOwner();
     }
 
     public sealed class WalletRequestException : Exception
@@ -41,6 +43,13 @@ namespace ZKube.Integration
             return WalletSignatureVerifier.VerifySignedTransaction(original, ReadBase64(response, "transaction", SolanaWire.PacketBytes), owner);
         }
         public async Task Disconnect(string owner) { await Request("disconnect", owner, null); }
+        public async Task<string> Restore()
+        {
+            var saved = await native.LoadAuthorizedOwner();
+            if (saved == null) return null;
+            if (saved.Length != 32) throw new FormatException("Invalid saved wallet identity");
+            return new PublicKey(saved).Key;
+        }
         public async Task<DeviceSigner> LoadDeviceSigner(string owner, bool create = false)
         {
             SolanaAddress.Bytes(owner);

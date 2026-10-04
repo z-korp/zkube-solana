@@ -45,6 +45,10 @@ namespace ZKube.Integration.Presentation
                     catch (Exception error) when (!(error is OperationCanceledException)) { reason = Reason(error); }
                     if (result != null) sent?.Invoke(result);
                     if (!Current(epoch)) return;
+                    // The wallet no longer answers for this address: the saved
+                    // authorization has ended, and the page is Connect again with no stale account.
+                    if (result != null && (result.Code == "account-changed" || result.Code == "authorization-required"))
+                    { await Disconnect(false); Refuse("Connect", reason, () => _ = Connect()); return; }
                     if (result != null) ShowReceipt(result, identity.Owner); // Preserve the exact result before read-back can fail.
                     if (reason != null) Refuse(family, reason, retry);
                     await readBack(epoch, token);

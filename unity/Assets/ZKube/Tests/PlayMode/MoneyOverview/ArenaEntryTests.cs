@@ -47,6 +47,43 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // A start on a device that kept its wallet authorization enters with that
+        // address and asks no wallet. Disconnecting ends it for this start too.
+        [UnityTest] public IEnumerator ARestartWithASavedAuthorizationEntersWithItsAddressWithoutAskingTheWallet()
+        {
+            yield return PrepareScenario("restart-saved");
+            yield return Until(() => Field("dailyRead") != null, "The Arena is read for the saved address"); yield return Idle();
+            Assert.That(environment.Services.Identity.Owner, Is.EqualTo(environment.Owner));
+            Assert.That(Asked("authorize"), Is.Zero, "No wallet is asked at start");
+            Assert.That(Offers("Connect"), Is.False); Assert.That(Offers("Resume Daily"), Is.True);
+            Click("Settings"); yield return Idle(); Click("Disconnect"); yield return Idle();
+            yield return Wait(Adapter.RefreshOverview()); yield return Idle();
+            Assert.That(environment.Services.Identity.Owner, Is.Null, "A disconnected address is not restored by a refresh");
+            Assert.That(Offers("Connect"), Is.True);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // A saved authorization is proven by the next wallet request. A wallet that
+        // answers for another account ends it: the page is Connect again, with no
+        // address, receipt or device page left from the stale one, and the wallet is
+        // not asked to deauthorize what it already refused.
+        [UnityTest] public IEnumerator AWalletThatNoLongerAnswersForTheSavedAddressFallsBackToConnect()
+        {
+            yield return PrepareScenario("session-owner-decline"); environment.WalletError = "account-changed";
+            Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenSession()); yield return Idle();
+            yield return SessionClick("Enable device");
+            yield return Until(() => environment.Services.Identity.Owner == null, "The stale address is dropped"); yield return Idle();
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Home));
+            Assert.That(Text("Daily reason"), Is.EqualTo("The wallet account changed. Connect again."));
+            Assert.That(Adapter.LastReceipt, Is.Null); Assert.That(Adapter.BrowsingSession, Is.False);
+            Assert.That(Asked("disconnect"), Is.Zero);
+            Assert.That(environment.SentSignature, Is.Null);
+            Click("Try again"); yield return Idle();
+            Assert.That(environment.Services.Identity.Owner, Is.EqualTo(environment.Owner));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // The Arena has one home page, the one under the wordmark. It carries the
         // connect request, a refused connection, the wait for its read, a failed
         // read and the Arena itself; no titled panel stands in for it, and its

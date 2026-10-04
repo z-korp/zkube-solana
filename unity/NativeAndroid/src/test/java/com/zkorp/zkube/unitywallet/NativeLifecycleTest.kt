@@ -52,4 +52,23 @@ class NativeLifecycleTest {
         assertNull(prefs.getString("device:a", null))
     }
 
+    @Test fun savedAuthorizationGivesBackItsAddressUntilForgottenAndDropsAnEntryItCannotRead() {
+        val context = RuntimeEnvironment.getApplication()
+        val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+        val vault = SecretVault(context) { key }
+        assertNull(SavedAuthorization.owner(vault))
+        val owner = android.util.Base64.encodeToString(ByteArray(32) { 7 }, android.util.Base64.NO_WRAP)
+        SavedAuthorization.save(vault, owner, "token")
+        // A restart builds a new vault over the same storage.
+        assertEquals(owner, SavedAuthorization.owner(SecretVault(context) { key }))
+        assertEquals("token", SavedAuthorization.load(vault)!!.getString("authToken"))
+        SavedAuthorization.forget(vault)
+        assertNull(SavedAuthorization.owner(SecretVault(context) { key }))
+        for (stale in listOf("{}", "not json", "{\"owner\":\"AAAA\",\"authToken\":\"token\"}", "{\"owner\":\"$owner\",\"authToken\":\"\"}")) {
+            vault.put("wallet-authorization", stale.toByteArray(Charsets.UTF_8))
+            assertNull(stale, SavedAuthorization.owner(vault))
+            assertNull(stale, vault.get("wallet-authorization"))
+        }
+    }
+
 }

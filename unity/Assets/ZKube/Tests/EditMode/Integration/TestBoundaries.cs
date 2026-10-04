@@ -14,7 +14,7 @@ namespace ZKube.Integration.Tests
     {
         private readonly ConcurrentQueue<string> events;
         public readonly ConcurrentQueue<string> Operations = new ConcurrentQueue<string>();
-        public string Owner;
+        public string Owner, SavedOwner;
         public byte[] Seed;
         public int Calls, KeyLoads, Creations, Disconnects, OwnerPrompts;
         public bool Disposed, RejectDisconnect, Reject, AllowSigning, ForbidRequests, ForbidKeyReads, ForbidKeyCreation;
@@ -67,6 +67,7 @@ namespace ZKube.Integration.Tests
             }
             return Task.FromResult(Seed?.ToArray());
         }
+        public Task<byte[]> LoadAuthorizedOwner() => Task.FromResult(SavedOwner == null ? null : SolanaAddress.Bytes(SavedOwner));
         public void Dispose() { Disposed = true; }
     }
 

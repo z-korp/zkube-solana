@@ -55,9 +55,11 @@ namespace ZKube.Integration.App.Tests
             if (scenario == "public-disconnected" || scenario == "campaign-playable") return;
             // The program is not on the cluster: no account of it exists and nothing that calls it simulates.
             if (scenario == "arena-not-open") { Http.Accounts.Clear(); programMissing = true; return; }
-            if (scenario == "owner-overview" || scenario == "pending-confirmed-failure")
+            if (scenario == "owner-overview" || scenario == "pending-confirmed-failure" || scenario == "restart-saved")
             {
                 UseDailyRun();
+                // The device kept the address the wallet last authorized.
+                if (scenario == "restart-saved") Native.SavedOwner = Owner;
                 if (scenario.StartsWith("pending-"))
                 { Http.Confirmation = "processed"; await Services.Journal.Begin(Purchase()); }
                 return;
@@ -133,6 +135,8 @@ namespace ZKube.Integration.App.Tests
             var hold = new HeldCall(); Http.DelayMethod = method; Http.Entered = hold.Started; Http.Release = hold.Completion; return hold;
         }
         public HeldCall HoldNextWallet() => walletHold = new HeldCall();
+        // What a wallet that declines a signature answers with.
+        public string WalletError = "wallet-rejected";
         // The program is deployed and the protocol initialized, paused, with no launch day yet.
         public void Stage()
         {
@@ -175,7 +179,7 @@ namespace ZKube.Integration.App.Tests
             var hold = walletHold; walletHold = null;
             if (hold != null) { hold.Started.TrySetResult(true); await hold.Completion.Task; }
             var result = new JObject { ["requestId"] = request["requestId"], ["owner"] = request["owner"], ["ok"] = !UiScenario.Contains("owner-decline") };
-            if (!(bool)result["ok"]) result["error"] = "wallet-rejected";
+            if (!(bool)result["ok"]) result["error"] = WalletError;
             else
             {
                 using var signer = new DeviceSigner(Enumerable.Repeat((byte)1, 32).ToArray());

@@ -155,10 +155,10 @@ namespace ZKube.Integration.Client
             }
             finally { changes.Release(); }
         }
-        public Task Disconnect() => identity.Disconnect(async _ => {
+        public Task Disconnect(bool deauthorize = true) => identity.Disconnect(async _ => {
             await changes.WaitAsync().ConfigureAwait(false);
             try { await executor.WithIdle(() => Task.CompletedTask).ConfigureAwait(false); }
             finally { changes.Release(); }
-        });
+        }, deauthorize);
     }
 }

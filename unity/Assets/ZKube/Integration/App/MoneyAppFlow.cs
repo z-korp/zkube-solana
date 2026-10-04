@@ -131,6 +131,16 @@ namespace ZKube.Integration.App
             finally { EndRead(read); }
         });
 
+        // A start with a saved authorization: its address comes back without a
+        // wallet request, or null when the device keeps none.
+        public Task<string> Restore() => Track(async () => {
+            string owner = await services.Identity.Restore().ConfigureAwait(false);
+            if (owner == null) return null;
+            ClearOwnerOperation(); InvalidateOwner();
+            services.SyncCampaign(services.Identity.Lease());
+            return owner;
+        });
+
         public Task<MoneyRead<string>> Connect(string expectedOwner = null) => Track(async () => {
             ClearOwnerOperation();
             var observation = InvalidateOwner();
@@ -172,9 +182,9 @@ namespace ZKube.Integration.App
             finally { EndRead(read); }
         });
 
-        public Task Disconnect() => Track(async () => {
+        public Task Disconnect(bool deauthorize = true) => Track(async () => {
             var errors = InvalidateAll(); // Invalidate first; a callback cannot skip the other channel or native cleanup.
-            try { await services.SessionLifecycle.Disconnect().ConfigureAwait(false); }
+            try { await services.SessionLifecycle.Disconnect(deauthorize).ConfigureAwait(false); }
             catch (Exception error) { errors.Add(error); }
             Report(errors);
             return true;

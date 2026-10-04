@@ -75,6 +75,16 @@ namespace ZKube.Integration.Android
             if (bytes.Length != 32) throw new FormatException("Invalid native device seed");
             return bytes;
         });
+        public Task<byte[]> LoadAuthorizedOwner() => OnUnityThread(() => {
+            RequireAndroid();
+            using var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+            using var activity = unity.GetStatic<AndroidJavaObject>("currentActivity");
+            using var bridge = new AndroidJavaClass(BridgeClass);
+            string encoded = bridge.CallStatic<string>("savedOwner", activity);
+            if (encoded == null) return null;
+            if (encoded.Length != 44) throw new FormatException("Invalid saved wallet identity");
+            return Convert.FromBase64String(encoded);
+        });
         private Task<T> OnUnityThread<T>(Func<T> call)
         {
             var result = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);

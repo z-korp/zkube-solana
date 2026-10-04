@@ -36,10 +36,20 @@ class WalletActivity : ComponentActivity() {
     }
 
     private suspend fun execute(request: JSONObject, sender: ActivityResultSender): JSONObject {
+        val vault = SecretVault(this)
+        try { return ask(vault, request, sender) }
+        catch (cause: WalletFailure) {
+            // A wallet that no longer answers for the saved address ends that
+            // authorization: the next start asks again instead of restoring it.
+            if (cause.code == "account-changed") SavedAuthorization.forget(vault)
+            throw cause
+        }
+    }
+
+    private suspend fun ask(vault: SecretVault, request: JSONObject, sender: ActivityResultSender): JSONObject {
         val operation = request.getString("operation")
         if (operation !in setOf("authorize", "signTransactions", "disconnect")) throw WalletFailure("unsupported-operation")
-        val vault = SecretVault(this)
-        val saved = vault.get("wallet-authorization")?.let { JSONObject(it.toString(Charsets.UTF_8)) }
+        val saved = SavedAuthorization.load(vault)
         val expected = request.optString("owner").takeIf { it.isNotEmpty() }
             ?.let { Base64.decode(it, Base64.NO_WRAP) }
             ?: saved?.getString("owner")?.let { Base64.decode(it, Base64.NO_WRAP) }
@@ -48,10 +58,11 @@ class WalletActivity : ComponentActivity() {
         val adapter = MobileWalletAdapter(ConnectionIdentity(Uri.parse("https://zkube-solana.vercel.app"),
             Uri.parse("assets/pwa-512x512.png"), applicationInfo.loadLabel(packageManager).toString())).also { it.blockchain = Solana.Devnet; it.authToken = saved?.getString("authToken") }
         if (operation == "disconnect") {
-            return when (adapter.disconnect(sender)) {
-                is TransactionResult.Success -> { vault.remove("wallet-authorization"); JSONObject() }
-                else -> throw WalletFailure("wallet-rejected")
-            }
+            // The app forgets the authorization whatever the wallet answers, so a
+            // restart cannot restore an address the player disconnected.
+            SavedAuthorization.forget(vault)
+            runCatching { adapter.disconnect(sender) }
+            return JSONObject()
         }
         val transaction = if (operation == "signTransactions") Base64.decode(request.getString("transaction"), Base64.NO_WRAP).also {
             if (it.isEmpty() || it.size > 1232) throw WalletFailure("invalid-transaction")
@@ -74,9 +85,7 @@ class WalletActivity : ComponentActivity() {
         }
         return when (result) {
             is TransactionResult.Success -> {
-                val identity = result.payload.getString("owner")
-                vault.put("wallet-authorization", JSONObject().put("owner", identity)
-                    .put("authToken", result.authResult.authToken).toString().toByteArray(Charsets.UTF_8))
+                SavedAuthorization.save(vault, result.payload.getString("owner"), result.authResult.authToken)
                 result.payload
             }
             is TransactionResult.NoWalletFound -> throw WalletFailure("wallet-unavailable")
