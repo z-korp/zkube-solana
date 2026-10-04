@@ -321,6 +321,11 @@ spending approval.
   `EveryKindOfFailureIsToldApartAndOnlyAConnectivityFailureIsTheNetworks`,
   `AFailedRequestLogsOneLineWithItsHostAndNothingOfThePlayers` and
   `AFailedRequestSaysWhatFailedOnThePageAndInTheLog` guard it.
+- **Plugin boundary:** the Android plugin is reached through one seam, `IAndroidPlugin`, one method per Java
+  member, and no Java object is made anywhere else. Every call is made on the application thread, whichever
+  thread asked, because JNI finds the application's classes only there; a call that fails names its Java class
+  and member, never a bare JNI message. `EveryPluginCallIsMadeOnTheApplicationThreadWhicheverThreadAsked` and
+  `APluginCallThatFailsNamesTheJavaMemberInTheLog` guard it.
 - **Saved authorization:** the device keeps the address the wallet last authorized, with the wallet's token,
   in the native vault. A start enters with that address and asks no wallet; the next wallet request proves it.
   A wallet that answers for another account ends it: the vault drops the entry, the client drops the address
