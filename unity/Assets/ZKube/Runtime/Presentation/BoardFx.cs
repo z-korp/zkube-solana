@@ -156,7 +156,9 @@ namespace ZKube.Presentation
             var renderer = Take();
             if (renderer == null) return -1;
             if (sprites == null) sprites = renderer.sharedMaterial;
-            renderer.sharedMaterial = material != null ? material : sprites;
+            // A pooled renderer changes material with no sprite on it (see BoardLight.Sprite).
+            var wanted = material != null ? material : sprites;
+            if (renderer.sharedMaterial != wanted) { renderer.sprite = null; renderer.sharedMaterial = wanted; }
             renderer.sortingOrder = sortingOrder ?? order;
             if (slot != null) renderer.sprite = art.SkinUi(slot);
             renderer.color = Color.clear;
@@ -169,8 +171,7 @@ namespace ZKube.Presentation
         {
             foreach (var renderer in pool) if (!renderer.gameObject.activeSelf) { renderer.gameObject.SetActive(true); return renderer; }
             if (pool.Count >= PoolSize) return null;
-            var go = new GameObject("Board effect", typeof(SpriteRenderer)); go.transform.SetParent(parent, false);
-            var created = go.GetComponent<SpriteRenderer>(); created.sortingOrder = order; created.sharedMaterial = BoardLight.Unlit;
+            var created = BoardLight.Sprite("Board effect", null, order, parent);
             pool.Add(created);
             return created;
         }

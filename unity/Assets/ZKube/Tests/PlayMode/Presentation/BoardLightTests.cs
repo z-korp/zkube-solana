@@ -41,6 +41,47 @@ namespace ZKube.Presentation.Tests
         }
         private SpriteRenderer Named(string name) => board.View.GetComponentsInChildren<SpriteRenderer>().First(r => r.name == name);
 
+        // Every board sprite draws its own texture: on every realm the frame is the
+        // same with the SRP Batcher and without it, with the danger line's light
+        // right behind the guardian's paws. A sprite handed its shared material
+        // after its sprite drew its neighbour's atlas there, which showed as dark
+        // boxes round the paws whenever a light sat behind them.
+        [UnityTest] public IEnumerator EveryBoardSpriteDrawsItsOwnTextureOnEveryRealm()
+        {
+            board.SetReducedMotion(true);
+            bool batching = GraphicsSettings.useScriptableRenderPipelineBatching;
+            Color32[] Frame()
+            {
+                var texture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+                texture.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0); texture.Apply();
+                var pixels = texture.GetPixels32(); UnityEngine.Object.Destroy(texture); return pixels;
+            }
+            try
+            {
+                for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
+                {
+                    evidence.LoadCampaign(realm, 1);
+                    float deadline = Time.realtimeSinceStartup + 20;
+                    while (!ZKube.Tests.Presentation.BoardTestState.Idle(board) || board.Busy)
+                    { if (Time.realtimeSinceStartup > deadline) Assert.Fail("Board is still busy or loading"); yield return null; }
+                    yield return null;
+                    var grid = new byte[80]; for (int row = 0; row < 10; row++) for (int col = row % 2; col < 7; col += 3) grid[row * 8 + col] = 2;
+                    board.View.SetBoard(grid);
+                    Assert.IsTrue(Named("Danger line").enabled, "The line is lit");
+                    Assert.Less(Named("Danger line").sortingOrder, Named("Guardian contact shadow").sortingOrder, "The line is behind the paws");
+                    GraphicsSettings.useScriptableRenderPipelineBatching = true;
+                    yield return null; yield return new WaitForEndOfFrame(); var batched = Frame();
+                    GraphicsSettings.useScriptableRenderPipelineBatching = false;
+                    yield return null; yield return new WaitForEndOfFrame(); var plain = Frame();
+                    int differing = 0;
+                    for (int i = 0; i < plain.Length; i++)
+                        if (Mathf.Abs(plain[i].r - batched[i].r) > 12 || Mathf.Abs(plain[i].g - batched[i].g) > 12 || Mathf.Abs(plain[i].b - batched[i].b) > 12) differing++;
+                    Assert.AreEqual(0, differing, "Realm " + realm + ": pixels drawn from another sprite's texture");
+                }
+            }
+            finally { GraphicsSettings.useScriptableRenderPipelineBatching = batching; }
+        }
+
         [Test] public void BloomOnlyTakesTheBrightestPixelsAtQuarterResolution()
         {
             var bloom = board.View.Lighting.Bloom;

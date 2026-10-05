@@ -102,10 +102,14 @@ namespace ZKube.Presentation
             Update();
         }
 
-        private static SpriteRenderer Sprite(string name, Sprite sprite, int order, Transform root)
+        // Every board sprite is made here, unlit unless given the lit material. The material
+        // goes on before the sprite: under the SRP Batcher a renderer handed a shared material
+        // after its sprite draws with the texture of whichever sprite was drawn before it.
+        internal static SpriteRenderer Sprite(string name, Sprite sprite, int order, Transform root, Material material = null)
         {
             var renderer = new GameObject(name, typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
-            renderer.transform.SetParent(root, false); renderer.sprite = sprite; renderer.sortingOrder = order; renderer.sharedMaterial = Unlit;
+            renderer.transform.SetParent(root, false); renderer.sharedMaterial = material != null ? material : Unlit;
+            renderer.sprite = sprite; renderer.sortingOrder = order;
             return renderer;
         }
         private static void Size(SpriteRenderer renderer, float width, float height)

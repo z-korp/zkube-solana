@@ -103,9 +103,8 @@ namespace ZKube.Presentation
             // backlight, the glass well, the frame in the realm's key light, the
             // dimple cells and the tray. Blocks, then the guardian's paws and their
             // contact shadow, rest on top; the paws lean on the frame's own edge.
-            var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.Background), -20);
+            var background = NewSprite("Realm background", art.SkinRealm(SkinSlots.Background), -20, BoardLight.Lit);
             Size(background, new Rect(0, 0, Screen.width, Screen.height), true);
-            background.sharedMaterial = BoardLight.Lit;
             float d = Layout.Density, cell = Layout.Cell;
             var key = art.Token(SkinTokens.LightKey);
             // The guardian's own level (DECISIONS 2026-10-02: a boss level feels
@@ -120,11 +119,10 @@ namespace ZKube.Presentation
                 guardianAura.color = SkinUi.WithAlpha(art.Token(SkinTokens.Accent), AuraAlpha);
             }
             // The guardian is its idle frame; a mood or a blink lays only its face over it.
-            guardian = NewSprite("Calm realm guardian", art.Sprite(BoardArt.GuardianIdle), -17);
+            guardian = NewSprite("Calm realm guardian", art.Sprite(BoardArt.GuardianIdle), -17, BoardLight.Lit);
             Size(guardian, hud.Guardian);
-            guardian.sharedMaterial = BoardLight.Lit;
-            guardianPatch = NewSprite(SkinUi.GuardianFaceName, null, -16);
-            guardianPatch.sharedMaterial = BoardLight.Lit; guardianPatch.enabled = false;
+            guardianPatch = NewSprite(SkinUi.GuardianFaceName, null, -16, BoardLight.Lit);
+            guardianPatch.enabled = false;
             var backlight = NewSprite("Board backlight", art.SkinUi(SkinSlots.FxGlow), -15);
             Size(backlight, new Rect(Layout.Rim.x - 12 * d, Layout.Rim.y - 24 * d, Layout.Rim.width + 24 * d, Layout.Rim.height + 48 * d));
             var rim = Boss ? art.Token(SkinTokens.Accent) : key;
@@ -151,9 +149,8 @@ namespace ZKube.Presentation
             pawsShadow = NewSprite("Guardian contact shadow", pawsSprite, 7);
             Size(pawsShadow, new Rect(hud.Guardian.x + .7f * d, hud.Guardian.y - 1.3f * d, hud.Guardian.width, hud.Guardian.height));
             pawsShadow.color = new Color(0, 0, 0, .45f);
-            paws = NewSprite("Guardian paws", pawsSprite, 8);
+            paws = NewSprite("Guardian paws", pawsSprite, 8, BoardLight.Lit);
             Size(paws, hud.Guardian);
-            paws.sharedMaterial = BoardLight.Lit;
             Lighting = gameObject.AddComponent<BoardLight>();
             Lighting.Initialize(art, boardCamera, background.bounds, Layout, boardRoot, backlight);
 
@@ -1528,13 +1525,7 @@ namespace ZKube.Presentation
             else if (blinkUntil == 0 && guardianFace != RestFace) Face(RestFace);
         }
 
-        private SpriteRenderer NewSprite(string name, Sprite sprite, int order)
-        {
-            var go = new GameObject(name, typeof(SpriteRenderer)); go.transform.SetParent(boardRoot, false);
-            var renderer = go.GetComponent<SpriteRenderer>(); renderer.sprite = sprite; renderer.sortingOrder = order;
-            renderer.sharedMaterial = BoardLight.Unlit;
-            return renderer;
-        }
+        private SpriteRenderer NewSprite(string name, Sprite sprite, int order, Material material = null) => BoardLight.Sprite(name, sprite, order, boardRoot, material);
         // Stretched board pieces keep their authored borders at the kit scale.
         private SpriteRenderer Sliced(string name, Sprite sprite, Rect rect, int order, float chrome = 1)
         {

@@ -790,6 +790,10 @@ embers. `TheLimitLineShowsAtRowNineBeatsAtRowTenAndStopsTheFrameTheBoardRecovers
 `NoBlockMovesBecauseOfTheDangerState`, `TheHeartbeatIsADoubleBeatQuickerThanARestingPulse` and
 `TheHeartbeatSoundsOnceABeatWhileTheStackIsCriticalAndTheRunIsInPlay` guard it.
 
+One factory makes every board sprite and gives it its material before its sprite: under the SRP Batcher a
+renderer handed a shared material afterwards draws with the texture of the sprite drawn before it.
+`EveryBoardSpriteDrawsItsOwnTextureOnEveryRealm` compares every realm's frame with and without the batcher.
+
 The player renders in gamma colour space: the approved art and its soft alpha were composed that way, and
 linear blending darkened near-transparent edges. `ThePlayerBlendsInGammaSpaceAsTheArtIsApproved` pins it.
 Preparation clears the font engine's uninitialised kerning-pair flags, which otherwise dropped Label tracking
