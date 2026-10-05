@@ -99,7 +99,7 @@ namespace ZKube.Integration.Transport
         public string Line(string action) => "zKube request failed: action=" + Clean(action) + " " + Detail;
         public string Detail => "kind=" + Kind +
             (Service == null ? "" : " service=" + Service.Replace(' ', '-')) + (Host == null ? "" : " host=" + Clean(Host)) +
-            (Call == null ? "" : " call=" + Clean(Call)) + (Status.HasValue ? " status=" + Status.Value : "") +
+            (Call == null ? "" : " call=" + Call) + (Status.HasValue ? " status=" + Status.Value : "") +
             " type=" + Type + " message=\"" + Message.Replace("\"", "'") + "\"";
     }
 
@@ -126,6 +126,47 @@ namespace ZKube.Integration.Transport
                 (walletChange == null ? "" : " evidence=\"" + walletChange + "\"")); }
             catch (Exception) { /* Logging never fails a request. */ }
         }
+        // How long a sent transaction takes to settle, for the device log: the
+        // send itself, the first status seen, the settled outcome with the number
+        // of checks it took, and the page showing it. Times are from the send;
+        // a line names the action and never the signature.
+        private sealed class Sent { public System.Diagnostics.Stopwatch Clock; public string Action; public int Checks; public bool Seen, Settled; }
+        private static readonly System.Collections.Generic.Dictionary<string, Sent> sent = new System.Collections.Generic.Dictionary<string, Sent>();
+        private static void Timing(string signature, Func<Sent, string> line, bool forget = false)
+        {
+            try
+            {
+                string text;
+                lock (sent)
+                {
+                    if (signature == null || !sent.TryGetValue(signature, out var entry)) return;
+                    text = line(entry);
+                    if (forget && text != null) sent.Remove(signature);
+                }
+                if (text != null) Sink("zKube timing: action=" + text);
+            }
+            catch (Exception) { /* Logging never fails a request. */ }
+        }
+        public static void Sending(string signature, string action)
+        {
+            lock (sent)
+            {
+                if (sent.Count >= 8) sent.Clear();
+                sent[signature] = new Sent { Clock = System.Diagnostics.Stopwatch.StartNew(), Action = RequestFailure.Clean(action) };
+            }
+        }
+        public static void SentIn(string signature) => Timing(signature, entry => entry.Action + " sent=+" + entry.Clock.ElapsedMilliseconds + "ms");
+        public static void Status(string signature, string seen) => Timing(signature, entry => {
+            entry.Checks++;
+            if (entry.Seen) return null;
+            entry.Seen = true; return entry.Action + " first-status=+" + entry.Clock.ElapsedMilliseconds + "ms seen=" + seen;
+        });
+        public static void Settled(string signature, string outcome) => Timing(signature, entry => {
+            if (entry.Settled) return null;
+            entry.Settled = true; return entry.Action + " settled=+" + entry.Clock.ElapsedMilliseconds + "ms outcome=" + outcome + " checks=" + entry.Checks;
+        });
+        public static void Shown(string signature) => Timing(signature, entry => entry.Settled ? entry.Action + " shown=+" + entry.Clock.ElapsedMilliseconds + "ms" : null, true);
+
         public static void Outcome(string action, string code, string chainError)
         {
             try { Sink("zKube request failed: action=" + RequestFailure.Clean(action) + " code=" + RequestFailure.Clean(code) +

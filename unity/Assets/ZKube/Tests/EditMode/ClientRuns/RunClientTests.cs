@@ -114,6 +114,41 @@ namespace ZKube.Integration.Client.Runs.Tests
             Assert.That(await env.Journal.Load(env.Owner), Is.Null);
         }
 
+        // Every plan sent on the rollup route (the opening VRF, a row action as the
+        // reroll sends it, the finish and the commit) is prepared, priced, sent
+        // and followed asking the rollup only what a rollup answers. The double
+        // answers Method not found for anything else, as the real one does for the
+        // rent-exemption call that kept a board from opening on a phone.
+        [Test]
+        public async Task EveryRollupPlanAsksTheRollupOnlyWhatItAnswers()
+        {
+            Assert.That(SolanaRpcTransport.RollupMethods, Is.SubsetOf(TestHttp.RollupAnswers));
+            Assert.That(TestHttp.RollupAnswers, Has.None.EqualTo("getMinimumBalanceForRentExemption"));
+            void OnlyWhatItAnswers(Environment env, params string[] sent)
+            {
+                Assert.That(env.Http.Sent, Is.EqualTo(sent));
+                var asked = env.Http.Transport.AskedOfTheRollup;
+                Assert.That(asked, Does.Contain("sendTransaction"), string.Join(",", sent));
+                Assert.That(asked, Is.SubsetOf(SolanaRpcTransport.RollupMethods), string.Join(",", sent));
+            }
+            var opening = await Environment.Create(); opening.Http.Prepare("daily"); opening.Http.FailClaims = true;
+            await opening.Client.StartDaily();
+            var ready = await opening.Client.ResolveVrf(new RunPresentationBinding(await opening.Client.Inspect(), new ActiveRunReconciler(opening.Accounts)));
+            Assert.That(NativeEngine.Summary(ready.Token).Phase, Is.EqualTo((byte)CorePhase.Playing));
+            OnlyWhatItAnswers(opening, "enter_arena", "delegate_active_run", "request_vrf");
+
+            var playing = await Environment.Create(); var initial = await playing.Client.Inspect();
+            var provider = Provider(playing, initial);
+            var acted = await provider.Submit(provider.Bind(initial).Accepted, new BoardAction(BoardActionKind.Reroll), default);
+            Assert.That(NativeEngine.Summary(acted.Token).ActionCounter, Is.EqualTo(1));
+            OnlyWhatItAnswers(playing, "request_reroll");
+
+            var ending = await Environment.Create(); await ending.Client.Inspect();
+            var settled = await ending.Client.FinishAndSettle(new RunPresentationBinding(await ending.Client.Inspect(), new ActiveRunReconciler(ending.Accounts)));
+            Assert.That(settled.Marker, Is.Null);
+            OnlyWhatItAnswers(ending, "finish_run", "commit_run", "consume_arena_run");
+        }
+
         [Test]
         public async Task ArcadePreparesDelegatesAndRequestsOpeningVrfWithUnavailableOptionalClaims()
         {
@@ -486,7 +521,8 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var env = await Environment.Create(); env.Http.States[mode] = "finished";
                 var initial = await env.Client.Inspect();
                 var provider = Provider(env, initial);
-                env.Http.CopybackPolls = 5;
+                // The copy-back outlasts the looks the executor takes right after its send.
+                env.Http.CopybackPolls = 5 + TransactionExecutor.PromptChecks;
                 env.Http.AfterCopyback = () => { if (expire) env.Now = env.SessionValidUntil; };
                 var pending = await ZKube.Integration.Tests.AsyncAssert.Throws<RunExecutionException>(async () => await provider.FinishAndSettle(default));
                 Assert.That(pending.Result.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
@@ -569,7 +605,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 Func<long> now = () => value.Now;
                 var persistence = new RunPersistence(value.Markers);
                 var reconciler = new ExecutionReconciler(protocol, value.Accounts, tokens, records, planner, rpc, _ => Task.CompletedTask, persistence.Accept);
-                var executor = new TransactionExecutor(planner, rpc, wallet, value.Journal);
+                var executor = new TransactionExecutor(planner, rpc, wallet, value.Journal) { PromptEvery = TimeSpan.FromMilliseconds(2) };
                 value.Client = new RunClient(identity, new SessionAccess(wallet, records, tokens, rpc, protocol.ProgramId, now), value.Accounts,
                     planner, rpc, value.Markers, new RunRecovery(protocol.ProgramId, PlanningConstants.DelegationProgram, value.Accounts),
                     value.Journal, executor, reconciler, now, protocol);

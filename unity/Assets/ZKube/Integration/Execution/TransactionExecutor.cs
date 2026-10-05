@@ -18,6 +18,10 @@ namespace ZKube.Integration.Execution
         public TransactionExecutor(TransactionPlanner planner, SolanaRpcTransport rpc, WalletClient wallet, TransactionJournal journal)
         { this.planner = planner; this.rpc = rpc; this.wallet = wallet; this.journal = journal; }
 
+        // After a send: how many more times its status is looked for at once, and how far apart.
+        public const int PromptChecks = 5;
+        public TimeSpan PromptEvery = TimeSpan.FromMilliseconds(400);
+
         public Task<ExecutionResult> Execute(TransactionPlan plan, string intent, IReadOnlyList<DeviceSigner> deviceSigners,
             IExecutionReconciler reconciler, CancellationToken cancellation = default) =>
             Execute(plan == null ? null : new[] { plan }, intent, deviceSigners, reconciler, cancellation);
@@ -79,8 +83,10 @@ namespace ZKube.Integration.Execution
                     catch (Exception error) when (!last && (error is ArgumentException || error is FormatException)) { continue; }
                     var feeTask = rpc.FeeForMessage(endpoint, message, cancellation);
                     var balanceTask = rpc.Balance(endpoint, plan.FeePayer, cancellation);
-                    var rentTask = plan.FeePayer == plan.Owner ? Task.FromResult(0UL) : rpc.RentFloor(endpoint, 0, cancellation);
-                    await Task.WhenAll(feeTask, balanceTask, rentTask).ConfigureAwait(false);
+                    // The payer's rent floor is the generated constant: no endpoint is
+                    // asked for it, and a rollup does not answer that call at all.
+                    ulong rent = plan.FeePayer == plan.Owner ? 0UL : ZKube.Core.Generated.Protocol.SystemAccountRentLamports;
+                    await Task.WhenAll(feeTask, balanceTask).ConfigureAwait(false);
                     ulong fee = feeTask.Result;
                     // A larger size asks for more compute and so a larger fee:
                     // one the payer cannot cover gives way to a smaller size too.
@@ -89,7 +95,7 @@ namespace ZKube.Integration.Execution
                         if (!last) continue;
                         return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage");
                     }
-                    try { plan.RequireDeviceFunding(balanceTask.Result, rentTask.Result, fee); }
+                    try { plan.RequireDeviceFunding(balanceTask.Result, rent, fee); }
                     catch (InvalidOperationException)
                     {
                         if (!last) continue;
@@ -117,11 +123,23 @@ namespace ZKube.Integration.Execution
                     if (pending != null) return Rejected(intent, "pending-transaction-exists");
                     return Rejected(intent, "journal-write-failed");
                 }
+                ClientLog.Sending(pending.Signature, intent);
                 try { await rpc.Send(endpoint, transaction, fastEr ? RpcSubmissionPolicy.ErSession : RpcSubmissionPolicy.Wallet,
                     lease, cancellation).ConfigureAwait(false); }
                 // The persisted signature is the only retry/recovery identity.
                 catch (Exception error) { ClientLog.Failure(intent + " send", error); }
-                return await Reconcile(pending, reconciler, cancellation).ConfigureAwait(false);
+                ClientLog.SentIn(pending.Signature);
+                // A transaction lands within a block or two. It is looked for at
+                // once and then promptly a few more times, so the usual outcome
+                // comes back with this call; one still unconfirmed after that is
+                // the follower's.
+                var outcome = await Reconcile(pending, reconciler, cancellation).ConfigureAwait(false);
+                for (int check = 0; check < PromptChecks && outcome.Outcome == ExecutionOutcome.Pending; check++)
+                {
+                    await Task.Delay(PromptEvery, cancellation).ConfigureAwait(false);
+                    outcome = await Reconcile(pending, reconciler, cancellation).ConfigureAwait(false);
+                }
+                return outcome;
             }
             catch (WalletRequestException error) { return Rejected(intent, error.Code); }
             // The wallet returned another message: nothing is sent, and what it changed is kept as evidence.
@@ -169,6 +187,8 @@ namespace ZKube.Integration.Execution
             try
             {
                 var status = await rpc.HistoricalSignatureStatus(pending.Endpoint, pending.IsBase, pending.Signature, cancellation).ConfigureAwait(false);
+                ClientLog.Status(pending.Signature, status.Confirmation.ToString());
+                // Confirmed is enough to show a result; nothing here waits for finalized.
                 bool confirmed = IsConfirmed(status), expired = false;
                 ulong height = 0;
                 if (!confirmed)
@@ -206,11 +226,15 @@ namespace ZKube.Integration.Execution
                 if (!await reconciler.Reconcile(new ExecutionReconciliation(pending, description, minimumSlot, observations.ToArray(), status, expired), cancellation).ConfigureAwait(false))
                     return Pending(pending, "affected-state-unresolved");
                 await journal.Complete(pending, pending.Signature, confirmed, expired, height, true).ConfigureAwait(false);
-                return new ExecutionResult(expired ? ExecutionOutcome.ExpiredReconciled :
+                var settled = new ExecutionResult(expired ? ExecutionOutcome.ExpiredReconciled :
                     status.ErrorJson == null ? ExecutionOutcome.ConfirmedSuccess : ExecutionOutcome.ConfirmedFailure,
                     pending.Intent, pending.Signature, chainError: status.ErrorJson);
+                ClientLog.Settled(pending.Signature, settled.Outcome.ToString());
+                return settled;
             }
             catch (OperationCanceledException) { return Pending(pending, "observation-cancelled"); }
+            // The node that answers is still behind the slot the status named: not yet, and not a failure.
+            catch (RpcFailure error) when (error.Code == SolanaRpcTransport.SlotNotReached) { return Pending(pending, "node-behind"); }
             catch (Exception error) { ClientLog.Failure(pending.Intent + " confirmation", error); return Pending(pending, "outcome-unknown"); }
         }
         private static bool IsConfirmed(RpcSignatureStatus status) => status.Confirmation == RpcConfirmation.Confirmed || status.Confirmation == RpcConfirmation.Finalized;

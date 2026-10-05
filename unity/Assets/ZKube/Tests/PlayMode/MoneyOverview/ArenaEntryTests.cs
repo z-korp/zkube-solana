@@ -279,6 +279,60 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // A run that was entered and delegated but never got its opening VRF (the
+        // rollup refused a call the client should not have made) is offered as
+        // Resume on the home page; resuming asks the rollup for the opening VRF,
+        // with only calls a rollup answers, and opens the board.
+        [UnityTest] public IEnumerator ResumingAnEnteredRunRequestsItsOpeningVrfAndOpensTheBoard()
+        {
+            yield return PrepareScenario("daily-entered"); Click("Connect"); yield return Idle();
+            Assert.That(Offers("Resume Daily"), Is.True);
+            Assert.That(Asked("sendTransaction"), Is.Zero);
+            yield return SessionClick("Resume Daily");
+            yield return BoardReady();
+            Assert.That(PlayedBoard().Session.Daily, Is.True);
+            Assert.That(Asked("sendTransaction"), Is.EqualTo(1), "The opening VRF request");
+            Assert.That(Asked("signTransactions"), Is.Zero, "The device asks; the wallet is not needed");
+            var rollup = environment.Http.Transport.AskedOfTheRollup;
+            Assert.That(rollup, Does.Contain("sendTransaction"));
+            Assert.That(rollup, Is.SubsetOf(ZKube.Integration.Transport.SolanaRpcTransport.RollupMethods));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // On a phone the wallet's pause retires the page's operation. A purchase
+        // that confirms after the executor's first looks is then followed by the
+        // page itself when the app is back: no wait declared over, no tap, the
+        // balance updates, and the log carries its timing to the page showing it.
+        [UnityTest] public IEnumerator APausedPurchaseThatConfirmsLateIsFollowedByThePageItself()
+        {
+            yield return PrepareScenario("kredit-pending-success"); Follow(.02f, 10);
+            Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenKredits()); yield return Idle();
+            var lines = new System.Collections.Generic.List<string>(); var sink = ZKube.Integration.Transport.ClientLog.Sink;
+            ZKube.Integration.Transport.ClientLog.Sink = line => { lock (lines) lines.Add(line); };
+            var hold = environment.HoldNextWallet();
+            environment.Http.ConfirmAfter = 4 + ZKube.Integration.Execution.TransactionExecutor.PromptChecks;
+            yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(environment.KreditPack));
+            try
+            {
+                yield return Wait(hold.Entered);
+                Adapter.SendMessage("OnApplicationPause", true);
+                Adapter.SendMessage("OnApplicationPause", false); yield return null;
+                hold.Release();
+                yield return Until(() => Adapter.LastReceipt?.Outcome == ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess, "The page followed the purchase to its confirmation");
+                yield return Idle(); yield return Until(() => Field("kreditRead") != null, "The page read its balance"); yield return Idle();
+                Assert.That(Text("Kredit balance"), Is.EqualTo((25 + environment.KreditPack).ToString()));
+                Assert.That(Offers("Try again"), Is.False);
+                Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text.Contains("has not confirmed")), Is.False);
+                Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
+                yield return null; yield return null;
+                string[] timing; lock (lines) timing = lines.Where(line => line.StartsWith("zKube timing: action=purchase-kredits ")).ToArray();
+                Assert.That(timing.Select(line => line.Split(' ')[3].Split('=')[0]), Is.EqualTo(new[] { "sent", "first-status", "settled", "shown" }), string.Join(" | ", lines));
+            }
+            finally { hold.Release(); ZKube.Integration.Transport.ClientLog.Sink = sink; }
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // Every read an Arena page waits on: with the read gone and no reason
         // shown for it, the page reads again by itself.
         [UnityTest] public IEnumerator APageWhoseReadIsAbsentReadsItWithoutATap()

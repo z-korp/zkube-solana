@@ -87,18 +87,41 @@ namespace ZKube.Integration.Tests
         }
     }
 
+    // A reply an endpoint gives as a JSON-RPC error.
+    public sealed class RpcErrorReply : Exception
+    {
+        public long Code { get; }
+        public RpcErrorReply(long code, string message) : base(message) { Code = code; }
+    }
     public sealed class TestHttp : IJsonRpcHttp, IPublicReadHttp, IDisposable
     {
         public readonly ConcurrentQueue<JObject> Requests = new ConcurrentQueue<JObject>();
         public Func<Uri, JObject, CancellationToken, Task<JToken>> Reply;
         public bool Disposed;
+        // What a MagicBlock rollup answers, as probed on Devnet on 2026-10-05. It
+        // has no getMinimumBalanceForRentExemption and no getRecentPrioritizationFees;
+        // anything not listed gets the rollup's own Method not found, on every double.
+        public static readonly string[] RollupAnswers = { "getHealth", "getLatestBlockhash", "isBlockhashValid", "getSignatureStatuses",
+            "getMultipleAccounts", "getAccountInfo", "getBalance", "getSlot", "getBlockHeight", "getEpochInfo", "getGenesisHash",
+            "getFeeForMessage", "sendTransaction" };
+        public const string RollupHost = "er.invalid";
         public async Task<string> Post(Uri endpoint, string json, int maximumResponseBytes, CancellationToken cancellation)
         {
             cancellation.ThrowIfCancellationRequested();
             var request = JObject.Parse(json); request["endpoint"] = endpoint.AbsoluteUri; Requests.Enqueue(request);
-            var result = await Reply(endpoint, request, cancellation);
-            return new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"], ["result"] = result }.ToString();
+            JObject Refused(long code, string message) => new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"],
+                ["error"] = new JObject { ["code"] = code, ["message"] = message } };
+            if (endpoint.Host == RollupHost && !RollupAnswers.Contains((string)request["method"])) return Refused(-32601, "Method not found").ToString();
+            try
+            {
+                var result = await Reply(endpoint, request, cancellation);
+                return new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"], ["result"] = result }.ToString();
+            }
+            catch (RpcErrorReply error) { return Refused(error.Code, error.Message).ToString(); }
         }
+        // What the rollup was asked.
+        public string[] AskedOfTheRollup => Requests.ToArray().Where(request => new Uri((string)request["endpoint"]).Host == RollupHost)
+            .Select(request => (string)request["method"]).Distinct().OrderBy(method => method, StringComparer.Ordinal).ToArray();
         // The public read model's answer to a GET; absent, it is down.
         public Func<Uri, string> Read;
         public readonly ConcurrentQueue<Uri> Reads = new ConcurrentQueue<Uri>();

@@ -79,6 +79,11 @@ namespace ZKube.Integration.App.Tests
             foreach (string secret in new[] { "secret-path", "api-key", "K3Y", key, bytes, "\n", "https://" }) StringAssert.DoesNotContain(secret, line);
             StringAssert.Contains("POST base.invalid failed for … with …", line);
 
+            // A call's name is printed whole, however long: it is ours, not the player's.
+            var rent = new InvalidOperationException("Method not found");
+            RequestFailure.Mark(rent, "the game server", new Uri("https://devnet-eu.example/"), "getMinimumBalanceForRentExemption");
+            StringAssert.Contains(" host=devnet-eu.example call=getMinimumBalanceForRentExemption ", RequestFailure.Of(rent).Line("vrf-daily"));
+
             var lines = new System.Collections.Generic.List<string>(); var sink = ClientLog.Sink;
             try
             {

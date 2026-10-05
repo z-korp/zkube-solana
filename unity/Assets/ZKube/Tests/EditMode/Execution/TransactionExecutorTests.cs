@@ -47,7 +47,8 @@ namespace ZKube.Integration.Execution.Tests
         }
         private TransactionExecutor NewExecutor() => new TransactionExecutor(planner,
             new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"],
-                (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId), new WalletClient(native), new TransactionJournal(store));
+                (string)rpcFixture["inputs"]["expectedGenesis"], accounts.ProgramId) { SlotWaitEvery = TimeSpan.FromMilliseconds(2) },
+            new WalletClient(native), new TransactionJournal(store)) { PromptEvery = TimeSpan.FromMilliseconds(2) };
         private PendingTransaction SignedPurchase() => new PendingTransaction(owner, "purchase-one", (string)rpcFixture["inputs"]["base"], true,
             Convert.FromBase64String((string)solana["transactions"].Single(row => (string)row["id"] == "purchase-1")["signedTransaction"]),
             (string)solana["inputs"]["blockhash"], 500);
@@ -159,6 +160,70 @@ namespace ZKube.Integration.Execution.Tests
         }
         private AccountEnvelope Token() => Envelope(plans["accounts"]["session"]);
 
+        // A sent transaction is looked for at once and then promptly: the usual
+        // outcome comes back with the call that sent it, at confirmed, with its
+        // timing in the log. One that stays unconfirmed is handed on as pending
+        // after a bounded number of checks.
+        [Test]
+        public async Task ASentTransactionIsLookedForPromptlyAndShownAtConfirmed()
+        {
+            string team = (string)solana["inputs"]["validator"];
+            var lines = new List<string>(); var sink = ClientLog.Sink; ClientLog.Sink = line => { lock (lines) lines.Add(line); };
+            try
+            {
+                http.UnseenStatuses = 3;
+                var result = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+                Assert.That(http.Count("getSignatureStatuses"), Is.EqualTo(4), "Three early looks, then the one that sees it confirmed");
+                Assert.That(http.Requests.Where(request => (string)request["method"] == "getMultipleAccounts").All(request => (string)request["params"][1]["commitment"] == "confirmed"), Is.True);
+                var timing = lines.Where(line => line.StartsWith("zKube timing: action=purchase-one ")).Select(line => line.Substring("zKube timing: action=purchase-one ".Length)).ToArray();
+                Assert.That(timing.Length, Is.EqualTo(3), string.Join(" | ", lines));
+                StringAssert.IsMatch(@"^sent=\+\d+ms$", timing[0]);
+                StringAssert.IsMatch(@"^first-status=\+\d+ms seen=Missing$", timing[1]);
+                StringAssert.IsMatch(@"^settled=\+\d+ms outcome=ConfirmedSuccess checks=4$", timing[2]);
+                // The page that shows it closes the timing, once.
+                ClientLog.Shown(result.Signature); ClientLog.Shown(result.Signature);
+                Assert.That(lines.Count(line => System.Text.RegularExpressions.Regex.IsMatch(line, @"^zKube timing: action=purchase-one shown=\+\d+ms$")), Is.EqualTo(1));
+                foreach (string line in lines) StringAssert.DoesNotContain(result.Signature, line);
+
+                // Never seen: the checks are bounded and the transaction is the follower's.
+                http.Sent = null; http.Confirmation = null;
+                int before = http.Count("getSignatureStatuses");
+                var unseen = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(unseen.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
+                Assert.That(http.Count("getSignatureStatuses") - before, Is.EqualTo(1 + TransactionExecutor.PromptChecks));
+                Assert.That(await store.Read(owner, "journal"), Is.Not.Null);
+            }
+            finally { ClientLog.Sink = sink; }
+        }
+
+        // The node that answers a read can be a slot or two behind the slot the
+        // status named. That is not yet: the same read is made again shortly and
+        // quietly, a bounded number of times, and the transaction settles in the
+        // same call. A node that stays behind leaves it pending, with no failure line.
+        [Test]
+        public async Task ANodeBehindTheNamedSlotIsWaitedForQuietlyAndBounded()
+        {
+            string team = (string)solana["inputs"]["validator"];
+            var lines = new List<string>(); var sink = ClientLog.Sink; ClientLog.Sink = line => { lock (lines) lines.Add(line); };
+            try
+            {
+                http.BehindSlot = 3;
+                var result = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+                Assert.That(http.Count("getSignatureStatuses"), Is.EqualTo(1), "The status is not asked again while the node catches up");
+                Assert.That(lines.Where(line => line.StartsWith("zKube request failed")), Is.Empty);
+
+                http.Sent = null; http.BehindSlot = int.MaxValue;
+                int reads = http.Count("getMultipleAccounts");
+                var behind = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+                Assert.That(behind.Outcome, Is.EqualTo(ExecutionOutcome.Pending)); Assert.That(behind.Code, Is.EqualTo("node-behind"));
+                Assert.That(http.Count("getMultipleAccounts") - reads, Is.EqualTo((1 + TransactionExecutor.PromptChecks) * (1 + SolanaRpcTransport.SlotWaits)));
+                Assert.That(lines.Where(line => line.StartsWith("zKube request failed")), Is.Empty);
+            }
+            finally { ClientLog.Sink = sink; }
+        }
+
         // Every outcome that is not a success or still pending writes one line
         // where it is made: the action, the outcome, its code and what stopped it.
         // No rejection, before or after the wallet, leaves without one.
@@ -169,12 +234,13 @@ namespace ZKube.Integration.Execution.Tests
             var lines = new List<string>(); var sink = ClientLog.Sink; ClientLog.Sink = line => { lock (lines) lines.Add(line); };
             try
             {
+                string[] Failures() { lock (lines) return lines.Where(line => line.StartsWith("zKube request failed")).ToArray(); }
                 async Task Expect(string line, Func<Task<ExecutionResult>> request)
                 {
                     lines.Clear();
                     var result = await request();
-                    Assert.That(lines.Count, Is.EqualTo(1), result.Outcome + " " + result.Code + ": " + string.Join(" | ", lines));
-                    StringAssert.StartsWith("zKube request failed: action=purchase-one " + line, lines[0]);
+                    Assert.That(Failures().Length, Is.EqualTo(1), result.Outcome + " " + result.Code + ": " + string.Join(" | ", lines));
+                    StringAssert.StartsWith("zKube request failed: action=purchase-one " + line, Failures()[0]);
                     Assert.That(await store.Read(owner, "journal"), Is.Null); Assert.That(http.Sent, Is.Null);
                 }
                 Task<ExecutionResult> Buy(CancellationToken cancellation = default) =>
@@ -202,14 +268,14 @@ namespace ZKube.Integration.Execution.Tests
                 }
                 // A success writes none.
                 lines.Clear();
-                Assert.That((await Buy()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess)); Assert.That(lines, Is.Empty);
+                Assert.That((await Buy()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess)); Assert.That(Failures(), Is.Empty);
                 // A transaction that landed and failed says so with the chain's error.
                 http.Sent = null; http.StatusError = new JArray("InstructionError", new JArray(2, new JObject { ["Custom"] = 6001 }));
                 lines.Clear();
                 var failed = await Buy();
                 Assert.That(failed.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
-                Assert.That(lines.Count, Is.EqualTo(1), string.Join(" | ", lines));
-                StringAssert.StartsWith("zKube request failed: action=purchase-one outcome=ConfirmedFailure code=- chain=\"", lines[0]);
+                Assert.That(Failures().Length, Is.EqualTo(1), string.Join(" | ", lines));
+                StringAssert.StartsWith("zKube request failed: action=purchase-one outcome=ConfirmedFailure code=- chain=\"", Failures()[0]);
             }
             finally { ClientLog.Sink = sink; }
         }
@@ -542,6 +608,8 @@ namespace ZKube.Integration.Execution.Tests
             public ulong Fee = 5400, Balance = 1000000000, Rent = 890880;
             public bool ThrowAfterSend, AbsentNonPlayer;
             public JToken StatusError, SimulationError;
+            // How many reads at a minimum slot find the node behind it; how many status requests see nothing yet.
+            public int BehindSlot, UnseenStatuses;
             public byte[] Sent;
             public Action AfterSend;
             public readonly Dictionary<string, JToken> ExtraAccounts = new Dictionary<string, JToken>();
@@ -572,10 +640,12 @@ namespace ZKube.Integration.Execution.Tests
                         AfterSend?.Invoke();
                         if (ThrowAfterSend) throw new IOException("Synthetic response loss after submission");
                         result = new JValue(signature); break;
-                    case "getSignatureStatuses": result = TestHttp.Context(new JArray(Confirmation == null ? JValue.CreateNull() : new JObject {
+                    case "getSignatureStatuses": result = TestHttp.Context(new JArray(Confirmation == null || UnseenStatuses-- > 0 ? JValue.CreateNull() : new JObject {
                         ["slot"] = 990, ["confirmationStatus"] = Confirmation, ["err"] = StatusError?.DeepClone() ?? JValue.CreateNull() }), 1000); break;
                     case "getBlockHeight": result = new JValue(Height); break;
                     case "getMultipleAccounts":
+                        // A node still behind the slot the read names answers with its own error.
+                        if (BehindSlot > 0 && request["params"][1]["minContextSlot"] != null) { BehindSlot--; throw new RpcErrorReply(-32016, "Minimum context slot has not been reached"); }
                         var addresses = request["params"][0].Values<string>().ToArray();
                         Assert.That(addresses.Length, Is.LessThanOrEqualTo(SolanaRpcTransport.MaximumBatchAccounts));
                         result = TestHttp.Context(new JArray(addresses.Select(Account)), AccountSlot); break;

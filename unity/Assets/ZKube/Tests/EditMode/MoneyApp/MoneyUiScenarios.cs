@@ -78,6 +78,14 @@ namespace ZKube.Integration.App.Tests
             if (!scenario.Contains("missing-session") && !scenario.StartsWith("session-enable") &&
                 scenario != "session-owner-decline" && scenario != "session-fee-shortage" && scenario != "session-failed-enable")
                 await ReadySession();
+            // Entered and delegated, with no opening VRF asked yet: what a failed first board leaves behind.
+            if (scenario == "daily-entered")
+            {
+                Http.Add(Runs["player"]);
+                var entered = Runs["cases"].Single(row => (string)row["id"] == "active-daily-prepared");
+                Http.Add(entered); Http.Delegated.Add((string)entered["address"]);
+                return;
+            }
             if (scenario.StartsWith("profile-"))
             {
                 Http.Add(scenario == "profile-fresh" ? Ui["fresh"] : scenario == "profile-auto" ? Ui["profiles"][0]["player"] : Ui["profile"]);
@@ -244,7 +252,7 @@ namespace ZKube.Integration.App.Tests
                     Assert.That(pending, Is.Not.Null); Assert.That(pending.Transaction, Is.EqualTo(bytes));
                     SentSignature = signature; SentTransaction = bytes;
                     if (Http.Confirmation == "confirmed") ApplyAfter();
-                    if (UiScenario == "daily-playable") AcceptDaily(bytes);
+                    if (UiScenario == "daily-playable" || UiScenario == "daily-entered") AcceptDaily(bytes);
                     return new JValue(signature);
                 default: return null;
             }
@@ -258,6 +266,8 @@ namespace ZKube.Integration.App.Tests
             if (instructions.Any(value => value.Name == "enter_arena"))
             { Http.Add(Ui["enteredPlayer"]); phase = "playing"; }
             else if (instructions.Any(value => value.Name == "request_reroll")) phase = "rerolled";
+            // The opening VRF is answered by the time the board looks.
+            else if (instructions.Any(value => value.Name == "request_vrf")) phase = "playing";
             else if (instructions.Any(value => value.Name == "finish_run")) phase = "finished";
             else if (instructions.Any(value => value.Name == "consume_arena_run"))
             {

@@ -43,6 +43,8 @@ namespace ZKube.Integration.App.Tests
                 { Native.Reject = false; return new JObject { ["requestId"] = request["requestId"], ["ok"] = false, ["error"] = "wallet-rejected" }; }
                 return new JObject { ["owner"] = Convert.ToBase64String(SolanaAddress.Bytes(Native.Owner)) };
             }; Services = Create(Config);
+            // The executor's prompt checks and the transport's slot waits take no real time here.
+            Services.Executor.PromptEvery = TimeSpan.FromMilliseconds(2); Services.Rpc.SlotWaitEvery = TimeSpan.FromMilliseconds(2);
             var publications = Fixture("plans");
             foreach (var name in new[] { "protocol", "daily" }) Http.Add(publications["accounts"][name]);
         }

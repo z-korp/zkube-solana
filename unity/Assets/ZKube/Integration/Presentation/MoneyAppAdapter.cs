@@ -226,7 +226,12 @@ namespace ZKube.Integration.Presentation
             presenting = false;
             if (dirty || PageKey() != key || PageRealm() != realm) yield break;
             if (load || key != shownKey) shell.Depart(AppPreferences.ReducedMotion, Mathf.Max(.5f, Density()));
-            try { Draw(); shownKey = key; }
+            try
+            {
+                Draw(); shownKey = key;
+                // The page that shows a settled transaction, read back: the end of its timing.
+                if (!Busy && !ReadMissing() && lastReceipt?.Signature != null) ClientLog.Shown(lastReceipt.Signature);
+            }
             // A read went stale between this frame's check and its draw, invalidated
             // from another thread: the next frame draws what replaced it.
             catch (OperationCanceledException) { Present(); }

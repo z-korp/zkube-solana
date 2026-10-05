@@ -36,10 +36,11 @@ namespace ZKube.Integration.App
         public async Task<MoneyRead<MoneyKreditState>> RefreshKredits(CancellationToken cancellation = default)
         {
             var read = await ReadOwnerProduct(cancellation, async (lease, token) => {
-                var profile = await services.Products.Profile(token).ConfigureAwait(false);
+                // The balance and the launch state are read together: one round trip, not two.
+                var reading = services.Products.Profile(token); var launching = services.PublicDaily.Launched(token);
+                await Task.WhenAll(reading, launching).ConfigureAwait(false);
                 var pending = await services.Journal.Load(lease.Owner).ConfigureAwait(false);
-                bool launched = await services.PublicDaily.Launched(token).ConfigureAwait(false);
-                return new MoneyKreditState(profile.Value, pending, ReadOwnerOperation(out _), launched);
+                return new MoneyKreditState(reading.Result.Value, pending, ReadOwnerOperation(out _), launching.Result);
             }).ConfigureAwait(false);
             var value = read.Value;
             return new MoneyRead<MoneyKreditState>(value, () => read.IsCurrent && CurrentOwnerOperation(value.PreviousOperation));

@@ -105,7 +105,7 @@ namespace ZKube.Integration.Transport
             ulong? minContextSlot = null, CancellationToken cancellation = default)
         {
             SolanaAddress.Bytes(address); AccountBound(maximumBytes); await Ready(endpoint, cancellation).ConfigureAwait(false);
-            var result = Object(await Call(endpoint.Address, "getAccountInfo", new JArray(address, AccountConfig(minContextSlot)), maximumBytes * 2 + 4096, cancellation).ConfigureAwait(false));
+            var result = Object(await AtSlot(() => Call(endpoint.Address, "getAccountInfo", new JArray(address, AccountConfig(minContextSlot)), maximumBytes * 2 + 4096, cancellation), cancellation).ConfigureAwait(false));
             return Account(address, result["value"], AccountSlot(result, minContextSlot), maximumBytes);
         }
 
@@ -128,7 +128,7 @@ namespace ZKube.Integration.Transport
         private async Task<RpcAccountBatch> AccountBatch(Uri endpoint, IReadOnlyList<string> addresses, int maximumBytes,
             ulong? minContextSlot, CancellationToken cancellation)
         {
-            var result = Object(await Call(endpoint, "getMultipleAccounts", new JArray(new JArray(addresses), AccountConfig(minContextSlot)), addresses.Count * (maximumBytes * 2 + 4096), cancellation).ConfigureAwait(false));
+            var result = Object(await AtSlot(() => Call(endpoint, "getMultipleAccounts", new JArray(new JArray(addresses), AccountConfig(minContextSlot)), addresses.Count * (maximumBytes * 2 + 4096), cancellation), cancellation).ConfigureAwait(false));
             if (!(result["value"] is JArray values) || values.Count != addresses.Count) throw new FormatException("Account response count does not match request");
             ulong slot = AccountSlot(result, minContextSlot);
             return new RpcAccountBatch(slot, values.Select((value, i) => Account(addresses[i], value, slot, maximumBytes)).ToArray());
@@ -157,13 +157,6 @@ namespace ZKube.Integration.Transport
             SolanaAddress.Bytes(address); await Ready(endpoint, cancellation).ConfigureAwait(false);
             var result = Object(await Call(endpoint.Address, "getBalance", new JArray(address, Commitment()), 4096, cancellation).ConfigureAwait(false));
             Slot(result); return Unsigned(result["value"]);
-        }
-
-        public async Task<ulong> RentFloor(RpcEndpoint endpoint, uint bytes = 0, CancellationToken cancellation = default)
-        {
-            if (bytes > MaximumAccountBytes) throw new ArgumentOutOfRangeException(nameof(bytes));
-            await Ready(endpoint, cancellation).ConfigureAwait(false);
-            return Unsigned(await Call(endpoint.Address, "getMinimumBalanceForRentExemption", new JArray(bytes, Commitment()), 4096, cancellation).ConfigureAwait(false));
         }
 
         public async Task<RpcSimulation> Simulate(RpcEndpoint endpoint, byte[] transaction, RpcBlockhash lease, CancellationToken cancellation = default)
@@ -255,8 +248,31 @@ namespace ZKube.Integration.Transport
             if (lease == null || !ReferenceEquals(lease.Endpoint, endpoint) || actual != lease.Blockhash)
                 throw new InvalidOperationException("Transaction blockhash was not fetched from this endpoint");
         }
+        // What a MagicBlock rollup is asked, each of which it answers (probed on
+        // Devnet, where it has no getMinimumBalanceForRentExemption). A rollup
+        // connection is asked nothing else: rents are the generated constants.
+        public static readonly IReadOnlyCollection<string> RollupMethods = Array.AsReadOnly(new[] {
+            "getAccountInfo", "getMultipleAccounts", "getLatestBlockhash", "getFeeForMessage", "getBalance",
+            "getSignatureStatuses", "getBlockHeight", "sendTransaction" });
+        // A read that names a minimum slot can reach a node still a slot or two
+        // behind it. That is not yet, not a failure: the same read is made again
+        // shortly, a bounded number of times, without a log line.
+        public const long SlotNotReached = -32016;
+        public const int SlotWaits = 8;
+        public TimeSpan SlotWaitEvery = TimeSpan.FromMilliseconds(250);
+        private async Task<JToken> AtSlot(Func<Task<JToken>> read, CancellationToken cancellation)
+        {
+            for (int wait = 0; ; wait++)
+            {
+                try { return await read().ConfigureAwait(false); }
+                catch (RpcFailure error) when (error.Code == SlotNotReached && wait < SlotWaits)
+                { await Task.Delay(SlotWaitEvery, cancellation).ConfigureAwait(false); }
+            }
+        }
         private async Task<JToken> Call(Uri endpoint, string method, JArray parameters, int bound, CancellationToken cancellation)
         {
+            if (endpoint != Base.Address && endpoint != router && !RollupMethods.Contains(method))
+                throw new InvalidOperationException("A rollup connection is not asked " + method);
             long id = Interlocked.Increment(ref requestId);
             var request = new JObject { ["jsonrpc"] = "2.0", ["id"] = id, ["method"] = method, ["params"] = parameters };
             try { return Result(await http.Post(endpoint, request.ToString(Formatting.None), bound, cancellation).ConfigureAwait(false), id, bound); }

@@ -22,26 +22,34 @@ namespace ZKube.Integration.Presentation
         // wait is bounded, a little past the time a transaction can still land;
         // beyond it the page says so and offers to keep following.
         private const string Confirming = "Waiting for Solana to confirm…", Unconfirmed = "Solana has not confirmed this yet.";
-        private TimeSpan followEvery = TimeSpan.FromSeconds(2), followFor = TimeSpan.FromSeconds(120);
-        private bool following;
+        // The executor has already looked a few times in the first two seconds.
+        // The follower looks every half second at first, then backs off: a
+        // transaction that is going to land has usually landed by then.
+        private TimeSpan followEvery = TimeSpan.FromMilliseconds(500), followFor = TimeSpan.FromSeconds(120);
+        private bool following, waitedOut;
+        private TimeSpan FollowPause(TimeSpan elapsed) =>
+            TimeSpan.FromTicks(followEvery.Ticks * (elapsed.Ticks < followEvery.Ticks * 12 ? 1 : elapsed.Ticks < followEvery.Ticks * 40 ? 2 : 4));
         // result is the action's own pending result, or null to follow whatever this address has waiting.
         private async Task<ExecutionResult> Follow(ExecutionResult result, long epoch, CancellationToken token)
         {
             if (result != null && result.Outcome != ExecutionOutcome.Pending) return result;
             bool own = result != null;
-            following = true; Present();
+            following = true; waitedOut = false; Present();
             try
             {
-                var until = DateTime.UtcNow + followFor;
+                var started = DateTime.UtcNow;
                 while (true)
                 {
                     if (!Current(epoch)) return result;
-                    if (result != null) await Task.Delay(followEvery, token);
+                    if (result != null) await Task.Delay(FollowPause(DateTime.UtcNow - started), token);
                     if (!Current(epoch)) return result;
                     var next = (await Flow.ResumePending(token, !own)).Value;
                     if (!Current(epoch) || next.Code == "no-pending-transaction") return result;
                     result = next;
-                    if (result.Outcome != ExecutionOutcome.Pending || DateTime.UtcNow >= until) return result;
+                    if (result.Outcome != ExecutionOutcome.Pending) return result;
+                    // Only a wait that really ran its length is over; a page the
+                    // pause retired has not waited, and follows again when it is back.
+                    if (DateTime.UtcNow - started >= followFor) { waitedOut = true; return result; }
                 }
             }
             finally { following = false; }
@@ -65,7 +73,7 @@ namespace ZKube.Integration.Presentation
             { ClientLog.Failure("follow transaction", error); if (Current(epoch)) Refuse(family, Reason(error), () => _ = FollowTransaction()); return; }
             if (!Current(epoch)) return;
             ShowReceipt(result ?? ExecutionResult.Rejected(null, "no-pending-transaction"), identity.Owner);
-            if (result?.Outcome == ExecutionOutcome.Pending) Refuse(family, Unconfirmed, () => _ = FollowTransaction());
+            if (result?.Outcome == ExecutionOutcome.Pending) { if (waitedOut) Refuse(family, Unconfirmed, () => _ = FollowTransaction()); }
             else if (result != null && MoneyReceiptText.Refusal(result) is string reason) Inform(reason);
             await RefreshVisiblePage(epoch, token); // A receipt survives an empty post-confirmation journal.
         });
@@ -102,7 +110,7 @@ namespace ZKube.Integration.Presentation
                         result = await Follow(await request(CancellationToken.None), epoch, token);
                         reason = MoneyReceiptText.Refusal(result);
                         // The wait ran out: the retry keeps following, it never sends again.
-                        if (result.Outcome == ExecutionOutcome.Pending) { reason = Unconfirmed; retry = () => _ = FollowTransaction(); }
+                        if (result.Outcome == ExecutionOutcome.Pending && waitedOut) { reason = Unconfirmed; retry = () => _ = FollowTransaction(); }
                     }
                     catch (Exception error) when (!(error is OperationCanceledException)) { ClientLog.Failure(action, error); reason = Reason(error); }
                     if (result != null) sent?.Invoke(result);

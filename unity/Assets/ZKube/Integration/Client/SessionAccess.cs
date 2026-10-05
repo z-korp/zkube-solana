@@ -40,7 +40,7 @@ namespace ZKube.Integration.Client
             {
                 if (saved.Active == null || signer == null) throw new SessionUnavailableException("Enable a device session first");
                 var observation = await rpc.ReadAccounts(rpc.Base, new[] { saved.Active.Token, saved.Active.Signer }, cancellation: lease.Cancellation).ConfigureAwait(false);
-                ulong rent = await rpc.RentFloor(rpc.Base, 0, lease.Cancellation).ConfigureAwait(false);
+                ulong rent = ZKube.Core.Generated.Protocol.SystemAccountRentLamports;
                 long observedNow = now();
                 var assessment = SessionReadiness.Inspect(saved.Active, signer.Address, observation.Accounts[0].Envelope,
                     observation.Accounts[1], rent, observedNow, tokens, program);

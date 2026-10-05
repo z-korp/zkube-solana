@@ -346,6 +346,15 @@ deployment or spending approval.
   `APurchaseApprovedWhileTheWalletPausedTheAppIsSentAndConfirmed`,
   `ARefusalAfterTheWalletPausedTheAppStillSaysWhyAndLogsIt` and
   `EveryOutcomeThatIsNotASuccessLeavesOneLogLine` guard them.
+- **Settling:** the call that sends a transaction looks for it at once and then promptly a few more times, so
+  the usual outcome comes back with it; a result is shown at confirmed and nothing waits for finalized. One
+  still unconfirmed is the follower's, which looks every half second and backs off; a page the wallet's pause
+  retired has not waited, and follows again when the app is back. A read that names a minimum slot and finds
+  the node behind it is made again shortly and quietly, a bounded number of times, and is not a failure. The
+  device log carries each sent transaction's timing: the send, the first status, the settled outcome and the
+  page showing it. `ASentTransactionIsLookedForPromptlyAndShownAtConfirmed`,
+  `ANodeBehindTheNamedSlotIsWaitedForQuietlyAndBounded` and
+  `APausedPurchaseThatConfirmsLateIsFollowedByThePageItself` guard them.
 - **Saved authorization:** the device keeps the address the wallet last authorized, with the wallet's token,
   in the native vault. A start enters with that address and asks no wallet; the next wallet request proves it.
   A wallet that answers for another account ends it: the vault drops the entry, the client drops the address
@@ -586,7 +595,13 @@ entry; it is not a general fee sponsor.
 
 Base, Router and resolved ER connections stay separate, and each endpoint is HTTPS unless it is this machine;
 `AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. Resolve
-placement through `getDelegationStatus`.
+placement through `getDelegationStatus`. A rollup connection is asked only the calls a MagicBlock rollup answers,
+listed once in the transport, which refuses any other by name before it is made; a rollup has no rent-exemption
+call, so every rent is the generated constant and no endpoint is asked for one. The test doubles answer Method
+not found for anything outside what the Devnet rollup was probed to answer.
+`EveryRollupPlanAsksTheRollupOnlyWhatItAnswers` guards the opening VRF, a row action, the finish and the commit,
+and `ResumingAnEnteredRunRequestsItsOpeningVrfAndOpensTheBoard` the recovery of a run entered without its
+opening VRF.
 Preserve copied-back terminal state until consumption; deterministic expiry and orphan reservation permit
 cleanup without late scoring. Arcade has one durable slot and monotonic run IDs, guarded by
 `arcade_reservation_and_orphan_share_one_monotonic_run_sequence`.

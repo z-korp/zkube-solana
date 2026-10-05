@@ -50,8 +50,7 @@ namespace ZKube.Integration.App
             var message = plan.CompileMessage(lease.Blockhash);
             var fee = await Rpc.FeeForMessage(Rpc.Base, message, cancellation).ConfigureAwait(false);
             var balance = await Rpc.Balance(Rpc.Base, plan.FeePayer, cancellation).ConfigureAwait(false);
-            var rent = await Rpc.RentFloor(Rpc.Base, 0, cancellation).ConfigureAwait(false);
-            plan.RequireDeviceFunding(balance, rent, fee);
+            plan.RequireDeviceFunding(balance, ZKube.Core.Generated.Protocol.SystemAccountRentLamports, fee);
             if (!Identity.IsCurrent(identity)) return false;
             cancellation.ThrowIfCancellationRequested();
             var transaction = device.Signer.PartialSign(SolanaWire.UnsignedTransaction(message));
