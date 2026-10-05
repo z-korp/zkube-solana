@@ -781,6 +781,15 @@ pages. `EveryFrameOfEveryGuardianRendersInTheSameBoxAsIdle` guards the drawing a
 `EveryGuardianFrameMatchesIdleOutsideItsRecordedFace` the art. The codegen owns the board's sound cues and
 imports their clips; `EverySoundCueHasItsImportedClip` guards the pair.
 
+The board shows its danger on its limit. Once the stack reaches row 9 of 10 a glowing line marks the limit along
+the top of the board, behind the guardian's paws, with embers rising from it, steady. With no row free the line
+turns whiter and beats like a heart, a double beat quicker than a resting pulse, with more embers, and one soft
+heartbeat cue sounds a beat while the run is in play. No block moves and no light sits on the rim or the glass.
+The line follows the stack in the frame it changes; reduced motion holds it still, brighter when critical, without
+embers. `TheLimitLineShowsAtRowNineBeatsAtRowTenAndStopsTheFrameTheBoardRecovers`,
+`NoBlockMovesBecauseOfTheDangerState`, `TheHeartbeatIsADoubleBeatQuickerThanARestingPulse` and
+`TheHeartbeatSoundsOnceABeatWhileTheStackIsCriticalAndTheRunIsInPlay` guard it.
+
 The player renders in gamma colour space: the approved art and its soft alpha were composed that way, and
 linear blending darkened near-transparent edges. `ThePlayerBlendsInGammaSpaceAsTheArtIsApproved` pins it.
 Preparation clears the font engine's uninitialised kerning-pair flags, which otherwise dropped Label tracking

@@ -288,7 +288,8 @@ fn objective(theme: &zkube_core::DailyTheme) -> Value {
 /// its clip under assets/common/sounds/effects. The clips are imported and the
 /// C# names emitted from this one list, so a played cue cannot lack its clip.
 /// The small win is the old client's level-up sting until its own is authored.
-pub const SOUND_CUES: [(&str, &str); 8] = [
+/// The heartbeat is one double beat, two low decaying tones synthesized for this cue.
+pub const SOUND_CUES: [(&str, &str); 9] = [
     ("Move", "swipe"),
     ("LineBreak", "explode"),
     ("Bonus", "bonus-activate"),
@@ -297,6 +298,7 @@ pub const SOUND_CUES: [(&str, &str); 8] = [
     ("SmallWin", "levelup"),
     ("BigWin", "victory"),
     ("BossIntro", "boss-intro"),
+    ("Heartbeat", "heartbeat"),
 ];
 
 pub fn render(catalog: &CampaignCatalog, source: &str, root: &Path) -> Result<String, String> {

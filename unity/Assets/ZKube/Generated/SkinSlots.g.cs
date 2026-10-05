@@ -217,5 +217,6 @@ namespace ZKube.Core.Generated
         public const string SmallWin = "levelup";
         public const string BigWin = "victory";
         public const string BossIntro = "boss-intro";
+        public const string Heartbeat = "heartbeat";
     }
 }

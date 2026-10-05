@@ -54,7 +54,8 @@ namespace ZKube.Presentation
         private readonly bool[] flying = new bool[3];
         private GameObject modal;
         private Image modalShield;
-        private SpriteRenderer ghost, pressureFrame, pressureTint, guardianAura;
+        private SpriteRenderer ghost, dangerBand, dangerLine, guardianAura;
+        private readonly SpriteRenderer[] dangerEmbers = new SpriteRenderer[CriticalEmbers];
         public bool Boss { get; private set; }
         public const float AuraAlpha = .55f, IntroSeconds = 2.2f;
         // Block sprites are reused: a board change returns them here instead of destroying them.
@@ -141,11 +142,11 @@ namespace ZKube.Presentation
                 dimple.color = new Color(1, 1, 1, CellLift);
             }
             Sliced("Next row tray", art.SkinUi(SkinSlots.PreviewTray), Layout.Tray, -10);
-            // Under pressure the frame and the glass pulse in the warning colour, over the cells and under the blocks.
-            pressureTint = NewSprite("Pressure tint", art.SkinUi(SkinSlots.FxGlow), -11);
-            Size(pressureTint, new Rect(Layout.Board.x - .2f * Layout.Board.width, Layout.Board.y - .2f * Layout.Board.height, 1.4f * Layout.Board.width, 1.4f * Layout.Board.height));
-            pressureFrame = Sliced("Pressure frame", art.SkinUi(SkinSlots.BoardFrame), Layout.Rim, 1, 2);
-            pressureTint.enabled = pressureFrame.enabled = false;
+            // The danger line along the top of the board, its glow and its embers: over the blocks, behind the guardian's paws.
+            dangerBand = NewSprite("Danger band", art.SkinUi(SkinSlots.FxGlow), DangerOrder);
+            dangerLine = NewSprite("Danger line", art.SkinUi(SkinSlots.FxGlow), DangerOrder + 1);
+            for (int i = 0; i < dangerEmbers.Length; i++) dangerEmbers[i] = NewSprite("Danger ember " + i, art.SkinUi(SkinSlots.FxGlow), DangerOrder + 1);
+            ShowPressure(Time.unscaledTime);
             var pawsSprite = art.Sprite("boss__paws");
             pawsShadow = NewSprite("Guardian contact shadow", pawsSprite, 7);
             Size(pawsShadow, new Rect(hud.Guardian.x + .7f * d, hud.Guardian.y - 1.3f * d, hud.Guardian.width, hud.Guardian.height));
@@ -769,12 +770,26 @@ namespace ZKube.Presentation
         }
         public static string ObjectiveName(byte kind, byte value, byte count = 0) => PageCatalog.Load().ObjectiveName(kind, value, count);
 
-        // Pressure (DECISIONS 2026-10-05): once the stack reaches row 9 of 10,
-        // one free row or none above it, the frame and the glass pulse warm
-        // every two seconds; with none free they pulse red, faster and stronger.
-        // The guardian looks worried until the board recovers. Reduced motion
-        // holds the tint instead of pulsing.
+        // Danger (owner, 2026-10-05): once the stack reaches row 9 of 10, one free
+        // row or none above it, a glowing line marks the limit along the top of
+        // the board and embers rise from it, steady. With no row free the line
+        // turns whiter and beats like a heart, with more embers. That is all of
+        // it: no block moves and no light sits on the rim or the glass. It stops
+        // in the frame the board recovers, and the guardian looks worried until
+        // then. Reduced motion holds the line still, brighter when critical,
+        // without embers or beat.
         public const int PressureRows = 1;
+        public const int WarningEmbers = 7, CriticalEmbers = 12;
+        // One heartbeat, quicker than a resting pulse: two strokes, the second softer.
+        public const float BeatSeconds = .72f, FirstStroke = .07f, SecondStroke = .25f, SecondStrength = .7f, StillBeat = .6f;
+        public static float Heartbeat(float seconds)
+        {
+            float phase = Mathf.Repeat(seconds, BeatSeconds);
+            float Stroke(float at) { float away = (phase - at) / .055f; return Mathf.Exp(-away * away); }
+            return Mathf.Max(Stroke(FirstStroke), SecondStrength * Stroke(SecondStroke));
+        }
+        private const int DangerOrder = 4;
+        private static readonly Color DangerAmber = new Color(1, .62f, .16f), DangerRed = new Color(1, .2f, .1f), DangerHot = new Color(1, .95f, .78f);
         public static int FreeRows(byte[] grid)
         {
             for (int row = 9; row >= 0; row--)
@@ -796,21 +811,46 @@ namespace ZKube.Presentation
         public int Pressure { get; private set; }
         public const string PressureFace = "surprised";
         private string RestFace => Pressure > 0 ? PressureFace : "idle";
+        // When the critical step began, so its beat starts on its first stroke; NaN otherwise.
+        private float dangerSince = float.NaN;
+        private int dangerBeat;
+        private static float Scatter(int n) => Mathf.Repeat(Mathf.Abs(Mathf.Sin(n * 12.9898f) * 43758.5453f), 1);
+        // The glow piece draws its light in the middle two fifths of its box.
+        private void Light(SpriteRenderer glow, Vector2 centre, float wide, float tall, Color color)
+        { glow.enabled = true; Size(glow, new Rect(centre.x - 1.25f * wide, centre.y - 1.25f * tall, 2.5f * wide, 2.5f * tall)); glow.color = color; }
         private void ShowPressure(float now)
         {
-            if (pressureFrame == null) return;
-            pressureFrame.enabled = pressureTint.enabled = Pressure > 0;
+            if (dangerLine == null) return;
+            bool critical = Pressure == 2, still = owner.ReducedMotion;
+            dangerBand.enabled = dangerLine.enabled = false;
+            foreach (var ember in dangerEmbers) ember.enabled = false;
+            if (!critical) dangerSince = float.NaN;
             if (Pressure == 0) return;
-            bool critical = Pressure == 2;
-            var danger = art.Token(SkinTokens.Negative);
-            var tone = critical ? danger : Color.Lerp(danger, art.Token(SkinTokens.Accent), .5f);
-            float wave = owner.ReducedMotion ? .6f : .5f - .5f * Mathf.Cos(2 * Mathf.PI * now / (critical ? 1.2f : 2));
-            pressureFrame.color = SkinUi.WithAlpha(tone, critical ? Mathf.Lerp(.5f, 1, wave) : Mathf.Lerp(.3f, .9f, wave));
-            pressureTint.color = SkinUi.WithAlpha(tone, (critical ? .5f : .28f) * wave);
+            if (critical && float.IsNaN(dangerSince)) { dangerSince = now; dangerBeat = -1; }
+            float beat = !critical ? 0 : still ? StillBeat : Heartbeat(now - dangerSince);
+            // Each beat sounds once, as it starts, whether or not the line moves.
+            int count = critical ? Mathf.FloorToInt((now - dangerSince) / BeatSeconds) : dangerBeat;
+            if (count != dangerBeat) { dangerBeat = count; owner.Heartbeat(); }
+            var board = Layout.Board; float cell = Layout.Cell;
+            var top = new Vector2(board.center.x, board.yMax);
+            var tone = critical ? DangerRed : DangerAmber;
+            Light(dangerBand, top, 1.25f * board.width, (critical ? Mathf.Lerp(1.1f, 1.6f, beat) : 1) * cell, SkinUi.WithAlpha(tone, critical ? Mathf.Lerp(.55f, 1, beat) : .7f));
+            Light(dangerLine, top, 1.15f * board.width, (critical ? Mathf.Lerp(.26f, .46f, beat) : .22f) * cell,
+                SkinUi.WithAlpha(critical ? Color.Lerp(DangerHot, Color.white, .5f + .5f * beat) : DangerHot, critical ? Mathf.Lerp(.8f, 1, beat) : .9f));
+            if (still) return;
+            int live = critical ? CriticalEmbers : WarningEmbers; float period = critical ? 1 : 1.8f;
+            for (int i = 0; i < live; i++)
+            {
+                float turn = now / period + i * .618f, t = Mathf.Repeat(turn, 1); int lap = Mathf.FloorToInt(turn);
+                float x = board.x + Scatter(i * 31 + lap * 17) * board.width + Mathf.Sin((t + i) * 6) * .15f * cell;
+                float y = board.yMax + t * (critical ? 2.4f : 1.7f) * cell, size = (.16f + .12f * Scatter(i * 7 + lap)) * cell * (critical ? 1.3f : 1);
+                Light(dangerEmbers[i], new Vector2(x, y), size, size, SkinUi.WithAlpha(Color.Lerp(tone, DangerHot, .5f), Mathf.Sqrt(Mathf.Sin(Mathf.PI * t))));
+            }
         }
         public void SetBoard(byte[] grid)
         {
-            Pressure = PressureLevel(FreeRows(grid));
+            // The danger line follows the stack in the frame it changes.
+            Pressure = PressureLevel(FreeRows(grid)); ShowPressure(Time.unscaledTime);
             foreach (var block in blocks.Values) ReturnBlock(block);
             blocks.Clear(); DisplayGrid = (byte[])grid.Clone();
             for (int row = 0; row < 10; row++) for (int col = 0; col < 8;)

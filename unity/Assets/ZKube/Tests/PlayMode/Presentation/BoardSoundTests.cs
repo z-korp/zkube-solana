@@ -83,6 +83,8 @@ namespace ZKube.Presentation.Tests
                         played.Clear();
                         yield return evidence.PlayNextInput();
                         yield return Wait(() => !board.Busy);
+                        // A critical stack's heartbeat keeps its own time; it has its own test.
+                        played.RemoveAll(cue => cue == SoundCues.Heartbeat);
                         // The core lets a block pass its neighbours; a drag stops against
                         // them. Such a trajectory ends here for the pointer.
                         if (step.operation == NativeOperation.PlayMove && board.State.ActionCounter == state.ActionCounter) { Assert.IsEmpty(played, at + ": a refused drag is silent"); break; }
@@ -100,6 +102,30 @@ namespace ZKube.Presentation.Tests
                 }
             Debug.Log("Sound test: " + moves + " moves, " + breaks + " line breaks");
             Assert.GreaterOrEqual(moves, 8, "The trajectories move blocks"); Assert.GreaterOrEqual(breaks, 6, "The trajectories break lines");
+        }
+
+        // The heartbeat sounds once a beat, from the frame the stack turns critical,
+        // whether or not the line moves, and only while the run is in play: the
+        // warning, a pause and a recovered board are silent.
+        [UnityTest] public IEnumerator TheHeartbeatSoundsOnceABeatWhileTheStackIsCriticalAndTheRunIsInPlay()
+        {
+            byte[] Stack(int height) { var grid = new byte[80]; for (int row = 0; row < height; row++) grid[row * 8] = 1; return grid; }
+            IEnumerator Beats(float beats) { float end = Time.unscaledTime + beats * BoardView.BeatSeconds; while (Time.unscaledTime < end) yield return null; }
+            played.Clear();
+            board.View.SetBoard(Stack(9)); yield return Beats(1.5f);
+            Assert.AreEqual(0, Count(SoundCues.Heartbeat), "The warning is silent");
+            board.View.SetBoard(Stack(10));
+            Assert.AreEqual(1, Count(SoundCues.Heartbeat), "The first beat sounds as the stack turns critical");
+            yield return Beats(2.5f);
+            Assert.AreEqual(3, Count(SoundCues.Heartbeat), "One sound a beat");
+            CollectionAssert.AreEqual(new[] { SoundCues.Heartbeat }, played.Distinct().ToArray());
+            board.Pause(); yield return null; played.Clear(); yield return Beats(2.2f);
+            Assert.IsEmpty(played, "A paused run is silent");
+            board.Resume(); board.SetReducedMotion(true); yield return null; played.Clear(); yield return Beats(2.2f);
+            Assert.GreaterOrEqual(Count(SoundCues.Heartbeat), 2, "It sounds when reduced motion holds the line still");
+            board.SetReducedMotion(false);
+            board.View.SetBoard(Stack(9)); played.Clear(); yield return Beats(1.5f);
+            Assert.IsEmpty(played, "A recovered board is silent");
         }
 
         // No stars is the loss, one or two a small win, three a big win; an ended

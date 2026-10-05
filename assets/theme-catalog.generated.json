@@ -749,6 +749,7 @@
     "bonus-activate": "/assets/common/sounds/effects/bonus-activate.mp3",
     "boss-intro": "/assets/common/sounds/effects/boss-intro.mp3",
     "explode": "/assets/common/sounds/effects/explode.mp3",
+    "heartbeat": "/assets/common/sounds/effects/heartbeat.mp3",
     "levelup": "/assets/common/sounds/effects/levelup.mp3",
     "over": "/assets/common/sounds/effects/over.mp3",
     "star": "/assets/common/sounds/effects/star.mp3",

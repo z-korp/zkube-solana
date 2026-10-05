@@ -656,6 +656,8 @@ namespace ZKube.Presentation
             if (!clips.TryGetValue(name, out var clip)) { clip = Resources.Load<AudioClip>("ZKube/Audio/common/sounds__effects__" + name); clips[name] = clip; }
             if (clip != null) effects.PlayOneShot(clip);
         }
+        // The critical stack's heartbeat, once a beat while the run is in play.
+        internal void Heartbeat() { if (!paused && !recoveryRequired && !IsTerminal()) Sound(SoundCues.Heartbeat); }
         private void OnApplicationPause(bool value) { if (value && PresentationInitialized && !paused) Pause(); }
         private void OnDestroy()
         {
