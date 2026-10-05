@@ -63,6 +63,12 @@ namespace ZKube.Core.Tests
                 if (step.operation >= NativeOperation.ApplyVrf && step.operation <= NativeOperation.Finish)
                 {
                     var result = RunTransition.Decode(config, actual);
+                    // A VRF application seen only as the state it left is the application's own account.
+                    if (step.operation == NativeOperation.ApplyVrf)
+                        CollectionAssert.AreEqual(actual, NativeEngine.Call(NativeOperation.ObserveVrf,
+                            NativeRequest.ObserveVrf(config, state, result.Token.State)), trajectory.name + ": an unseen VRF is observed as it was applied");
+                    else Assert.Throws<NativeEngineException>(() => NativeEngine.ObserveVrf(new CoreRunToken(config, state), result.Token),
+                        trajectory.name + ": an action is not a VRF application");
                     {
                         var before = NativeEngine.Summary(state).Grid;
                         var rendered = PresentationTrace.ProjectBoard(before, result.Events);

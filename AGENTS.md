@@ -157,6 +157,17 @@ deployment or spending approval.
   `RunBoard`; Arena adds only its identity slots and starts the star write once a result is durable, without the
   next page waiting on it. `TheCampaignJourneyIsTheSameUnderBothIdentityImplementations` and
   `TheStarWriteStartsAfterAResultWithoutDelayingTheResultPage` guard both.
+- **One board:** every run in both products plays on one `BoardController`, and the core is the one source of its
+  motion. The core plays the player's action at once for the board to move; the provider (the device's save, or
+  the rollup) only confirms, and nothing is accepted, counted or shown as earned before it does. The client never
+  sees a row's output on the rollup, so the core accounts for the row from the run before and after it, and only
+  when exactly one output separates them. A confirmation that is neither the played action nor that action with
+  its row, a refused action included, puts the board on the confirmed run and says so; a confirmation that fails
+  is answered by one read of the run, never by a repeat of the gesture.
+  `an_unseen_vrf_is_observed_exactly_as_the_application_that_made_it`,
+  `ADailyMoveOnTheArenaPresentsWhatTheSameMovePresentsOnTheSharedRunBoard`,
+  `ALateRowIsWaitedForAndPresentedWhenItArrives`, `ARefusedMoveSettlesTheBoardOnTheAcceptedRunWithANotice` and
+  `ASwipeQueuedOnTheMovedBoardPlaysOnceAcceptedAndIsDroppedIfTheBoardSettlesElsewhere` guard it.
 - **Tutorial:** the guardian teaches through that same path, each lesson once per device (`Lessons`, beside the
   realm greetings). The first run of Tiki's level 1 is guided by the slide the core scores best (`BoardHint`), the
   board never waiting for it; each bonus's first charge, the first star and the first empty board are taught on

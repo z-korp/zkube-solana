@@ -40,7 +40,7 @@ namespace ZKube.Local
             lock (gate) return new BoardSession(new CoreRunToken(delivered.Config, delivered.State), initial.Rules, this, initial.Realm, daily);
         }
 
-        public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+        public Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
         {
             lock (gate)
             {
@@ -69,7 +69,7 @@ namespace ZKube.Local
                 return Task.FromResult(Deliver());
             }
         }
-        public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+        public Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
         {
             lock (gate)
             {
@@ -82,16 +82,16 @@ namespace ZKube.Local
                 return Task.FromResult(Deliver());
             }
         }
-        public Task<BoardActionResult> Recover(CancellationToken cancellation)
+        public Task<CoreRunToken> Recover(CancellationToken cancellation)
         {
             lock (gate)
             {
                 cancellation.ThrowIfCancellationRequested(); RequireIdentity();
                 var observed = BoundObservation();
                 retained = null; cursor = 0;
-                if (observed == null) { recoveryRequired = true; return Task.FromResult<BoardActionResult>(null); }
+                if (observed == null) { recoveryRequired = true; return Task.FromResult<CoreRunToken>(null); }
                 delivered = observed.Token; recoveryRequired = false;
-                return Task.FromResult(BoardActionResult.Snapshot(delivered));
+                return Task.FromResult(new CoreRunToken(delivered.Config, delivered.State));
             }
         }
         private void RequireIdentity()
@@ -106,11 +106,12 @@ namespace ZKube.Local
             if (selected == null && !Terminal(observed.Token)) return null;
             return observed;
         }
-        private BoardActionResult Deliver()
+        // One accepted state at a time: the action, then each row it awaited.
+        private CoreRunToken Deliver()
         {
             var transition = retained.Transitions[cursor++]; delivered = new CoreRunToken(transition.Token.Config, transition.Token.State);
             if (cursor == retained.Transitions.Count) { retained = null; cursor = 0; }
-            return BoardActionResult.Verified(delivered, transition);
+            return new CoreRunToken(delivered.Config, delivered.State);
         }
         private void RequireDelivered(CoreRunToken accepted)
         { if (accepted == null || !Same(accepted, delivered)) throw new InvalidOperationException("The board token does not match its accepted local run"); }

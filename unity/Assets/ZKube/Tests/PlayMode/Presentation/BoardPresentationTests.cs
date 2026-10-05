@@ -186,36 +186,32 @@ namespace ZKube.Presentation.Tests
             CollectionAssert.AreEqual(before, board.Session.Accepted.State);
         }
 
-        [UnityTest] public IEnumerator ExplicitSnapshotsRebindWithoutTraceAndNotifyAcceptanceOnlyOnce()
+        [UnityTest] public IEnumerator AnObservedStateIsShownWithoutTraceAndNotifiesAcceptanceOnlyOnce()
         {
             yield return Load("realm-8-daily");
             var initial = board.Session.Accepted;
             var reroll = NativeEngine.RequestReroll(initial, board.State.ActionCounter);
             var arrived = NativeEngine.ApplyVrf(reroll.Token, board.State.LastVrfCounter + 1, Enumerable.Repeat((byte)9, 32).ToArray());
-            var result = BoardActionResult.Snapshot(arrived.Token);
             int notifications = 0; board.Host.Accepted += _ => notifications++;
-            var present = typeof(BoardController).GetMethod("PresentAccepted", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-            var first = (Task)present.Invoke(board, new object[] { result });
-            yield return Wait(() => first.IsCompleted);
-            Assert.IsFalse(first.IsFaulted, first.Exception?.ToString());
+            board.Observe(arrived.Token);
             CollectionAssert.AreEqual(arrived.Token.State, board.Session.Accepted.State);
             CollectionAssert.AreEqual(NativeEngine.Summary(arrived.Token).Grid, board.View.DisplayGrid);
-            Assert.IsNull(result.Transition); Assert.AreEqual(1, notifications);
-            var repeated = (Task)present.Invoke(board, new object[] { result });
-            yield return Wait(() => repeated.IsCompleted);
-            Assert.IsFalse(repeated.IsFaulted, repeated.Exception?.ToString());
-            Assert.AreEqual(1, notifications, "An identical recovered snapshot is not a second accepted action");
+            Assert.AreEqual(1, notifications);
+            board.Observe(arrived.Token);
+            Assert.AreEqual(1, notifications, "An identical observed state is not a second accepted action");
         }
 
+        // A submission whose outcome is unknown, and a run that cannot be read at first.
         private sealed class UncertainProvider : IBoardActionProvider, IBoardRecoveryProvider
         {
-            public readonly TaskCompletionSource<BoardActionResult> Result = new TaskCompletionSource<BoardActionResult>();
+            public readonly TaskCompletionSource<CoreRunToken> Result = new TaskCompletionSource<CoreRunToken>();
             public int Submits, Recoveries;
-            public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
-            { Submits++; return Task.FromException<BoardActionResult>(new TimeoutException("Synthetic uncertain submission")); }
-            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
-                => Task.FromException<BoardActionResult>(new InvalidOperationException("Unexpected randomness request"));
-            public Task<BoardActionResult> Recover(CancellationToken cancellation) { Recoveries++; return Result.Task; }
+            public Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+            { Submits++; return Task.FromException<CoreRunToken>(new TimeoutException("Synthetic uncertain submission")); }
+            public Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+                => Task.FromException<CoreRunToken>(new InvalidOperationException("Unexpected randomness request"));
+            public Task<CoreRunToken> Recover(CancellationToken cancellation) =>
+                ++Recoveries == 1 ? Task.FromException<CoreRunToken>(new TimeoutException("Synthetic unread run")) : Result.Task;
         }
         [UnityTest] public IEnumerator RecoveryRemainsUsableAfterReflowAndOnlyOneCheckCanRun()
         {
@@ -223,13 +219,14 @@ namespace ZKube.Presentation.Tests
             var provider = new UncertainProvider();
             board.Bind(new BoardSession(original.Accepted, original.Rules, provider, original.RealmId));
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board)); evidence.Click("Reroll action"); board.ConfirmReroll();
-            yield return Wait(() => !board.Busy); Assert.IsTrue(board.RecoveryRequired);
+            // The board read the run itself once; that read failed, so it asks.
+            yield return Wait(() => !board.Busy); Assert.IsTrue(board.RecoveryRequired); Assert.AreEqual(1, provider.Recoveries);
             board.SetTextScale(1.3f); yield return null;
             Assert.IsTrue(board.View.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Recover run"));
             evidence.Click("Dialog Recover run"); board.Recover();
-            Assert.AreEqual(1, provider.Recoveries); Assert.IsTrue(board.Busy); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            Assert.AreEqual(2, provider.Recoveries); Assert.IsTrue(board.Busy); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board));
             board.Reroll(); Assert.AreEqual(1, provider.Submits);
-            provider.Result.SetResult(BoardActionResult.Snapshot(original.Accepted));
+            provider.Result.SetResult(original.Accepted);
             yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             Assert.AreEqual(1, provider.Submits); Assert.IsFalse(board.RecoveryRequired);
             CollectionAssert.AreEqual(original.Accepted.State, board.Session.Accepted.State);
@@ -246,19 +243,19 @@ namespace ZKube.Presentation.Tests
             Assert.IsTrue(board.RecoveryRequired); Assert.IsFalse(ZKube.Tests.Presentation.BoardTestState.Idle(board));
             int exits = 0; board.Host.Exit += () => exits++;
             evidence.Click("Dialog Back to my runs");
-            Assert.AreEqual(1, exits); Assert.AreEqual(1, provider.Recoveries);
+            Assert.AreEqual(1, exits); Assert.AreEqual(2, provider.Recoveries);
             CollectionAssert.AreEqual(original.Accepted.State, board.Session.Accepted.State);
         }
 
         private sealed class CrossedResponse : IBoardActionProvider
         {
-            public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+            public Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
             {
                 var foreign = BoardHarness.Fixtures.Single(f => f.name == "realm-8-campaign");
                 var token = new CoreRunToken(BoardHarness.Hex(foreign.configHex), BoardHarness.Hex(foreign.initialStateHex));
-                return Task.FromResult<BoardActionResult>(NativeEngine.ApplyVrf(token, 1, Enumerable.Repeat((byte)8, 32).ToArray()));
+                return Task.FromResult(NativeEngine.ApplyVrf(token, 1, Enumerable.Repeat((byte)8, 32).ToArray()).Token);
             }
-            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+            public Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
                 => throw new InvalidOperationException("Unexpected randomness request");
         }
         [UnityTest] public IEnumerator CrossedProviderResponseCannotReplaceTheAcceptedRun()
@@ -279,9 +276,9 @@ namespace ZKube.Presentation.Tests
             private readonly IBoardActionProvider inner;
             public readonly TaskCompletionSource<bool> Release = new TaskCompletionSource<bool>();
             public HeldAction(IBoardActionProvider inner) { this.inner = inner; }
-            public async Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+            public async Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
             { await Release.Task; return await inner.Submit(accepted, action, cancellation); }
-            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+            public Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
                 => inner.ResolveVrf(accepted, cancellation);
         }
         private sealed class RecordingAction : IBoardActionProvider
@@ -289,9 +286,9 @@ namespace ZKube.Presentation.Tests
             private readonly IBoardActionProvider inner;
             public readonly System.Collections.Generic.List<BoardAction> Submitted = new System.Collections.Generic.List<BoardAction>();
             public RecordingAction(IBoardActionProvider inner) { this.inner = inner; }
-            public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+            public Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
             { Submitted.Add(action); return inner.Submit(accepted, action, cancellation); }
-            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+            public Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
                 => inner.ResolveVrf(accepted, cancellation);
         }
         [UnityTest] public IEnumerator ADraggedBlockStopsAgainstItsNeighbourInsteadOfPassingThrough()
@@ -335,26 +332,64 @@ namespace ZKube.Presentation.Tests
             held.Release.SetResult(true); yield return Wait(() => !board.Busy);
             Assert.IsFalse(board.View.AwaitingShown);
         }
-        [UnityTest] public IEnumerator ChangedBoardDiscardsTheDragQueuedBeforeAcceptance()
+        // Confirms, when released, that the action was not accepted: the run as it was.
+        private sealed class HeldRefusal : IBoardActionProvider
         {
-            yield return Load("realm-8-daily"); yield return evidence.PlayNextInput();
-            var held = new HeldAction(board.Session.Actions);
-            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, board.Session.RealmId));
-            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
-            var move = evidence.Current.steps.First(s => s.operation == NativeOperation.PlayMove);
-            int width = board.State.Grid[move.row * 8 + move.start];
-            var from = board.View.Layout.CellCenter(move.row, move.start, width);
-            var to = board.View.Layout.CellCenter(move.row, move.destination, width);
-            uint action = board.State.ActionCounter; ushort moves = board.State.Moves;
-            yield return evidence.Drag(from, to); Assert.IsTrue(board.Busy);
-            yield return evidence.Drag(from, to);
-            StringAssert.Contains("queued", board.View.StatusText);
-            Assert.AreEqual(action, board.State.ActionCounter);
-            held.Release.SetResult(true); yield return Wait(() => !board.Busy);
-            Assert.AreEqual(action + 1, board.State.ActionCounter);
-            Assert.AreEqual(moves + 1, board.State.Moves);
-            Assert.IsEmpty(board.View.StatusText, "The stale swipe is dropped without a notice");
-            Assert.IsTrue(ZKube.Tests.Presentation.BoardTestState.Settled(board.View, board.State.Grid));
+            public readonly TaskCompletionSource<bool> Release = new TaskCompletionSource<bool>();
+            public async Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+            { await Release.Task; return accepted; }
+            public Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
+                => Task.FromException<CoreRunToken>(new InvalidOperationException("Unexpected randomness request"));
+        }
+        // A swipe made while a move is being confirmed is made on the board as
+        // it has moved. It plays once that move is accepted; if the board settles
+        // on anything else, it is dropped.
+        [UnityTest] public IEnumerator ASwipeQueuedOnTheMovedBoardPlaysOnceAcceptedAndIsDroppedIfTheBoardSettlesElsewhere()
+        {
+            foreach (bool refused in new[] { false, true })
+            {
+                yield return Load("realm-8-daily"); yield return evidence.PlayNextInput();
+                var held = new HeldAction(board.Session.Actions); var refusal = new HeldRefusal();
+                board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, refused ? (IBoardActionProvider)refusal : held, board.Session.RealmId));
+                yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+                var accepted = (byte[])board.State.Grid.Clone();
+                var move = evidence.Current.steps.First(s => s.operation == NativeOperation.PlayMove);
+                int width = board.State.Grid[move.row * 8 + move.start];
+                uint action = board.State.ActionCounter;
+                yield return evidence.Drag(board.View.Layout.CellCenter(move.row, move.start, width), board.View.Layout.CellCenter(move.row, move.destination, width));
+                Assert.IsTrue(board.Busy);
+                // The board has moved for the swipe; nothing is accepted yet.
+                var played = NativeEngine.Summary(new BoardAction(BoardActionKind.Move, move.row, move.start, move.destination).Play(board.Session.Accepted).Token).Grid;
+                yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Settled(board.View, played));
+                Assert.AreEqual(action, board.State.ActionCounter);
+                // The next swipe is made on that board: a block with a free cell on its right.
+                int row = -1, start = -1, size = 0;
+                for (int r = 0; r < 10 && row < 0; r++)
+                    for (int c = 0; c < 8;)
+                    {
+                        int w = played[r * 8 + c]; if (w == 0) { c++; continue; }
+                        if (c + w < 8 && played[r * 8 + c + w] == 0) { row = r; start = c; size = w; break; }
+                        c += w;
+                    }
+                Assume.That(row, Is.GreaterThanOrEqualTo(0), "The fixture needs a block with a free cell beside it");
+                yield return evidence.Drag(board.View.Layout.CellCenter(row, start, size), board.View.Layout.CellCenter(row, start + 1, size));
+                StringAssert.Contains("queued", board.View.StatusText);
+                Assert.AreEqual(action, board.State.ActionCounter);
+                if (refused) refusal.Release.SetResult(true); else held.Release.SetResult(true);
+                yield return Wait(() => !board.Busy);
+                if (refused)
+                {
+                    Assert.AreEqual(action, board.State.ActionCounter, "Neither swipe counted");
+                    CollectionAssert.AreEqual(accepted, board.View.DisplayGrid, "The board is back on the accepted run");
+                    Assert.AreEqual(BoardNotices.Text(BoardNotice.Settled), board.View.StatusText);
+                }
+                else
+                {
+                    Assert.AreEqual(action + 2, board.State.ActionCounter, "The move, then the swipe queued on it");
+                    Assert.IsEmpty(board.View.StatusText);
+                    Assert.IsTrue(ZKube.Tests.Presentation.BoardTestState.Settled(board.View, board.State.Grid));
+                }
+            }
         }
         [UnityTest] public IEnumerator AnimationEnabledEndsWithEverySpriteAtItsNativeCell()
         {

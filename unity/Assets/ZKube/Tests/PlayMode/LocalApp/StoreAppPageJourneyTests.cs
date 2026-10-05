@@ -1417,15 +1417,19 @@ namespace ZKube.Tests
             Assert.That(app == null, Is.True); Assert.That(root.GetComponentsInChildren<StoreAppAdapter>().Length, Is.Zero);
             LogAssert.NoUnexpectedReceived();
         }
-        [UnityTest] public IEnumerator AcceptedSaveFailureIsVisibleAcrossRecoveryAndResultExit()
+        // An action the device accepted but could not save: the board reads the
+        // run itself, asks for nothing, and the warning stays over the board and
+        // on the result.
+        [UnityTest] public IEnumerator AcceptedSaveFailureIsVisibleOverTheBoardAndOnTheResult()
         {
             app.Flow.Show(StorePage.Home); yield return Page(StorePage.Home);
             Click(app, "Play today"); yield return BoardReady(); failSave = true;
             Click(board.View, "Pause"); Click(board.View, "End run"); yield return null; Click(board.View, "End run");
-            yield return Wait(() => board.RecoveryRequired && !board.Busy, "Expected recovery after accepted save failure");
             yield return Wait(() => WarningVisible, "Unsaved overlay was not shown over the board");
-            Click(board.View, "Recover run"); yield return Wait(() => !board.RecoveryRequired && !board.Busy, "Accepted snapshot was not recovered");
-            Assert.That(WarningVisible, Is.True); yield return Page(StorePage.Result);
+            yield return Wait(() => !board.Busy, "The ended run was read");
+            Assert.That(board.RecoveryRequired, Is.False, "The board read the run itself");
+            Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.Finished));
+            yield return Page(StorePage.Result);
             Assert.That(WarningVisible, Is.True); Assert.That(product.Read.DailyAttempt.Finished, Is.True);
         }
         [UnityTest] public IEnumerator SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount()

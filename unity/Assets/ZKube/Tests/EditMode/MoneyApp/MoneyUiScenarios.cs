@@ -167,6 +167,15 @@ namespace ZKube.Integration.App.Tests
         private bool programMissing;
         // The cluster refuses the next transaction it is asked to simulate.
         public void RefuseNextSimulation() => refuseSimulation = true;
+        // The Daily move the rollup knows, and whether its next row lands with the
+        // move, as it does on the rollup, or only when the test delivers it.
+        public JToken DailyMove => DailyRow("moved")["move"];
+        public bool RowsArriveLate;
+        // The next run action lands on the rollup and fails there: the run does not change.
+        public void RefuseNextRunAction() => refuseRunAction = true;
+        private bool refuseRunAction;
+        public void DeliverRow() => Http.Add(DailyRow("movedRow"));
+        private JToken DailyRow(string phase) => Runs["cases"].Single(value => (string)value["id"] == "active-daily-" + phase);
         private bool refuseSimulation;
         public void ConfirmPendingSuccess() { Http.Confirmation = "confirmed"; Http.StatusError = null; ApplyAfter(); }
         public void ConfirmPendingFailure() { Http.Confirmation = "confirmed"; Http.StatusError = new JArray("InstructionError", 0); }
@@ -252,7 +261,12 @@ namespace ZKube.Integration.App.Tests
                     Assert.That(pending, Is.Not.Null); Assert.That(pending.Transaction, Is.EqualTo(bytes));
                     SentSignature = signature; SentTransaction = bytes;
                     if (Http.Confirmation == "confirmed") ApplyAfter();
-                    if (UiScenario == "daily-playable" || UiScenario == "daily-entered") AcceptDaily(bytes);
+                    if (UiScenario == "daily-playable" || UiScenario == "daily-entered")
+                    {
+                        Http.StatusError = refuseRunAction ? new JArray("InstructionError", 0) : null;
+                        if (!refuseRunAction) AcceptDaily(bytes);
+                        refuseRunAction = false;
+                    }
                     return new JValue(signature);
                 default: return null;
             }
@@ -266,6 +280,7 @@ namespace ZKube.Integration.App.Tests
             if (instructions.Any(value => value.Name == "enter_arena"))
             { Http.Add(Ui["enteredPlayer"]); phase = "playing"; }
             else if (instructions.Any(value => value.Name == "request_reroll")) phase = "rerolled";
+            else if (instructions.Any(value => value.Name == "play_move")) phase = RowsArriveLate ? "moved" : "movedRow";
             // The opening VRF is answered by the time the board looks.
             else if (instructions.Any(value => value.Name == "request_vrf")) phase = "playing";
             else if (instructions.Any(value => value.Name == "finish_run")) phase = "finished";
@@ -276,7 +291,7 @@ namespace ZKube.Integration.App.Tests
                 Http.Accounts.Remove(address); Http.Delegated.Remove(address); return;
             }
             else throw new InvalidOperationException("Unexpected Daily test transaction: " + string.Join(",", instructions.Select(value => value.Name)));
-            var row = Runs["cases"].Single(value => (string)value["id"] == "active-daily-" + phase);
+            var row = DailyRow(phase);
             Http.Add(row);
             if (phase == "finished") Http.Delegated.Remove((string)row["address"]);
             else Http.Delegated.Add((string)row["address"]);

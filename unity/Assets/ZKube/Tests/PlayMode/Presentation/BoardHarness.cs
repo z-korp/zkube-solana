@@ -128,27 +128,19 @@ namespace ZKube.Presentation.Tests
                 outputs = fixture.steps.Where(s => s.operation == NativeOperation.ApplyVrf).Select(s => Hex(s.output)).ToArray();
                 seed = fixture.name;
             }
-            public async Task<BoardActionResult> Submit(CoreRunToken token, BoardAction action, CancellationToken cancellation)
+            public async Task<CoreRunToken> Submit(CoreRunToken token, BoardAction action, CancellationToken cancellation)
             {
                 await Task.Delay(150, cancellation);
-                var state = NativeEngine.Summary(token);
-                switch (action.Kind)
-                {
-                    case BoardActionKind.Move: return NativeEngine.PlayMove(token, state.ActionCounter, state.Moves, action.Row, action.Start, action.Destination);
-                    case BoardActionKind.Guardian: return NativeEngine.ApplyBonus(token, state.ActionCounter, action.Row, action.Start);
-                    case BoardActionKind.Reroll: return NativeEngine.RequestReroll(token, state.ActionCounter);
-                    case BoardActionKind.Abandon: return NativeEngine.Finish(token, 3);
-                    default: throw new ArgumentOutOfRangeException(nameof(action));
-                }
+                return action.Play(token).Token;
             }
-            public async Task<BoardActionResult> ResolveVrf(CoreRunToken token, CancellationToken cancellation)
+            public async Task<CoreRunToken> ResolveVrf(CoreRunToken token, CancellationToken cancellation)
             {
                 await Task.Delay(250, cancellation);
                 var state = NativeEngine.Summary(token);
                 byte[] output;
                 if (outputIndex < outputs.Length) output = outputs[outputIndex++];
                 else using (var hash = SHA256.Create()) output = hash.ComputeHash(Encoding.UTF8.GetBytes(seed + ":" + state.LastVrfCounter));
-                return NativeEngine.ApplyVrf(token, state.LastVrfCounter + 1, output);
+                return NativeEngine.ApplyVrf(token, state.LastVrfCounter + 1, output).Token;
             }
         }
     }

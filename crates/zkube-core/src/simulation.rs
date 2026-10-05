@@ -366,6 +366,48 @@ impl Run {
         Ok(())
     }
 
+    /// Observe a VRF application this caller did not see. `after` must be this
+    /// run with exactly one verified output applied: the output is unknown here,
+    /// so what it derived (the preview, a reseeded board) and the replay that
+    /// folded it are taken from `after`, and nothing else may differ. The events
+    /// are the ones the application itself reported.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a run that awaits no output and an `after` that is not its
+    /// successor by one output.
+    pub fn observe_vrf_successor<O: crate::PresentationObserver>(
+        &self,
+        after: &Self,
+        observer: &mut O,
+    ) -> Result<(), RunTransitionError> {
+        if self.engine.phase != RunPhase::AwaitingVrf {
+            return Err(RunTransitionError::InvalidPhase);
+        }
+        let mut expected = *self;
+        // Only an empty board is reseeded: the opening and a perfect clear.
+        if !self.engine.reroll_pending() && self.engine.grid.is_empty() {
+            expected.engine.grid = after.engine.grid;
+        }
+        expected.engine.next_row = after.engine.next_row;
+        expected.engine.phase = RunPhase::Playing;
+        expected.replay = after.replay;
+        expected.last_vrf_counter = self
+            .last_vrf_counter
+            .checked_add(1)
+            .ok_or(RunTransitionError::Overflow)?;
+        if expected != *after || after.engine.next_row.is_none() {
+            return Err(RunTransitionError::InvalidVrfOrder);
+        }
+        if self.engine.grid != after.engine.grid {
+            observer.observe(crate::PresentationEvent::BoardReplaced {
+                cells: *after.engine.grid.cells(),
+            });
+        }
+        after.observe_outcome(self, observer);
+        Ok(())
+    }
+
     /// Observe the same atomic move used by untraced callers. Discard collected
     /// events if this returns an error; events are not independently accepted.
     ///
@@ -922,6 +964,92 @@ mod tests {
         assert_eq!(simulation.engine.grid.occupied_height(), 1);
         assert!(simulation.engine.next_row.is_some());
         assert_eq!(simulation.last_vrf_counter, 2);
+    }
+
+    // The opening, the row after a move, a reroll and the reseed after a
+    // perfect clear, each seen only as the states before and after it.
+    #[test]
+    fn an_unseen_vrf_is_observed_exactly_as_the_application_that_made_it() {
+        use std::vec::Vec;
+        #[derive(Default)]
+        struct Events(Vec<crate::PresentationEvent>);
+        impl crate::PresentationObserver for Events {
+            fn observe(&mut self, event: crate::PresentationEvent) {
+                self.0.push(event);
+            }
+        }
+        let apply = |before: Run, counter: u32| {
+            let (mut after, mut applied, mut observed) =
+                (before, Events::default(), Events::default());
+            after
+                .apply_vrf_observed_with::<crate::SoftwareSha256, _>(
+                    rules(),
+                    counter,
+                    [u8::try_from(counter).unwrap() + 8; 32],
+                    &mut applied,
+                )
+                .unwrap();
+            before.observe_vrf_successor(&after, &mut observed).unwrap();
+            assert_eq!(observed.0, applied.0);
+            assert!(!applied.0.is_empty());
+            (after, applied.0)
+        };
+        let (opened, opening) = apply(Run::new(config()).unwrap(), 1);
+        assert!(matches!(
+            opening[0],
+            crate::PresentationEvent::BoardReplaced { .. }
+        ));
+
+        let mut rerolling = opened;
+        rerolling.request_reroll(rules(), 0).unwrap();
+        let (rerolled, reroll) = apply(rerolling, 2);
+        assert!(matches!(
+            reroll[..],
+            [crate::PresentationEvent::PreviewChanged { .. }]
+        ));
+
+        let mut waiting = rerolled;
+        waiting.engine.next_row = None;
+        waiting.engine.phase = RunPhase::AwaitingVrf;
+        let (playing, row) = apply(waiting, 3);
+        assert!(matches!(
+            row[..],
+            [crate::PresentationEvent::PreviewChanged { .. }]
+        ));
+
+        let mut cleared = waiting;
+        cleared.engine.grid = crate::Grid::EMPTY;
+        let (reseeded, reseed) = apply(cleared, 3);
+        assert!(matches!(
+            reseed[0],
+            crate::PresentationEvent::BoardReplaced { .. }
+        ));
+
+        // Anything but one output's work is not a successor.
+        let mut silent = crate::NoPresentation;
+        assert_eq!(
+            playing.observe_vrf_successor(&playing, &mut silent),
+            Err(RunTransitionError::InvalidPhase)
+        );
+        assert_eq!(
+            waiting.observe_vrf_successor(&waiting, &mut silent),
+            Err(RunTransitionError::InvalidVrfOrder)
+        );
+        // A board that was not empty is never replaced.
+        let mut regridded = playing;
+        regridded.engine.grid = reseeded.engine.grid;
+        let mut scored = playing;
+        scored.engine.score += 1;
+        let mut skipped = playing;
+        skipped.last_vrf_counter += 1;
+        let mut rowless = playing;
+        rowless.engine.next_row = None;
+        for other in [regridded, scored, skipped, rowless] {
+            assert_eq!(
+                waiting.observe_vrf_successor(&other, &mut silent),
+                Err(RunTransitionError::InvalidVrfOrder)
+            );
+        }
     }
 
     #[test]

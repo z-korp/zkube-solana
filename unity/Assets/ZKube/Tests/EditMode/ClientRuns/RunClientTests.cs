@@ -140,7 +140,7 @@ namespace ZKube.Integration.Client.Runs.Tests
             var playing = await Environment.Create(); var initial = await playing.Client.Inspect();
             var provider = Provider(playing, initial);
             var acted = await provider.Submit(provider.Bind(initial).Accepted, new BoardAction(BoardActionKind.Reroll), default);
-            Assert.That(NativeEngine.Summary(acted.Token).ActionCounter, Is.EqualTo(1));
+            Assert.That(NativeEngine.Summary(acted).ActionCounter, Is.EqualTo(1));
             OnlyWhatItAnswers(playing, "request_reroll");
 
             var ending = await Environment.Create(); await ending.Client.Inspect();
@@ -289,7 +289,7 @@ namespace ZKube.Integration.Client.Runs.Tests
         }
 
         [Test]
-        public async Task RerollAcceptanceAndMissedVrfReturnNativeSnapshotsWithoutInventedHistory()
+        public async Task RerollAcceptanceAndItsRowReturnTheRollupsStatesAndTheCoreAccountsForEachStep()
         {
             foreach (string mode in new[] { "daily" })
             {
@@ -297,16 +297,19 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var provider = Provider(env, initial);
                 var board = provider.Bind(initial);
                 var result = await provider.Submit(board.Accepted, new BoardAction(BoardActionKind.Reroll), default);
-                Assert.That(NativeEngine.Summary(result.Token).ActionCounter, Is.EqualTo(1));
-                Assert.That(NativeEngine.Summary(result.Token).Phase, Is.EqualTo((byte)CorePhase.AwaitingVrf));
+                Assert.That(NativeEngine.Summary(result).ActionCounter, Is.EqualTo(1));
+                Assert.That(NativeEngine.Summary(result).Phase, Is.EqualTo((byte)CorePhase.AwaitingVrf));
+                // The rollup's state is the core's own result for the action, byte for byte.
+                Assert.That(result.State, Is.EqualTo(new BoardAction(BoardActionKind.Reroll).Play(board.Accepted).Token.State));
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "request_reroll" }));
                 Assert.That(await env.Journal.Load(env.Owner), Is.Null);
                 env.Http.States[mode] = "rerolled";
-                var arrived = await provider.ResolveVrf(result.Token, default);
-                Assert.That(arrived.IsSnapshot, Is.True);
-                Assert.That(arrived.Transition, Is.Null);
-                Assert.That(NativeEngine.Summary(arrived.Token).Phase, Is.EqualTo((byte)CorePhase.Playing));
-                Assert.That(arrived.Token.Config, Is.EqualTo(board.Accepted.Config));
+                var arrived = await provider.ResolveVrf(result, default);
+                Assert.That(NativeEngine.Summary(arrived).Phase, Is.EqualTo((byte)CorePhase.Playing));
+                Assert.That(arrived.Config, Is.EqualTo(board.Accepted.Config));
+                // The row is the core's account of that one output: a new preview, the board untouched.
+                Assert.That(NativeEngine.ObserveVrf(result, arrived).Events.Select(e => e.Kind), Is.EqualTo(new[] { PresentationKind.PreviewChanged }));
+                Assert.Throws<NativeEngineException>(() => NativeEngine.ObserveVrf(board.Accepted, arrived), "An action and its row are two steps");
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "request_reroll" }));
             }
         }
@@ -341,13 +344,12 @@ namespace ZKube.Integration.Client.Runs.Tests
             Assert.That(env.Http.Sent.Count, Is.EqualTo(1));
             env.Http.Confirmed = true;
             var recovered = await provider.Recover(default);
-            Assert.That(recovered.IsSnapshot, Is.True); Assert.That(recovered.Transition, Is.Null);
-            Assert.That(NativeEngine.Summary(recovered.Token).ActionCounter, Is.EqualTo(1));
+            Assert.That(NativeEngine.Summary(recovered).ActionCounter, Is.EqualTo(1));
             Assert.That(await env.Journal.Load(env.Owner), Is.Null);
             Assert.That(await env.Markers.Load(env.Owner), Is.Not.Null);
             Assert.That(env.Http.Sent.Count, Is.EqualTo(1));
             var duplicate = await provider.Recover(default);
-            Assert.That(duplicate.Token.State, Is.EqualTo(recovered.Token.State));
+            Assert.That(duplicate.State, Is.EqualTo(recovered.State));
             Assert.That(env.Http.Sent.Count, Is.EqualTo(1));
         }
 
@@ -395,10 +397,6 @@ namespace ZKube.Integration.Client.Runs.Tests
             env.Http.States["daily"] = "rerolled";
             await ZKube.Integration.Tests.AsyncAssert.Throws<InvalidOperationException>(async () => await env.Client.Apply(binding.Accept(initial), binding, RunClientAction.Reroll));
             Assert.That(env.Http.Sent, Is.Empty); Assert.That(env.Native.KeyLoads, Is.Zero);
-            var native = RunClient.NativeCandidate(binding.Accept(initial), RunClientAction.Reroll, 0, 0, 0);
-            var current = await env.Client.Inspect();
-            Assert.That(BoardActionResult.Verified(binding.Accept(current), native).IsSnapshot, Is.True);
-            Assert.That(BoardActionResult.Verified(native.Token, native).Transition, Is.SameAs(native));
             env.Http.States["daily"] = "playing"; env.Http.ChangedRules = true;
             var changedRules = await env.Client.Inspect();
             Assert.Throws<InvalidOperationException>(() => binding.Accept(changedRules));

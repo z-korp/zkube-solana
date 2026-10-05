@@ -320,29 +320,37 @@ namespace ZKube.Presentation.Tests
             UnityEngine.Object.Destroy(child);
         }
 
+        // Confirms when the test says so; the row an action awaits arrives the same way.
         private sealed class Pending : IBoardActionProvider
         {
-            public readonly TaskCompletionSource<BoardActionResult> Completion = new TaskCompletionSource<BoardActionResult>();
-            public Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation) => Completion.Task;
-            public Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation) => throw new InvalidOperationException("No VRF after rejected action");
+            public readonly TaskCompletionSource<CoreRunToken> Completion = new TaskCompletionSource<CoreRunToken>(), Row = new TaskCompletionSource<CoreRunToken>();
+            public Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation) => Completion.Task;
+            public Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation) => Row.Task;
         }
-        [UnityTest] public IEnumerator RepeatedAcceptedTraceDoesNotCelebrateTheSameClearTwice()
+        [UnityTest] public IEnumerator AnAcceptedStateSeenAgainDoesNotCelebrateTheSameClearTwice()
         {
             yield return Load("Hammer-perfect-clear-continuation", true);
-            var accepted = NativeEngine.ApplyBonus(board.Session.Accepted, board.State.ActionCounter, 1, 0);
-            var present = typeof(BoardController).GetMethod("PresentAccepted", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var initial = board.Session.Accepted;
+            var accepted = NativeEngine.ApplyBonus(initial, board.State.ActionCounter, 1, 0);
+            var row = NativeEngine.ApplyVrf(accepted.Token, board.State.LastVrfCounter + 1, Enumerable.Repeat((byte)7, 32).ToArray());
+            var pending = new Pending();
+            board.Bind(new BoardSession(initial, board.Session.Rules, pending, board.Session.RealmId));
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
             int notifications = 0; board.Host.Accepted += _ => notifications++;
-            var first = (Task)present.Invoke(board, new object[] { (BoardActionResult)accepted });
-            yield return Wait(() => first.IsCompleted);
-            Assert.IsFalse(first.IsFaulted, first.Exception?.ToString());
+            evidence.Click("Guardian action"); evidence.Tap(board.View.Layout.CellCenter(1, 0));
+            pending.Completion.SetResult(accepted.Token);
+            yield return Wait(() => notifications == 1);
             Assert.IsNotNull(Label("Accepted perfect clear"));
             yield return new WaitForSecondsRealtime(BoardView.PerfectSeconds + BoardView.PerfectDelay + .3f);
-            var duplicate = (Task)present.Invoke(board, new object[] { (BoardActionResult)accepted });
-            yield return Wait(() => duplicate.IsCompleted);
-            Assert.IsFalse(duplicate.IsFaulted, duplicate.Exception?.ToString());
-            Assert.AreEqual(1, notifications);
+            pending.Row.SetResult(row.Token);
+            yield return Wait(() => !board.Busy);
+            Assert.AreEqual(2, notifications, "The action, then the row it awaited");
+            board.Observe(row.Token);
+            Assert.AreEqual(2, notifications);
             Assert.IsNull(Label("Accepted perfect clear")); Assert.IsNull(Label("Accepted reroll chip"));
         }
+        // The board moves for an action at once, but what it earned is shown only
+        // once the action is confirmed; a state read back proves no ordered trace.
         [UnityTest] public IEnumerator PendingRejectedAndRecoveredSnapshotsNeverInventPerfectClearFeedback()
         {
             yield return Load("Hammer-perfect-clear-continuation", true);
@@ -358,14 +366,10 @@ namespace ZKube.Presentation.Tests
             yield return Wait(() => !board.Busy);
             Assert.IsNull(Label("Accepted perfect clear")); Assert.IsNull(Label("Accepted score chip"));
             CollectionAssert.AreEqual(initial.State, board.Session.Accepted.State);
+            CollectionAssert.AreEqual(NativeEngine.Summary(initial).Grid, board.View.DisplayGrid, "The board is back on the accepted run");
 
-            // A recovered token can include a past perfect clear, but it does
-            // not prove an ordered action trace for this view to celebrate.
             var accepted = NativeEngine.ApplyBonus(initial, board.State.ActionCounter, 1, 0).Token;
-            var present = typeof(BoardController).GetMethod("PresentAccepted", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var task = (Task)present.Invoke(board, new object[] { BoardActionResult.Snapshot(accepted) });
-            yield return Wait(() => task.IsCompleted);
-            Assert.IsFalse(task.IsFaulted, task.Exception?.ToString());
+            board.Observe(accepted);
             Assert.AreEqual(2, board.State.RerollCharges);
             Assert.IsNull(Label("Accepted perfect clear")); Assert.IsNull(Label("Accepted reroll chip"));
         }

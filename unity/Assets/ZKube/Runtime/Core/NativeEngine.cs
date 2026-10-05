@@ -116,6 +116,11 @@ namespace ZKube.Core
         public static RunTransition ApplyVrf(CoreRunToken token, uint counter, byte[] output)
             => new RunTransition(token.Config, Call(NativeOperation.ApplyVrf, NativeRequest.ApplyVrf(Config: token.Config, State: token.State, Counter: counter, Output: output)));
 
+        // A VRF application seen only as the state it left: the events it reported,
+        // or a rejection when observed is not token with exactly one output applied.
+        public static RunTransition ObserveVrf(CoreRunToken token, CoreRunToken observed)
+            => new RunTransition(token.Config, Call(NativeOperation.ObserveVrf, NativeRequest.ObserveVrf(Config: token.Config, State: token.State, Observed: observed.State)));
+
         public static RunTransition PlayMove(CoreRunToken token, uint action, ushort expectedMove, byte row, byte start, byte destination)
             => new RunTransition(token.Config, Call(NativeOperation.PlayMove, NativeRequest.PlayMove(Config: token.Config, State: token.State, Action: action, ExpectedMove: expectedMove, Row: row, Start: start, Destination: destination)));
 

@@ -221,6 +221,11 @@ pub const OPERATIONS: &[Operation] = &[
         name: "DayAt",
         fields: fields![Timestamp: Bytes(8)],
     },
+    Operation {
+        id: 30,
+        name: "ObserveVrf",
+        fields: fields![Config: Bytes(RUN_CONFIG_LEN), State: Bytes(RUN_STATE_LEN), Observed: Bytes(RUN_STATE_LEN)],
+    },
 ];
 
 /// One registry drives safe Rust indexing and generated managed layout.
@@ -466,7 +471,7 @@ fn execute(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryError> 
             )
         }
         3 => initialize_run(b("Config")),
-        4..=8 => transition(operation, input),
+        4..=8 | 30 => transition(operation, input),
         9 => Ok(encode_summary(decode_run_state(b("State"))?)),
         12 => {
             let (realm, theme) = zkube_core::daily_pair(u("Day"));
@@ -716,6 +721,13 @@ fn transition(operation: u32, input: &Input<'_>) -> Result<Vec<u8>, BoundaryErro
                 reason,
                 &mut trace,
             )?;
+        }
+        // A VRF application seen only as the state it left.
+        30 => {
+            let (_, observed) =
+                crate::run::decode_for_transition(input.bytes("Config"), input.bytes("Observed"))?;
+            run.observe_vrf_successor(&observed, &mut trace)?;
+            run = observed;
         }
         _ => unreachable!(),
     }

@@ -13,22 +13,38 @@ namespace ZKube.Presentation
         public readonly byte Row, Start, Destination;
         public BoardAction(BoardActionKind kind, byte row = 0, byte start = 0, byte destination = 0)
         { Kind = kind; Row = row; Start = start; Destination = destination; }
+        // The core's own result for this action on an accepted run: what the
+        // board shows at once, in every product. It accepts nothing.
+        public RunTransition Play(CoreRunToken accepted)
+        {
+            var state = NativeEngine.Summary(accepted);
+            switch (Kind)
+            {
+                case BoardActionKind.Move: return NativeEngine.PlayMove(accepted, state.ActionCounter, state.Moves, Row, Start, Destination);
+                case BoardActionKind.Guardian: return NativeEngine.ApplyBonus(accepted, state.ActionCounter, Row, Start);
+                case BoardActionKind.Reroll: return NativeEngine.RequestReroll(accepted, state.ActionCounter);
+                case BoardActionKind.Abandon: return NativeEngine.Finish(accepted, 3);
+                default: throw new ArgumentOutOfRangeException(nameof(Kind));
+            }
+        }
     }
 
-    // The provider returns accepted native transitions or explicit snapshots. A timeout
-    // must recover the accepted action before it allows a retry; the view never
-    // interprets a submitted signature or local drag as committed gameplay.
+    // The provider confirms and never presents: it returns the run's accepted
+    // state after the action, or after the row the run awaits. The board plays
+    // the action through the core for its motion and holds the confirmation
+    // against it; the view never interprets a submitted signature or a local
+    // drag as committed gameplay.
     public interface IBoardActionProvider
     {
-        Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation);
-        Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation);
+        Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation);
+        Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation);
     }
 
     public interface IBoardRecoveryProvider
     {
-        // Observe the bound run; never resubmit the failed gesture. Return a
-        // snapshot, or null when the host must rebind/leave this board.
-        Task<BoardActionResult> Recover(CancellationToken cancellation);
+        // Observe the bound run; never resubmit the failed gesture. Return its
+        // accepted state, or null when the host must rebind/leave this board.
+        Task<CoreRunToken> Recover(CancellationToken cancellation);
     }
 
     // What a Daily board shows beside its run: the day's leaderboard top as

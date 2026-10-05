@@ -37,6 +37,29 @@ pub fn state(phase: &str) -> Run {
     if phase == "playing" {
         return run;
     }
+    if phase == "moved" || phase == "movedRow" {
+        let (row, start, destination) = daily_move();
+        run.play_move_observed_with::<zkube_core::SoftwareSha256, _>(
+            config.rules,
+            0,
+            0,
+            row,
+            start,
+            destination,
+            &mut zkube_core::NoPresentation,
+        )
+        .unwrap();
+        if phase == "movedRow" {
+            run.apply_vrf_observed_with::<zkube_core::SoftwareSha256, _>(
+                config.rules,
+                2,
+                [9; 32],
+                &mut zkube_core::NoPresentation,
+            )
+            .unwrap();
+        }
+        return run;
+    }
     run.request_reroll(config.rules, 0).unwrap();
     if phase == "awaitingVrf" {
         return run;
@@ -59,8 +82,40 @@ pub fn state(phase: &str) -> Run {
     run
 }
 
+/// The move the moved rows play on the playing board: the first that clears a
+/// line and leaves the run waiting for its row, else the first that leaves it so.
+pub fn daily_move() -> (u8, u8, u8) {
+    let (config, playing) = (config(), state("playing"));
+    let mut first = None;
+    for row in 0..10 {
+        for start in 0..8 {
+            for destination in 0..8 {
+                let mut run = playing;
+                let played = run.play_move_observed_with::<zkube_core::SoftwareSha256, _>(
+                    config.rules,
+                    0,
+                    0,
+                    row,
+                    start,
+                    destination,
+                    &mut zkube_core::NoPresentation,
+                );
+                if played.is_err() || run.engine.phase != zkube_core::RunPhase::AwaitingVrf {
+                    continue;
+                }
+                if run.engine.level_lines_cleared > 0 {
+                    return (row, start, destination);
+                }
+                first.get_or_insert((row, start, destination));
+            }
+        }
+    }
+    first.expect("the playing board has a move")
+}
+
 pub fn account(phase: &str, id: u64) -> ActiveRun {
     let run = state(phase);
+    let awaiting = phase == "awaitingVrf" || phase == "moved";
     let daily = accounts::daily(DAY);
     let mut active = ActiveRun {
         version: ACCOUNT_VERSION,
@@ -76,8 +131,8 @@ pub fn account(phase: &str, id: u64) -> ActiveRun {
                 [usize::from(zkube_core::daily_pair_with::<SolanaSha256>(daily.day_id).0 - 1)],
         ),
         daily_theme: DailyThemeSnapshot::from_core(config().rules.objective.unwrap()),
-        vrf_request_counter: run.last_vrf_counter + u32::from(phase == "awaitingVrf"),
-        pending_vrf_counter: if phase == "awaitingVrf" { 2 } else { 0 },
+        vrf_request_counter: run.last_vrf_counter + u32::from(awaiting),
+        pending_vrf_counter: if awaiting { 2 } else { 0 },
         bump: pda(&[
             ACTIVE_RUN_SEED,
             b"active",
@@ -106,6 +161,10 @@ pub fn row(phase: &str, id: u64) -> Value {
     row["expectedAuthority"] = json!(owner().to_string());
     row["token"] = json!({"config": encoded(encode_run_config(RunConfig { initial_replay: run.replay, ..config() })),
         "state": encoded(encode_run_state(run))});
+    if phase == "moved" || phase == "movedRow" {
+        let (at, start, destination) = daily_move();
+        row["move"] = json!({"row": at, "start": start, "destination": destination});
+    }
     row
 }
 
@@ -118,9 +177,17 @@ fn profile(active: u64, next: u64) -> Value {
 }
 
 pub fn scenarios() -> Value {
-    let cases: Vec<_> = ["prepared", "playing", "awaitingVrf", "rerolled", "finished"]
-        .map(|phase| row(phase, RUN_ID))
-        .into();
+    let cases: Vec<_> = [
+        "prepared",
+        "playing",
+        "awaitingVrf",
+        "rerolled",
+        "finished",
+        "moved",
+        "movedRow",
+    ]
+    .map(|phase| row(phase, RUN_ID))
+    .into();
     let mut changed = account("playing", RUN_ID);
     changed.rules_hash = [5; 32];
     let changed = envelope(

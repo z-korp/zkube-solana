@@ -5,7 +5,7 @@ namespace ZKube.Presentation
 {
     // Players read these; protocol words stay out. A wait for the network shows
     // as the board's quiet waiting indicator, not as a notice.
-    public enum BoardNotice { Waiting, Queued, Totem, Wave, Hammer, Unavailable, Recover, Recovering }
+    public enum BoardNotice { Waiting, Queued, Totem, Wave, Hammer, Unavailable, Recover, Recovering, Settled }
     // Status copy has one source so the typography pass can reserve every
     // message before play; pending feedback never needs to rebuild the board.
     public static class BoardNotices
@@ -22,6 +22,7 @@ namespace ZKube.Presentation
                 case BoardNotice.Unavailable: return "That move is unavailable";
                 case BoardNotice.Recover: return "Unable to complete the action · recover the run";
                 case BoardNotice.Recovering: return "Checking your last move…";
+                case BoardNotice.Settled: return "That move did not go through";
                 default: throw new ArgumentOutOfRangeException(nameof(notice));
             }
         }

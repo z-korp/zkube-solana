@@ -72,13 +72,11 @@ namespace ZKube.Presentation
             if (PresentationInitialized && !busy) ShowRecovery();
         }
         // Foreground observation never requests an opening or repeats a gesture.
-        // The host validates its immutable binding before supplying the snapshot.
-        public async Task ObserveSnapshot(BoardActionResult snapshot)
+        // The host validates its immutable binding before supplying the state.
+        public void Observe(CoreRunToken accepted)
         {
-            if (busy || snapshot == null || !snapshot.IsSnapshot) throw new InvalidOperationException("A snapshot requires an idle board");
-            busy = true;
-            try { await PresentAccepted(snapshot); }
-            finally { if (this != null) CompleteInteraction(); }
+            if (busy || accepted == null) throw new InvalidOperationException("An observed state requires an idle board");
+            Show(accepted); CompleteInteraction();
         }
 
         private void Awake()
@@ -313,27 +311,73 @@ namespace ZKube.Presentation
             if (!HostInputEnabled || !PresentationInitialized || Session == null || busy || recoveryRequired || IsTerminal()) return;
             busy = true; guardianSelected = false; queued = null;
             failure = null; View.Choose(false);
-            View.Summary(State, Session, false); View.Status(""); View.Awaiting(true);
+            View.Summary(State, Session, false); View.Status("");
             try
             {
-                var transition = await Session.Actions.Submit(Session.Accepted, action, lifetime.Token);
-                View.Awaiting(false);
-                await PresentAccepted(transition);
+                // The core plays the action and the board moves at once; what the
+                // provider confirms is what is accepted. An action the core
+                // refuses reaches no provider.
+                var played = action.Play(Session.Accepted);
+                var confirming = Confirming(action);
+                if (!confirming.IsFaulted && !confirming.IsCanceled) await Move(played);
+                var confirmed = await Confirmed(confirming);
+                await Accept(played, confirmed);
                 await ResolveRandomness();
             }
             catch (OperationCanceledException error) { if (!lifetime.IsCancellationRequested) ReportFailure(error); }
             catch (Exception error) { ReportFailure(error); }
             finally { if (this != null) CompleteInteraction(); }
         }
+        private Task<CoreRunToken> Confirming(BoardAction action)
+        {
+            try { return Session.Actions.Submit(Session.Accepted, action, lifetime.Token); }
+            catch (Exception error) { return Task.FromException<CoreRunToken>(error); }
+        }
+        // A confirmation that failed says nothing about the action: the run is
+        // read once, without repeating the gesture, and that state is what counts.
+        private async Task<CoreRunToken> Confirmed(Task<CoreRunToken> confirming)
+        {
+            if (!confirming.IsCompleted) View.Awaiting(true);
+            try { return await confirming; }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception error) when (Session.Actions is IBoardRecoveryProvider)
+            {
+                Debug.LogWarning("Board action: " + error.Message);
+                View.Awaiting(true);
+                var observed = await ((IBoardRecoveryProvider)Session.Actions).Recover(lifetime.Token);
+                if (observed == null) throw;
+                return observed;
+            }
+            finally { if (this != null && View != null) View.Awaiting(false); }
+        }
+        // The confirmed state is the played action, or that action and the row
+        // it awaited. Anything else, a refused action included, puts the board on
+        // the confirmed state and says so.
+        private async Task Accept(RunTransition played, CoreRunToken confirmed)
+        {
+            lifetime.Token.ThrowIfCancellationRequested(); RequireRun(confirmed);
+            if (confirmed.State.SequenceEqual(played.Token.State)) { Commit(played); return; }
+            if (!TryObserveRow(played.Token, confirmed, out var row)) { Settle(confirmed); return; }
+            Commit(played);
+            await Move(row); Commit(row);
+        }
         private async Task ResolveRandomness()
         {
             while (State.Phase == (byte)CorePhase.AwaitingVrf)
             {
                 View.Summary(State, Session, false); View.Awaiting(true);
-                var transition = await Session.Actions.ResolveVrf(Session.Accepted, lifetime.Token);
+                var confirmed = await Session.Actions.ResolveVrf(Session.Accepted, lifetime.Token);
                 View.Awaiting(false);
-                await PresentAccepted(transition);
+                // The row's motion is the core's account of that one output.
+                if (!TryObserveRow(Session.Accepted, confirmed, out var row)) { Settle(confirmed); continue; }
+                await Move(row); Commit(row);
             }
+        }
+        private bool TryObserveRow(CoreRunToken before, CoreRunToken confirmed, out RunTransition row)
+        {
+            RequireRun(confirmed);
+            try { row = NativeEngine.ObserveVrf(before, confirmed); return true; }
+            catch (NativeEngineException) { row = null; return false; }
         }
         public async void Recover()
         {
@@ -347,8 +391,7 @@ namespace ZKube.Presentation
                 var result = await provider.Recover(lifetime.Token);
                 lifetime.Token.ThrowIfCancellationRequested();
                 if (result == null) { recoveryUnavailable = true; return; }
-                if (!result.IsSnapshot) throw new InvalidOperationException("Recovery must return an accepted snapshot");
-                await PresentAccepted(result);
+                Show(result);
                 await ResolveRandomness();
                 recoveryRequired = false; View.CloseModal();
                 if (!Muted) music.UnPause();
@@ -357,38 +400,50 @@ namespace ZKube.Presentation
             catch (Exception error) { ReportFailure(error); }
             finally { if (this != null) CompleteInteraction(); }
         }
-        private async Task PresentAccepted(BoardActionResult result)
+        private void RequireRun(CoreRunToken token)
+        {
+            if (!token.Config.SequenceEqual(Session.Accepted.Config))
+                throw new InvalidOperationException("Accepted response belongs to another run configuration");
+        }
+        // An accepted state whose history the board did not see: shown as it is.
+        private void Show(CoreRunToken accepted)
+        {
+            RequireRun(accepted);
+            var final = NativeEngine.Summary(accepted);
+            bool changed = !accepted.State.SequenceEqual(Session.Accepted.State);
+            Session.Accepted = new CoreRunToken(accepted.Config, accepted.State); State = final;
+            if (changed) Host?.Accepted?.Invoke(Session.Accepted);
+            View.SetBoard(State.Grid); View.SetPreview(State.HasNextRow, State.NextRow);
+            View.Summary(State, Session, false);
+        }
+        // The board had moved for an action the confirmed run does not hold.
+        private void Settle(CoreRunToken confirmed)
+        {
+            Show(confirmed);
+            failure = BoardNotices.Text(BoardNotice.Settled); Host?.Rejected?.Invoke(failure);
+        }
+        // The board's motion for one transition of the core. It accepts nothing.
+        private async Task Move(RunTransition transition)
         {
             lifetime.Token.ThrowIfCancellationRequested();
-            if (!result.Token.Config.SequenceEqual(Session.Accepted.Config))
-                throw new InvalidOperationException("Accepted response belongs to another run configuration");
-            var final = NativeEngine.Summary(result.Token);
-            byte previousStars = State.LatchedStarSources, previousCharges = State.BonusCharges, previousEarned = State.ChargesEarned;
-            uint previousScore = Session.Daily ? State.DailyScore : State.Score;
-            ulong previousTheme = State.ObjectiveTotal;
-            bool changed = !result.Token.State.SequenceEqual(Session.Accepted.State);
-            Session.Accepted = result.Token; State = final;
-            if (changed) Host?.Accepted?.Invoke(result.Token);
-            if (result.IsSnapshot)
-            {
-                View.SetBoard(State.Grid); View.SetPreview(State.HasNextRow, State.NextRow);
-                View.Summary(State, Session, false);
-                return;
-            }
-            // A repeated accepted token carries no new action to celebrate.
-            // Snapshots above still refresh the display without inventing history.
-            if (!changed) return;
-            var transition = result.Transition;
-            // Acceptance survives a presentation failure. Rendering may fall
-            // back to this snapshot; it must never roll an accepted action back.
-            if (!PresentationTrace.ProjectBoard(View.DisplayGrid, transition.Events).SequenceEqual(final.Grid))
-                throw new InvalidOperationException("Presentation trace differs from the native accepted board");
+            if (!PresentationTrace.ProjectBoard(View.DisplayGrid, transition.Events).SequenceEqual(NativeEngine.Summary(transition.Token).Grid))
+                throw new InvalidOperationException("Presentation trace differs from the native board");
+            Traced?.Invoke(transition.Events);
             var completion = new TaskCompletionSource<bool>();
             StartCoroutine(Animate(transition, completion));
             using (lifetime.Token.Register(() => completion.TrySetCanceled())) await completion.Task;
-            // The move's feedback follows its blocks: the gains, the count-up and
-            // the callouts start once the board has settled. The combo is this
-            // move's lines, as the core's trace lists them.
+        }
+        // A confirmed transition becomes the accepted run, with its feedback: the
+        // gains, the count-up and the callouts follow the blocks, from the
+        // accepted state alone. The combo is this move's lines, as the core's
+        // trace lists them.
+        private void Commit(RunTransition transition)
+        {
+            byte previousStars = State.LatchedStarSources, previousCharges = State.BonusCharges, previousEarned = State.ChargesEarned;
+            uint previousScore = Session.Daily ? State.DailyScore : State.Score;
+            ulong previousTheme = State.ObjectiveTotal;
+            Session.Accepted = transition.Token; State = NativeEngine.Summary(transition.Token);
+            Host?.Accepted?.Invoke(transition.Token);
             uint acceptedScore = Session.Daily ? State.DailyScore : State.Score;
             int lines = PresentationTrace.LinesCleared(transition.Events);
             var perfect = transition.Events.FirstOrDefault(e => e.Kind == PresentationKind.PerfectClear);
@@ -560,6 +615,8 @@ namespace ZKube.Presentation
             int stars = state.EndReason == 3 ? 0 : HudLayout.StarCount(state.LatchedStarSources);
             return stars == 3 ? SoundCues.BigWin : stars > 0 ? SoundCues.SmallWin : SoundCues.Loss;
         }
+        // Every transition the board moves for, as the core listed its events.
+        public event Action<PresentationEvent[]> Traced;
         // Every cue the board plays, muted or not, by its SoundCues name.
         public event Action<string> SoundPlayed;
         private void Sound(string name)

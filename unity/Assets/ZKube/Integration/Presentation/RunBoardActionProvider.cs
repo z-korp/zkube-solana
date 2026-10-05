@@ -30,26 +30,18 @@ namespace ZKube.Presentation
         // The host uses this for terminal Continue; recovery navigation only leaves the view.
         public Task<RunClientState> FinishAndSettle(CancellationToken cancellation) =>
             settle(cancellation);
-        public async Task<BoardActionResult> Recover(CancellationToken cancellation)
+        public async Task<CoreRunToken> Recover(CancellationToken cancellation)
         {
             var observed = await recover(cancellation);
-            return observed.Token == null ? null : BoardActionResult.Snapshot(binding.Accept(observed));
+            return observed.Token == null ? null : binding.Accept(observed);
         }
-        public async Task<BoardActionResult> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation)
+        public async Task<CoreRunToken> Submit(CoreRunToken accepted, BoardAction action, CancellationToken cancellation) =>
+            binding.Accept(await submit(accepted, Convert(action.Kind), action.Row, action.Start, action.Destination, cancellation));
+        public async Task<CoreRunToken> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
         {
-            var kind = Convert(action.Kind);
-            var candidate = RunClient.NativeCandidate(accepted, kind, action.Row, action.Start, action.Destination);
-            var observed = await submit(accepted, kind, action.Row, action.Start, action.Destination, cancellation);
-            return BoardActionResult.Verified(binding.Accept(observed), candidate);
-        }
-        public async Task<BoardActionResult> ResolveVrf(CoreRunToken accepted, CancellationToken cancellation)
-        {
-            var observed = await resolve(cancellation);
-            var token = binding.Accept(observed);
+            var token = binding.Accept(await resolve(cancellation));
             if (token.State.SequenceEqual(accepted.State)) throw new InvalidOperationException("The next row has not arrived yet");
-            // The chain stores the resulting grid/replay, not raw VRF output.
-            // Do not fabricate ordered presentation events for an unseen callback.
-            return BoardActionResult.Snapshot(token);
+            return token;
         }
         private static RunClientAction Convert(BoardActionKind kind)
         {

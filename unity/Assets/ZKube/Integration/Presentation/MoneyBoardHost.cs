@@ -170,7 +170,7 @@ namespace ZKube.Integration.Presentation
                     else board.RequireRecovery("This run is no longer playable here. Return to your runs to check its state.");
                     return;
                 }
-                await board.ObserveSnapshot(BoardActionResult.Snapshot(run.Binding.Accept(state)));
+                board.Observe(run.Binding.Accept(state));
                 if (!CurrentForeground(epoch, visit)) return;
                 if (board.State.Phase == (byte)CorePhase.AwaitingVrf)
                 {
