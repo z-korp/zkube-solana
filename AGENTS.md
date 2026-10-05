@@ -458,13 +458,16 @@ deployment or spending approval.
   `ABoardColumnOpensItsBoardAndTheBadgeOpensTheRewards`, `TheLandingsOneActionIsThePlayersNextStep`,
   `TheLandingShowsTodaysBoardsAndEachReadStandsAlone` and `ARewardToClaimShowsAsTheBadgeThatOpensItsBoard` guard
   the page and its reads.
-- **Boards page:** one page shows any day's boards: a stepper over every calendar day from the launch day to
-  today, the Score and Theme pair, the player's row with its claim, and the rows, which scroll inside their card.
-  Today's rows are the chain's live boards, without payouts. A finished day not yet finalized shows the same rows
-  and offers to seal it. A sealed day shows its paying rows with their payouts and, under a divider that calls
-  them unofficial, the read model's places a hundred at a time.
-  `TheBoardsPageStepsThroughDaysAndReadsEachKindOfDay` and `MorePlacesComeAHundredAtATimeAndOnlyWhereTheyFollowOn`
-  guard the page and its further places.
+- **Boards page:** one page shows any day's boards. From the top: Back alone beside the title, the Score and Theme
+  pair, the player's row, the rows, which scroll inside their card, the one button (the claim or the seal) and, as
+  the page's foot over the tab bar (owner, 2026-10-05), the day stepper: one band holding the previous day's
+  chevron, the date over the day's state and the next day's chevron, over every calendar day from the launch day
+  to today. The page keeps that shape while a day is read and when its read failed. Today's rows are the chain's
+  live boards, without payouts. A finished day not yet finalized shows the same rows and offers to seal it. A
+  sealed day shows its paying rows with their payouts and, under a divider that calls them unofficial, the read
+  model's places a hundred at a time. `TheBoardsPageStepsThroughDaysAndReadsEachKindOfDay`,
+  `TheDayStepperIsTheBoardsPagesFootUnderTheRowsAndItsOneButton` and
+  `MorePlacesComeAHundredAtATimeAndOnlyWhereTheyFollowOn` guard the page, its layout and its further places.
 - **Money routing:** purchase sends the operator share directly to the pinned team address; the vault holds
   prize money only. Spending never joins the competing pot: it waits in the Daily it was spent on and moves
   to the next prepared Daily when its own finalizes. The lobby shows a Daily's pot together with what the Daily

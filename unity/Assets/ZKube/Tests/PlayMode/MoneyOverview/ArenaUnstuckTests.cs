@@ -119,5 +119,39 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Find("Back").interactable, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
+
+        // The Boards page from top to bottom: Back alone beside the title, the
+        // pair, the player's row, the rows, the one button, and the day stepper
+        // as the page's foot over the tab bar. The stepper is one band of its
+        // own, not two more tablets like Back.
+        [UnityTest] public IEnumerator TheDayStepperIsTheBoardsPagesFootUnderTheRowsAndItsOneButton()
+        {
+            foreach (var phone in new Action<PageShell>[] { value => ZKube.Tests.Presentation.Phones.Seeker(value), value => ZKube.Tests.Presentation.Phones.Compact(value) })
+            {
+                yield return PrepareClaimPage("claim-score-sealed");
+                var shell = host.GetComponent<PageShell>(); phone(shell);
+                yield return Wait(Adapter.RefreshOverview()); yield return Idle(); yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f);
+                Rect Of(string name) => SkinUi.ScreenRect((RectTransform)host.GetComponentsInChildren<Transform>().Single(piece => piece.name == name && piece.gameObject.activeInHierarchy));
+                Rect stepper = Of("Day stepper"), rows = Of("Board rows"), back = Of("Back"), claim = Of("Collect Score"), you = Of("Your row card");
+                var tabs = SkinUi.ScreenRect((RectTransform)host.GetComponentsInChildren<SkinTabBar>().Single().transform);
+                Assert.That(stepper.yMin, Is.GreaterThanOrEqualTo(tabs.yMax - .5f), "The stepper stands over the tab bar");
+                Assert.That(claim.yMin, Is.GreaterThanOrEqualTo(stepper.yMax - .5f), "The claim sits just above the stepper");
+                Assert.That(rows.yMin, Is.GreaterThanOrEqualTo(claim.yMax - .5f), "The rows fill the space above it");
+                Assert.That(you.yMin, Is.GreaterThanOrEqualTo(rows.yMax - .5f)); Assert.That(back.yMin, Is.GreaterThanOrEqualTo(you.yMax - .5f), "Back is at the top");
+                foreach (string arrow in new[] { "Previous day", "Next day" })
+                {
+                    var face = Find(arrow); var rect = SkinUi.ScreenRect((RectTransform)face.transform);
+                    Assert.That(rect.yMin >= stepper.yMin - .5f && rect.yMax <= stepper.yMax + .5f && rect.xMin >= stepper.xMin - .5f && rect.xMax <= stepper.xMax + .5f, Is.True, arrow + " is inside the band");
+                    Assert.That(face.GetComponent<UnityEngine.UI.Image>().sprite, Is.Null, arrow + " is a chevron in the band, not a tablet like Back");
+                    Assert.That(Mathf.Min(rect.width, rect.height), Is.GreaterThanOrEqualTo(48 - .01f), arrow + " is 48 dp to touch");
+                }
+                Assert.That(Find("Back").GetComponent<UnityEngine.UI.Image>().sprite, Is.Not.Null);
+                // Only the rows scroll: the page itself does not.
+                Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Viewport.rect.height + .5f), "The page does not scroll");
+                yield return SessionClick("Previous day"); yield return Idle();
+                Assert.That(host.GetComponent<MoneyIdentity>().Controller.RewardDay, Is.EqualTo(environment.ClaimDay - 1));
+                yield return EndScenario();
+            }
+        }
     }
 }

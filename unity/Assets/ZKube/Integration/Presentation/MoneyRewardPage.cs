@@ -91,10 +91,10 @@ namespace ZKube.Integration.Presentation
             return Act("seal results", false, async token => (await Flow.SettleDailies(token)).Value, RefreshRewardPage, () => _ = SealResults());
         }
         // The boards page: a day's two boards, one shown at a time, the player's
-        // row with its claim, and the rows. Arrows step through the days; no day
-        // after today can be shown. Today's boards are live rows from the
-        // chain; a finished day waits to be sealed by any player's transaction;
-        // a sealed day shows its paying rows with their payouts from the chain
+        // row with its claim, the rows, the one button and, at its foot, the day
+        // stepper. Its chevrons step through the days; no day after today can be
+        // shown. Today's boards are live rows from the chain; a finished day waits
+        // to be sealed by any player's transaction; a sealed day shows its paying rows with their payouts from the chain
         // and, under a divider, the places the board no longer holds, from the
         // public read model, which is never an authority.
         private static string BoardDay(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime.ToString("ddd d MMM", CultureInfo.InvariantCulture);
@@ -121,16 +121,14 @@ namespace ZKube.Integration.Presentation
             if (NativeEngine.Daily(rewardDay).Kind == 0) boardKind = "score";
             if (rewardRead == null || !rewardRead.TryValue(out var state))
             {
-                // The stepper works while a day is being read, and when its read failed.
-                blocks.Add(Stepper(null, null));
+                // The page keeps its shape while a day is being read and when its read
+                // failed: the rows' card says which, and the stepper works at its foot.
                 if (BoardPair() is PanelBlock tabs) blocks.Add(tabs);
-                if (failure != null && !Busy)
-                {
-                    blocks.Add(PanelBlock.Text("Boards notice", "Boards not loaded.", SkinTokens.TextMuted));
-                    blocks.Add(PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true, SkinSlots.IconRetry));
-                }
+                bool failed = failure != null && !Busy;
+                blocks.Add(PanelBlock.List("Board rows", new BoardRowView[0], empty: failed ? "Boards not loaded." : "Checking…"));
+                if (failed) blocks.Add(PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true, SkinSlots.IconRetry));
                 else if (sessionActionPending || economyActionPending) Requesting(blocks);
-                else blocks.Add(PanelBlock.Text("Boards notice", pageNotice ?? "Checking…", SkinTokens.TextMuted));
+                blocks.Add(Stepper(null, null));
                 page.Blocks = blocks.ToArray();
                 return page;
             }
@@ -138,11 +136,12 @@ namespace ZKube.Integration.Presentation
             bool missing = boards.DailyStatus == "missing", live = !missing && board.Live && !boards.Finalizable, pending = !missing && board.Live && boards.Finalizable;
             // A board whose account is absent or could not be verified is not called sealed.
             bool unread = !missing && board.Account == null;
-            if (missing) blocks.Add(Stepper("No Daily this day", SkinTokens.TextMuted));
-            else if (unread) blocks.Add(Stepper("Board not available", SkinTokens.TextMuted));
-            else if (live) blocks.Add(Stepper("Live", SkinTokens.Positive, SkinSlots.IconLive));
-            else if (pending) blocks.Add(Stepper("Results pending", SkinTokens.Accent));
-            else blocks.Add(Stepper(board.ClaimStatus == "claimable" && board.ExpiresAt.HasValue ? "Sealed · claim by " + ClaimBy(board.ExpiresAt.Value) : "Sealed", SkinTokens.Accent));
+            // The stepper is the page's foot (owner, 2026-10-05): under the rows and the one button.
+            var stepper = missing ? Stepper("No Daily this day", SkinTokens.TextMuted)
+                : unread ? Stepper("Board not available", SkinTokens.TextMuted)
+                : live ? Stepper("Live", SkinTokens.Positive, SkinSlots.IconLive)
+                : pending ? Stepper("Results pending", SkinTokens.Accent)
+                : Stepper(board.ClaimStatus == "claimable" && board.ExpiresAt.HasValue ? "Sealed · claim by " + ClaimBy(board.ExpiresAt.Value) : "Sealed", SkinTokens.Accent);
             if (BoardPair() is PanelBlock pair) blocks.Add(pair);
             string paid = ConfirmedRewardText(state);
             if (paid != null) blocks.Add(PanelBlock.Text("Reward received", paid, SkinTokens.Positive));
@@ -182,6 +181,7 @@ namespace ZKube.Integration.Presentation
                 blocks.Add(PanelBlock.Button(PageAction(next.Day == rewardDay ? "Next reward · " + MoneyText.Board(next.Kind, catalog) : "Next reward · " + BoardDay(next.Day),
                     () => { if (next.Day == rewardDay) ShowBoard(next.Kind); else _ = OpenRewards(next.Day, next.Kind); }, () => PageAvailable() && !Busy, "Next reward"), true));
             }
+            blocks.Add(stepper);
             page.Blocks = blocks.ToArray();
             return page;
         }

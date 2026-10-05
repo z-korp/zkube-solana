@@ -235,22 +235,38 @@ namespace ZKube.Presentation
             player.textWrappingMode = TextWrappingModes.NoWrap; player.overflowMode = TextOverflowModes.Ellipsis;
         }
 
-        // The day stepper: an arrow at each end and, between them, the date over
-        // the day's state. An arrow whose step cannot be taken is dimmed and takes no tap.
+        // The day stepper, the Boards page's foot: one band holding the previous
+        // day's chevron, the date over the day's state, and the next day's
+        // chevron. It is a piece of its own, unlike Back, which stays a tablet
+        // alone at the top. A chevron whose step cannot be taken is dimmed and
+        // takes no tap.
         private Piece StepperPiece(PanelBlock block, ScreenKit kit)
         {
-            float u = kit.U, arrow = kit.Touch(44), dateDp = 17 * kit.K;
+            float u = kit.U, arrow = kit.Touch(48), dateDp = 17 * kit.K, glyph = 18 * u;
             ScreenKit.Side? state = block.Tag == null ? (ScreenKit.Side?)null : Tag(kit, block.Tag, block.TagToken, "Day state");
             // A live day's lit dot stands left of its state.
             float dot = block.Sprite == null ? 0 : 12 * u;
             float dateHeight = dateDp * ui.Scale * ui.Density * ScreenKit.DisplayNormal;
-            return new Piece(Mathf.Max(arrow, dateHeight + (state.HasValue ? 2 * u + state.Value.Height : 0)), rect => {
+            float block2 = dateHeight + (state.HasValue ? 2 * u + state.Value.Height : 0);
+            return new Piece(Mathf.Max(arrow, block2 + 12 * u), rect => {
+                ui.Pill("Day stepper", rect, shell.Page, new Color(15 / 255f, 42 / 255f, 56 / 255f, .94f));
                 for (int side = 0; side < 2; side++)
                 {
                     var action = block.Actions[side] ?? new PageAction { Label = side == 0 ? "Previous day" : "Next day", Enabled = false };
-                    HeaderButton(action, new Rect(side == 0 ? rect.x : rect.xMax - arrow, rect.center.y - arrow / 2, arrow, arrow), SkinSlots.IconBack, side == 1, shell.Page);
+                    var at = new Rect(side == 0 ? rect.x : rect.xMax - arrow, rect.center.y - arrow / 2, arrow, arrow);
+                    var face = ui.Rect<Image>(action.Name ?? action.Label, at, shell.Page); face.color = Color.clear;
+                    var chevron = Tinted((action.Name ?? action.Label) + " chevron", SkinSlots.IconBack,
+                        new Rect(at.center.x - glyph / 2, at.center.y - glyph / 2, glyph, glyph), SkinTokens.Text, face.transform);
+                    chevron.raycastTarget = false;
+                    if (side == 1)
+                    {
+                        var turned = chevron.rectTransform; turned.pivot = new Vector2(.5f, .5f); turned.anchoredPosition += turned.sizeDelta / 2;
+                        turned.localScale = new Vector3(-1, 1, 1);
+                    }
+                    if (block.Actions[side] == null) chevron.color = SkinUi.WithAlpha(chevron.color, .28f);
+                    Tap(face, action);
                 }
-                float block2 = dateHeight + (state.HasValue ? 2 * u + state.Value.Height : 0), top = rect.center.y + block2 / 2;
+                float top = rect.center.y + block2 / 2;
                 kit.Text("Day", block.Copy, new Rect(rect.x + arrow, top - dateHeight, rect.width - 2 * arrow, dateHeight), dateDp, SkinTokens.Text, SkinUi.Type.Display,
                     ScreenKit.DisplayNormal).textWrappingMode = TextWrappingModes.NoWrap;
                 if (!state.HasValue) return;
