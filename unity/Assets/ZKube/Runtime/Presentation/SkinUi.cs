@@ -636,6 +636,55 @@ namespace ZKube.Presentation
             if (parent == null || !(parent is RectTransform rect)) return Vector2.zero;
             var corners = new Vector3[4]; rect.GetWorldCorners(corners); return corners[0];
         }
+        // A bubble's tail (the kit's tail piece) from the edge of its body nearest
+        // tip to tip itself, stretched to that length and turned to aim. Its base
+        // stays on the edge's straight part; draw it before the body, which then
+        // covers the seam. u is the caller's unit.
+        public const float TailBaseU = 16, TailInsetU = 16;
+        public static Vector2 TailBase(Rect body, Vector2 tip, float u)
+        {
+            float inset = Mathf.Min(TailInsetU * u, Mathf.Min(body.width, body.height) / 2);
+            float aside = Mathf.Max(body.xMin - tip.x, tip.x - body.xMax, 0), above = Mathf.Max(body.yMin - tip.y, tip.y - body.yMax, 0);
+            return aside >= above
+                ? new Vector2(tip.x < body.center.x ? body.xMin : body.xMax, Mathf.Clamp(tip.y, body.yMin + inset, body.yMax - inset))
+                : new Vector2(Mathf.Clamp(tip.x, body.xMin + inset, body.xMax - inset), tip.y < body.center.y ? body.yMin : body.yMax);
+        }
+        public Image Tail(string name, Rect body, Vector2 tip, float u, Transform parent)
+        {
+            Vector2 from = TailBase(body, tip, u), along = tip - from;
+            float length = Mathf.Max(along.magnitude, 1), wide = TailBaseU * u, sunk = 2 * u;
+            // The base starts a little inside the body.
+            from -= along.normalized * sunk;
+            var tail = Piece(name, SkinSlots.TapBubbleTail, new Rect(from.x, from.y - wide / 2, length + sunk, wide), parent);
+            // Stretched to its length: the piece's own shape is only its look.
+            tail.raycastTarget = false; tail.preserveAspect = false;
+            var rect = tail.rectTransform; rect.pivot = new Vector2(0, .5f); rect.anchoredPosition += new Vector2(0, wide / 2);
+            float angle = Mathf.Atan2(along.y, along.x) * Mathf.Rad2Deg;
+            rect.localEulerAngles = new Vector3(0, 0, angle);
+            // Turned past upright the piece is mirrored, so its lip stays underneath.
+            if (Mathf.Abs(angle) > 90) rect.localScale = new Vector3(1, -1, 1);
+            return tail;
+        }
+        // Where a tail drawn by Tail ends, on screen.
+        public static Vector2 TailTip(RectTransform tail) => tail.TransformPoint(new Vector3(tail.rect.xMax, 0));
+        // A guardian's speech: the tail aims at its mouth from the body's nearest
+        // edge and stops MouthStop of the canvas short of it, clear of the mouth's
+        // own art; it never enters the eyes.
+        public const float MouthStop = .07f;
+        public Vector2 SpeechTip(Rect body, Rect guardian, float u)
+        {
+            var mouth = Art.MouthIn(guardian); var from = TailBase(body, mouth, u);
+            var along = mouth - from; float length = along.magnitude;
+            if (length < 1) return mouth;
+            float reach = Mathf.Max(0, length - MouthStop * guardian.width);
+            // Stop before the eyes: the first point of the way that enters them.
+            var eyes = Art.EyesIn(guardian); eyes = new Rect(eyes.x - 2 * u, eyes.y - 2 * u, eyes.width + 4 * u, eyes.height + 4 * u);
+            for (float t = 0; t <= reach; t += u)
+                if (eyes.Contains(from + along / length * t)) { reach = Mathf.Max(0, t - 2 * u); break; }
+            return from + along / length * reach;
+        }
+        public Image SpeechTail(string name, Rect body, Rect guardian, float u, Transform parent) => Tail(name, body, SpeechTip(body, guardian, u), u, parent);
+
         public static Rect ScreenRect(RectTransform rect)
         {
             var corners = new Vector3[4]; rect.GetWorldCorners(corners);

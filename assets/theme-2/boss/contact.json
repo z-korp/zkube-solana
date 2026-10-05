@@ -27,6 +27,16 @@
     334,
     282
   ],
+  "eyes_rect_px": [
+    276,
+    169,
+    216,
+    62
+  ],
+  "mouth_px": [
+    383,
+    340
+  ],
   "paw_anchor_rects": [
     {
       "side": "left",

@@ -49,7 +49,7 @@ namespace ZKube.Tests
             Assert.That(Coach.Pointing.HasValue, Is.True, "The guardian points at a slide");
             var best = Coach.Pointing.Value;
             Assert.That(best.ToString(), Is.EqualTo(BoardHint.Best(board.Session.Accepted).Value.ToString()), "It is the core's best slide");
-            Assert.That(Buttons().Any(button => button.name == Lessons.Skip), Is.True, "The guide can be skipped");
+            Assert.That(board.GetComponentsInChildren<Button>().Any(button => button.name == Lessons.Skip), Is.True, "The guide can be skipped");
             yield return ZKube.Tests.Presentation.LessonEvidence.Snap(app, "guided 1 slide");
             yield return Play(best);
             Assert.That(Coach.Said.Count, Is.EqualTo(2));
@@ -76,7 +76,7 @@ namespace ZKube.Tests
             Lessons.Device = AllBut(Lesson.GuidedRun, Lesson.Wave, Lesson.Star, Lesson.EmptyBoard);
             yield return OpenTikiOne();
             yield return Wait(() => Coach.Said.Count > 0, "The guardian speaks");
-            Click(app, Lessons.Skip); yield return null;
+            Click(board, Lessons.Skip); yield return null;
             Assert.That(Coach.Said, Is.Empty); Assert.That(Coach.Pointing.HasValue, Is.False); Assert.That(Coach.Guiding, Is.False);
             foreach (var lesson in new[] { Lesson.GuidedRun, Lesson.Wave, Lesson.Star, Lesson.EmptyBoard })
                 Assert.That(Lessons.Device.Taught(lesson), Is.True, lesson.ToString());
@@ -92,7 +92,7 @@ namespace ZKube.Tests
                 typeof(BoardController).GetProperty("ReducedMotion").SetValue(board, still);
                 yield return OpenTikiOne();
                 yield return Wait(() => Coach.Pointing.HasValue, "The guardian points");
-                var hand = app.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian hand").rectTransform;
+                var hand = board.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian hand").rectTransform;
                 var first = SkinUi.ScreenRect(hand).center;
                 yield return new WaitForSecondsRealtime(BoardCoach.HandSeconds / 2);
                 var later = SkinUi.ScreenRect(hand).center;

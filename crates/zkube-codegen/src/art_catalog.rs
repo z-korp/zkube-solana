@@ -92,11 +92,17 @@ struct GuardianContact {
     /// The only region a frame may differ from idle in: x, y, width, height
     /// from the canvas's top left.
     face_rect_px: [u32; 4],
+    /// Where the blink changes the face: x, y, width, height.
+    eyes_rect_px: [u32; 4],
+    /// The centre of what the talk frames change below the eyes: x, y. A
+    /// speech bubble's tail aims here.
+    mouth_px: [u32; 2],
 }
 
-/// Where the guardian's paws rest and where its face changes, as fractions of
-/// its square canvas from the top left. The client draws idle and lays only a
-/// frame's face over it, so every frame shares idle's body pixels.
+/// Where the guardian's paws rest, where its face changes and where its eyes
+/// and mouth are, as fractions of its square canvas from the top left. The
+/// client draws idle and lays only a frame's face over it, so every frame
+/// shares idle's body pixels, and a speech bubble's tail aims at the mouth.
 fn guardian_contact(root: &Path, id: &str) -> Result<Value, String> {
     let path = root.join(format!("assets/{id}/boss/contact.json"));
     let text = std::fs::read_to_string(&path)
@@ -125,10 +131,30 @@ fn guardian_contact(root: &Path, id: &str) -> Result<Value, String> {
             path.display()
         ));
     }
+    let [eyes_x, eyes_y, eyes_width, eyes_height] = contact.eyes_rect_px;
+    let [mouth_x, mouth_y] = contact.mouth_px;
+    if eyes_width == 0
+        || eyes_height == 0
+        || eyes_x < x
+        || eyes_y < y
+        || eyes_x + eyes_width > x + face_width
+        || eyes_y + eyes_height > y + face_height
+        || mouth_x < x
+        || mouth_x >= x + face_width
+        || mouth_y < eyes_y + eyes_height
+        || mouth_y >= y + face_height
+    {
+        return Err(format!(
+            "{} must place eyes_rect_px inside face_rect_px and mouth_px inside it below the eyes",
+            path.display()
+        ));
+    }
     let fraction = |y: u32| f64::from(y) / f64::from(height);
     Ok(json!({"railY": fraction(contact.rail_y_px), "railFrontY": fraction(contact.rail_front_y_px),
         "topY": fraction(contact.top_y_px),
-        "face": [fraction(x), fraction(y), fraction(face_width), fraction(face_height)]}))
+        "face": [fraction(x), fraction(y), fraction(face_width), fraction(face_height)],
+        "eyes": [fraction(eyes_x), fraction(eyes_y), fraction(eyes_width), fraction(eyes_height)],
+        "mouth": [fraction(mouth_x), fraction(mouth_y)]}))
 }
 
 fn theme(source: &Value, root: &Path) -> Result<Value, String> {
@@ -380,13 +406,16 @@ mod tests {
         let good = json!({"canvas_px": [1536, 1536], "frame_names": GUARDIAN_FRAMES,
             "representation": "full-frame-behind-rail", "paws": "paws.png",
             "rail_y_px": 1280, "rail_front_y_px": 1330, "top_y_px": 144, "hud_width_dp": 168,
-            "face_rect_px": [384, 192, 768, 576]});
+            "face_rect_px": [384, 192, 768, 576], "eyes_rect_px": [480, 288, 576, 96],
+            "mouth_px": [768, 576]});
         write(good.clone());
         let contact = guardian_contact(&root, "theme-1").unwrap();
         assert_eq!(contact["railY"], json!(1280.0 / 1536.0));
         assert_eq!(contact["railFrontY"], json!(1330.0 / 1536.0));
         assert_eq!(contact["topY"], json!(144.0 / 1536.0));
         assert_eq!(contact["face"], json!([0.25, 0.125, 0.5, 0.375]));
+        assert_eq!(contact["eyes"], json!([0.3125, 0.1875, 0.375, 0.0625]));
+        assert_eq!(contact["mouth"], json!([0.5, 0.375]));
         for (field, value) in [
             ("frame_names", json!(["idle"])),
             ("canvas_px", json!([1536, 1024])),
@@ -395,6 +424,10 @@ mod tests {
             ("representation", json!("head-layers")),
             ("face_rect_px", json!([1000, 192, 768, 576])),
             ("face_rect_px", json!([384, 192, 0, 576])),
+            // Eyes outside the face, a mouth outside it, a mouth among the eyes.
+            ("eyes_rect_px", json!([300, 288, 576, 96])),
+            ("mouth_px", json!([1300, 576])),
+            ("mouth_px", json!([768, 300])),
         ] {
             let mut bad = good.clone();
             bad[field] = value;

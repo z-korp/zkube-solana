@@ -165,7 +165,16 @@ deployment or spending approval.
   `TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
   `TheHintIsTheSlideClearingTheMostLinesThenTheLowestStack`, `EachBoardMomentIsTaughtWhenItFirstHappensAndOnlyThen`,
   `NoLessonAppearsOnADailyRun`, `TheFirstArcadeVisitTeachesTheArenaDailyWithoutTouchingEntry` and
-  `HowToPlayReplaysEveryLessonFromSettings` guard it.
+  `HowToPlayReplaysEveryLessonFromSettings` guard it. On the board a line about a piece (the next row, a button,
+  the moves, a goal plate) is a callout: it stands beside that piece, its tail's tip on the piece's
+  edge, and the piece pulses for as long as it shows. A line about nothing in particular is the guardian's own
+  speech under it, its tail at the guardian's mouth; so is the first star's line, since the crown has no room
+  beside it, while the crown pulses. Only a callout says here or this. No bubble covers a pulsing
+  piece, a cell the hand points at, the guardian's face, the crown, a plate, the next row or a control. The
+  lessons draw in the board's own interface, pulses behind its pieces and bubbles over them, so a device orders
+  them with the HUD exactly as a test does. `LessonEvidence` checks every board lesson a test captures against
+  these rules; `TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
+  `AFirstChargeIsTaughtOnceInItsBonusesWords` and `TheFirstStarIsTaughtOnce` walk them.
 - **Campaign save:** the packed on-chain star array is the player's save, written by their own device and
   synchronized across devices. The program does not verify it, it has no effect on money, and emblems 1–12
   reflect that reported progress. `record_campaign_stars_is_idempotent_and_touches_no_other_field` and
@@ -698,7 +707,11 @@ the contract. Kit art carries no seam or stray highlight;
 `test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
 
 Each guardian has ten full frames, a paws layer drawn over the rail it leans on, and a contact rail line; its
-title and ten lines are authored per realm in the catalog. The talk scene types those lines on the realm's
+title and ten lines are authored per realm in the catalog. Its contact also records where the blink changes its
+face (the eyes) and the centre of what the talk frames change below them (the mouth), and the codegen holds
+both inside the face. A speech bubble's tail has one owner, `SpeechTail`: from the bubble's nearest edge it aims
+at the mouth, stops short of it and never enters the eyes, on every page and on the board;
+`EveryGuardiansBubbleTailAimsAtItsMouthOnBothPhones` guards all ten guardians. The talk scene types those lines on the realm's
 ledge with the mouth flapping, then rests on the moment's mood; reduced motion shows the line at once.
 `guardian_contact_names_every_frame_and_a_rail_inside_its_canvas`,
 `every_guardian_says_every_line_and_none_is_empty`, `EveryMomentSpeaksItsAuthoredLine` and

@@ -237,16 +237,16 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(Vector3.one, score.rectTransform.localScale);
         }
 
-        // DECISIONS 2026-10-02: with two rows or fewer free the board shows its
-        // pressure, as the old client did, and stops when the board recovers. The
-        // threshold both ways: three free rows are calm, two and one warn, none is
-        // critical, and back. The frame and the glass pulse in the warning colour
+        // DECISIONS 2026-10-05: once the stack reaches row 9 of 10 the board shows
+        // its pressure, and stops when the board recovers. The threshold both
+        // ways: two free rows are calm, one warns, none is critical, and back.
+        // The frame and the glass pulse in the warning colour
         // over the board's own frame; the guardian looks worried and calms again.
-        [UnityTest] public IEnumerator PressureShowsAtTwoFreeRowsAndStopsWhenTheBoardRecovers()
+        [UnityTest] public IEnumerator PressureShowsAtOneFreeRowAndStopsWhenTheBoardRecovers()
         {
-            Assert.AreEqual(2, BoardView.PressureRows);
+            Assert.AreEqual(1, BoardView.PressureRows);
             for (int free = 0; free <= 10; free++)
-                Assert.AreEqual(free == 0 ? 2 : free <= 2 ? 1 : 0, BoardView.PressureLevel(free), free + " free rows");
+                Assert.AreEqual(free == 0 ? 2 : free == 1 ? 1 : 0, BoardView.PressureLevel(free), free + " free rows");
             yield return Load("realm-8-daily", false);
             var view = board.View; var original = (byte[])board.State.Grid.Clone();
             SpriteRenderer Piece(string name) => view.GetComponentsInChildren<SpriteRenderer>(true).Single(sprite => sprite.name == name);
@@ -254,7 +254,7 @@ namespace ZKube.Presentation.Tests
             byte[] Stack(int height) { var grid = new byte[80]; for (int row = 0; row < height; row++) grid[row * 8] = 1; return grid; }
             for (int height = 0; height <= 10; height++) Assert.AreEqual(10 - height, BoardView.FreeRows(Stack(height)), "A stack " + height + " high");
             Assert.AreEqual(0, view.Pressure, "The fixture opens calm");
-            foreach (var (height, level) in new[] { (7, 0), (8, 1), (9, 1), (10, 2), (9, 1), (8, 1), (7, 0), (10, 2), (3, 0) })
+            foreach (var (height, level) in new[] { (7, 0), (8, 0), (9, 1), (10, 2), (9, 1), (8, 0), (10, 2), (3, 0) })
             {
                 string at = "a stack " + height + " high";
                 view.SetBoard(Stack(height)); yield return null;
@@ -293,7 +293,7 @@ namespace ZKube.Presentation.Tests
             foreach (var (phone, screen, top, bottom) in new[] { ("compact", ZKube.Tests.Presentation.Phones.CompactScreen, ZKube.Tests.Presentation.Phones.CompactTopInsetDp, 0f),
                 ("emulator", ZKube.Tests.Presentation.Phones.EmulatorScreen, ZKube.Tests.Presentation.Phones.EmulatorTopInsetDp, ZKube.Tests.Presentation.Phones.EmulatorBottomInsetDp),
                 ("seeker", ZKube.Tests.Presentation.Phones.SeekerScreen, ZKube.Tests.Presentation.Phones.SeekerTopInsetDp, 0f) })
-                foreach (int height in new[] { 8, 10 })
+                foreach (int height in new[] { 9, 10 })
                 {
                     var ui = new SkinUi(art, 1, 1);
                     var child = new GameObject("Pressure view"); child.transform.SetParent(root.transform);
