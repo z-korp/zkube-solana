@@ -96,7 +96,8 @@ namespace ZKube.Integration.Transport
         }
 
         // action is the player's request ("session-renew", "read Daily"); never anything of the player's.
-        public string Line(string action) => "zKube request failed: action=" + Clean(action) + " kind=" + Kind +
+        public string Line(string action) => "zKube request failed: action=" + Clean(action) + " " + Detail;
+        public string Detail => "kind=" + Kind +
             (Service == null ? "" : " service=" + Service.Replace(' ', '-')) + (Host == null ? "" : " host=" + Clean(Host)) +
             (Call == null ? "" : " call=" + Clean(Call)) + (Status.HasValue ? " status=" + Status.Value : "") +
             " type=" + Type + " message=\"" + Message.Replace("\"", "'") + "\"";
@@ -113,10 +114,16 @@ namespace ZKube.Integration.Transport
             if (error is OperationCanceledException && !(error is TimeoutException)) return;
             try { Sink(RequestFailure.Of(error).Line(action)); } catch (Exception) { /* Logging never fails a request. */ }
         }
-        // Evidence built only from counts, program IDs and yes/no facts: printed as it is.
-        public static void Evidence(string action, string code, string safe)
+        // A request's outcome: its action, outcome and code, then what stopped it
+        // (the failed call, the chain's error, or what a wallet changed). The
+        // evidence of a changed message is built only from counts, program IDs
+        // and yes/no facts, and is printed as it is.
+        public static void Result(string action, string outcome, string code, RequestFailure failure, string chainError, string walletChange)
         {
-            try { Sink("zKube request failed: action=" + RequestFailure.Clean(action) + " code=" + RequestFailure.Clean(code) + " evidence=\"" + safe + "\""); }
+            try { Sink("zKube request failed: action=" + RequestFailure.Clean(action ?? "-") + " outcome=" + outcome + " code=" + RequestFailure.Clean(code ?? "-") +
+                (failure == null ? "" : " " + failure.Detail) +
+                (chainError == null ? "" : " chain=\"" + RequestFailure.Clean(chainError).Replace("\"", "'") + "\"") +
+                (walletChange == null ? "" : " evidence=\"" + walletChange + "\"")); }
             catch (Exception) { /* Logging never fails a request. */ }
         }
         public static void Outcome(string action, string code, string chainError)

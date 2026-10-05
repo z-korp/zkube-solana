@@ -159,6 +159,61 @@ namespace ZKube.Integration.Execution.Tests
         }
         private AccountEnvelope Token() => Envelope(plans["accounts"]["session"]);
 
+        // Every outcome that is not a success or still pending writes one line
+        // where it is made: the action, the outcome, its code and what stopped it.
+        // No rejection, before or after the wallet, leaves without one.
+        [Test]
+        public async Task EveryOutcomeThatIsNotASuccessLeavesOneLogLine()
+        {
+            string team = (string)solana["inputs"]["validator"];
+            var lines = new List<string>(); var sink = ClientLog.Sink; ClientLog.Sink = line => { lock (lines) lines.Add(line); };
+            try
+            {
+                async Task Expect(string line, Func<Task<ExecutionResult>> request)
+                {
+                    lines.Clear();
+                    var result = await request();
+                    Assert.That(lines.Count, Is.EqualTo(1), result.Outcome + " " + result.Code + ": " + string.Join(" | ", lines));
+                    StringAssert.StartsWith("zKube request failed: action=purchase-one " + line, lines[0]);
+                    Assert.That(await store.Read(owner, "journal"), Is.Null); Assert.That(http.Sent, Is.Null);
+                }
+                Task<ExecutionResult> Buy(CancellationToken cancellation = default) =>
+                    executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer, cancellation);
+                await Expect("outcome=Rejected code=cancelled", () => Buy(new CancellationToken(true)));
+                http.Balance = 0;
+                await Expect("outcome=FeeShortage code=owner-fee-shortage", () => Buy()); http.Balance = 1000000000;
+                http.SimulationError = new JArray("InstructionError", new JArray(2, new JObject { ["Custom"] = 6001 }));
+                await Expect("outcome=Rejected code=simulation-rejected chain=\"['InstructionError',[2,{'Custom':6001}]]\"", () => Buy()); http.SimulationError = null;
+                native.Reject = true;
+                await Expect("outcome=Rejected code=wallet-rejected", () => Buy()); native.Reject = false;
+                native.Seed = null; native.ForbidKeyCreation = true;
+                await Expect("outcome=Rejected code=preparation-failed kind=Local type=InvalidOperationException", () => Buy()); native.ForbidKeyCreation = false;
+                // The wallet approved and the request was withdrawn before it could be recorded: still one line.
+                using (var withdrawn = new CancellationTokenSource())
+                {
+                    native.SignEntered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    native.SignRelease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    await Expect("outcome=Rejected code=cancelled", async () => {
+                        var asked = Buy(withdrawn.Token); await native.SignEntered.Task;
+                        withdrawn.Cancel(); native.SignRelease.SetResult(true);
+                        return await asked;
+                    });
+                    native.SignEntered = null; native.SignRelease = null;
+                }
+                // A success writes none.
+                lines.Clear();
+                Assert.That((await Buy()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess)); Assert.That(lines, Is.Empty);
+                // A transaction that landed and failed says so with the chain's error.
+                http.Sent = null; http.StatusError = new JArray("InstructionError", new JArray(2, new JObject { ["Custom"] = 6001 }));
+                lines.Clear();
+                var failed = await Buy();
+                Assert.That(failed.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
+                Assert.That(lines.Count, Is.EqualTo(1), string.Join(" | ", lines));
+                StringAssert.StartsWith("zKube request failed: action=purchase-one outcome=ConfirmedFailure code=- chain=\"", lines[0]);
+            }
+            finally { ClientLog.Sink = sink; }
+        }
+
         [Test]
         public async Task RestartBeforeSendNeverSendsAndRequiresHistoryAfterExpiryAndFreshAbsentAccountEvidence()
         {

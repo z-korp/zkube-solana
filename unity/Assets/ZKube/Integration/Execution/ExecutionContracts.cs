@@ -21,7 +21,14 @@ namespace ZKube.Integration.Execution
         public string WalletChange { get; }
         internal ExecutionResult(ExecutionOutcome outcome, string intent, string signature = null, string code = null,
             string chainError = null, Transport.RequestFailure failure = null, string walletChange = null)
-        { Outcome = outcome; Intent = intent; Signature = signature; Code = code; ChainError = chainError; Failure = failure; WalletChange = walletChange; }
+        {
+            Outcome = outcome; Intent = intent; Signature = signature; Code = code; ChainError = chainError; Failure = failure; WalletChange = walletChange;
+            // Every outcome that is not a success or still pending leaves its one
+            // line in the device log where it is made, so no path can drop its cause.
+            // Finding nothing waiting is an observation, not an outcome.
+            if (outcome != ExecutionOutcome.ConfirmedSuccess && outcome != ExecutionOutcome.Pending && outcome != ExecutionOutcome.CompletedLocally &&
+                code != "no-pending-transaction") Transport.ClientLog.Result(intent, outcome.ToString(), code, failure, chainError, walletChange);
+        }
         public static ExecutionResult CompletedLocally(string intent) => new ExecutionResult(ExecutionOutcome.CompletedLocally, intent);
         public static ExecutionResult Rejected(string intent, string code) => new ExecutionResult(ExecutionOutcome.Rejected, intent, code: code);
     }

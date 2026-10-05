@@ -16,9 +16,8 @@ namespace ZKube.Integration.Presentation
                 ExecutionOutcome.ExpiredReconciled => "Transaction expired. Refresh before trying again.",
                 ExecutionOutcome.FeeShortage => "There is not enough SOL for this transaction.",
                 ExecutionOutcome.CompletedLocally => "No transaction was needed.",
-                _ => result.Code == "execution-busy" ? "Another transaction is being checked. Try again shortly." :
-                    result.Code == "pending-transaction-changed" ? "A different transaction is still being confirmed." :
-                    "The transaction request was not accepted. Refresh before trying again."
+                // A request that was not sent says why, by the one owner of those words.
+                _ => Refusal(result)
             };
             if (string.IsNullOrEmpty(result.Signature)) return text;
             string reference = fullSignature || result.Signature.Length <= 18 ? result.Signature :

@@ -135,7 +135,7 @@ namespace ZKube.Tests.MoneyOverview
                 yield return SessionClick("Enable device"); yield return Idle();
                 Assert.That(Text("Action refused"), Is.EqualTo("Solana is busy. Try again in a moment."));
                 Assert.That(lines.Count, Is.EqualTo(1), string.Join("\n", lines));
-                StringAssert.StartsWith("zKube request failed: action=session-renew kind=Busy service=Solana host=base.invalid call=getLatestBlockhash status=429", lines[0]);
+                StringAssert.StartsWith("zKube request failed: action=session-renew outcome=Rejected code=preparation-failed kind=Busy service=Solana host=base.invalid call=getLatestBlockhash status=429", lines[0]);
                 StringAssert.DoesNotContain("base.invalid/", lines[0]); StringAssert.DoesNotContain(environment.Owner, lines[0]);
 
                 environment.Http.FailNext("simulateTransaction", new System.TimeoutException("No answer within 30 s"));
@@ -211,13 +211,71 @@ namespace ZKube.Tests.MoneyOverview
                 string summary = "instructions 3 to 4; added " + added + "; removed none; rewritten in place 0; fee payer same; blockhash same; signers same; accounts changed (";
                 StringAssert.StartsWith("Your wallet changed this request, so it was not sent. (" + summary, Text("Action refused"));
                 Assert.That(lines.Count, Is.EqualTo(1), string.Join("\n", lines));
-                StringAssert.StartsWith("zKube request failed: action=purchase-kredits code=wallet-changed-message evidence=\"" + summary, lines[0]);
+                StringAssert.StartsWith("zKube request failed: action=purchase-kredits outcome=Rejected code=wallet-changed-message evidence=\"" + summary, lines[0]);
                 StringAssert.DoesNotContain(environment.Owner, lines[0]); StringAssert.DoesNotContain(environment.Owner, Text("Action refused"));
                 environment.WalletAdds = null;
                 yield return SessionClick("Try again"); yield return Idle();
                 Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess));
             }
             finally { ZKube.Integration.Transport.ClientLog.Sink = sink; }
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // The wallet comes to the front for the purchase, which pauses the app and
+        // retires the page's reads. That must not cancel the request the player is
+        // approving: the approved purchase is sent and confirmed, and the page
+        // shows the new balance when the app is back, without a tap.
+        [UnityTest] public IEnumerator APurchaseApprovedWhileTheWalletPausedTheAppIsSentAndConfirmed()
+        {
+            yield return PrepareScenario("kredit-buy-10"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenKredits()); yield return Idle();
+            var hold = environment.HoldNextWallet();
+            yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(10));
+            try
+            {
+                yield return Wait(hold.Entered);
+                Adapter.SendMessage("OnApplicationPause", true);
+                Adapter.SendMessage("OnApplicationPause", false); yield return null;
+                hold.Release();
+                yield return Until(() => !Adapter.EconomyActionPending, "The purchase finished"); yield return null; yield return Idle();
+                yield return Until(() => Field("kreditRead") != null, "The page read its balance again"); yield return Idle();
+                Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess), Adapter.LastReceipt.Code);
+                Assert.That(Text("Kredit balance"), Is.EqualTo("35"));
+                Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
+                Assert.That(Offers("Try again"), Is.False);
+            }
+            finally { hold.Release(); }
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // A request refused after the wallet paused the app still says why, with
+        // its retry, on the page it was asked from; it writes its one log line; and
+        // the last operation states the same cause, never a generic sentence.
+        [UnityTest] public IEnumerator ARefusalAfterTheWalletPausedTheAppStillSaysWhyAndLogsIt()
+        {
+            yield return PrepareScenario("kredit-owner-decline"); Click("Connect"); yield return Idle();
+            yield return Wait(Adapter.OpenKredits()); yield return Idle();
+            var lines = new System.Collections.Generic.List<string>(); var sink = ZKube.Integration.Transport.ClientLog.Sink;
+            ZKube.Integration.Transport.ClientLog.Sink = lines.Add;
+            var hold = environment.HoldNextWallet();
+            yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(environment.KreditPack));
+            try
+            {
+                yield return Wait(hold.Entered);
+                Adapter.SendMessage("OnApplicationPause", true);
+                Adapter.SendMessage("OnApplicationPause", false); yield return null;
+                hold.Release();
+                yield return Until(() => !Adapter.EconomyActionPending, "The request finished"); yield return null; yield return Idle();
+                yield return Until(() => Field("kreditRead") != null, "The page read again"); yield return Idle();
+                Assert.That(Text("Action refused"), Is.EqualTo("Not approved in your wallet."));
+                Assert.That(Offers("Try again"), Is.True);
+                Assert.That(lines, Is.EqualTo(new[] { "zKube request failed: action=purchase-kredits outcome=Rejected code=wallet-rejected" }));
+                Assert.That(Asked("sendTransaction"), Is.Zero);
+                Click("Settings"); yield return Idle(); Click("Last operation"); yield return Idle();
+                Assert.That(host.GetComponent<PageViews>().ShownPanel, Is.EqualTo("Operation"));
+                Assert.That(Text("Transaction receipt"), Is.EqualTo("Not approved in your wallet."));
+            }
+            finally { hold.Release(); ZKube.Integration.Transport.ClientLog.Sink = sink; }
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

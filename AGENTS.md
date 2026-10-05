@@ -338,6 +338,14 @@ deployment or spending approval.
   thread asked, because JNI finds the application's classes only there; a call that fails names its Java class
   and member, never a bare JNI message. `EveryPluginCallIsMadeOnTheApplicationThreadWhicheverThreadAsked` and
   `APluginCallThatFailsNamesTheJavaMemberInTheLog` guard it.
+- **Outcomes:** an action belongs to the address, not to the page that asked. The wallet it opens pauses the
+  app, which retires that page's reads and never cancels the request the player is approving; its outcome and
+  its reason reach the page it was asked from when the app is back, and only another address drops them. Every
+  outcome that is not a success or still pending writes one line where it is made: the action, the outcome, its
+  code and what stopped it. The last operation states that same cause, never a generic sentence.
+  `APurchaseApprovedWhileTheWalletPausedTheAppIsSentAndConfirmed`,
+  `ARefusalAfterTheWalletPausedTheAppStillSaysWhyAndLogsIt` and
+  `EveryOutcomeThatIsNotASuccessLeavesOneLogLine` guard them.
 - **Saved authorization:** the device keeps the address the wallet last authorized, with the wallet's token,
   in the native vault. A start enters with that address and asks no wallet; the next wallet request proves it.
   A wallet that answers for another account ends it: the vault drops the entry, the client drops the address

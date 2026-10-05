@@ -35,6 +35,7 @@ namespace ZKube.Integration.Presentation
                 var until = DateTime.UtcNow + followFor;
                 while (true)
                 {
+                    if (!Current(epoch)) return result;
                     if (result != null) await Task.Delay(followEvery, token);
                     if (!Current(epoch)) return result;
                     var next = (await Flow.ResumePending(token, !own)).Value;
@@ -86,7 +87,7 @@ namespace ZKube.Integration.Presentation
         private Task Act(string action, bool device, Func<CancellationToken, Task<ExecutionResult>> request,
             Func<long, CancellationToken, Task> readBack, Action retry, Action<ExecutionResult> sent = null)
         {
-            string family = Family();
+            string family = Family(); var lease = identity.Lease();
             return Run(async (epoch, token) => {
                 if (device) sessionActionPending = true; else economyActionPending = true;
                 ClearRefusal(); Present();
@@ -95,21 +96,27 @@ namespace ZKube.Integration.Presentation
                     ExecutionResult result = null; string reason;
                     try
                     {
-                        result = await Follow(await request(token), epoch, token);
+                        // An action belongs to the address, not to the page's reads: the
+                        // wallet it opens pauses the app, which retires those reads and
+                        // must never cancel the request the player is approving.
+                        result = await Follow(await request(CancellationToken.None), epoch, token);
                         reason = MoneyReceiptText.Refusal(result);
                         // The wait ran out: the retry keeps following, it never sends again.
                         if (result.Outcome == ExecutionOutcome.Pending) { reason = Unconfirmed; retry = () => _ = FollowTransaction(); }
                     }
                     catch (Exception error) when (!(error is OperationCanceledException)) { ClientLog.Failure(action, error); reason = Reason(error); }
                     if (result != null) sent?.Invoke(result);
-                    if (!Current(epoch)) return;
+                    // The outcome and its reason are this address's on this page, whether
+                    // or not the pause retired the operation; only another address drops them.
+                    if (!identity.IsCurrent(lease)) return;
                     // The wallet no longer answers for this address: the saved
                     // authorization has ended, and the page is Connect again with no stale account.
                     if (result != null && (result.Code == "account-changed" || result.Code == "authorization-required"))
                     { await Disconnect(false); Refuse("Connect", reason, () => _ = Connect()); return; }
-                    if (result != null) ShowReceipt(result, identity.Owner); // Preserve the exact result before read-back can fail.
+                    if (result != null) ShowReceipt(result, lease.Owner); // Preserve the exact result before read-back can fail.
                     if (reason != null) Refuse(family, reason, retry);
-                    await readBack(epoch, token);
+                    // A retired page reads again by its own rule once the app is back.
+                    if (Current(epoch)) await readBack(epoch, token);
                 }
                 finally
                 {

@@ -87,14 +87,12 @@ namespace ZKube.Integration.Execution
                     if (plan.FeePayer == plan.Owner && balanceTask.Result < fee)
                     {
                         if (!last) continue;
-                        ClientLog.Outcome(intent, "owner-fee-shortage", null);
                         return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "owner-fee-shortage");
                     }
                     try { plan.RequireDeviceFunding(balanceTask.Result, rentTask.Result, fee); }
                     catch (InvalidOperationException)
                     {
                         if (!last) continue;
-                        ClientLog.Outcome(intent, "device-deposit-low", null);
                         return new ExecutionResult(ExecutionOutcome.FeeShortage, intent, code: "device-deposit-low");
                     }
                     foreach (var signer in signers) transaction = signer.PartialSign(transaction);
@@ -102,7 +100,6 @@ namespace ZKube.Integration.Execution
                     var simulation = await rpc.Simulate(endpoint, transaction, lease, cancellation).ConfigureAwait(false);
                     if (simulation.Succeeded) break;
                     if (!last) continue;
-                    ClientLog.Outcome(intent, "simulation-rejected", simulation.ErrorJson);
                     return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "simulation-rejected", chainError: simulation.ErrorJson);
                 }
                 cancellation.ThrowIfCancellationRequested();
@@ -126,20 +123,17 @@ namespace ZKube.Integration.Execution
                 catch (Exception error) { ClientLog.Failure(intent + " send", error); }
                 return await Reconcile(pending, reconciler, cancellation).ConfigureAwait(false);
             }
-            catch (WalletRequestException error) { ClientLog.Outcome(intent, error.Code, null); return Rejected(intent, error.Code); }
+            catch (WalletRequestException error) { return Rejected(intent, error.Code); }
             // The wallet returned another message: nothing is sent, and what it changed is kept as evidence.
             catch (WalletChangedMessageException error) when (pending == null)
-            {
-                ClientLog.Evidence(intent, "wallet-changed-message", error.Summary);
-                return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "wallet-changed-message", walletChange: error.Summary);
-            }
+            { return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "wallet-changed-message", walletChange: error.Summary); }
             catch (OperationCanceledException)
             { return pending == null ? Rejected(intent, "cancelled") : Pending(pending, "observation-cancelled"); }
             catch (Exception error)
             {
-                ClientLog.Failure(intent, error);
-                return pending == null ? new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "preparation-failed", failure: RequestFailure.Of(error))
-                    : Pending(pending, "outcome-unknown");
+                if (pending == null) return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "preparation-failed", failure: RequestFailure.Of(error));
+                ClientLog.Failure(intent + " after its journal", error);
+                return Pending(pending, "outcome-unknown");
             }
             finally { install?.Dispose(); executing.Release(); }
         }
