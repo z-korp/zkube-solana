@@ -82,7 +82,7 @@ namespace ZKube.Presentation
             bool entering = Shown != page;
             reducedMotion = source.SettingsPage().ReducedMotion;
             if (page == AppPage.Settings && entering) { lastMusic = AudioPolicy.ToggleOnLevel; lastEffects = AudioPolicy.ToggleOnLevel; }
-            Shown = page; shownPanel = null;
+            Shown = page; shownPanel = null; unavailable = null;
             // The previous kit stays with the page drawn from it; the shell releases it.
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
@@ -124,7 +124,7 @@ namespace ZKube.Presentation
             FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(source.SettingsPage().ReducedMotion, ui.Density);
-            Music(page != AppPage.Result);
+            Music(page != AppPage.Result); Drawn();
         }
         // A page that fits its body does not scroll; one that overflows scrolls
         // to its last piece and a little past it, clear of the fade.
@@ -140,10 +140,17 @@ namespace ZKube.Presentation
         {
             if (Shown.HasValue) Render(Shown.Value, shownNotices);
             else if (shownPanel != null) RenderPanel(shownPanel, shownNotices);
+            else unavailable?.Invoke();
         }
+        // The display the shown page was laid out for. A page is absolute layout, so when the
+        // screen or its safe area changes it is drawn again, here, for every identity.
+        private Rect drawnScreen, drawnSafe;
+        private Action unavailable;
+        private void Drawn() { drawnScreen = shell.ScreenArea; drawnSafe = shell.SafeArea; }
+        private bool Showing => Shown.HasValue || shownPanel != null || unavailable != null;
 
         // Removes the drawn page, so the next page enters without a page to leave.
-        public void Hide() { Retire(); Shown = null; shownPanel = null; shell.Clear(shell.SafeArea); Music(false); }
+        public void Hide() { Retire(); Shown = null; shownPanel = null; unavailable = null; shell.Clear(shell.SafeArea); Music(false); }
         // A board takes the screen: its music replaces the page's now, and the
         // page stays, taking no input, until the board has drawn (PageShell.HandOver).
         public void HandOver(BoardController board) { Music(false); shell.HandOver(board, Hide); }
@@ -151,7 +158,7 @@ namespace ZKube.Presentation
         // A page that could not load its realm art has no skin kit to draw with.
         public void Unavailable(string title, string message, PageAction retry)
         {
-            Retire(); Shown = null; shownPanel = null;
+            Retire(); Shown = null; shownPanel = null; unavailable = () => Unavailable(title, message, retry); Drawn();
             float d = Mathf.Max(.5f, density());
             var safe = shell.SafeArea;
             shell.Clear(safe); shell.Backdrop(null);
@@ -473,6 +480,7 @@ namespace ZKube.Presentation
 
         private void Update()
         {
+            if (Showing && (drawnScreen != shell.ScreenArea || drawnSafe != shell.SafeArea)) Redraw();
             actions?.Refresh();
             if (countdownView?.Now != null)
             {

@@ -725,7 +725,9 @@ and leaves in the frame the next is drawn. A page's painting is decided when it 
 already holds (the Arena profile's from the profile account its overview read), and a page whose painting is
 not known keeps the one on screen; no default stands in. A frame slower than the fade does not skip it.
 `EveryArenaPageChangeIsOneChangeOfPainting` and `ASlowFrameDoesNotSkipThePaintingsCrossFade` guard the Arena's
-tabs and the fade.
+tabs and the fade. A page is laid out for one display: when the screen or its safe area changes, `PageViews`
+draws the shown page again by itself, for both identities;
+`AChangedDisplayDrawsThePageAgainUnderBothIdentityImplementations` guards it.
 
 One parsed theme catalog and generated constraint captions serve pages and boards. One startup/configuration
 path owns both products, and money-only schemas stay out of store packages.

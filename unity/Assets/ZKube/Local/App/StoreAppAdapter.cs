@@ -27,8 +27,6 @@ namespace ZKube.Local.App
         private uint lastDay;
         private LocalProductState lastProduct;
         private PlayerAccount lastAccount;
-        private Rect lastSafe;
-        private Vector2Int lastSize;
         private Exception lastFulfillment;
         private float TextScale => board.TextScale > 1 ? 1.3f : 1;
 
@@ -54,11 +52,10 @@ namespace ZKube.Local.App
             var today = Flow.Today.DayId;
             bool busy = Flow.Billing.Busy;
             if (!ReferenceEquals(lastProduct, Flow.Product.Read) || lastDay != today || lastBusy != busy ||
-                lastUnsaved != Flow.Unsaved || !ReferenceEquals(lastAccount, Flow.Account) || lastSafe != Screen.safeArea || lastSize != new Vector2Int(Screen.width, Screen.height) ||
+                lastUnsaved != Flow.Unsaved || !ReferenceEquals(lastAccount, Flow.Account) ||
                 !ReferenceEquals(lastFulfillment, Flow.Billing.LastFulfillmentError))
             {
                 lastProduct = Flow.Product.Read; lastAccount = Flow.Account; lastDay = today; lastBusy = busy; lastUnsaved = Flow.Unsaved;
-                lastSafe = Screen.safeArea; lastSize = new Vector2Int(Screen.width, Screen.height);
                 lastFulfillment = Flow.Billing.LastFulfillmentError; Refresh();
             }
             if (dirty && !loading && Flow.Page != StorePage.Board) StartCoroutine(Render());

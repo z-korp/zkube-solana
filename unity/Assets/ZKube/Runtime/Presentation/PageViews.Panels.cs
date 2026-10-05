@@ -27,7 +27,7 @@ namespace ZKube.Presentation
             Retire();
             bool entering = Shown.HasValue || shownPanel?.Key != page.Key;
             reducedMotion = source.SettingsPage().ReducedMotion;
-            Shown = null; shownPanel = page;
+            Shown = null; shownPanel = page; unavailable = null;
             ui = new SkinUi(shell.Artwork, Mathf.Max(.5f, density()), textScale);
             var messages = (notices ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrEmpty(value)).ToArray();
             float kept = entering ? -1 : shell.Offset;
@@ -40,7 +40,7 @@ namespace ZKube.Presentation
             FinishPage();
             if (kept >= 0) shell.Offset = kept;
             if (entering) shell.Enter(reducedMotion, ui.Density);
-            Music(page.Tab.HasValue);
+            Music(page.Tab.HasValue); Drawn();
         }
 
         // A page's blocks under its title: a page without tabs centres them
