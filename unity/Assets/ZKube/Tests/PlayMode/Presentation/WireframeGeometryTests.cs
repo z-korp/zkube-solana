@@ -510,10 +510,10 @@ namespace ZKube.Tests.Presentation
         }
 
         // The menu music plays under Home, Campaign (and a level's preview),
-        // Profile, Settings and an identity page under a tab, at the player's
-        // music level, from the catalog's menu-music slot; a result and the board
-        // (the pages hidden) stop it.
-        [UnityTest] public IEnumerator MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAndTheBoard()
+        // Profile, Settings and every identity page, under a tab or without
+        // one, at the player's music level, from the catalog's menu-music slot;
+        // only a result and the board (the pages hidden) stop it.
+        [UnityTest] public IEnumerator MenuMusicPlaysUnderEveryPageAndStopsForAResultAndTheBoard()
         {
             root = new GameObject("Menu music");
             if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
@@ -541,6 +541,14 @@ namespace ZKube.Tests.Presentation
             Assert.AreEqual(Resources.Load<AudioClip>(PageCatalog.Load().menuMusicResource), music.clip, "The clip is the catalog's menu-music slot");
             views.RenderPanel(new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Blocks = new PanelBlock[0] }); yield return null;
             Assert.IsTrue(music.isPlaying, "An identity page under a tab keeps it");
+            // A page without tabs, a confirmation or a list a tab page opened, keeps it too, and so does the way back.
+            float heard = music.time;
+            views.RenderPanel(new PanelPageView { Key = "Revoke", Title = "Disable this device", Blocks = new PanelBlock[0] }); yield return null;
+            Assert.IsTrue(music.isPlaying, "An identity page without tabs keeps it");
+            views.RenderPanel(new PanelPageView { Key = "Kredits", Title = "Kredits", Tab = AppPage.Home, Blocks = new PanelBlock[0] }); yield return null;
+            Assert.IsTrue(music.isPlaying, "The way back keeps it");
+            Assert.AreEqual(music.clip, Resources.Load<AudioClip>(PageCatalog.Load().menuMusicResource));
+            Assert.GreaterOrEqual(music.time, heard, "The track played on; it did not start again");
             views.Render(AppPage.Result); yield return null;
             Assert.IsFalse(music.isPlaying, "A result stops it");
             views.Render(AppPage.Home); yield return null;

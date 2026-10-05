@@ -744,8 +744,10 @@ owner: a page reads them when it draws, a board when it is made, and a board kep
 next one. Opening a run writes none of them, and an explicit size a test hands in is never saved.
 `SettingsChangedOnABoardOrAPageReachEveryPageAndTheNextBoard` guards the Arena, whose Settings page and boards are
 not one object. One menu track, the catalog's
-menu-music slot (assets/common/sounds/musics/menu.mp3), plays under the tab pages at the music level and stops
-for a result and the board; `MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAndTheBoard` guards it. One
+menu-music slot (assets/common/sounds/musics/menu.mp3), plays under every page at the music level, an identity
+page without tabs included, and stops only for a result and the board;
+`MenuMusicPlaysUnderEveryPageAndStopsForAResultAndTheBoard` and
+`TheMenuMusicPlaysOnThroughTheArenasConfirmationsAndBack` guard it. One
 listener, `Ears`, made at startup and kept for the life of the app, hears every source: the pages' and a board's
 alike, whichever was made first; no page or board makes its own.
 `OneListenerHearsThePagesAndABoardMadeUnderThem` guards the rule, and `PaintWatch` checks every frame of the

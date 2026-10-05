@@ -41,9 +41,9 @@ namespace ZKube.Presentation
         private bool reducedMotion;
         private byte shownRealm;
         public AppPage? Shown { get; private set; }
-        // The menu music: it plays under Home, Campaign (the map and a level's
-        // preview), Profile and Settings and the identity pages under their
-        // tabs, at the player's music level, and stops for a result and the board.
+        // The menu music: it plays under every page, an identity page without
+        // tabs included, at the player's music level, and stops only for a result
+        // and the board.
         public AudioSource MenuMusic { get; private set; }
 
         // homeTabName is the Home tab's word ("Home", or the Arena's own name);
