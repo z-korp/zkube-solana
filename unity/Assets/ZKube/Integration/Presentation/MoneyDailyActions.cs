@@ -76,10 +76,10 @@ namespace ZKube.Integration.Presentation
         {
             if (!confirmingDaily || !CanEnterDaily() || boardHost == null) return Task.CompletedTask;
             confirmingDaily = false;
-            return OpenRun(() => Flow.StartDailyRun());
+            return OpenRun(() => Flow.StartDailyRun(), "Entering");
         }
         public Task ResumeDailyRun() => !CanUseDaily() || boardHost == null ? Task.CompletedTask :
-            OpenRun(() => Flow.OpenSavedRun());
+            OpenRun(() => Flow.OpenSavedRun(), "Opening");
 
         // The Arena's landing page: today's Daily with its prize pool, the Kredit
         // figure and one action, which is the player's next step, or the reason
@@ -113,8 +113,9 @@ namespace ZKube.Integration.Presentation
             bool device = state.Entry.Status == "needs-session" || state.Entry.Status == "missing-player";
             if (state.Entry.Status == "pending-transaction")
             {
-                Reason(arcade, RefusalOn("Daily") ?? Confirming, null);
-                action = RefusalOn("Daily") != null ? PageAction("Try again", refusalRetry, CanUseDaily) : null;
+                // A transaction still unconfirmed: the card's action is the loader, followed without a tap.
+                if (RefusalOn("Daily") != null) Reason(arcade, RefusalOn("Daily"), null); else if (slow) Reason(arcade, StillChecking, null);
+                action = RefusalOn("Daily") != null ? PageAction("Try again", refusalRetry, CanUseDaily) : Progressing();
             }
             else if (state.Entry.Status == "resume" || state.Run.Phase != "none")
                 action = PageAction("Resume run", () => _ = ResumeDailyRun(), () => CanUseDaily() && boardHost != null);
@@ -144,6 +145,8 @@ namespace ZKube.Integration.Presentation
             arcade.KreditLevel = device || kredits > 1 ? KreditLevel.Enough : kredits == 1 ? KreditLevel.Last : KreditLevel.None;
             arcade.OpenKredits = PageAction("Kredits", () => _ = OpenKredits(), () => PageAvailable() && !Busy);
             LandingBoards(arcade, lobby);
+            // An entry on its way: the card's button is its loader until the board takes the screen.
+            if (opening != null) action = new PageAction { Label = opening, Name = "Action progress", Progress = opening };
             return Page(action);
         }
 
@@ -255,6 +258,7 @@ namespace ZKube.Integration.Presentation
             if (!Busy && pageNotice != null)
                 return Home(new ArcadeView { Headline = "Needs refreshing", Reason = pageNotice },
                     0, PageAction("Refresh", () => _ = RefreshOverview(), () => PageAvailable() && !Busy));
+            if (opening != null) return Home(new ArcadeView(), 0, new PageAction { Label = opening, Name = "Action progress", Progress = opening });
             return Home(new ArcadeView { Headline = "Checking…" }, 0);
         }
         private static void Reason(ArcadeView arcade, string reason, string detail)

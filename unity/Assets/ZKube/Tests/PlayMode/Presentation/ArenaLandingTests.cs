@@ -168,8 +168,7 @@ namespace ZKube.Tests.Presentation
                 ("set up device", () => ArenaLanding.View(kredits: "0"), "Set up device"),
                 ("top up deposit", () => ArenaLanding.View(), "Top up deposit"),
                 ("run in flight", () => ArenaLanding.View(kredits: "2"), "Resume run"),
-                ("confirming", () => With(view => view.Reason = "Waiting for Solana to confirm…"), null),
-                ("not confirmed", () => With(view => view.Reason = "Solana has not confirmed this yet."), "Try again"),
+                ("still checking", () => With(view => view.Reason = "Still checking. This either completes or changes nothing."), "Confirming"),
                 ("entries paused", () => With(view => { view.Headline = "Entries paused"; view.Warning = true; view.Reason = "Entries are paused."; }), "Play Campaign"),
                 ("entries closed", () => With(view => view.Headline = "Entries closed"), "See boards"),
                 ("opens soon", () => new ArcadeView { Headline = "Opens soon" }, "Play Campaign"),
@@ -199,6 +198,36 @@ namespace ZKube.Tests.Presentation
                         button.name != "Kredits"), Is.EqualTo(action == null ? 0 : 1), at + ": one action at most");
                     yield return Captures.Snap(shell, "landing " + name + " " + size);
                 }
+            }
+        }
+
+        // An action in progress shows on its own button: the loader turning where
+        // the icon was, its step as the words, at full strength and taking no
+        // tap. Reduced motion shows the still hourglass and the same word.
+        [UnityTest] public IEnumerator AnActionInProgressShowsTheLoaderAndItsStepAndTakesNoTap()
+        {
+            yield return Open(); Phones.Compact(shell);
+            foreach (bool still in new[] { false, true })
+            {
+                source.Still = still; int taps = 0; long now = 20705L * 86400 + 8 * 3600;
+                source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400 + 7 * 3600 - 60,
+                    Arcade = ArenaLanding.View(), Actions = new[] { new PageAction { Label = "Confirming", Name = "Action progress", Progress = "Confirming", Invoke = () => taps++ } } };
+                views.Render(AppPage.Home); yield return null;
+                foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                yield return null; Canvas.ForceUpdateCanvases();
+                string at = still ? "reduced motion" : "motion";
+                var button = root.GetComponentsInChildren<Button>().Single(value => value.name == "Action progress");
+                Assert.That(button.GetComponentInChildren<TMP_Text>().text, Is.EqualTo("Confirming"), at + ": the step is the button's words");
+                Assert.That(button.interactable, Is.False, at + ": it takes no tap");
+                button.onClick.Invoke(); Assert.That(taps, Is.Zero, at);
+                Assert.That(button.GetComponent<CanvasGroup>()?.alpha ?? 1, Is.EqualTo(1), at + ": drawn at full strength");
+                var loader = Named("Action loader").Single();
+                StringAssert.StartsWith(still ? SkinSlots.IconHourglass : SkinSlots.IconRetry, loader.sprite.name, at + ": the loader's mark");
+                Assert.That(loader.GetComponent<Turn>() != null, Is.EqualTo(!still), at + ": it turns only with motion on");
+                float angle = loader.transform.localEulerAngles.z; yield return new WaitForSecondsRealtime(.15f);
+                Assert.That(Mathf.Approximately(loader.transform.localEulerAngles.z, angle), Is.EqualTo(still), at + ": the loader's motion");
+                Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Scroll.viewport.rect.height + .5f), at + ": the page does not scroll");
+                yield return Captures.Snap(shell, "landing action in progress" + (still ? " reduced motion" : ""));
             }
         }
 

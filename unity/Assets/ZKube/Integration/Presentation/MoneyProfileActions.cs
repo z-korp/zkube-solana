@@ -79,7 +79,7 @@ namespace ZKube.Integration.Presentation
             if (state.Pending != null)
             {
                 if (RefusalOn("Profile") != null) actions.Add(PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy));
-                else notices.Add(Confirming);
+                else { if (slow) notices.Add(StillChecking); actions.Add(Progressing()); }
             }
             else if (!state.Session.Current || state.Session.Funding != "ready")
             {
@@ -189,16 +189,8 @@ namespace ZKube.Integration.Presentation
                         PanelBlock.Portrait(Shown(selectedEmblem), SkinSlots.LadderBorder(selectedBorder)),
                         PanelBlock.Card("Selection card", PanelBlock.Title(name, centered: true, name: "Selection"),
                             PanelBlock.Text("Selection rule", "Your current emblem and border stay worn until this change is confirmed.")) };
-                    if (economyActionPending || sessionActionPending)
-                    {
-                        blocks.Add(PanelBlock.Text("Selection notice", "Your wallet request is still finishing."));
-                        blocks.Add(DisconnectButton());
-                    }
-                    else if (state.Pending != null)
-                    {
-                        if (RefusalOn("Profile") != null) blocks.Add(Retry(() => PageAvailable() && !Busy));
-                        else blocks.Add(PanelBlock.Text("Selection notice", Confirming));
-                    }
+                    if (economyActionPending || sessionActionPending) Requesting(blocks);
+                    else if (state.Pending != null) Awaiting("Profile", blocks, () => PageAvailable() && !Busy);
                     else if (!state.Session.Current || state.Session.Funding != "ready")
                     {
                         blocks.Add(PanelBlock.Text("Selection notice", "Set up this device to change your emblem or border."));

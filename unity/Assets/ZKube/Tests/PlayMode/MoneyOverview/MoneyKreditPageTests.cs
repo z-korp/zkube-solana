@@ -27,15 +27,20 @@ namespace ZKube.Tests.MoneyOverview
             var offers = host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Buy ")).Select(button => button.name).ToArray();
             Assert.That(offers, Is.EquivalentTo(new[] { "Buy 1 Kredit · 0.01 SOL", "Buy 10 Kredits · 0.10 SOL", "Buy 25 Kredits · 0.25 SOL" }));
             Canvas.ForceUpdateCanvases();
-            foreach (var button in host.GetComponentsInChildren<Button>().Where(button => button.name.StartsWith("Buy ")))
+            var prices = host.GetComponentsInChildren<TMPro.TMP_Text>().Where(label => label.name.StartsWith("Pack ") && label.name.EndsWith(" price words")).ToArray();
+            Assert.That(prices.Select(label => label.text), Is.EqualTo(new[] { "0.01 SOL", "0.10 SOL", "0.25 SOL" }), "Each card's button is its price");
+            foreach (var label in prices)
             {
-                var label = button.GetComponentInChildren<TMPro.TMP_Text>(); label.ForceMeshUpdate();
-                Assert.That(label.preferredHeight, Is.LessThanOrEqualTo(label.rectTransform.rect.height + 1), button.name);
+                label.ForceMeshUpdate();
+                Assert.That(label.preferredHeight, Is.LessThanOrEqualTo(label.rectTransform.rect.height + 1), label.name);
+                Assert.That(label.preferredWidth, Is.LessThanOrEqualTo(label.rectTransform.rect.width + 1), label.name);
             }
             yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(pack)); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
-            Assert.That(Text("Kredit balance"), Is.EqualTo((25 + pack).ToString()));
+            // The balance counts up to the confirmed figure, its gain beside it.
+            Assert.That(Text("Kredit balance gained"), Is.EqualTo("+" + pack));
+            yield return Until(() => Text("Kredit balance") == (25 + pack).ToString(), "The balance counts up to the confirmed figure");
             Assert.That(host.GetComponentsInChildren<UnityEngine.UI.Image>().Any(image => image.name == "Receipt card"), Is.False, "The page carries no receipt card");
             // The last operation, behind Settings, shows the whole signature on request.
             controller.Navigate(AppPage.Settings); yield return Idle();
@@ -72,7 +77,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
-        [UnityTest] public IEnumerator PendingSuccessChangesBalanceOnlyAfterAnExplicitCheck() => PendingPurchase(false);
+        [UnityTest] public IEnumerator PendingSuccessChangesBalanceOnceItConfirms() => PendingPurchase(false);
         [UnityTest] public IEnumerator PendingFailureKeepsTheOriginalBalanceAndReceipt() => PendingPurchase(true);
         private IEnumerator PendingPurchase(bool failure)
         {
@@ -89,10 +94,10 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(controller.PurchaseKredits(pack));
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
             if (failure) environment.ConfirmPendingFailure(); else environment.ConfirmPendingSuccess();
-            yield return SessionClick("Try again"); yield return Idle();
+            yield return Until(() => controller.LastReceipt.Outcome != ExecutionOutcome.Pending, "The next round finds the outcome without a tap"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(failure ? ExecutionOutcome.ConfirmedFailure : ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
-            Assert.That(Text("Kredit balance"), Is.EqualTo((failure ? 25 : 25 + pack).ToString()));
+            yield return Until(() => Text("Kredit balance") == (failure ? 25 : 25 + pack).ToString(), "The balance is the confirmed one");
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
@@ -107,9 +112,11 @@ namespace ZKube.Tests.MoneyOverview
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
-            StringAssert.Contains("Transaction confirmed", Text("Transaction receipt"));
-            yield return SessionClick("Refresh Kredits"); yield return Idle();
-            Assert.That(Text("Kredit balance"), Is.EqualTo("35"));
+            // The purchase is confirmed and its balance is not read yet: no pack is offered again meanwhile.
+            Assert.That(Says("Balance not loaded."), Is.True);
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name.StartsWith("Buy ")), Is.False);
+            yield return SessionClick("Try again"); yield return Idle();
+            yield return Until(() => Text("Kredit balance") == "35", "The balance is read again");
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

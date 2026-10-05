@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -7,6 +8,7 @@ using ZKube.Core.Generated;
 using ZKube.Integration.App;
 using ZKube.Integration.Client;
 using ZKube.Integration.Execution;
+using UnityEngine;
 using ZKube.Presentation;
 
 namespace ZKube.Integration.Presentation
@@ -24,7 +26,7 @@ namespace ZKube.Integration.Presentation
             await RefreshKreditPage(epoch, token);
         });
 
-        private void CloseKreditView() { ClearKreditObservation(); browsingKredits = false; }
+        private void CloseKreditView() { ClearKreditObservation(); browsingKredits = false; shownKredits = null; kreditGainUntil = 0; actingPack = 0; }
         private void ClearKreditObservation() { kreditRead = null; pageNotice = null; Present(); }
         private async Task RefreshKreditPage(long epoch, CancellationToken token)
         {
@@ -34,6 +36,10 @@ namespace ZKube.Integration.Presentation
             var result = await Flow.RefreshKredits(token);
             if (!Current(epoch) || !browsingKredits) return;
             kreditRead = result; economyReadbackNeeded = false; pageNotice = null; AwaitLaunch(result.Value.Launched);
+            // A balance that grew while the page was open shows its gain for a moment.
+            ulong balance = result.Value.Profile.Kredits;
+            if (shownKredits.HasValue && balance > shownKredits.Value) { kreditsBefore = shownKredits.Value; kreditGainUntil = Time.unscaledTime + KreditGainSeconds; }
+            shownKredits = balance;
             if (result.Value.PreviousOperation != null) ShowReceipt(result.Value.PreviousOperation, identity.Owner);
             Present(); Status = "Kredits updated";
         }
@@ -41,6 +47,8 @@ namespace ZKube.Integration.Presentation
         {
             if (economyReadbackNeeded && browsingKredits && !Busy && !paused)
             { economyReadbackNeeded = false; _ = RefreshOverview(); return; }
+            // The gain has shown: the page settles to its plain balance.
+            if (browsingKredits && kreditGainUntil > 0 && Time.unscaledTime >= kreditGainUntil) { kreditGainUntil = 0; Present(); }
             if (!browsingKredits || kreditRead == null || kreditRead.IsCurrent) return;
             ClearKreditObservation(); Notice("Your balance changed. Refresh before buying Kredits.");
             Status = "Kredits need refreshing";
@@ -50,65 +58,80 @@ namespace ZKube.Integration.Presentation
 
         public static string KreditPurchaseLabel(uint pack) => "Buy " + pack + (pack == 1 ? " Kredit" : " Kredits") + " · " + Price(pack);
         private static string Price(uint pack) => MoneyText.Sol(checked(pack * (ulong)Protocol.EntryLamports));
+        // The pack whose purchase is in progress or did not go through, for its card.
+        private uint actingPack;
+        // A balance that just grew on this page: what it was, until the gain has shown.
+        private ulong? shownKredits;
+        private ulong kreditsBefore;
+        private float kreditGainUntil;
+        public const float KreditGainSeconds = 2.5f;
         public Task PurchaseKredits(uint pack)
         {
             if (!CanBuyKredits() || !SessionViewPolicy.KreditPacks.Contains(pack)) return Task.CompletedTask;
+            actingPack = pack;
             return Act("kredit purchase", false, async token => (await Flow.BuyKredits(pack, token)).Value, RefreshKreditPage, () => _ = PurchaseKredits(pack));
         }
 
-        // The shop: the confirmed balance, then one unit price and its packs, or
-        // what stands before buying: a request still finishing, a pending
-        // transaction to check, or a purchase that did not go through.
+        // The shop: the confirmed balance as the page's hero with what it means,
+        // then the packs as three equal cards. A purchase lives on the card that
+        // was tapped: its progress, its reason and its retry. No pack is marked,
+        // discounted or pushed, and the one-way rule stays in view.
         private PanelPageView KreditPage()
         {
             var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
-            var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Subtitle = "One Kredit enters one Daily", Back = back, Tab = AppPage.Home };
-            var arcade = PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
-            var refresh = PageAction("Refresh balance", () => _ = RefreshOverview(), () => PageAvailable() && !Busy, "Refresh Kredits");
-            var blocks = new List<PanelBlock>();
+            var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Back = back, Tab = AppPage.Home };
+            var terms = PanelBlock.Text("Kredit terms", "Kredits can’t be withdrawn, transferred or exchanged.", SkinTokens.TextMuted, true);
+            PackView[] Cards(Func<uint, PackView> card) => SessionViewPolicy.KreditPacks.Select(card).ToArray();
+            PackView Plain(uint pack) => new PackView { Name = "Pack " + pack, Art = pack == 1 ? SkinSlots.Pack1 : pack == 10 ? SkinSlots.Pack10 : SkinSlots.Pack25,
+                Count = pack.ToString(CultureInfo.InvariantCulture), Price = Price(pack), Dim = true };
             if (kreditRead == null)
             {
-                var receipt = LastReceipt;
-                if (failure != null && !Busy && receipt?.Outcome == ExecutionOutcome.ConfirmedSuccess && receiptFamily == "Kredits")
-                {
-                    // A confirmed purchase whose balance could not be read back keeps its receipt.
-                    page.Blocks = new[] {
-                        PanelBlock.Card("Operation card", PanelBlock.Title(MoneyReceiptText.Title(receipt)),
-                            PanelBlock.Text("Transaction receipt", MoneyReceiptText.Describe(receipt, fullReceipt))),
-                        PanelBlock.Card("Balance card", PanelBlock.Title("Balance unavailable"),
-                            PanelBlock.Text("Balance failure", "The latest balance could not be read. Your confirmed receipt is retained.")),
-                        PanelBlock.Button(refresh, true), PanelBlock.Button(arcade, false) };
-                    return page;
-                }
-                var waiting = Waiting("Kredits", page.Title, page.Subtitle, AppPage.Home, pageNotice);
-                waiting.Back = back; return waiting;
+                // The balance is being read, or could not be: the loader stands for the figure, and a failed read says why.
+                bool failed = failure != null && !Busy;
+                var waiting = new List<PanelBlock> { PanelBlock.Space(), PanelBlock.Balance(null, null, null, failed ? "Balance not loaded." : pageNotice ?? "Reading your balance") };
+                waiting.Add(PanelBlock.PackRow(Cards(Plain), failed ? failure : null));
+                if (failed) waiting.Add(PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true, SkinSlots.IconRetry));
+                waiting.Add(terms);
+                page.Key = "Kredits waiting"; page.Blocks = waiting.ToArray();
+                return page;
             }
-            var state = kreditRead.Value;
-            if (!state.Launched) { page.Blocks = OpensSoon(); return page; }
-            blocks.Add(PanelBlock.Card("Balance card", PanelBlock.Figure("Kredit balance", "Confirmed balance",
-                state.Profile.Kredits.ToString(CultureInfo.InvariantCulture), "Kredits", SkinSlots.IconKredit)));
-            if (economyActionPending || sessionActionPending) Requesting(blocks);
-            else if (state.Pending != null)
+            var state = kreditRead.Value; ulong balance = state.Profile.Kredits;
+            string figure = balance.ToString(CultureInfo.InvariantCulture), entries = balance == 1 ? "1 entry" : figure + " entries";
+            // The hero and the packs sit in the middle of the page, with air round them.
+            var blocks = new List<PanelBlock> { PanelBlock.Space() };
+            if (!state.Launched)
             {
-                blocks.Add(PanelBlock.Card("Kredit notice", PanelBlock.Title("Purchase pending"),
-                    PanelBlock.Text("Kredit notice text", RefusalOn("Kredits") ?? Confirming)));
-                if (RefusalOn("Kredits") != null) blocks.Add(Retry(() => PageAvailable() && !Busy));
-                blocks.Add(PanelBlock.Button(arcade, false));
+                blocks.Add(PanelBlock.Balance(figure, null, null, "The Arena opens soon."));
+                blocks.Add(PanelBlock.PackRow(Cards(Plain)));
+                blocks.Add(PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()), false, SkinSlots.IconPlay));
+                blocks.Add(terms); page.Blocks = blocks.ToArray();
+                return page;
             }
-            else if (!Refused("Kredits", blocks, CanBuyKredits))
-            {
-                var packs = new List<PanelBlock> { PanelBlock.Eyebrow("Buy Kredits") };
-                bool first = true;
-                foreach (uint pack in SessionViewPolicy.KreditPacks)
-                {
-                    uint selected = pack;
-                    packs.Add(PanelBlock.Row("Pack " + pack, pack + (pack == 1 ? " Kredit" : " Kredits"), null, icon: SkinSlots.IconKredit, primary: first,
-                        action: PageAction(Price(pack), () => _ = PurchaseKredits(selected), CanBuyKredits, KreditPurchaseLabel(pack))));
-                    first = false;
-                }
-                blocks.Add(PanelBlock.Card("Pack card", packs.ToArray()));
-            }
-            blocks.Add(PanelBlock.Text("Kredit terms", "Kredits cannot be withdrawn, transferred or exchanged for SOL.", SkinTokens.TextMuted));
+            bool acting = economyActionPending || sessionActionPending, pending = state.Pending != null, waits = acting || pending;
+            string refused = RefusalOn("Kredits");
+            // Without the card it belongs to (a purchase found on arrival), the progress stands on the balance.
+            bool known = SessionViewPolicy.KreditPacks.Contains(actingPack), onBalance = waits && !known && refused == null;
+            bool gained = Time.unscaledTime < kreditGainUntil && balance > kreditsBefore;
+            blocks.Add(onBalance ? PanelBlock.Balance(null, null, null, "Confirming your purchase")
+                : PanelBlock.Balance(figure, entries, Price(1), null, gained ? "+" + (balance - kreditsBefore).ToString(CultureInfo.InvariantCulture) : null,
+                    gained ? kreditsBefore.ToString(CultureInfo.InvariantCulture) : null));
+            var cards = Cards(pack => {
+                var card = Plain(pack); bool own = known && pack == actingPack;
+                if (refused != null && own)
+                { card.Dim = false; card.Refused = true; card.Price = "Try again"; card.Buy = PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy); }
+                else if (waits && refused == null) { if (own) { card.Dim = false; card.Buy = Progressing(); card.Price = card.Buy.Label; } }
+                else { card.Dim = false; uint selected = pack; card.Buy = PageAction(Price(pack), () => _ = PurchaseKredits(selected), CanBuyKredits, KreditPurchaseLabel(pack)); }
+                return card;
+            });
+            int from = gained ? Array.IndexOf(SessionViewPolicy.KreditPacks.ToArray(), (uint)(balance - kreditsBefore)) : -1;
+            blocks.Add(PanelBlock.PackRow(cards, refused ?? (slow && waits ? StillChecking : null), refused == null, from));
+            // A refusal with no card to stand on (a follow that failed) keeps its retry.
+            if (refused != null && !known) blocks.Add(Retry(() => PageAvailable() && !Busy));
+            // The owner's wallet buys; an entry needs the device too.
+            if (!waits && ownerRead != null && ownerRead.IsCurrent && ownerRead.Value.Session != null && ownerRead.Value.Session.Status == "none")
+                blocks.Add(PanelBlock.Button(PageAction("Set up device to play", () => _ = OpenSession(), () => PageAvailable() && !Busy, "Set up device"), false));
+            if (acting && (actionStep == "wallet" || actionStep == null)) blocks.Add(DisconnectButton());
+            blocks.Add(terms);
             page.Blocks = blocks.ToArray();
             return page;
         }

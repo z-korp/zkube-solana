@@ -29,6 +29,8 @@ namespace ZKube.Integration.App
     public sealed partial class MoneyAppFlow
     {
         private readonly MoneyClientServices services;
+        // Where a transaction being made stands, for the page that asked for it.
+        public Action<string> ExecutionStep { set => services.Executor.Step = value; }
         private readonly object gate = new object();
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         private readonly SemaphoreSlim publicReads = new SemaphoreSlim(1, 1), ownerReads = new SemaphoreSlim(1, 1);

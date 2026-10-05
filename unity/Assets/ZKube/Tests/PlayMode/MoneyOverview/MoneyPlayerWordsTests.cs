@@ -76,7 +76,7 @@ namespace ZKube.Tests.MoneyOverview
 
             yield return Compact("kredit-pending-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
-            yield return Wait(Adapter.PurchaseKredits(environment.KreditPack)); yield return Words("Purchase pending");
+            yield return Wait(Adapter.PurchaseKredits(environment.KreditPack)); yield return Words("Purchase in progress");
             Adapter.Navigate(AppPage.Settings); yield return Idle(); Click("Last operation"); yield return Words("Transaction pending");
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
             Refuse("Kredits"); yield return Words("Purchase refused");

@@ -26,12 +26,14 @@ namespace ZKube.Tests.Presentation
     public sealed class ArenaLandingSource : IAppPageSource
     {
         public DailyPageView Daily;
+        // Reduced motion, as the page reads it from the settings.
+        public bool Still;
         public DailyPageView DailyPage() => Daily;
         public CampaignPageView CampaignView() => throw new System.NotSupportedException();
         public CampaignSummaryView CampaignSummary() => null;
         public LevelPageView LevelPage() => throw new System.NotSupportedException();
         public ProfilePageView ProfilePage() => throw new System.NotSupportedException();
-        public SettingsPageView SettingsPage() => AppPreferences.Read(() => { });
+        public SettingsPageView SettingsPage() { var settings = AppPreferences.Read(() => { }); settings.ReducedMotion = Still; return settings; }
         public ResultPageView ResultPage() => throw new System.NotSupportedException();
         public bool CanNavigate(AppPage page) => true;
         public void Navigate(AppPage page) { }

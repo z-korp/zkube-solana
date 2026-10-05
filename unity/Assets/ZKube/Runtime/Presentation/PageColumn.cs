@@ -17,7 +17,7 @@ namespace ZKube.Presentation
         private readonly Dictionary<Button, (string shown, Action<string> relabel)> labels = new Dictionary<Button, (string, Action<string>)>();
         private readonly Action<Exception> report;
         public PageActions(Action<Exception> report) { this.report = report ?? throw new ArgumentNullException(nameof(report)); }
-        public Action Click(PageAction action) => () => { if (action.Available) Run(action.Invoke); };
+        public Action Click(PageAction action) => () => { if (action.Available && action.Progress == null) Run(action.Invoke); };
         public void Run(Action action) { try { action?.Invoke(); } catch (Exception error) { report(error); } }
         // Unavailable buttons dim unless their art already shows the state (map nodes, emblems).
         public Button Bind(Button button, PageAction action, bool fade = true, Action<string> relabel = null)
@@ -33,11 +33,12 @@ namespace ZKube.Presentation
         public void Clear() { bound.Clear(); labels.Clear(); }
         private void Apply(Button button, PageAction action)
         {
-            bool available = action.Available;
-            button.interactable = available;
+            // An action in progress is drawn at full strength and takes no tap.
+            bool available = action.Available, busy = action.Progress != null;
+            button.interactable = available && !busy;
             var group = button.GetComponent<CanvasGroup>();
-            if (group != null) group.alpha = available ? 1 : .5f;
-            if (action.Label == null) return;
+            if (group != null) group.alpha = available || busy ? 1 : .5f;
+            if (action.Label == null || busy) return;
             if (labels.TryGetValue(button, out var fitted))
             {
                 if (fitted.shown == action.Label) return;

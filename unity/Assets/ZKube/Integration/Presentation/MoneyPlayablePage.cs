@@ -32,9 +32,14 @@ namespace ZKube.Integration.Presentation
             boardHost.Closed += ReturnFromRun;
         }
 
-        private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
+        // The run being entered or opened, as the Daily card's button says it until the board takes the screen.
+        private string opening;
+        private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action, string word) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
             Status = "Opening your accepted run…";
-            var result = await action();
+            opening = word; Present();
+            MoneyRead<MoneyRunLaunch> result;
+            // What follows draws the page again when the run does not open; an opened board takes the screen.
+            try { result = await action(); } finally { opening = null; }
             if (!Current(epoch) || !result.IsCurrent) return;
             foreach (var receipt in result.Value.Operation.Receipts)
                 ShowReceipt(receipt.Result, receipt.Owner);

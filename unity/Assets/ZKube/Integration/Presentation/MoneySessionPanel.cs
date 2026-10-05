@@ -103,9 +103,8 @@ namespace ZKube.Integration.Presentation
             if (sessionActionPending) Requesting(blocks);
             else if (state.Pending != null)
             {
-                // The page follows it by itself; past the wait it says so and offers to keep following.
-                if (!Refused("Device", blocks, () => PageAvailable() && !Busy))
-                    blocks.Add(PanelBlock.Text("Device guide", Confirming, SkinTokens.TextMuted));
+                // The page follows it by itself, round after round.
+                Awaiting("Device", blocks, () => PageAvailable() && !Busy);
             }
             else
             {

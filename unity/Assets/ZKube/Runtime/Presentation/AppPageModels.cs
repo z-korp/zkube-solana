@@ -14,6 +14,9 @@ namespace ZKube.Presentation
         // The shorter words a pill uses when Label does not fit it on one line.
         public string Short;
         public string Name;
+        // The step of an action in progress, one word: its button shows the loader and
+        // this word in place of its own, and takes no tap, until the outcome.
+        public string Progress;
         public bool Enabled = true;
         public Func<bool> CanInvoke;
         public Action Invoke;
@@ -243,7 +246,17 @@ namespace ZKube.Presentation
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
     }
 
-    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Stepper, Rows }
+    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Stepper, Rows, Balance, Packs, Space }
+
+    // One Kredit pack on its card: its picture, its count and its price on the
+    // card's button. Buy is the card's tap; in progress it is the loader, and a
+    // refused purchase's retry. Every pack is drawn alike: none is marked.
+    public sealed class PackView
+    {
+        public string Name, Art, Count, Price;
+        public PageAction Buy;
+        public bool Dim, Refused;
+    }
 
     // One piece of an identity page, laid out by the screen kit as the
     // wireframes lay out the Arena. Text is left-aligned inside a card and
@@ -261,6 +274,7 @@ namespace ZKube.Presentation
         public PageAction[] Actions = Array.Empty<PageAction>();
         public PanelBlock[] Lines = Array.Empty<PanelBlock>();
         public BoardRowView[] Rows = Array.Empty<BoardRowView>();
+        public PackView[] Packs = Array.Empty<PackView>();
 
         // The page realm's guardian says a line, leaning on the card after it.
         public static PanelBlock Talk(string line, string mood) =>
@@ -311,6 +325,19 @@ namespace ZKube.Presentation
             new PanelBlock { Kind = PanelKind.Bar, Name = name, Sprite = icon, Value = number, Copy = words, ChipAtEnd = chipAtEnd, Actions = actions };
         public static PanelBlock Card(string name, params PanelBlock[] lines) =>
             new PanelBlock { Kind = PanelKind.Card, Name = name, Lines = lines };
+        // The Kredit balance as its page's hero: the coin and the figure, then
+        // what it means (the entries it buys, the one unit price) or one line in
+        // their place. Without a figure the loader stands for it. gained shows
+        // beside a balance that just grew, counted up from what it was.
+        public static PanelBlock Balance(string figure, string entries, string price, string line = null, string gained = null, string from = null) =>
+            new PanelBlock { Kind = PanelKind.Balance, Name = "Kredit balance", Value = figure, Copy = entries, Tag = price, Caption = line, Badge = gained, Chip = from };
+        // Room that takes its share of the page's spare height: what follows sits lower.
+        public static PanelBlock Space() => new PanelBlock { Kind = PanelKind.Space, Name = "Space" };
+        // The packs in a row, one size and one style; reason is the one line
+        // under them (a refusal, or calm when it only waits); from is the pack
+        // whose Kredits just arrived, or -1.
+        public static PanelBlock PackRow(PackView[] packs, string reason = null, bool calm = false, int from = -1) =>
+            new PanelBlock { Kind = PanelKind.Packs, Name = "Packs", Packs = packs, Caption = reason, Dim = calm, Primary = from };
         // A day stepper: previous, the date over the day's state (with its mark,
         // when it has one), next. A step that cannot be taken (past today, before
         // the first day) is passed as null and its arrow is drawn dimmed.

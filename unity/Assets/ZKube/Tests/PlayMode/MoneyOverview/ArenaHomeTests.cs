@@ -170,6 +170,33 @@ namespace ZKube.Tests.MoneyOverview
                 }
         }
 
+        // An action in progress shows on its button, step by step: the wallet's
+        // turn, the send, the wait for Solana. Its outcome then shows by itself
+        // and the button is the page's own again.
+        [UnityTest] public IEnumerator AnActionShowsEachStepOnItsButtonUntilItsOutcome()
+        {
+            yield return PrepareDeviceScenario("session-enable-success");
+            string Step() => host.GetComponentsInChildren<Button>().Where(button => button.name == "Action progress")
+                .Select(button => button.GetComponentInChildren<TMP_Text>().text).SingleOrDefault();
+            IEnumerator Shows(string word) { yield return Until(() => Step() == word, "The button says " + word); }
+            var wallet = environment.HoldNextWallet();
+            yield return SessionClick("Enable device");
+            yield return Wait(wallet.Entered); yield return Shows("Approve in wallet");
+            Assert.That(Offers("Enable device"), Is.False, "The loader stands where the action was");
+            Assert.That(Find("Action progress").interactable, Is.False);
+            Assert.That(host.GetComponentsInChildren<Image>().Count(image => image.name == "Action loader"), Is.EqualTo(1));
+            Assert.That(Offers("Disconnect"), Is.True, "The way out stays within reach");
+            var send = environment.HoldNextRead("sendTransaction"); wallet.Release();
+            yield return Wait(send.Entered); yield return Shows("Sending");
+            var status = environment.HoldNextRead("getSignatureStatuses"); send.Release();
+            yield return Wait(status.Entered); yield return Shows("Confirming");
+            status.Release(); yield return Idle();
+            Assert.That(Step(), Is.Null, "The outcome shows by itself");
+            Assert.That(Text("Device state"), Is.EqualTo("Session active"));
+            Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // No page but Last operation, behind Settings, carries a receipt: an
         // action's outcome shows on its own page.
         [UnityTest] public IEnumerator NoPageButLastOperationCarriesAReceipt()

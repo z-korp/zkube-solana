@@ -172,7 +172,7 @@ namespace ZKube.Integration.Presentation
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
             else if (Busy || message == null)
                 page.Blocks = sessionActionPending || economyActionPending ?
-                    new[] { PanelBlock.Text("Page notice", following ? Confirming : WalletOpen, SkinTokens.TextMuted), DisconnectButton() } :
+                    new[] { PanelBlock.Button(Progressing(), true), DisconnectButton() } :
                     new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
             else
                 page.Blocks = new[] {

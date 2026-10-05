@@ -50,6 +50,7 @@ namespace ZKube.Integration.Presentation
         {
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
             Flow = flow ?? throw new ArgumentNullException(nameof(flow));
+            Flow.ExecutionStep = step => { actionStep = step; Present(); };
             identity = clientIdentity ?? throw new ArgumentNullException(nameof(clientIdentity));
             now = clock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             injectedDensity = displayDensity; textScale = BoardController.SupportedTextScale(scale);
@@ -194,7 +195,7 @@ namespace ZKube.Integration.Presentation
             // superseded request), the visible page starts its own read.
             if (!Busy && identity.Owner != null && ReadMissing()) _ = RefreshOverview();
             // A transaction still unconfirmed on the page in front of the player is followed without a tap.
-            if (!Busy && identity.Owner != null && refusal == null && failure == null && PendingShown()) _ = FollowTransaction();
+            if (!Busy && identity.Owner != null && refusal == null && failure == null && PendingShown() && Time.unscaledTime >= followAgainAt) _ = FollowTransaction();
             if (dirty && !presenting && shell.Root.activeSelf) StartCoroutine(Render());
             if (Busy || campaignPage != null || browsingSession || browsingDaily || browsingKredits || browsingRewards || browsingProfile || browsingOperation ||
                 sharedPage.HasValue) return;

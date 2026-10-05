@@ -91,6 +91,7 @@ namespace ZKube.Presentation
                     i += run.Length - 1;
                     continue;
                 }
+                if (block.Kind == PanelKind.Space) { pieces.Add(Piece.Grow); continue; }
                 var piece = Block(block, kit, inCard);
                 if (piece.Height > 0 || piece.Draw != null) pieces.Add(piece);
             }
@@ -184,6 +185,8 @@ namespace ZKube.Presentation
                 case PanelKind.Card: return CardPiece(block, kit);
                 case PanelKind.Stepper: return StepperPiece(block, kit);
                 case PanelKind.Rows: return RowsPiece(block, kit);
+                case PanelKind.Balance: return BalancePiece(block, kit);
+                case PanelKind.Packs: return PacksPiece(block, kit);
                 default: throw new ArgumentOutOfRangeException(nameof(block));
             }
         }

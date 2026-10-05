@@ -164,7 +164,8 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick(ZKube.Integration.Presentation.MoneyAppAdapter.KreditPurchaseLabel(10)); yield return Idle();
             Assert.That(Text("Action refused"), Is.EqualTo("Solana refused this request. Check your wallet’s SOL."));
             Assert.That(Asked("signTransactions"), Is.Zero);
-            Assert.That(host.GetComponentsInChildren<Button>().Any(value => value.name.StartsWith("Buy ")), Is.False);
+            // The refused card carries the retry; the other two packs work again.
+            Assert.That(host.GetComponentsInChildren<Button>().Count(value => value.name.StartsWith("Buy ")), Is.EqualTo(2));
             yield return SessionClick("Try again"); yield return Idle();
             Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(Asked("signTransactions"), Is.EqualTo(1));

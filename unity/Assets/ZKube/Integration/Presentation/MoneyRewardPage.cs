@@ -130,8 +130,8 @@ namespace ZKube.Integration.Presentation
                     blocks.Add(PanelBlock.Text("Boards notice", "Boards not loaded.", SkinTokens.TextMuted));
                     blocks.Add(PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true, SkinSlots.IconRetry));
                 }
-                else blocks.Add(PanelBlock.Text("Boards notice", sessionActionPending || economyActionPending ? (following ? Confirming : WalletOpen) :
-                    pageNotice ?? "Checking…", SkinTokens.TextMuted));
+                else if (sessionActionPending || economyActionPending) Requesting(blocks);
+                else blocks.Add(PanelBlock.Text("Boards notice", pageNotice ?? "Checking…", SkinTokens.TextMuted));
                 page.Blocks = blocks.ToArray();
                 return page;
             }
@@ -163,8 +163,7 @@ namespace ZKube.Integration.Presentation
             if (economyActionPending || sessionActionPending) Requesting(blocks);
             else if (state.Pending != null)
             {
-                if (RefusalOn("Rewards") != null) { blocks.Add(RefusalLine(refusal)); blocks.Add(Retry(() => PageAvailable() && !Busy)); }
-                else blocks.Add(PanelBlock.Text("Reward notice", Confirming, SkinTokens.TextMuted));
+                Awaiting("Rewards", blocks, () => PageAvailable() && !Busy);
             }
             else if (RefusalOn("Rewards") != null) { blocks.Add(RefusalLine(refusal)); blocks.Add(Retry(() => PageAvailable() && !Busy)); }
             else if (pending || board.ClaimStatus == "claimable")

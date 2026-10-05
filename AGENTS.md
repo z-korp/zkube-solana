@@ -292,13 +292,23 @@ deployment or spending approval.
 - **Prepaid entry:** a Kredit has one protocol price and is one-way: no withdrawal, transfer, cash-out,
   grant, discount or bonus. The shop's packs share that unit price. The owner buys the balance; device
   spending stays within that owner-set cap. `entry_split_is_exact_and_static` and
-  `OneKreditButtonUsesTheOwnerPurchaseAndConfirmedBalance` guard accounting and purchase presentation.
+  `OneKreditButtonUsesTheOwnerPurchaseAndConfirmedBalance` guard accounting and purchase presentation. The
+  Kredits page shows the confirmed balance as its hero, with what it means, and the packs as three cards of one
+  size and one style: none is marked, pre-selected or pushed, and the one-way rule stays in view. A purchase
+  lives on the card that was tapped (its progress, its reason, its retry), and Kredits that arrive count the
+  balance up. `ThePageFitsBothPhonesAndNoPackIsMarkedOrPushed`, `APurchaseLivesOnTheCardThatWasTapped` and
+  `ArrivedKreditsCountUpAndFlyAndReducedMotionKeepsTheCountAlone` guard the page.
 - **Wallet requests:** connecting, a device change and a Kredit purchase each show the open request on their
   page, and one that does not go through stays there as one plain reason with a retry; a device action that
   fails is noted on its page. One runner owns that for every action, so a tap never ends looking like nothing
-  happened. A sent transaction is followed by that runner to a definite outcome (confirmed, failed or expired)
-  and the page updates without a tap; a page that finds one unconfirmed follows it too. Following only reads:
-  it never signs or sends, its wait is bounded, and past it the page says so and offers to keep following. A
+  happened. An action in progress shows on its own button, one piece for every action: a loader and its step in
+  a word (the wallet's turn, the send, the wait for Solana), never a line that stands still; reduced motion
+  shows a still mark and the same word. A sent transaction is followed by that runner to a definite outcome
+  (confirmed, failed or expired) and the page updates without a tap; a page that finds one unconfirmed follows
+  it too. Following only reads: it never signs or sends. Each round of its wait is bounded; past one the page
+  says it is still checking, rests a moment and follows again by itself, so nobody is asked to check.
+  `AnActionShowsEachStepOnItsButtonUntilItsOutcome` and `AnActionInProgressShowsTheLoaderAndItsStepAndTakesNoTap`
+  guard the button. A
   wallet that returns another message than it was given is refused, as Gate G1 requires, and what it changed is
   kept on the page and in the log as counts, program IDs and yes/no facts.
   `ASentTransactionIsFollowedToItsOutcomeWithoutATap`,

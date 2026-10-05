@@ -88,6 +88,53 @@ namespace ZKube.Presentation
     // rest over 120 ms, and a glint of warm light flashes at the touch point
     // (0, 50%, 0 over 180 ms). Reduced motion keeps the pressed art and the glint,
     // without scaling. The action itself starts on release, as buttons do.
+    // The loader on a button whose action is in progress: its mark turns for as
+    // long as it shows. Reduced motion shows a still mark instead and no Turn.
+    public sealed class Turn : MonoBehaviour
+    {
+        public const float DegreesPerSecond = 300;
+        private void Awake()
+        {
+            // It turns about its middle, where it was placed.
+            var rect = (RectTransform)transform; var shift = Vector2.Scale(new Vector2(.5f, .5f) - rect.pivot, rect.rect.size);
+            rect.pivot = new Vector2(.5f, .5f); rect.anchoredPosition += shift;
+        }
+        private void Update() => transform.localEulerAngles = new Vector3(0, 0, -Mathf.Repeat(Time.unscaledTime * DegreesPerSecond, 360));
+    }
+
+    // A figure that just grew counts up to its new value, over CountSeconds.
+    public sealed class CountUp : MonoBehaviour
+    {
+        public const float CountSeconds = .7f;
+        private TMPro.TMP_Text label; private ulong from, to; private float started;
+        public void Begin(TMPro.TMP_Text text, ulong was, ulong now)
+        { label = text; from = was; to = now; started = Time.unscaledTime; label.text = was.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+        private void Update()
+        {
+            float t = Mathf.Clamp01((Time.unscaledTime - started) / CountSeconds);
+            label.text = ((ulong)System.Math.Round(from + (to - from) * (double)Mathf.SmoothStep(0, 1, t))).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (t >= 1) Destroy(this);
+        }
+    }
+    // A coin flies from where it was earned to where it is kept, then is gone.
+    public sealed class Flight : MonoBehaviour
+    {
+        public const float FlightSeconds = .55f;
+        private Vector2 from, to; private float starts;
+        public void Begin(Vector2 start, Vector2 end, float delay)
+        { from = start; to = end; starts = Time.unscaledTime + delay; GetComponent<Graphic>().enabled = false; }
+        private void Update()
+        {
+            float t = (Time.unscaledTime - starts) / FlightSeconds;
+            if (t < 0) return;
+            GetComponent<Graphic>().enabled = true;
+            if (t >= 1) { Destroy(gameObject); return; }
+            float eased = Mathf.SmoothStep(0, 1, t);
+            // An arc: it rises a little as it goes.
+            ((RectTransform)transform).anchoredPosition = Vector2.Lerp(from, to, eased) + new Vector2(0, Mathf.Sin(Mathf.PI * eased) * 24);
+        }
+    }
+
     public sealed class PressSquash : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
     {
         public const float Pressed = .97f, Overshoot = 1.03f, PressSeconds = .06f, ReleaseSeconds = .12f, GlintSeconds = .18f, GlintDp = 40;

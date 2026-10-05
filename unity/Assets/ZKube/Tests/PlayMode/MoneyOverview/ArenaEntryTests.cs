@@ -158,8 +158,9 @@ namespace ZKube.Tests.MoneyOverview
         }
 
         // A sent transaction is followed by the client: the page reaches the
-        // outcome without a tap. A wait that runs out says so and keeps following
-        // on request, and neither the wait nor its retry signs or sends again.
+        // outcome without a tap. A round of the wait that runs out says it is
+        // still checking and the next one starts by itself; no round signs or
+        // sends again.
         [UnityTest] public IEnumerator ASentTransactionIsFollowedToItsOutcomeWithoutATap()
         {
             yield return PrepareScenario("session-enable-pending-success"); Follow(.02f, 10);
@@ -176,17 +177,15 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
             yield return EndScenario();
 
-            // The cluster stays silent: the wait is bounded, and its retry only follows.
+            // The cluster stays silent: each round is bounded, and the next only follows.
             yield return PrepareScenario("session-enable-pending-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenSession()); yield return Idle();
             yield return SessionClick("Enable device"); yield return Idle();
             Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.Pending));
-            Assert.That(Text("Action refused"), Is.EqualTo("Solana has not confirmed this yet."));
-            Assert.That(Offers("Enable device"), Is.False);
-            yield return SessionClick("Try again"); yield return Idle();
-            Assert.That(Text("Action refused"), Is.EqualTo("Solana has not confirmed this yet."));
+            Assert.That(Says("Still checking."), Is.True); Assert.That(Offers("Action progress"), Is.True, "The loader stays on the page");
+            Assert.That(Offers("Enable device"), Is.False); Assert.That(Offers("Try again"), Is.False, "Nobody is asked to check");
             Follow(.02f, 10); environment.Http.ConfirmAfter = 3;
-            yield return SessionClick("Try again"); yield return Idle();
+            yield return Until(() => Adapter.LastReceipt.Outcome == ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess, "A later round finds the outcome"); yield return Idle();
             Assert.That(Text("Device state"), Is.EqualTo("Session active"));
             Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -240,7 +239,7 @@ namespace ZKube.Tests.MoneyOverview
                 yield return Until(() => !Adapter.EconomyActionPending, "The purchase finished"); yield return null; yield return Idle();
                 yield return Until(() => Field("kreditRead") != null, "The page read its balance again"); yield return Idle();
                 Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess), Adapter.LastReceipt.Code);
-                Assert.That(Text("Kredit balance"), Is.EqualTo("35"));
+                yield return Until(() => Text("Kredit balance") == "35", "The balance counts up to the confirmed figure");
                 Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));
                 Assert.That(Offers("Try again"), Is.False);
             }
@@ -286,9 +285,9 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator ResumingAnEnteredRunRequestsItsOpeningVrfAndOpensTheBoard()
         {
             yield return PrepareScenario("daily-entered"); Click("Connect"); yield return Idle();
-            Assert.That(Offers("Resume Daily"), Is.True);
+            Assert.That(Offers("Resume run"), Is.True);
             Assert.That(Asked("sendTransaction"), Is.Zero);
-            yield return SessionClick("Resume Daily");
+            yield return SessionClick("Resume run");
             yield return BoardReady();
             Assert.That(PlayedBoard().Session.Daily, Is.True);
             Assert.That(Asked("sendTransaction"), Is.EqualTo(1), "The opening VRF request");
@@ -321,7 +320,7 @@ namespace ZKube.Tests.MoneyOverview
                 hold.Release();
                 yield return Until(() => Adapter.LastReceipt?.Outcome == ZKube.Integration.Execution.ExecutionOutcome.ConfirmedSuccess, "The page followed the purchase to its confirmation");
                 yield return Idle(); yield return Until(() => Field("kreditRead") != null, "The page read its balance"); yield return Idle();
-                Assert.That(Text("Kredit balance"), Is.EqualTo((25 + environment.KreditPack).ToString()));
+                yield return Until(() => Text("Kredit balance") == (25 + environment.KreditPack).ToString(), "The balance counts up to the confirmed figure");
                 Assert.That(Offers("Try again"), Is.False);
                 Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text.Contains("has not confirmed")), Is.False);
                 Assert.That(Asked("signTransactions"), Is.EqualTo(1)); Assert.That(Asked("sendTransaction"), Is.EqualTo(1));

@@ -69,10 +69,11 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator ActualCheckButtonKeepsConfirmedFailureAfterTheJournalIsCleared()
         {
             yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
-            Assert.That(Text("Daily reason"), Is.EqualTo("Solana has not confirmed this yet."));
             var controller = host.GetComponent<MoneyIdentity>().Controller;
+            yield return Until(() => Says("Still checking."), "A round of the wait ran out"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
-            environment.ConfirmPendingFailure(); Click("Try again"); yield return Idle();
+            environment.ConfirmPendingFailure();
+            yield return Until(() => controller.LastReceipt.Outcome == ExecutionOutcome.ConfirmedFailure, "The next round finds the outcome"); yield return Idle();
             Assert.That(Text("Daily reason"), Is.EqualTo("The transaction failed. Nothing changed."));
             var exact = controller.LastReceipt;
             Assert.That(exact.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure)); Assert.That(exact.ChainError, Is.Not.Empty);

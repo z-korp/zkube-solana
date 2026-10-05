@@ -154,8 +154,9 @@ namespace ZKube.Tests.Presentation
                     else if (role != "guardians") Near(w.height, h.height, "height");
                 }
             }
-            foreach (var card in got["cards"])
-                Assert.AreEqual(card.xMin, width - card.xMax, .5f, page + ": card " + card + " sits between equal gutters");
+            // Cards side by side (the Kredit packs) share their row's gutters.
+            foreach (var row in got["cards"].GroupBy(card => Mathf.Round(card.y)))
+                Assert.AreEqual(row.Min(card => card.xMin), width - row.Max(card => card.xMax), .5f, page + ": the cards at " + row.Key + " sit between equal gutters");
         }
         [UnityTest] public IEnumerator EveryRealmsPageMatchesItsWireframeAtSeekerSize()
         {

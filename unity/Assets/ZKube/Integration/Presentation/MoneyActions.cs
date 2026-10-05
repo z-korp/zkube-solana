@@ -16,12 +16,28 @@ namespace ZKube.Integration.Presentation
         // and how to ask again. A tap never ends looking like nothing happened.
         private string refusal, refusalFamily;
         private Action refusalRetry;
-        private const string WalletOpen = "Approve the request in your wallet.";
         // A sent transaction is followed to a definite outcome by the client
-        // itself: confirmed, failed or expired. Nobody is asked to check. The
-        // wait is bounded, a little past the time a transaction can still land;
-        // beyond it the page says so and offers to keep following.
-        private const string Confirming = "Waiting for Solana to confirm…", Unconfirmed = "Solana has not confirmed this yet.";
+        // itself: confirmed, failed or expired. Nobody is asked to check. One
+        // round of the wait is bounded, a little past the time a transaction can
+        // still land; beyond it the page says it is still checking and the next
+        // round starts by itself.
+        private const string StillChecking = "Still checking. This either completes or changes nothing.";
+        // An action in progress shows on its button: the loader and its step in
+        // a word, never a line that stands still. The executor says when the
+        // wallet has the request and when the transaction leaves; the follower's
+        // wait is Confirming.
+        private volatile string actionStep;
+        // Between two rounds of a wait that ran out the page rests a moment: the
+        // loader keeps turning, and the player can leave the page.
+        private TimeSpan followRest = TimeSpan.FromSeconds(3);
+        private float followAgainAt;
+        private bool slow;
+        private void Slow() { slow = true; followAgainAt = UnityEngine.Time.unscaledTime + (float)followRest.TotalSeconds; }
+        private PageAction Progressing()
+        {
+            string word = following || actionStep == "confirming" || PendingShown() ? "Confirming" : actionStep == "wallet" ? "Approve in wallet" : actionStep == "sending" ? "Sending" : "Preparing";
+            return new PageAction { Label = word, Name = "Action progress", Progress = word, Short = word == "Approve in wallet" ? "In wallet" : null };
+        }
         // The executor has already looked a few times in the first two seconds.
         // The follower looks every half second at first, then backs off: a
         // transaction that is going to land has usually landed by then.
@@ -73,8 +89,9 @@ namespace ZKube.Integration.Presentation
             { ClientLog.Failure("follow transaction", error); if (Current(epoch)) Refuse(family, Reason(error), () => _ = FollowTransaction()); return; }
             if (!Current(epoch)) return;
             ShowReceipt(result ?? ExecutionResult.Rejected(null, "no-pending-transaction"), identity.Owner);
-            if (result?.Outcome == ExecutionOutcome.Pending) { if (waitedOut) Refuse(family, Unconfirmed, () => _ = FollowTransaction()); }
-            else if (result != null && MoneyReceiptText.Refusal(result) is string reason) Inform(reason);
+            // A round that ran its length without an outcome: the page says it is still checking and follows again.
+            if (result?.Outcome == ExecutionOutcome.Pending) { if (waitedOut) Slow(); }
+            else { slow = false; if (result != null && MoneyReceiptText.Refusal(result) is string reason) Inform(reason); }
             await RefreshVisiblePage(epoch, token); // A receipt survives an empty post-confirmation journal.
         });
         // Whether the Arena has launched is read from the protocol account by each
@@ -98,7 +115,7 @@ namespace ZKube.Integration.Presentation
             string family = Family(); var lease = identity.Lease();
             return Run(async (epoch, token) => {
                 if (device) sessionActionPending = true; else economyActionPending = true;
-                ClearRefusal(); Present();
+                ClearRefusal(); actionStep = null; slow = false; Present();
                 try
                 {
                     ExecutionResult result = null; string reason;
@@ -109,8 +126,8 @@ namespace ZKube.Integration.Presentation
                         // must never cancel the request the player is approving.
                         result = await Follow(await request(CancellationToken.None), epoch, token);
                         reason = MoneyReceiptText.Refusal(result);
-                        // The wait ran out: the retry keeps following, it never sends again.
-                        if (result.Outcome == ExecutionOutcome.Pending && waitedOut) { reason = Unconfirmed; retry = () => _ = FollowTransaction(); }
+                        // The wait ran out: the page it reads back shows it still pending and keeps following; nothing is sent again.
+                        if (result.Outcome == ExecutionOutcome.Pending && waitedOut) Slow();
                     }
                     catch (Exception error) when (!(error is OperationCanceledException)) { ClientLog.Failure(action, error); reason = Reason(error); }
                     if (result != null) sent?.Invoke(result);
@@ -129,6 +146,7 @@ namespace ZKube.Integration.Presentation
                 finally
                 {
                     if (device) sessionActionPending = false; else economyActionPending = false;
+                    actionStep = null;
                     if (Current(epoch)) Present();
                     else if (device) sessionReadbackNeeded = true; else economyReadbackNeeded = true;
                 }
@@ -145,11 +163,20 @@ namespace ZKube.Integration.Presentation
             blocks.Add(RefusalLine(refusal)); blocks.Add(Retry(available));
             return true;
         }
-        // A request the wallet still has: what to do, and the way out.
+        // An action in progress: its button with the loader and the step, and the way out.
         private void Requesting(List<PanelBlock> blocks)
         {
-            blocks.Add(PanelBlock.Text("Action open", following ? Confirming : WalletOpen, SkinTokens.TextMuted, true));
+            if (slow) blocks.Add(PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true));
+            blocks.Add(PanelBlock.Button(Progressing(), true));
             blocks.Add(DisconnectButton());
+        }
+        // A transaction this address still has unconfirmed, on the page that shows it: the
+        // same button, followed without a tap. A follow that failed says why with its retry.
+        private void Awaiting(string family, List<PanelBlock> blocks, Func<bool> available)
+        {
+            if (Refused(family, blocks, available)) return;
+            if (slow) blocks.Add(PanelBlock.Text("Action slow", StillChecking, SkinTokens.TextMuted, true));
+            blocks.Add(PanelBlock.Button(Progressing(), true));
         }
         // Until the Arena launches, its pages say so and lead to the Campaign.
         private PanelBlock[] OpensSoon() => new[] {

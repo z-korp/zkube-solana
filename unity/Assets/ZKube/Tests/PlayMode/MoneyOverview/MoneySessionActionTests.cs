@@ -73,7 +73,8 @@ namespace ZKube.Tests.MoneyOverview
             var signature = controller.LastReceipt.Signature;
             Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Disable this device"), Is.False);
-            environment.ConfirmPendingSuccess(); yield return SessionClick("Try again"); yield return Idle();
+            environment.ConfirmPendingSuccess();
+            yield return Until(() => controller.LastReceipt.Outcome == ExecutionOutcome.ConfirmedSuccess, "The next round finds the outcome"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             Assert.That(environment.HasActiveKey, Is.True);
@@ -113,7 +114,8 @@ namespace ZKube.Tests.MoneyOverview
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             var signature = controller.LastReceipt.Signature;
-            environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
+            environment.ConfirmPendingFailure();
+            yield return Until(() => controller.LastReceipt.Outcome == ExecutionOutcome.ConfirmedFailure, "The next round finds the outcome"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             StringAssert.Contains("The transaction failed. Nothing changed.", SessionText());

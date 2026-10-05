@@ -19,20 +19,21 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
-            yield return Until(() => Offers("Try again"), "The Arena followed the transaction it found"); yield return Idle();
+            yield return Until(() => Says("Still checking."), "The Arena followed the transaction it found"); yield return Idle();
             string signature = controller.LastReceipt.Signature;
             yield return OpenDevice();
-            yield return Until(() => Offers("Try again"), "The device page followed it too"); yield return Idle();
+            yield return Until(() => Offers("Action progress"), "The device page shows it still confirming"); yield return Idle();
             Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(controller.BrowsingCampaign, Is.False);
-            Assert.That(Text("Action refused"), Is.EqualTo("Solana has not confirmed this yet."));
+            Assert.That(Says("Still checking."), Is.True); Assert.That(Offers("Try again"), Is.False, "Nobody is asked to check");
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enable device"), Is.False);
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.Pending));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             controller.SendMessage("OnApplicationPause", true);
             controller.SendMessage("OnApplicationPause", false); yield return Idle();
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
-            environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
+            environment.ConfirmPendingFailure();
+            yield return Until(() => controller.LastReceipt.Outcome == ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure, "The next round finds the outcome"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure));
             StringAssert.Contains("The transaction failed. Nothing changed.", SessionText());
             Assert.That(controller.BrowsingSession, Is.True);

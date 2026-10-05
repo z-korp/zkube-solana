@@ -41,8 +41,16 @@ namespace ZKube.Presentation
         private Piece Buttons(ScreenKit kit, params (PageAction action, ScreenKit.Kind kind, string icon)[] items)
         {
             items = items.Where(item => item.action != null).ToArray();
-            return kit.Buttons(items.Select(item => (item.action.Name ?? item.action.Label, item.action.Label, actions.Click(item.action), item.kind, item.icon))
-                .ToArray(), (i, button, text) => actions.Bind(button, items[i].action, relabel: value => text.text = value), shorter: items.Select(item => item.action.Short).ToArray());
+            // An action in progress: the loader where its icon was and its step as its words. One
+            // piece for every action; reduced motion shows the still hourglass and the same word.
+            string Mark(PageAction action, string icon) => action.Progress == null ? icon : reducedMotion ? SkinSlots.IconHourglass : SkinSlots.IconRetry;
+            return kit.Buttons(items.Select(item => (item.action.Name ?? item.action.Label, item.action.Progress ?? item.action.Label, actions.Click(item.action), item.kind,
+                    Mark(item.action, item.icon))).ToArray(), (i, button, text) => {
+                    actions.Bind(button, items[i].action, relabel: items[i].action.Progress == null ? value => text.text = value : (Action<string>)null);
+                    if (items[i].action.Progress == null) return;
+                    var mark = button.GetComponentsInChildren<Image>().First(image => image.name.EndsWith(" icon"));
+                    mark.name = "Action loader"; if (!reducedMotion) mark.gameObject.AddComponent<Turn>();
+                }, shorter: items.Select(item => item.action.Short).ToArray());
         }
         // The owner (2026-10-03): on a level's preview and every result the
         // guardian is the hero, growing into the screen's free room up to this.

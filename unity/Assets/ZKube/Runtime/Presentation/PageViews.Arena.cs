@@ -261,6 +261,132 @@ namespace ZKube.Presentation
             });
         }
 
+        // The Kredits page's hero: the coin beside the confirmed balance, the
+        // page's biggest figure, then what it means as two small equations (the
+        // entries it buys, the one unit price), or one line in their place.
+        // Without a figure the loader stands for it. A balance that just grew
+        // counts up from what it was, its gain beside it.
+        private Rect kreditCoin;
+        private string kreditGainShown;
+        private Piece BalancePiece(PanelBlock block, ScreenKit kit)
+        {
+            var inside = kit.Inside(); float u = inside.U, coin = Step(68, 56) * u, figureDp = Step(52, 44) * inside.K, gap = 10 * u;
+            float figureHeight = figureDp * ui.Scale * ui.Density * ScreenKit.DisplayNormal;
+            var top = new Piece(Mathf.Max(coin, figureHeight), rect => {
+                float gainedWidth = block.Badge == null ? 0 : ui.TextWidth(block.Badge, inside.CaptionDp, SkinUi.Type.Display) + 8 * u;
+                float figureWidth = block.Value == null ? 34 * u : ui.TextWidth(System.Text.RegularExpressions.Regex.Replace(block.Value, "[0-9]", "8"), figureDp, SkinUi.Type.Display) + 2;
+                float x = rect.center.x - (coin + gap + figureWidth + gainedWidth) / 2;
+                kreditCoin = new Rect(x, rect.center.y - coin / 2, coin, coin);
+                ui.Piece("Kredit coin", SkinSlots.CoinBalance, kreditCoin, shell.Page);
+                if (block.Value == null)
+                {
+                    // The balance is on its way: the loader, as on every action's button.
+                    var loader = ui.Piece("Balance loader", reducedMotion ? SkinSlots.IconHourglass : SkinSlots.IconRetry,
+                        new Rect(x + coin + gap, rect.center.y - 17 * u, 34 * u, 34 * u), shell.Page);
+                    if (!reducedMotion) loader.gameObject.AddComponent<Turn>();
+                    return;
+                }
+                var figure = ui.Label(block.Name, block.Value, new Rect(x + coin + gap, rect.y, figureWidth, rect.height), figureDp, SkinTokens.Text, shell.Page,
+                    SkinUi.Type.Display, TextAlignmentOptions.Left);
+                figure.textWrappingMode = TextWrappingModes.NoWrap;
+                if (block.Badge == null) { kreditGainShown = null; return; }
+                ui.Label(block.Name + " gained", block.Badge, new Rect(x + coin + gap + figureWidth + 4 * u, rect.y, gainedWidth, rect.height), inside.CaptionDp,
+                    SkinTokens.Accent, shell.Page, SkinUi.Type.Display, TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+                // The count-up plays once for a gain, whatever redraws the page while it shows.
+                string key = block.Chip + ">" + block.Value;
+                if (kreditGainShown == null || !kreditGainShown.StartsWith(key))
+                {
+                    kreditGainShown = key;
+                    if (ulong.TryParse(block.Chip, out ulong was) && ulong.TryParse(block.Value, out ulong now)) figure.gameObject.AddComponent<CountUp>().Begin(figure, was, now);
+                }
+            });
+            Piece under;
+            if (block.Caption != null) under = CardLine("Balance line", block.Caption, SkinTokens.TextMuted, inside);
+            else
+            {
+                var entries = inside.Chip("Entries", SkinSlots.IconKredit, 16, block.Value, "= " + block.Copy);
+                var price = inside.Chip("Unit price", SkinSlots.IconKredit, 16, "1", "= " + block.Tag);
+                under = new Piece(Mathf.Max(entries.Height, price.Height), rect => {
+                    float total = entries.Width + 8 * u + price.Width, x = rect.center.x - total / 2;
+                    entries.Draw(new Rect(x, rect.center.y - entries.Height / 2, entries.Width, entries.Height));
+                    price.Draw(new Rect(x + entries.Width + 8 * u, rect.center.y - price.Height / 2, price.Width, price.Height));
+                });
+            }
+            return kit.Card(null, new[] { top, under }, "Balance card");
+        }
+
+        // The Kredit packs in a row: one size, one style, none marked. Each card
+        // is its picture, its count and its price on the card's button, and the
+        // whole card is the tap. A purchase lives on the card that was tapped:
+        // a gold rim and the loader with its step while it is in progress, an
+        // ember rim and Try again when it did not go through, the others dimmed
+        // meanwhile. One line under the cards gives the reason. When Kredits
+        // arrive, coins fly from their card to the balance.
+        public const float PackDim = .45f;
+        public const int FlightCoins = 6;
+        private Piece PacksPiece(PanelBlock block, ScreenKit kit)
+        {
+            float u = kit.U, gap = 8 * u, pad = 8 * u; int count = block.Packs.Length;
+            float art = Step(60, 46) * u, countDp = Step(24, 20) * kit.K, countHeight = countDp * ui.Scale * ui.Density * ScreenKit.DisplayNormal;
+            float button = kit.Touch(40), priceDp = Mathf.Max(13, 14 * kit.K);
+            float card = pad + art + 4 * u + countHeight + 6 * u + button + pad;
+            float reasonHeight = block.Caption == null ? 0 : kit.Block(block.Caption, kit.Safe.width - 32 * u, kit.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading) + 8 * u;
+            return new Piece(card + reasonHeight, rect => {
+                float width = (rect.width - gap * (count - 1)) / count;
+                for (int i = 0; i < count; i++)
+                {
+                    var pack = block.Packs[i]; bool busy = pack.Buy?.Progress != null;
+                    var at = new Rect(rect.x + i * (width + gap), rect.yMax - card, width, card);
+                    if (busy || pack.Refused)
+                        Tinted(pack.Name + " rim", SkinSlots.Card, new Rect(at.x - 2 * u, at.y - 2 * u, at.width + 4 * u, at.height + 4 * u), busy ? SkinTokens.Accent : SkinTokens.Negative, shell.Page);
+                    var holder = ui.Rect<CanvasGroup>(pack.Name + " card", at, shell.Page); holder.alpha = pack.Dim ? PackDim : 1;
+                    var parent = holder.transform;
+                    ui.Piece(pack.Name, SkinSlots.Card, at, parent);
+                    float y = at.yMax - pad - art;
+                    ui.Piece(pack.Name + " art", pack.Art, new Rect(at.x + pad, y, at.width - 2 * pad, art), parent);
+                    y -= 4 * u + countHeight;
+                    float icon = 18 * u, words = ui.TextWidth(pack.Count, countDp, SkinUi.Type.Display) + 2, left = at.center.x - (icon + 4 * u + words) / 2;
+                    ui.Piece(pack.Name + " coin", SkinSlots.IconKredit, new Rect(left, y + countHeight / 2 - icon / 2, icon, icon), parent);
+                    ui.Label(pack.Name + " count", pack.Count, new Rect(left + icon + 4 * u, y, words, countHeight), countDp, SkinTokens.Text, parent, SkinUi.Type.Display,
+                        TextAlignmentOptions.Left).textWrappingMode = TextWrappingModes.NoWrap;
+                    var price = new Rect(at.x + pad, at.y + pad, at.width - 2 * pad, button);
+                    var pill = ui.Pill(pack.Name + " price", price, parent, busy || pack.Refused ? new Color(10 / 255f, 28 / 255f, 39 / 255f, 1) : new Color(23 / 255f, 86 / 255f, 106 / 255f, 1));
+                    float mark = busy ? 16 * u : 0, lead = busy ? mark + 4 * u : 0, room = price.width - 12 * u - lead;
+                    string label = pack.Price;
+                    if (busy && pack.Buy.Short != null && ui.TextWidth(label, priceDp, SkinUi.Type.Caption) > room) label = pack.Buy.Short;
+                    float labelWidth = Mathf.Min(room, ui.TextWidth(label, priceDp, SkinUi.Type.Caption) + 2), start = price.center.x - (labelWidth + lead) / 2;
+                    if (busy)
+                    {
+                        var loader = ui.Piece("Action loader", reducedMotion ? SkinSlots.IconHourglass : SkinSlots.IconRetry, new Rect(start, price.center.y - mark / 2, mark, mark), parent);
+                        if (!reducedMotion) loader.gameObject.AddComponent<Turn>();
+                        start += lead;
+                    }
+                    var priceWords = ui.Label(pack.Name + " price words", label, new Rect(start, price.y, labelWidth, price.height), priceDp,
+                        busy ? SkinTokens.Accent : pack.Refused ? SkinTokens.Negative : SkinTokens.Text, parent, SkinUi.Type.Caption);
+                    priceWords.textWrappingMode = TextWrappingModes.NoWrap; priceWords.overflowMode = TextOverflowModes.Ellipsis;
+                    if (pack.Buy == null) continue;
+                    // The whole card is the tap; in progress its button is the action's own and takes none.
+                    if (busy) { Tap(pill, pack.Buy); continue; }
+                    var hit = ui.Rect<Image>(pack.Name + " tap", at, parent); hit.color = Color.clear; Tap(hit, pack.Buy);
+                }
+                if (block.Caption != null)
+                    kit.Text(block.Dim ? "Action slow" : "Action refused", block.Caption, new Rect(rect.x, rect.y, rect.width, reasonHeight - 8 * u), kit.SmallDp, block.Dim ? SkinTokens.TextMuted : SkinTokens.Negative,
+                        SkinUi.Type.Caption, ScreenKit.CaptionLeading);
+                // The Kredits that just arrived fly from their card to the balance; reduced motion keeps the count-up alone.
+                if (block.Primary < 0 || block.Primary >= count || reducedMotion || kreditCoin.width <= 0) return;
+                if (kreditGainShown == null || kreditGainShown.EndsWith(" flown")) return;
+                kreditGainShown += " flown";
+                var source = new Rect(rect.x + block.Primary * (width + gap), rect.yMax - card, width, card);
+                for (int i = 0; i < FlightCoins; i++)
+                {
+                    float size = 22 * u; var start = new Vector2(source.center.x + (i % 3 - 1) * 10 * u, source.yMax - pad - art / 2 + (i / 3) * 8 * u);
+                    var coin = ui.Piece("Kredit flight", SkinSlots.IconKredit, new Rect(start.x - size / 2, start.y - size / 2, size, size), shell.Page);
+                    Vector2 from = ((RectTransform)coin.transform).anchoredPosition;
+                    coin.gameObject.AddComponent<Flight>().Begin(from, from + (kreditCoin.center - start), .06f * i);
+                }
+            });
+        }
+
         // Two views of one thing on one track, as the tab bar shows its tabs: the
         // one shown on the lit plate, the other a tap away.
         private Piece Segments(PanelBlock block, ScreenKit kit)

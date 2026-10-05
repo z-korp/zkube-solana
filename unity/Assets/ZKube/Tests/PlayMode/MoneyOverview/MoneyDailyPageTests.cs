@@ -61,19 +61,19 @@ namespace ZKube.Tests.MoneyOverview
         }
 
         // A transaction found unconfirmed is followed by the page itself. Following
-        // reads its status; it never signs or sends, and past the wait the page
-        // says so and offers to keep following.
+        // reads its status; it never signs or sends, and past a round of the wait
+        // the page says it is still checking and follows again without a tap.
         [UnityTest] public IEnumerator DailyPageFollowsAPendingTransactionItselfAndNeverSignsOrSends()
         {
             yield return PrepareScenario("pending-confirmed-failure");
             yield return SessionClick("Connect"); yield return Idle();
-            yield return Until(() => Offers("Try again"), "The wait ran out on a transaction that stays unconfirmed"); yield return Idle();
-            Assert.That(Text("Daily reason"), Is.EqualTo("Solana has not confirmed this yet."));
+            yield return Until(() => Says("Still checking."), "A round of the wait ran out on a transaction that stays unconfirmed"); yield return Idle();
+            Assert.That(Offers("Action progress"), Is.True, "The card's one action is the loader"); Assert.That(Offers("Try again"), Is.False, "Nobody is asked to check");
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit"), Is.False);
             Assert.That(Asked("getSignatureStatuses"), Is.GreaterThan(1));
-            environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
-            Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure));
-            Assert.That(Offers("Try again"), Is.False);
+            environment.ConfirmPendingFailure();
+            yield return Until(() => Adapter.LastReceipt.Outcome == ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure, "The next round finds the outcome"); yield return Idle();
+            Assert.That(Offers("Action progress"), Is.False); Assert.That(Offers("Try again"), Is.False);
             Assert.That(Asked("signTransactions") + Asked("sendTransaction"), Is.Zero);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

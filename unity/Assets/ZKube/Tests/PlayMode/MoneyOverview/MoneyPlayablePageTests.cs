@@ -54,6 +54,9 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(run.Board.Session.Accepted.State, Is.EqualTo(state.Token.State));
             Assert.That(ZKube.Tests.Presentation.BoardTestState.Art(run.Board).RealmId, Is.EqualTo(run.Board.Session.RealmId));
             Assert.That(run.Board.HostInputEnabled, Is.True);
+            // The page leaves once the board has drawn (PageShell.HandOver).
+            var pages = host.GetComponent<ZKube.Presentation.PageShell>();
+            for (float end = Time.realtimeSinceStartup + 5; pages.Root.activeSelf && Time.realtimeSinceStartup < end;) yield return null;
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Play" || button.name == "Resume run"), Is.False);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);

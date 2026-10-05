@@ -22,6 +22,10 @@ namespace ZKube.Integration.Execution
         public const int PromptChecks = 5;
         public TimeSpan PromptEvery = TimeSpan.FromMilliseconds(400);
 
+        // Told where a transaction stands as it is made: "wallet" when the owner's wallet is asked,
+        // "sending" when the signed bytes leave, "confirming" once they are sent. For what the player
+        // sees; it changes nothing here.
+        public Action<string> Step;
         public Task<ExecutionResult> Execute(TransactionPlan plan, string intent, IReadOnlyList<DeviceSigner> deviceSigners,
             IExecutionReconciler reconciler, CancellationToken cancellation = default) =>
             Execute(plan == null ? null : new[] { plan }, intent, deviceSigners, reconciler, cancellation);
@@ -109,7 +113,7 @@ namespace ZKube.Integration.Execution
                     return new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "simulation-rejected", chainError: simulation.ErrorJson);
                 }
                 cancellation.ThrowIfCancellationRequested();
-                if (plan.OwnerSignatureRequired) transaction = await wallet.Sign(plan.Owner, transaction).ConfigureAwait(false);
+                if (plan.OwnerSignatureRequired) { Step?.Invoke("wallet"); transaction = await wallet.Sign(plan.Owner, transaction).ConfigureAwait(false); }
                 TransactionSignatures.ValidateFullySigned(transaction);
                 cancellation.ThrowIfCancellationRequested();
                 pending = new PendingTransaction(plan.Owner, intent, endpoint.Address.AbsoluteUri, endpoint.IsBase, transaction,
@@ -123,12 +127,12 @@ namespace ZKube.Integration.Execution
                     if (pending != null) return Rejected(intent, "pending-transaction-exists");
                     return Rejected(intent, "journal-write-failed");
                 }
-                ClientLog.Sending(pending.Signature, intent);
+                ClientLog.Sending(pending.Signature, intent); Step?.Invoke("sending");
                 try { await rpc.Send(endpoint, transaction, fastEr ? RpcSubmissionPolicy.ErSession : RpcSubmissionPolicy.Wallet,
                     lease, cancellation).ConfigureAwait(false); }
                 // The persisted signature is the only retry/recovery identity.
                 catch (Exception error) { ClientLog.Failure(intent + " send", error); }
-                ClientLog.SentIn(pending.Signature);
+                ClientLog.SentIn(pending.Signature); Step?.Invoke("confirming");
                 // A transaction lands within a block or two. It is looked for at
                 // once and then promptly a few more times, so the usual outcome
                 // comes back with this call; one still unconfirmed after that is

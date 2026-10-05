@@ -19,8 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
-  { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"/i, trees: [UNITY],
-    reversal: "The client follows a sent transaction to its outcome on the page that asked; nobody is asked to check and only Last operation shows a receipt" },
+  { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"|Solana has not confirmed this yet|Approve the request in your wallet|Purchase pending|Refresh balance/i, trees: [UNITY],
+    reversal: "The client follows a sent transaction to its outcome on its own button; nobody is asked to check or refresh and only Last operation shows a receipt" },
   { pattern: /Back to Arcade|refresh Arcade|"Arcade"|How Arcade works|paid Arcade Daily|Your last run today|Your best run on each board counts|Back to rewards|Buy a pack to enter today/,
     trees: [UNITY, join(ROOT, "README.md")],
     reversal: "The paid game has one name on screen, Arena, and one home page: the Daily with one action over today's boards" },
