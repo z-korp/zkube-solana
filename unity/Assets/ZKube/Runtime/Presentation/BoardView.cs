@@ -767,12 +767,12 @@ namespace ZKube.Presentation
         }
         public static string ObjectiveName(byte kind, byte value, byte count = 0) => PageCatalog.Load().ObjectiveName(kind, value, count);
 
-        // Pressure, as the old client showed it (DECISIONS 2026-10-02): with two
-        // rows or fewer free above the stack the frame and the glass pulse warm
+        // Pressure (DECISIONS 2026-10-05): once the stack reaches row 9 of 10,
+        // one free row or none above it, the frame and the glass pulse warm
         // every two seconds; with none free they pulse red, faster and stronger.
         // The guardian looks worried until the board recovers. Reduced motion
         // holds the tint instead of pulsing.
-        public const int PressureRows = 2;
+        public const int PressureRows = 1;
         public static int FreeRows(byte[] grid)
         {
             for (int row = 9; row >= 0; row--)
