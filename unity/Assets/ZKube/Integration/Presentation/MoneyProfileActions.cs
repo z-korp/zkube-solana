@@ -26,7 +26,7 @@ namespace ZKube.Integration.Presentation
             if (identity.Owner == null) return;
             CloseProductViews(); browsingProfile = true; profileView = ProfileView.Main;
             await RefreshProfilePage(epoch, token);
-        });
+        }, true);
         private void CloseProfileView() { ClearProfileObservation(); browsingProfile = false; profileView = ProfileView.Main; }
         private void ClearProfileObservation() { profileRead = null; pageNotice = null; Present(); }
         private async Task RefreshProfilePage(long epoch, CancellationToken token)
@@ -48,8 +48,7 @@ namespace ZKube.Integration.Presentation
             if (economyReadbackNeeded && browsingProfile && !Busy && !paused)
             { economyReadbackNeeded = false; _ = RefreshOverview(); return; }
             if (!browsingProfile || profileRead == null || profileRead.IsCurrent) return;
-            ClearProfileObservation(); Notice("Your profile changed. Refresh before choosing what to wear.");
-            Status = "Profile needs refreshing";
+            ClearProfileObservation();
         }
         private bool ProfileEditable() => browsingProfile && !Busy && !sessionActionPending && !economyActionPending &&
             !paused && !detached && isActiveAndEnabled && profileRead != null && profileRead.IsCurrent &&
@@ -75,7 +74,7 @@ namespace ZKube.Integration.Presentation
             var state = profileRead.Value; var player = state.Profile; var worn = state.Identity; var fields = player.Fields;
             var notices = new List<string>(); var actions = new List<PageAction>();
             if (!player.Exists) notices.Add("Set up this device to create your player profile.");
-            if (!worn.ProgressAvailable) notices.Add("Campaign progress is unavailable. Refresh to check earned emblems.");
+            if (!worn.ProgressAvailable) notices.Add("Campaign progress is unavailable, so earned emblems are not shown.");
             if (state.Pending != null)
             {
                 if (RefusalOn("Profile") != null) actions.Add(PageAction("Try again", refusalRetry, () => PageAvailable() && !Busy));
@@ -158,7 +157,7 @@ namespace ZKube.Integration.Presentation
         private PanelPageView ProfilePanel()
         {
             var state = profileRead.Value; var player = state.Profile;
-            var back = PageAction("Back", () => ShowProfile(ProfileView.Main), () => PageAvailable() && !Busy);
+            var back = PageAction("Back", () => ShowProfile(ProfileView.Main), PageAvailable);
             switch (profileView)
             {
                 case ProfileView.Records: return Records(state, back);

@@ -13,7 +13,7 @@ namespace ZKube.Integration.Presentation
                 ExecutionOutcome.Pending => "Transaction sent. Waiting for Solana to confirm it.",
                 ExecutionOutcome.ConfirmedFailure => "Transaction failed.",
                 ExecutionOutcome.ConfirmedSuccess => "Transaction confirmed.",
-                ExecutionOutcome.ExpiredReconciled => "Transaction expired. Refresh before trying again.",
+                ExecutionOutcome.ExpiredReconciled => "Transaction expired. Nothing changed.",
                 ExecutionOutcome.FeeShortage => "There is not enough SOL for this transaction.",
                 ExecutionOutcome.CompletedLocally => "No transaction was needed.",
                 // A request that was not sent says why, by the one owner of those words.
@@ -97,12 +97,12 @@ namespace ZKube.Integration.Presentation
 
         public static string Next(ExecutionResult result) => result.Outcome switch {
             ExecutionOutcome.Pending => "The outcome is not confirmed yet. It is followed until it is.",
-            ExecutionOutcome.ConfirmedFailure => "The operation did not complete. Refresh before trying again.",
+            ExecutionOutcome.ConfirmedFailure => "The operation did not complete. Nothing changed.",
             ExecutionOutcome.ConfirmedSuccess => "The operation is confirmed.",
-            ExecutionOutcome.ExpiredReconciled => "Refresh before starting a new operation.",
+            ExecutionOutcome.ExpiredReconciled => "It never landed. Nothing changed.",
             ExecutionOutcome.FeeShortage => "Top up this device’s deposit or fund your wallet before retrying.",
             ExecutionOutcome.CompletedLocally => "Nothing needed to be sent.",
-            _ => "Nothing was sent. Refresh before trying again."
+            _ => "Nothing was sent."
         };
     }
 }

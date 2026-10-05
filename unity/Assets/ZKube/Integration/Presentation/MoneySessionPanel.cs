@@ -24,7 +24,7 @@ namespace ZKube.Integration.Presentation
             if (identity.Owner == null) return;
             CloseProductViews(); browsingSession = true; sessionFromSettings = fromSettings;
             await RefreshSessionPage(epoch, token);
-        });
+        }, true);
 
         private void CloseSessionView() { ClearSessionObservation(); browsingSession = false; revokeConfirming = false; }
         private void ClearSessionObservation() { sessionRead = null; pageNotice = null; Present(); }
@@ -56,8 +56,7 @@ namespace ZKube.Integration.Presentation
                 { _ = RefreshOverview(); return; }
             }
             if (!browsingSession || sessionRead == null || sessionRead.IsCurrent) return;
-            ClearSessionObservation(); Notice("Device information changed. Refresh to check it again.");
-            Status = "Device session needs refreshing";
+            ClearSessionObservation();
         }
 
         // How this device stands, in a title for its page and a short state for
@@ -84,8 +83,8 @@ namespace ZKube.Integration.Presentation
 
         private PanelPageView DevicePage()
         {
-            var back = sessionFromSettings ? PageAction("Back", () => OpenSharedPage(AppPage.Settings), () => PageAvailable() && !Busy) :
-                PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            var back = sessionFromSettings ? PageAction("Back", () => OpenSharedPage(AppPage.Settings), PageAvailable) :
+                PageAction("Back", () => _ = OpenDaily(), PageAvailable);
             if (sessionRead == null) { var waiting = Waiting("Device", "This device", "Device session", sessionFromSettings ? AppPage.Settings : AppPage.Home, pageNotice); waiting.Back = back; return waiting; }
             if (revokeConfirming) return RevokePage();
             var state = sessionRead.Value; var session = state.Session; var look = DeviceState(session);

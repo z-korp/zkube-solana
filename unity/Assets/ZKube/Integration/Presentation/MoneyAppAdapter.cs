@@ -91,9 +91,8 @@ namespace ZKube.Integration.Presentation
             CloseProductViews(); browsingDaily = true;
             await RefreshDailyPage(epoch, token);
         }
-        // The read the visible page waits on is absent, and the page shows no
-        // reason for that (a failure, or a notice asking to refresh).
-        private bool ReadMissing() => failure == null && pageNotice == null && Family() switch {
+        // The read the visible page waits on is absent, and no failure stands in its place.
+        private bool ReadMissing() => failure == null && Family() switch {
             "Daily" => dailyRead == null, "Kredits" => kreditRead == null, "Rewards" => rewardRead == null,
             "Device" => sessionRead == null, "Profile" => profileRead == null, _ => false };
         // deauthorize is false when the wallet itself ended the authorization.
@@ -109,13 +108,17 @@ namespace ZKube.Integration.Presentation
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
             finally { if (Current(epoch)) { Busy = false; Present(); } }
         }
-        private async Task Run(Func<long, CancellationToken, Task> operation)
+        // leaving: the player is going to another page. That never waits: it
+        // retires whatever read or wait this page was running. An action's own
+        // request goes on, and its outcome reaches the player as it does after
+        // the wallet's pause.
+        private async Task Run(Func<long, CancellationToken, Task> operation, bool leaving = false)
         {
-            if (detached || !isActiveAndEnabled || paused || Flow == null || Busy || PlayingRun) return;
+            if (detached || !isActiveAndEnabled || paused || Flow == null || PlayingRun || Busy && !leaving) return;
             RetireRead(); reads = new CancellationTokenSource(); long epoch = generation;
             Busy = true; failure = null; info = null; Present();
             try { await operation(epoch, reads.Token); }
-            catch (OperationCanceledException) { if (Current(epoch)) Fail("Refresh was cancelled. Refresh to try again."); }
+            catch (OperationCanceledException) { if (Current(epoch)) Fail("The page was interrupted while loading."); }
             catch (Exception error) { if (Current(epoch)) ShowError(error); }
             finally { if (Current(epoch)) { Busy = false; Present(); } }
         }
@@ -225,7 +228,7 @@ namespace ZKube.Integration.Presentation
                 if (shell.ArtworkError != null)
                 {
                     presenting = false; shownKey = null;
-                    views.Unavailable("This page could not be opened.", "Realm artwork unavailable. Refresh to try again.",
+                    views.Unavailable("This page could not be opened.", "Realm artwork unavailable.",
                         PageAction("Try again", () => { shell.ReleaseArtwork(); _ = RefreshOverview(); }));
                     yield break;
                 }

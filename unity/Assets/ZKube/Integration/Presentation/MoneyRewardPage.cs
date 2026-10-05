@@ -44,7 +44,7 @@ namespace ZKube.Integration.Presentation
             if (selected > today) throw new ArgumentOutOfRangeException(nameof(day));
             CloseProductViews(); browsingRewards = true; rewardDay = selected; boardKind = kind ?? "score"; boardRows = BoardRowsStep; boardRowsFrom = 0;
             await RefreshRewardPage(epoch, token);
-        });
+        }, true);
         private void CloseRewardView() { ClearRewardObservation(); browsingRewards = false; boardKind = "score"; }
         private void ClearRewardObservation() { rewardRead = null; pageNotice = null; Present(); }
         private async Task RefreshRewardPage(long epoch, CancellationToken token)
@@ -66,11 +66,8 @@ namespace ZKube.Integration.Presentation
             if (economyReadbackNeeded && browsingRewards && !Busy && !paused)
             { economyReadbackNeeded = false; _ = RefreshOverview(); return; }
             if (!browsingRewards || rewardRead == null) return;
-            if (!rewardRead.IsCurrent)
-            {
-                ClearRewardObservation(); Notice("Your results changed. Refresh to check your rewards.");
-                Status = "Results need refreshing"; return;
-            }
+            // A read gone stale is dropped; the page reads again by its own rule.
+            if (!rewardRead.IsCurrent) { ClearRewardObservation(); return; }
             if (!Busy && new[] { rewardRead.Value.Boards.Score, rewardRead.Value.Boards.Theme }
                 .Any(board => board.ClaimStatus == "claimable" && board.ExpiresAt.HasValue && now() > board.ExpiresAt.Value))
                 _ = RefreshOverview();
@@ -101,22 +98,24 @@ namespace ZKube.Integration.Presentation
         // and, under a divider, the places the board no longer holds, from the
         // public read model, which is never an authority.
         private static string BoardDay(uint day) => DateTimeOffset.FromUnixTimeSeconds((long)day * 86400).UtcDateTime.ToString("ddd d MMM", CultureInfo.InvariantCulture);
-        private PageAction StepDay(string name, int step) => PageAction(name, () => _ = OpenRewards((uint)(rewardDay + step), boardKind), () => PageAvailable() && !Busy);
+        // The arrows stop only at the stepper's real limits, the launch day and today; a read in progress does not hold them.
+        private PageAction StepDay(string name, int step) => PageAction(name, () => _ = OpenRewards((uint)(rewardDay + step), boardKind), PageAvailable);
         private PanelBlock Stepper(string state, string token, string mark = null) => PanelBlock.Stepper(BoardDay(rewardDay), state, token,
             rewardDay > Math.Max(firstBoardDay, 1U) ? StepDay("Previous day", -1) : null, rewardDay < Today ? StepDay("Next day", 1) : null, mark);
         private void ShowBoard(string kind)
         {
-            if (Busy || kind == boardKind) return;
+            if (kind == boardKind) return;
             boardKind = kind; boardRows = BoardRowsStep; boardRowsFrom = 0; Present();
         }
         // The two boards as a pair; a Classic day has the one.
         private PanelBlock BoardPair() => NativeEngine.Daily(rewardDay).Kind == 0 ? null :
-            PanelBlock.Pair(PageAction("Score", () => ShowBoard("score"), () => PageAvailable() && !Busy, "Score board"),
-                PageAction(MoneyText.Board("theme", catalog), () => ShowBoard("theme"), () => PageAvailable() && !Busy, "Objective board"), boardKind == "score" ? 0 : 1);
+            PanelBlock.Pair(PageAction("Score", () => ShowBoard("score"), PageAvailable, "Score board"),
+                PageAction(MoneyText.Board("theme", catalog), () => ShowBoard("theme"), PageAvailable, "Objective board"), boardKind == "score" ? 0 : 1);
 
         private PanelPageView RewardPage()
         {
-            var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            // Back is a way off the page: never held.
+            var back = PageAction("Back", () => _ = OpenDaily(), PageAvailable);
             var page = new PanelPageView { Key = "Boards", Title = "Boards", Back = back, Tab = AppPage.Home };
             var blocks = new List<PanelBlock>();
             if (NativeEngine.Daily(rewardDay).Kind == 0) boardKind = "score";

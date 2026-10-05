@@ -24,7 +24,7 @@ namespace ZKube.Integration.Presentation
             if (identity.Owner == null) return;
             CloseProductViews(); browsingKredits = true;
             await RefreshKreditPage(epoch, token);
-        });
+        }, true);
 
         private void CloseKreditView() { ClearKreditObservation(); browsingKredits = false; shownKredits = null; kreditGainUntil = 0; actingPack = 0; }
         private void ClearKreditObservation() { kreditRead = null; pageNotice = null; Present(); }
@@ -50,8 +50,7 @@ namespace ZKube.Integration.Presentation
             // The gain has shown: the page settles to its plain balance.
             if (browsingKredits && kreditGainUntil > 0 && Time.unscaledTime >= kreditGainUntil) { kreditGainUntil = 0; Present(); }
             if (!browsingKredits || kreditRead == null || kreditRead.IsCurrent) return;
-            ClearKreditObservation(); Notice("Your balance changed. Refresh before buying Kredits.");
-            Status = "Kredits need refreshing";
+            ClearKreditObservation();
         }
         private bool CanBuyKredits() => browsingKredits && !Busy && !sessionActionPending && !economyActionPending &&
             !paused && !detached && isActiveAndEnabled && kreditRead != null && kreditRead.IsCurrent && kreditRead.Value.Pending == null && kreditRead.Value.Launched;
@@ -78,7 +77,7 @@ namespace ZKube.Integration.Presentation
         // discounted or pushed, and the one-way rule stays in view.
         private PanelPageView KreditPage()
         {
-            var back = PageAction("Back", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            var back = PageAction("Back", () => _ = OpenDaily(), PageAvailable);
             var page = new PanelPageView { Key = "Kredits", Title = "Kredits", Back = back, Tab = AppPage.Home };
             var terms = PanelBlock.Text("Kredit terms", "Kredits can’t be withdrawn, transferred or exchanged.", SkinTokens.TextMuted, true);
             PackView[] Cards(Func<uint, PackView> card) => SessionViewPolicy.KreditPacks.Select(card).ToArray();

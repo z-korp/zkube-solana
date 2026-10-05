@@ -19,15 +19,15 @@ namespace ZKube.Integration.Presentation
         private ResultPageView lastResult;
         private bool browsingOperation;
         // Shown in place of a page whose read is not there: what is being
-        // checked, or why the page needs refreshing.
+        // checked.
         private string pageNotice;
         public bool BrowsingOperation => browsingOperation;
 
         private static PageAction PageAction(string text, Action invoke, Func<bool> available = null, string name = null) =>
             new PageAction { Label = text, Name = name, Invoke = invoke, CanInvoke = available };
         private bool PageAvailable() => Flow != null && !detached && !paused && isActiveAndEnabled && !PlayingRun;
-        public bool CanNavigate(AppPage page) => PageAvailable() &&
-            (page == AppPage.Campaign ? identity.Owner != null : !Busy && (page == AppPage.Settings || identity.Owner != null));
+        // A tab is a way off the page: it waits for nothing the page is doing.
+        public bool CanNavigate(AppPage page) => PageAvailable() && (page == AppPage.Settings || identity.Owner != null);
         public void Navigate(AppPage page)
         {
             if (!CanNavigate(page)) return;
@@ -48,7 +48,7 @@ namespace ZKube.Integration.Presentation
         private void OpenSharedPage(AppPage page)
         {
             CloseProductViews(); sharedPage = page;
-            if (page == AppPage.Settings && identity.Owner != null) _ = Run(RefreshSharedPage);
+            if (page == AppPage.Settings && identity.Owner != null) _ = Run(RefreshSharedPage, true);
             else Present();
         }
         // Settings shows this device's session from a read that only observes;
@@ -167,7 +167,8 @@ namespace ZKube.Integration.Presentation
             refusal != null && refusalFamily == family && family != "Device" && family != "Kredits" && family != "Daily" && family != "Operation" ? refusal : failure ?? info;
 
         // A page whose read is not there yet: what is being checked, or, when the
-        // read failed or went stale, the guardian says why with the way forward.
+        // read failed, the guardian says why with the way forward. A read that
+        // went stale is simply made again.
         private PanelPageView Waiting(string key, string title, string subtitle, AppPage? tab, string message)
         {
             var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab };
@@ -177,14 +178,10 @@ namespace ZKube.Integration.Presentation
                     PanelBlock.Title("Not loaded"),
                     PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true),
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
-            else if (Busy || message == null)
+            else
                 page.Blocks = sessionActionPending || economyActionPending ?
                     new[] { PanelBlock.Button(Progressing(), true), DisconnectButton() } :
                     new[] { PanelBlock.Text("Page notice", message ?? "Checking…", SkinTokens.TextMuted) };
-            else
-                page.Blocks = new[] {
-                    PanelBlock.Talk(message, "idle"),
-                    PanelBlock.Button(PageAction("Refresh", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true) };
             return page;
         }
         private void Notice(string message) { pageNotice = message; Present(); }
@@ -196,13 +193,13 @@ namespace ZKube.Integration.Presentation
         // reason and retry where it was asked.
         private void OpenOperation()
         {
-            if (!PageAvailable() || Busy) return;
+            if (!PageAvailable()) return;
             CloseProductViews(); browsingOperation = true; Present();
         }
         private void ReturnFromOperation() => OpenSharedPage(AppPage.Settings);
         private PanelPageView OperationPage()
         {
-            var back = PageAction("Back", ReturnFromOperation, () => PageAvailable() && !Busy);
+            var back = PageAction("Back", ReturnFromOperation, PageAvailable);
             var page = new PanelPageView { Key = "Operation", Title = "Last operation", Subtitle = "Arena", Back = back };
             var receipt = LastReceipt;
             var arcade = PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy);

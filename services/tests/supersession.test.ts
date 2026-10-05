@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /Refresh before|Refresh to (?:check|try)|needs? refreshing|Results changed\. Refresh/i, trees: [UNITY],
+    reversal: "A stale or absent read restarts by itself; no line asks the player to refresh" },
   { pattern: /Retry settlement|Check settlement before continuing|Settlement could not be confirmed|result is still settling|Daily frozen|New actions are closed|Resume the saved Daily run first/i, trees: [UNITY],
     reversal: "A paid run ends on the shared result page, which says how saving its result stands" },
   { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"|Solana has not confirmed this yet|Approve the request in your wallet|Purchase pending|Refresh balance/i, trees: [UNITY],
@@ -58,8 +60,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Cadence funds growing boards; purchases pay the team and stale claims are no-ops" },
   { pattern: /Resolving MagicBlock run|Recovering ActiveRun rent|Preparing verified opening|Final tier \d+\/7|Forget run locally|Wake the guardian|still life/i, trees: [UNITY],
     reversal: "Run copy describes player actions instead of internal operations" },
-  { pattern: /push(?:ed|es)? automatically|payouts are pushed|push confirms|pushed prize|Everyone who places made money|anything you are still\s+owed is collected automatically|signs every 0\.01 SOL entry|never signs entry payment/i, trees: AUTHORED,
-    reversal: "Entries spend prepaid Kredits and prizes use bounded claims" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

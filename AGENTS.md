@@ -358,19 +358,21 @@ deployment or spending approval.
   lives on the card that was tapped (its progress, its reason, its retry), and Kredits that arrive count the
   balance up. `ThePageFitsBothPhonesAndNoPackIsMarkedOrPushed`, `APurchaseLivesOnTheCardThatWasTapped` and
   `ArrivedKreditsCountUpAndFlyAndReducedMotionKeepsTheCountAlone` guard the page.
-- **Wallet requests:** connecting, a device change and a Kredit purchase each show the open request on their
-  page, and one that does not go through stays there as one plain reason with a retry; a device action that
-  fails is noted on its page. One runner owns that for every action, so a tap never ends looking like nothing
-  happened. An action in progress shows on its own button, one piece for every action: a loader and its step in
-  a word (the wallet's turn, the send, the wait for Solana), never a line that stands still; reduced motion
-  shows a still mark and the same word. A sent transaction is followed by that runner to a definite outcome
-  (confirmed, failed or expired) and the page updates without a tap; a page that finds one unconfirmed follows
-  it too. Following only reads: it never signs or sends. Each round of its wait is bounded; past one the page
-  says it is still checking, rests a moment and follows again by itself, so nobody is asked to check.
+- **Wallet requests:** connecting, a device change and a Kredit purchase each show the open request on their page,
+  and one that does not go through stays there as one plain reason with a retry; a device action that fails is
+  noted on its page. One runner owns that for every action, so a tap never ends looking like nothing happened. An
+  action in progress shows on its own button, one piece for every action: a loader and its step in a word (the
+  wallet's turn, the send, the wait for Solana), never a line that stands still; reduced motion shows a still mark
+  and the same word. A sent transaction is followed by that runner to a definite outcome (confirmed, failed or
+  expired) and the page updates without a tap; a page that finds one unconfirmed follows it too. Following only
+  reads: it never signs or sends. Each round of its wait is bounded; past one the page says it is still checking,
+  rests a moment and follows again by itself, so nobody is asked to check. A look that cannot read its answer is
+  not a wait: after three in a row, each spaced twice as far as the last, the follow stops and the page says why
+  with a retry, which looks again and never sends. Nothing else waits on it: every tab opens and the Campaign
+  plays. `ATransactionThatCannotBeConfirmedStopsBeingFollowedSaysWhyAndFreezesNothing` guards that.
   `AnActionShowsEachStepOnItsButtonUntilItsOutcome` and `AnActionInProgressShowsTheLoaderAndItsStepAndTakesNoTap`
-  guard the button. A
-  wallet that returns another message than it was given is refused, as Gate G1 requires, and what it changed is
-  kept on the page and in the log as counts, program IDs and yes/no facts.
+  guard the button. A wallet that returns another message than it was given is refused, as Gate G1 requires, and
+  what it changed is kept on the page and in the log as counts, program IDs and yes/no facts.
   `ASentTransactionIsFollowedToItsOutcomeWithoutATap`,
   `DailyPageFollowsAPendingTransactionItselfAndNeverSignsOrSends`,
   `AChangedMessageIsRefusedWithASafeAccountOfWhatChanged` and
@@ -385,14 +387,17 @@ deployment or spending approval.
   answer; a page that found it not launched reads again every thirty seconds, so it opens by itself.
   `BeforeTheArenaOpensNoPageOffersAnActionThatCannotWork` and
   `TheArenaOpensByItselfOnceItsLaunchDailyExists` guard the state and its end.
-- **One Arena page:** the paid game has one name on screen, Arena, and one home page, the one under the
-  wordmark, behind the Arena tab. It carries the connect request (with no tab bar until there is an address), a
-  refused connection, the wait for its read, a failed read and the Arena itself in its own slots; no titled
-  panel stands in for it. No page waits on a read nobody is making: a page whose read is absent, with no
-  failure or notice shown for that, starts it, whatever retired the operation that would have (the wallet in
-  front of the app, a pause). `TheArenaHasOneHomePageInEveryState`,
-  `TheArenaLoadsAfterConnectingThroughAWalletThatPausedTheApp` and `APageWhoseReadIsAbsentReadsItWithoutATap`
-  guard them.
+- **One Arena page:** the paid game has one name on screen, Arena, and one home page, the one under the wordmark,
+  behind the Arena tab. It carries the connect request (with no tab bar until there is an address), a refused
+  connection, the wait for its read, a failed read and the Arena itself in its own slots; no titled panel stands
+  in for it. No page waits on a read nobody is making: a page whose read is absent or has gone stale, with no
+  failure shown in its place, starts it, whatever retired or outdated the one before (the wallet in front of the
+  app, a pause, a confirmed transaction). No line asks the player to refresh. A way off a page (Back, a tab, the
+  Boards stepper) waits for nothing the page is doing: it retires the page's read or wait, and the stepper stops
+  only at the launch day and today. `TheArenaHasOneHomePageInEveryState`,
+  `TheArenaLoadsAfterConnectingThroughAWalletThatPausedTheApp`, `APageWhoseReadIsAbsentReadsItWithoutATap`,
+  `EveryArenaPageReadsAgainByItselfWhenItsReadGoesStale` and
+  `BackAndTheStepperNeverWaitForAReadAndStopOnlyAtTheirLimits` guard them.
 - **Failed requests:** a request that fails has one classification, `RequestFailure`: a timeout, no network, an
   insecure connection, a busy endpoint (429), a refusal (401, 403), a server error, another HTTP status, an RPC
   error reply, a reply that cannot be read, or an error on the device. The page words it with the service that
@@ -684,19 +689,21 @@ entry; it is not a general fee sponsor.
 `prepare_makes_only_todays_daily_once_and_a_repeat_is_a_checked_no_op` guards preparation.
 
 Base, Router and resolved ER connections stay separate, and each endpoint is HTTPS unless it is this machine;
-`AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. Resolve
-placement through `getDelegationStatus`. A rollup connection is asked only the calls a MagicBlock rollup answers,
-listed once in the transport, which refuses any other by name before it is made; a rollup has no rent-exemption
-call, so every rent is the generated constant and no endpoint is asked for one. The test doubles answer Method
-not found for anything outside what the Devnet rollup was probed to answer.
-`EveryRollupPlanAsksTheRollupOnlyWhatItAnswers` guards the opening VRF, a row action, the finish and the commit,
-and `ResumingAnEnteredRunRequestsItsOpeningVrfAndOpensTheBoard` the recovery of a run entered without its
-opening VRF.
-Preserve copied-back terminal state until consumption; deterministic expiry and orphan reservation permit
-cleanup without late scoring. Arcade has one durable slot and monotonic run IDs, guarded by
-`arcade_reservation_and_orphan_share_one_monotonic_run_sequence`.
-`undelegation_callback_is_constrained_to_its_buffer_pda` guards the canonical callback buffer and System
-program constraints in the pinned SDK.
+`AResolvedErEndpointMustBeHttpsLikeEveryOtherEndpoint` guards the client's one endpoint policy. Resolve placement
+through `getDelegationStatus`. A rollup connection is asked only the calls a MagicBlock rollup answers, listed
+once in the transport, which refuses any other by name before it is made; a rollup has no rent-exemption call, so
+every rent is the generated constant and no endpoint is asked for one. The test doubles answer Method not found
+for anything outside what the Devnet rollup was probed to answer. `EveryRollupPlanAsksTheRollupOnlyWhatItAnswers`
+guards the opening VRF, a row action, the finish and the commit, and
+`ResumingAnEnteredRunRequestsItsOpeningVrfAndOpensTheBoard` the recovery of a run entered without its opening VRF.
+A confirmation reads the accounts its transaction could have changed, less the rollup's Magic context: a commit
+names that account, it is five megabytes and holds no state of the game, so no reply carrying it fits a bound. The
+test doubles answer any read that names it with more than every bound.
+`ACommitIsConfirmedWithoutReadingTheRollupsMagicContext` guards it. Preserve copied-back terminal state until
+consumption; deterministic expiry and orphan reservation permit cleanup without late scoring. Arcade has one
+durable slot and monotonic run IDs, guarded by `arcade_reservation_and_orphan_share_one_monotonic_run_sequence`.
+`undelegation_callback_is_constrained_to_its_buffer_pda` guards the canonical callback buffer and System program
+constraints in the pinned SDK.
 
 One identity epoch invalidates retained reads after reconciliation; superseded reads cancel.
 `PendingPurchaseUsesRealReconcilerAndInvalidatesRetainedEconomyProjection` and

@@ -24,7 +24,7 @@ namespace ZKube.Integration.Presentation
             if (identity.Owner == null) return;
             CloseProductViews(); browsingDaily = true;
             await RefreshDailyPage(epoch, token);
-        });
+        }, true);
 
         private void CloseDailyView() { ClearDailyObservation(); browsingDaily = false; }
         private void ClearDailyObservation()
@@ -58,8 +58,7 @@ namespace ZKube.Integration.Presentation
             if (!browsingDaily || dailyRead == null) return;
             if (!dailyRead.IsCurrent)
             {
-                ClearDailyObservation(); Notice("Daily information changed. Refresh before continuing.");
-                Status = "Daily needs refreshing"; return;
+                ClearDailyObservation(); return;
             }
             if (!Busy && now() >= dailyRefreshAt) { confirmingDaily = false; _ = RefreshOverview(); }
         }
@@ -255,9 +254,6 @@ namespace ZKube.Integration.Presentation
                 return Home(new ArcadeView { Headline = "Not loaded", Reason = failure, Warning = true },
                     0, PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy),
                     PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()));
-            if (!Busy && pageNotice != null)
-                return Home(new ArcadeView { Headline = "Needs refreshing", Reason = pageNotice },
-                    0, PageAction("Refresh", () => _ = RefreshOverview(), () => PageAvailable() && !Busy));
             if (opening != null) return Home(new ArcadeView(), 0, new PageAction { Label = opening, Name = "Action progress", Progress = opening });
             return Home(new ArcadeView { Headline = "Checking…" }, 0);
         }

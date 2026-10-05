@@ -42,7 +42,12 @@ namespace ZKube.Integration.Presentation
         // The follower looks every half second at first, then backs off: a
         // transaction that is going to land has usually landed by then.
         private TimeSpan followEvery = TimeSpan.FromMilliseconds(500), followFor = TimeSpan.FromSeconds(120);
-        private bool following, waitedOut;
+        private bool following, waitedOut, unread;
+        // A look that could not read its answer is not a wait. After this many in
+        // a row, each spaced twice as far as the last, the follow stops and the
+        // page says why with a retry: nothing loops on a reply it cannot read.
+        private const int UnreadLooks = 3;
+        private static string CouldNotConfirm(ExecutionResult result) => "This is not confirmed yet. " + MoneyReceiptText.Refusal(result.Failure);
         private TimeSpan FollowPause(TimeSpan elapsed) =>
             TimeSpan.FromTicks(followEvery.Ticks * (elapsed.Ticks < followEvery.Ticks * 12 ? 1 : elapsed.Ticks < followEvery.Ticks * 40 ? 2 : 4));
         // result is the action's own pending result, or null to follow whatever this address has waiting.
@@ -50,19 +55,21 @@ namespace ZKube.Integration.Presentation
         {
             if (result != null && result.Outcome != ExecutionOutcome.Pending) return result;
             bool own = result != null;
-            following = true; waitedOut = false; Present();
+            following = true; waitedOut = false; unread = false; Present();
             try
             {
-                var started = DateTime.UtcNow;
+                var started = DateTime.UtcNow; int failed = 0;
                 while (true)
                 {
                     if (!Current(epoch)) return result;
-                    if (result != null) await Task.Delay(FollowPause(DateTime.UtcNow - started), token);
+                    if (result != null) await Task.Delay(TimeSpan.FromTicks(FollowPause(DateTime.UtcNow - started).Ticks << failed), token);
                     if (!Current(epoch)) return result;
                     var next = (await Flow.ResumePending(token, !own)).Value;
                     if (!Current(epoch) || next.Code == "no-pending-transaction") return result;
                     result = next;
                     if (result.Outcome != ExecutionOutcome.Pending) return result;
+                    failed = result.Failure != null ? failed + 1 : 0;
+                    if (failed >= UnreadLooks) { unread = true; return result; }
                     // Only a wait that really ran its length is over; a page the
                     // pause retired has not waited, and follows again when it is back.
                     if (DateTime.UtcNow - started >= followFor) { waitedOut = true; return result; }
@@ -90,7 +97,9 @@ namespace ZKube.Integration.Presentation
             if (!Current(epoch)) return;
             ShowReceipt(result ?? ExecutionResult.Rejected(null, "no-pending-transaction"), identity.Owner);
             // A round that ran its length without an outcome: the page says it is still checking and follows again.
-            if (result?.Outcome == ExecutionOutcome.Pending) { if (waitedOut) Slow(); }
+            // A follow that could not read its answer stops there, with the reason and a retry.
+            if (result?.Outcome == ExecutionOutcome.Pending)
+            { if (unread) Refuse(family, CouldNotConfirm(result), () => _ = FollowTransaction()); else if (waitedOut) Slow(); }
             else { slow = false; if (result != null && MoneyReceiptText.Refusal(result) is string reason) Inform(reason); }
             await RefreshVisiblePage(epoch, token); // A receipt survives an empty post-confirmation journal.
         });
@@ -128,6 +137,8 @@ namespace ZKube.Integration.Presentation
                         reason = MoneyReceiptText.Refusal(result);
                         // The wait ran out: the page it reads back shows it still pending and keeps following; nothing is sent again.
                         if (result.Outcome == ExecutionOutcome.Pending && waitedOut) Slow();
+                        // It was sent and its outcome could not be read: the retry looks again and never sends again.
+                        if (result.Outcome == ExecutionOutcome.Pending && unread) { reason = CouldNotConfirm(result); retry = () => _ = FollowTransaction(); }
                     }
                     catch (Exception error) when (!(error is OperationCanceledException)) { ClientLog.Failure(action, error); reason = Reason(error); }
                     if (result != null) sent?.Invoke(result);
