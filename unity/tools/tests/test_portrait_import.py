@@ -24,13 +24,18 @@ def realm_images():
     return {image.removeprefix('/') for skin in catalog['skins'] for realm in skin['realms'] for image in realm['images'].values()}
 
 
+def sound_effects():
+    """Every sound cue's clip as the codegen emits it from its one cue list."""
+    catalog = json.loads((ROOT / 'assets/theme-catalog.generated.json').read_text())
+    return {clip.removeprefix('/') for clip in catalog['effects'].values()}
+
+
 class PortraitImports(unittest.TestCase):
     def test_imports_only_the_assets_loaded_by_the_game(self):
         _, catalog = imports.asset_plan()
         skins = json.loads((ROOT / 'assets/catalog.json').read_text())['skins']
         expected = {'assets/common/mark.png', 'assets/common/sounds/musics/menu.mp3'}
-        expected.update(f'assets/common/sounds/effects/{name}.mp3'
-                        for name in ('swipe', 'explode', 'bonus-activate', 'star', 'over', 'levelup', 'victory', 'boss-intro'))
+        expected.update(sound_effects())
         for realm in range(1, 11):
             expected.update(f'assets/theme-{realm}/{name}.png' for name in
                             ['background'] + [f'boss/{frame}' for frame in
