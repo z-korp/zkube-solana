@@ -78,7 +78,7 @@ namespace ZKube.Integration.Presentation
                 if (Current(epoch)) Inform("Your run is not ready to open. Check its saved state before continuing.");
                 return;
             }
-            boardHost.Open(result.Value, textScale, (uint?)profile?["best_daily_score"], Flow.DailyTop(NativeEngine.DayAt(result.Value.Run.DeadlineAt)),
+            boardHost.Open(result.Value, injectedScale, (uint?)profile?["best_daily_score"], Flow.DailyTop(NativeEngine.DayAt(result.Value.Run.DeadlineAt)),
                 entered ? null : (uint?)profile?["entry_streak_days"]);
             HidePages(boardHost.Board);
         });

@@ -81,12 +81,28 @@ namespace ZKube.Presentation
             Show(accepted); CompleteInteraction();
         }
 
-        private void Awake()
+        // The saved settings, as they stand now. A board made for a run reads them
+        // once; one kept while pages change them reads them again before its
+        // next run. Nothing is written.
+        public void ReadPreferences()
         {
             ReducedMotion = AppPreferences.ReducedMotion;
             Muted = AppPreferences.Muted;
             Haptics = AppPreferences.Haptics;
             TextScale = ReadSavedTextScale();
+            audioPreferences = null; ApplyChannelVolumes();
+            if (effects != null) effects.mute = Muted;
+            if (music != null) music.mute = Muted;
+        }
+        // An explicit size (a test's) stands in for the saved one and is never saved.
+        public void OverrideTextScale(float value)
+        {
+            TextScale = SupportedTextScale(value);
+            if (PresentationInitialized && !busy) RefreshLayout();
+        }
+        private void Awake()
+        {
+            ReadPreferences();
             if (EventSystem.current == null)
             {
                 var events = new GameObject("Board EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));

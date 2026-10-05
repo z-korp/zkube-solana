@@ -58,7 +58,8 @@ namespace ZKube.Integration.Presentation
         // day's entry streak, each null when it was not read; top is the day's
         // Score board top as its read will give it.
         private ulong? best, streak;
-        public void Open(MoneyRunLaunch launch, float textScale, ulong? best = null, Task<ulong?> top = null, ulong? streak = null)
+        // The board reads the saved settings itself; textScale is only a test's explicit size.
+        public void Open(MoneyRunLaunch launch, float? textScale = null, ulong? best = null, Task<ulong?> top = null, ulong? streak = null)
         {
             this.best = best; this.streak = streak;
             if (flow == null || HasRun || !launch.CanBind || !flow.RunIdentityCurrent(launch.Run))
@@ -75,7 +76,8 @@ namespace ZKube.Integration.Presentation
                 token => Execute(acceptedRun, cancellation => flow.SettleRun(acceptedRun, cancellation), token));
             var root = new GameObject("Money accepted run"); root.transform.SetParent(transform, false);
             board = root.AddComponent<BoardController>();
-            board.SetTextScale(textScale); board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
+            if (textScale.HasValue) board.OverrideTextScale(textScale.Value);
+            board.Host = new BoardHostHooks { Terminal = PresentTerminal, Exit = Close };
             board.Bind(provider.Bind(launch.Operation.State,
                 new DailyContext { Top = top, Best = best, ClosesAt = run.Binding.DeadlineAt, Now = now }));
             board.SetHostInputEnabled(!paused && !Frozen());

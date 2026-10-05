@@ -64,7 +64,7 @@ namespace ZKube.Integration.Presentation
         }
         public SettingsPageView SettingsPage()
         {
-            var view = AppPreferences.Read(() => { textScale = AppPreferences.TextScale; InitializeViews(); Present(); });
+            var view = AppPreferences.Read(() => { InitializeViews(); Present(); });
             if (identity?.Owner == null) return view;
             var session = settingsRead != null && settingsRead.IsCurrent ? settingsRead.Value.Session : null;
             view.Identity = new[] {

@@ -42,6 +42,8 @@ namespace ZKube.Integration.Presentation
         private void PlayCampaign(LocalBoardActionProvider provider)
         {
             if (runBoard == null) { runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(home: () => { shell.Show(true); Navigate(AppPage.Home); }); }
+            // The board is kept between runs while the pages change the settings: it reads them again.
+            if (runBoard.Board != null) runBoard.Board.ReadPreferences();
             var journey = campaign;
             runBoard.Open(provider.Bind(), () => journey.Unsaved, journey.Finished, journey.Left, journey.FirstRun);
             HidePages(runBoard.Board);

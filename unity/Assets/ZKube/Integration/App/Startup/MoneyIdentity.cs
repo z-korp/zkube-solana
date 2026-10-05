@@ -53,7 +53,8 @@ namespace ZKube.Integration.App
             }
             flow = new MoneyAppFlow(services);
             Controller = gameObject.AddComponent<MoneyAppAdapter>();
-            Controller.Initialize(flow, services.Identity, clock, startup.TextScale, startup.DisplayDensity);
+            // The saved text size is read by the pages and boards themselves; only an explicit one is handed on.
+            Controller.Initialize(flow, services.Identity, clock, startup.Configuration.TextScale == 0 ? (float?)null : startup.TextScale, startup.DisplayDensity);
             Controller.AttachRunHost(gameObject.AddComponent<MoneyBoardHost>());
         }
         public override string UnavailableMessage(Exception error) => error is MoneyConfigurationException ?

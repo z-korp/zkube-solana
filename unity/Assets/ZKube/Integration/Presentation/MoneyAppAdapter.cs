@@ -28,7 +28,11 @@ namespace ZKube.Integration.Presentation
         private ExecutionResult lastReceipt;
         private ClientIdentity identity;
         private Func<long> now;
-        private float textScale;
+        // The pages' text size is the saved setting itself; a test's explicit size
+        // stands in for it and is never saved.
+        private float? injectedScale;
+        private float viewScale;
+        private float TextScale => injectedScale ?? AppPreferences.TextScale;
         private float? injectedDensity;
         private bool fullReceipt;
         private string receiptNotice, receiptOwner, receiptFamily;
@@ -46,14 +50,14 @@ namespace ZKube.Integration.Presentation
         private bool restored;
         private string shownKey;
 
-        public void Initialize(MoneyAppFlow flow, ClientIdentity clientIdentity, Func<long> clock = null, float scale = 1, float? displayDensity = null)
+        public void Initialize(MoneyAppFlow flow, ClientIdentity clientIdentity, Func<long> clock = null, float? scale = null, float? displayDensity = null)
         {
             if (initialized) throw new InvalidOperationException("Money overview is already initialized");
             Flow = flow ?? throw new ArgumentNullException(nameof(flow));
             Flow.ExecutionStep = step => { actionStep = step; Present(); };
             identity = clientIdentity ?? throw new ArgumentNullException(nameof(clientIdentity));
             now = clock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            injectedDensity = displayDensity; textScale = BoardController.SupportedTextScale(scale);
+            injectedDensity = displayDensity; injectedScale = scale.HasValue ? BoardController.SupportedTextScale(scale.Value) : (float?)null;
             catalog = PageCatalog.Load();
             shell = gameObject.AddComponent<PageShell>(); shell.Initialize(Application.productName);
             views = gameObject.AddComponent<PageViews>(); InitializeViews();
@@ -61,7 +65,7 @@ namespace ZKube.Integration.Presentation
             observedDay = Today;
             _ = RefreshOverview();
         }
-        private void InitializeViews() => views.Initialize(this, shell, "Arena", "arena", textScale, Density);
+        private void InitializeViews() { viewScale = TextScale; views.Initialize(this, shell, "Arena", "arena", viewScale, Density); }
         private float Density() => injectedDensity ?? BoardController.ReadDisplayDensity();
 
         public Task RefreshOverview() => Run(RefreshVisiblePage);
@@ -186,6 +190,8 @@ namespace ZKube.Integration.Presentation
             RefreshCampaignIdentity();
             if (PlayingRun) return;
             if (Flow == null || paused) return;
+            // A board's pause may have changed the text size: the pages follow the setting.
+            if (viewScale != TextScale) { InitializeViews(); Present(); }
             if (ownerRead != null && !ownerRead.IsCurrent) { ownerRead = null; Present(); }
             if (receiptOwner != null && !identity.IsCurrent(receiptLease)) { ForgetReceipt(); Present(); }
             RefreshSessionIdentity(); RefreshDailyIdentity(); RefreshKreditIdentity(); RefreshRewardIdentity(); RefreshProfileIdentity();

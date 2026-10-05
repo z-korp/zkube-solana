@@ -724,7 +724,11 @@ path owns both products, and money-only schemas stay out of store packages.
 `TeardownDuringDelayedReadWaitsWithoutLateInputOrSigning` guard content and lifecycle. Native preferences
 are shared across settings and board controls, checked by
 `SettingsBeforeStartAreAppliedAndPersistAcrossControllerRecreation` and
-`SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount`. One menu track, the catalog's
+`SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount`. The saved preferences are their one
+owner: a page reads them when it draws, a board when it is made, and a board kept between runs again before its
+next one. Opening a run writes none of them, and an explicit size a test hands in is never saved.
+`SettingsChangedOnABoardOrAPageReachEveryPageAndTheNextBoard` guards the Arena, whose Settings page and boards are
+not one object. One menu track, the catalog's
 menu-music slot (assets/common/sounds/musics/menu.mp3), plays under the tab pages at the music level and stops
 for a result and the board; `MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAndTheBoard` guards it. One
 listener, `Ears`, made at startup and kept for the life of the app, hears every source: the pages' and a board's
