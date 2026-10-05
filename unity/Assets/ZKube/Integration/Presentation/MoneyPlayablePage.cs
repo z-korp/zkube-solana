@@ -27,16 +27,16 @@ namespace ZKube.Integration.Presentation
             boardHost.Finished += result => {
                 if (detached) return;
                 result.PlayerName = identity.Owner;
-                result.Streak = profileRead != null && profileRead.IsCurrent ? (uint?)profileRead.Value.Profile.Fields?["entry_streak_days"] : null;
                 lastResult = result;
                 CloseProductViews(); sharedPage = AppPage.Result;
                 if (paused || !isActiveAndEnabled) return;
-                shell.Show(true); Present();
+                shell.Show(true); Present(); ReadSavedStreak();
             };
             boardHost.SaveChanged += () => {
                 if (detached || lastResult == null || !boardHost.HasRun) return;
                 lastResult.Notice = boardHost.SaveNotice;
                 if (sharedPage == AppPage.Result) Present();
+                ReadSavedStreak();
             };
             boardHost.ObservedOperation += operation => {
                 if (detached || identity.Owner == null) return;
@@ -48,7 +48,20 @@ namespace ZKube.Integration.Presentation
 
         // The run being entered or opened, as the Daily card's button says it until the board takes the screen.
         private string opening;
-        private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action, string word) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
+        // A fresh entry changed the streak after the lobby was read: the result
+        // page reads it once its result is saved, whichever comes first.
+        private void ReadSavedStreak()
+        { if (boardHost.Saved && lastResult != null && lastResult.Streak == null && sharedPage == AppPage.Result) _ = ReadResultStreak(); }
+        private Task ReadResultStreak() => Run(async (epoch, token) => {
+            var read = await Flow.RefreshDaily(token);
+            if (!Current(epoch) || lastResult == null || lastResult.Day != read.Value.Lobby.DayId) return;
+            lastResult.Streak = (uint?)read.Value.Lobby.Profile.Fields?["entry_streak_days"];
+            if (sharedPage == AppPage.Result) Present();
+        });
+        // entered: the run is entered by this action, so the lobby's streak is from before it.
+        private Task OpenRun(Func<Task<MoneyRead<MoneyRunLaunch>>> action, string word, bool entered) => sessionActionPending || economyActionPending ? Task.CompletedTask : Run(async (epoch, token) => {
+            // The best to beat and the day's streak are the lobby's, taken before the run opens.
+            var profile = dailyRead != null && dailyRead.TryValue(out var lobby) ? lobby.Lobby.Profile.Fields : null;
             Status = "Opening your accepted run…";
             // A run whose result was left unsaved is let go: opening it saves it again.
             boardHost.Close();
@@ -65,8 +78,8 @@ namespace ZKube.Integration.Presentation
                 if (Current(epoch)) Inform("Your run is not ready to open. Check its saved state before continuing.");
                 return;
             }
-            ulong best = profileRead != null && profileRead.IsCurrent ? (ulong)((uint?)profileRead.Value.Profile.Fields?["best_daily_score"] ?? 0) : 0;
-            boardHost.Open(result.Value, textScale, best, Flow.DailyTop(NativeEngine.DayAt(result.Value.Run.DeadlineAt)));
+            boardHost.Open(result.Value, textScale, (uint?)profile?["best_daily_score"], Flow.DailyTop(NativeEngine.DayAt(result.Value.Run.DeadlineAt)),
+                entered ? null : (uint?)profile?["entry_streak_days"]);
             HidePages(boardHost.Board);
         });
 

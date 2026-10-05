@@ -228,6 +228,13 @@ namespace ZKube.Presentation
         // star or new-best line), or its daily greeting when unset.
         public TalkMoment? Speaks;
         public int SpeaksStars;
+        // A Daily result speaks of the run itself, in both products: its finest,
+        // a scoring run, or one that scored nothing.
+        public void DailyOutcome(bool beatsBest)
+        {
+            NewBest = beatsBest && Score > 0;
+            Speaks = NewBest ? TalkMoment.NewBest : TalkMoment.Win; SpeaksStars = Score > 0 ? 2 : 1;
+        }
     }
 
     // An identity's own page, drawn from the kit by the shared page views: the

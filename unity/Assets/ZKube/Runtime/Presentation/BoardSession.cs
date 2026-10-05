@@ -54,7 +54,8 @@ namespace ZKube.Presentation
     public sealed class DailyContext
     {
         public Task<ulong?> Top;
-        public ulong Best;
+        // Unknown is null, never zero: a score beats no best that was not read.
+        public ulong? Best;
         public long ClosesAt;
         public Func<long> Now;
     }

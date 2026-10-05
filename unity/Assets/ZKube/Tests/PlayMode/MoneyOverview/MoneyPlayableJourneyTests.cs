@@ -58,10 +58,14 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Enter · 1 Kredit"); yield return Idle();
             // From the Arcade into the board and back, no frame shows the clear colour.
             var watch = ZKube.Tests.Presentation.PaintWatch.On(host.GetComponent<PageShell>()); watch.Step = "the Daily's board";
+            // The best to beat is the lobby's, read before the run opened.
+            var profile = ((ZKube.Integration.Client.MoneyRead<MoneyDailyState>)typeof(MoneyAppAdapter).GetField("dailyRead",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(controller)).Value.Lobby.Profile.Fields;
             yield return SessionClick("Confirm 1 Kredit"); yield return Idle();
             yield return BoardReady();
             var board = host.GetComponent<MoneyBoardHost>().Board;
             Assert.That(board.Session.Daily, Is.True);
+            Assert.That(board.Session.DailyFacts.Best, Is.EqualTo((ulong)(uint)profile["best_daily_score"]));
             // The crown is the day's Score board top, read once as the run opened.
             Assert.That(board.Session.DailyFacts.Top, Is.Not.Null);
             yield return Wait(board.Session.DailyFacts.Top); yield return null;
@@ -90,6 +94,12 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty, "The board has left");
             watch.AssertCovered(); watch.Stop();
             Assert.That(controller.ResultPage().HasResult, Is.True);
+            // The guardian speaks of this run, which scored nothing, and the streak
+            // the entry changed is read once the result is saved.
+            var realm = PageCatalog.Load().Realm(controller.ResultPage().Realm);
+            Assert.That(controller.ResultPage().Speaks, Is.EqualTo(TalkMoment.Win)); Assert.That(controller.ResultPage().NewBest, Is.False);
+            StringAssert.Contains(realm.guardianLines.Stars(1), SessionText()); StringAssert.DoesNotContain(realm.guardianLines.dailyGreeting, SessionText());
+            yield return Until(() => controller.ResultPage().Streak != null, "The streak is read after the result is saved"); yield return Idle();
             Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));
             Assert.That(controller.ResultPage().ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
             // The Arena's result names the two boards the run counts on and when

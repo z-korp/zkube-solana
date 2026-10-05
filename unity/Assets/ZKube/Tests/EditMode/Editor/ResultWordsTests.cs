@@ -42,5 +42,18 @@ namespace ZKube.Editor.Tests
             Assert.AreEqual("Every level is cleared", Words(1, 7, 0, realm: last, level: top).Item2);
             Assert.AreEqual("2 stars kept", Words(2, 3, 0, realm: last, level: top).Item2);
         }
+
+        // A Daily result speaks of the run itself in both products: its finest,
+        // a scoring run, or one that scored nothing; never the day's greeting.
+        [Test] public void ADailyResultSpeaksOfTheRunItself()
+        {
+            foreach (var (score, beats, best, moment, stars) in new[] {
+                (120UL, true, true, TalkMoment.NewBest, 2), (120UL, false, false, TalkMoment.Win, 2), (0UL, true, false, TalkMoment.Win, 1), (0UL, false, false, TalkMoment.Win, 1) })
+            {
+                var result = new ResultPageView { Score = score }; result.DailyOutcome(beats);
+                Assert.AreEqual(best, result.NewBest, score + " " + beats);
+                Assert.AreEqual(moment, result.Speaks); Assert.AreEqual(stars, result.SpeaksStars);
+            }
+        }
     }
 }

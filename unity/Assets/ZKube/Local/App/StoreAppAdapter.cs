@@ -183,7 +183,7 @@ namespace ZKube.Local.App
             if (Flow.Campaign.Last != null) return Flow.Campaign.ResultPage(Application.productName, Flow.Account?.Name);
             var attempt = Flow.Product.Read.DailyAttempt;
             var pair = attempt == null ? null : NativeEngine.Daily(attempt.DayId);
-            return new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Account?.Name,
+            var result = new ResultPageView { ProductName = Application.productName, Mode = "Daily", PlayerName = Flow.Account?.Name,
                 HasResult = attempt != null, Realm = pair?.Realm ?? 1, Day = attempt?.DayId ?? 0,
                 ObjectiveKind = pair?.Kind ?? 0, ObjectiveValue = pair?.Value ?? 0,
                 Score = attempt?.DailyScore ?? 0,
@@ -191,13 +191,12 @@ namespace ZKube.Local.App
                 Streak = Flow.Product.Read.Streak,
                 Tier = attempt != null && attempt.Finished ? attempt.Tier : (byte?)null,
                 NextOpensAt = attempt != null && attempt.DayId == Flow.Today.DayId ? Flow.Today.FreezesAt : 0, Now = Flow.Runs.Now,
-                NewBest = attempt != null && attempt.DailyScore > 0 && attempt.DailyScore >= Flow.Product.Read.BestDailyScore,
-                // Realms speaks of the run itself: its finest, a scoring run, or one that scored nothing.
-                Speaks = attempt != null && attempt.DailyScore > 0 && attempt.DailyScore >= Flow.Product.Read.BestDailyScore ? TalkMoment.NewBest : TalkMoment.Win,
-                SpeaksStars = attempt != null && attempt.DailyScore > 0 ? 2 : 1,
                 Notice = attempt != null && !attempt.Finished ? "Attempt used. This run is no longer open in this app session." : null,
                 Share = ResultSharing.Open, Leaderboard = Flow.HasLeaderboard ? Leaderboard() : null,
                 Done = Action("Continue", () => Flow.Show(StorePage.Home)) };
+            // The saved best already holds this run's score.
+            result.DailyOutcome(attempt != null && attempt.DailyScore >= Flow.Product.Read.BestDailyScore);
+            return result;
         }
         public bool CanNavigate(AppPage page) => Flow != null && Flow.Page != StorePage.Board;
         public void Navigate(AppPage page) => Flow.Show((StorePage)Enum.Parse(typeof(StorePage), page.ToString()));

@@ -76,10 +76,10 @@ namespace ZKube.Integration.Presentation
         {
             if (!confirmingDaily || !CanEnterDaily() || boardHost == null) return Task.CompletedTask;
             confirmingDaily = false;
-            return OpenRun(() => Flow.StartDailyRun(), "Entering");
+            return OpenRun(() => Flow.StartDailyRun(), "Entering", true);
         }
         public Task ResumeDailyRun() => !CanUseDaily() || boardHost == null ? Task.CompletedTask :
-            OpenRun(() => Flow.OpenSavedRun(), "Opening");
+            OpenRun(() => Flow.OpenSavedRun(), "Opening", false);
 
         // The Arena's landing page: today's Daily with its prize pool, the Kredit
         // figure and one action, which is the player's next step, or the reason

@@ -128,6 +128,11 @@ namespace ZKube.Presentation.Tests
             {
                 board.State.DailyScore = 0; Assert.AreEqual(SoundCues.Loss, BoardController.ResultCue(board.Session, board.State));
                 board.State.DailyScore = 12; Assert.AreNotEqual(SoundCues.Loss, BoardController.ResultCue(board.Session, board.State));
+                // The big win is a score over the best that was read; an unread best is beaten by nothing.
+                BoardSession With(ulong? best) => new BoardSession(board.Session.Accepted, board.Session.Rules, board.Session.Actions, board.Session.RealmId, new DailyContext { Best = best });
+                Assert.AreEqual(SoundCues.BigWin, BoardController.ResultCue(With(11), board.State));
+                Assert.AreEqual(SoundCues.SmallWin, BoardController.ResultCue(With(12), board.State));
+                Assert.AreEqual(SoundCues.SmallWin, BoardController.ResultCue(With(null), board.State));
             }
             finally { board.State.DailyScore = score; }
         }

@@ -54,10 +54,13 @@ namespace ZKube.Integration.Presentation
             now = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
-        // best is the owner's best Daily score as last read, zero when unknown;
-        // top is the day's Score board top as its read will give it.
-        public void Open(MoneyRunLaunch launch, float textScale, ulong best = 0, Task<ulong?> top = null)
+        // best is the owner's best Daily score before this run and streak the
+        // day's entry streak, each null when it was not read; top is the day's
+        // Score board top as its read will give it.
+        private ulong? best, streak;
+        public void Open(MoneyRunLaunch launch, float textScale, ulong? best = null, Task<ulong?> top = null, ulong? streak = null)
         {
+            this.best = best; this.streak = streak;
             if (flow == null || HasRun || !launch.CanBind || !flow.RunIdentityCurrent(launch.Run))
                 throw new InvalidOperationException("No current accepted run can be opened");
             run = launch.Run; lifetime = new CancellationTokenSource(); generation++;
@@ -144,7 +147,8 @@ namespace ZKube.Integration.Presentation
             var result = new ResultPageView { HasResult = true, ProductName = Application.productName,
                 Mode = "Daily", Realm = session.RealmId, Day = NativeEngine.DayAt(run.DeadlineAt),
                 ObjectiveKind = session.Rules.ObjectiveKind, ObjectiveValue = session.Rules.ObjectiveValue,
-                Score = ended.DailyScore, ObjectiveTotal = ended.ObjectiveTotal, Notice = SaveNotice };
+                Score = ended.DailyScore, ObjectiveTotal = ended.ObjectiveTotal, Streak = streak, Notice = SaveNotice };
+            result.DailyOutcome(best.HasValue && ended.DailyScore > best.Value);
             var previous = board; board = null;
             previous.SetHostInputEnabled(false); previous.gameObject.SetActive(false); Destroy(previous.gameObject);
             Finished?.Invoke(result);
