@@ -2655,6 +2655,26 @@
             0,
             0
           ],
+          "image": "/assets/skins/lumen/ui/icon-plus.png",
+          "slot": "icon-plus"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/icon-live.png",
+          "slot": "icon-live"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/lumen/ui/fx-glow.png",
           "slot": "fx-glow"
         },

@@ -76,6 +76,8 @@ namespace ZKube.Core.Generated
         public const string IconHourglassEmpty = "icon-hourglass-empty";
         public const string IconBoardFull = "icon-board-full";
         public const string IconFlag = "icon-flag";
+        public const string IconPlus = "icon-plus";
+        public const string IconLive = "icon-live";
         public const string FxGlow = "fx-glow";
         public const string FxShard1 = "fx-shard-1";
         public const string FxShard2 = "fx-shard-2";

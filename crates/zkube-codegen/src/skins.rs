@@ -54,7 +54,7 @@ pub const UI_STRETCH_SLOTS: [&str; 35] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 83] = [
+pub const UI_FIXED_SLOTS: [&str; 85] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -97,6 +97,10 @@ pub const UI_FIXED_SLOTS: [&str; 83] = [
     "icon-hourglass-empty",
     "icon-board-full",
     "icon-flag",
+    // The Arena's landing and boards pages: the top-up mark on the Kredit
+    // figure (white, tinted by its state) and a live board's lit dot.
+    "icon-plus",
+    "icon-live",
     // Effect sprites are white with variable alpha; the client tints them.
     // fx-glow is the light code places behind live and earned things.
     "fx-glow",
