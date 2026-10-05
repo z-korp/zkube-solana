@@ -35,9 +35,8 @@ namespace ZKube.Integration.App
                 var readiness = await services.EntryReadiness.Read(token).ConfigureAwait(false);
                 if (!readiness.Value.Ready)
                     throw new InvalidOperationException("Daily entry is unavailable: " + readiness.Value.Status);
-                var occupied = await services.Runs.Inspect(token).ConfigureAwait(false);
-                if (occupied.Phase != "none")
-                    throw new InvalidOperationException("Resume the saved Daily run first");
+                // Readiness owns whether the slot is free: a run past its recovery
+                // deadline still stands in it, and this entry retires it.
                 token.ThrowIfCancellationRequested();
                 var first = await CaptureRun(lease, null, scope =>
                     services.Runs.StartDaily(token, scope)).ConfigureAwait(false);

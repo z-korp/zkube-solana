@@ -389,6 +389,30 @@ namespace ZKube.Integration.Client.Runs.Tests
             Assert.That(await env.Markers.Load(env.Owner), Is.Null);
         }
 
+        // A run the day closed on, playing or still waiting for a row: its player
+        // can no longer abandon it, so saving its result ends it by the Deadline
+        // rule, then commits and consumes it. Before the cutoff the same call abandons.
+        [Test]
+        public async Task ARunPastItsCutoffIsEndedByTheDeadlineRuleThenCommittedAndConsumed()
+        {
+            foreach (string phase in new[] { "playing", "awaitingVrf" })
+                foreach (bool closed in new[] { false, true })
+                {
+                    var env = await Environment.Create(); env.Http.States["daily"] = phase;
+                    var binding = new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts));
+                    Assert.That(env.Now, Is.LessThan(binding.DeadlineAt));
+                    if (closed) env.Now = binding.DeadlineAt;
+                    var result = await env.Client.FinishAndSettle(binding);
+                    Assert.That(result.Marker, Is.Null, phase);
+                    Assert.That(env.Http.Sent, Is.EqualTo(new[] { "finish_run", "commit_run", "consume_arena_run" }), phase);
+                    var finish = TransactionSignatures.Describe(Convert.FromBase64String(env.Http.SentTransactions[0])).Instructions
+                        .Single(instruction => instruction.ProgramId != PlanningConstants.ComputeBudgetProgram);
+                    // finish_run's one argument is its reason: Abandon, then Deadline.
+                    Assert.That(finish.Data.Length, Is.EqualTo(9));
+                    Assert.That(finish.Data[8], Is.EqualTo(closed ? 1 : 0), phase + (closed ? " after the cutoff" : " before it"));
+                }
+        }
+
         [Test]
         public async Task ChangedBoardAndChangedRulesAreRejectedBeforeSigning()
         {

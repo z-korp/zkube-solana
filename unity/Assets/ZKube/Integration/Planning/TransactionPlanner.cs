@@ -250,9 +250,10 @@ namespace ZKube.Integration.Planning
                     args["row"] = row; args["column"] = column; break;
                 case "reroll": instruction = "request_reroll"; args["expected_action"] = run.Summary.ActionCounter; break;
                 case "finish": instruction = "finish_run"; args["reason"] = new JObject { ["abandon"] = new JObject() }; break;
+                case "deadline": instruction = "finish_run"; args["reason"] = new JObject { ["deadline"] = new JObject() }; break;
                 default: throw new ArgumentException("Unknown run action");
             }
-            if (action != "finish")
+            if (instruction != "finish_run")
             {
                 if (seed == null || seed.Length != 32) throw new ArgumentException("VRF client seed must contain 32 bytes");
                 // JSON.NET treats byte[] as one binary value. IDL fixed arrays
@@ -271,12 +272,13 @@ namespace ZKube.Integration.Planning
                 ["payer"] = actor.Signer, ["active_run"] = ActiveRun(run.Owner, run.RunId) }) }, runId: run.RunId);
         }
 
-        public TransactionPlan Consume(PlannerActor actor, RunPlanSnapshot run, bool abandonFirst = false)
+        // finishFirst ends an unfinished run on Base before consuming it: the run's own finish action.
+        public TransactionPlan Consume(PlannerActor actor, RunPlanSnapshot run, string finishFirst = null)
         {
             if (actor.Owner != run.Owner) throw new ArgumentException("Run belongs to another owner");
-            if (!abandonFirst && !run.Terminal) throw new InvalidOperationException("Wait for terminal copy-back before consuming");
+            if (finishFirst == null && !run.Terminal) throw new InvalidOperationException("Wait for terminal copy-back before consuming");
             var list = new List<SolanaInstruction>();
-            if (abandonFirst) list.AddRange(RunAction(actor, run, "finish").Instructions);
+            if (finishFirst != null) list.AddRange(RunAction(actor, run, finishFirst).Instructions);
             var keys = new Dictionary<string, string> { ["active_run"] = ActiveRun(run.Owner, run.RunId),
                 ["player_state"] = Player(run.Owner), ["rent_recipient"] = run.RentPayer, ["owner"] = run.Owner };
             keys["arena_daily"] = run.DailyAddress; keys["arena_player"] = ArenaPlayer(run.DailyAddress, run.Owner);

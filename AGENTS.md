@@ -188,6 +188,13 @@ deployment or spending approval.
   never zero, so only a score over a known best sounds and reads as a new best. A Daily result speaks of the run
   itself in both products: its finest, a scoring run, or one that scored nothing.
   `ADailyResultSpeaksOfTheRunItself` and `AResultSoundsByTheStarsItKept` guard the speech and the sound.
+- **A run the day closes on:** the client never leaves a player behind an unfinished run. From its cutoff a run
+  can no longer be abandoned, so saving its result ends it by the permissionless Deadline rule, at its last
+  accepted state; a board the day closes on opens its result by itself, with no dialog. Entry readiness alone says
+  whether the slot holds a run to resume: once a run is past its recovery deadline the landing page offers the
+  next entry, which retires it. `ARunPastItsCutoffIsEndedByTheDeadlineRuleThenCommittedAndConsumed`,
+  `ARunTheDayClosesOnOpensItsResultAndIsSaved` and
+  `ARunPastItsRecoveryDeadlineNoLongerStandsInTheWayOfTheNextEntry` guard the client's path.
 - **Tutorial:** the guardian teaches through that same path, each lesson once per device (`Lessons`, beside the
   realm greetings). The first run of Tiki's level 1 is guided by the slide the core scores best (`BoardHint`), the
   board never waiting for it; each bonus's first charge, the first star and the first empty board are taught on

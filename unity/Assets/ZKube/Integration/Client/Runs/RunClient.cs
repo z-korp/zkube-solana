@@ -249,7 +249,7 @@ namespace ZKube.Integration.Client.Runs
                     using var session = await sessions.Load(lease).ConfigureAwait(false);
                     if (!Snapshot(current).Terminal)
                     {
-                        await Execute(planner.RunAction(session.Actor, Snapshot(current), "finish"), "finish-daily", session, token, receipts).ConfigureAwait(false);
+                        await Execute(planner.RunAction(session.Actor, Snapshot(current), Snapshot(current).FinishAction(now())), "finish-daily", session, token, receipts).ConfigureAwait(false);
                         current = await WaitFor(lease, address, token, state => state.Account != null && Snapshot(state).Terminal).ConfigureAwait(false);
                     }
                     if (current.Marker == null) return current;
@@ -271,7 +271,8 @@ namespace ZKube.Integration.Client.Runs
                 try { payer = await sessions.Load(lease).ConfigureAwait(false); }
                 catch (SessionUnavailableException) { token.ThrowIfCancellationRequested(); }
                 using (payer)
-                    await Execute(planner.Consume(payer?.Actor ?? PlannerActor.Wallet(lease.Owner), Snapshot(current), current.Phase == "base"),
+                    await Execute(planner.Consume(payer?.Actor ?? PlannerActor.Wallet(lease.Owner), Snapshot(current),
+                        current.Phase == "base" ? Snapshot(current).FinishAction(now()) : null),
                         "consume-daily", payer, token, receipts).ConfigureAwait(false);
                 return ForRun(await Observe(lease, token).ConfigureAwait(false), address);
             }, receipts);

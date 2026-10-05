@@ -65,8 +65,7 @@ namespace ZKube.Integration.Presentation
         }
         private bool CanUseDaily() => browsingDaily && !Busy && !sessionActionPending && !economyActionPending && !paused && !detached && isActiveAndEnabled &&
             dailyRead != null && dailyRead.IsCurrent;
-        private bool CanEnterDaily() => CanUseDaily() && now() < dailyRefreshAt &&
-            dailyRead.Value.Entry.Ready && dailyRead.Value.Run.Phase == "none";
+        private bool CanEnterDaily() => CanUseDaily() && now() < dailyRefreshAt && dailyRead.Value.Entry.Ready;
         public void AskDailyEntry()
         {
             if (!CanEnterDaily()) return;
@@ -117,7 +116,8 @@ namespace ZKube.Integration.Presentation
                 if (RefusalOn("Daily") != null) Reason(arcade, RefusalOn("Daily"), null); else if (slow) Reason(arcade, StillChecking, null);
                 action = RefusalOn("Daily") != null ? PageAction("Try again", refusalRetry, CanUseDaily) : Progressing();
             }
-            else if (state.Entry.Status == "resume" || state.Run.Phase != "none")
+            // Readiness says whether the slot holds a run to resume; one past its recovery deadline is retired by the next entry.
+            else if (state.Entry.Status == "resume")
                 action = PageAction("Resume run", () => _ = ResumeDailyRun(), () => CanUseDaily() && boardHost != null);
             else switch (state.Entry.Status)
             {

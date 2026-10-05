@@ -114,9 +114,14 @@ namespace ZKube.Integration.Planning
         public string DailyAddress { get; }
         internal RunSummary Summary { get; }
         public bool Terminal { get; }
+        public long DeadlineAt { get; }
+        // How an unfinished run is ended: its player abandons it before its
+        // cutoff; from the cutoff on, anyone ends it by the Deadline rule, which
+        // scores its last accepted state.
+        public string FinishAction(long now) => now >= DeadlineAt ? "deadline" : "finish";
         private RunPlanSnapshot(string owner, JObject fields, RunSummary summary)
         {
-            Owner = owner; RunId = (ulong)fields["run_id"];
+            Owner = owner; RunId = (ulong)fields["run_id"]; DeadlineAt = (long)fields["deadline_at"];
             RentPayer = (string)fields["rent_payer"]; DailyAddress = (string)fields["daily_challenge"]; Summary = summary;
             Terminal = (summary.Phase == (byte)CorePhase.Finished || summary.Phase == (byte)CorePhase.LevelComplete) &&
                 (long)fields["finished_at"] > 0 && (uint)fields["pending_vrf_counter"] == 0;

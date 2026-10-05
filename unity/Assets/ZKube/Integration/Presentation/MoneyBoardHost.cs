@@ -24,7 +24,7 @@ namespace ZKube.Integration.Presentation
         private MoneyRunHandle run;
         private BoardController board;
         private CancellationTokenSource lifetime;
-        private bool paused, observing, foregroundNeeded, settling, settlementAttempted, settled, frozenShown;
+        private bool paused, observing, foregroundNeeded, settling, settlementAttempted, settled;
         // The run's last state once it has ended; its result is saved from then on.
         private RunSummary ended;
         private Coroutine handOff;
@@ -64,7 +64,7 @@ namespace ZKube.Integration.Presentation
             if (flow == null || HasRun || !launch.CanBind || !flow.RunIdentityCurrent(launch.Run))
                 throw new InvalidOperationException("No current accepted run can be opened");
             run = launch.Run; lifetime = new CancellationTokenSource(); generation++;
-            settlementAttempted = settled = settling = observing = foregroundNeeded = frozenShown = false;
+            settlementAttempted = settled = settling = observing = foregroundNeeded = false;
             ended = null;
             var acceptedRun = run;
             var provider = new RunBoardActionProvider(run.Binding,
@@ -114,16 +114,13 @@ namespace ZKube.Integration.Presentation
                 if (!board.Busy && !settling && !observing) _ = ObserveForeground();
                 return;
             }
+            // The day has closed on an unfinished run: no action counts any more,
+            // so the run ends at its last accepted state. Its result opens, and
+            // saving it ends the run by the Deadline rule.
             if (Frozen() && !Terminal())
             {
                 board.SetHostInputEnabled(false);
-                if (!board.Busy && !observing && !frozenShown)
-                {
-                    frozenShown = true;
-                    board.View.OpenModal("Daily frozen", "New actions are closed. Check for your accepted result.",
-                        ("Check result", () => { frozenShown = false; foregroundNeeded = true; }),
-                        ("Back to my runs", Close));
-                }
+                if (!board.Busy && !observing && !board.RecoveryRequired) PresentTerminal(board);
             }
             else if (!Terminal() && !observing && !board.RecoveryRequired)
                 board.SetHostInputEnabled(true);

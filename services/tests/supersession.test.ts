@@ -19,7 +19,7 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
-  { pattern: /Retry settlement|Check settlement before continuing|Settlement could not be confirmed|result is still settling/i, trees: [UNITY],
+  { pattern: /Retry settlement|Check settlement before continuing|Settlement could not be confirmed|result is still settling|Daily frozen|New actions are closed|Resume the saved Daily run first/i, trees: [UNITY],
     reversal: "A paid run ends on the shared result page, which says how saving its result stands" },
   { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"|Solana has not confirmed this yet|Approve the request in your wallet|Purchase pending|Refresh balance/i, trees: [UNITY],
     reversal: "The client follows a sent transaction to its outcome on its own button; nobody is asked to check or refresh and only Last operation shows a receipt" },

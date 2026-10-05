@@ -147,6 +147,45 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // The day closes on a run still on its board: no dialog, the run ends at
+        // its last accepted state, its result opens and is saved, and the way
+        // back is open. Nothing asks the player to check anything.
+        [UnityTest] public IEnumerator ARunTheDayClosesOnOpensItsResultAndIsSaved()
+        {
+            yield return PrepareScenario("daily-entered"); Click("Connect"); yield return Idle();
+            yield return SessionClick("Resume run"); yield return BoardReady();
+            var board = PlayedBoard(); uint score = board.State.DailyScore;
+            Assert.That(board.State.Phase, Is.EqualTo((byte)CorePhase.Playing));
+            environment.AdvanceClock(board.Session.DailyFacts.ClosesAt - environment.Clock());
+            yield return Until(() => host.GetComponent<PageViews>().Shown == AppPage.Result && Says(MoneyBoardHost.SavedNotice), "The closed day's run opened its result and saved it");
+            yield return Idle();
+            Assert.That(environment.Consumed, Is.True);
+            Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty);
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
+            Assert.That(controller.ResultPage().Score, Is.EqualTo(score), "The run counts at its last accepted state");
+            Assert.That(Find("Back to Arena").interactable, Is.True);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+        // A run nobody resolved stands in the slot. Until its recovery deadline
+        // the landing page offers to resume it; after it, the run can no longer
+        // score, the next entry retires it, and Resume is not what stands there.
+        [UnityTest] public IEnumerator ARunPastItsRecoveryDeadlineNoLongerStandsInTheWayOfTheNextEntry()
+        {
+            yield return PrepareScenario("daily-entered"); Click("Connect"); yield return Idle();
+            Assert.That(Offers("Resume run"), Is.True);
+            var controller = host.GetComponent<MoneyIdentity>().Controller;
+            var run = ((ZKube.Integration.Client.MoneyRead<MoneyDailyState>)typeof(MoneyAppAdapter).GetField("dailyRead",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(controller)).Value.Run;
+            long deadline = new ZKube.Integration.ActiveRunReconciler(environment.Services.Accounts).DeadlineAt(run.Account, environment.Owner);
+            long recovery = deadline + (long)ZKube.Core.Generated.Protocol.RunRecoverySeconds;
+            environment.AdvanceClock(recovery - 1 - environment.Clock());
+            yield return Wait(controller.RefreshOverview()); yield return Idle();
+            Assert.That(Offers("Resume run"), Is.True, "Still recoverable: the run is resumed, and ends by the Deadline rule");
+            environment.AdvanceClock(1);
+            yield return Wait(controller.RefreshOverview()); yield return Idle();
+            Assert.That(Offers("Resume run"), Is.False, "Past recovery the run is retired by the next entry");
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
         // A result that could not be saved says so on its page and is asked for
         // again there; the boards are the way out while it is not. Saved, the
         // way back opens.
