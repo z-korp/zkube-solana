@@ -36,8 +36,6 @@ namespace ZKube.Core.Generated
         public const string Card = "card";
         public const string TitlePlate = "title-plate";
         public const string Divider = "divider";
-        public const string SpeechLeft = "speech-left";
-        public const string SpeechRight = "speech-right";
         public const string GridCell = "grid-cell";
         public const string GuardianFrame = "guardian-frame";
         public const string Badge = "badge";

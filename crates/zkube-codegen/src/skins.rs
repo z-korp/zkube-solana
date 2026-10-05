@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 /// UI pieces drawn stretched; each declares its stretch border in skin.json.
-pub const UI_STRETCH_SLOTS: [&str; 35] = [
+pub const UI_STRETCH_SLOTS: [&str; 33] = [
     "panel",
     "plate",
     "dialog",
@@ -47,10 +47,6 @@ pub const UI_STRETCH_SLOTS: [&str; 35] = [
     "card",
     "title-plate",
     "divider",
-    // A guardian's speech, its tail in the fixed upper corner on the side it
-    // speaks from.
-    "speech-left",
-    "speech-right",
 ];
 
 /// UI pieces drawn at their own aspect ratio.

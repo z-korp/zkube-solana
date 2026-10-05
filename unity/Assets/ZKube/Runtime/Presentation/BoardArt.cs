@@ -78,6 +78,13 @@ namespace ZKube.Presentation
         // Where the face lies inside a rectangle the whole canvas is drawn in (y up).
         public Rect FaceIn(Rect canvas) => new Rect(canvas.x + GuardianFace.x * canvas.width, canvas.y + (1 - GuardianFace.yMax) * canvas.height,
             GuardianFace.width * canvas.width, GuardianFace.height * canvas.height);
+        // The guardian's eyes and mouth as the art records them, in the same
+        // fractions: a speech bubble's tail aims at the mouth and stays off the eyes.
+        public Rect GuardianEyes { get; private set; }
+        public Vector2 GuardianMouth { get; private set; }
+        public Rect EyesIn(Rect canvas) => new Rect(canvas.x + GuardianEyes.x * canvas.width, canvas.y + (1 - GuardianEyes.yMax) * canvas.height,
+            GuardianEyes.width * canvas.width, GuardianEyes.height * canvas.height);
+        public Vector2 MouthIn(Rect canvas) => new Vector2(canvas.x + GuardianMouth.x * canvas.width, canvas.y + (1 - GuardianMouth.y) * canvas.height);
         public string LevelMusicResource { get; private set; }
         // The guardian's own track and title, for its level.
         public string BossMusicResource { get; private set; }
@@ -103,6 +110,10 @@ namespace ZKube.Presentation
             if (face == null || face.Length != 4 || !(face[2] > 0 && face[3] > 0 && face[0] >= 0 && face[1] >= 0 && face[0] + face[2] <= 1 && face[1] + face[3] <= 1))
                 throw new InvalidOperationException("Imported guardian has no face rectangle");
             GuardianFace = new Rect(face[0], face[1], face[2], face[3]);
+            float[] eyes = theme.guardian.eyes, mouth = theme.guardian.mouth;
+            if (eyes == null || eyes.Length != 4 || mouth == null || mouth.Length != 2)
+                throw new InvalidOperationException("Imported guardian has no eyes and mouth");
+            GuardianEyes = new Rect(eyes[0], eyes[1], eyes[2], eyes[3]); GuardianMouth = new Vector2(mouth[0], mouth[1]);
             var boss = theme.audio.SingleOrDefault(value => value.context == "boss")
                 ?? throw new InvalidOperationException("Imported realm guardian music is missing");
             RealmId = realmId; ThemeId = theme.id; GuardianName = theme.guardianName; LevelMusicResource = music.resource;

@@ -25,6 +25,8 @@ namespace ZKube.Presentation
         public HudLayout Hud => hud;
         // The skin kit the HUD is drawn from, for pieces drawn over the board (the guardian's lessons).
         public SkinUi Kit => ui;
+        // The canvas the HUD is drawn on: what teaches on the board draws here too.
+        public Transform Interface => canvas.transform;
         public bool NeedsTextReflow { get; private set; }
         private Canvas canvas;
         private Transform boardRoot;
@@ -1359,9 +1361,8 @@ namespace ZKube.Presentation
             float tail = 14 * k * d, right = plate.Rect.x - (tail - 2 * k * d);
             float top = Mathf.Min(Layout.Frame.yMax - 4 * d, plate.Rect.center.y + height / 2);
             var body = new Rect(right - width, top - height, width, height);
+            ui.Tail("Bubble tail", body, new Vector2(plate.Rect.x, plate.Rect.center.y), k * d, bubble.transform);
             ui.Piece("Bubble", SkinSlots.TapBubble, body, bubble.transform);
-            float tailY = Mathf.Clamp(plate.Rect.center.y, body.y + 18 * k * d, body.yMax - 18 * k * d);
-            ui.Piece("Bubble tail", SkinSlots.TapBubbleTail, new Rect(body.xMax - 2 * k * d, tailY - 9 * k * d, tail, 18 * k * d), bubble.transform);
             var caption = ui.Label("Bubble caption", plate.Caption, new Rect(body.x + 12 * k * d, body.yMax - 10 * k * d - captionHeight, inner, captionHeight),
                 hud.BubblePt, SkinTokens.TextOnPrimary, bubble.transform, SkinUi.Type.Caption, TextAlignmentOptions.TopLeft);
             caption.lineSpacing = SkinUi.LineSpacing(caption.font, HudLayout.BubbleLeading);

@@ -394,10 +394,11 @@ namespace ZKube.Presentation
         // leaves its bubble's 122u beside it, from 0.8c of a centred canvas to
         // 4u in from the safe edge.
         public float HeroGuardian(float heroU) => Mathf.Min(heroU * U, (Safe.xMax - 4 * U - 122 * U - Safe.center.x) / .3f);
-        public const float TailDp = 15;
-        // The guardian's line (.bub): 122u wide, 0.8c from the canvas's left and
-        // 0.06c down, padded 8u by 10u, 12.5u at 1.25, its tail toward the head.
-        // A long line widens into the room rather than reach the card.
+        // The guardian's line (.bub): 122u wide, 0.8c from the canvas's left,
+        // padded 8u by 10u, 12.5u at 1.25. It stands level with the mouth, no
+        // higher than 0.06c under the canvas's top and clear of the card, and
+        // its tail reaches for the mouth (SkinUi.SpeechTail). A long line widens
+        // into the room rather than reach the card.
         private void Bubble(string line, Rect guardian, float c, float cardTop)
         {
             float u = U, textDp = 12.5f * K;
@@ -408,13 +409,10 @@ namespace ZKube.Presentation
             float height = Height(w);
             bool right = guardian.x + .8f * c + w <= Safe.xMax - 4 * u;
             float x = right ? guardian.x + .8f * c : guardian.xMax - .8f * c - w;
-            float top = Mathf.Max(guardian.yMax - .06f * c, cardTop + 6 * u + height);
+            float top = Mathf.Max(Mathf.Min(guardian.yMax - .06f * c, Ui.Art.MouthIn(guardian).y + height / 2), cardTop + 6 * u + height);
             var body = new Rect(x, top - height, w, height);
-            // The speech piece carries its tail in its upper corner on the
-            // guardian's side, reaching TailDp past the body toward its mouth.
-            float tail = TailDp * Ui.Density;
-            Ui.Piece("Guardian bubble", right ? SkinSlots.SpeechLeft : SkinSlots.SpeechRight,
-                new Rect(right ? body.x - tail : body.x, body.y, w + tail, height), Parent);
+            Ui.SpeechTail("Guardian bubble tail", body, guardian, u, Parent);
+            Ui.Piece("Guardian bubble", SkinSlots.TapBubble, body, Parent);
             Text("Guardian line", line, new Rect(body.x + 10 * u, body.y + 8 * u, w - 20 * u, height - 16 * u), textDp, SkinTokens.TextOnPrimary, SkinUi.Type.Caption,
                 BubbleLeading, TextAlignmentOptions.TopLeft);
         }

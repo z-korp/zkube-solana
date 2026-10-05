@@ -79,7 +79,7 @@ namespace ZKube.Presentation
         // Where the guardian's paws rest, as fractions of its square canvas from the top.
         // face is the only region a frame differs from idle in: x, y, width and
         // height as fractions of the canvas from its top left.
-        [Serializable] public sealed class GuardianContact { public float railY, railFrontY, topY; public float[] face; }
+        [Serializable] public sealed class GuardianContact { public float railY, railFrontY, topY; public float[] face, eyes, mouth; }
         public static PageCatalog Load()
         {
             if (cached != null) return cached;

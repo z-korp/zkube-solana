@@ -600,7 +600,11 @@ the contract. Kit art carries no seam or stray highlight;
 `test_no_sliced_kit_piece_carries_a_stray_point_light` check the rendered and authored pixels.
 
 Each guardian has ten full frames, a paws layer drawn over the rail it leans on, and a contact rail line; its
-title and ten lines are authored per realm in the catalog. The talk scene types those lines on the realm's
+title and ten lines are authored per realm in the catalog. Its contact also records where the blink changes its
+face (the eyes) and the centre of what the talk frames change below them (the mouth), and the codegen holds
+both inside the face. A speech bubble's tail has one owner, `SpeechTail`: from the bubble's nearest edge it aims
+at the mouth, stops short of it and never enters the eyes, on every page and on the board;
+`EveryGuardiansBubbleTailAimsAtItsMouthOnBothPhones` guards all ten guardians. The talk scene types those lines on the realm's
 ledge with the mouth flapping, then rests on the moment's mood; reduced motion shows the line at once.
 `guardian_contact_names_every_frame_and_a_rail_inside_its_canvas`,
 `every_guardian_says_every_line_and_none_is_empty`, `EveryMomentSpeaksItsAuthoredLine` and

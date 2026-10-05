@@ -551,6 +551,52 @@ namespace ZKube.Tests.Presentation
             Phones.Clear(shell);
         }
 
+        // A guardian's speech bubble points at its mouth: on the preview and the
+        // result, for every guardian at both phones, the tail's tip is within a
+        // short way of the mouth the art records and never on the eyes.
+        [UnityTest] public IEnumerator EveryGuardiansBubbleTailAimsAtItsMouthOnBothPhones()
+        {
+            root = new GameObject("Bubble tails");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Bubble tails");
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            foreach (var (phone, size) in new (Action<PageShell, float>, string)[] { (Phones.Seeker, "seeker"), (Phones.Compact, "compact") })
+                for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
+                {
+                    phone(shell, 1);
+                    shell.RequestRealm(realm);
+                    while (shell.Loading) yield return null;
+                    Assert.That(shell.ArtworkError, Is.Null);
+                    source.Level.Realm = realm;
+                    source.Result = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = realm, Level = 1,
+                        Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
+                        Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+                    foreach (var page in new[] { AppPage.Level, AppPage.Result })
+                    {
+                        views.Render(page); yield return null;
+                        foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                        yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                        Canvas.ForceUpdateCanvases();
+                        string at = size + ", realm " + realm + ", " + page;
+                        var guardian = SkinUi.ScreenRect(root.GetComponentsInChildren<Image>().Single(image => image.name == "Screen guardian").rectTransform);
+                        var body = SkinUi.ScreenRect(root.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian bubble").rectTransform);
+                        var tail = root.GetComponentsInChildren<Image>().Single(image => image.name == "Guardian bubble tail").rectTransform;
+                        var tip = SkinUi.TailTip(tail);
+                        Assert.That(tail.GetComponent<Image>().preserveAspect, Is.False, at + ": the tail is drawn to its tip");
+                        Vector2 mouth = shell.Artwork.MouthIn(guardian); var eyes = shell.Artwork.EyesIn(guardian);
+                        Assert.That(Vector2.Distance(tip, mouth), Is.LessThanOrEqualTo(.12f * guardian.width), at + ": the tail's tip " + tip + " is at the mouth " + mouth);
+                        Assert.That(eyes.Contains(tip), Is.False, at + ": the tip is off the eyes");
+                        // Its way from the bubble never crosses the eyes either.
+                        Vector2 from = tail.TransformPoint(new Vector3(tail.rect.xMin, 0));
+                        for (float t = 0; t <= 1; t += .05f) Assert.That(eyes.Contains(Vector2.Lerp(from, tip, t)), Is.False, at + ": the tail crosses the eyes");
+                        Assert.That(body.Overlaps(shell.Artwork.FaceIn(guardian)), Is.False, at + ": the bubble stands off the face");
+                        if (page == AppPage.Level) yield return Captures.Snap(shell, "bubble " + size + " realm " + realm.ToString("00"));
+                    }
+                }
+        }
+
         // The Daily card shows the day's own guardian: its portrait, its name
         // and, on the Arcade, its realm all come from the Daily, in every realm,
         // whatever realm the page's painting is from.
