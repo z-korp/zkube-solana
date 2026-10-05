@@ -171,9 +171,10 @@ namespace ZKube.Integration.App.Tests
         // move, as it does on the rollup, or only when the test delivers it.
         public JToken DailyMove => DailyRow("moved")["move"];
         public bool RowsArriveLate;
-        // The next run action lands on the rollup and fails there: the run does not change.
-        public void RefuseNextRunAction() => refuseRunAction = true;
-        private bool refuseRunAction;
+        // The next run transaction, or the next one carrying this instruction, lands
+        // and fails on chain: the run does not change.
+        public void RefuseNextRunAction(string instruction = "") => refuseRunAction = instruction;
+        private string refuseRunAction;
         public void DeliverRow() => Http.Add(DailyRow("movedRow"));
         private JToken DailyRow(string phase) => Runs["cases"].Single(value => (string)value["id"] == "active-daily-" + phase);
         private bool refuseSimulation;
@@ -263,9 +264,10 @@ namespace ZKube.Integration.App.Tests
                     if (Http.Confirmation == "confirmed") ApplyAfter();
                     if (UiScenario == "daily-playable" || UiScenario == "daily-entered")
                     {
-                        Http.StatusError = refuseRunAction ? new JArray("InstructionError", 0) : null;
-                        if (!refuseRunAction) AcceptDaily(bytes);
-                        refuseRunAction = false;
+                        bool refused = refuseRunAction != null && (refuseRunAction == "" || TransactionSignatures.Describe(bytes).Instructions
+                            .Where(value => value.ProgramId == Services.Protocol.ProgramId).Any(value => Services.Protocol.DecodeInstruction(value).Name == refuseRunAction));
+                        Http.StatusError = refused ? new JArray("InstructionError", 0) : null;
+                        if (refused) refuseRunAction = null; else AcceptDaily(bytes);
                     }
                     return new JValue(signature);
                 default: return null;

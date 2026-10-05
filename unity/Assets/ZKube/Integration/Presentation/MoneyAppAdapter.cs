@@ -261,7 +261,7 @@ namespace ZKube.Integration.Presentation
         private void OnDisable()
         {
             if (!initialized || detached) return;
-            if (ArcadeRun) boardHost.Close();
+            boardHost?.Close();
             runBoard?.Close();
             RetireRead(); Busy = false; ownerRead = null; publicRead = null;
             ClearProductObservations(); HidePages();
@@ -291,7 +291,7 @@ namespace ZKube.Integration.Presentation
         public void Detach()
         {
             if (detached) return; detached = true; RetireRead();
-            if (ArcadeRun) boardHost.Close();
+            boardHost?.Close();
             runBoard?.Close();
             publicRead = null; ownerRead = null; ClearProductObservations();
             if (shell != null) { HidePages(); RetireArtwork(); }

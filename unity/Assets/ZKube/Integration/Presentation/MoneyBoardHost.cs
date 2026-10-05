@@ -13,8 +13,10 @@ using ZKube.Presentation;
 
 namespace ZKube.Integration.Presentation
 {
-    // Owns one visible Arcade run. All network operations pass through the flow's
-    // identity gate and shutdown drain; the shared board owns animation/input.
+    // Owns one bound Arena run: on its board while it plays, then behind the
+    // shared result page while its result is saved. All network operations pass
+    // through the flow's identity gate and shutdown drain; the shared board owns
+    // animation and input, and the shared result page owns the result.
     public sealed class MoneyBoardHost : MonoBehaviour
     {
         private MoneyAppFlow flow;
@@ -23,13 +25,26 @@ namespace ZKube.Integration.Presentation
         private BoardController board;
         private CancellationTokenSource lifetime;
         private bool paused, observing, foregroundNeeded, settling, settlementAttempted, settled, frozenShown;
-        private string terminalTitle, terminalBody, settlementError;
+        // The run's last state once it has ended; its result is saved from then on.
+        private RunSummary ended;
+        private Coroutine handOff;
         private long generation, foregroundGeneration;
+        // A run is bound: on its board, or being saved behind its result.
         public bool HasRun => run != null;
+        // Its board is on screen.
+        public bool Playing => board != null;
         public BoardController Board => board;
         public bool OperationPending => observing || settling;
+        // The ended run's result: being saved, saved, or not saved yet.
+        public const string SavingNotice = "Saving your result…", SavedNotice = "Result saved.", UnsavedNotice = "Your result is not saved yet.";
+        public bool Saved => settled;
+        public bool Unsaved => HasRun && ended != null && settlementAttempted && !settling && !settled;
+        public string SaveNotice => settled ? SavedNotice : Unsaved ? UnsavedNotice : SavingNotice;
+        // The board left without a result.
         public event Action Closed;
-        public event Action<ResultPageView> ResultClosed;
+        // The run ended: the shared result takes the screen while its result is saved.
+        public event Action<ResultPageView> Finished;
+        public event Action SaveChanged;
         public event Action<MoneyRunOperation> ObservedOperation;
 
         public void Initialize(MoneyAppFlow value, Func<long> clock)
@@ -47,7 +62,7 @@ namespace ZKube.Integration.Presentation
                 throw new InvalidOperationException("No current accepted run can be opened");
             run = launch.Run; lifetime = new CancellationTokenSource(); generation++;
             settlementAttempted = settled = settling = observing = foregroundNeeded = frozenShown = false;
-            terminalTitle = terminalBody = settlementError = null;
+            ended = null;
             var acceptedRun = run;
             var provider = new RunBoardActionProvider(run.Binding,
                 (accepted, action, row, start, destination, token) => Execute(acceptedRun,
@@ -80,22 +95,22 @@ namespace ZKube.Integration.Presentation
         private bool CurrentForeground(long epoch, long visit) => Current(epoch) &&
             visit == foregroundGeneration && !paused && isActiveAndEnabled;
         private bool Frozen() => run != null && now() >= run.DeadlineAt;
-        private bool Terminal() => board?.State != null && (board.State.Phase == (byte)CorePhase.Finished ||
-            board.State.Phase == (byte)CorePhase.LevelComplete);
+        private bool Terminal() => ended != null;
 
         private void Update()
         {
             if (!HasRun) return;
             if (!Current(generation)) { Close(); return; }
-            if (paused || !board.PresentationInitialized) return;
+            if (paused) return;
+            // An ended run's result is saved at once, with or without its board.
+            if (Terminal() && !observing && !settlementAttempted) { _ = Settle(); return; }
+            if (!Playing || !board.PresentationInitialized) return;
             if (foregroundNeeded)
             {
                 board.SetHostInputEnabled(false);
                 if (!board.Busy && !settling && !observing) _ = ObserveForeground();
                 return;
             }
-            if (Terminal() && !board.Busy && !board.RecoveryRequired && !observing && !settlementAttempted)
-            { _ = Settle(); return; }
             if (Frozen() && !Terminal())
             {
                 board.SetHostInputEnabled(false);
@@ -111,48 +126,49 @@ namespace ZKube.Integration.Presentation
                 board.SetHostInputEnabled(true);
         }
 
+        // The ended run stays on its board for a moment, as every run does, then
+        // its result page takes the screen. The run stays bound until it is saved.
         private void PresentTerminal(BoardController source)
         {
-            if (source != board) return;
-            var state = board.State;
-            terminalTitle = state.Phase == (byte)CorePhase.LevelComplete || state.EndReason == 1 ? "Level complete" : "Run ended";
-            terminalBody = "Score " + state.DailyScore;
-            RenderTerminal();
+            if (source != board || handOff != null) return;
+            ended = board.State;
+            handOff = StartCoroutine(HandOff());
         }
-        private void RenderTerminal()
+        private System.Collections.IEnumerator HandOff()
         {
-            if (board?.View == null || terminalTitle == null) return;
-            string receipt = ReceiptText(flow.LastRunReceipts(run));
-            string body = terminalBody + "\n\n" + (settled ? "Result saved." : settling || !settlementAttempted ?
-                "Saving your result…" : settlementError ?? "Check settlement before continuing.") + receipt;
-            if (settled) board.View.OpenModal(terminalTitle, body, ("Continue", Close));
-            else if (settlementAttempted && !settling)
-                board.View.OpenModal(terminalTitle, body, ("Retry settlement", () => _ = Settle()), ("Back to my runs", Close));
-            else board.View.OpenModal(terminalTitle, body);
+            long epoch = generation;
+            yield return new WaitForSecondsRealtime(RunBoard.TerminalHoldSeconds);
+            handOff = null;
+            if (!Current(epoch) || !Playing) yield break;
+            var session = board.Session;
+            var result = new ResultPageView { HasResult = true, ProductName = Application.productName,
+                Mode = "Daily", Realm = session.RealmId, Day = NativeEngine.DayAt(run.DeadlineAt),
+                ObjectiveKind = session.Rules.ObjectiveKind, ObjectiveValue = session.Rules.ObjectiveValue,
+                Score = ended.DailyScore, ObjectiveTotal = ended.ObjectiveTotal, Notice = SaveNotice };
+            var previous = board; board = null;
+            previous.SetHostInputEnabled(false); previous.gameObject.SetActive(false); Destroy(previous.gameObject);
+            Finished?.Invoke(result);
         }
         private async Task Settle()
         {
-            if (!HasRun || settling || settled || board.Busy || board.RecoveryRequired || !Terminal()) return;
-            long epoch = generation; settling = settlementAttempted = true; settlementError = null;
-            board.SetHostInputEnabled(false); RenderTerminal();
+            if (!HasRun || settling || settled || !Terminal()) return;
+            long epoch = generation; settling = settlementAttempted = true;
+            SaveChanged?.Invoke();
             try
             {
                 var expected = run;
                 var state = await Execute(expected, token => flow.SettleRun(expected, token), lifetime.Token);
                 if (!Current(epoch)) return;
                 settled = state.Phase == "consumed";
-                if (!settled) settlementError = "The result is still settling. Check again.";
             }
-            catch (Exception error)
-            {
-                ZKube.Integration.Transport.ClientLog.Failure("run settlement", error);
-                if (Current(epoch)) settlementError = "Settlement could not be confirmed. Your accepted result is retained.";
-            }
+            catch (Exception error) { ZKube.Integration.Transport.ClientLog.Failure("run settlement", error); }
             finally
             {
-                if (Current(epoch)) { settling = false; RenderTerminal(); }
+                if (Current(epoch)) { settling = false; SaveChanged?.Invoke(); }
             }
         }
+        // The player asks again for a result that is not saved yet.
+        public void SaveAgain() { if (Unsaved) _ = Settle(); }
 
         private async Task ObserveForeground()
         {
@@ -166,7 +182,7 @@ namespace ZKube.Integration.Presentation
                 var state = value.Value.RequireState();
                 if (state.Token == null)
                 {
-                    if (state.Phase == "consumed" && Terminal()) { settled = true; RenderTerminal(); }
+                    if (state.Phase == "consumed" && Terminal()) { settled = true; SaveChanged?.Invoke(); }
                     else board.RequireRecovery("This run is no longer playable here. Return to your runs to check its state.");
                     return;
                 }
@@ -188,40 +204,35 @@ namespace ZKube.Integration.Presentation
             finally { if (Current(epoch)) observing = false; }
         }
 
-        private static string ReceiptText(RunOperationReceipts operation)
-        {
-            if (operation == null || operation.Steps.Count == 0) return "";
-            return "\n\n" + MoneyReceiptText.Describe(operation.Steps.Last().Result);
-        }
         public void Suspend(bool value)
         {
             if (paused == value) return;
             paused = value; foregroundGeneration++;
-            if (!HasRun) return;
+            if (!Playing) return;
             board.SetHostInputEnabled(false);
             if (value) board.Pause(); else foregroundNeeded = true;
         }
         private void OnApplicationPause(bool value) => Suspend(value);
         private void OnDisable()
-        { foregroundGeneration++; if (HasRun) { board.SetHostInputEnabled(false); foregroundNeeded = true; } }
+        { foregroundGeneration++; if (Playing) { board.SetHostInputEnabled(false); foregroundNeeded = true; } }
         private void OnEnable()
-        { foregroundGeneration++; if (HasRun) foregroundNeeded = true; }
+        { foregroundGeneration++; if (Playing) foregroundNeeded = true; }
+        // Lets the run go. A board on screen leaves without a result.
         public void Close()
         {
             if (!HasRun) return;
-            if (Current(generation) && Terminal() && settled)
-                ResultClosed?.Invoke(new ResultPageView { HasResult = true, ProductName = Application.productName,
-                    Mode = "Daily", Realm = board.Session.RealmId, Day = NativeEngine.DayAt(run.DeadlineAt),
-                    ObjectiveKind = board.Session.Rules.ObjectiveKind, ObjectiveValue = board.Session.Rules.ObjectiveValue,
-                    Score = board.State.DailyScore, ObjectiveTotal = board.State.ObjectiveTotal, Notice = "Result saved." });
-            generation++; run = null;
+            generation++; run = null; ended = null;
+            if (handOff != null) { StopCoroutine(handOff); handOff = null; }
             var previous = board; board = null;
             try { lifetime?.Cancel(); }
             finally
             {
                 lifetime?.Dispose(); lifetime = null;
-                if (previous != null) { previous.SetHostInputEnabled(false); previous.gameObject.SetActive(false); Destroy(previous.gameObject); }
-                Closed?.Invoke();
+                if (previous != null)
+                {
+                    previous.SetHostInputEnabled(false); previous.gameObject.SetActive(false); Destroy(previous.gameObject);
+                    Closed?.Invoke();
+                }
             }
         }
         private void OnDestroy() => Close();

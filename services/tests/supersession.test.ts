@@ -19,6 +19,8 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
+  { pattern: /Retry settlement|Check settlement before continuing|Settlement could not be confirmed|result is still settling/i, trees: [UNITY],
+    reversal: "A paid run ends on the shared result page, which says how saving its result stands" },
   { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"|Solana has not confirmed this yet|Approve the request in your wallet|Purchase pending|Refresh balance/i, trees: [UNITY],
     reversal: "The client follows a sent transaction to its outcome on its own button; nobody is asked to check or refresh and only Last operation shows a receipt" },
   { pattern: /Back to Arcade|refresh Arcade|"Arcade"|How Arcade works|paid Arcade Daily|Your last run today|Your best run on each board counts|Back to rewards|Buy a pack to enter today/,
@@ -58,8 +60,6 @@ const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
     reversal: "Run copy describes player actions instead of internal operations" },
   { pattern: /push(?:ed|es)? automatically|payouts are pushed|push confirms|pushed prize|Everyone who places made money|anything you are still\s+owed is collected automatically|signs every 0\.01 SOL entry|never signs entry payment/i, trees: AUTHORED,
     reversal: "Entries spend prepaid Kredits and prizes use bounded claims" },
-  { pattern: /\btomorrow\b/i, trees: [UNITY],
-    reversal: "The app does not preview the next Daily" },
 ];
 
 async function sourceFiles(dir: string): Promise<string[]> {

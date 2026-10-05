@@ -76,22 +76,24 @@ namespace ZKube.Tests.MoneyOverview
             var expected = ZKube.Core.NativeEngine.Summary(token);
             Assert.That(board.State.DailyScore, Is.EqualTo(expected.DailyScore));
             Assert.That(board.State.ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
+            // The ended run opens its result by itself, as a Realms run does: no
+            // dialog stands in between and nothing is tapped. Its result is saved behind the page.
+            watch.Step = "the Daily's result";
             float until = Time.realtimeSinceStartup + 15;
-            while (!environment.Consumed && Time.realtimeSinceStartup < until) yield return null;
+            while ((host.GetComponent<PageViews>().Shown != AppPage.Result || !environment.Consumed) && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Result));
             Assert.That(environment.Consumed, Is.True);
-            StringAssert.Contains("Result saved.", SessionText());
+            yield return Until(() => Says(MoneyBoardHost.SavedNotice), "The result says it is saved"); yield return Idle();
             var journal = environment.Services.Journal.Load(environment.Owner); yield return Wait(journal);
             Assert.That(journal.GetAwaiter().GetResult(), Is.Null);
-            Click("Dialog Continue"); yield return Idle();
             Assert.That(controller.PlayingRun, Is.False);
-            Assert.That(controller.BrowsingDaily, Is.True);
-            watch.Step = "the Daily's result"; controller.Navigate(AppPage.Result); yield return Idle();
+            Assert.That(host.GetComponentsInChildren<BoardController>(true), Is.Empty, "The board has left");
             watch.AssertCovered(); watch.Stop();
             Assert.That(controller.ResultPage().HasResult, Is.True);
             Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));
             Assert.That(controller.ResultPage().ObjectiveTotal, Is.EqualTo(expected.ObjectiveTotal));
-            // The Arcade result names the two boards the run counts on and when
-            // places become final; Back to Arena leads, with Share beside it.
+            // The Arena's result names the two boards the run counts on and when
+            // places become final; Back to Arena leads, with Share beside it and the boards under them.
             var arcade = SessionText();
             StringAssert.Contains("Daily run complete", arcade); StringAssert.Contains("Score board", arcade);
             StringAssert.Contains("Your best run counts", arcade);
@@ -111,7 +113,7 @@ namespace ZKube.Tests.MoneyOverview
                     var card = host.GetComponentsInChildren<UnityEngine.UI.Image>().Single(image => image.name == "Screen card");
                     Assert.That(SkinUi.ScreenRect(bubble.rectTransform).yMin, Is.GreaterThanOrEqualTo(SkinUi.ScreenRect(card.rectTransform).yMax - .5f),
                         name + ": the bubble stays above the card");
-                    foreach (var button in new[] { Find("Back to Arena"), Find("Share") })
+                    foreach (var button in new[] { Find("Back to Arena"), Find("Share"), Find("See boards") })
                     {
                         var rect = SkinUi.ScreenRect((RectTransform)button.transform);
                         Assert.That(rect.height, Is.GreaterThanOrEqualTo(48 - .01f), name + ": " + button.name + " is 48 dp to touch");
@@ -128,6 +130,34 @@ namespace ZKube.Tests.MoneyOverview
             controller.Navigate(AppPage.Result); yield return Idle();
             yield return SessionClick("Share"); yield return null;
             StringAssert.StartsWith(Application.productName + " · Daily", GUIUtility.systemCopyBuffer);
+            // The way back is the landing page, where the next entry is offered.
+            yield return SessionClick("Back to Arena"); yield return Idle();
+            Assert.That(controller.BrowsingDaily, Is.True);
+            Assert.That(host.GetComponent<MoneyBoardHost>().HasRun, Is.False);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
+        // A result that could not be saved says so on its page and is asked for
+        // again there; the boards are the way out while it is not. Saved, the
+        // way back opens.
+        [UnityTest] public IEnumerator AResultThatIsNotSavedYetSaysSoOnItsPageAndIsSavedFromThere()
+        {
+            yield return PrepareScenario("daily-entered"); Click("Connect"); yield return Idle();
+            yield return SessionClick("Resume run"); yield return BoardReady();
+            environment.RefuseNextRunAction("consume_arena_run");
+            Click("Pause"); yield return null; Click("Dialog End run"); yield return null; Click("Dialog End run");
+            yield return Until(() => host.GetComponent<PageViews>().Shown == AppPage.Result && Says(MoneyBoardHost.UnsavedNotice), "The result says it is not saved yet");
+            yield return Idle();
+            Assert.That(environment.Consumed, Is.False);
+            Assert.That(Offers("Try again"), Is.True); Assert.That(Offers("Back to Arena"), Is.False);
+            Assert.That(Find("See boards").interactable, Is.True, "The boards are the way out");
+            StringAssert.Contains("Daily run complete", SessionText());
+            yield return SessionClick("Try again");
+            yield return Until(() => Says(MoneyBoardHost.SavedNotice), "The result is saved"); yield return Idle();
+            Assert.That(environment.Consumed, Is.True);
+            Assert.That(Offers("Try again"), Is.False);
+            yield return SessionClick("Back to Arena"); yield return Idle();
+            Assert.That(host.GetComponent<MoneyIdentity>().Controller.BrowsingDaily, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

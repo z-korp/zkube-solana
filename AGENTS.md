@@ -178,6 +178,12 @@ deployment or spending approval.
   `HomeFromThePauseLeavesTheDailyInFlightAndResumeRunReturnsToIt`,
   `HomeFromThePauseLeavesTheArenasCampaignRunSavedAndItsLevelResumesIt` and
   `PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones` guard it.
+- **A paid run's result:** a Daily run that ends on the Arena stays on its board for the moment every run does,
+  then opens the shared result page by itself, as a Realms run does. No dialog stands between, and the page
+  carries the Arena's own rows: the two boards the run counts on, and the way to them. The run stays bound behind
+  the page while its result is saved, and the page says how that stands: saving, saved, or not saved yet, with Try
+  again there and the boards as the way out. `DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce`
+  and `AResultThatIsNotSavedYetSaysSoOnItsPageAndIsSavedFromThere` guard the handoff and the saving.
 - **Tutorial:** the guardian teaches through that same path, each lesson once per device (`Lessons`, beside the
   realm greetings). The first run of Tiki's level 1 is guided by the slide the core scores best (`BoardHint`), the
   board never waiting for it; each bonus's first charge, the first star and the first empty board are taught on

@@ -82,7 +82,14 @@ namespace ZKube.Integration.Presentation
             var value = lastResult != null && lastResult.PlayerName == identity.Owner ? lastResult :
                 new ResultPageView { ProductName = Application.productName, Mode = "Daily", Realm = 1, PlayerName = identity.Owner ?? "" };
             value.Share = ResultSharing.Open; value.Arcade = true;
-            value.Done = PageAction("Back to Arena", () => _ = OpenDaily(), () => PageAvailable() && !Busy);
+            // The page stays while its run's result is being saved. One that is
+            // not saved yet is asked for again here; the boards are the way out.
+            bool unsaved = SavingResult && boardHost.Unsaved;
+            value.Done = unsaved ? PageAction("Try again", boardHost.SaveAgain, PageAvailable)
+                : PageAction("Back to Arena", () => { boardHost?.Close(); _ = OpenDaily(); }, () => PageAvailable() && !Busy && !SavingResult);
+            uint day = value.Day;
+            if (value.HasResult) value.Leaderboard = PageAction("See boards", () => { boardHost?.Close(); _ = OpenRewards(day); },
+                () => PageAvailable() && !Busy && (!SavingResult || boardHost.Unsaved));
             return value;
         }
         private bool ResultAvailable(string mode) => lastResult != null && lastResult.HasResult &&
