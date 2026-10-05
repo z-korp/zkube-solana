@@ -189,7 +189,7 @@ namespace ZKube.Editor
             foreach (var kind in new[] { IconKind.Application, IconKind.Store })
                 PlayerSettings.SetIcons(NamedBuildTarget.iOS, PlayerSettings.GetIconSizes(NamedBuildTarget.iOS, kind)
                     .Select(_ => icon).ToArray(), kind);
-            foreach (var (path, player) in new[] { ("Assets/Plugins/macOS/libzkube_core_ffi.dylib", false), ("Assets/Plugins/iOS/libzkube_core_ffi.a", true) })
+            foreach (var (path, player) in new[] { ("Assets/Plugins/macOS/libzkube_core_ffi.dylib", false), ("Assets/Plugins/iOS/libzkube_core_ffi.a", true), ("Assets/Plugins/iOS/ZKubeHaptics.mm", true) })
             {
                 var plugin = AssetImporter.GetAtPath(path) as PluginImporter
                     ?? throw new InvalidOperationException("Missing native plugin: " + path);
@@ -197,6 +197,8 @@ namespace ZKube.Editor
                 plugin.SetCompatibleWithEditor(!player);
                 plugin.SetCompatibleWithPlatform(BuildTarget.iOS, player);
                 if (!player) { plugin.SetEditorData("OS", "OSX"); plugin.SetEditorData("CPU", "AnyCPU"); }
+                // The haptics plugin buzzes through Core Haptics, which Unity's project does not link.
+                if (path.EndsWith(".mm")) plugin.SetPlatformData(BuildTarget.iOS, "FrameworkDependencies", "CoreHaptics;");
                 plugin.SaveAndReimport();
             }
             ZKubeStoreBillingBuild.ConfigurePlugins();

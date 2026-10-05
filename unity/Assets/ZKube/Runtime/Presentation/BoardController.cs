@@ -407,7 +407,6 @@ namespace ZKube.Presentation
             View.Celebrate(previousStars, State.LatchedStarSources, lines, perfect != null);
             // One star sound for an action's newly earned stars; an ended run, which keeps none, earns none.
             if (HudLayout.NewStars(previousStars, State.LatchedStarSources).Any()) Sound(SoundCues.Star);
-            if (Haptics && Application.platform == RuntimePlatform.Android) Handheld.Vibrate();
         }
         private IEnumerator Animate(RunTransition transition, TaskCompletionSource<bool> completion)
         {
@@ -520,6 +519,16 @@ namespace ZKube.Presentation
         // must finish its save while the app is still running.
         public void SetReducedMotion(bool value) { ReducedMotion = value; AppPreferences.SetReducedMotion(value); }
         public void SetHaptics(bool value) { Haptics = value; AppPreferences.SetHaptics(value); }
+#if UNITY_IOS && !UNITY_EDITOR
+        // iPhone taps lightly and buzzes weakly (Plugins/iOS/ZKubeHaptics.mm); its system vibrate is a long buzz.
+        [System.Runtime.InteropServices.DllImport("__Internal")] private static extern void zkube_haptic_tap();
+        [System.Runtime.InteropServices.DllImport("__Internal")] private static extern void zkube_haptic_buzz(float seconds, float intensity);
+        private static void Tap() => zkube_haptic_tap();
+        private static void Buzz() => zkube_haptic_buzz(.15f, .5f);
+#else
+        private static void Tap() => Handheld.Vibrate();
+        private static void Buzz() => Handheld.Vibrate();
+#endif
         public static float ReadSavedTextScale() => AppPreferences.TextScale;
         public static float ReadDisplayDensity() => Application.isEditor || Screen.dpi <= 0 ? 1 : Screen.dpi / 160;
         public static float SupportedTextScale(float value)
@@ -569,6 +578,9 @@ namespace ZKube.Presentation
         private void Sound(string name)
         {
             SoundPlayed?.Invoke(name);
+            // Haptics follow the cues, muted or not: a line break buzzes, a move or bonus taps.
+            if (Haptics && name == SoundCues.LineBreak) Buzz();
+            else if (Haptics && (name == SoundCues.Move || name == SoundCues.Bonus)) Tap();
             if (Muted || effects == null) return;
             if (!clips.TryGetValue(name, out var clip)) { clip = Resources.Load<AudioClip>("ZKube/Audio/common/sounds__effects__" + name); clips[name] = clip; }
             if (clip != null) effects.PlayOneShot(clip);
