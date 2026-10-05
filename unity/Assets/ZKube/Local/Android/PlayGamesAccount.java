@@ -31,6 +31,12 @@ public final class PlayGamesAccount {
         void none(String reason);
     }
 
+    // Whether the platform's leaderboard screen opened, heard once.
+    public interface OpenListener {
+        void opened();
+        void failed(String reason);
+    }
+
     private PlayGamesAccount() {}
 
     // The build writes these from unity/toolchain.json once the owner has a Play
@@ -55,11 +61,24 @@ public final class PlayGamesAccount {
     }
 
     // The platform's own leaderboard screen, with its daily, weekly and all-time tabs.
-    public static void showDailyLeaderboard(final Activity activity) {
+    public static void showDailyLeaderboard(final Activity activity, final OpenListener listener) {
         final String board = configured(activity, "zkube_play_games_daily_leaderboard");
-        if (!signedIn || board == null) return;
-        activity.runOnUiThread(() -> PlayGames.getLeaderboardsClient(activity).getLeaderboardIntent(board)
-            .addOnSuccessListener(intent -> activity.startActivityForResult(intent, 9004)));
+        if (!signedIn || board == null) { listener.failed("signed out"); return; }
+        activity.runOnUiThread(() -> {
+            try {
+                PlayGames.getLeaderboardsClient(activity).getLeaderboardIntent(board).addOnCompleteListener(read -> {
+                    if (!read.isSuccessful() || read.getResult() == null) {
+                        Exception error = read.getException();
+                        listener.failed(error == null ? "unavailable" : error.getClass().getSimpleName());
+                        return;
+                    }
+                    try { activity.startActivityForResult(read.getResult(), 9004); listener.opened(); }
+                    catch (RuntimeException error) { listener.failed(error.getClass().getSimpleName()); }
+                });
+            } catch (RuntimeException error) {
+                listener.failed(error.getClass().getSimpleName());
+            }
+        });
     }
 
     // The first public score of today's Daily leaderboard, read once.

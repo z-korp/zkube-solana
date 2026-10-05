@@ -29,6 +29,14 @@ namespace ZKube.Local.App
             public void none(string reason) => done.TrySetResult(null);
         }
 
+        private sealed class OpenListener : AndroidJavaProxy
+        {
+            private readonly TaskCompletionSource<string> done;
+            public OpenListener(TaskCompletionSource<string> done) : base(Bridge + "$OpenListener") { this.done = done; }
+            public void opened() => done.TrySetResult(null);
+            public void failed(string reason) => done.TrySetResult(reason ?? "unavailable");
+        }
+
         public async Task<PlayerAccount> SignIn()
         {
             try
@@ -62,9 +70,19 @@ namespace ZKube.Local.App
         {
             try { Call("submitDailyScore", (long)Math.Min(score, long.MaxValue)); } catch (Exception) { }
         }
-        public void ShowDailyLeaderboard()
+        public async Task<bool> ShowDailyLeaderboard()
         {
-            try { Call("showDailyLeaderboard"); } catch (Exception) { }
+            string reason;
+            try
+            {
+                var done = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                Call("showDailyLeaderboard", new OpenListener(done));
+                reason = await done.Task;
+            }
+            catch (Exception error) { reason = error.GetType().Name; }
+            // The bridge's reason is a short word or an exception's class, nothing of the player's.
+            if (reason != null) Debug.LogWarning("Play Games leaderboard did not open: " + reason);
+            return reason == null;
         }
 
         public async Task<ulong?> DailyTop()

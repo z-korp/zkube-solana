@@ -32,7 +32,9 @@ namespace ZKube.Tests
             public int Shown;
             public bool HasDailyLeaderboard => Leaderboard;
             public void SubmitDailyScore(ulong score) => Submitted.Add(score);
-            public void ShowDailyLeaderboard() => Shown++;
+            // The platform's screen as it answers a tap: opened, refused, or still opening while Opening is held.
+            public bool Opens = true; public TaskCompletionSource<bool> Opening;
+            public Task<bool> ShowDailyLeaderboard() { Shown++; return Opening?.Task ?? Task.FromResult(Opens); }
             // Today's top as the platform answers it: a score, none, or a read that fails.
             public ulong? Top; public bool TopFails;
             public System.Threading.Tasks.Task<ulong?> DailyTop() => TopFails

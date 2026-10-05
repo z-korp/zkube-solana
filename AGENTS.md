@@ -139,8 +139,12 @@ deployment or spending approval.
 - **Realms leaderboard:** signed in, each finished Daily's score goes to one platform leaderboard (Play Games on
   Android) and a Leaderboard button on the Daily card and the Daily result opens the platform's own screen; it is
   behind the platform-account interface. Signed out there is no button, submission or crown, and nothing else
-  changes. `AFinishedDailyGoesToThePlatformLeaderboardOnlyWhenSignedIn` and
-  `ASignedOutDailySubmitsNothingAndShowsNoLeaderboard` guard both.
+  changes. A tap is followed to its outcome: the button shows that it is opening, and a screen that did not open
+  leaves one reason on the page that asked, with the button as its retry; the sign-in and the crown's read still
+  fail quietly. `AFinishedDailyGoesToThePlatformLeaderboardOnlyWhenSignedIn`,
+  `ASignedOutDailySubmitsNothingAndShowsNoLeaderboard`,
+  `ALeaderboardThatDoesNotOpenSaysSoAndItsButtonTriesAgain` and
+  `ALeaderboardThatDoesNotOpenFromTheResultSaysSoThereAndNowhereElse` guard them.
 - **Daily crown:** the Daily HUD's crown shows the day's top score, read once at run start: Arena's from the top
   row of today's Score board on Base, Realms' from the platform leaderboard when signed in. Below the top it
   shows a dim crown and the top's number; once the run passes it the crown lights alone and its moment plays

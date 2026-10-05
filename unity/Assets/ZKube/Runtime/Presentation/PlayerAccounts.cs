@@ -23,8 +23,8 @@ namespace ZKube.Presentation
         bool HasDailyLeaderboard { get; }
         // A finished Daily's score; the platform keeps the player's best per day, week and all time.
         void SubmitDailyScore(ulong score);
-        // Opens the platform's own leaderboard screen.
-        void ShowDailyLeaderboard();
+        // Opens the platform's own leaderboard screen and says whether it opened. It never throws.
+        Task<bool> ShowDailyLeaderboard();
         // Today's top score on the platform's Daily leaderboard, or null (signed
         // out, no board, no score yet, or a failed read). It never throws.
         Task<ulong?> DailyTop();
@@ -36,7 +36,7 @@ namespace ZKube.Presentation
         public Task<PlayerAccount> SignIn() => Task.FromResult<PlayerAccount>(null);
         public bool HasDailyLeaderboard => false;
         public void SubmitDailyScore(ulong score) { }
-        public void ShowDailyLeaderboard() { }
+        public Task<bool> ShowDailyLeaderboard() => Task.FromResult(false);
         public Task<ulong?> DailyTop() => Task.FromResult<ulong?>(null);
     }
 }

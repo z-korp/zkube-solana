@@ -75,7 +75,23 @@ namespace ZKube.Local.App
         // Daily's score goes to it, and its own screen shows it. Signed out
         // there is neither, and nothing else changes.
         public bool HasLeaderboard => Account != null && accounts.HasDailyLeaderboard;
-        public void ShowLeaderboard() { Check(); if (HasLeaderboard) accounts.ShowDailyLeaderboard(); }
+        // A tap that is still opening it; the button shows that, and a second tap waits.
+        public bool LeaderboardOpening { get; private set; }
+        public const string LeaderboardUnavailable = "The leaderboard did not open. Tap Leaderboard to try again.";
+        // The tap's outcome is the platform's screen or one reason on the page that asked.
+        public async Task ShowLeaderboard()
+        {
+            Check();
+            if (!HasLeaderboard || LeaderboardOpening) return;
+            long request = generation; bool opened = false;
+            LeaderboardOpening = true; Error = null; Changed?.Invoke();
+            try { opened = await accounts.ShowDailyLeaderboard(); }
+            catch (Exception) { }
+            if (disposed) return;
+            LeaderboardOpening = false;
+            if (!opened && Current(request)) Error = LeaderboardUnavailable;
+            Changed?.Invoke();
+        }
         // Today's top on that leaderboard, read once as a Daily run opens; signed out there is none.
         public Task<ulong?> DailyTop() => HasLeaderboard ? accounts.DailyTop() : Task.FromResult<ulong?>(null);
         public void PlayDaily()

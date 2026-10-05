@@ -156,8 +156,14 @@ namespace ZKube.Local.App
             if (Flow.TodayRun != null || Flow.AttemptedToday || Lessons.Device.Taught(Lesson.RealmsDaily)) { Flow.PlayDaily(); return; }
             views.Teach(Lessons.RealmsDaily(Flow.HasLeaderboard), () => { Lessons.Device.Teach(Lesson.RealmsDaily); Flow.PlayDaily(); });
         }
-        // Opens the platform's own leaderboard; drawn only for a signed-in player.
-        private PageAction Leaderboard() => Action("Leaderboard", Flow.ShowLeaderboard);
+        // Opens the platform's own leaderboard; drawn only for a signed-in player. A tap that is
+        // still opening shows on the button, and one that failed leaves its reason on the page.
+        private PageAction Leaderboard()
+        {
+            var action = Action("Leaderboard", () => _ = Flow.ShowLeaderboard());
+            action.Progress = Flow.LeaderboardOpening ? "Opening" : null;
+            return action;
+        }
         public ProfilePageView ProfilePage()
         {
             var state = Flow.Product.Read;
