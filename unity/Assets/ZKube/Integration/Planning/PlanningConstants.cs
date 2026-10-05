@@ -14,6 +14,10 @@ namespace ZKube.Integration.Planning
         public const string SystemProgram = "11111111111111111111111111111111";
         public const string ComputeBudgetProgram = "ComputeBudget111111111111111111111111111111";
         public const string DelegationProgram = "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh";
+        // The rollup's own account that a commit schedules itself in. It holds
+        // no state of the game or the player and is far larger than any account
+        // the client reads, so the client never reads it.
+        public const string MagicContext = "MagicContext1111111111111111111111111111111";
         public static readonly byte[] RevokeSessionDiscriminator = { 211, 59, 125, 188, 43, 155, 8, 102 };
     }
 }

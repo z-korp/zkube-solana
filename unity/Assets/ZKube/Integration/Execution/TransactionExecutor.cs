@@ -211,7 +211,9 @@ namespace ZKube.Integration.Execution
                 if (confirmed && !status.Slot.HasValue) return Pending(pending, "missing-confirmation-slot");
                 ulong minimumSlot = Math.Max(status.ContextSlot, status.Slot ?? 0);
                 var description = TransactionSignatures.Describe(pending.Transaction);
-                var addresses = description.Accounts.Where(account => account.Writable).Select(account => account.Address).ToArray();
+                // What the transaction could have changed, less the rollup's own Magic context, which no outcome is read from.
+                var addresses = description.Accounts.Where(account => account.Writable && account.Address != PlanningConstants.MagicContext)
+                    .Select(account => account.Address).ToArray();
                 var observations = new List<AffectedAccountObservation>();
                 for (int offset = 0; offset < addresses.Length; offset += SolanaRpcTransport.MaximumBatchAccounts)
                 {
@@ -239,11 +241,12 @@ namespace ZKube.Integration.Execution
             catch (OperationCanceledException) { return Pending(pending, "observation-cancelled"); }
             // The node that answers is still behind the slot the status named: not yet, and not a failure.
             catch (RpcFailure error) when (error.Code == SolanaRpcTransport.SlotNotReached) { return Pending(pending, "node-behind"); }
-            catch (Exception error) { ClientLog.Failure(pending.Intent + " confirmation", error); return Pending(pending, "outcome-unknown"); }
+            // The look itself failed: still pending, with what stopped the look, so whoever follows can tell it from a wait.
+            catch (Exception error) { ClientLog.Failure(pending.Intent + " confirmation", error); return Pending(pending, "outcome-unknown", RequestFailure.Of(error)); }
         }
         private static bool IsConfirmed(RpcSignatureStatus status) => status.Confirmation == RpcConfirmation.Confirmed || status.Confirmation == RpcConfirmation.Finalized;
-        private static ExecutionResult Pending(PendingTransaction transaction, string code) =>
-            new ExecutionResult(ExecutionOutcome.Pending, transaction.Intent, transaction.Signature, code);
+        private static ExecutionResult Pending(PendingTransaction transaction, string code, RequestFailure failure = null) =>
+            new ExecutionResult(ExecutionOutcome.Pending, transaction.Intent, transaction.Signature, code, failure: failure);
         private static ExecutionResult Rejected(string intent, string code) => new ExecutionResult(ExecutionOutcome.Rejected, intent, code: code);
     }
 }

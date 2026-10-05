@@ -389,6 +389,21 @@ namespace ZKube.Integration.Client.Runs.Tests
             Assert.That(await env.Markers.Load(env.Owner), Is.Null);
         }
 
+        // The rollup's Magic context is megabytes, more than any reply the client
+        // accepts. A commit names it; the commit's confirmation never reads it.
+        [Test]
+        public async Task ACommitIsConfirmedWithoutReadingTheRollupsMagicContext()
+        {
+            var env = await Environment.Create(); await env.Client.Inspect();
+            var result = await env.Client.FinishAndSettle(new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts)));
+            Assert.That(result.Marker, Is.Null);
+            Assert.That(env.Http.Sent, Is.EqualTo(new[] { "finish_run", "commit_run", "consume_arena_run" }));
+            var commit = TransactionSignatures.Describe(Convert.FromBase64String(env.Http.SentTransactions[1]));
+            Assert.That(commit.Accounts.Any(account => account.Address == PlanningConstants.MagicContext && account.Writable), Is.True, "The commit names the Magic context");
+            Assert.That(env.Http.Transport.Requests.Any(request => ((string)request["method"]).StartsWith("get") &&
+                request.ToString().Contains(PlanningConstants.MagicContext)), Is.False, "No read names it");
+        }
+
         // A run the day closed on, playing or still waiting for a row: its player
         // can no longer abandon it, so saving its result ends it by the Deadline
         // rule, then commits and consumes it. Before the cutoff the same call abandons.

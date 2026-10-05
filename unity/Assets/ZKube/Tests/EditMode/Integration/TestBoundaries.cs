@@ -112,6 +112,9 @@ namespace ZKube.Integration.Tests
             JObject Refused(long code, string message) => new JObject { ["jsonrpc"] = "2.0", ["id"] = request["id"],
                 ["error"] = new JObject { ["code"] = code, ["message"] = message } };
             if (endpoint.Host == RollupHost && !RollupAnswers.Contains((string)request["method"])) return Refused(-32601, "Method not found").ToString();
+            // The rollup's Magic context is megabytes: a read that names it gets more than any bound allows, as on Devnet.
+            if (((string)request["method"]).StartsWith("get") && json.Contains(ZKube.Integration.Planning.PlanningConstants.MagicContext))
+                throw new FormatException("RPC response exceeds its bound");
             try
             {
                 var result = await Reply(endpoint, request, cancellation);
