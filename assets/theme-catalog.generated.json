@@ -2675,6 +2675,46 @@
             0,
             0
           ],
+          "image": "/assets/skins/lumen/ui/coin-balance.png",
+          "slot": "coin-balance"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/pack-1.png",
+          "slot": "pack-1"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/pack-10.png",
+          "slot": "pack-10"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "image": "/assets/skins/lumen/ui/pack-25.png",
+          "slot": "pack-25"
+        },
+        {
+          "border": [
+            0,
+            0,
+            0,
+            0
+          ],
           "image": "/assets/skins/lumen/ui/fx-glow.png",
           "slot": "fx-glow"
         },

@@ -78,6 +78,10 @@ namespace ZKube.Core.Generated
         public const string IconFlag = "icon-flag";
         public const string IconPlus = "icon-plus";
         public const string IconLive = "icon-live";
+        public const string CoinBalance = "coin-balance";
+        public const string Pack1 = "pack-1";
+        public const string Pack10 = "pack-10";
+        public const string Pack25 = "pack-25";
         public const string FxGlow = "fx-glow";
         public const string FxShard1 = "fx-shard-1";
         public const string FxShard2 = "fx-shard-2";

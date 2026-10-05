@@ -54,7 +54,7 @@ pub const UI_STRETCH_SLOTS: [&str; 35] = [
 ];
 
 /// UI pieces drawn at their own aspect ratio.
-pub const UI_FIXED_SLOTS: [&str; 85] = [
+pub const UI_FIXED_SLOTS: [&str; 89] = [
     "grid-cell",
     "guardian-frame",
     "badge",
@@ -101,6 +101,12 @@ pub const UI_FIXED_SLOTS: [&str; 85] = [
     // figure (white, tinted by its state) and a live board's lit dot.
     "icon-plus",
     "icon-live",
+    // The Kredits page: the balance's coin and the three packs' pictures,
+    // one size, one light and one weight.
+    "coin-balance",
+    "pack-1",
+    "pack-10",
+    "pack-25",
     // Effect sprites are white with variable alpha; the client tints them.
     // fx-glow is the light code places behind live and earned things.
     "fx-glow",
