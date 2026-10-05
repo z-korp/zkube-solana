@@ -380,16 +380,19 @@ namespace ZKube.Presentation
         // The paws hang below the rail, so the card, built for the ledge it is
         // given, keeps its top clear as deep as they hang: the paws rest on the
         // card and never cover what it says, however large the guardian grows.
+        // A page drawn to a wireframe that has no ledge gives a card that takes none.
         public Piece GuardianCard(string frame, string line, float sizeU, Func<float, Piece> card, float heroU = 0)
         {
             float u = U, rail = Ui.Art.GuardianRailY, hang = Ui.Art.GuardianPawsY - rail, least = sizeU * u, most = Mathf.Max(least, HeroGuardian(heroU));
             float bare = card(0).Height, pad = CardPadU * u;
             float Ledge(float c) => Mathf.Max(0, hang * c - pad);
-            float Tall(float c) => rail * c + bare + Ledge(c);
+            // What the card takes of the ledge it is offered.
+            float Taken(float c) => card(Ledge(c)).Height - bare;
+            float Tall(float c) => rail * c + bare + Taken(c);
             return new Piece(Tall(least), rect => {
                 // The widest guardian whose canvas, card and ledge fit the room.
                 float c = (rect.height - bare) / rail;
-                if (Ledge(c) > 0) c = (rect.height - bare + pad) / (rail + hang);
+                if (Taken(c) > 0) c = (rect.height - bare + pad) / (rail + hang);
                 c = Mathf.Clamp(c, least, most);
                 var drawn = card(Ledge(c));
                 var cardRect = new Rect(rect.x, rect.y, rect.width, drawn.Height);
