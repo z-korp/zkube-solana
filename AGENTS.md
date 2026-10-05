@@ -162,7 +162,16 @@ spending approval.
   `TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
   `TheHintIsTheSlideClearingTheMostLinesThenTheLowestStack`, `EachBoardMomentIsTaughtWhenItFirstHappensAndOnlyThen`,
   `NoLessonAppearsOnADailyRun`, `TheFirstArcadeVisitTeachesTheArenaDailyWithoutTouchingEntry` and
-  `HowToPlayReplaysEveryLessonFromSettings` guard it.
+  `HowToPlayReplaysEveryLessonFromSettings` guard it. On the board a line about a piece (the next row, a button,
+  the moves, a goal plate) is a callout: it stands beside that piece, its tail's tip on the piece's
+  edge, and the piece pulses for as long as it shows. A line about nothing in particular is the guardian's own
+  speech under it, its tail at the guardian's mouth; so is the first star's line, since the crown has no room
+  beside it, while the crown pulses. Only a callout says here or this. No bubble covers a pulsing
+  piece, a cell the hand points at, the guardian's face, the crown, a plate, the next row or a control. The
+  lessons draw in the board's own interface, pulses behind its pieces and bubbles over them, so a device orders
+  them with the HUD exactly as a test does. `LessonEvidence` checks every board lesson a test captures against
+  these rules; `TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
+  `AFirstChargeIsTaughtOnceInItsBonusesWords` and `TheFirstStarIsTaughtOnce` walk them.
 - **Campaign save:** the packed on-chain star array is the player's save, written by their own device and
   synchronized across devices. The program does not verify it, it has no effect on money, and emblems 1–12
   reflect that reported progress. `record_campaign_stars_is_idempotent_and_touches_no_other_field` and

@@ -41,7 +41,7 @@ namespace ZKube.Presentation
         public const string Slide = "Slide a block along its row.";
         public const string Clears = "A full line clears. Everything above it falls.";
         public const string Falls = "Blocks fall into any gap below them.";
-        public const string Rises = "After every move, this row rises from below.";
+        public const string Rises = "After every move, the next row rises from below.";
         public static string MovesLeft(int moves) => moves + " moves left. Fill the goals before the blocks reach the top.";
         public const string TapGoal = "Tap a goal any time to read it.";
         public const string Reroll = "Not keen on the next row? Swap it here. The tide is yours now.";
@@ -70,7 +70,7 @@ namespace ZKube.Presentation
         {
             var pages = new List<TalkPage> {
                 new TalkPage("One try a day, and the same board for everyone.", "greeting", SkinSlots.LessonDaily),
-                new TalkPage("No stars here. Score all you can in " + Protocol.DailyMaxMoves + " moves; points grow as you climb.", "idle", SkinSlots.LessonDaily) };
+                new TalkPage("The Daily has no stars. Score all you can in " + Protocol.DailyMaxMoves + " moves; points grow as you climb.", "idle", SkinSlots.LessonDaily) };
             if (leaderboard) pages.Add(new TalkPage("Your best score goes on the leaderboard.", "satisfied", SkinSlots.LessonDaily));
             return pages.ToArray();
         }
