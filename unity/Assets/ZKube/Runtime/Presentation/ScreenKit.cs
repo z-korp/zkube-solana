@@ -203,15 +203,17 @@ namespace ZKube.Presentation
         // A card (.card3): padding 10u by 12u, its header in the display face's
         // muted capitals, then its parts 4u apart. The parts are drawn by pieces
         // measured at the card's inside (Inside()).
-        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", Side? tag = null)
+        // A ledge is empty room kept at the card's top, under its padding, for what rests on its edge.
+        public const float CardPadU = 10;
+        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", Side? tag = null, float ledge = 0)
         {
-            const float padVU = 10, padHU = 12;
-            float u = U, pad = padVU * u;
+            const float padHU = 12;
+            float u = U, pad = CardPadU * u;
             var stack = Stack(4, parts.ToArray());
             float headerHeight = header == null ? 0 : HeaderDp * Ui.Scale * Ui.Density * DisplayNormal + 4 * u;
-            return new Piece(2 * pad + headerHeight + stack.Height, rect => {
+            return new Piece(2 * pad + ledge + headerHeight + stack.Height, rect => {
                 Ui.Piece(name, SkinSlots.Card, rect, Parent);
-                var inside = new Rect(rect.x + padHU * u, rect.y + pad, rect.width - 2 * padHU * u, rect.height - 2 * pad);
+                var inside = new Rect(rect.x + padHU * u, rect.y + pad, rect.width - 2 * padHU * u, rect.height - 2 * pad - ledge);
                 if (header != null)
                 {
                     var head = Text(name + " heading", header.ToUpperInvariant(), new Rect(inside.x, inside.yMax - headerHeight + 4 * u, inside.width, headerHeight - 4 * u),
@@ -375,20 +377,30 @@ namespace ZKube.Presentation
         // drawn over the card's edge, its line in a bubble beside its head. As
         // a screen's hero it grows from sizeU into the room the screen has to
         // spare, up to heroU and as wide as leaves its bubble room beside it.
-        public Piece GuardianCard(string frame, string line, float sizeU, Piece card, float heroU = 0)
+        // The paws hang below the rail, so the card, built for the ledge it is
+        // given, keeps its top clear as deep as they hang: the paws rest on the
+        // card and never cover what it says, however large the guardian grows.
+        public Piece GuardianCard(string frame, string line, float sizeU, Func<float, Piece> card, float heroU = 0)
         {
-            float u = U, rail = Ui.Art.GuardianRailY, least = sizeU * u, most = Mathf.Max(least, HeroGuardian(heroU));
-            return new Piece(rail * least + card.Height, rect => {
-                float c = Mathf.Clamp((rect.height - card.Height) / rail, least, most);
-                var cardRect = new Rect(rect.x, rect.y, rect.width, card.Height);
+            float u = U, rail = Ui.Art.GuardianRailY, hang = Ui.Art.GuardianPawsY - rail, least = sizeU * u, most = Mathf.Max(least, HeroGuardian(heroU));
+            float bare = card(0).Height, pad = CardPadU * u;
+            float Ledge(float c) => Mathf.Max(0, hang * c - pad);
+            float Tall(float c) => rail * c + bare + Ledge(c);
+            return new Piece(Tall(least), rect => {
+                // The widest guardian whose canvas, card and ledge fit the room.
+                float c = (rect.height - bare) / rail;
+                if (Ledge(c) > 0) c = (rect.height - bare + pad) / (rail + hang);
+                c = Mathf.Clamp(c, least, most);
+                var drawn = card(Ledge(c));
+                var cardRect = new Rect(rect.x, rect.y, rect.width, drawn.Height);
                 var canvas = new Rect(rect.center.x - c / 2, cardRect.yMax - (1 - rail) * c, c, c);
                 var body = Ui.Rect<Image>("Screen guardian", canvas, Parent);
                 body.preserveAspect = true; body.raycastTarget = false; SkinUi.GuardianFrame(Ui.Art, body, frame);
-                card.Draw(cardRect);
+                drawn.Draw(cardRect);
                 var paws = Ui.Rect<Image>("Screen guardian paws", canvas, Parent);
                 paws.sprite = Ui.Art.Sprite("boss__paws"); paws.preserveAspect = true; paws.raycastTarget = false;
                 if (line != null) Bubble(line, canvas, c, cardRect.yMax);
-            }, 0, (most - least) * rail);
+            }, 0, Tall(most) - Tall(least));
         }
         // The widest a hero guardian may grow: up to heroU, and no wider than
         // leaves its bubble's 122u beside it, from 0.8c of a centred canvas to

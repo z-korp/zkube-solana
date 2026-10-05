@@ -108,7 +108,7 @@ namespace ZKube.Presentation
             var sockets = new Image[3];
             var line = LevelLine(realm.guardianLines, value.Level).Line;
             var pieces = new List<Piece> { Piece.Grow, default,
-                kit.Crown(new bool[3], Step(38, 30), sockets), kit.GuardianCard("talk-open", line, Step(170, 118), kit.Card(null, rows), HeroGuardianU) };
+                kit.Crown(new bool[3], Step(38, 30), sockets), kit.GuardianCard("talk-open", line, Step(170, 118), ledge => kit.Card(null, rows, ledge: ledge), HeroGuardianU) };
             // A guardian's level names the realm it opens, with its key.
             if (value.Level == Protocol.CampaignTargets.Length && value.Realm < Protocol.Realms.Length)
                 pieces.Add(Opens(kit, catalog.Realm((byte)(value.Realm + 1)).realmName));
@@ -203,7 +203,7 @@ namespace ZKube.Presentation
             RectTransform finish = null;
             Compose(HeroTitled(new List<Piece> { Piece.Grow, default,
                 kit.Crown(lit, Step(54, 40), sockets),
-                kit.GuardianCard(frame, talk.Line, Step(156, 112), kit.Card(null, rows), HeroGuardianU),
+                kit.GuardianCard(frame, talk.Line, Step(156, 112), ledge => kit.Card(null, rows, ledge: ledge), HeroGuardianU),
                 Piece.Grow,
                 new Piece(buttons.Height, rect => finish = Group("Result actions", shell.Page, () => buttons.Draw(rect))) },
                 room => kit.Title(title, subtitle, good ? SkinTokens.Positive : SkinTokens.Negative, icon, room, kit.HeroTitleDp), Step(156, 112)));
@@ -297,7 +297,7 @@ namespace ZKube.Presentation
                     total.textWrappingMode = TextWrappingModes.NoWrap;
                     if (best.HasValue) best.Value.Draw(new Rect(x + scoreWidth + 8 * u, plate.center.y - best.Value.Height / 2, best.Value.Width, best.Value.Height));
                 }),
-                kit.GuardianCard(line.Mood == "surprised" || line.Mood == "celebrate" ? "satisfied" : line.Mood, line.Line, Step(156, 112), kit.Card(null, rows), HeroGuardianU) };
+                kit.GuardianCard(line.Mood == "surprised" || line.Mood == "celebrate" ? "satisfied" : line.Mood, line.Line, Step(156, 112), ledge => kit.Card(null, rows, ledge: ledge), HeroGuardianU) };
             if (!string.IsNullOrEmpty(value.Notice)) pieces.Add(kit.Note(value.Notice));
             if (value.NextOpensAt > 0 && value.Now != null)
             {

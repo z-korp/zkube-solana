@@ -774,7 +774,10 @@ at the mouth, stops short of it and never enters the eyes, on every page and on 
 ledge with the mouth flapping, then rests on the moment's mood; reduced motion shows the line at once.
 `guardian_contact_names_every_frame_and_a_rail_inside_its_canvas`,
 `every_guardian_says_every_line_and_none_is_empty`, `EveryMomentSpeaksItsAuthoredLine` and
-`TheGuardianLeansOnTheRailOverTheBox` guard frames, lines and placement. Daily objectives take their words
+`TheGuardianLeansOnTheRailOverTheBox` guard frames, lines and placement. On a preview or a result the guardian
+leans on a card and its paws hang below its rail, as deep as the paw boxes contact.json records; the card keeps
+that much of its top clear, so the paws never cover what it says, however large the guardian grows.
+`TheGuardiansPawsNeverCoverWhatTheirCardSaysOnBothPhones` guards every guardian on both products' results. Daily objectives take their words
 from the constraint caption owner; `every_daily_objective_uses_its_constraint_caption` guards the pair.
 
 A guardian is always drawn as its idle frame; a blink, talk or mood frame lays only its face over it, the

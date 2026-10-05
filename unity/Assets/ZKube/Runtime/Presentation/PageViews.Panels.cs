@@ -77,9 +77,10 @@ namespace ZKube.Presentation
                     string frame = block.Mood == "surprised" || block.Mood == "celebrate" ? "satisfied" : block.Mood;
                     bool leans = i + 1 < blocks.Count && blocks[i + 1].Kind == PanelKind.Card;
                     // Alone, the guardian holds its line on a card of its own.
-                    var card = leans ? CardPiece(blocks[++i], kit)
+                    var under = leans ? blocks[++i] : null;
+                    Func<float, Piece> card = ledge => under != null ? CardPiece(under, kit, ledge)
                         : kit.Card(null, new[] { TextPiece(new PanelBlock { Kind = PanelKind.Text, Name = block.Name, Copy = block.Copy, Token = SkinTokens.Text },
-                            kit.Inside(), true) }, block.Name + " card");
+                            kit.Inside(), true) }, block.Name + " card", ledge: ledge);
                     pieces.Add(kit.GuardianCard(frame, leans ? block.Copy : null, Step(156, 112), card));
                     continue;
                 }
@@ -204,7 +205,7 @@ namespace ZKube.Presentation
 
         // A card (.card3): its first line, small capitals or a titled tag line,
         // is its header.
-        private Piece CardPiece(PanelBlock block, ScreenKit kit)
+        private Piece CardPiece(PanelBlock block, ScreenKit kit, float ledge = 0)
         {
             var lines = block.Lines.ToList();
             string header = null; ScreenKit.Side? tag = null;
@@ -214,7 +215,7 @@ namespace ZKube.Presentation
                 if (lines[0].Tag != null) tag = Tag(kit, lines[0].Tag, lines[0].TagToken);
                 lines.RemoveAt(0);
             }
-            return kit.Card(header, BlockPieces(lines, kit.Inside(), true), block.Name, tag);
+            return kit.Card(header, BlockPieces(lines, kit.Inside(), true), block.Name, tag, ledge);
         }
 
         // A row (.row3): its icon, or a choice's border and badge, the label and

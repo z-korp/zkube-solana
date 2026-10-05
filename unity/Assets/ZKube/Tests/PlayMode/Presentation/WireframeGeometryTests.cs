@@ -596,6 +596,65 @@ namespace ZKube.Tests.Presentation
                 }
         }
 
+        // The guardian's paws hang below its rail, over the card it leans on. That
+        // card keeps its top clear as deep as they hang, so on the preview and on
+        // every result of both products (a Campaign result, a Realms Daily, an
+        // Arena run's two boards), for every guardian at both phones, no word of
+        // the card is under the paws.
+        [UnityTest] public IEnumerator TheGuardiansPawsNeverCoverWhatTheirCardSaysOnBothPhones()
+        {
+            root = new GameObject("Paws over cards");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("Paws over cards");
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            foreach (var (phone, size) in new (Action<PageShell, float>, string)[] { (Phones.Seeker, "seeker"), (Phones.Compact, "compact") })
+                for (byte realm = 1; realm <= Protocol.Realms.Length; realm++)
+                {
+                    phone(shell, 1);
+                    shell.RequestRealm(realm);
+                    while (shell.Loading) yield return null;
+                    Assert.That(shell.ArtworkError, Is.Null);
+                    source.Level.Realm = realm;
+                    var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = realm, Level = 1,
+                        Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
+                        Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
+                    ResultPageView Daily(bool arcade) => new ResultPageView { ProductName = "zKube", Mode = "Daily", PlayerName = "Player", HasResult = true, Realm = realm, Day = 20705,
+                        ObjectiveKind = 1, ObjectiveValue = 3, Score = 1240, ObjectiveTotal = 7, Streak = 4, Tier = 3, Arcade = arcade,
+                        Done = new PageAction { Label = arcade ? "Back to Arena" : "Continue" }, Leaderboard = new PageAction { Label = arcade ? "See boards" : "Leaderboard" } };
+                    foreach (var (name, page, result) in new[] { ("preview", AppPage.Level, (ResultPageView)null), ("Campaign result", AppPage.Result, campaign),
+                        ("Realms Daily result", AppPage.Result, Daily(false)), ("Arena run result", AppPage.Result, Daily(true)) })
+                    {
+                        if (result != null) source.Result = result;
+                        views.Render(page); yield return null;
+                        foreach (var sequence in root.GetComponentsInChildren<PageSequence>()) sequence.Finish();
+                        yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
+                        Canvas.ForceUpdateCanvases();
+                        string at = size + ", realm " + realm + ", " + name;
+                        var canvas = SkinUi.ScreenRect(root.GetComponentsInChildren<Image>().Single(image => image.name == "Screen guardian paws").rectTransform);
+                        float pawsEnd = canvas.yMax - shell.Artwork.GuardianPawsY * canvas.height, railLine = canvas.yMax - shell.Artwork.GuardianRailY * canvas.height;
+                        // The card the guardian leans on is the one whose top is its rail line.
+                        var card = root.GetComponentsInChildren<Image>().Where(image => image.sprite != null && image.sprite.name.StartsWith(SkinSlots.Card))
+                            .Select(image => SkinUi.ScreenRect(image.rectTransform)).Single(rect => Mathf.Abs(rect.yMax - railLine) < 1 && rect.Contains(new Vector2(canvas.center.x, railLine - 2)));
+                        Assert.That(pawsEnd, Is.LessThan(railLine), at + ": the paws hang over the card");
+                        int words = 0;
+                        foreach (var text in root.GetComponentsInChildren<TMP_Text>().Where(text => text.gameObject.activeInHierarchy && !string.IsNullOrEmpty(text.text)))
+                        {
+                            text.ForceMeshUpdate();
+                            var ink = text.textBounds; if (ink.size.x <= 0) continue;
+                            Vector2 low = text.transform.TransformPoint(ink.min), high = text.transform.TransformPoint(ink.max);
+                            if (!card.Contains((low + high) / 2)) continue;
+                            words++;
+                            Assert.That(high.y, Is.LessThanOrEqualTo(pawsEnd + .5f), at + ": the paws reach " + pawsEnd + " and cover \"" + text.text + "\", whose top is at " + high.y);
+                        }
+                        Assert.That(words, Is.GreaterThan(0), at + ": the card says something");
+                        if (realm == 5 || realm == 10) yield return Captures.Snap(shell, "paws " + size + " realm " + realm.ToString("00") + " " + name);
+                    }
+                }
+            Phones.Clear(shell);
+        }
+
         // One listener hears every source, whichever was made first and whatever
         // is on screen. The Arena makes its board under a page whose music is
         // playing, and that page then stops its music and leaves.

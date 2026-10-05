@@ -50,6 +50,8 @@ namespace ZKube.Presentation
         public float GuardianRailY { get; private set; }
         // The top of the guardian's head (crest, horns, ears) as a fraction of its canvas.
         public float GuardianTopY { get; private set; }
+        // The lowest edge of the guardian's paws, which hang below its rail over what it leans on.
+        public float GuardianPawsY { get; private set; }
         // Guardian continuity (one owner): the guardian is always drawn as its
         // idle frame, and a mood, blink or talk frame adds only its face, the
         // rectangle the art records, over it. Every frame then shares idle's
@@ -106,6 +108,8 @@ namespace ZKube.Presentation
                 throw new InvalidOperationException("Imported guardian has no rail line");
             if (!(theme.guardian.topY >= 0 && theme.guardian.topY < theme.guardian.railY))
                 throw new InvalidOperationException("Imported guardian has no head top above its rail");
+            if (!(theme.guardian.pawsY > theme.guardian.railY && theme.guardian.pawsY <= 1))
+                throw new InvalidOperationException("Imported guardian has no paws below its rail");
             var face = theme.guardian.face;
             if (face == null || face.Length != 4 || !(face[2] > 0 && face[3] > 0 && face[0] >= 0 && face[1] >= 0 && face[0] + face[2] <= 1 && face[1] + face[3] <= 1))
                 throw new InvalidOperationException("Imported guardian has no face rectangle");
@@ -118,7 +122,7 @@ namespace ZKube.Presentation
                 ?? throw new InvalidOperationException("Imported realm guardian music is missing");
             RealmId = realmId; ThemeId = theme.id; GuardianName = theme.guardianName; LevelMusicResource = music.resource;
             BossMusicResource = boss.resource; GuardianTitle = theme.guardianTitle;
-            GuardianRailY = theme.guardian.railY; GuardianTopY = theme.guardian.topY;
+            GuardianRailY = theme.guardian.railY; GuardianTopY = theme.guardian.topY; GuardianPawsY = theme.guardian.pawsY;
             foreach (var swatch in theme.rgba)
                 colors[swatch.name] = new Color(swatch.value[0], swatch.value[1], swatch.value[2], swatch.value[3]);
             var selected = realmLoad = AcquireAtlas("ZKube/Atlases/" + ThemeId);

@@ -97,6 +97,15 @@ struct GuardianContact {
     /// The centre of what the talk frames change below the eyes: x, y. A
     /// speech bubble's tail aims here.
     mouth_px: [u32; 2],
+    /// Each paw's box on the canvas. The lowest edge is how far the paws hang
+    /// below the rail, over whatever the guardian leans on.
+    paw_anchor_rects: Vec<PawAnchor>,
+}
+
+#[derive(serde::Deserialize)]
+struct PawAnchor {
+    /// x, y, width, height from the canvas's top left.
+    rect_px: [u32; 4],
 }
 
 /// Where the guardian's paws rest, where its face changes and where its eyes
@@ -149,9 +158,27 @@ fn guardian_contact(root: &Path, id: &str) -> Result<Value, String> {
             path.display()
         ));
     }
+    // The paws hang below the rail; a box drawn past the canvas ends at its edge.
+    let paws = contact
+        .paw_anchor_rects
+        .iter()
+        .map(|paw| (paw.rect_px[1] + paw.rect_px[3]).min(height))
+        .max()
+        .unwrap_or(0);
+    if paws <= contact.rail_front_y_px
+        || contact
+            .paw_anchor_rects
+            .iter()
+            .any(|paw| paw.rect_px[2] == 0 || paw.rect_px[0] + paw.rect_px[2] > width)
+    {
+        return Err(format!(
+            "{} must place paw_anchor_rects inside its canvas, reaching below the rail",
+            path.display()
+        ));
+    }
     let fraction = |y: u32| f64::from(y) / f64::from(height);
     Ok(json!({"railY": fraction(contact.rail_y_px), "railFrontY": fraction(contact.rail_front_y_px),
-        "topY": fraction(contact.top_y_px),
+        "topY": fraction(contact.top_y_px), "pawsY": fraction(paws),
         "face": [fraction(x), fraction(y), fraction(face_width), fraction(face_height)],
         "eyes": [fraction(eyes_x), fraction(eyes_y), fraction(eyes_width), fraction(eyes_height)],
         "mouth": [fraction(mouth_x), fraction(mouth_y)]}))
@@ -409,7 +436,9 @@ mod tests {
             "representation": "full-frame-behind-rail", "paws": "paws.png",
             "rail_y_px": 1280, "rail_front_y_px": 1330, "top_y_px": 144, "hud_width_dp": 168,
             "face_rect_px": [384, 192, 768, 576], "eyes_rect_px": [480, 288, 576, 96],
-            "mouth_px": [768, 576]});
+            "mouth_px": [768, 576],
+            "paw_anchor_rects": [{"side": "left", "rect_px": [200, 1270, 400, 170]},
+                {"side": "right", "rect_px": [900, 1270, 400, 300]}]});
         write(good.clone());
         let contact = guardian_contact(&root, "theme-1").unwrap();
         assert_eq!(contact["railY"], json!(1280.0 / 1536.0));
@@ -418,6 +447,8 @@ mod tests {
         assert_eq!(contact["face"], json!([0.25, 0.125, 0.5, 0.375]));
         assert_eq!(contact["eyes"], json!([0.3125, 0.1875, 0.375, 0.0625]));
         assert_eq!(contact["mouth"], json!([0.5, 0.375]));
+        // The lower paw, ending at the canvas's edge when its box runs past it.
+        assert_eq!(contact["pawsY"], json!(1.0));
         for (field, value) in [
             ("frame_names", json!(["idle"])),
             ("canvas_px", json!([1536, 1024])),
@@ -430,6 +461,10 @@ mod tests {
             ("eyes_rect_px", json!([300, 288, 576, 96])),
             ("mouth_px", json!([1300, 576])),
             ("mouth_px", json!([768, 300])),
+            // No paws, paws that never pass the rail, a paw outside the canvas.
+            ("paw_anchor_rects", json!([])),
+            ("paw_anchor_rects", json!([{"rect_px": [200, 1200, 400, 100]}])),
+            ("paw_anchor_rects", json!([{"rect_px": [1300, 1270, 400, 170]}])),
         ] {
             let mut bad = good.clone();
             bad[field] = value;
