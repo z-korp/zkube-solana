@@ -111,7 +111,7 @@ namespace ZKube.Presentation.Tests
         }
         // The pause and its end-run confirm, as the v3 composites draw them over
         // the dimmed HUD: one guardian (the HUD's), the title plate, the goals as
-        // they stand, the four settings and two buttons, every word fitting and
+        // they stand, the four settings, two buttons and Home in the corner, every word fitting and
         // every row and button 48 dp to touch, on the Seeker and a 360 x 640
         // phone at both text sizes, for a Campaign run and a Daily. The pause
         // counts the spec's 21 words on Tiki's first level; the confirm, the
@@ -138,7 +138,7 @@ namespace ZKube.Presentation.Tests
                                 view.Summary(board.State, board.Session, true);
                                 var dialog = confirm
                                     ? PauseDialog.Confirm(view, art, BoardController.EndRunCost(board.Session, board.State), BoardController.EndRunDetail(board.Session), () => { }, () => { })
-                                    : PauseDialog.Pause(view, art, board.State, board.Session, () => { }, board.PauseRows(), () => { });
+                                    : PauseDialog.Pause(view, art, board.State, board.Session, () => { }, board.PauseRows(), () => { }, () => { });
                                 Canvas.ForceUpdateCanvases();
                                 var texts = dialog.GetComponentsInChildren<TMP_Text>().Where(text => !string.IsNullOrEmpty(text.text)).ToArray();
                                 string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
@@ -157,7 +157,9 @@ namespace ZKube.Presentation.Tests
                                 var images = dialog.GetComponentsInChildren<Image>();
                                 Assert.IsFalse(images.Any(image => image.name.ToLowerInvariant().Contains("guardian")), at + ": the HUD's guardian is the only one");
                                 var buttons = dialog.GetComponentsInChildren<Button>();
-                                Assert.AreEqual(confirm ? 2 : 6, buttons.Length, at + ": " + string.Join(", ", buttons.Select(button => button.name)));
+                                // The pause's seventh is Home, a tablet in the corner with no word.
+                                Assert.AreEqual(confirm ? 2 : 7, buttons.Length, at + ": " + string.Join(", ", buttons.Select(button => button.name)));
+                                if (!confirm) Assert.AreEqual(SkinSlots.IconHome, images.Single(image => image.name == PauseDialog.Home + " icon").sprite.name.Replace("(Clone)", ""), at);
                                 foreach (var button in buttons)
                                 {
                                     var rect = WorldRect((RectTransform)button.transform);

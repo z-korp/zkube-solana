@@ -41,7 +41,7 @@ namespace ZKube.Integration.Presentation
         }
         private void PlayCampaign(LocalBoardActionProvider provider)
         {
-            if (runBoard == null) { runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(); }
+            if (runBoard == null) { runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(home: () => { shell.Show(true); Navigate(AppPage.Home); }); }
             var journey = campaign;
             runBoard.Open(provider.Bind(), () => journey.Unsaved, journey.Finished, journey.Left, journey.FirstRun);
             HidePages(runBoard.Board);

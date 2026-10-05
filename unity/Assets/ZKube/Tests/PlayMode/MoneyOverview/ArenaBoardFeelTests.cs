@@ -124,6 +124,46 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
+        // Pause, then Home, on the Arena's Daily: the run stays in flight on the
+        // rollup, nothing is sent or signed, and the landing page's one action is
+        // Resume run, which opens the same run without sending anything.
+        [UnityTest] public IEnumerator HomeFromThePauseLeavesTheDailyInFlightAndResumeRunReturnsToIt()
+        {
+            yield return OpenEnteredDaily();
+            var state = (byte[])PlayedBoard().Session.Accepted.State.Clone();
+            int sent = Asked("sendTransaction"), signed = Asked("signTransactions");
+            Click("Pause"); yield return null; Click(PauseDialog.Home); yield return Idle();
+            Assert.That(host.GetComponent<ZKube.Integration.Presentation.MoneyBoardHost>().HasRun, Is.False);
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Home));
+            Assert.That(Offers("Resume run"), Is.True); Assert.That(Offers("Enter · 1 Kredit"), Is.False);
+            Assert.That(Asked("sendTransaction"), Is.EqualTo(sent)); Assert.That(Asked("signTransactions"), Is.EqualTo(signed));
+            yield return SessionClick("Resume run"); yield return BoardReady();
+            Assert.That(PlayedBoard().Session.Accepted.State, Is.EqualTo(state)); Assert.That(PlayedBoard().Paused, Is.False);
+            Assert.That(Asked("sendTransaction"), Is.EqualTo(sent), "A run that is open is resumed by reading it");
+            Assert.That(Asked("signTransactions"), Is.EqualTo(signed));
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+        // The same on the Arena's Campaign: the run stays saved on the device and
+        // its level resumes it.
+        [UnityTest] public IEnumerator HomeFromThePauseLeavesTheArenasCampaignRunSavedAndItsLevelResumesIt()
+        {
+            yield return PrepareScenario("campaign-playable"); Click("Connect"); yield return Idle();
+            Click("Campaign"); yield return Idle(); Click("Trial 1"); yield return Idle();
+            Click("Play"); yield return BoardReady();
+            var runs = environment.Services.Campaign(environment.Owner).Runs;
+            string run = runs.Active("campaign").RunId; var state = (byte[])PlayedBoard().Session.Accepted.State.Clone();
+            Click("Pause"); yield return null; Click(PauseDialog.Home); yield return Idle();
+            var controller = host.GetComponent<ZKube.Integration.App.MoneyIdentity>().Controller;
+            Assert.That(controller.PlayingRun, Is.False);
+            Assert.That(host.GetComponent<PageViews>().Shown, Is.EqualTo(AppPage.Home));
+            Assert.That(runs.Active("campaign")?.RunId, Is.EqualTo(run), "The level's run is still saved");
+            Click("Campaign"); yield return Idle(); Click("Trial 1"); yield return Idle();
+            Click("Resume run"); yield return BoardReady();
+            Assert.That(PlayedBoard().Session.Accepted.State, Is.EqualTo(state));
+            Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
+            Assert.That(environment.ForbiddenCalls, Is.Zero);
+        }
+
         // A move the rollup refuses: the board had moved, so it goes back to the
         // accepted run and says so. Nothing asks for a tap, the move is not sent
         // again, and the next move plays.

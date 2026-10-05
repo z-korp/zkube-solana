@@ -9,8 +9,9 @@ namespace ZKube.Presentation
     // The board of a local run (a Campaign level in both products, or the Realms
     // Daily): one board kept for the app's life, shown while a run plays. A
     // finished run stays on the board for a moment, then leaves with its outcome
-    // (none for a Daily); leaving without a result leaves with none. While the
-    // run's progress could not be saved, a banner over the board says so.
+    // (none for a Daily); leaving without a result leaves with none, and the
+    // pause's Home leaves for the app's Home with the run as it stands, saved.
+    // While the run's progress could not be saved, a banner over the board says so.
     public sealed class RunBoard : MonoBehaviour
     {
         public const float TerminalHoldSeconds = 1.2f;
@@ -22,14 +23,16 @@ namespace ZKube.Presentation
         public bool Playing => Board != null && Board.gameObject.activeSelf;
         private Func<bool> unsaved;
         private Action<CampaignOutcome> finished;
-        private Action left;
+        private Action left, home;
         private Coroutine outcome;
         private GameObject warningRoot;
 
-        // The app's board, or none: one is made when the first run opens.
-        public void Initialize(BoardController board = null)
+        // The app's board, or none: one is made when the first run opens. home
+        // shows the app's Home page.
+        public void Initialize(BoardController board = null, Action home = null)
         {
             if (Board != null || warningRoot != null) throw new InvalidOperationException("The run board was already initialized");
+            this.home = home;
             if (board != null) Attach(board);
             warningRoot = AppShell.CanvasRoot("Unsaved progress", transform, 80);
             var banner = Rect("Save warning", warningRoot.transform);
@@ -45,7 +48,7 @@ namespace ZKube.Presentation
         private void Attach(BoardController board)
         {
             Board = board;
-            Board.Host = new BoardHostHooks { Exit = Exit, Terminal = Terminal };
+            Board.Host = new BoardHostHooks { Exit = Exit, Terminal = Terminal, Home = Home };
             Board.gameObject.SetActive(false);
             Coach = gameObject.AddComponent<BoardCoach>(); Coach.Initialize(board);
         }
@@ -73,6 +76,7 @@ namespace ZKube.Presentation
             if (warningRoot != null) warningRoot.SetActive(false);
         }
         private void Exit() { var then = left; Close(); then?.Invoke(); }
+        private void Home() { var then = home ?? left; Close(); then?.Invoke(); }
         private void Terminal(BoardController source)
         { if (source == Board && outcome == null) outcome = StartCoroutine(Outcome()); }
         private IEnumerator Outcome()

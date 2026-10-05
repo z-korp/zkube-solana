@@ -791,7 +791,7 @@ namespace ZKube.Tests.Presentation
                 view.Summary(board.State, board.Session, true);
                 var dialog = confirm
                     ? PauseDialog.Confirm(view, art, BoardController.EndRunCost(board.Session, board.State), BoardController.EndRunDetail(board.Session), () => { }, () => { })
-                    : PauseDialog.Pause(view, art, board.State, board.Session, () => { }, board.PauseRows(), () => { });
+                    : PauseDialog.Pause(view, art, board.State, board.Session, () => { }, board.PauseRows(), () => { }, () => { });
                 Canvas.ForceUpdateCanvases();
                 var pieces = Pieces(dialog, screen, 1);
                 Dump(confirm ? "endconfirm" : "pause", pieces);
@@ -815,7 +815,7 @@ namespace ZKube.Tests.Presentation
             var dailyUi = new SkinUi(art, 1, 1);
             var dailyView = daily.AddComponent<BoardView>(); dailyView.Create(board, art, HudLayout.Build(dailyUi, board.State, board.Session, safe, 1, screen), dailyUi);
             dailyView.Summary(board.State, board.Session, true);
-            var paused = PauseDialog.Pause(dailyView, art, board.State, board.Session, () => { }, board.PauseRows(), () => { });
+            var paused = PauseDialog.Pause(dailyView, art, board.State, board.Session, () => { }, board.PauseRows(), () => { }, () => { });
             var objective = PageCatalog.Load().Goal(board.Session.Rules.ObjectiveKind, board.Session.Rules.ObjectiveValue);
             AssertPictograms(paused, "Daily pause", new[] { (SkinSlots.GoalScore, (string)null), (objective.Pictogram(board.Session.Rules.BonusType), objective.chip) });
             AssertOneIconColumn(paused, "Daily pause");

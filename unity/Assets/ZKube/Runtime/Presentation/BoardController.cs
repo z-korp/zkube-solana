@@ -16,6 +16,8 @@ namespace ZKube.Presentation
         public Action<CoreRunToken> Accepted;
         public Action<string> Rejected;
         public Action Exit;
+        // Leaves the board for Home with its run as it stands; a host without one leaves by Exit.
+        public Action Home;
         public Action<BoardController> Terminal;
     }
 
@@ -127,7 +129,7 @@ namespace ZKube.Presentation
             if (busy) throw new InvalidOperationException("Cannot replace a board while an action is unresolved");
             Session = session ?? throw new ArgumentNullException(nameof(session));
             State = NativeEngine.Summary(session.Accepted);
-            guardianSelected = false; paused = false; queued = null; queuedGrid = null;
+            guardianSelected = false; paused = false; leaving = false; queued = null; queuedGrid = null;
             recoveryRequired = false; recoveryUnavailable = false; failure = null;
             // A new run changes measured HUD slots even when every text label
             // still fits (for example, Daily has no Campaign socket row).
@@ -480,9 +482,10 @@ namespace ZKube.Presentation
             View.Status(failure ?? "");
             if (recoveryRequired)
             {
-                queued = null; queuedGrid = null; CancelDrag(); ShowRecovery(); return;
+                leaving = false; queued = null; queuedGrid = null; CancelDrag(); ShowRecovery(); return;
             }
             ShowTerminalIfNeeded();
+            if (leaving) { if (IsTerminal()) leaving = false; else { LeaveForHome(); return; } }
             if (queued.HasValue)
             {
                 var action = queued.Value; queued = null;
@@ -532,7 +535,7 @@ namespace ZKube.Presentation
             // The music plays on through a pause.
             KeepRow(); paused = true; queued = null; CancelDrag();
             pauseDialog?.Close();
-            pauseDialog = PauseDialog.Pause(View, art, State, Session, Resume, PauseRows(), () => {
+            pauseDialog = PauseDialog.Pause(View, art, State, Session, Resume, PauseRows(), LeaveForHome, () => {
                 pauseDialog?.Close();
                 pauseDialog = PauseDialog.Confirm(View, art, EndRunCost(Session, State), EndRunDetail(Session), Resume,
                     () => { paused = false; pauseDialog?.Close(); pauseDialog = null; View.CloseModal(); Submit(new BoardAction(BoardActionKind.Abandon)); });
@@ -549,6 +552,17 @@ namespace ZKube.Presentation
                 Invoke = () => { SetTextScale(TextScale > 1 ? 1 : 1.3f); Pause(); } },
         };
         private PauseDialog pauseDialog;
+        // Home leaves the board with its run as it stands: nothing is sent and
+        // nothing ends. An action still being confirmed is let finish first.
+        private bool leaving;
+        private void LeaveForHome()
+        {
+            var leave = Host?.Home ?? Host?.Exit;
+            if (leave == null) { Resume(); return; }
+            if (busy) { leaving = true; return; }
+            leaving = false; pauseDialog?.Close(); pauseDialog = null; View.CloseModal();
+            leave();
+        }
         public const string EndRun = "End run";
         // What ending costs, from the core's end rule: an ended Campaign run
         // keeps no stars; an ended Daily is scored at its last accepted state,
@@ -563,7 +577,7 @@ namespace ZKube.Presentation
         {
             if (!HostInputEnabled) return;
             if (recoveryRequired) { ShowRecovery(); return; }
-            paused = false; View.CloseModal(); pauseDialog?.Close(); pauseDialog = null;
+            paused = false; leaving = false; View.CloseModal(); pauseDialog?.Close(); pauseDialog = null;
             if (!Muted) music.UnPause();
             View.Summary(State, Session, !busy && !recoveryRequired && State.Phase == (byte)CorePhase.Playing);
         }

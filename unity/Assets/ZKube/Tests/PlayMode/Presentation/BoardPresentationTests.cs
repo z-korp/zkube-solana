@@ -165,6 +165,53 @@ namespace ZKube.Presentation.Tests
             evidence.Click("Dialog Keep playing");
         }
 
+        // Home in the pause leaves by the host's Home, once, with the run as it
+        // stands; an action still being confirmed is let finish first.
+        [UnityTest] public IEnumerator HomeLeavesTheBoardWithItsRunAndWaitsForAnActionBeingConfirmed()
+        {
+            yield return Load("realm-8-daily");
+            byte[] before = (byte[])board.Session.Accepted.State.Clone();
+            int homes = 0, exits = 0; board.Host = new BoardHostHooks { Home = () => homes++, Exit = () => exits++ };
+            evidence.Click("Pause"); yield return null;
+            evidence.Click(PauseDialog.Home);
+            Assert.AreEqual(1, homes); Assert.AreEqual(0, exits);
+            CollectionAssert.AreEqual(before, board.Session.Accepted.State, "Leaving ends nothing");
+            Assert.AreEqual((byte)CorePhase.Playing, board.State.Phase);
+            Assert.IsFalse(board.View.GetComponentsInChildren<UnityEngine.UI.Button>().Any(button => button.name == PauseDialog.Home), "The pause closed");
+
+            var held = new HeldAction(board.Session.Actions);
+            board.Bind(new BoardSession(board.Session.Accepted, board.Session.Rules, held, board.Session.RealmId));
+            yield return Wait(() => ZKube.Tests.Presentation.BoardTestState.Idle(board));
+            board.Host = new BoardHostHooks { Exit = () => exits++ };
+            evidence.Click("Reroll action"); board.ConfirmReroll(); Assert.IsTrue(board.Busy);
+            board.Pause(); yield return null;
+            evidence.Click(PauseDialog.Home);
+            Assert.AreEqual(0, exits, "The reroll is still being confirmed");
+            held.Release.SetResult(true);
+            yield return Wait(() => exits == 1);
+            Assert.AreEqual(1u, board.State.ActionCounter, "The action it waited for was accepted");
+            Assert.AreEqual(1, homes, "A host without a Home leaves by its Exit");
+        }
+        // A Daily run can be left until its day closes: within the last hour the
+        // pause says when, in place of the realm.
+        [UnityTest] public IEnumerator ADailysPauseSaysWhenItClosesOnlyInItsLastHour()
+        {
+            long now = 1_000_000;
+            TMP_Text Text(string name) => board.View.GetComponentsInChildren<TMP_Text>().Single(t => t.name == name);
+            foreach (var (left, words) in new[] { (PauseDialog.ClosesSoonSeconds + 1, "Daily · "), (PauseDialog.ClosesSoonSeconds, "Closes in 60 min"), (41 * 60 + 1, "Closes in 42 min"), (1L, "Closes in 1 min") })
+            {
+                evidence.Daily = new DailyContext { ClosesAt = now + left, Now = () => now };
+                yield return Load("realm-8-daily");
+                evidence.Click("Pause"); yield return null;
+                StringAssert.StartsWith(words, Text("Screen subtitle").text);
+                evidence.Click("Dialog Resume"); yield return null;
+            }
+            evidence.Daily = null;
+            yield return Load("realm-8-campaign");
+            evidence.Click("Pause"); yield return null;
+            StringAssert.StartsWith("Level ", Text("Screen subtitle").text);
+        }
+
         [UnityTest] public IEnumerator PauseControlsPreserveAcceptedState()
         {
             yield return Load("realm-8-campaign");

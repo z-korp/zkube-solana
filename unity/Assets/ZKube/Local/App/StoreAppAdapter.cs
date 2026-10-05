@@ -37,7 +37,7 @@ namespace ZKube.Local.App
         {
             if (Flow != null) throw new InvalidOperationException("Store app was already initialized");
             if (boardController == null) throw new ArgumentNullException(nameof(boardController));
-            runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(boardController);
+            runBoard = gameObject.AddComponent<RunBoard>(); runBoard.Initialize(boardController, () => Flow.LeaveHome());
             Flow = new StoreAppFlow(product, runs, billing, accounts);
             if (EventSystem.current == null || EventSystem.current.transform.IsChildOf(board.transform))
                 throw new InvalidOperationException("Startup must create a shared EventSystem outside the board object");

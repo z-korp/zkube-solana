@@ -301,6 +301,36 @@ namespace ZKube.Tests
             Assert.That(result.interactable, Is.True);
             Assert.That(result.GetComponent<Image>().sprite.name, Does.StartWith(SkinSlots.ButtonPrimary));
         }
+        // Pause, then Home, in both of Realms' modes: the board is left with its
+        // run as it stands, nothing ends, and Home and the map resume that run.
+        [UnityTest] public IEnumerator HomeFromThePauseLeavesTheRunSavedAndItIsResumedInBothModes()
+        {
+            Click(app, "Play today"); yield return BoardReady();
+            string daily = runs.Active("daily").RunId; var state = (byte[])board.Session.Accepted.State.Clone();
+            Click(board.View, "Pause"); yield return null; Click(board.View, PauseDialog.Home);
+            yield return Page(StorePage.Home);
+            Assert.That(board.gameObject.activeSelf, Is.False);
+            Assert.That(runs.Active("daily")?.RunId, Is.EqualTo(daily), "Today's run is still open");
+            Assert.That(product.Read.DailyAttempt.Finished, Is.False);
+            Click(app, "Resume run"); yield return BoardReady();
+            Assert.That(board.Session.Accepted.State, Is.EqualTo(state)); Assert.That(board.Paused, Is.False);
+            yield return EndRun(); yield return Page(StorePage.Result);
+            Click(app, "Continue"); yield return Page(StorePage.Home);
+
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Trial 1"); yield return Page(StorePage.Level);
+            Click(app, "Play"); yield return BoardReady();
+            string campaign = runs.Active("campaign").RunId; state = (byte[])board.Session.Accepted.State.Clone();
+            Click(board.View, "Pause"); yield return null; Click(board.View, PauseDialog.Home);
+            yield return Page(StorePage.Home);
+            Assert.That(board.gameObject.activeSelf, Is.False);
+            Assert.That(runs.Active("campaign")?.RunId, Is.EqualTo(campaign), "The level's run is still saved");
+            Assert.That(app.Flow.Campaign.Last, Is.Null, "No result: the run did not end");
+            Click(app, "Campaign"); yield return Page(StorePage.Campaign);
+            Click(app, "Trial 1"); yield return Page(StorePage.Level);
+            Click(app, "Resume run"); yield return BoardReady();
+            Assert.That(board.Session.Accepted.State, Is.EqualTo(state)); Assert.That(board.Paused, Is.False);
+        }
         // A store that cannot be reached at startup does not greet the player on
         // the Daily; its notice appears where purchase and restore are.
         [UnityTest] public IEnumerator StartupStoreFailureStaysOffTheDailyAndShowsWithRestore()

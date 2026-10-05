@@ -14,7 +14,9 @@ namespace ZKube.Presentation
     // The pause, as the wireframe lays it out, over the game as it stood,
     // softened and dimmed (DECISIONS 2026-10-02): "Paused" over the level and
     // realm, the card of goals as they stand, the card of the four settings,
-    // and Resume with End run. End run asks first on the same composition:
+    // and Resume with End run. Home hangs from the top left corner, where a
+    // page's way back does: it leaves the board with the run as it stands. End
+    // run asks first on the same composition:
     // "End this run?", its cost, then Keep playing or End run. Each settings
     // row is one button named for its state ("Dialog Sound: on"); a tap
     // anywhere on the row flips it.
@@ -50,11 +52,16 @@ namespace ZKube.Presentation
             return dialog;
         }
 
-        public static PauseDialog Pause(BoardView view, BoardArt art, RunSummary state, BoardSession session, Action resume, Row[] rows, Action end) =>
-            Open(view, art, "Pause dialog", (dialog, kit) => kit.Compose(
-                kit.Title("Paused", Subtitle(session)), Piece.Grow, GoalCard(kit, state, session), SettingsCard(kit, rows), Piece.Grow,
-                kit.Buttons(new[] { ("Dialog Resume", "Resume", resume, ScreenKit.Kind.Primary, SkinSlots.IconPlay),
-                    ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Secondary, SkinSlots.IconFlag) })));
+        public const string Home = "Dialog Home";
+        public static PauseDialog Pause(BoardView view, BoardArt art, RunSummary state, BoardSession session, Action resume, Row[] rows, Action home, Action end) =>
+            Open(view, art, "Pause dialog", (dialog, kit) => {
+                kit.Compose(
+                    kit.Title("Paused", Subtitle(session)), Piece.Grow, GoalCard(kit, state, session), SettingsCard(kit, rows), Piece.Grow,
+                    kit.Buttons(new[] { ("Dialog Resume", "Resume", resume, ScreenKit.Kind.Primary, SkinSlots.IconPlay),
+                        ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Secondary, SkinSlots.IconFlag) }));
+                float size = kit.Touch(40);
+                kit.Ui.IconButton(Home, new Rect(kit.Safe.x + 12 * kit.U, kit.Edge - size, size, size), SkinSlots.IconHome, home, kit.Parent, false, out _, out _);
+            });
 
         // The question, and its cost with what stays, centred on the card.
         public static PauseDialog Confirm(BoardView view, BoardArt art, string cost, string detail, Action keep, Action end) =>
@@ -75,11 +82,16 @@ namespace ZKube.Presentation
                         ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Secondary, SkinSlots.IconFlag) }));
             });
 
-        // "Level 14 · Tiki", or "Daily · Tiki".
+        // "Level 14 · Tiki", or "Daily · Tiki". A Daily run can be left and resumed
+        // until its day closes: within its last hour the pause says when instead.
+        public const long ClosesSoonSeconds = 3600;
         private static string Subtitle(BoardSession session)
         {
             string realm = PageCatalog.Load().Realm(session.RealmId).realmName;
-            return session.Daily ? "Daily · " + realm : "Level " + HudLayout.LevelNumber(session.RealmId, HudLayout.CampaignLevel(session)) + " · " + realm;
+            if (!session.Daily) return "Level " + HudLayout.LevelNumber(session.RealmId, HudLayout.CampaignLevel(session)) + " · " + realm;
+            var facts = session.DailyFacts;
+            long left = facts?.Now == null || facts.ClosesAt <= 0 ? 0 : facts.ClosesAt - facts.Now();
+            return left > 0 && left <= ClosesSoonSeconds ? "Closes in " + (left + 59) / 60 + " min" : "Daily · " + realm;
         }
 
         // The goals as they stand. A Campaign lists the score and its two goals,

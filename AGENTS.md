@@ -168,6 +168,16 @@ deployment or spending approval.
   `ADailyMoveOnTheArenaPresentsWhatTheSameMovePresentsOnTheSharedRunBoard`,
   `ALateRowIsWaitedForAndPresentedWhenItArrives`, `ARefusedMoveSettlesTheBoardOnTheAcceptedRunWithANotice` and
   `ASwipeQueuedOnTheMovedBoardPlaysOnceAcceptedAndIsDroppedIfTheBoardSettlesElsewhere` guard it.
+- **Leaving a run:** the pause's Home, a tablet in its top left corner in both products, leaves the board with the
+  run as it stands: nothing is sent, nothing ends, and an action still being confirmed finishes first. A Campaign
+  run and the Realms Daily stay saved, and their level or Home resumes them; the Arena Daily stays in flight on
+  the rollup and the landing page's one action is Resume run. A Daily in the last hour before its day closes says
+  when in its pause. End run stays, behind its confirm.
+  `HomeLeavesTheBoardWithItsRunAndWaitsForAnActionBeingConfirmed`,
+  `ADailysPauseSaysWhenItClosesOnlyInItsLastHour`, `HomeFromThePauseLeavesTheRunSavedAndItIsResumedInBothModes`,
+  `HomeFromThePauseLeavesTheDailyInFlightAndResumeRunReturnsToIt`,
+  `HomeFromThePauseLeavesTheArenasCampaignRunSavedAndItsLevelResumesIt` and
+  `PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones` guard it.
 - **Tutorial:** the guardian teaches through that same path, each lesson once per device (`Lessons`, beside the
   realm greetings). The first run of Tiki's level 1 is guided by the slide the core scores best (`BoardHint`), the
   board never waiting for it; each bonus's first charge, the first star and the first empty board are taught on

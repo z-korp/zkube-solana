@@ -108,6 +108,8 @@ namespace ZKube.Local.App
             if (attempt != null && attempt.Finished && HasLeaderboard) accounts.SubmitDailyScore(attempt.DailyScore);
             Navigate(StorePage.Result);
         }
+        // A run's board was left for Home: the run stays saved, and Home or the map resumes it.
+        public void LeaveHome() { Check(); ObservePersistence(); Navigate(StorePage.Home); }
         public void ObservePersistence()
         {
             if (Provider?.PersistenceFailure != null) unsaved = true;
