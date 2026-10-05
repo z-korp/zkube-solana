@@ -64,14 +64,10 @@ namespace ZKube.Presentation
                 MenuMusic.Stop();
             }
         }
-        private AudioListener ears;
         private void Music(bool on)
         {
             var settings = source.SettingsPage();
             MenuMusic.volume = settings.Muted ? 0 : (float)settings.Music;
-            // The pages hear their music through their own listener while no other is live (the board has its own).
-            if (ears == null) { ears = gameObject.AddComponent<AudioListener>(); ears.enabled = false; }
-            ears.enabled = on && !FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Any(other => other != ears && other.enabled && other.gameObject.activeInHierarchy);
             if (!on) { MenuMusic.Stop(); return; }
             if (MenuMusic.clip == null) MenuMusic.clip = Resources.Load<AudioClip>(catalog.menuMusicResource)
                 ?? throw new InvalidOperationException("The menu music is not imported");

@@ -596,6 +596,38 @@ namespace ZKube.Tests.Presentation
                 }
         }
 
+        // One listener hears every source, whichever was made first and whatever
+        // is on screen. The Arena makes its board under a page whose music is
+        // playing, and that page then stops its music and leaves.
+        [UnityTest] public IEnumerator OneListenerHearsThePagesAndABoardMadeUnderThem()
+        {
+            root = new GameObject("One listener");
+            if (EventSystem.current == null) new GameObject("Input", typeof(EventSystem), typeof(StandaloneInputModule)).transform.SetParent(root.transform);
+            var shell = root.AddComponent<PageShell>(); shell.Initialize("One listener");
+            Phones.Seeker(shell);
+            shell.RequestRealm(1);
+            while (shell.Loading) yield return null;
+            var source = new Wireframe();
+            var views = root.AddComponent<PageViews>(); views.Initialize(source, shell, "Home", "realms", 1);
+            int greeted = ~0; views.Greetings = new GuardianGreetings(() => greeted, value => greeted = value);
+            source.Daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Actions = new[] { new PageAction { Label = "Play today" } } };
+            Assert.AreEqual(1, PaintWatch.Listeners(), "Before any page");
+            views.Render(AppPage.Home); yield return null;
+            Assert.IsTrue(views.MenuMusic.isPlaying);
+            Assert.AreEqual(1, PaintWatch.Listeners(), "Under a page playing its music");
+            var board = new GameObject("Board made under a page", typeof(BoardController)).GetComponent<BoardController>();
+            board.transform.SetParent(root.transform, false); yield return null;
+            Assert.AreEqual(1, PaintWatch.Listeners(), "With a board made under that page");
+            views.HandOver(board); yield return null;
+            Assert.IsFalse(views.MenuMusic.isPlaying);
+            Assert.AreEqual(1, PaintWatch.Listeners(), "On the board, the page's music stopped");
+            views.Hide(); yield return null;
+            Assert.AreEqual(1, PaintWatch.Listeners(), "On the board, the pages hidden");
+            UnityEngine.Object.Destroy(board.gameObject); yield return null;
+            Assert.AreEqual(1, PaintWatch.Listeners(), "After the board");
+            Phones.Clear(shell);
+        }
+
         // The Daily card shows the day's own guardian: its portrait, its name
         // and, on the Arcade, its realm all come from the Daily, in every realm,
         // whatever realm the page's painting is from.

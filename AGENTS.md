@@ -688,7 +688,11 @@ are shared across settings and board controls, checked by
 `SettingsBeforeStartAreAppliedAndPersistAcrossControllerRecreation` and
 `SlidersAndSwitchesUseIndependentLevelsAndRememberOnlyThisSettingsMount`. One menu track, the catalog's
 menu-music slot (assets/common/sounds/musics/menu.mp3), plays under the tab pages at the music level and stops
-for a result and the board; `MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAndTheBoard` guards it.
+for a result and the board; `MenuMusicPlaysUnderTheTabPagesAndStopsForAResultAndTheBoard` guards it. One
+listener, `Ears`, made at startup and kept for the life of the app, hears every source: the pages' and a board's
+alike, whichever was made first; no page or board makes its own.
+`OneListenerHearsThePagesAndABoardMadeUnderThem` guards the rule, and `PaintWatch` checks every frame of the
+Campaign and Daily journeys in both products.
 
 Skins live in assets/skins/<id>/ and are listed in assets/catalog.json; Lumen is the only skin and the first is
 the default. The codegen owns the slot and token list, emits it to C# and rejects a missing or unknown slot for

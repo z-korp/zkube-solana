@@ -14,9 +14,12 @@ namespace ZKube.Tests.Presentation
     // step the test was on. Within a step it also records which paintings the
     // frames showed, in order, how long one faded in over another, how often
     // the page was drawn, and whether a page left before the next was drawn.
+    // Each frame is also heard by exactly one listener; the first that is not is
+    // kept the same way.
     public sealed class PaintWatch : MonoBehaviour
     {
         public string Failure { get; private set; }
+        public string Unheard { get; private set; }
         public int Frames { get; private set; }
         private PageShell shell;
         private string step = "the first page";
@@ -51,6 +54,7 @@ namespace ZKube.Tests.Presentation
                 yield return new WaitForEndOfFrame();
                 Frames++;
                 if (Failure == null && !Covered()) Failure = Step + ": frame " + Frames + " shows no painting";
+                if (Unheard == null && Listeners() != 1) Unheard = Step + ": frame " + Frames + " has " + Listeners() + " listeners";
                 if (!shell.Root.activeInHierarchy) { fadeFrom = -1; continue; }
                 int page = PageId();
                 if (page != 0 && page != drawn) Draws++;
@@ -81,7 +85,13 @@ namespace ZKube.Tests.Presentation
         }
         public static string Name(Sprite sprite) => sprite.texture.name + "/" + sprite.name;
         public bool Covered() => Painted(shell) || FindObjectsByType<BoardController>(FindObjectsSortMode.None).Any(board => board.Drawn);
-        public void AssertCovered() { Assert.That(Failure, Is.Null, "A page change showed the clear colour"); Assert.That(Frames, Is.GreaterThan(0)); }
+        public static int Listeners() => FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Count(listener => listener.isActiveAndEnabled);
+        public void AssertCovered()
+        {
+            Assert.That(Failure, Is.Null, "A page change showed the clear colour");
+            Assert.That(Unheard, Is.Null, "A frame was not heard by exactly one listener");
+            Assert.That(Frames, Is.GreaterThan(0));
+        }
         // A page change is one change of painting at most: from the one on
         // screen straight to the next page's, the page before staying until then,
         // drawn once (unless a waiting page stands in for a read), and (with

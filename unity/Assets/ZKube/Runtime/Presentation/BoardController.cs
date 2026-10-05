@@ -87,10 +87,6 @@ namespace ZKube.Presentation
             Muted = AppPreferences.Muted;
             Haptics = AppPreferences.Haptics;
             TextScale = ReadSavedTextScale();
-            // The listener belongs to the board session, not its replaceable
-            // camera/view. Reuse an existing active scene listener when present.
-            if (!FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Any(l => l.enabled && l.gameObject.activeInHierarchy))
-                gameObject.AddComponent<AudioListener>();
             if (EventSystem.current == null)
             {
                 var events = new GameObject("Board EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));

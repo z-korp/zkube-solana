@@ -383,7 +383,7 @@ namespace ZKube.Presentation.Tests
                 Assert.IsNotNull(icon.GetComponentInParent<UnityEngine.UI.Button>());
                 Assert.IsTrue(icon.isActiveAndEnabled, icon.name + " must be drawn");
             }
-            Assert.IsNull(board.View.GetComponentInChildren<Camera>().GetComponent<AudioListener>(), "Camera/view recreation must not duplicate the session listener");
+            Assert.IsNull(board.View.GetComponentInChildren<Camera>().GetComponent<AudioListener>(), "Camera/view recreation must not add a listener to the app's one");
         }
         [UnityTest] public IEnumerator ReflowPreservesInputAndOneAudioListenerAfterTheOldViewIsDestroyed()
         {
