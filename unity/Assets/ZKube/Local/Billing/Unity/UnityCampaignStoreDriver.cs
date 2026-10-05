@@ -8,7 +8,7 @@ using UnityEngine.Purchasing;
 
 namespace ZKube.Local.Billing
 {
-    // com.unity.purchasing 5.2.1, Google Play only. No automatic initializer,
+    // com.unity.purchasing 5.2.1, Google Play and the App Store. No automatic initializer,
     // codeless catalogue, fake store, receipts server or analytics setup.
     public sealed class UnityCampaignStoreDriver : ICampaignStoreDriver
     {
@@ -28,11 +28,12 @@ namespace ZKube.Local.Billing
 
         public UnityCampaignStoreDriver()
         {
-            if (Application.isEditor || Application.platform != RuntimePlatform.Android ||
+            var ios = Application.platform == RuntimePlatform.IPhonePlayer;
+            if (Application.isEditor || (Application.platform != RuntimePlatform.Android && !ios) ||
                 Application.identifier != "com.zkorp.zkube.store")
-                throw new InvalidOperationException("Native Campaign billing requires the Google Play store identity");
+                throw new InvalidOperationException("Native Campaign billing requires the store identity");
             main = SynchronizationContext.Current ?? throw new InvalidOperationException("Construct billing on the Unity main thread");
-            controller = new StoreController("GooglePlay");
+            controller = new StoreController(ios ? "AppleAppStore" : "GooglePlay");
             controller.ProcessPendingOrdersOnPurchasesFetched(false);
             controller.SetStoreReconnectionRetryPolicyOnDisconnection(null);
             controller.OnStoreConnected += QueueConnected;

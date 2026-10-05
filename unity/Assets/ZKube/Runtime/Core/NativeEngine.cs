@@ -46,11 +46,17 @@ namespace ZKube.Core
 
     public static class NativeEngine
     {
-        [DllImport("zkube_core_ffi", CallingConvention = CallingConvention.Cdecl, EntryPoint = "zkube_core_call")]
+#if UNITY_IOS && !UNITY_EDITOR
+        // iOS links the engine statically into the app.
+        private const string Library = "__Internal";
+#else
+        private const string Library = "zkube_core_ffi";
+#endif
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, EntryPoint = "zkube_core_call")]
         private static extern int Invoke(uint operation, [In] byte[] request, uint requestLength,
             [In, Out] byte[] response, uint capacity, ref uint written);
 
-        [DllImport("zkube_core_ffi", CallingConvention = CallingConvention.Cdecl, EntryPoint = "zkube_core_abi_version")]
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, EntryPoint = "zkube_core_abi_version")]
         public static extern uint AbiVersion();
 
         public static byte[] Call(uint operation, byte[] request)

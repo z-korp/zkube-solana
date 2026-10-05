@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import plistlib
 import os
 import re
 from pathlib import Path, PurePosixPath
@@ -520,19 +521,43 @@ def toolchain():
     return editor, android
 
 
+def ios_toolchain():
+    """macOS only: the pinned Editor with iOS Build Support, the iOS Rust target and Xcode."""
+    global LOCK
+    LOCK = json.loads((PROJECT / "toolchain.json").read_text())
+    editor = Path(os.environ.get("UNITY_EDITOR", str(Path.home() / "Unity/Hub/Editor" /
+                                                   LOCK["editor"] / "Unity.app/Contents/MacOS/Unity")))
+    if not editor.is_file():
+        raise SystemExit(f"Missing pinned Unity Editor: {editor}")
+    if not (editor.parents[3] / "PlaybackEngines/iOSSupport").is_dir():
+        raise SystemExit("Missing Unity iOS Build Support beside " + str(editor.parents[3]))
+    if "aarch64-apple-ios" not in subprocess.check_output(["rustup", "target", "list", "--installed"], text=True).split():
+        raise RuntimeError("Missing Rust iOS target: aarch64-apple-ios")
+    if shutil.which("xcodebuild") is None:
+        raise SystemExit("Missing Xcode command line tools")
+    return editor, None
+
+
 def native(android, profile):
     env = dict(os.environ, NO_DNA="1")
     run(["cargo", "build", "--release", "-p", "zkube-core-ffi"], env=env)
-    llvm = android / "NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-    copies = [(ROOT / "target/release/libzkube_core_ffi.so", PROJECT / "Assets/Plugins/x86_64")]
-    for abi in abis(LOCK, profile):
-        target = abi["rustTarget"]
-        prefix = "CARGO_TARGET_" + target.upper().replace("-", "_")
-        env[prefix + "_LINKER"] = str(llvm / f'{abi["linkerPrefix"]}{LOCK["androidMinimumApi"]}-clang')
-        env[prefix + "_RUSTFLAGS"] = "-C link-arg=-Wl,-z,max-page-size=16384"
-        run(["cargo", "build", "--release", "-p", "zkube-core-ffi", "--target", target], env=env)
-        copies.append((ROOT / "target" / target / "release/libzkube_core_ffi.so",
-                       PROJECT / "Assets/Plugins/Android" / abi["name"]))
+    if android is None:
+        # iOS: the macOS Editor loads the dylib and the Player links the static library.
+        run(["cargo", "rustc", "--release", "-p", "zkube-core-ffi", "--target", "aarch64-apple-ios",
+             "--crate-type", "staticlib"], env=env)
+        copies = [(ROOT / "target/release/libzkube_core_ffi.dylib", PROJECT / "Assets/Plugins/macOS"),
+                  (ROOT / "target/aarch64-apple-ios/release/libzkube_core_ffi.a", PROJECT / "Assets/Plugins/iOS")]
+    else:
+        llvm = android / "NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        copies = [(ROOT / "target/release/libzkube_core_ffi.so", PROJECT / "Assets/Plugins/x86_64")]
+        for abi in abis(LOCK, profile):
+            target = abi["rustTarget"]
+            prefix = "CARGO_TARGET_" + target.upper().replace("-", "_")
+            env[prefix + "_LINKER"] = str(llvm / f'{abi["linkerPrefix"]}{LOCK["androidMinimumApi"]}-clang')
+            env[prefix + "_RUSTFLAGS"] = "-C link-arg=-Wl,-z,max-page-size=16384"
+            run(["cargo", "build", "--release", "-p", "zkube-core-ffi", "--target", target], env=env)
+            copies.append((ROOT / "target" / target / "release/libzkube_core_ffi.so",
+                           PROJECT / "Assets/Plugins/Android" / abi["name"]))
     for source, target in copies:
         target.mkdir(parents=True, exist_ok=True)
         destination = target / source.name
@@ -614,12 +639,13 @@ def regenerate_locks(export, android, profile, env):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["test", "android", "exec", "fixtures", "locks"])
+    parser.add_argument("action", choices=["test", "android", "ios", "exec", "fixtures", "locks"])
     parser.add_argument("--fixture-action", choices=["check", "generate"], default="check")
     parser.add_argument("--test-platform", choices=["EditMode", "PlayMode", "all"], default="all")
     parser.add_argument("--test-filter", default="ZKube")
     parser.add_argument("--identity", choices=["money", "store"], default="money")
     parser.add_argument("--production", action="store_true", help="Android: require an explicit version code and non-debug signing")
+    parser.add_argument("--testflight", action="store_true", help="ios: archive and upload to App Store Connect for TestFlight")
     parser.add_argument("--method", help="exec: fully qualified static method, e.g. ZKube.Editor.ZKubeBuild.Probe")
     parser.add_argument("--build-target", choices=["StandaloneLinux64", "Android"], help="exec: Editor build target (default StandaloneLinux64)")
     args = parser.parse_args()
@@ -628,6 +654,8 @@ def main():
         return
     if args.production and args.action != "android":
         parser.error("--production requires android")
+    if args.testflight and args.action != "ios":
+        parser.error("--testflight requires ios")
     if args.production:
         version = os.environ.get("ZKUBE_ANDROID_VERSION_CODE", "")
         if not version.isdecimal() or int(version) < 1:
@@ -641,11 +669,13 @@ def main():
         parser.error("--method must be a fully qualified C# method name")
     # Desktop inspection uses desktop imports: this Linux OpenGL driver reports
     # Android ASTC atlases unsupported, so they cannot establish visual parity.
-    target = "StandaloneLinux64" if args.action in ("test", "exec") else "Android"
+    target = "StandaloneLinux64" if args.action in ("test", "exec") else "iOS" if args.action == "ios" else "Android"
     if args.action == "exec" and args.build_target:
         target = args.build_target
-    if args.identity == "store" and target != "Android":
+    if args.identity == "store" and target not in ("Android", "iOS"):
         parser.error("--identity store selects an Android Player build; Editor tests run the shared suite without this option")
+    if args.action == "ios" and args.identity != "store":
+        parser.error("ios builds zKube: Realms only; pass --identity store")
     OUTPUT.mkdir(parents=True, exist_ok=True)
     # Unity prints its process environment on Gradle failures. Pass only build
     # and desktop paths, so unrelated signer/service credentials cannot enter logs.
@@ -675,10 +705,10 @@ def main():
         generated_idl = PROJECT / "Assets/ZKube/Integration/Generated/solana.json"
         generated_idl.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "tools/chain/idl/solana.json", generated_idl)
-        editor, android = toolchain()
+        editor, android = ios_toolchain() if args.action == "ios" else toolchain()
         if args.action in ("android", "locks") and args.identity == "money":
             run(["python3", PROJECT / "NativeAndroid/verify.py"], env=env)
-        if args.action in ("android", "test", "locks"):
+        if args.action in ("android", "ios", "test", "locks"):
             sync_assets()
         if args.action == "exec":
             log = OUTPUT / f"exec-{args.method.rsplit('.', 1)[-1]}.log"
@@ -724,8 +754,33 @@ def main():
                     raise RuntimeError("Unity test filters matched no cases: " + "; ".join(missing) + f"; inspect {result_path}")
                 print(f"Unity {platform}: {passed}/{total} passed ({result_path})")
             return
-        if args.action in ("android", "locks"):
+        if args.action in ("android", "ios", "locks"):
             prepare(editor, target, env)
+        if args.action == "ios":
+            xcode, derived = OUTPUT / "ios", OUTPUT / "ios-derived"
+            execute(editor, target, "ZKube.Editor.ZKubeBuild.BuildIOS", dict(env, ZKUBE_UNITY_XCODE=str(xcode)), OUTPUT / "ios.log")
+            # Realms uses no non-exempt encryption; without the key TestFlight holds every build on the question.
+            run(["plutil", "-replace", "ITSAppUsesNonExemptEncryption", "-bool", "NO", xcode / "Info.plist"])
+            # Automatic signing with the team in toolchain.json; Xcode's signed-in account fetches the profile.
+            project = ["-project", xcode / "Unity-iPhone.xcodeproj", "-scheme", "Unity-iPhone", "-configuration", "Release",
+                       "-destination", "generic/platform=iOS", "-derivedDataPath", derived, "-allowProvisioningUpdates"]
+            if args.testflight:
+                archive, options = OUTPUT / "ios.xcarchive", OUTPUT / "ios-export.plist"
+                run(["xcodebuild", *project, "-archivePath", archive, "archive"])
+                # Xcode re-signs for distribution, uploads with its account and sets the next free build number.
+                options.write_bytes(plistlib.dumps({"method": "app-store-connect", "destination": "upload",
+                                                    "teamID": LOCK["iosTeam"], "signingStyle": "automatic",
+                                                    "manageAppVersionAndBuildNumber": True}))
+                # Apple's rsync spawns its peer from PATH; a Homebrew rsync there rejects its options.
+                run(["xcodebuild", "-exportArchive", "-archivePath", archive, "-exportOptionsPlist", options,
+                     "-exportPath", OUTPUT / "ios-export", "-allowProvisioningUpdates"],
+                    env=dict(os.environ, PATH="/usr/bin:" + os.environ["PATH"]))
+                print(f"{profile['productName']} uploaded to App Store Connect; TestFlight lists it once Apple has processed it")
+                return
+            run(["xcodebuild", *project, "build"])
+            app = next((derived / "Build/Products/Release-iphoneos").glob("*.app"))
+            print(f"{profile['productName']} for iOS: {app}\nInstall: xcrun devicectl device install app --device <name or id> '{app}'")
+            return
         if args.action == "locks":
             with tempfile.TemporaryDirectory(prefix="lock-export-", dir=OUTPUT) as temporary:
                 export = Path(temporary)

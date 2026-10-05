@@ -21,6 +21,7 @@ namespace ZKube.Editor
             public int androidMinimumApi;
             public AndroidIdentity[] androidIdentities;
             public AndroidAbi[] androidAbis;
+            public string iosTeam;
         }
 
         [Serializable] internal sealed class Network
@@ -60,6 +61,7 @@ namespace ZKube.Editor
             var config = JsonUtility.FromJson<Toolchain>(File.ReadAllText("toolchain.json"));
             if (Application.unityVersion != config.editor)
                 throw new InvalidOperationException("Unity patch differs from toolchain.json");
+            if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.iOS) { ConfigureIOS(config); return; }
 
             var android = Path.Combine(EditorApplication.applicationContentsPath,
                 "PlaybackEngines", "AndroidPlayer");
@@ -143,6 +145,59 @@ namespace ZKube.Editor
                 wallet.SetCompatibleWithEditor(false);
                 wallet.SetCompatibleWithPlatform(BuildTarget.Android, !store);
                 wallet.SaveAndReimport();
+            }
+            ZKubeStoreBillingBuild.ConfigurePlugins();
+            AssetDatabase.SaveAssets();
+        }
+
+        // iOS ships Realms only. The macOS Editor loads the engine as a dylib, the
+        // Player links it statically, and Xcode signs with the team's automatic profile.
+        private static void ConfigureIOS(Toolchain config)
+        {
+            var identity = Identity;
+            if (identity.name != "store") throw new InvalidOperationException("iOS builds the store identity only");
+            PlayerSettings.companyName = "zKorp";
+            PlayerSettings.productName = identity.productName;
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, identity.package);
+            PlayerSettings.bundleVersion = "1.0";
+            PlayerSettings.iOS.buildNumber = "1";
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS, ScriptingImplementation.IL2CPP);
+            PlayerSettings.iOS.appleDeveloperTeamID = config.iosTeam;
+            PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.runInBackground = false;
+            PlayerSettings.SplashScreen.show = false;
+            PlayerSettings.SplashScreen.showUnityLogo = false;
+            EditorSettings.serializationMode = SerializationMode.ForceText;
+            ImportBrand();
+            // App Store Connect rejects an icon with an alpha channel and wants 1024 px:
+            // the full-bleed legacy icon, resampled onto RGB.
+            const string iconPath = Brand + "IconIOS.png";
+            const int size = 1024;
+            var source = new Texture2D(2, 2);
+            if (!source.LoadImage(File.ReadAllBytes(Brand + "Icon.png"))) throw new InvalidOperationException("Missing staged product icon Icon.png");
+            var flat = new Texture2D(size, size, TextureFormat.RGB24, false);
+            for (var y = 0; y < size; y++)
+                for (var x = 0; x < size; x++)
+                    flat.SetPixel(x, y, source.GetPixelBilinear((x + 0.5f) / size, (y + 0.5f) / size));
+            File.WriteAllBytes(iconPath, flat.EncodeToPNG());
+            AssetDatabase.ImportAsset(iconPath, ImportAssetOptions.ForceSynchronousImport);
+            var iconImporter = (TextureImporter)AssetImporter.GetAtPath(iconPath);
+            iconImporter.mipmapEnabled = false; iconImporter.textureCompression = TextureImporterCompression.Uncompressed;
+            iconImporter.maxTextureSize = size; iconImporter.SaveAndReimport();
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(iconPath);
+            foreach (var kind in new[] { IconKind.Application, IconKind.Store })
+                PlayerSettings.SetIcons(NamedBuildTarget.iOS, PlayerSettings.GetIconSizes(NamedBuildTarget.iOS, kind)
+                    .Select(_ => icon).ToArray(), kind);
+            foreach (var (path, player) in new[] { ("Assets/Plugins/macOS/libzkube_core_ffi.dylib", false), ("Assets/Plugins/iOS/libzkube_core_ffi.a", true) })
+            {
+                var plugin = AssetImporter.GetAtPath(path) as PluginImporter
+                    ?? throw new InvalidOperationException("Missing native plugin: " + path);
+                plugin.SetCompatibleWithAnyPlatform(false);
+                plugin.SetCompatibleWithEditor(!player);
+                plugin.SetCompatibleWithPlatform(BuildTarget.iOS, player);
+                if (!player) { plugin.SetEditorData("OS", "OSX"); plugin.SetEditorData("CPU", "AnyCPU"); }
+                plugin.SaveAndReimport();
             }
             ZKubeStoreBillingBuild.ConfigurePlugins();
             AssetDatabase.SaveAssets();
@@ -319,6 +374,26 @@ namespace ZKube.Editor
             if (report.summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException("Android build failed: " + report.summary.result);
             Debug.Log("ZKUBE_ANDROID_BUILD " + output);
+        }
+
+        // Writes the Xcode project; build.py signs and builds it with xcodebuild.
+        public static void BuildIOS()
+        {
+            Probe();
+            var output = Environment.GetEnvironmentVariable("ZKUBE_UNITY_XCODE");
+            if (string.IsNullOrEmpty(output)) throw new InvalidOperationException("ZKUBE_UNITY_XCODE is required");
+            if (!File.Exists(ZKubeAppScene.Path)) throw new InvalidOperationException("Prepare the selected application scene before building");
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { ZKubeAppScene.Path },
+                locationPathName = output,
+                target = BuildTarget.iOS,
+                options = BuildOptions.None,
+                extraScriptingDefines = new[] { "ZKUBE_STORE" }
+            });
+            if (report.summary.result != BuildResult.Succeeded)
+                throw new InvalidOperationException("iOS build failed: " + report.summary.result);
+            Debug.Log("ZKUBE_IOS_BUILD " + output);
         }
     }
 }

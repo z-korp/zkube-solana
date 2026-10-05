@@ -9,6 +9,7 @@
   "androidApi": 36,
   "androidMinimumApi": 26,
   "bundletool": "1.17.2",
+  "iosTeam": "NHD2X7LA86",
   "androidAbis": [
     {
       "name": "arm64-v8a",

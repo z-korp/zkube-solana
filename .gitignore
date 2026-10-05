@@ -71,6 +71,8 @@ unity/UserSettings/
 unity/MemoryCaptures/
 __pycache__/
 unity/Assets/Plugins/**/*.so
+unity/Assets/Plugins/**/*.a
+unity/Assets/Plugins/**/*.dylib
 unity/Assets/Plugins/Android/*.aar
 unity/Assets/ZKube/Art/Generated/
 unity/Assets/ZKube/Branding/Generated/

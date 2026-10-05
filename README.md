@@ -79,6 +79,8 @@ unity/toolchain.json.
 | Regenerate fixtures | `python3 unity/tools/build.py fixtures --fixture-action generate` |
 | Realms AAB and universal APK | `python3 unity/tools/build.py android --identity store` |
 | Arena APK | `python3 unity/tools/build.py android --identity money` |
+| Realms iOS test build (macOS, Xcode signed in to the team) | `python3 unity/tools/build.py ios --identity store` |
+| Realms upload to TestFlight | `python3 unity/tools/build.py ios --identity store --testflight` |
 | Chain operator plans | `NO_DNA=1 pnpm chain --help`; AGENTS.md owns the procedures |
 
 ## Tests

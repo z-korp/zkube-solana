@@ -151,13 +151,15 @@ namespace ZKube.Editor
             settings.spriteMeshType = SpriteMeshType.FullRect;
             importer.SetTextureSettings(settings);
             importer.SetPlatformTextureSettings(AndroidSettings(policy, maximum));
+            importer.SetPlatformTextureSettings(AndroidSettings(policy, maximum, "iPhone"));
         }
 
-        private static TextureImporterPlatformSettings AndroidSettings(Policy policy, int maximum)
+        // iPhone takes the same ASTC policy; without it the atlases import uncompressed.
+        private static TextureImporterPlatformSettings AndroidSettings(Policy policy, int maximum, string platform = "Android")
         {
             return new TextureImporterPlatformSettings
             {
-                name = "Android", overridden = true, maxTextureSize = maximum,
+                name = platform, overridden = true, maxTextureSize = maximum,
                 format = (TextureImporterFormat)Enum.Parse(typeof(TextureImporterFormat), policy.androidTextureFormat),
                 textureCompression = TextureImporterCompression.Compressed, compressionQuality = 50
             };
@@ -242,6 +244,7 @@ namespace ZKube.Editor
                 atlas.SetPlatformSettings(new TextureImporterPlatformSettings { name = "DefaultTexturePlatform", maxTextureSize = maximum,
                     textureCompression = TextureImporterCompression.Uncompressed });
                 atlas.SetPlatformSettings(AndroidSettings(catalog.importPolicy, maximum));
+                atlas.SetPlatformSettings(AndroidSettings(catalog.importPolicy, maximum, "iPhone"));
                 atlas.SetIncludeInBuild(catalog.importPolicy.includeAtlasInBuild);
                 EditorUtility.SetDirty(atlas);
                 atlases.Add(atlas);
