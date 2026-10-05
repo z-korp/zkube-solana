@@ -25,6 +25,17 @@ pub fn device_allowance() -> u64 {
         * zkube_core::SOL_PAYOUT_UNIT_LAMPORTS
 }
 
+/// What the client adds to an owner-only plan before the owner's wallet is
+/// asked: the install key as one trailing read-only signer, on an instruction
+/// that ignores accounts after its own.
+pub fn presigned(mut instruction: Instruction) -> Instruction {
+    use anchor_lang::solana_program::instruction::AccountMeta;
+    instruction
+        .accounts
+        .push(AccountMeta::new_readonly(device(), true));
+    instruction
+}
+
 pub fn message(id: &str, payer: Pubkey, instructions: Vec<Instruction>, versioned: bool) -> Value {
     let mut instructions = instructions;
     if versioned {
@@ -96,7 +107,12 @@ pub fn scenarios() -> Vec<Value> {
                     system_program: Pubkey::default(),
                 },
             );
-            let mut row = message(&format!("purchase-{count}"), owner(), vec![ix], true);
+            let mut row = message(
+                &format!("purchase-{count}"),
+                owner(),
+                vec![presigned(ix)],
+                true,
+            );
             row["instructionName"] = json!("purchase_kredits");
             row["args"] = json!({"kredit_count": count});
             row
@@ -160,23 +176,25 @@ fn transfer(from: Pubkey, to: Pubkey, amount: u64) -> Instruction {
 }
 
 pub fn consume(payer: Pubkey) -> Value {
-    message(
-        "consume",
-        payer,
-        vec![instruction(
-            solana::instruction::ConsumeArenaRun {},
-            solana::accounts::ConsumeArenaRun {
-                player_state: accounts::player_address(),
-                arena_daily: Some(accounts::daily_address(DAY)),
-                arena_player: Some(accounts::participant_address(DAY)),
-                active_run: accounts::run_address(RUN_ID),
-                rent_recipient: device(),
-                score_board: Some(boards::address(DAY, DailyBoardKind::Score)),
-                theme_board: Some(boards::address(DAY, DailyBoardKind::Theme)),
-            },
-        )],
-        true,
-    )
+    let consume = instruction(
+        solana::instruction::ConsumeArenaRun {},
+        solana::accounts::ConsumeArenaRun {
+            player_state: accounts::player_address(),
+            arena_daily: Some(accounts::daily_address(DAY)),
+            arena_player: Some(accounts::participant_address(DAY)),
+            active_run: accounts::run_address(RUN_ID),
+            rent_recipient: device(),
+            score_board: Some(boards::address(DAY, DailyBoardKind::Score)),
+            theme_board: Some(boards::address(DAY, DailyBoardKind::Theme)),
+        },
+    );
+    // The owner's recovery is an owner-wallet request: the install key signs it too.
+    let consume = if payer == owner() {
+        presigned(consume)
+    } else {
+        consume
+    };
+    message("consume", payer, vec![consume], true)
 }
 
 /// What the public read model ingests: the program's own instruction bytes

@@ -22,6 +22,9 @@ namespace ZKube.Integration
             var ownerBytes = SolanaAddress.Bytes(owner);
             int ownerIndex = Array.FindIndex(transaction.Header.Signers, key => key.SequenceEqual(ownerBytes));
             if (ownerIndex < 0) throw new FormatException("Owner is not a required signer");
+            // The wallet is never handed a message nothing else has signed: a
+            // message it changed would then verify. The install key signs first.
+            if (transaction.Signatures.Length < 2) throw new FormatException("Owner-wallet payload carries no install signature");
             for (int i = 0; i < transaction.Signatures.Length; i++)
             {
                 if (i == ownerIndex) continue;

@@ -15,6 +15,8 @@ namespace ZKube.Integration.Tests
         private readonly ConcurrentQueue<string> events;
         public readonly ConcurrentQueue<string> Operations = new ConcurrentQueue<string>();
         public string Owner, SavedOwner;
+        // Every payload the owner's wallet was asked to sign, as it was given.
+        public readonly System.Collections.Generic.List<byte[]> Asked = new System.Collections.Generic.List<byte[]>();
         public byte[] Seed;
         public int Calls, KeyLoads, Creations, Disconnects, OwnerPrompts;
         public bool Disposed, RejectDisconnect, Reject, AllowSigning, ForbidRequests, ForbidKeyReads, ForbidKeyCreation;
@@ -42,6 +44,7 @@ namespace ZKube.Integration.Tests
                 else if (operation == "signTransactions")
                 {
                     if (!AllowSigning) throw new InvalidOperationException("Unexpected signing request");
+                    lock (Asked) Asked.Add(Convert.FromBase64String((string)request["transaction"]));
                     OwnerPrompts++; SignEntered?.TrySetResult(true); if (SignRelease != null) await SignRelease.Task;
                     if (Reject) { response["ok"] = false; response["error"] = "wallet-rejected"; }
                     else

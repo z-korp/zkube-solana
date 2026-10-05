@@ -29,6 +29,7 @@ namespace ZKube.Integration.App.Tests
         public string UiScenario { get; private set; }
         public Func<long> Clock => () => Now;
         public string SentSignature { get; private set; }
+        public byte[] SentTransaction { get; private set; }
         public bool HasActiveKey => Native.Seed != null;
         public uint KreditPack { get; private set; } = 1;
         public uint ClaimDay => (uint)Ui["claimDay"];
@@ -241,7 +242,7 @@ namespace ZKube.Integration.App.Tests
                     string signature = TransactionSignatures.ValidateFullySigned(bytes);
                     var pending = await Services.Journal.Load(Owner);
                     Assert.That(pending, Is.Not.Null); Assert.That(pending.Transaction, Is.EqualTo(bytes));
-                    SentSignature = signature;
+                    SentSignature = signature; SentTransaction = bytes;
                     if (Http.Confirmation == "confirmed") ApplyAfter();
                     if (UiScenario == "daily-playable") AcceptDaily(bytes);
                     return new JValue(signature);

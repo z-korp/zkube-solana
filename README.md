@@ -17,9 +17,8 @@ ship it as two Android games: walletless **zKube: Realms**, and **zKube: Arena**
 Both share the Campaign, the Unity pages and board, and the Lumen skin. The original Starknet release, zKube:
 Origins, spent several months among that network's most-used contracts.
 
-**Status:** there is no live deployment. The former Devnet release was abandoned and the source is being prepared
-for a fresh bootstrap. Store billing and distribution are in development, and mainnet waits on counsel, economic
-and distribution review.
+**Status:** zKube: Arena is live on Solana Devnet, a test network, since 2026-10-04. Store billing and distribution
+are in development, and mainnet waits on counsel, economic and distribution review.
 
 ## How the Arena works
 

@@ -45,6 +45,16 @@ namespace ZKube.Integration.Execution
             if (consume != null)
             {
                 if (!evidence.Pending.IsBase) throw new FormatException("Consumption must reconcile on Base");
+                // The owner's recovery is an owner-wallet request: the install key
+                // follows the consume's own accounts as its one trailing signer. It
+                // writes nothing by that reference; where the same key is the rent
+                // recipient, that account's own write stands.
+                if (consume.Remaining.Count != 0)
+                {
+                    var install = TransactionPlanner.InstallSigner(evidence.Transaction, owner, consume.Remaining);
+                    if (install == null || evidence.Transaction.FeePayer != owner ||
+                        (install.Writable && consume.Accounts["rent_recipient"] != install.Address)) return false;
+                }
                 var playerInfo = Observed(evidence, consume.Accounts["player_state"]);
                 if (playerInfo.Envelope == null) return false;
                 var player = accounts.PlayerState(playerInfo.Envelope, owner);

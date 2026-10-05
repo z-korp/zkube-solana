@@ -37,7 +37,7 @@ namespace ZKube.Integration.Execution
                 throw new ArgumentException("Sizes of one intent share its owner, payer, route and signers");
             if (string.IsNullOrWhiteSpace(intent) || intent.Length > 64) throw new ArgumentException("Invalid execution intent");
             if (!executing.Wait(0)) return Rejected(intent, "execution-busy");
-            PendingTransaction pending = null;
+            PendingTransaction pending = null; DeviceSigner install = null;
             try
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -46,6 +46,18 @@ namespace ZKube.Integration.Execution
                 var prior = await journal.Load(plan.Owner).ConfigureAwait(false);
                 if (prior != null) return Rejected(intent, "pending-transaction-exists");
                 var signers = deviceSigners?.ToArray() ?? Array.Empty<DeviceSigner>();
+                // The owner's wallet is only ever asked to sign a message the
+                // install key has signed. An owner-only intent gets that key in
+                // every size here, before anything is compiled, priced or
+                // simulated; it needs no session and no balance, and is made on
+                // first use. Intents that already carry a device signer keep it.
+                if (signers.Length == 0 && plan.OwnerSignatureRequired && plan.DeviceSigners.Count == 0)
+                {
+                    install = await wallet.LoadDeviceSigner(plan.Owner, create: true).ConfigureAwait(false)
+                        ?? throw new InvalidOperationException("Install key was not saved");
+                    sizes = sizes.Select(size => planner.Presigned(size, install.Address)).ToArray();
+                    plan = sizes[sizes.Count - 1]; signers = new[] { install };
+                }
                 if (signers.Any(s => s == null) || signers.Select(s => s.Address).Distinct(StringComparer.Ordinal).Count() != signers.Length ||
                     !signers.Select(s => s.Address).OrderBy(s => s, StringComparer.Ordinal).SequenceEqual(plan.DeviceSigners.OrderBy(s => s, StringComparer.Ordinal)))
                     return Rejected(intent, "required-device-signer-unavailable");
@@ -129,7 +141,7 @@ namespace ZKube.Integration.Execution
                 return pending == null ? new ExecutionResult(ExecutionOutcome.Rejected, intent, code: "preparation-failed", failure: RequestFailure.Of(error))
                     : Pending(pending, "outcome-unknown");
             }
-            finally { executing.Release(); }
+            finally { install?.Dispose(); executing.Release(); }
         }
 
         public async Task<ExecutionResult> Resume(string owner, IExecutionReconciler reconciler, CancellationToken cancellation = default, string expectedSignature = null)

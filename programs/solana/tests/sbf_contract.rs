@@ -1994,6 +1994,180 @@ fn purchase_kredits_pays_the_protocol_destination_directly() {
     }
 }
 
+/// The client signs every owner-wallet transaction with its install key before
+/// the wallet is asked, and gives an owner-only instruction that key as one
+/// trailing read-only signer. The handler never reads accounts after its own,
+/// so the purchase is the same purchase: the same amounts and state, nothing
+/// asked of the extra account, which holds nothing and need not exist.
+#[test]
+fn purchase_with_the_install_signer_appended_is_the_same_purchase() {
+    use anchor_lang::solana_program::instruction::AccountMeta;
+    for count in [1, 10, 25] {
+        let owner = Pubkey::new_unique();
+        let team = Pubkey::new_unique();
+        let install = Pubkey::new_unique();
+        let (protocol, protocol_state) = protocol_fixture(Pubkey::new_unique(), team, false);
+        let (player, profile) = player_fixture(owner);
+        let (credit, bump) = Pubkey::find_program_address(&[CREDIT_VAULT_SEED], &zkube::ID);
+        let vault = CreditVault {
+            version: ACCOUNT_VERSION,
+            protocol,
+            available_prize_lamports: 0,
+
+            bump,
+        };
+        let plain = anchor_lang::solana_program::instruction::Instruction {
+            program_id: zkube::ID,
+            accounts: zkube::accounts::PurchaseKredits {
+                protocol,
+                player_state: player,
+                credit_vault: credit,
+                team_destination: team,
+                owner,
+                system_program: anchor_lang::system_program::ID,
+            }
+            .to_account_metas(None),
+            data: zkube::instruction::PurchaseKredits {
+                kredit_count: count,
+            }
+            .data(),
+        };
+        let mut presigned = plain.clone();
+        presigned
+            .accounts
+            .push(AccountMeta::new_readonly(install, true));
+        let accounts = vec![
+            (
+                protocol,
+                program_account(&protocol_state, 8 + ProtocolConfig::INIT_SPACE),
+            ),
+            (
+                player,
+                program_account(&profile, 8 + PlayerState::INIT_SPACE),
+            ),
+            (credit, program_account(&vault, 8 + CreditVault::INIT_SPACE)),
+            (team, system_account(1_000_000)),
+            (owner, system_account(1_000_000_000)),
+            (anchor_lang::system_program::ID, system_program_account()),
+            (install, Account::default()),
+        ];
+        let expected = mollusk().process_instruction(&plain, &accounts);
+        let result = mollusk().process_instruction(&presigned, &accounts);
+        assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+        for key in [protocol, player, credit, team, owner] {
+            assert_eq!(
+                resulting_account(&result, &key),
+                resulting_account(&expected, &key)
+            );
+        }
+        assert_eq!(resulting_account(&result, &install), &Account::default());
+        let saved: PlayerState = decode(resulting_account(&result, &player));
+        assert_eq!(saved.kredit_balance, u64::from(count));
+
+        // The install key is no authority: without the owner's signature the
+        // purchase is refused and nothing moves.
+        let mut unsigned = presigned.clone();
+        unsigned
+            .accounts
+            .iter_mut()
+            .find(|meta| meta.pubkey == owner)
+            .unwrap()
+            .is_signer = false;
+        let refused = mollusk().process_instruction(&unsigned, &accounts);
+        assert!(refused.program_result.is_err());
+        for (key, original) in &accounts {
+            assert_eq!(resulting_account(&refused, key), original);
+        }
+    }
+}
+
+/// The session program this workspace pins (session-keys 3.1.1), built from
+/// its crate source at the workspace's locked dependency versions, revokes a
+/// live token with the install key appended as a trailing read-only signer
+/// exactly as it does without it. The crate is GPL, so its binary is a build
+/// artifact and never a committed file; build it offline into SBF_OUT_DIR:
+///
+///   cp -r ~/.cargo/registry/src/*/session-keys-3.1.1 build/session-keys-sbf
+///   cp Cargo.lock build/session-keys-sbf/ && printf '\n[workspace]\n' >> build/session-keys-sbf/Cargo.toml
+///   (cd build/session-keys-sbf && cargo build-sbf --offline --sbf-out-dir "$SBF_OUT_DIR")
+///
+/// This is the pinned source, not a reading of the binary a cluster runs.
+#[test]
+fn the_pinned_session_revoke_with_the_install_signer_appended_is_the_same_revoke() {
+    use anchor_lang::solana_program::instruction::AccountMeta;
+    let directory = std::env::var("SBF_OUT_DIR").unwrap_or_else(|_| "tests/fixtures".into());
+    assert!(
+        std::path::Path::new(&directory)
+            .join("session_keys.so")
+            .is_file(),
+        "build the pinned session program into {directory} first; see this test's comment"
+    );
+    let runtime = Mollusk::new(&session_keys::ID, "session_keys");
+    let owner = Pubkey::new_unique();
+    let install = Pubkey::new_unique();
+    let token = session_token_address(owner, install);
+    let live = SessionTokenV2 {
+        authority: owner,
+        target_program: zkube::ID,
+        session_signer: install,
+        fee_payer: owner,
+        valid_until: i64::MAX,
+    };
+    let mut plain = anchor_lang::solana_program::instruction::Instruction {
+        program_id: session_keys::ID,
+        accounts: session_keys::accounts::RevokeSessionTokenV2 {
+            session_token: token,
+            fee_payer: owner,
+            authority: owner,
+            system_program: anchor_lang::system_program::ID,
+        }
+        .to_account_metas(None),
+        data: session_keys::instruction::RevokeSessionV2 {}.data(),
+    };
+    plain.accounts[2].is_signer = true;
+    let mut presigned = plain.clone();
+    presigned
+        .accounts
+        .push(AccountMeta::new_readonly(install, true));
+    let accounts = vec![
+        (
+            token,
+            serialized_account(
+                &live,
+                SessionTokenV2::LEN,
+                session_keys::ID,
+                ACCOUNT_LAMPORTS,
+            ),
+        ),
+        (owner, system_account(1_000_000_000)),
+        (anchor_lang::system_program::ID, system_program_account()),
+        (install, Account::default()),
+    ];
+    let expected = runtime.process_instruction(&plain, &accounts);
+    let result = runtime.process_instruction(&presigned, &accounts);
+    assert!(result.program_result.is_ok(), "{:?}", result.program_result);
+    for key in [token, owner] {
+        assert_eq!(
+            resulting_account(&result, &key),
+            resulting_account(&expected, &key)
+        );
+    }
+    // The token is closed and its rent is back with the fee payer.
+    assert_eq!(resulting_account(&result, &token).lamports, 0);
+    assert_eq!(
+        resulting_account(&result, &owner).lamports,
+        1_000_000_000 + ACCOUNT_LAMPORTS
+    );
+    assert_eq!(resulting_account(&result, &install), &Account::default());
+
+    // The install key does not stand in for the authority of a live session.
+    let mut unsigned = presigned.clone();
+    unsigned.accounts[2].is_signer = false;
+    let refused = runtime.process_instruction(&unsigned, &accounts);
+    assert!(refused.program_result.is_err());
+    assert_eq!(resulting_account(&refused, &token), &accounts[0].1);
+}
+
 struct FinalizedBoardFixture {
     protocol: Pubkey,
     result: mollusk_svm::result::InstructionResult,

@@ -30,10 +30,21 @@ namespace ZKube.Integration.Execution
                 if (calls[0].ProgramId == tokens.ProgramId)
                 {
                     var call = calls[0]; var keys = call.Accounts;
-                    if (!call.Data.SequenceEqual(PlanningConstants.RevokeSessionDiscriminator) || keys.Count != 4 ||
+                    if (!call.Data.SequenceEqual(PlanningConstants.RevokeSessionDiscriminator) || keys.Count < 4 ||
                         !keys[0].Writable || keys[1].Address != owner || !keys[1].Writable ||
                         keys[2].Address != owner || !keys[2].Signer || keys[3].Address != PlanningConstants.SystemProgram) return false;
                     tokenAddress = keys[0].Address;
+                    // The revoke stands alone only when the device held nothing: an
+                    // owner-wallet request, so the install key follows its four
+                    // accounts as one read-only signer, and the token is that key's.
+                    // With the device's balance returning, the device signs its own
+                    // transfer and nothing follows the four.
+                    if (calls.Length == 1)
+                    {
+                        var install = TransactionPlanner.InstallSigner(evidence.Transaction, owner, keys.Skip(4).ToArray());
+                        if (install == null || install.Writable || tokenAddress != tokens.Derive(owner, install.Address, protocol.ProgramId)) return false;
+                    }
+                    else if (keys.Count != 4) return false;
                     if (saved.Active != null && saved.Active.Token != tokenAddress) return false;
                     var observation = Observed(evidence, tokenAddress);
                     if (observation.Envelope != null)

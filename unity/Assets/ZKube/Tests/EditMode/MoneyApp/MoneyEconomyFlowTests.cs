@@ -39,6 +39,8 @@ namespace ZKube.Integration.App.Tests
             {
                 await e.Flow.Connect(e.Owner); e.AddEconomy();
                 e.Http.AllowFeeQuote = true; e.Http.Blockhash = (string)e.Plans["inputs"]["blockhash"];
+                // A purchase needs no session: the install key is made for it, and signs before any wallet request.
+                e.Native.AllowCreation = () => true;
                 var result = (await e.Flow.BuyKredits(pack)).Value;
                 Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.FeeShortage), result.Code);
                 var quote = e.Http.Requests.Single(row => (string)row["method"] == "getFeeForMessage");

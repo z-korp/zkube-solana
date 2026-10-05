@@ -76,6 +76,47 @@ namespace ZKube.Integration.Planning
                 computeUnitLimit: DailyCadence.ComputeLimit(list));
         }
 
+        // The install key signs every message the owner's wallet is asked to
+        // sign, so a wallet that changes the message cannot return one that
+        // verifies. A plan that already carries a device signer keeps exactly
+        // that. An owner-only plan gets the install key as one trailing
+        // read-only signer on an instruction audited to ignore accounts after
+        // its own: purchase_kredits, consume_arena_run and the session
+        // program's token revoke. The key gains no authority and pays nothing.
+        // A plan with no such instruction is refused before any wallet is asked.
+        public TransactionPlan Presigned(TransactionPlan plan, string install)
+        {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
+            if (!plan.OwnerSignatureRequired || plan.DeviceSigners.Count != 0) return plan;
+            SolanaAddress.Bytes(install);
+            if (install == plan.Owner) throw new ArgumentException("The install key is not the owner");
+            var list = plan.Instructions.ToArray();
+            int at = Array.FindLastIndex(list, TakesInstallSigner);
+            if (at < 0) throw new InvalidOperationException("This owner-wallet plan has no instruction that takes the install signature");
+            list[at] = new SolanaInstruction(list[at].ProgramId, list[at].Accounts.Append(new AccountMeta(install, true, false)), list[at].Data);
+            return new TransactionPlan(plan.Route, plan.Owner, plan.FeePayer, list, plan.PostFeeReserveLamports, plan.RunId, plan.ComputeUnitLimit);
+        }
+        private bool TakesInstallSigner(SolanaInstruction instruction)
+        {
+            if (instruction.ProgramId == sessions.ProgramId)
+                return instruction.Accounts.Count == 4 && instruction.Data.SequenceEqual(PlanningConstants.RevokeSessionDiscriminator);
+            if (instruction.ProgramId != protocol.ProgramId) return false;
+            string name = protocol.DecodeInstruction(instruction).Name;
+            return name == "purchase_kredits" || name == "consume_arena_run";
+        }
+        // The account Presigned appended to a recovered instruction, or null: the
+        // last of its accounts, a signer that is not the owner and is one of the
+        // transaction's required signers. Recovery accepts exactly this one
+        // account after an instruction's own, read-only unless the instruction
+        // itself already writes to it.
+        public static AccountMeta InstallSigner(TransactionDescription transaction, string owner, IReadOnlyList<AccountMeta> trailing)
+        {
+            if (trailing == null || trailing.Count != 1) return null;
+            var meta = trailing[0];
+            var signers = transaction.Accounts.Where(account => account.Signer).Select(account => account.Address).ToArray();
+            return meta.Signer && meta.Address != owner && signers.Length == 2 && signers.Contains(owner) && signers.Contains(meta.Address) ? meta : null;
+        }
+
         public TransactionPlan Purchase(string owner, uint count, string teamDestination)
         {
             if (count == 0) throw new ArgumentOutOfRangeException(nameof(count));

@@ -16,8 +16,15 @@ namespace ZKube.Integration.Execution
         private async Task<bool> ReconcileEconomy(ExecutionReconciliation evidence, DecodedProtocolInstruction call, CancellationToken cancellation)
         {
             if (!evidence.Pending.IsBase) return false;
-            if (call.Remaining.Count != 0 || (call.Name != "purchase_kredits" && call.Name != "claim_daily_prize" && call.Name != "set_featured_emblem")) return false;
+            if (call.Name != "purchase_kredits" && call.Name != "claim_daily_prize" && call.Name != "set_featured_emblem") return false;
             string owner = evidence.Pending.Owner;
+            // An owner-wallet purchase carries the install key as its one trailing
+            // signer, read-only; nothing else ever follows an instruction's own accounts.
+            if (call.Remaining.Count != 0)
+            {
+                var install = call.Name == "purchase_kredits" ? TransactionPlanner.InstallSigner(evidence.Transaction, owner, call.Remaining) : null;
+                if (install == null || install.Writable) return false;
+            }
             string ownerAccount = call.Name == "purchase_kredits" ? "owner" : "owner_authority";
             if (call.Accounts[ownerAccount] != owner || call.Accounts["player_state"] != Pda("player", SolanaAddress.Bytes(owner))) return false;
             bool succeeded = !evidence.Expired && evidence.Status.ErrorJson == null;

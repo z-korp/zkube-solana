@@ -99,10 +99,13 @@ The emulator is shared. Coordinate before taking it and restore it afterwards:
 
 ## Deployment status
 
-There is no live deployment. The abandoned Devnet release, its accounts, pools, keeper authority and launch
-bundles supply no current authority. Fresh bootstrap requires exact approval; no migration exists. Mainnet
-remains subject to counsel, economics and distribution review. Specification approval is not deployment or
-spending approval.
+The Arena is live on Devnet since 2026-10-04: program Eh5cGw4oLBvegnvnitqZpqdyNBzLkzbQGBKDb7MadPZx, launch day
+20730. The keeper's writes are off pending approval. Mainnet is not approved and remains subject to counsel,
+economics and distribution review. The earlier abandoned Devnet release, its accounts, pools, keeper authority
+and launch bundles supply no current authority. Source is not deployed state: the table below describes this
+tree, and a change reaches Devnet only through an approved upgrade; no migration exists. Every signing, sending,
+upgrade, funding and keeper enablement still needs its own exact approval. Specification approval is not
+deployment or spending approval.
 
 | Area | Source status and guard |
 | --- | --- |
@@ -921,3 +924,19 @@ an explicit architecture decision, without a sign-and-send fallback.
 `OwnerPurchaseUsesExactQuoteSimulationAndDurableCommitBeforeSend` checks pinned fee/budget approval. Record
 date, device/OS, wallet/plugin versions, capabilities and result/error class without secrets. Passing G1 is
 compatibility evidence, not deployment, publication or mainnet approval.
+
+Before an owner-wallet request, the install key signs the exact message, including when no device session exists
+or it has been disabled. The install key adds no authority; the owner remains the payer for owner-wallet actions.
+The client prices and simulates that complete signer set before approval and accepts only identical message
+bytes with all earlier signatures preserved. Owner-only plans receive one trailing signer account only where the
+instruction ignores that account. `OwnerWalletRequiresAnInstallSignatureBeforeNativeApproval` and
+`EveryOwnerWalletActionIsPresignedWithoutRequiringASession` guard that boundary;
+`OwnerPurchaseUsesExactQuoteSimulationAndDurableCommitBeforeSend` guards pricing, simulation and durable
+submission. Those instructions are the purchase, the consume of an owner's recovery and the pinned session
+program's token revoke; recovery accepts exactly that one account after an instruction's own.
+`purchase_with_the_install_signer_appended_is_the_same_purchase`,
+`the_pinned_session_revoke_with_the_install_signer_appended_is_the_same_revoke` and
+`PurchaseRecoveryAcceptsOnlyTheInstallSignerAfterItsOwnAccounts` guard the programs' acceptance and the recovery.
+The owner approved this on 2026-10-05 with its costs: one more signature, 5,000 lamports at today's base fee, on
+each request that was owner-only, and no fee or guard instruction added by a wallet, since a wallet that adds one
+is refused.

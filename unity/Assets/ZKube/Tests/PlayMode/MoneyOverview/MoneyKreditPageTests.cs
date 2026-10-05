@@ -49,7 +49,10 @@ namespace ZKube.Tests.MoneyOverview
             controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
-            Assert.That(environment.HasActiveKey, Is.False);
+            // The purchase made the install key that signed it before the wallet did, and no session.
+            Assert.That(environment.HasActiveKey, Is.True);
+            var saved = environment.Services.Sessions.Load(environment.Owner); yield return Wait(saved);
+            Assert.That(saved.GetAwaiter().GetResult().Active, Is.Null);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 

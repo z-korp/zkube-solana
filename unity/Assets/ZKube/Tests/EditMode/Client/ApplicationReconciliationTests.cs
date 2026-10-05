@@ -143,6 +143,56 @@ namespace ZKube.Integration.Tests
             Assert.That(http.Requests.Where(row => (string)row["method"] == "getMultipleAccounts").All(row => (ulong)row["params"][1]["minContextSlot"] == 1000), Is.True);
         }
 
+        // Recovery accepts a purchase's own accounts, and after them exactly the one
+        // account the client appends: the install key, a required signer of the
+        // transaction, read-only. Anything else after them is not this client's
+        // purchase and stays unresolved.
+        [Test]
+        public async Task PurchaseRecoveryAcceptsOnlyTheInstallSignerAfterItsOwnAccounts()
+        {
+            var solana = Fixture("solana"); var plans = Fixture("plans"); var economy = Fixture("economy"); var rpcFixture = Fixture("transport");
+            string idl = ZKube.Integration.Tests.TestBootstrap.ProtocolJson; var protocol = new ProtocolBindings(idl);
+            var accounts = new AccountBindings(idl, Protocol.PlayerStateAccountVersion, Protocol.ProtocolAccountVersion);
+            var tokens = new SessionTokenBindings(ZKube.Integration.Tests.TestBootstrap.TokenJson); var planner = new TransactionPlanner(protocol, tokens);
+            string owner = (string)solana["inputs"]["owner"], blockhash = (string)solana["inputs"]["blockhash"];
+            using var ownerKey = new DeviceSigner(Enumerable.Repeat((byte)1, 32).ToArray()); using var install = new DeviceSigner(Enumerable.Repeat((byte)2, 32).ToArray());
+            using var stranger = new DeviceSigner(Enumerable.Repeat((byte)3, 32).ToArray());
+            var given = TransactionSignatures.Describe(Convert.FromBase64String((string)solana["transactions"].Single(row => (string)row["id"] == "purchase-1")["signedTransaction"])).Instructions.ToArray();
+            var buy = given[given.Length - 1]; var own = buy.Accounts.Take(buy.Accounts.Count - 1).ToArray();
+            Assert.That(buy.Accounts[buy.Accounts.Count - 1].Address, Is.EqualTo(install.Address));
+            async Task<ExecutionResult> Recovered(params AccountMeta[] trailing)
+            {
+                var message = SolanaWire.CompileMessage(owner, blockhash, given.Take(given.Length - 1).Append(new SolanaInstruction(buy.ProgramId, own.Concat(trailing), buy.Data)).ToArray(), true);
+                var bytes = SolanaWire.UnsignedTransaction(message);
+                var signers = TransactionSignatures.Describe(bytes).Accounts.Where(account => account.Signer).Select(account => account.Address).ToArray();
+                foreach (var key in new[] { ownerKey, install, stranger }) if (signers.Contains(key.Address)) bytes = key.PartialSign(bytes);
+                var store = new TestMemory(); var journal = new TransactionJournal(store);
+                var http = new Http { Genesis = (string)rpcFixture["inputs"]["expectedGenesis"] };
+                http.Add(solana["accounts"].Single(row => (string)row["id"] == "player-valid"));
+                foreach (string name in new[] { "protocol", "credit" }) http.Add(plans["accounts"][name]); http.Add(economy["team"]);
+                var rpc = new SolanaRpcTransport(http.Transport, (string)rpcFixture["inputs"]["base"], (string)rpcFixture["inputs"]["router"], http.Genesis, protocol.ProgramId);
+                await journal.Begin(new PendingTransaction(owner, "purchase-kredits", (string)rpcFixture["inputs"]["base"], true, bytes, blockhash, 500));
+                var reconciler = new ExecutionReconciler(protocol, accounts, tokens, new SessionRecordStore(store, tokens, protocol.ProgramId), planner, rpc, _ => Task.CompletedTask, _ => Task.CompletedTask);
+                var executor = new TransactionExecutor(planner, rpc, new WalletClient(new TestNative { ForbidRequests = true, ForbidKeyCreation = true, ForbidKeyReads = true }), journal);
+                return await executor.Resume(owner, reconciler);
+            }
+            // The client's shape, and a purchase journaled before the install key signed them.
+            Assert.That((await Recovered(new AccountMeta(install.Address, true, false))).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That((await Recovered()).Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            var others = new (string What, AccountMeta[] Trailing)[] {
+                ("an account that did not sign", new[] { new AccountMeta(install.Address, false, false) }),
+                ("a signer given a write", new[] { new AccountMeta(install.Address, true, true) }),
+                ("two accounts", new[] { new AccountMeta(install.Address, true, false), new AccountMeta(stranger.Address, false, false) }),
+                ("two signers", new[] { new AccountMeta(install.Address, true, false), new AccountMeta(stranger.Address, true, false) }),
+                ("the owner again", new[] { new AccountMeta(owner, true, false) }) };
+            foreach (var other in others)
+            {
+                var result = await Recovered(other.Trailing);
+                Assert.That(result.Outcome, Is.EqualTo(ExecutionOutcome.Pending), other.What);
+                Assert.That(result.Code, Is.EqualTo("affected-state-unresolved"), other.What);
+            }
+        }
+
         [Test]
         public async Task ClaimRejectsWrongBoardOwnerThenUsesClaimedBitmapOrFreshArchivalAbsence()
         {

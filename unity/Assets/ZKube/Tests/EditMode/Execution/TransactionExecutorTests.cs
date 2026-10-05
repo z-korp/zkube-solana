@@ -79,8 +79,85 @@ namespace ZKube.Integration.Execution.Tests
             Assert.That(Array.IndexOf(order, "journal"), Is.LessThan(Array.IndexOf(order, "sendTransaction")));
             Assert.That(observer.Count, Is.EqualTo(1)); Assert.That(await store.Read(owner, "journal"), Is.Null);
             var expectedMessage = (string)solana["transactions"].Single(row => (string)row["id"] == "purchase-1")["message"];
-            ZKube.Integration.Tests.ProgramScenarios.EquivalentMessages((string)http.Requests.Single(request => (string)request["method"] == "getFeeForMessage")["params"][0], expectedMessage);
+            string quoted = (string)http.Requests.Single(request => (string)request["method"] == "getFeeForMessage")["params"][0];
+            ZKube.Integration.Tests.ProgramScenarios.EquivalentMessages(quoted, expectedMessage);
+            // One message, with the owner and the install key as its two signers, is
+            // the one priced, simulated, shown to the wallet, journaled and sent; it is
+            // simulated already carrying the install key's signature.
+            byte[] message = Convert.FromBase64String(quoted);
+            byte[] simulated = Convert.FromBase64String((string)http.Requests.Single(request => (string)request["method"] == "simulateTransaction")["params"][0]);
+            foreach (var bytes in new[] { simulated, native.Asked.Single(), http.Sent })
+            {
+                Assert.That(bytes[0], Is.EqualTo(2)); Assert.That(bytes.Skip(1 + 2 * 64), Is.EqualTo(message));
+            }
+            int slot = Array.IndexOf(TransactionSignatures.Describe(simulated).Accounts.Where(account => account.Signer).Select(account => account.Address).ToArray(), device);
+            Assert.That(slot, Is.GreaterThanOrEqualTo(0), "The install key is this device's key");
+            Assert.That(simulated.Skip(1 + 64 * slot).Take(64), Has.Some.Not.EqualTo((byte)0));
+            Assert.That(native.Asked.Single(), Is.EqualTo(simulated), "The wallet is asked for exactly what was simulated");
+            Assert.That(http.Sent.Skip(1 + 64 * slot).Take(64), Is.EqualTo(simulated.Skip(1 + 64 * slot).Take(64)));
         }
+
+        // Every transaction the owner's wallet is asked to sign is signed by the
+        // install key first, and no session is needed for that. An owner-only
+        // intent gets the key as one trailing signer, made on a device that never
+        // had one; intents that already carry the device's signature keep exactly
+        // their signers; and an owner-only plan with no instruction that takes the
+        // key is refused before any wallet is asked.
+        [Test]
+        public async Task EveryOwnerWalletActionIsPresignedWithoutRequiringASession()
+        {
+            string team = (string)solana["inputs"]["validator"];
+            string[] Signers(TransactionPlan plan) => TransactionSignatures.Describe(SolanaWire.UnsignedTransaction(plan.CompileMessage((string)solana["inputs"]["blockhash"])))
+                .Accounts.Where(account => account.Signer).Select(account => account.Address).ToArray();
+            // The plan preparation, shape by shape.
+            foreach (uint pack in new uint[] { 1, 10, 25 })
+            {
+                var purchase = planner.Purchase(owner, pack, team); var presigned = planner.Presigned(purchase, device);
+                Assert.That(purchase.DeviceSigners, Is.Empty); Assert.That(presigned.DeviceSigners, Is.EqualTo(new[] { device }));
+                Assert.That(Signers(presigned), Is.EquivalentTo(new[] { owner, device }));
+                var last = presigned.Instructions[presigned.Instructions.Count - 1]; var trailing = last.Accounts[last.Accounts.Count - 1];
+                Assert.That(trailing.Address, Is.EqualTo(device)); Assert.That(trailing.Signer, Is.True); Assert.That(trailing.Writable, Is.False);
+                Assert.That(last.Accounts.Take(last.Accounts.Count - 1).Select(account => account.Address), Is.EqualTo(purchase.Instructions[0].Accounts.Select(account => account.Address)));
+                Assert.That(last.Data, Is.EqualTo(purchase.Instructions[0].Data));
+                Assert.That(presigned.FeePayer, Is.EqualTo(owner)); Assert.That(presigned.ComputeUnitLimit, Is.EqualTo(purchase.ComputeUnitLimit));
+                ZKube.Integration.Tests.ProgramScenarios.EquivalentMessages(Convert.ToBase64String(presigned.CompileMessage((string)solana["inputs"]["blockhash"])),
+                    (string)solana["transactions"].Single(row => (string)row["id"] == "purchase-" + pack)["message"]);
+                Assert.That(SolanaWire.UnsignedTransaction(presigned.CompileMessage((string)solana["inputs"]["blockhash"])).Length, Is.LessThanOrEqualTo(SolanaWire.PacketBytes));
+            }
+            // Setup, renewal, refill and a revoke that returns a balance already carry the device's signature: nothing is added.
+            foreach (var plan in new[] { planner.EnableSession(owner, device, 1000), planner.RenewSession(owner, device, 1000, null, 5),
+                planner.RefillSession(owner, device, 0), planner.RevokeSession(owner, device, null, 5) })
+            {
+                Assert.That(plan.DeviceSigners, Is.EqualTo(new[] { device }));
+                Assert.That(planner.Presigned(plan, device), Is.SameAs(plan));
+            }
+            // A device-paid plan is not an owner-wallet request.
+            var devicePlan = planner.SetFeaturedIdentity(PlannerActor.Device(owner, device, Token(), sessions, accounts.ProgramId, (long)plans["inputs"]["now"]), 1, 0);
+            Assert.That(devicePlan.OwnerSignatureRequired, Is.False); Assert.That(planner.Presigned(devicePlan, device), Is.SameAs(devicePlan));
+            // The token-only revoke of a device that holds nothing: the key follows the revoke's four accounts.
+            var revoke = planner.Presigned(planner.RevokeSession(owner, device, Token(), 0), device);
+            Assert.That(revoke.Instructions.Single().Accounts.Count, Is.EqualTo(5));
+            Assert.That(Signers(revoke), Is.EquivalentTo(new[] { owner, device }));
+            // An owner-only plan whose instruction is not known to ignore a trailing account is not given one.
+            var unaudited = planner.SetFeaturedIdentity(PlannerActor.Wallet(owner), 1, 0);
+            Assert.Throws<InvalidOperationException>(() => planner.Presigned(unaudited, device));
+            var refused = await executor.Execute(unaudited, "set-featured-identity", Array.Empty<DeviceSigner>(), observer);
+            Assert.That(refused.Code, Is.EqualTo("preparation-failed"));
+            Assert.That(native.Asked, Is.Empty); Assert.That(http.Count("simulateTransaction"), Is.Zero); Assert.That(await store.Read(owner, "journal"), Is.Null);
+
+            // A device that never had a key makes one for the owner's purchase, before the wallet is asked.
+            native.Seed = null; int made = native.Creations;
+            var bought = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            Assert.That(bought.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
+            Assert.That(native.Creations, Is.EqualTo(made + 1)); Assert.That(native.Asked.Count, Is.EqualTo(1));
+            Assert.That(Signers(planner.Presigned(planner.Purchase(owner, 1, team), device)), Is.EquivalentTo(TransactionSignatures.Describe(http.Sent).Accounts.Where(a => a.Signer).Select(a => a.Address)));
+            // A key that cannot be made stops the purchase before the wallet, with nothing journaled or sent.
+            native.Seed = null; native.ForbidKeyCreation = true; http.Sent = null;
+            var unsaved = await executor.Execute(planner.Purchase(owner, 1, team), "purchase-one", Array.Empty<DeviceSigner>(), observer);
+            Assert.That(unsaved.Code, Is.EqualTo("preparation-failed")); Assert.That(native.Asked.Count, Is.EqualTo(1));
+            Assert.That(http.Sent, Is.Null); Assert.That(await store.Read(owner, "journal"), Is.Null);
+        }
+        private AccountEnvelope Token() => Envelope(plans["accounts"]["session"]);
 
         [Test]
         public async Task RestartBeforeSendNeverSendsAndRequiresHistoryAfterExpiryAndFreshAbsentAccountEvidence()

@@ -97,6 +97,10 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(receipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess), receipt.Code);
             Assert.That(environment.HasActiveKey, Is.True); Assert.That(environment.SentSignature, Is.Not.Null);
             Assert.That(environment.Calls.Count(call => call.Operation == "sendTransaction"), Is.EqualTo(1));
+            // The device held nothing, so the revoke was an owner-wallet request: the install key signed it too.
+            var revoke = ZKube.Integration.TransactionSignatures.Describe(environment.SentTransaction);
+            Assert.That(revoke.Accounts.Count(account => account.Signer), Is.EqualTo(2));
+            Assert.That(revoke.Instructions.Last().Accounts.Count, Is.EqualTo(5));
             Assert.That(Text("Device state"), Is.EqualTo("Device disabled"));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

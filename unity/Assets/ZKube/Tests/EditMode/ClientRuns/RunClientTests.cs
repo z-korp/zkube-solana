@@ -59,6 +59,8 @@ namespace ZKube.Integration.Client.Runs.Tests
             {
                 var env = await Environment.Create(); env.Http.States[mode] = "finished"; env.Http.Delegated.Remove(mode);
                 env.Native.Seed = (unavailable != "missing") ? Enumerable.Repeat((byte)2, 32).ToArray() : null; env.Http.RevokedSession = unavailable == "revoked";
+                // The owner's recovery is presigned by the install key, made for it when the device never had one.
+                env.Native.AllowCreation = () => true;
                 if (unavailable == "expired") env.Now = env.SessionValidUntil;
                 env.Http.SignerBalance = unavailable == "depleted" ? 0UL : 1000000000UL;
                 var consumed = await env.Client.FinishAndSettle(new RunPresentationBinding(await env.Client.Inspect(), new ActiveRunReconciler(env.Accounts)));
@@ -66,7 +68,9 @@ namespace ZKube.Integration.Client.Runs.Tests
                 Assert.That(env.Http.Sent, Is.EqualTo(new[] { "consume_arena_run" }));
                 Assert.That(env.Http.SentFeePayers, Is.EqualTo(new[] { env.Owner }));
                 ZKube.Integration.Tests.ProgramScenarios.Equivalent(Convert.FromBase64String(env.Http.SentTransactions.Single()), Convert.FromBase64String((string)env.Http.Runs["ownerConsume"][mode]));
-                Assert.That(env.Native.KeyLoads, Is.EqualTo(1), "Base consumption first checks whether normal device settlement is available");
+                Assert.That(env.Native.KeyLoads, Is.EqualTo(2), "The session is checked for normal device settlement, then the install key signs the owner's recovery");
+                Assert.That(env.Native.Creations, Is.EqualTo(unavailable == "missing" ? 1 : 0));
+                Assert.That(TransactionSignatures.Describe(Convert.FromBase64String(env.Http.SentTransactions.Single())).Accounts.Count(account => account.Signer), Is.EqualTo(2));
                 Assert.That(await env.Markers.Load(env.Owner), Is.Null);
                 var er = await Environment.Create(); er.Http.States[mode] = "finished";
                 er.Native.Seed = (unavailable != "missing") ? Enumerable.Repeat((byte)2, 32).ToArray() : null; er.Http.RevokedSession = unavailable == "revoked";
@@ -400,6 +404,7 @@ namespace ZKube.Integration.Client.Runs.Tests
                 var state = await env.Client.Inspect();
                 var provider = Provider(env, state);
                 env.Native.Seed = (condition != "missing") ? Enumerable.Repeat((byte)2, 32).ToArray() : null; env.Http.RevokedSession = condition == "revoked";
+                env.Native.AllowCreation = () => true;
                 if (condition == "expired") env.Now = env.SessionValidUntil;
                 if (condition == "depleted") env.Http.SignerBalance = 0;
                 var result = await provider.FinishAndSettle(default);
