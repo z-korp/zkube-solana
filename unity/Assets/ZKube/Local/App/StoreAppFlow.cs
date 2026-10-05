@@ -45,7 +45,6 @@ namespace ZKube.Local.App
             Runs = runs ?? throw new ArgumentNullException(nameof(runs));
             Billing = billing ?? throw new ArgumentNullException(nameof(billing));
             Page = StorePage.Home;
-            Billing.Settled += StoreSettled;
             Campaign = new CampaignJourney(product, runs, page => Go((StorePage)Enum.Parse(typeof(StorePage), page.ToString())),
                 provider => { Go(StorePage.Board); BoardOpened?.Invoke(provider); });
         }
@@ -155,8 +154,6 @@ namespace ZKube.Local.App
             catch (Exception error) { if (Current(request)) { BillingNotice = error.Message; StoreUnavailable = true; } }
             finally { if (Current(request)) Changed?.Invoke(); }
         }
-        // A request the page stopped waiting for still holds the store; its buttons come back when it lets go.
-        private void StoreSettled() { if (!disposed) Changed?.Invoke(); }
         public void Report(Exception error) { if (!disposed) { Error = error.Message; Changed?.Invoke(); } }
         private void Open(LocalRunUpdate update)
         { var provider = new LocalBoardActionProvider(Runs, update); providers[update.View.RunId] = provider; Open(provider); }
@@ -186,7 +183,6 @@ namespace ZKube.Local.App
         }
         private bool Current(long value) => !disposed && value == generation;
         private void Check() { if (disposed) throw new ObjectDisposedException(nameof(StoreAppFlow)); }
-        public void Dispose()
-        { if (disposed) return; disposed = true; Billing.Settled -= StoreSettled; generation++; pageWait.Cancel(); pageWait.Dispose(); }
+        public void Dispose() { if (disposed) return; disposed = true; generation++; pageWait.Cancel(); pageWait.Dispose(); }
     }
 }

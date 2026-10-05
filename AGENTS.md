@@ -151,7 +151,7 @@ deployment or spending approval.
   where those buttons are. A request that outlasts its page shows on the next page's button and ends without a
   tap. `AStorePurchaseOrRestoreShowsItsStepOnItsOwnButtonUntilItsOutcome`,
   `AStoreRequestThatFailsLateOrOutlastsItsPageShowsOnTheButtonAndEndsByItself` and
-  `TheOperationSlotNamesItsRequestAndSaysWhenItLetsGo` guard it.
+  `TheOperationSlotNamesTheRequestThatHoldsIt` guard it.
 - **Daily crown:** the Daily HUD's crown shows the day's top score, read once at run start: Arena's from the top
   row of today's Score board on Base, Realms' from the platform leaderboard when signed in. Below the top it
   shows a dim crown and the top's number; once the run passes it the crown lights alone and its moment plays

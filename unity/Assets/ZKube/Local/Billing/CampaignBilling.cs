@@ -71,8 +71,6 @@ namespace ZKube.Local.Billing
         public bool Busy => active;
         // The request holding the operation slot is a purchase; otherwise it reads what is owned.
         public bool Purchasing => active && purchasing;
-        // The slot was let go, whoever still waited for it: a page showing the request draws again.
-        public event Action Settled;
 
         // Production composition passes the store entitlement writer,
         // preserving the existing normalized local persistence/run-lock boundary.
@@ -121,7 +119,7 @@ namespace ZKube.Local.Billing
         private async Task<CampaignBillingAnswer> Run(Func<Task<CampaignBillingAnswer>> operation)
         {
             try { return await operation(); }
-            finally { active = false; if (!disposed) Settled?.Invoke(); }
+            finally { active = false; }
         }
         private static async Task<T> WaitForCaller<T>(Task<T> operation, CancellationToken cancellation, Task disposal)
         {

@@ -168,24 +168,23 @@ namespace ZKube.Tests.LocalBilling
                 store.FinishQuery(); Assert.AreEqual(0, store.Purchases); Assert.IsFalse(billing.Busy);
             }
         }
-        // The one operation slot says which request holds it, and says when it lets
-        // go, to a caller that stopped waiting too.
-        [Test] public async Task TheOperationSlotNamesItsRequestAndSaysWhenItLetsGo()
+        // The one operation slot says which request holds it, for as long as it holds
+        // it, whether or not its caller still waits.
+        [Test] public async Task TheOperationSlotNamesTheRequestThatHoldsIt()
         {
             var cache = new ProductCache(); var store = new Store { HoldQuery = true };
             using (var cancellation = new CancellationTokenSource())
             using (var billing = new CampaignBilling(store, cache.Read, cache.Apply))
             {
-                int settled = 0; billing.Settled += () => { Assert.IsFalse(billing.Busy); settled++; };
                 var query = billing.Query(cancellation.Token);
                 Assert.IsTrue(billing.Busy); Assert.IsFalse(billing.Purchasing);
                 cancellation.Cancel(); await Failure<OperationCanceledException>(() => query);
-                Assert.IsTrue(billing.Busy); Assert.AreEqual(0, settled);
-                store.FinishQuery(); Assert.IsFalse(billing.Busy); Assert.AreEqual(1, settled);
+                Assert.IsTrue(billing.Busy); Assert.IsFalse(billing.Purchasing);
+                store.FinishQuery(); Assert.IsFalse(billing.Busy);
                 store.HoldQuery = false;
-                var purchase = billing.Purchase(); Assert.IsTrue(billing.Purchasing);
+                var purchase = billing.Purchase(); Assert.IsTrue(billing.Busy); Assert.IsTrue(billing.Purchasing);
                 store.Reject(canceled: true); await Failure<OperationCanceledException>(() => purchase);
-                Assert.IsFalse(billing.Purchasing); Assert.AreEqual(2, settled);
+                Assert.IsFalse(billing.Busy); Assert.IsFalse(billing.Purchasing);
             }
         }
         [Test] public async Task UnacknowledgedPaidOrderRestoresAndRetriesAfterFailure()
