@@ -214,7 +214,9 @@ deployment or spending approval.
   `TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,
   `TheHintIsTheSlideClearingTheMostLinesThenTheLowestStack`, `EachBoardMomentIsTaughtWhenItFirstHappensAndOnlyThen`,
   `NoLessonAppearsOnADailyRun`, `TheFirstArcadeVisitTeachesTheArenaDailyWithoutTouchingEntry` and
-  `HowToPlayReplaysEveryLessonFromSettings` guard it. On the board a line about a piece (the next row, a button,
+  `HowToPlayReplaysEveryLessonFromSettings` guard it. What a Daily run is, no stars and its move budget, is one
+  lesson: both products teach it between their own entry and what their scores are for, and
+  `BothProductsTeachTheSameDailyRunBetweenTheirOwnLessons` guards the one copy. On the board a line about a piece (the next row, a button,
   the moves, a goal plate) is a callout: it stands beside that piece, its tail's tip on the piece's
   edge, and the piece pulses for as long as it shows. A line about nothing in particular is the guardian's own
   speech under it, its tail at the guardian's mouth; so is the first star's line, since the crown has no room

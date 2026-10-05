@@ -100,6 +100,26 @@ namespace ZKube.Local.Tests
             StringAssert.Contains(Protocol.DailyMaxMoves + " moves", Lessons.RealmsDaily(false)[1].Line);
         }
 
+        // What a Daily run is, no stars and its move budget, is one lesson, taught
+        // once in each product's first Daily between that product's entry and what
+        // its scores are for; neither product loses its own lessons.
+        [Test] public void BothProductsTeachTheSameDailyRunBetweenTheirOwnLessons()
+        {
+            string run = Lessons.DailyRun.Line;
+            StringAssert.Contains("no stars", run); StringAssert.Contains(Protocol.DailyMaxMoves + " moves", run);
+            foreach (var daily in new[] { Lessons.RealmsDaily(false), Lessons.RealmsDaily(true), Lessons.ArenaDaily })
+            {
+                Assert.That(daily.Count(page => page.Line == run), Is.EqualTo(1));
+                Assert.That(daily[1].Line, Is.EqualTo(run), "After the product's own entry");
+                Assert.That(daily.Select(page => page.Line).Distinct().Count(), Is.EqualTo(daily.Length));
+            }
+            StringAssert.Contains("One try a day", Lessons.RealmsDaily(true)[0].Line); StringAssert.Contains("leaderboard", Lessons.RealmsDaily(true)[2].Line);
+            var arena = Lessons.ArenaDaily.Select(page => page.Line).ToArray();
+            Assert.That(arena.Length, Is.EqualTo(5));
+            StringAssert.Contains("Kredit", arena[0]); StringAssert.Contains("Two boards", arena[2]); StringAssert.Contains("prize", arena[3]); StringAssert.Contains("ladder", arena[4]);
+            Assert.That(Lessons.RealmsDaily(true).Skip(2).Concat(Lessons.RealmsDaily(true).Take(1)).Any(page => arena.Contains(page.Line)), Is.False, "Only the run is shared");
+        }
+
         // An action's moments: its bonus's first charge, the first star and the
         // first empty board, each while untaught, in that order.
         [Test] public void EachBoardMomentIsTaughtWhenItFirstHappensAndOnlyThen()

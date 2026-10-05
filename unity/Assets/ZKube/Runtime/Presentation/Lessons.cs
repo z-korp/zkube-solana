@@ -65,17 +65,19 @@ namespace ZKube.Presentation
             new TalkPage("A bar fills over the whole run. A ring needs one single move.", "idle", SkinSlots.LessonStars) };
         public static string Opens(string realm) => "Opens " + realm;
 
-        // Each product's Daily, before its first play.
+        // What a Daily run is, the same in both products: one copy of it.
+        public static TalkPage DailyRun => new TalkPage("The Daily has no stars. Score all you can in " + Protocol.DailyMaxMoves + " moves; points grow as you climb.",
+            "idle", SkinSlots.LessonDaily);
+        // Each product's Daily, before its first play: its own entry, the run, then what its scores are for.
         public static TalkPage[] RealmsDaily(bool leaderboard)
         {
-            var pages = new List<TalkPage> {
-                new TalkPage("One try a day, and the same board for everyone.", "greeting", SkinSlots.LessonDaily),
-                new TalkPage("The Daily has no stars. Score all you can in " + Protocol.DailyMaxMoves + " moves; points grow as you climb.", "idle", SkinSlots.LessonDaily) };
+            var pages = new List<TalkPage> { new TalkPage("One try a day, and the same board for everyone.", "greeting", SkinSlots.LessonDaily), DailyRun };
             if (leaderboard) pages.Add(new TalkPage("Your best score goes on the leaderboard.", "satisfied", SkinSlots.LessonDaily));
             return pages.ToArray();
         }
         public static TalkPage[] ArenaDaily => new[] {
             new TalkPage("Each entry costs one Kredit. Play as often as you like; your best run counts.", "greeting", SkinSlots.LessonDaily),
+            DailyRun,
             new TalkPage("Two boards: one for points, one for today's goal.", "idle", SkinSlots.LessonDaily),
             new TalkPage("The top places share the prize. Claim it within thirty days.", "satisfied", SkinSlots.LessonDaily),
             new TalkPage("Every Daily you score in adds ladder points. They never fade.", "idle", SkinSlots.LessonDaily) };
