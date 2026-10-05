@@ -116,14 +116,21 @@ namespace ZKube.Local.App
             // Store status belongs where its purchase and restore actions are.
             if (Flow.Page != StorePage.Campaign && Flow.Page != StorePage.Level && Flow.Page != StorePage.Settings) yield break;
             // The Campaign page states an unreachable store in place of its purchase.
-            yield return Flow.Billing.Busy ? "A store operation is still in progress." :
-                Flow.Page == StorePage.Campaign && Flow.StoreUnavailable ? null : Flow.BillingNotice;
+            yield return Flow.Page == StorePage.Campaign && Flow.StoreUnavailable ? null : Flow.BillingNotice;
             if (Flow.Billing.LastFulfillmentError != null) yield return "Store confirmation needs attention. Restore purchases to retry.";
         }
         // The profile's name without a platform account: a fixed label, not a name to edit.
         public const string SignedOutName = "Player";
         private static PageAction Action(string label, Action invoke, bool enabled = true) =>
             new PageAction { Label = label, Invoke = invoke, Enabled = enabled };
+        // A store button. The store answers one request at a time: the one in flight shows on its
+        // own button, the purchase or the check of what is owned, and the others wait for it.
+        private PageAction Store(string label, bool purchase = false)
+        {
+            var action = Action(label, () => _ = Flow.RefreshBilling(purchase), !Flow.Billing.Busy);
+            if (Flow.Billing.Busy && Flow.Billing.Purchasing == purchase) action.Progress = purchase ? "Purchasing" : "Checking";
+            return action;
+        }
         // The shared map, with the store's purchase where the purchase closes the realm.
         public CampaignPageView CampaignView()
         {
@@ -132,10 +139,9 @@ namespace ZKube.Local.App
             bool offline = Flow.StoreUnavailable;
             view.Locked = "Realms " + StoreCampaignPolicy.FirstPurchasedRealm + "–" + Protocol.Realms.Length + " open with the full Campaign purchase.";
             view.StoreProblem = offline ? "Store purchase unavailable" : null;
-            view.Purchase = offline ? Action("Try again", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy) :
-                Action("Unlock full Campaign" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice),
-                    () => _ = Flow.RefreshBilling(purchase: true), !Flow.Billing.Busy);
-            view.Restore = offline ? null : Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy);
+            view.Purchase = offline ? Store("Try again") :
+                Store("Unlock full Campaign" + (Flow.Product.Read.CampaignPrice == null ? "" : " · " + Flow.Product.Read.CampaignPrice), purchase: true);
+            view.Restore = offline ? null : Store("Restore purchases");
             return view;
         }
         public CampaignSummaryView CampaignSummary() => Flow.Campaign.CampaignSummary();
@@ -181,7 +187,7 @@ namespace ZKube.Local.App
         public SettingsPageView SettingsPage()
         {
             var view = AppPreferences.Read(Refresh, board);
-            view.Identity = new[] { PanelBlock.Button(Action("Restore purchases", () => _ = Flow.RefreshBilling(), !Flow.Billing.Busy), false, icon: SkinSlots.IconRetry) };
+            view.Identity = new[] { PanelBlock.Button(Store("Restore purchases"), false, icon: SkinSlots.IconRetry) };
             return view;
         }
         public ResultPageView ResultPage()

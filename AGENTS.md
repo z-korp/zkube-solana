@@ -145,6 +145,13 @@ deployment or spending approval.
   `ASignedOutDailySubmitsNothingAndShowsNoLeaderboard`,
   `ALeaderboardThatDoesNotOpenSaysSoAndItsButtonTriesAgain` and
   `ALeaderboardThatDoesNotOpenFromTheResultSaysSoThereAndNowhereElse` guard them.
+- **Store requests:** the Realms store answers one request at a time, a purchase or a check of what is owned
+  (restore and the retry of an unreachable store are that check). The one in flight shows on its own button, the
+  progress button every Arena action uses, and the other store buttons wait for it; its outcome is a notice
+  where those buttons are. A request that outlasts its page shows on the next page's button and ends without a
+  tap. `AStorePurchaseOrRestoreShowsItsStepOnItsOwnButtonUntilItsOutcome`,
+  `AStoreRequestThatFailsLateOrOutlastsItsPageShowsOnTheButtonAndEndsByItself` and
+  `TheOperationSlotNamesItsRequestAndSaysWhenItLetsGo` guard it.
 - **Daily crown:** the Daily HUD's crown shows the day's top score, read once at run start: Arena's from the top
   row of today's Score board on Base, Realms' from the platform leaderboard when signed in. Below the top it
   shows a dim crown and the top's number; once the run passes it the crown lights alone and its moment plays

@@ -65,10 +65,14 @@ namespace ZKube.Local.Billing
         private TaskCompletionSource<CampaignOrder[]> queryWait;
         private TaskCompletionSource<bool> purchaseWait;
         private readonly TaskCompletionSource<bool> disposedWait = NewWait<bool>();
-        private bool active, disposed;
+        private bool active, purchasing, disposed;
         private long paidRevision;
         public Exception LastFulfillmentError { get; private set; }
         public bool Busy => active;
+        // The request holding the operation slot is a purchase; otherwise it reads what is owned.
+        public bool Purchasing => active && purchasing;
+        // The slot was let go, whoever still waited for it: a page showing the request draws again.
+        public event Action Settled;
 
         // Production composition passes the store entitlement writer,
         // preserving the existing normalized local persistence/run-lock boundary.
@@ -101,13 +105,13 @@ namespace ZKube.Local.Billing
                 }
                 finally { purchaseWait = null; }
                 return await Refresh();
-            }, cancellation);
+            }, cancellation, true);
 
-        private Task<CampaignBillingAnswer> Start(Func<Task<CampaignBillingAnswer>> operation, CancellationToken cancellation)
+        private Task<CampaignBillingAnswer> Start(Func<Task<CampaignBillingAnswer>> operation, CancellationToken cancellation, bool purchase = false)
         {
             Check(); cancellation.ThrowIfCancellationRequested();
             if (active) throw new InvalidOperationException("A store operation is still in progress");
-            active = true;
+            active = true; purchasing = purchase;
             var task = Run(operation);
             // Observe a failure even if the UI detached through cancellation.
             _ = task.ContinueWith(failed => { _ = failed.Exception; }, CancellationToken.None,
@@ -117,7 +121,7 @@ namespace ZKube.Local.Billing
         private async Task<CampaignBillingAnswer> Run(Func<Task<CampaignBillingAnswer>> operation)
         {
             try { return await operation(); }
-            finally { active = false; }
+            finally { active = false; if (!disposed) Settled?.Invoke(); }
         }
         private static async Task<T> WaitForCaller<T>(Task<T> operation, CancellationToken cancellation, Task disposal)
         {

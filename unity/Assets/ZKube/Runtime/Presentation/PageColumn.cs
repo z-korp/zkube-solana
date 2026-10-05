@@ -97,12 +97,14 @@ namespace ZKube.Presentation
         {
             if (action == null) return null;
             float lead = icon == null ? 0 : 24 * D, room = Width - 20 * D - lead;
-            var (label, size) = PillLabel(Ui, action.Label, action.Short, room);
+            // An action in progress shows its step as its words.
+            bool busy = action.Progress != null;
+            var (label, size) = PillLabel(Ui, action.Progress ?? action.Label, busy ? null : action.Short, room);
             float height = Mathf.Max(ButtonDp * D, Ui.TextHeight(label, float.PositiveInfinity, size, SkinUi.Type.Display) + 24 * D);
             var button = Ui.TextButton(action.Name ?? action.Label, Take(height, gapDp), label, Actions.Click(action), primary, Parent, out var text, icon,
                 SkinUi.Type.Display);
             Style(Ui, text, size);
-            return Actions.Bind(button, action, relabel: value => {
+            return Actions.Bind(button, action, relabel: busy ? (Action<string>)null : value => {
                 var (shown, fitted) = PillLabel(Ui, value, action.Short, room);
                 text.text = shown; Style(Ui, text, fitted);
             });

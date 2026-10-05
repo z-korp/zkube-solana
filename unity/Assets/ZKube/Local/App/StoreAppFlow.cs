@@ -45,6 +45,7 @@ namespace ZKube.Local.App
             Runs = runs ?? throw new ArgumentNullException(nameof(runs));
             Billing = billing ?? throw new ArgumentNullException(nameof(billing));
             Page = StorePage.Home;
+            Billing.Settled += StoreSettled;
             Campaign = new CampaignJourney(product, runs, page => Go((StorePage)Enum.Parse(typeof(StorePage), page.ToString())),
                 provider => { Go(StorePage.Board); BoardOpened?.Invoke(provider); });
         }
@@ -135,23 +136,27 @@ namespace ZKube.Local.App
             Check();
             if (Billing.Busy) return;
             long request = generation; var cancellation = pageWait.Token;
-            Error = null; BillingNotice = "Checking purchases…"; Changed?.Invoke();
+            Error = null; BillingNotice = null;
             try
             {
-                var answer = purchase ? await Billing.Purchase(cancellation) : await Billing.Query(cancellation);
+                // The request shows on its own button from here to its outcome.
+                var asked = purchase ? Billing.Purchase(cancellation) : Billing.Query(cancellation);
+                Changed?.Invoke();
+                var answer = await asked;
                 if (!Current(request)) return;
                 StoreUnavailable = false;
                 BillingNotice = answer.Status == CampaignBillingStatus.PaymentPending ? "Payment is pending. Campaign unlocks after payment completes."
                     : answer.Status == CampaignBillingStatus.ConfirmationPending ? "Campaign unlocked. Store confirmation is pending; restore purchases to check again."
                     : answer.Owned ? "Full Campaign unlocked" : null;
             }
-            catch (OperationCanceledException)
-            { if (Current(request)) BillingNotice = Billing.Busy ? "The store operation is still in progress." : "Purchase cancelled"; }
+            catch (OperationCanceledException) { if (Current(request)) BillingNotice = "Purchase cancelled"; }
             // A store failure is a billing notice: it shows where purchase and
             // restore are, never on the Home the app opens on.
             catch (Exception error) { if (Current(request)) { BillingNotice = error.Message; StoreUnavailable = true; } }
             finally { if (Current(request)) Changed?.Invoke(); }
         }
+        // A request the page stopped waiting for still holds the store; its buttons come back when it lets go.
+        private void StoreSettled() { if (!disposed) Changed?.Invoke(); }
         public void Report(Exception error) { if (!disposed) { Error = error.Message; Changed?.Invoke(); } }
         private void Open(LocalRunUpdate update)
         { var provider = new LocalBoardActionProvider(Runs, update); providers[update.View.RunId] = provider; Open(provider); }
@@ -181,6 +186,7 @@ namespace ZKube.Local.App
         }
         private bool Current(long value) => !disposed && value == generation;
         private void Check() { if (disposed) throw new ObjectDisposedException(nameof(StoreAppFlow)); }
-        public void Dispose() { if (disposed) return; disposed = true; generation++; pageWait.Cancel(); pageWait.Dispose(); }
+        public void Dispose()
+        { if (disposed) return; disposed = true; Billing.Settled -= StoreSettled; generation++; pageWait.Cancel(); pageWait.Dispose(); }
     }
 }

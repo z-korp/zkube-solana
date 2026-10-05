@@ -53,10 +53,21 @@ namespace ZKube.Tests
             public event Action<string> QueryFailed;
             public event Action Disconnected;
             public string Failure;
+            // A store that takes its time: held, a request waits for Answer. One that sells
+            // takes the purchase and waits for the test to reject it.
+            public bool Held, Sells; public int Bought;
+            private Action waiting;
+            public bool Waiting => waiting != null;
+            public void Answer() { var answer = waiting; waiting = null; answer(); }
+            public void Reject(bool canceled) => PurchaseRejected?.Invoke(canceled);
             public Task Connect() => Task.CompletedTask;
-            public void FetchProduct() { if (Failure != null) QueryFailed?.Invoke(Failure); else ProductFetched?.Invoke("€4.99"); }
+            public void FetchProduct()
+            {
+                Action answer = () => { if (Failure != null) QueryFailed?.Invoke(Failure); else ProductFetched?.Invoke("€4.99"); };
+                if (Held) waiting = answer; else answer();
+            }
             public void FetchPurchases() => PurchasesFetched?.Invoke(Array.Empty<CampaignOrder>());
-            public void Purchase() => Assert.Fail("This UI journey must never invoke a purchase");
+            public void Purchase() { if (Sells) Bought++; else Assert.Fail("This UI journey must never invoke a purchase"); }
             public void Confirm(CampaignOrder _) => Assert.Fail("This UI journey must never acknowledge a purchase");
             public void Dispose() { }
         }

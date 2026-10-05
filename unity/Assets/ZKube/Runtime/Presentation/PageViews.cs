@@ -415,7 +415,8 @@ namespace ZKube.Presentation
         // carries the breathing halo behind it.
         private Button Pill(PageColumn card, PageAction action, bool primary, string icon, float gapDp)
         {
-            var button = card.Button(action, primary, gapDp, icon);
+            var button = card.Button(action, primary, gapDp, action == null ? icon : Mark(action, icon));
+            if (button != null) Loader(button, action);
             if (button == null || !primary) return button;
             var rect = SkinUi.ScreenRect((RectTransform)button.transform);
             var halo = ui.Glow(button.name + " halo", new Rect(rect.center.x - rect.width * .65f, rect.center.y - rect.height * .65f,
