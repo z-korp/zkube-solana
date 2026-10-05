@@ -862,8 +862,12 @@ namespace ZKube.Tests.Presentation
                 Canvas.ForceUpdateCanvases();
                 var pieces = Pieces(dialog, screen, 1);
                 Dump(confirm ? "endconfirm" : "pause", pieces);
-                Match(confirm ? "endconfirm" : "pause", pieces, screen, 1.1f, "titles", "cards", "primaries");
-                AssertButtonKinds(dialog, confirm ? "endconfirm" : "pause", new[] { "Dialog " + BoardController.EndRun }, new string[0]);
+                if (confirm) Match("endconfirm", pieces, screen, 1.1f, "titles", "cards", "primaries");
+                // The pause's action band is the owner's ruling of 2026-10-05, which the file records for it.
+                else Match("pause", pieces, screen, 1.1f, "titles", "cards", "primaries", "secondaries", "quiet");
+                // The pause's band: Home is the secondary, End run the quiet outline; the confirm keeps End run as its secondary.
+                if (confirm) AssertButtonKinds(dialog, "endconfirm", new[] { "Dialog " + BoardController.EndRun }, new string[0]);
+                else AssertButtonKinds(dialog, "pause", new[] { PauseDialog.Home }, new[] { "Dialog " + BoardController.EndRun });
                 if (!confirm) AssertPictograms(dialog, "pause", ScreenKit.Goals(PageCatalog.Load(), new CampaignGoals { Points = board.Session.Rules.PointsRequired,
                     PrimaryKind = board.Session.Rules.PrimaryKind, PrimaryValue = board.Session.Rules.PrimaryValue, PrimaryCount = board.Session.Rules.PrimaryCount,
                     SecondaryKind = board.Session.Rules.SecondaryKind, SecondaryValue = board.Session.Rules.SecondaryValue, SecondaryCount = board.Session.Rules.SecondaryCount },

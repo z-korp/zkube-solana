@@ -179,16 +179,20 @@ deployment or spending approval.
   `ADailyMoveOnTheArenaPresentsWhatTheSameMovePresentsOnTheSharedRunBoard`,
   `ALateRowIsWaitedForAndPresentedWhenItArrives`, `ARefusedMoveSettlesTheBoardOnTheAcceptedRunWithANotice` and
   `ASwipeQueuedOnTheMovedBoardPlaysOnceAcceptedAndIsDroppedIfTheBoardSettlesElsewhere` guard it.
-- **Leaving a run:** the pause's Home, a tablet in its top left corner in both products, leaves the board with the
-  run as it stands: nothing is sent, nothing ends, and an action still being confirmed finishes first. A Campaign
-  run and the Realms Daily stay saved, and their level or Home resumes them; the Arena Daily stays in flight on
-  the rollup and the landing page's one action is Resume run. A Daily in the last hour before its day closes says
-  when in its pause. End run stays, behind its confirm.
+- **Leaving a run:** the pause's Home, in both products, leaves the board with the run as it stands: nothing is
+  sent, nothing ends, and an action still being confirmed finishes first. A Campaign run and the Realms Daily stay
+  saved, and their level or Home resumes them; the Arena Daily stays in flight on the rollup and the landing
+  page's one action is Resume run. A Daily in the last hour before its day closes says when, in one line over the
+  band. End run stays, behind its confirm. The pause's actions are one band at its foot (owner, 2026-10-05):
+  Resume across the column, then Home and End run side by side at equal widths, each an icon and a word, the
+  destructive one last; nothing in a top corner takes a tap. A phone with no height to spare gives up the pause's
+  spacers, then tightens its two cards evenly, and keeps the band's two rows.
   `HomeLeavesTheBoardWithItsRunAndWaitsForAnActionBeingConfirmed`,
   `ADailysPauseSaysWhenItClosesOnlyInItsLastHour`, `HomeFromThePauseLeavesTheRunSavedAndItIsResumedInBothModes`,
   `HomeFromThePauseLeavesTheDailyInFlightAndResumeRunReturnsToIt`,
-  `HomeFromThePauseLeavesTheArenasCampaignRunSavedAndItsLevelResumesIt` and
-  `PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones` guard it.
+  `HomeFromThePauseLeavesTheArenasCampaignRunSavedAndItsLevelResumesIt`,
+  `PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones` and
+  `PauseAndItsConfirmMatchTheirWireframesAtSeekerSize` guard it.
 - **A paid run's result:** a Daily run that ends on the Arena stays on its board for the moment every run does,
   then opens the shared result page by itself, as a Realms run does. No dialog stands between, and the page
   carries the Arena's own rows: the two boards the run counts on, and the way to them. The run stays bound behind

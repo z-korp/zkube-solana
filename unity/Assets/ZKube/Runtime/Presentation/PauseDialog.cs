@@ -14,9 +14,10 @@ namespace ZKube.Presentation
     // The pause, as the wireframe lays it out, over the game as it stood,
     // softened and dimmed (DECISIONS 2026-10-02): "Paused" over the level and
     // realm, the card of goals as they stand, the card of the four settings,
-    // and Resume with End run. Home hangs from the top left corner, where a
-    // page's way back does: it leaves the board with the run as it stands. End
-    // run asks first on the same composition:
+    // and the action band (owner, 2026-10-05): Resume across the column, then
+    // Home, which leaves the board with the run as it stands, and End run side
+    // by side under it. Nothing in a top corner takes a tap. End run asks first
+    // on the same composition:
     // "End this run?", its cost, then Keep playing or End run. Each settings
     // row is one button named for its state ("Dialog Sound: on"); a tap
     // anywhere on the row flips it.
@@ -53,14 +54,28 @@ namespace ZKube.Presentation
         }
 
         public const string Home = "Dialog Home";
+        private const float TightPadU = 5;
         public static PauseDialog Pause(BoardView view, BoardArt art, RunSummary state, BoardSession session, Action resume, Row[] rows, Action home, Action end) =>
             Open(view, art, "Pause dialog", (dialog, kit) => {
-                kit.Compose(
-                    kit.Title("Paused", Subtitle(session)), Piece.Grow, GoalCard(kit, state, session), SettingsCard(kit, rows), Piece.Grow,
-                    kit.Buttons(new[] { ("Dialog Resume", "Resume", resume, ScreenKit.Kind.Primary, SkinSlots.IconPlay),
-                        ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Secondary, SkinSlots.IconFlag) }));
-                float size = kit.Touch(40);
-                kit.Ui.IconButton(Home, new Rect(kit.Safe.x + 12 * kit.U, kit.Edge - size, size, size), SkinSlots.IconHome, home, kit.Parent, false, out _, out _);
+                var band = kit.ActionBand(("Dialog Resume", "Resume", resume, ScreenKit.Kind.Primary, SkinSlots.IconPlay),
+                    (Home, "Home", home, ScreenKit.Kind.Secondary, SkinSlots.IconHome),
+                    ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Quiet, SkinSlots.IconFlag));
+                // A phone with no height to spare first gives up the two spacers'
+                // gaps, then tightens both cards' padding evenly; the band keeps its two rows.
+                Piece[] Pieces(bool spaced, float padU)
+                {
+                    var pieces = new List<Piece> { kit.Title("Paused", Subtitle(session)) };
+                    if (spaced) pieces.Add(Piece.Grow);
+                    pieces.Add(GoalCard(kit, state, session, padU)); pieces.Add(SettingsCard(kit, rows, padU));
+                    if (spaced) pieces.Add(Piece.Grow);
+                    if (Closes(session) is string closes) pieces.Add(ClosesLine(kit, closes));
+                    pieces.Add(band);
+                    return pieces.ToArray();
+                }
+                var composed = Pieces(true, ScreenKit.CardPadU);
+                if (!kit.Fits(composed)) composed = Pieces(false, ScreenKit.CardPadU);
+                if (!kit.Fits(composed)) composed = Pieces(false, TightPadU);
+                kit.Compose(composed);
             });
 
         // The question, and its cost with what stays, centred on the card.
@@ -82,22 +97,36 @@ namespace ZKube.Presentation
                         ("Dialog " + BoardController.EndRun, BoardController.EndRun, end, ScreenKit.Kind.Secondary, SkinSlots.IconFlag) }));
             });
 
-        // "Level 14 · Tiki", or "Daily · Tiki". A Daily run can be left and resumed
-        // until its day closes: within its last hour the pause says when instead.
-        public const long ClosesSoonSeconds = 3600;
+        // "Level 14 · Tiki", or "Daily · Tiki".
         private static string Subtitle(BoardSession session)
         {
             string realm = PageCatalog.Load().Realm(session.RealmId).realmName;
-            if (!session.Daily) return "Level " + HudLayout.LevelNumber(session.RealmId, HudLayout.CampaignLevel(session)) + " · " + realm;
+            return session.Daily ? "Daily · " + realm : "Level " + HudLayout.LevelNumber(session.RealmId, HudLayout.CampaignLevel(session)) + " · " + realm;
+        }
+        // A Daily run can be left and resumed until its day closes: within the
+        // last hour one short line over the band says when, beside the clock.
+        public const long ClosesSoonSeconds = 3600;
+        public const string ClosesName = "Dialog closes";
+        private static string Closes(BoardSession session)
+        {
             var facts = session.DailyFacts;
             long left = facts?.Now == null || facts.ClosesAt <= 0 ? 0 : facts.ClosesAt - facts.Now();
-            return left > 0 && left <= ClosesSoonSeconds ? "Closes in " + (left + 59) / 60 + " min" : "Daily · " + realm;
+            return left > 0 && left <= ClosesSoonSeconds ? "Closes in " + (left + 59) / 60 + " min" : null;
+        }
+        private static Piece ClosesLine(ScreenKit kit, string words)
+        {
+            float u = kit.U, icon = 20 * u, size = kit.SubtitleDp, wide = kit.Ui.TextWidth(words, size, SkinUi.Type.Caption) + 2 * kit.Ui.Density;
+            return new Piece(icon, rect => {
+                float x = rect.center.x - (icon + 6 * u + wide) / 2;
+                kit.Ui.Piece(ClosesName + " icon", SkinSlots.IconClock, new Rect(x, rect.y, icon, icon), kit.Parent);
+                kit.Text(ClosesName, words, new Rect(x + icon + 6 * u, rect.y, wide, rect.height), size, SkinTokens.Text, SkinUi.Type.Caption, 1, TextAlignmentOptions.Left);
+            });
         }
 
         // The goals as they stand. A Campaign lists the score and its two goals,
         // each count over its bar, or a ring until a one-move goal is met; a
         // Daily lists its score, multiplier and objective.
-        private static Piece GoalCard(ScreenKit kit, RunSummary state, BoardSession session)
+        private static Piece GoalCard(ScreenKit kit, RunSummary state, BoardSession session, float padU)
         {
             float u = kit.U, iconU = kit.Step(38, 32);
             var rules = session.Rules; var inside = kit.Inside();
@@ -113,7 +142,7 @@ namespace ZKube.Presentation
                     goals[i].Met = (state.LatchedStarSources & 1 << i) != 0;
                     goals[i].Progress = goals[i].Met ? Math.Max(progress[i], goals[i].Target) : progress[i];
                 }
-                return kit.Card(null, inside.GoalRows(goals, ScreenKit.GoalMode.Progress, iconU));
+                return kit.Card(null, inside.GoalRows(goals, ScreenKit.GoalMode.Progress, iconU), padU: padU);
             }
             string N(ulong number) => number.ToString("N0", CultureInfo.InvariantCulture);
             var rows = new List<Piece> {
@@ -125,11 +154,11 @@ namespace ZKube.Presentation
                 rows.Add(inside.Row("Objective", inside.Pictogram("Objective", goal.Pictogram(rules.BonusType), goal.chip, iconU), goal.text, null,
                     inside.Value("Objective value", N(state.ObjectiveTotal)), true));
             }
-            return kit.Card(null, rows);
+            return kit.Card(null, rows, padU: padU);
         }
 
         // The settings, a row each: its switch, or its value and ›.
-        private static Piece SettingsCard(ScreenKit kit, Row[] rows)
+        private static Piece SettingsCard(ScreenKit kit, Row[] rows, float padU)
         {
             float u = kit.U; var inside = kit.Inside();
             return kit.Card(null, rows.Select((row, i) => {
@@ -144,7 +173,7 @@ namespace ZKube.Presentation
                     button.onClick.AddListener(() => row.Invoke());
                     line.Draw(rect);
                 });
-            }));
+            }), padU: padU);
         }
 
         public void Close()

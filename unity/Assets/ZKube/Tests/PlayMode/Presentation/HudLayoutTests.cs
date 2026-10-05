@@ -111,7 +111,7 @@ namespace ZKube.Presentation.Tests
         }
         // The pause and its end-run confirm, as the v3 composites draw them over
         // the dimmed HUD: one guardian (the HUD's), the title plate, the goals as
-        // they stand, the four settings, two buttons and Home in the corner, every word fitting and
+        // they stand, the four settings and the band of three buttons, every word fitting and
         // every row and button 48 dp to touch, on the Seeker and a 360 x 640
         // phone at both text sizes, for a Campaign run and a Daily. The pause
         // counts the spec's 21 words on Tiki's first level; the confirm, the
@@ -143,7 +143,7 @@ namespace ZKube.Presentation.Tests
                                 var texts = dialog.GetComponentsInChildren<TMP_Text>().Where(text => !string.IsNullOrEmpty(text.text)).ToArray();
                                 string Plain(string text) => System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");
                                 if (fixture == "realm-1-campaign" && scale == 1)
-                                    Assert.AreEqual(21, texts.Sum(text => Word.Matches(Plain(text.text)).Count),
+                                    Assert.AreEqual(confirm ? 21 : 22, texts.Sum(text => Word.Matches(Plain(text.text)).Count),
                                         at + " words: " + string.Join(" | ", texts.Select(text => Plain(text.text))));
                                 foreach (var text in texts)
                                 {
@@ -157,9 +157,27 @@ namespace ZKube.Presentation.Tests
                                 var images = dialog.GetComponentsInChildren<Image>();
                                 Assert.IsFalse(images.Any(image => image.name.ToLowerInvariant().Contains("guardian")), at + ": the HUD's guardian is the only one");
                                 var buttons = dialog.GetComponentsInChildren<Button>();
-                                // The pause's seventh is Home, a tablet in the corner with no word.
                                 Assert.AreEqual(confirm ? 2 : 7, buttons.Length, at + ": " + string.Join(", ", buttons.Select(button => button.name)));
-                                if (!confirm) Assert.AreEqual(SkinSlots.IconHome, images.Single(image => image.name == PauseDialog.Home + " icon").sprite.name.Replace("(Clone)", ""), at);
+                                if (!confirm)
+                                {
+                                    // The action band: Resume across the column, then Home and End run side by
+                                    // side under it at equal widths. It reads Resume, Home, End run.
+                                    Rect Of(string name) => WorldRect((RectTransform)buttons.Single(button => button.name == name).transform);
+                                    string Face(string name) => buttons.Single(button => button.name == name).GetComponent<Image>().sprite?.name ?? "";
+                                    string Icon(string name) => images.Single(image => image.name == name + " icon").sprite.name.Replace("(Clone)", "");
+                                    Rect resume = Of("Dialog Resume"), home = Of(PauseDialog.Home), end = Of("Dialog End run");
+                                    Assert.GreaterOrEqual(resume.yMin, home.yMax, at + ": Resume stands over the other two");
+                                    Assert.AreEqual(home.yMin, end.yMin, .5f, at + ": Home and End run share a row"); Assert.Less(home.xMax, end.xMin, at + ": Home comes before End run");
+                                    Assert.AreEqual(home.width, end.width, .5f, at + ": equal widths");
+                                    Assert.AreEqual(resume.xMin, home.xMin, .5f, at); Assert.AreEqual(resume.xMax, end.xMax, .5f, at + ": Resume spans the band");
+                                    Assert.GreaterOrEqual(resume.height / density, 48 - .01f, at); Assert.Greater(resume.height, home.height - .5f, at + ": Resume is the tallest");
+                                    StringAssert.StartsWith(SkinSlots.ButtonPrimary, Face("Dialog Resume"), at); StringAssert.StartsWith(SkinSlots.ButtonSecondary, Face(PauseDialog.Home), at);
+                                    Assert.IsFalse(Face("Dialog End run").StartsWith(SkinSlots.ButtonPrimary) || Face("Dialog End run").StartsWith(SkinSlots.ButtonSecondary), at + ": End run is the quiet one");
+                                    Assert.AreEqual((SkinSlots.IconPlay, SkinSlots.IconHome), (Icon("Dialog Resume"), Icon(PauseDialog.Home)), at);
+                                    // Nothing in a top corner takes a tap: every button lies under the title.
+                                    float title = WorldRect(images.Single(image => image.name == "Screen title plate").rectTransform).yMin;
+                                    foreach (var button in buttons) Assert.LessOrEqual(WorldRect((RectTransform)button.transform).yMax, title + .5f, at + ": " + button.name + " lies under the title");
+                                }
                                 foreach (var button in buttons)
                                 {
                                     var rect = WorldRect((RectTransform)button.transform);

@@ -126,6 +126,12 @@ namespace ZKube.Presentation
             float taken = pieces.Where(piece => piece.Height >= 0).Sum(piece => piece.Height) + 10 * U * (pieces.Length - 1);
             return Mathf.Max(0, top - bottom - taken);
         }
+        // Whether the pieces fit the column's height, spacers at nothing.
+        public bool Fits(params Piece[] pieces)
+        {
+            float top = Edge - pieces.Where(piece => piece.Height >= 0).Select(piece => piece.Above).FirstOrDefault();
+            return pieces.Where(piece => piece.Height >= 0).Sum(piece => piece.Height) + 10 * U * (pieces.Length - 1) <= top - bottom + .5f;
+        }
         // How wide a hero guardian card of sizeU draws when the screen leaves it spare room.
         public float HeroWidth(float sizeU, Piece guardian, float spare) => sizeU * U + Mathf.Min(guardian.Stretch, spare) / Ui.Art.GuardianRailY;
         public Rect Compose(params Piece[] pieces)
@@ -205,10 +211,11 @@ namespace ZKube.Presentation
         // measured at the card's inside (Inside()).
         // A ledge is empty room kept at the card's top, under its padding, for what rests on its edge.
         public const float CardPadU = 10;
-        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", Side? tag = null, float ledge = 0)
+        // padU is the card's padding above and below, for a screen that has to tighten.
+        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", Side? tag = null, float ledge = 0, float padU = CardPadU)
         {
             const float padHU = 12;
-            float u = U, pad = CardPadU * u;
+            float u = U, pad = padU * u;
             var stack = Stack(4, parts.ToArray());
             float headerHeight = header == null ? 0 : HeaderDp * Ui.Scale * Ui.Density * DisplayNormal + 4 * u;
             return new Piece(2 * pad + ledge + headerHeight + stack.Height, rect => {
@@ -541,40 +548,65 @@ namespace ZKube.Presentation
                     var item = items[i];
                     float w = stacked ? Mathf.Min(column, Mathf.Max(primary, Wide(item))) : item.kind == Kind.Primary ? primary : Wide(item), h = Tall(item);
                     var at = stacked ? new Rect(rect.center.x - w / 2, y - h, w, h) : new Rect(x, rect.yMax - rowHeight / 2 - h / 2, w, h);
-                    Button button; TMP_Text text;
-                    if (item.kind == Kind.Quiet) button = QuietButton(item.name, at, item.label, item.click, item.icon, out text);
-                    else
-                    {
-                        button = Ui.TextButton(item.name, at, item.label, item.click, item.kind == Kind.Primary, Parent, out text,
-                            item.icon, SkinUi.Type.Display, Size(item), 28 * K);
-                        // The carved icons keep their own colours.
-                        foreach (var image in button.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))) image.color = Color.white;
-                    }
-                    text.textWrappingMode = TextWrappingModes.NoWrap;
-                    // The icon and the words centre together (.b3), 8u apart.
-                    float lead = item.icon == null ? 0 : 36 * u, room = w - 32 * u - lead, size = Size(item), floor = PageColumn.ButtonMinimumDp / Ui.Scale;
-                    // Measured on the label itself, as it draws.
-                    float Measure() => text.GetPreferredValues(text.text, float.PositiveInfinity, float.PositiveInfinity).x + Ui.Density;
-                    float words = Measure();
-                    if (words > room && shorter?[i] != null && room / words * size < floor) { text.text = shorter[i]; words = Measure(); }
-                    if (words > room)
-                    {
-                        size = Mathf.Max(floor, size * room / words);
-                        text.fontSize = size * Ui.Density * Ui.Scale; words = Measure();
-                    }
-                    float left = Mathf.Max(at.x + 16 * u, at.center.x - (lead + words) / 2);
-                    var glyph = button.transform.Find(item.name + " icon");
-                    if (glyph != null) SkinUi.Place((RectTransform)glyph, new Rect(left, at.center.y - 14 * u, 28 * u, 28 * u), button.transform);
-                    SkinUi.Place(text.rectTransform, new Rect(left + lead, at.y, Mathf.Min(words, at.xMax - 16 * u - left - lead), at.height), button.transform);
+                    var button = ButtonIn(item, at, Size(item), shorter?[i], out var text);
                     made?.Invoke(i, button, text);
-                    if (item.kind == Kind.Primary)
-                    {
-                        var halo = Ui.Glow(button.name + " halo", new Rect(at.x - w * .15f, at.y - h * .15f, w * 1.3f, h * 1.3f),
-                            SkinUi.WithAlpha(Ui.Art.Token(SkinTokens.Accent), .4f), Parent, PageViews.HaloSeconds);
-                        halo.transform.SetSiblingIndex(button.transform.GetSiblingIndex());
-                    }
                     x += w + gap; y -= h + gap;
                 }
+            });
+        }
+        // One button of a row or a band, in its rect: its face by its kind, its
+        // icon and words centred together (.b3), 8u apart. Words too wide for it
+        // take their shorter form where there is one, then shrink toward 14 dp.
+        private Button ButtonIn((string name, string label, Action click, Kind kind, string icon) item, Rect at, float size, string shorter, out TMP_Text text)
+        {
+            float u = U;
+            Button button;
+            if (item.kind == Kind.Quiet) button = QuietButton(item.name, at, item.label, item.click, item.icon, out text);
+            else
+            {
+                button = Ui.TextButton(item.name, at, item.label, item.click, item.kind == Kind.Primary, Parent, out text,
+                    item.icon, SkinUi.Type.Display, size, 28 * K);
+                // The carved icons keep their own colours.
+                foreach (var image in button.GetComponentsInChildren<Image>().Where(image => image.name.EndsWith(" icon"))) image.color = Color.white;
+            }
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+            float lead = item.icon == null ? 0 : 36 * u, room = at.width - 32 * u - lead, floor = PageColumn.ButtonMinimumDp / Ui.Scale;
+            // Measured on the label itself, as it draws.
+            var label = text;
+            float Measure() => label.GetPreferredValues(label.text, float.PositiveInfinity, float.PositiveInfinity).x + Ui.Density;
+            float words = Measure();
+            if (words > room && shorter != null && room / words * size < floor) { text.text = shorter; words = Measure(); }
+            if (words > room)
+            {
+                size = Mathf.Max(floor, size * room / words);
+                text.fontSize = size * Ui.Density * Ui.Scale; words = Measure();
+            }
+            float left = Mathf.Max(at.x + 16 * u, at.center.x - (lead + words) / 2);
+            var glyph = button.transform.Find(item.name + " icon");
+            if (glyph != null) SkinUi.Place((RectTransform)glyph, new Rect(left, at.center.y - 14 * u, 28 * u, 28 * u), button.transform);
+            SkinUi.Place(text.rectTransform, new Rect(left + lead, at.y, Mathf.Min(words, at.xMax - 16 * u - left - lead), at.height), button.transform);
+            if (item.kind == Kind.Primary)
+            {
+                var halo = Ui.Glow(button.name + " halo", new Rect(at.x - at.width * .15f, at.y - at.height * .15f, at.width * 1.3f, at.height * 1.3f),
+                    SkinUi.WithAlpha(Ui.Art.Token(SkinTokens.Accent), .4f), Parent, PageViews.HaloSeconds);
+                halo.transform.SetSiblingIndex(button.transform.GetSiblingIndex());
+            }
+            return button;
+        }
+        // An action band (the pause's): its one primary across the column, 56u
+        // tall, over two more side by side at equal widths and the touch height.
+        // It reads top to bottom, left to right: the primary, then the others in
+        // their order, the destructive one last.
+        public Piece ActionBand((string name, string label, Action click, Kind kind, string icon) primary,
+            (string name, string label, Action click, Kind kind, string icon) left, (string name, string label, Action click, Kind kind, string icon) right)
+        {
+            float gap = 10 * U, tall = Touch(56), low = QuietHeight;
+            float Size((string name, string label, Action click, Kind kind, string icon) item) => item.kind == Kind.Quiet ? QuietDp : 18 * K;
+            return new Piece(tall + gap + low, rect => {
+                ButtonIn(primary, new Rect(rect.x, rect.yMax - tall, rect.width, tall), 24 * K, null, out _);
+                float half = (rect.width - gap) / 2;
+                ButtonIn(left, new Rect(rect.x, rect.y, half, low), Size(left), null, out _);
+                ButtonIn(right, new Rect(rect.xMax - half, rect.y, half, low), Size(right), null, out _);
             });
         }
         // A quiet button (.b3.q): the dark pill with its words in the caption face, padded 16u.

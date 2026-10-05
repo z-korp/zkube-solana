@@ -126,7 +126,9 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual("Paused", Text("Screen title").text);
             StringAssert.StartsWith("Level ", Text("Screen subtitle").text);
             Assert.AreEqual(SkinSlots.ButtonPrimary, Image("Dialog Resume").sprite.name.Replace("(Clone)", ""));
-            Assert.AreEqual(SkinSlots.ButtonSecondary, Image("Dialog End run").sprite.name.Replace("(Clone)", ""));
+            // In the pause's band Home is the secondary; End run, the destructive one, is the quiet outline and comes last.
+            Assert.AreEqual(SkinSlots.ButtonSecondary, Image(PauseDialog.Home).sprite.name.Replace("(Clone)", ""));
+            Assert.IsNotNull(Image("Dialog End run").transform.Find("Dialog End run rim"), "End run is the quiet outline");
             Assert.AreEqual(SkinSlots.IconFlag, Image("Dialog End run icon").sprite.name.Replace("(Clone)", ""));
             evidence.Click("Dialog End run"); yield return null;
             Assert.AreEqual("End this run?", Text("Screen title").text);
@@ -192,24 +194,25 @@ namespace ZKube.Presentation.Tests
             Assert.AreEqual(1u, board.State.ActionCounter, "The action it waited for was accepted");
             Assert.AreEqual(1, homes, "A host without a Home leaves by its Exit");
         }
-        // A Daily run can be left until its day closes: within the last hour the
-        // pause says when, in place of the realm.
+        // A Daily run can be left until its day closes: within the last hour one
+        // line over the pause's buttons says when, and at no other time.
         [UnityTest] public IEnumerator ADailysPauseSaysWhenItClosesOnlyInItsLastHour()
         {
             long now = 1_000_000;
-            TMP_Text Text(string name) => board.View.GetComponentsInChildren<TMP_Text>().Single(t => t.name == name);
-            foreach (var (left, words) in new[] { (PauseDialog.ClosesSoonSeconds + 1, "Daily · "), (PauseDialog.ClosesSoonSeconds, "Closes in 60 min"), (41 * 60 + 1, "Closes in 42 min"), (1L, "Closes in 1 min") })
+            TMP_Text Text(string name) => board.View.GetComponentsInChildren<TMP_Text>().SingleOrDefault(t => t.name == name);
+            foreach (var (left, words) in new[] { (PauseDialog.ClosesSoonSeconds + 1, null), (PauseDialog.ClosesSoonSeconds, "Closes in 60 min"), (41 * 60 + 1, "Closes in 42 min"), (1L, "Closes in 1 min") })
             {
                 evidence.Daily = new DailyContext { ClosesAt = now + left, Now = () => now };
                 yield return Load("realm-8-daily");
                 evidence.Click("Pause"); yield return null;
-                StringAssert.StartsWith(words, Text("Screen subtitle").text);
+                StringAssert.StartsWith("Daily · ", Text("Screen subtitle").text);
+                Assert.AreEqual(words, Text(PauseDialog.ClosesName)?.text, left + " s before the day closes");
                 evidence.Click("Dialog Resume"); yield return null;
             }
             evidence.Daily = null;
             yield return Load("realm-8-campaign");
             evidence.Click("Pause"); yield return null;
-            StringAssert.StartsWith("Level ", Text("Screen subtitle").text);
+            StringAssert.StartsWith("Level ", Text("Screen subtitle").text); Assert.IsNull(Text(PauseDialog.ClosesName));
         }
 
         [UnityTest] public IEnumerator PauseControlsPreserveAcceptedState()
