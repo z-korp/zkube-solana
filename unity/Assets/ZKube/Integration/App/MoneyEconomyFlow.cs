@@ -54,6 +54,25 @@ namespace ZKube.Integration.App
             catch (Exception error) { ZKube.Integration.Transport.ClientLog.Failure("daily top", error); return null; }
         }
 
+        // A day's two boards as the chain holds them, read beside the landing
+        // page's Daily: no profile, session or journal rides with it.
+        public async Task<DailyBoards> Boards(uint day, CancellationToken cancellation = default) =>
+            (await services.Products.SettledBoards(day, cancellation).ConfigureAwait(false)).Value;
+
+        // The rewards this address can still claim: its unclaimed positions on
+        // the sealed boards of the claim window before today, by the read an
+        // entry makes to carry claims; oldest day first, Score before the Theme.
+        public async Task<(uint Day, string Kind)[]> ClaimableRewards(uint today, long now, CancellationToken cancellation = default)
+        {
+            string owner = services.Identity.Owner;
+            if (owner == null) return Array.Empty<(uint, string)>();
+            return (await services.Runs.EntryClaims(owner, today, cancellation).ConfigureAwait(false))
+                .Where(reward => !reward.Claimed && now <= reward.SealedAt + (long)ZKube.Core.Generated.Protocol.ClaimWindowSeconds)
+                .OrderBy(reward => reward.DayId).ThenBy(reward => reward.Kind == "score" ? 0 : 1).Select(reward => (reward.DayId, reward.Kind)).ToArray();
+        }
+        // More of a sealed board's places below its paying rows; how many were added.
+        public Task<int> MoreStandings(PrizeBoard board, CancellationToken cancellation = default) => services.Products.MoreStandings(board, cancellation);
+
         // A reward page observes each sealing window and the actual profile.
         // Opening it does not reconcile a pending claim or authorize a session.
         public async Task<MoneyRead<MoneyRewardState>> RefreshRewards(uint day, CancellationToken cancellation = default)

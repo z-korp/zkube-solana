@@ -79,11 +79,8 @@ namespace ZKube.Tests.Presentation
                 Actions = new[] { new PageAction { Label = "View result" } } };
             yield return Check("Used Daily", () => views.Render(AppPage.Home));
             source.Daily = new DailyPageView { Day = 20705, Realm = 1, ObjectiveKind = daily.Kind, ObjectiveValue = daily.Value, Now = () => now,
-                ClosesAt = now + 3600, Arcade = new ArcadeView { Pot = MaxSol, Closes = "Closes 06:59 UTC" },
-                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } },
-                Blocks = new[] { PanelBlock.Card("Last run", PanelBlock.Row("Last score", "Score", Max), PanelBlock.Row("Last objective", "Objective", Max)),
-                    PanelBlock.Text("Kredit balance", NumberFit.Figure(ulong.MaxValue) + " confirmed Kredits"),
-                    PanelBlock.Text("Ladder total", "Ladder · " + NumberFit.Figure(ulong.MaxValue) + " points") } };
+                ClosesAt = now + 3600, Arcade = ArenaLanding.View(MaxSol, NumberFit.Figure(ulong.MaxValue), KreditLevel.Last, Max),
+                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } } };
             yield return Check("Arena", () => views.Render(AppPage.Home));
             yield return Check("Level", () => views.Render(AppPage.Level));
             yield return Check("Profile", () => views.Render(AppPage.Profile));

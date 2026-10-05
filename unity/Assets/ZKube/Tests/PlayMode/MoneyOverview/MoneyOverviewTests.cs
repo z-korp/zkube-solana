@@ -50,14 +50,13 @@ namespace ZKube.Tests.MoneyOverview
             Click("Connect"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.BrowsingDaily, Is.True);
-            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True, "The saved Daily run is offered");
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume run"), Is.True, "The saved Daily run is offered");
             var marker = environment.Services.RunMarkers.Load(environment.Owner); yield return Wait(marker);
             StringAssert.DoesNotContain(marker.GetAwaiter().GetResult().ActiveRun, SessionText());
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(true), Is.Empty);
             yield return Wait(controller.FollowTransaction()); yield return Idle();
             Assert.That(controller.LastReceipt, Is.Null);
-            StringAssert.Contains("There is no transaction waiting to be checked", Text("Transaction receipt"));
-            StringAssert.DoesNotContain("no-pending-transaction", Text("Transaction receipt"));
+            StringAssert.DoesNotContain("no-pending-transaction", SessionText());
             Click("Settings"); yield return Idle();
             Click("Disconnect");
             Assert.That(controller.Status, Is.EqualTo("Disconnected"));
@@ -70,18 +69,17 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator ActualCheckButtonKeepsConfirmedFailureAfterTheJournalIsCleared()
         {
             yield return PrepareScenario("pending-confirmed-failure"); Click("Connect"); yield return Idle();
-            StringAssert.Contains("Transaction sent", Text("Transaction receipt"));
+            Assert.That(Text("Daily reason"), Is.EqualTo("Solana has not confirmed this yet."));
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.Pending));
             environment.ConfirmPendingFailure(); Click("Try again"); yield return Idle();
-            StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
+            Assert.That(Text("Daily reason"), Is.EqualTo("The transaction failed. Nothing changed."));
             var exact = controller.LastReceipt;
             Assert.That(exact.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure)); Assert.That(exact.ChainError, Is.Not.Empty);
             StringAssert.DoesNotContain(exact.ChainError, SessionText());
             var read = environment.Services.Journal.Load(environment.Owner); yield return Wait(read);
             Assert.That(read.GetAwaiter().GetResult(), Is.Null);
             yield return Wait(controller.RefreshOverview()); yield return Idle();
-            StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

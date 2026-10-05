@@ -41,7 +41,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Until(() => environment.Services.Identity.Owner != null, "The wallet answered");
             yield return Until(() => Field("dailyRead") != null, "The Arena is read without a tap"); yield return Idle();
             Assert.That(Adapter.BrowsingDaily, Is.True);
-            Assert.That(Offers("Resume Daily"), Is.True);
+            Assert.That(Offers("Resume run"), Is.True);
             Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text.Contains("Checking")), Is.False);
             Assert.That(Asked("authorize"), Is.EqualTo(1));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -55,7 +55,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return Until(() => Field("dailyRead") != null, "The Arena is read for the saved address"); yield return Idle();
             Assert.That(environment.Services.Identity.Owner, Is.EqualTo(environment.Owner));
             Assert.That(Asked("authorize"), Is.Zero, "No wallet is asked at start");
-            Assert.That(Offers("Connect"), Is.False); Assert.That(Offers("Resume Daily"), Is.True);
+            Assert.That(Offers("Connect"), Is.False); Assert.That(Offers("Resume run"), Is.True);
             Click("Settings"); yield return Idle(); Click("Disconnect"); yield return Idle();
             yield return Wait(Adapter.RefreshOverview()); yield return Idle();
             Assert.That(environment.Services.Identity.Owner, Is.Null, "A disconnected address is not restored by a refresh");
@@ -109,13 +109,13 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Text("Daily headline"), Is.EqualTo("Checking…"));
             Assert.That(Find("Arena"), Is.Not.Null, "The tab is named Arena");
             delay.Release(); yield return Idle(); Home("read");
-            Assert.That(Offers("Resume Daily"), Is.True);
+            Assert.That(Offers("Resume run"), Is.True);
 
             Set("dailyRead", null); Set("failure", "Could not refresh. Try again."); Redraw(); yield return Idle(); Home("failed read");
             Assert.That(Text("Daily headline"), Is.EqualTo("Not loaded"));
             Assert.That(Offers("Play Campaign"), Is.True);
             Click("Try again"); yield return Idle(); Home("read again");
-            Assert.That(Offers("Resume Daily"), Is.True);
+            Assert.That(Offers("Resume run"), Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
@@ -151,7 +151,7 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(Text("Daily reason"), Is.EqualTo("The network could not be reached."));
                 Assert.That(lines.Count(line => line.StartsWith("zKube request failed: action=read Daily kind=NoNetwork service=Solana host=base.invalid call=getMultipleAccounts")), Is.EqualTo(1), string.Join("\n", lines));
                 Click("Try again"); yield return Idle();
-                Assert.That(Offers("Resume Daily"), Is.True);
+                Assert.That(Offers("Resume run"), Is.True);
             }
             finally { ZKube.Integration.Transport.ClientLog.Sink = sink; }
             Assert.That(environment.ForbiddenCalls, Is.Zero);

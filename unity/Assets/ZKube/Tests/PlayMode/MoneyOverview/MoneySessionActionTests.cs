@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using ZKube.Presentation;
 using ZKube.Integration.App;
 using ZKube.Integration.App.Tests;
 using ZKube.Integration.Execution;
@@ -83,7 +84,8 @@ namespace ZKube.Tests.MoneyOverview
             // keep the signed result even though the button is now absent.
             yield return Wait(controller.FollowTransaction()); yield return Idle();
             Assert.That(controller.LastReceipt, Is.SameAs(exact));
-            yield return SessionClick("View operation"); yield return Idle();
+            controller.Navigate(AppPage.Settings); yield return Idle();
+            yield return SessionClick("Last operation"); yield return Idle();
             yield return SessionClick("Receipt details"); yield return Idle();
             StringAssert.Contains(signature, Text("Transaction receipt"));
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -114,7 +116,7 @@ namespace ZKube.Tests.MoneyOverview
             environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedFailure));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
-            StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
+            StringAssert.Contains("The transaction failed. Nothing changed.", SessionText());
             Assert.That(host.GetComponentsInChildren<TMP_Text>().Any(text => text.text == "Session active"), Is.False);
             Assert.That(environment.HasActiveKey, Is.True);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
@@ -144,7 +146,6 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
                 Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
                 Assert.That(controller.LastReceipt.Intent, Is.EqualTo("session-renew"));
-                StringAssert.Contains("Transaction confirmed", Text("Transaction receipt"));
                 Assert.That(environment.Calls.Count(call => call.Operation == "signTransactions"), Is.EqualTo(1));
                 Assert.That(environment.ForbiddenCalls, Is.Zero);
             }
@@ -202,7 +203,6 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(environment.Calls.Count(call => call.Operation == "injected-token-owner-after-journal-clear"), Is.EqualTo(1));
             Assert.That(exact.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(exact.Signature, Is.EqualTo(environment.SentSignature)); Assert.That(exact.Intent, Is.EqualTo("session-renew"));
-            StringAssert.Contains("Transaction confirmed", Text("Transaction receipt"));
             // The following valid observation can establish readiness; the
             // malformed first read itself never does (covered by Flow test).
             Assert.That(Text("Device state"), Is.EqualTo("Session active"));

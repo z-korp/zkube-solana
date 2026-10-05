@@ -29,13 +29,12 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enable device"), Is.False);
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.Pending));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
-            Assert.That(host.GetComponentsInChildren<TMP_Text>().Single(text => text.name == "Transaction receipt").text, Is.Not.Empty);
             controller.SendMessage("OnApplicationPause", true);
             controller.SendMessage("OnApplicationPause", false); yield return Idle();
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(signature));
             environment.ConfirmPendingFailure(); yield return SessionClick("Try again"); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ZKube.Integration.Execution.ExecutionOutcome.ConfirmedFailure));
-            StringAssert.Contains("Transaction failed", Text("Transaction receipt"));
+            StringAssert.Contains("The transaction failed. Nothing changed.", SessionText());
             Assert.That(controller.BrowsingSession, Is.True);
             Assert.That(Asked("signTransactions") + Asked("sendTransaction"), Is.Zero);
             Assert.That(environment.ForbiddenCalls, Is.Zero);

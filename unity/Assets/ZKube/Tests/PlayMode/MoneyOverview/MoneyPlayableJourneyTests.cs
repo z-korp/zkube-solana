@@ -85,7 +85,7 @@ namespace ZKube.Tests.MoneyOverview
             Click("Dialog Continue"); yield return Idle();
             Assert.That(controller.PlayingRun, Is.False);
             Assert.That(controller.BrowsingDaily, Is.True);
-            watch.Step = "the Daily's result"; yield return SessionClick("View result"); yield return Idle();
+            watch.Step = "the Daily's result"; controller.Navigate(AppPage.Result); yield return Idle();
             watch.AssertCovered(); watch.Stop();
             Assert.That(controller.ResultPage().HasResult, Is.True);
             Assert.That(controller.ResultPage().Score, Is.EqualTo(expected.DailyScore));

@@ -387,7 +387,9 @@ namespace ZKube.Integration.Client.Runs
             instruction.ProgramId + ":" + string.Join(",", instruction.Accounts.Select(meta => meta.Address + (meta.Signer ? "s" : "") + (meta.Writable ? "w" : ""))) +
             ":" + Convert.ToBase64String(instruction.Data)));
 
-        private async Task<IReadOnlyList<ValidatedBoardReward>> EntryClaims(string owner, uint day, CancellationToken cancellation)
+        // The owner's positions on the sealed boards of the claim window before day: what an entry may carry,
+        // and what the landing page counts as rewards still to claim.
+        public async Task<IReadOnlyList<ValidatedBoardReward>> EntryClaims(string owner, uint day, CancellationToken cancellation)
         {
             uint first = day > PlanningConstants.ClaimLookbackDays ? day - PlanningConstants.ClaimLookbackDays : 0;
             // Each day is read whole: its Daily says whether its boards are sealed

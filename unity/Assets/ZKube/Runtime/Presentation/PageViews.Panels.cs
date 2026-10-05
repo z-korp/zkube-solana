@@ -164,6 +164,8 @@ namespace ZKube.Presentation
                         block.Ring));
                 }
                 case PanelKind.Pair:
+                    // A pair with one shown is two views of one thing; without, two actions.
+                    if (block.Primary >= 0) return Segments(block, kit);
                     return Buttons(kit, block.Actions.Select((action, i) => (action, block.Primary == i ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet, (string)null))
                         .ToArray());
                 case PanelKind.Bar:
@@ -180,6 +182,8 @@ namespace ZKube.Presentation
                     });
                 }
                 case PanelKind.Card: return CardPiece(block, kit);
+                case PanelKind.Stepper: return StepperPiece(block, kit);
+                case PanelKind.Rows: return RowsPiece(block, kit);
                 default: throw new ArgumentOutOfRangeException(nameof(block));
             }
         }

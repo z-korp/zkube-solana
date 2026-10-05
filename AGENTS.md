@@ -366,6 +366,26 @@ deployment or spending approval.
 - **Device deposit:** what the owner's wallet puts on a device is a deposit on every page, never a fee: the
   amount asked for, what a run costs, that the rest returns when the device is disabled, the deposit a device
   in use has left, and the top-up. `TheDeviceDepositIsADepositOnEveryPageAndNeverAFee` guards the words.
+- **Arena landing:** the Arena's home is one page that fits both phones without scrolling: today's Daily card over
+  today's boards. The Daily card shows the pot as its figure, the Kredit balance with its own state (enough, the
+  last one, none), which opens Kredits, and one action, the player's next step: connect, the Campaign before
+  launch, the device, its deposit, Kredits, the run in flight, the entry, or the boards once entries close. Where
+  no step can be taken the card says why. The boards card shows Score and Theme side by side from the chain, Score
+  alone on a Classic day: the top rows that fit, ten at most, and the player's own row. A column opens its board
+  and a badge counts the rewards still to claim. The Daily, the boards and the claims are each read on their own
+  and nothing is saved, so a failed boards read says so in its card while the Daily's action still works.
+  `TheLandingPageFitsBothPhonesWithBothBoardsAndTheOwnRows`, `TheKreditFigureShowsItsStateAndOpensKredits`,
+  `TheBoardsCardStandsAloneWhileLoadingFailedEmptyAndClassic`,
+  `ABoardColumnOpensItsBoardAndTheBadgeOpensTheRewards`, `TheLandingsOneActionIsThePlayersNextStep`,
+  `TheLandingShowsTodaysBoardsAndEachReadStandsAlone` and `ARewardToClaimShowsAsTheBadgeThatOpensItsBoard` guard
+  the page and its reads.
+- **Boards page:** one page shows any day's boards: a stepper over every calendar day from the launch day to
+  today, the Score and Theme pair, the player's row with its claim, and the rows, which scroll inside their card.
+  Today's rows are the chain's live boards, without payouts. A finished day not yet finalized shows the same rows
+  and offers to seal it. A sealed day shows its paying rows with their payouts and, under a divider that calls
+  them unofficial, the read model's places a hundred at a time.
+  `TheBoardsPageStepsThroughDaysAndReadsEachKindOfDay` and `MorePlacesComeAHundredAtATimeAndOnlyWhereTheyFollowOn`
+  guard the page and its further places.
 - **Money routing:** purchase sends the operator share directly to the pinned team address; the vault holds
   prize money only. Spending never joins the competing pot: it waits in the Daily it was spent on and moves
   to the next prepared Daily when its own finalizes. The lobby shows a Daily's pot together with what the Daily
@@ -616,7 +636,9 @@ retained operation for that identity epoch;
 `TheLastOperationIsSharedAcrossPagesAndClearedOnReconnect`,
 `MoneyRunSettlementUsesTheActualReconcilerAndKeepsOrderedCommitConsumeReceipts`,
 `AConsumedRunsReceiptCanFinishWithoutClaimingItsNewSuccessor` and
-`RunReceiptRejectsReuseWrongOwnerAndRunBeforeSending` guard receipt retention and settlement.
+`RunReceiptRejectsReuseWrongOwnerAndRunBeforeSending` guard receipt retention and settlement. One page shows it,
+Last operation behind Settings; no other page carries a receipt, since each action shows its progress, reason and
+retry where it was asked. `NoPageButLastOperationCarriesAReceipt` guards that.
 
 ### Unity and generated boundaries
 
@@ -770,8 +792,10 @@ The client reads a sealed board from the chain and asks the read model only for 
 holds: the ranks after its rows and the player's own result below them. An answer is shown only where it agrees
 with the board (the same qualified count, ranks after the board's rows, no result above its last row); with no
 answer, or one that disagrees, the page shows the chain's board alone and nothing else changes. Claims never
-read it. `YourResultBelowThePaidRowsComesFromTheReadModelAndTheBoardStandsAloneWithoutIt` and
-`ABoardThatHoldsItsWholeFieldAsksTheReadModelNothing` guard the read.
+read it. Further places come a hundred at a time when the player asks, each page held to the same agreement
+with what is already shown. `YourResultBelowThePaidRowsComesFromTheReadModelAndTheBoardStandsAloneWithoutIt`,
+`ABoardThatHoldsItsWholeFieldAsksTheReadModelNothing` and `MorePlacesComeAHundredAtATimeAndOnlyWhereTheyFollowOn`
+guard the read.
 
 The keeper pass runs only from the Worker's Cron Trigger. The request path is handed the database and the
 webhook secret alone: no request can start a pass, reach the key or change the write switch.

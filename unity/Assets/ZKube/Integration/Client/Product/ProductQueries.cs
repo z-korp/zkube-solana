@@ -85,13 +85,36 @@ namespace ZKube.Integration.Client
         // board sealed recently can still be claimed during its own window.
         public Task<MoneyRead<DailyBoards>> SettledBoards(uint day, CancellationToken cancellation = default) => Read(cancellation, async (lease, token) => {
             long timestamp = Clock();
-            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score"), addresses.Board(day, "theme") }, cancellation: token).ConfigureAwait(false);
+            var read = await rpc.ReadAccounts(rpc.Base, new[] { addresses.Daily(day), addresses.Board(day, "score"), addresses.Board(day, "theme"),
+                addresses.ProtocolAddress }, cancellation: token).ConfigureAwait(false);
             var daily = read.Accounts[0].Envelope == null ? null : accounts.ArenaDaily(read.Accounts[0].Envelope, day);
             string dailyStatus = daily == null ? "missing" : DailyStatus(daily, timestamp);
+            var protocol = read.Accounts[3].Envelope == null ? null : accounts.ProtocolConfig(read.Accounts[3].Envelope);
             return new DailyBoards(day, dailyStatus, daily != null && !DailyCadence.Finalized(daily) && DailyCadence.WindowDone(daily, timestamp),
                 await WithPublicStandings(day, Board(day, "score", read.Accounts[1].Envelope, daily, lease.Owner, timestamp), lease.Owner, token).ConfigureAwait(false),
-                await WithPublicStandings(day, Board(day, "theme", read.Accounts[2].Envelope, daily, lease.Owner, timestamp), lease.Owner, token).ConfigureAwait(false));
+                await WithPublicStandings(day, Board(day, "theme", read.Accounts[2].Envelope, daily, lease.Owner, timestamp), lease.Owner, token).ConfigureAwait(false),
+                protocol == null ? 0 : (uint)protocol["launch_day_id"]);
         });
+
+        // The next page of a sealed board's places below its paying rows, from the
+        // public read model, held to the same agreement as the first: ranks that
+        // follow on, results no higher than the last shown, no player twice.
+        // Anything else, or no answer, adds nothing.
+        public async Task<int> MoreStandings(PrizeBoard board, CancellationToken cancellation = default)
+        {
+            var account = board?.Account;
+            if (standings == null || account == null || !account.Sealed || board.PlacesBeyond == 0) return 0;
+            uint shown = (uint)(board.Rows.Count + board.Unpaid.Count), total = account.QualifiedCount;
+            ulong ceiling = board.Unpaid[board.Unpaid.Count - 1].Metric;
+            var page = await standings.Rows(account.DayId, board.Kind, shown, cancellation).ConfigureAwait(false);
+            if (page == null || page.Total != total || page.Rows.Count != Math.Min(total - shown, StandingsTransport.PageRows) ||
+                page.Rows.Where((row, index) => row.Rank != shown + 1 + (uint)index || row.Metric == 0 ||
+                    row.Metric > (index == 0 ? ceiling : page.Rows[index - 1].Metric)).Any() ||
+                page.Rows.Select(row => row.Player).Concat(board.Unpaid.Select(row => row.Player)).Concat(board.Rows.Select(row => row.Record.Player))
+                    .Distinct().Count() != shown + page.Rows.Count) return 0;
+            board.WithPublic(board.Unpaid.Concat(page.Rows).ToArray(), board.Standing);
+            return page.Rows.Count;
+        }
 
         // A sealed board keeps its paying rows; the ranks below them live only in
         // the public read model. Its answer is shown only where it agrees with

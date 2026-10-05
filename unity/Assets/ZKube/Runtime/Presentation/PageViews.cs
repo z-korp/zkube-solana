@@ -389,34 +389,6 @@ namespace ZKube.Presentation
                     side.Value.Draw(new Rect(rect.xMax - side.Value.Width, rect.center.y - side.Value.Height / 2, side.Value.Width, side.Value.Height));
             });
         }
-        // The Arena's Home, as the wireframe draws it: the Arena lockup over the
-        // painting, today's Daily card with the prize pool and when entries
-        // close and Enter inside it, why no entry can be made when none can,
-        // then the identity's blocks (the Kredit balance with Kredits and
-        // Rewards, and the board rule).
-        private void ArcadeHome(DailyPageView value)
-        {
-            var kit = Kit; float u = kit.U, k = kit.K;
-            var arcade = value.Arcade; var realm = catalog.Realm(value.Realm);
-            if (value.Now != null) { countdownView = value; countdownSecond = value.Now(); }
-            long? clock = arcade.Headline == null && value.ClosesAt > 0 && value.Now != null ? value.ClosesAt - countdownSecond : (long?)null;
-            var inside = kit.Inside();
-            var rows = new List<Piece>();
-            if (arcade.Pot != null)
-                rows.Add(inside.Row("Prize pool", null, "Prize pool", arcade.Closes, inside.Value("Prize pool value", arcade.Pot, SkinTokens.Accent), false));
-            var pieces = new List<Piece> { Lockup(kit, 90), DailyCard(kit, value, realm.guardianName + " · " + realm.realmName, clock, false, rows.ToArray(),
-                Buttons(inside, value.Actions.Select((action, i) => (action, i == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
-                    i == 0 ? SkinSlots.IconPlay : (string)null)).ToArray())) };
-            if (arcade.Reason != null)
-            {
-                pieces.Add(Line("Daily reason", arcade.Reason, arcade.Warning ? SkinTokens.Negative : SkinTokens.Text, kit));
-                if (arcade.Detail != null) pieces.Add(Line("Daily reason detail", arcade.Detail, arcade.Warning ? SkinTokens.Text : SkinTokens.TextMuted, kit));
-            }
-            pieces.AddRange(BlockPieces(value.Blocks, kit, false));
-            pieces.Add(Piece.Grow);
-            Compose(pieces.ToArray());
-            ShowPortraits();
-        }
         // A centred line in its own name and ink, between a screen's pieces.
         private Piece Line(string name, string text, string token, ScreenKit kit)
         {

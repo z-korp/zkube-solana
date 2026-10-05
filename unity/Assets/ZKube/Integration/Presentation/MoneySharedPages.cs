@@ -18,7 +18,6 @@ namespace ZKube.Integration.Presentation
         private AppPage? sharedPage;
         private ResultPageView lastResult;
         private bool browsingOperation;
-        private string operationReturn;
         // Shown in place of a page whose read is not there: what is being
         // checked, or why the page needs refreshing.
         private string pageNotice;
@@ -72,7 +71,7 @@ namespace ZKube.Integration.Presentation
                 PanelBlock.Card("Device card", PanelBlock.Eyebrow("This device", SkinTokens.TextMuted),
                     new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = DeviceState(session).Short,
                         Token = DeviceState(session).Token, Action = PageAction("Manage", () => _ = OpenSession(true), () => PageAvailable() && !Busy) }),
-                PanelBlock.Pair(PageAction("Last operation", () => OpenOperation(true), () => PageAvailable() && !Busy),
+                PanelBlock.Pair(PageAction("Last operation", OpenOperation, () => PageAvailable() && !Busy),
                     PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable())) };
             return view;
         }
@@ -101,7 +100,6 @@ namespace ZKube.Integration.Presentation
                 // The Arena's page is one page with or without an address.
                 "Connect" => "Daily",
                 "Daily" => confirmingDaily ? "Entry" : "Daily",
-                "Rewards" => "Rewards " + rewardDay + (boardKind == null ? "" : " " + boardKind),
                 "Device" => revokeConfirming ? "Revoke" : "Device",
                 "Profile" => "Profile " + profileView,
                 _ => family
@@ -113,7 +111,7 @@ namespace ZKube.Integration.Presentation
         private byte PageRealm() => Family() switch {
             "Campaign" => campaignPage == AppPage.Result ? campaign.Last.Realm : campaign.Realm,
             "Profile" => profileRead != null && profileRead.IsCurrent ? ProfileRealm() : KnownProfileRealm() ?? ShownRealm,
-            "Rewards" => NativeEngine.Daily(rewardDay).Realm,
+            "Rewards" => ShownRealm,
             "Result" => lastResult != null && lastResult.HasResult ? lastResult.Realm : TodayRealm,
             "Settings" => ShownRealm,
             _ => TodayRealm
@@ -134,7 +132,7 @@ namespace ZKube.Integration.Presentation
                     else if (confirmingDaily) views.RenderPanel(EntryPage(), notices);
                     else
                     {
-                        views.Render(AppPage.Home, notices);
+                        views.Render(AppPage.Home);
                         // The first Arena with an address teaches the Arena Daily, over the page and never on the entry sheet.
                         if (dailyRead.TryValue(out var shown) && shown.Lobby.Launched && !Lessons.Device.Taught(Lesson.ArenaDaily)) views.Teach(Lessons.ArenaDaily, () => Lessons.Device.Teach(Lesson.ArenaDaily));
                     }
@@ -185,26 +183,16 @@ namespace ZKube.Integration.Presentation
         private void Notice(string message) { pageNotice = message; Present(); }
 
         // The last operation: its outcome, what it was, the receipt and the one
-        // thing to do next. Tapping the receipt shows the whole signature.
-        private void OpenOperation(bool fromSettings)
+        // thing to do next. Tapping the receipt shows the whole signature. It
+        // is the one place a receipt is shown: Settings opens it, and no other
+        // page carries a receipt card, since each action shows its own progress,
+        // reason and retry where it was asked.
+        private void OpenOperation()
         {
             if (!PageAvailable() || Busy) return;
-            operationReturn = fromSettings ? "Settings" : Family();
             CloseProductViews(); browsingOperation = true; Present();
         }
-        // Back returns to the page the operation was opened from.
-        private void ReturnFromOperation()
-        {
-            switch (operationReturn)
-            {
-                case "Settings": OpenSharedPage(AppPage.Settings); break;
-                case "Kredits": _ = OpenKredits(); break;
-                case "Device": _ = OpenSession(); break;
-                case "Rewards": _ = OpenRewards(rewardDay); break;
-                case "Profile": _ = OpenProfile(); break;
-                default: _ = OpenDaily(); break;
-            }
-        }
+        private void ReturnFromOperation() => OpenSharedPage(AppPage.Settings);
         private PanelPageView OperationPage()
         {
             var back = PageAction("Back", ReturnFromOperation, () => PageAvailable() && !Busy);
@@ -243,18 +231,6 @@ namespace ZKube.Integration.Presentation
             else blocks.Add(PanelBlock.Button(arcade, true));
             page.Blocks = blocks.ToArray();
             return page;
-        }
-        // The receipt of an operation on this page, as a row that opens the
-        // last operation.
-        private PanelBlock ReceiptRow(string family)
-        {
-            // A refused action that sent nothing shows its reason on the page; its receipt would say it twice.
-            var receipt = LastReceipt;
-            if (receiptFamily != family || (RefusalOn(family) != null && string.IsNullOrEmpty(receipt?.Signature))) return null;
-            if (receipt == null && receiptNotice == null) return null;
-            return PanelBlock.Card("Receipt card", PanelBlock.Eyebrow("Last operation", SkinTokens.TextMuted),
-                PanelBlock.Text("Transaction receipt", receipt == null ? receiptNotice : MoneyReceiptText.Describe(receipt, fullReceipt)),
-                PanelBlock.Button(PageAction("View operation", () => OpenOperation(false), () => PageAvailable() && !Busy), false));
         }
     }
 }

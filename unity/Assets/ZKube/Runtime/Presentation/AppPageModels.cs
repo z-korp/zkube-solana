@@ -97,26 +97,57 @@ namespace ZKube.Presentation
         // Set by an identity whose Daily is entered on its own terms (the Arena
         // Arcade); the page then draws the Arcade panel instead of the Daily one.
         public ArcadeView Arcade;
-        // The identity's own blocks under the Daily panel.
-        public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
         // An identity with nowhere else to go yet (the Arena before an address) draws no tab bar.
         public bool NoTabs;
     }
 
-    // The Arcade's Daily panel: the prize pool beside the entry clock, and the
-    // reason an entry cannot be made, which replaces the entry action.
+    // The Arena's landing page: the Daily card with the prize pool, the Kredit
+    // figure and the reason an entry cannot be made, then today's boards.
     public sealed class ArcadeView
     {
         // The prize pool, or null when the Daily has none to show.
         public string Pot;
-        // Under the headline: when entries close ("Closes 06:59 UTC").
-        public string Closes;
         // In place of the countdown when entries are not open ("Entries closed").
         public string Headline;
         // Why no entry can be made now, and what still can be done; in the
         // negative ink when Warning is set.
         public string Reason, Detail;
         public bool Warning;
+        // The confirmed Kredit balance as a figure that shows its own state and
+        // opens the Kredits page; null where there is no balance to show.
+        public string Kredits;
+        public KreditLevel KreditLevel;
+        public PageAction OpenKredits;
+        // Today's boards, side by side: null while they are being read (the card
+        // then holds their places), or BoardsNotice with BoardsRetry when the
+        // read failed. No card at all when HasBoards is unset.
+        public bool HasBoards;
+        public BoardColumnView[] Boards;
+        public string BoardsNotice;
+        public PageAction BoardsRetry;
+        // Rewards waiting to be claimed, as the badge's words ("2 to claim"); null when there are none.
+        public PageAction Claims;
+    }
+    // How the Kredit figure reads: enough to play on, the last one, or none.
+    public enum KreditLevel { Enough, Last, None }
+
+    // One row of a board: its rank, the player, the result and, on a sealed
+    // board, the payout. Yours is the reader's own row; Unofficial is a place
+    // the board no longer holds, shown from the public read model.
+    public sealed class BoardRowView
+    {
+        public string Rank, Player, Value, Payout;
+        public bool Yours, Unofficial;
+    }
+    // A board on the landing page: its pictogram (with its chip) and name, its
+    // top rows, the reader's own row under them, and the tap that opens it.
+    // Empty says why a board has no rows.
+    public sealed class BoardColumnView
+    {
+        public string Name, Pictogram, Chip, Empty;
+        public BoardRowView[] Rows = Array.Empty<BoardRowView>();
+        public BoardRowView Yours;
+        public PageAction Open;
     }
 
     public sealed class ProfileChoiceView
@@ -212,7 +243,7 @@ namespace ZKube.Presentation
         public PanelBlock[] Blocks = Array.Empty<PanelBlock>();
     }
 
-    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card }
+    public enum PanelKind { Talk, Title, Text, Eyebrow, Figure, Split, Row, Icon, Portrait, Button, Pair, Bar, Card, Stepper, Rows }
 
     // One piece of an identity page, laid out by the screen kit as the
     // wireframes lay out the Arena. Text is left-aligned inside a card and
@@ -229,6 +260,7 @@ namespace ZKube.Presentation
         public PageAction Action;
         public PageAction[] Actions = Array.Empty<PageAction>();
         public PanelBlock[] Lines = Array.Empty<PanelBlock>();
+        public BoardRowView[] Rows = Array.Empty<BoardRowView>();
 
         // The page realm's guardian says a line, leaning on the card after it.
         public static PanelBlock Talk(string line, string mood) =>
@@ -279,6 +311,16 @@ namespace ZKube.Presentation
             new PanelBlock { Kind = PanelKind.Bar, Name = name, Sprite = icon, Value = number, Copy = words, ChipAtEnd = chipAtEnd, Actions = actions };
         public static PanelBlock Card(string name, params PanelBlock[] lines) =>
             new PanelBlock { Kind = PanelKind.Card, Name = name, Lines = lines };
+        // A day stepper: previous, the date over the day's state (with its mark,
+        // when it has one), next. A step that cannot be taken (past today, before
+        // the first day) is passed as null and its arrow is drawn dimmed.
+        public static PanelBlock Stepper(string date, string state, string stateToken, PageAction previous, PageAction next, string mark = null) =>
+            new PanelBlock { Kind = PanelKind.Stepper, Name = "Day stepper", Copy = date, Tag = state, TagToken = stateToken, Sprite = mark, Actions = new[] { previous, next } };
+        // A board's rows in a list that takes the page's spare height and scrolls
+        // inside it. divider stands before the first unofficial row; more, when
+        // set, is the list's last row; empty says why there are no rows.
+        public static PanelBlock List(string name, BoardRowView[] rows, string divider = null, PageAction more = null, string empty = null) =>
+            new PanelBlock { Kind = PanelKind.Rows, Name = name, Rows = rows, Caption = divider, Action = more, Copy = empty };
     }
 
     public interface IAppPageSource

@@ -109,6 +109,10 @@ namespace ZKube.Integration.Client
         public IReadOnlyList<PrizeRow> Rows { get; }
         public PrizeRow Yours { get; }
         public ValidatedBoardAccount Account { get; }
+        // A board not sealed yet keeps every qualifier's best in order, up to its
+        // capacity, with no payout plan: its standings as they are now.
+        public bool Live => Account != null && !Account.Sealed;
+        public ulong Metric(ValidatedBoardRow row) => Kind == "score" ? row.Score : row.ObjectiveTotal;
         // What the public read model adds to a sealed board, for display only:
         // the ranks after the board's own rows, and your result when the board
         // does not hold it. Empty and null whenever that model is unavailable.
@@ -119,6 +123,9 @@ namespace ZKube.Integration.Client
             Yours = rows.SingleOrDefault(row => row.Record.Player == owner); Account = account; }
         internal PrizeBoard WithPublic(PublicStandingRow[] unpaid, PublicStandingRow standing)
         { Unpaid = Array.AsReadOnly(unpaid); Standing = standing; return this; }
+        // The qualified places the board and the read model's pages so far do not show.
+        public uint PlacesBeyond => Account == null || !Account.Sealed || Unpaid.Count == 0 ? 0 :
+            Account.QualifiedCount - Math.Min(Account.QualifiedCount, (uint)(Rows.Count + Unpaid.Count));
     }
     public sealed class DailyBoards
     {
@@ -128,7 +135,9 @@ namespace ZKube.Integration.Client
         public bool Finalizable { get; }
         public PrizeBoard Score { get; }
         public PrizeBoard Theme { get; }
-        internal DailyBoards(uint day, string status, bool finalizable, PrizeBoard score, PrizeBoard theme)
-        { DayId = day; DailyStatus = status; Finalizable = finalizable; Score = score; Theme = theme; }
+        // The first day that has a Daily, or zero before launch: nothing earlier can be browsed.
+        public uint LaunchDay { get; }
+        internal DailyBoards(uint day, string status, bool finalizable, PrizeBoard score, PrizeBoard theme, uint launchDay = 0)
+        { DayId = day; DailyStatus = status; Finalizable = finalizable; Score = score; Theme = theme; LaunchDay = launchDay; }
     }
 }

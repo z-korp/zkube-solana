@@ -36,7 +36,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview");
             yield return SessionClick("Connect"); yield return Idle();
-            yield return SessionClick("Resume Daily"); yield return Idle();
+            yield return SessionClick("Resume run"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             Assert.That(controller.PlayingRun, Is.True);
             float until = Time.realtimeSinceStartup + 15;

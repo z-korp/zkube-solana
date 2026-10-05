@@ -71,26 +71,24 @@ namespace ZKube.Tests.MoneyOverview
                 .GetValue(Adapter)).Value.Lobby;
             Set("lastResult", new ResultPageView { HasResult = true, ProductName = Application.productName, Mode = "Daily", PlayerName = environment.Owner,
                 Realm = lobby.Realm, Day = lobby.DayId, ObjectiveKind = lobby.ObjectiveKind, ObjectiveValue = lobby.ObjectiveValue, Score = 1840, ObjectiveTotal = 24, Streak = 7 });
-            Redraw(); yield return Words("Arena with the last run");
             Adapter.Navigate(AppPage.Result); yield return Words("Daily result");
             yield return EndScenario();
 
             yield return Compact("kredit-pending-success"); Click("Connect"); yield return Idle();
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
             yield return Wait(Adapter.PurchaseKredits(environment.KreditPack)); yield return Words("Purchase pending");
-            Click("View operation"); yield return Words("Transaction pending");
+            Adapter.Navigate(AppPage.Settings); yield return Idle(); Click("Last operation"); yield return Words("Transaction pending");
             yield return Wait(Adapter.OpenKredits()); yield return Idle();
             Refuse("Kredits"); yield return Words("Purchase refused");
             yield return EndScenario();
 
             yield return Compact("claim-theme-sealed"); Click("Connect"); yield return Idle();
-            yield return Wait(Adapter.OpenRewards(environment.ClaimDay)); yield return Words("Rewards");
+            yield return Wait(Adapter.OpenRewards(environment.ClaimDay, "theme")); yield return Words("Boards with a reward");
             Assert.That(host.GetComponentsInChildren<UnityEngine.UI.Button>(), Has.Some.Property("name").EqualTo("Collect Objective"));
             yield return Wait(Adapter.CollectReward("theme")); yield return Words("Objective reward claimed");
             StringAssert.Contains("Objective reward received", string.Join("\n", PageText.Visible(host.transform).Select(text => text.text)));
-            foreach (string board in new[] { "Score", MoneyText.Board("theme", PageCatalog.Load(), environment.ClaimDay) })
-            { Click("View " + board + " board"); yield return Words(board + " board"); Click("Back to rewards"); yield return Idle(); }
-            yield return Wait(Adapter.OpenRewards(environment.ClaimDay - 1)); yield return Words("No rewards yet");
+            Click("Score board"); yield return Words("Score board");
+            yield return Wait(Adapter.OpenRewards(environment.ClaimDay - 1)); yield return Words("A day nobody played");
             yield return EndScenario();
 
             yield return Compact("claim-score-expired"); Click("Connect"); yield return Idle();

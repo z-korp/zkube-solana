@@ -4,6 +4,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using ZKube.Presentation;
 using ZKube.Integration.App;
 using ZKube.Integration.Execution;
 using ZKube.Integration.Presentation;
@@ -34,16 +35,18 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick(MoneyAppAdapter.KreditPurchaseLabel(pack)); yield return Idle();
             Assert.That(controller.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(controller.LastReceipt.Signature, Is.EqualTo(environment.SentSignature));
-            StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
             Assert.That(Text("Kredit balance"), Is.EqualTo((25 + pack).ToString()));
-            // The last operation shows the whole signature on request.
-            yield return SessionClick("View operation"); yield return Idle();
+            Assert.That(host.GetComponentsInChildren<UnityEngine.UI.Image>().Any(image => image.name == "Receipt card"), Is.False, "The page carries no receipt card");
+            // The last operation, behind Settings, shows the whole signature on request.
+            controller.Navigate(AppPage.Settings); yield return Idle();
+            yield return SessionClick("Last operation"); yield return Idle();
             StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
             yield return SessionClick("Receipt details"); yield return Idle();
             StringAssert.Contains(environment.SentSignature, Text("Transaction receipt"));
             yield return SessionClick("Receipt details"); yield return Idle();
             StringAssert.DoesNotContain(environment.SentSignature, Text("Transaction receipt"));
             yield return SessionClick("Back"); yield return Idle();
+            yield return Wait(controller.OpenKredits()); yield return Idle();
             Assert.That(Text("Kredit balance"), Is.EqualTo((25 + pack).ToString()));
             var exact = controller.LastReceipt;
             controller.SendMessage("OnApplicationPause", true); controller.SendMessage("OnApplicationPause", false); yield return Idle();

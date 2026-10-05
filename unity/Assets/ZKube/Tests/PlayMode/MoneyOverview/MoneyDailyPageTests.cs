@@ -24,9 +24,9 @@ namespace ZKube.Tests.MoneyOverview
         [UnityTest] public IEnumerator DailyNavigationReadsThePublicChallengeAndOffersOnlySavedRunResume()
         {
             yield return OpenDailyPage();
-            StringAssert.Contains("Prize pool", DailyText());
-            StringAssert.Contains("06:59 UTC", DailyText());
-            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
+            StringAssert.Contains("Kitsune · Japan", DailyText());
+            StringAssert.Contains("0.00 SOL", DailyText());
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume run"), Is.True);
             Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Enter · 1 Kredit" || button.name == "Confirm 1 Kredit"), Is.False);
             Assert.That(host.GetComponentsInChildren<ZKube.Presentation.BoardController>(), Is.Empty);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
@@ -38,7 +38,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return OpenDailyPage();
             var read = environment.Services.Runs.Inspect(); yield return Wait(read);
             var token = read.GetAwaiter().GetResult().Token;
-            yield return SessionClick("Resume Daily"); yield return Idle();
+            yield return SessionClick("Resume run"); yield return Idle();
             var controller = host.GetComponent<MoneyIdentity>().Controller;
             var board = host.GetComponent<MoneyBoardHost>().Board;
             Assert.That(controller.PlayingRun, Is.True);
@@ -84,7 +84,7 @@ namespace ZKube.Tests.MoneyOverview
             long now = environment.Clock(); environment.AdvanceClock((long)ZKube.Core.NativeEngine.Daily(ZKube.Core.NativeEngine.DayAt(now)).FreezesAt - now);
             yield return null; yield return Idle(); yield return null;
             StringAssert.Contains("Entries closed", DailyText());
-            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.True);
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume run"), Is.True);
             Assert.That(environment.Calls.Any(call => call.Operation == "sendTransaction" || call.Operation == "signTransactions"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
@@ -99,7 +99,7 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Arena"); yield return Idle();
             yield return OpenDevice();
             Assert.That(controller.BrowsingDaily, Is.False); Assert.That(controller.BrowsingSession, Is.True);
-            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume Daily"), Is.False);
+            Assert.That(host.GetComponentsInChildren<Button>().Any(button => button.name == "Resume run"), Is.False);
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
 
@@ -111,7 +111,7 @@ namespace ZKube.Tests.MoneyOverview
             var shell = host.GetComponent<PageShell>(); ZKube.Tests.Presentation.Phones.Compact(shell);
             yield return SessionClick("Connect"); yield return Idle();
             // The map opens at the current level, so it is not among them.
-            foreach (string control in new[] { "Kredits", "Arena", "Rewards", "Arena", "Profile", "Arena" })
+            foreach (string control in new[] { "Kredits", "Arena", "Open Score board", "Arena", "Profile", "Arena" })
             {
                 var scroll = shell.Scroll; Canvas.ForceUpdateCanvases();
                 if (scroll.content.rect.height > scroll.viewport.rect.height)
@@ -138,7 +138,7 @@ namespace ZKube.Tests.MoneyOverview
                 Assert.That(controller.SessionActionPending, Is.True);
                 yield return SessionClick("Back"); yield return Idle();
                 yield return SessionClick("Arena"); yield return Idle();
-                var resume = host.GetComponentsInChildren<Button>().Single(button => button.name == "Resume Daily");
+                var resume = host.GetComponentsInChildren<Button>().Single(button => button.name == "Resume run");
                 Assert.That(resume.interactable, Is.False);
                 int before = environment.Calls.Count;
                 yield return Wait(controller.ResumeDailyRun());

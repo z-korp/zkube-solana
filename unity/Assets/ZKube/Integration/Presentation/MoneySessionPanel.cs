@@ -39,7 +39,8 @@ namespace ZKube.Integration.Presentation
             var state = result.Value;
             if (state.PreviousOperation != null) ShowReceipt(state.PreviousOperation, state.Owner);
             Status = state.RecoveredOperation ? "Checked the existing transaction. No new device setup was requested." : "Device session updated";
-            if (state.RecoveredOperation) Inform(Status);
+            // A followed transaction that failed keeps its reason on the page.
+            if (state.RecoveredOperation && info == null) Inform(Status);
         }
         private void RefreshSessionIdentity()
         {
@@ -99,8 +100,6 @@ namespace ZKube.Integration.Presentation
             rows.Add(PanelBlock.Row("Deposit", "Deposit", session.ValidUntil > 0 ? Sol(session.Balance) : fresh ? Sol(DeviceFunding.DepositLamports) : "—"));
             if (session.ValidUntil > 0) rows.Add(PanelBlock.Row("Device expiry", "Authorization ends", Utc(session.ValidUntil)));
             var blocks = new List<PanelBlock> { PanelBlock.Card("Device card", rows.ToArray()) };
-            var receipt = ReceiptRow("Device");
-            if (receipt != null) blocks.Add(receipt);
             if (sessionActionPending) Requesting(blocks);
             else if (state.Pending != null)
             {

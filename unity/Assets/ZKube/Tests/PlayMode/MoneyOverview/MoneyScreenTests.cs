@@ -51,9 +51,11 @@ namespace ZKube.Tests.MoneyOverview
         }
 
         // The Arena's pages on the wireframe's Seeker frame: each page's pieces
-        // where the scenario's state is the wireframe's (the Kredits page, the
-        // entry and the Arcade throughout; the title, tiles and tabs of rewards,
-        // this device and the profile, whose states differ).
+        // where the scenario's state is the wireframe's (the Kredits page and
+        // the entry throughout; the title, tiles and tabs of this device and
+        // the profile, whose states differ). The landing page keeps the
+        // wireframe's lockup and tabs and the boards page its tabs;
+        // ArenaLandingTests and ArenaHomeTests own what those two pages draw.
         private IEnumerator Wireframe(string page, params string[] roles)
         {
             yield return Idle(); yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .05f); Canvas.ForceUpdateCanvases();
@@ -68,7 +70,7 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("daily-playable"); Phones.WireframeSeeker(host.GetComponent<PageShell>());
             yield return Wait(Adapter.RefreshOverview()); yield return Idle();
-            Click("Connect"); yield return Wireframe("arcade", "lockup", "cards", "primaries", "quiet", "tabs");
+            Click("Connect"); yield return Wireframe("arcade", "lockup", "tabs");
             Click("Enter · 1 Kredit"); yield return Wireframe("entry", "titles", "guardians", "cards", "primaries");
             yield return EndScenario();
             yield return PrepareScenario("owner-overview"); Phones.WireframeSeeker(host.GetComponent<PageShell>());
@@ -76,7 +78,7 @@ namespace ZKube.Tests.MoneyOverview
             Click("Connect"); yield return Idle();
             Click("Settings"); yield return Idle(); Click("Manage"); yield return Wireframe("device", "titles", "tabs");
             yield return Wait(Adapter.OpenKredits()); yield return Wireframe("kredits", "titles", "cards", "primaries", "quiet", "tabs");
-            yield return Wait(Adapter.OpenRewards()); yield return Wireframe("rewards", "titles", "tabs");
+            yield return Wait(Adapter.OpenRewards()); yield return Wireframe("rewards", "tabs");
             yield return EndScenario();
             yield return PrepareScenario("profile-success"); Phones.WireframeSeeker(host.GetComponent<PageShell>());
             yield return Wait(Adapter.RefreshOverview()); yield return Idle();

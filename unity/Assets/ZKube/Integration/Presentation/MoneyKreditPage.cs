@@ -109,8 +109,6 @@ namespace ZKube.Integration.Presentation
                 blocks.Add(PanelBlock.Card("Pack card", packs.ToArray()));
             }
             blocks.Add(PanelBlock.Text("Kredit terms", "Kredits cannot be withdrawn, transferred or exchanged for SOL.", SkinTokens.TextMuted));
-            var row = ReceiptRow("Kredits");
-            if (row != null) blocks.Insert(1, row);
             page.Blocks = blocks.ToArray();
             return page;
         }

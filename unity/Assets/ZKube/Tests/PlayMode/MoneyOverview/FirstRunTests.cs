@@ -45,7 +45,7 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(Adapter.LastReceipt.Code, Is.EqualTo("simulation-rejected"));
             Assert.That(Asked("signTransactions"), Is.Zero, "The wallet is never asked for a transaction the cluster refuses");
             Assert.That(Text("Action refused"), Is.EqualTo("Solana refused this request. Check your wallet’s SOL."));
-            Assert.That(Offers("Enable device"), Is.False); Assert.That(Offers("View operation"), Is.False);
+            Assert.That(Offers("Enable device"), Is.False);
             yield return SessionClick("Try again"); yield return Idle();
             Assert.That(Asked("signTransactions"), Is.EqualTo(1));
             Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
@@ -140,7 +140,8 @@ namespace ZKube.Tests.MoneyOverview
             yield return SessionClick("Top up deposit"); yield return Idle();
             Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));
             Assert.That(Text("Deposit"), Is.EqualTo(deposit));
-            yield return SessionClick("View operation"); yield return Idle();
+            Adapter.Navigate(AppPage.Settings); yield return Idle();
+            yield return SessionClick("Last operation"); yield return Idle();
             Assert.That(Says("Deposit top-up confirmed"), Is.True); NoFee("receipt");
             Assert.That(environment.ForbiddenCalls, Is.Zero);
         }

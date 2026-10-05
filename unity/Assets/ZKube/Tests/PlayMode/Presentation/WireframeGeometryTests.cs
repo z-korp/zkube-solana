@@ -149,7 +149,7 @@ namespace ZKube.Tests.Presentation
                     Assert.That(h.y, Is.InRange(w.y - Tolerance, w.y + lowered + Tolerance), at + " (top)");
                     // The Daily card's objective line holds its pictogram left of its caption
                     // (DECISIONS 2026-10-02), which makes the card that row taller than the wireframe's.
-                    if (role == "cards" && i == 0 && (page == "home" || page == "arcade"))
+                    if (role == "cards" && i == 0 && page == "home")
                         Assert.That(h.height, Is.InRange(w.height - Tolerance, w.height + 12 * u + Tolerance), at + " (height)");
                     else if (role != "guardians") Near(w.height, h.height, "height");
                 }
@@ -241,9 +241,7 @@ namespace ZKube.Tests.Presentation
             var daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "Play today" } } };
             var arcade = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
-                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 06:59 UTC" },
-                Blocks = new[] { PanelBlock.Bar("Kredit balance", SkinSlots.IconKredit, "3", "Kredits", false, new PageAction { Label = "Kredits" }, new PageAction { Label = "Rewards" }),
-                    PanelBlock.Text("Arena rule", "Your best run on each board counts.", SkinTokens.TextMuted) } };
+                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = ArenaLanding.View(claims: "2 to claim") };
             var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
                 Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
@@ -339,7 +337,7 @@ namespace ZKube.Tests.Presentation
             var daily = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
                 Actions = new[] { new PageAction { Label = "Play today" } } };
             var arcade = new DailyPageView { Day = 20705, Realm = 3, ObjectiveKind = 1, ObjectiveValue = 3, Now = () => now, ClosesAt = 20706L * 86400,
-                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 06:59 UTC" } };
+                Actions = new[] { new PageAction { Label = "Enter · 1 Kredit" } }, Arcade = ArenaLanding.View() };
             var campaign = new ResultPageView { ProductName = "zKube", Mode = "Campaign", PlayerName = "Player", HasResult = true, ShowStars = true, Realm = 1, Level = 1,
                 Score = 24, StarSources = 7, EndReason = 1, MovesLeft = 3, PrimaryProgress = 6, Goals = source.Level.Goals, NewBest = true, NextOpen = false,
                 Done = new PageAction { Label = "Continue" }, Retry = new PageAction { Label = "Retry" } };
@@ -569,7 +567,7 @@ namespace ZKube.Tests.Presentation
                 {
                     source.Daily = new DailyPageView { Day = 20705, Realm = realm, ObjectiveKind = 1, ObjectiveValue = 3,
                         Actions = new[] { new PageAction { Label = arcade ? "Enter · 1 Kredit" : "Play today" } },
-                        Arcade = arcade ? new ArcadeView { Pot = "0.10 SOL", Closes = "Closes 06:59 UTC" } : null };
+                        Arcade = arcade ? ArenaLanding.View() : null };
                     views.Render(AppPage.Home);
                     yield return new WaitForSecondsRealtime(PageShell.LeaveSeconds + .1f);
                     var portrait = root.GetComponentsInChildren<Image>(true).Single(image => image.name == "Daily guardian");

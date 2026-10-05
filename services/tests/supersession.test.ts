@@ -19,10 +19,11 @@ const SKIPPED = [join(ROOT, "tools/chain/node_modules"), join(ROOT, "tools/chain
   join(UNITY, "Generated"), join(UNITY, "Integration/Generated")];
 const RULE_LIMIT = 20;
 const RULES: Array<{ pattern: RegExp; trees: string[]; reversal: string }> = [
-  { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction/i, trees: [UNITY],
-    reversal: "The client follows a sent transaction to its outcome; nobody is asked to check" },
-  { pattern: /Back to Arcade|refresh Arcade|"Arcade"|How Arcade works|paid Arcade Daily/, trees: [UNITY, join(ROOT, "README.md")],
-    reversal: "The paid game has one name on screen, Arena, and one home page" },
+  { pattern: /Check transaction|transaction needs checking|Check your pending transaction|Check again to confirm|Check this transaction|"View operation"/i, trees: [UNITY],
+    reversal: "The client follows a sent transaction to its outcome on the page that asked; nobody is asked to check and only Last operation shows a receipt" },
+  { pattern: /Back to Arcade|refresh Arcade|"Arcade"|How Arcade works|paid Arcade Daily|Your last run today|Your best run on each board counts|Back to rewards|Buy a pack to enter today/,
+    trees: [UNITY, join(ROOT, "README.md")],
+    reversal: "The paid game has one name on screen, Arena, and one home page: the Daily with one action over today's boards" },
   { pattern: /fee allowance|allowance low|refill allowance|allowance refill|fee refill|device allowance|needs a fee/i, trees: AUTHORED,
     reversal: "What the wallet puts on a device is a deposit that returns, never a fee" },
   { pattern: /Saved Campaign run ·|Rules of your saved run|Campaign information is being checked|Refresh to view Campaign progress|Campaign trial data is unavailable/i, trees: [UNITY],

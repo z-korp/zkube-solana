@@ -189,8 +189,6 @@ namespace ZKube.Integration.Presentation
                         PanelBlock.Portrait(Shown(selectedEmblem), SkinSlots.LadderBorder(selectedBorder)),
                         PanelBlock.Card("Selection card", PanelBlock.Title(name, centered: true, name: "Selection"),
                             PanelBlock.Text("Selection rule", "Your current emblem and border stay worn until this change is confirmed.")) };
-                    var receipt = ReceiptRow("Profile");
-                    if (receipt != null) blocks.Add(receipt);
                     if (economyActionPending || sessionActionPending)
                     {
                         blocks.Add(PanelBlock.Text("Selection notice", "Your wallet request is still finishing."));
