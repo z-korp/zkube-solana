@@ -109,6 +109,8 @@ namespace ZKube.Tests.MoneyOverview
         {
             yield return PrepareScenario("owner-overview");
             var shell = host.GetComponent<PageShell>(); ZKube.Tests.Presentation.Phones.Compact(shell);
+            // The page is drawn again for this phone before anything is tapped on it.
+            yield return null; yield return null;
             yield return SessionClick("Connect"); yield return Idle();
             // The map opens at the current level, so it is not among them.
             foreach (string control in new[] { "Kredits", "Arena", "Open Score board", "Arena", "Profile", "Arena" })

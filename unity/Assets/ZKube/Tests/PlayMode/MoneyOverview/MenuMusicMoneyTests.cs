@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine.TestTools;
 using ZKube.Integration.App;
@@ -27,7 +28,8 @@ namespace ZKube.Tests.MoneyOverview
             Assert.That(views.ShownPanel, Is.EqualTo("Device")); Assert.That(music.isPlaying, Is.True, "This device");
             yield return SessionClick("Disable this device"); yield return Idle();
             Assert.That(views.ShownPanel, Is.EqualTo("Revoke")); Assert.That(music.isPlaying, Is.True, "The disable confirmation");
-            yield return SessionClick("Keep enabled"); yield return Idle();
+            // Keep enabled is the page's button and its way back alike; either keeps the device.
+            host.GetComponentsInChildren<UnityEngine.UI.Button>().Last(button => button.name == "Keep enabled").onClick.Invoke(); yield return Idle();
             Assert.That(views.ShownPanel, Is.EqualTo("Device")); Assert.That(music.isPlaying, Is.True, "Back on This device");
             Assert.That(environment.SentSignature, Is.Null); Assert.That(environment.ForbiddenCalls, Is.Zero);
         }
