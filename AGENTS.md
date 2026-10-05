@@ -790,7 +790,16 @@ reduced motion holds them still), and a veil opens on the first page; startup th
 Store saves derive Daily content from day and keep numeric metrics; money saves carry Campaign only.
 `MoneySaveContainsOnlyCampaignDataAndDailyMetricsRemainNumbers`,
 `LocalProductRoundTripPreservesProgressAndSavedRun` and
-`FlushedProductPublicationReplacesWholeDocumentAndClearsStalePending` guard codecs and persistence. Local
+`FlushedProductPublicationReplacesWholeDocumentAndClearsStalePending` guard codecs and persistence. The Realms
+Daily is one try a day, reserved before its opening is shown, so an attempt not finished keeps its accepted log
+in the save: its seed and rules come from its day, and after a restart today's unfinished attempt is replayed
+from that log and played on. A Daily action is published only once its log is saved; a finished attempt keeps
+its result and no log; an earlier day's unfinished attempt, or a log this build cannot replay, stays used.
+`an_unfinished_realms_daily_survives_process_death_and_stays_one_try`,
+`a_daily_action_is_published_only_once_its_log_is_saved`,
+`an_earlier_days_unfinished_daily_stays_used_and_the_new_day_starts_fresh`,
+`AnUnfinishedDailyAttemptKeepsItsAcceptedLogAndAFinishedOneKeepsNone` and
+`AnUnfinishedDailyIsResumedAfterTheAppRestarts` guard the restart. Local
 row randomness is core SHA-256 of saved seed and little-endian counter;
 `LocalRowRandomnessMatchesRustForSavedSeedsAndCounterBounds` guards reproducibility. Share formatting uses
 platform number formatting, checked by `SharePreservesTheCallersPlatformFormatting`.

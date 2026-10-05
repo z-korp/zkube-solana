@@ -33,6 +33,24 @@ namespace ZKube.Local.Tests
             Assert.That(restored.CampaignRun.Actions[0].Destination, Is.EqualTo(3));
             Assert.That(restored.DailyAttempt.ObjectiveTotal, Is.EqualTo(13));
         }
+        // An attempt not finished keeps its accepted log, the only thing its
+        // replay needs beside its day; a finished one keeps its result and no log.
+        [Test] public void AnUnfinishedDailyAttemptKeepsItsAcceptedLogAndAFinishedOneKeepsNone()
+        {
+            var open = new LocalProductState { DailyAttempt = new LocalDailyAttempt { DayId = 20705, Actions = {
+                new LocalCampaignAction { Kind = "Move", Row = 2, Start = 1, Destination = 3 }, new LocalCampaignAction { Kind = "Reroll" } } } };
+            string encoded = LocalProductCodec.Encode(open);
+            var restored = LocalProductCodec.Decode(encoded);
+            Assert.That(LocalProductCodec.Encode(restored), Is.EqualTo(encoded));
+            Assert.That(restored.DailyAttempt.Actions.Select(action => action.Kind), Is.EqualTo(new[] { "Move", "Reroll" }));
+            Assert.That(restored.DailyAttempt.Actions[0].Destination, Is.EqualTo(3));
+            open.DailyAttempt.Finished = true;
+            Assert.That(JObject.Parse(LocalProductCodec.Encode(open))["dailyAttempt"]["actions"], Is.Null);
+            // A save written before the log existed still reads, with nothing to replay.
+            Assert.That(LocalProductCodec.Decode("{\"version\":1,\"dailyAttempt\":{\"dayId\":20705}}").DailyAttempt.Actions, Is.Empty);
+            // The money save carries no Daily at all.
+            Assert.That(LocalProductCodec.Encode(open, campaignOnly: true), Does.Not.Contain("dailyAttempt").And.Not.Contain("actions"));
+        }
         // The platform account names the player; a save written when it kept a name still reads, without one.
         [Test] public void AnEarlierSavesNameIsReadPastAndNeverWritten()
         {

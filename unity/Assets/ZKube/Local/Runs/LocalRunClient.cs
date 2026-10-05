@@ -14,8 +14,10 @@ namespace ZKube.Local
             : base("The local action was accepted, but progress could not be saved", inner) { }
     }
     // NativeEngine owns configurations,
-    // legal actions, metrics, star latches and terminal decisions. Campaign
-    // recovery replays the accepted log stored with the local product.
+    // legal actions, metrics, star latches and terminal decisions. A run is
+    // recovered after a restart by replaying the accepted log stored with the
+    // local product over its saved or derived seed; an action is published
+    // only once that log is saved.
     public class LocalRunClient
     {
         protected sealed class Record
@@ -91,7 +93,7 @@ namespace ZKube.Local
                     throw new InvalidOperationException("The bound local run changed; observe it before playing");
                 bool recorded = record.Recorded;
                 try { return Act(id, action); }
-                catch (Exception error) when (!recorded && record.Recorded)
+                catch (Exception error) when (!recorded && records[id].Recorded)
                 {
                     // Terminal acceptance precedes the durable write; report
                     // an explicit unsaved-progress result if that write fails.
@@ -104,7 +106,7 @@ namespace ZKube.Local
             lock (gate)
             {
                 if (!records.TryGetValue(id, out var record)) throw new InvalidOperationException($"Local run {id} was not found");
-                if (record.Mode == "campaign") record = record.Copy();
+                record = record.Copy();
                 var transitions = new List<(byte[], byte[])>();
                 var before = NativeEngine.Summary(record.Token);
                 switch (action.Kind)
@@ -118,15 +120,19 @@ namespace ZKube.Local
                 if (NativeEngine.Summary(record.Token).Phase == (byte)CorePhase.AwaitingVrf) NextRow(record, transitions);
                 var summary = NativeEngine.Summary(record.Token);
                 bool terminal = summary.Phase == (byte)CorePhase.Finished || summary.Phase == (byte)CorePhase.LevelComplete;
+                record.Actions.Add(new LocalCampaignAction { Kind = action.Kind.ToString(), Row = action.Row,
+                    Start = action.Start, Destination = action.Destination, Reason = action.Reason });
                 if (record.Mode == "campaign")
                 {
-                    record.Actions.Add(new LocalCampaignAction { Kind = action.Kind.ToString(), Row = action.Row,
-                        Start = action.Start, Destination = action.Destination, Reason = action.Reason });
                     SaveCampaign(record, terminal);
                     records[id] = record;
                     if (terminal) active.Remove("campaign"); else active["campaign"] = record;
                     return new LocalRunUpdate(record.View(), transitions);
                 }
+                // The log of a run still open is saved before its action is published;
+                // the action that ends it records the result instead.
+                if (!terminal && !restoring) SaveActions(record);
+                records[id] = record;
                 if (active.TryGetValue(record.Mode, out var selected) && selected.Id == record.Id)
                 { if (terminal) active.Remove(record.Mode); else active[record.Mode] = record; }
                 if (terminal) RecordTerminal(record, summary);
@@ -156,24 +162,39 @@ namespace ZKube.Local
             return rules;
         }
         protected virtual void RecordTerminal(Record record, RunSummary summary) { }
+        // Saves the accepted log of a run that is not the Campaign's.
+        protected virtual void SaveActions(Record record) { }
+        // A saved accepted log replayed over the run open opens: nothing is
+        // written while it replays, and a log that cannot be replayed leaves no run.
+        protected LocalRunView Replay(Func<LocalRunUpdate> open, IEnumerable<LocalCampaignAction> actions)
+        {
+            restoring = true; string id = null;
+            try
+            {
+                id = open().View.RunId;
+                foreach (var action in actions)
+                    Act(id, new LocalRunAction((LocalActionKind)Enum.Parse(typeof(LocalActionKind), action.Kind),
+                        action.Row, action.Start, action.Destination, action.Reason));
+                return records[id].View();
+            }
+            catch
+            {
+                if (id != null && records.TryGetValue(id, out var failed))
+                { records.Remove(id); if (active.TryGetValue(failed.Mode, out var selected) && selected.Id == id) active.Remove(failed.Mode); }
+                throw;
+            }
+            finally { restoring = false; }
+        }
         private CampaignProgressSummary Progress() => NativeEngine.CampaignProgress(store.Read.Stars);
         private void RestoreCampaign()
         {
             var saved = store.Read.CampaignRun;
             if (saved == null) return;
             if (saved.CatalogVersion != Protocol.CatalogVersion) throw new InvalidOperationException("Saved Campaign catalog version is unsupported");
-            restoring = true;
-            try
-            {
-                nextId = ulong.Parse(saved.Id, CultureInfo.InvariantCulture);
-                var opened = Start("campaign", saved.Realm, saved.Level, CampaignRules(saved.Realm, saved.Level),
-                    Array.ConvertAll(saved.Seed, value => checked((byte)value)), null);
-                foreach (var action in saved.Actions)
-                    Act(opened.View.RunId, new LocalRunAction((LocalActionKind)Enum.Parse(typeof(LocalActionKind), action.Kind),
-                        action.Row, action.Start, action.Destination, action.Reason));
-                if (!active.ContainsKey("campaign")) throw new InvalidOperationException("Saved Campaign log contains a terminal action");
-            }
-            finally { restoring = false; }
+            nextId = ulong.Parse(saved.Id, CultureInfo.InvariantCulture);
+            Replay(() => Start("campaign", saved.Realm, saved.Level, CampaignRules(saved.Realm, saved.Level),
+                Array.ConvertAll(saved.Seed, value => checked((byte)value)), null), saved.Actions);
+            if (!active.ContainsKey("campaign")) throw new InvalidOperationException("Saved Campaign log contains a terminal action");
         }
         private void SaveCampaign(Record record, bool terminal)
         {

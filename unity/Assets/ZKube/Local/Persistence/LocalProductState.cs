@@ -14,6 +14,10 @@ namespace ZKube.Local
         // The pressure tier the run finished on, for the multiplier it reached.
         public byte Tier { get; set; }
         public bool Finished { get; set; }
+        // The accepted actions of an attempt not finished yet. Its seed and its
+        // rules come from its day, so this log alone replays the run after a
+        // restart. A finished attempt keeps its result and no log.
+        public List<LocalCampaignAction> Actions { get; set; } = new List<LocalCampaignAction>();
     }
 
     public sealed class LocalCampaignAction
@@ -90,6 +94,8 @@ namespace ZKube.Local
                     ["dayId"] = attempt.DayId, ["dailyScore"] = attempt.DailyScore,
                     ["objectiveTotal"] = attempt.ObjectiveTotal, ["tier"] = attempt.Tier, ["finished"] = attempt.Finished,
                 };
+                if (attempt != null && !attempt.Finished && attempt.Actions != null && attempt.Actions.Count > 0)
+                    document["dailyAttempt"]["actions"] = JArray.FromObject(attempt.Actions);
                 document["streak"] = state.Streak; document["bestDailyScore"] = state.BestDailyScore;
                 document["wornEmblem"] = state.WornEmblem;
                 document["campaignOwned"] = state.CampaignOwned; document["campaignPrice"] = state.CampaignPrice;
@@ -110,23 +116,32 @@ namespace ZKube.Local
                 var run = value.ToObject<LocalCampaignRun>();
                 if (run == null || !ulong.TryParse(run.Id, out var id) || id == 0 ||
                     run.Realm < 1 || run.Realm > 10 || run.Level < 1 || run.Level > 10 ||
-                    run.Seed == null || run.Seed.Length != 32 || Array.Exists(run.Seed, item => item < 0 || item > 255) ||
-                    run.Actions == null || run.Actions.Count > 65535 || run.Actions.Exists(item => item == null ||
-                        (item.Kind != "Move" && item.Kind != "Bonus" && item.Kind != "Reroll" && item.Kind != "Finish")))
+                    run.Seed == null || run.Seed.Length != 32 || Array.Exists(run.Seed, item => item < 0 || item > 255) || !Log(run.Actions))
                     throw new FormatException("Saved Campaign run is malformed");
                 return run;
             }
             catch (JsonException error) { throw new FormatException("Saved Campaign run is malformed", error); }
         }
 
+        // A saved accepted log: bounded, and every action one the engine knows.
+        private static bool Log(List<LocalCampaignAction> actions) => actions != null && actions.Count <= 65535 && !actions.Exists(item => item == null ||
+            (item.Kind != "Move" && item.Kind != "Bonus" && item.Kind != "Reroll" && item.Kind != "Finish"));
         private static LocalDailyAttempt Attempt(JObject value)
         {
             if (value == null) return null;
-            return new LocalDailyAttempt {
+            var attempt = new LocalDailyAttempt {
                 DayId = Day(value["dayId"]), DailyScore = Nonnegative(value["dailyScore"]),
                 ObjectiveTotal = Nonnegative(value["objectiveTotal"]), Tier = (byte)Math.Min(byte.MaxValue, Nonnegative(value["tier"])),
                 Finished = value["finished"]?.Type == JTokenType.Boolean && (bool)value["finished"],
             };
+            if (attempt.Finished || value["actions"] == null || value["actions"].Type == JTokenType.Null) return attempt;
+            try
+            {
+                attempt.Actions = value["actions"].ToObject<List<LocalCampaignAction>>();
+                if (!Log(attempt.Actions)) throw new FormatException("Saved Daily run is malformed");
+            }
+            catch (JsonException error) { throw new FormatException("Saved Daily run is malformed", error); }
+            return attempt;
         }
         private static ulong Nonnegative(JToken value)
         {
