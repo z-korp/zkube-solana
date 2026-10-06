@@ -778,7 +778,9 @@ border) and a setting stand in the middle band with their card; a lesson's Skip 
 a result's entrance take a tap anywhere. An Arena identity page hands its buttons over the same way: on This
 device the deposit's action is the primary and Disable device the last, an outline pill; Kredits, a page before
 launch and a page that did not load put their one step in the foot row; the profile's Manage device is its foot
-row, under the notice that asks for it; Your records and Last operation keep the tab bar and have Back as their
+row, under the notice that asks for it, and the page fits both phones without scrolling: a phone with no height to
+spare tightens the emblem card evenly, its padding and the gaps between its rows, and the notice and every word
+keep their size (`TheProfileThatAsksForTheDeviceFitsBothPhonesWithoutScrolling`); Your records and Last operation keep the tab bar and have Back as their
 one way back. The entry confirmation keeps Confirm with Not now beside it on one row. Nothing a finger lands on
 reaches under 48 dp: the guided run's Skip tips and the armed bonus's cancel take the tap over 48 dp round their
 smaller faces (`TheGuidedFirstRunPointsAtTheBestSlideAndLetsGoAfterThreeMoves`,

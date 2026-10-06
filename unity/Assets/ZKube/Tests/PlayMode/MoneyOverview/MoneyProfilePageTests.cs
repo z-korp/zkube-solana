@@ -68,6 +68,40 @@ namespace ZKube.Tests.MoneyOverview
             }
             Assert.That(words.Length, Is.EqualTo(3), "The name, the figure and the Records button; printed " + string.Join(" | ", words));
         }
+        // The profile that asks for the device fits both phones without scrolling: Manage device stands
+        // whole over the tab bar. The compact phone has no height to spare, so its emblem card tightens
+        // evenly, its padding and the gaps between its rows; the notice and every word keep their size.
+        [UnityTest] public IEnumerator TheProfileThatAsksForTheDeviceFitsBothPhonesWithoutScrolling()
+        {
+            var padding = new System.Collections.Generic.Dictionary<string, float>();
+            foreach (var (use, phone) in new (System.Action<PageShell>, string)[] {
+                (shell => ZKube.Tests.Presentation.Phones.Seeker(shell), "Seeker"), (shell => ZKube.Tests.Presentation.Phones.Compact(shell), "360 x 640") })
+            {
+                yield return PrepareScenario("owner-overview"); var shell = host.GetComponent<PageShell>(); use(shell);
+                yield return Wait(Adapter.RefreshOverview()); yield return Idle();
+                Click("Connect"); yield return Idle();
+                yield return Wait(Adapter.OpenProfile()); yield return Idle();
+                for (float until = Time.realtimeSinceStartup + 5; shell.Moving && Time.realtimeSinceStartup < until;) yield return null;
+                yield return null; Canvas.ForceUpdateCanvases();
+                yield return ZKube.Tests.Presentation.Captures.Snap(shell, "arena profile manage device " + phone);
+                Assert.That(shell.Scroll.content.rect.height, Is.LessThanOrEqualTo(shell.Viewport.rect.height + .5f), phone + ": the page does not scroll");
+                var manage = SkinUi.ScreenRect((RectTransform)Find("Manage device").transform);
+                var tabs = SkinUi.ScreenRect((RectTransform)host.GetComponentInChildren<SkinTabBar>().transform);
+                Assert.That(manage.yMin, Is.GreaterThanOrEqualTo(tabs.yMax - .5f), phone + ": Manage device stands whole over the tab bar, " + manage + " over " + tabs);
+                var texts = host.GetComponentsInChildren<TMP_Text>().Where(text => text.isActiveAndEnabled).ToArray();
+                var notice = texts.Single(text => text.text == "Set up this device to change your emblem or border.");
+                Assert.That(notice.fontSize, Is.GreaterThanOrEqualTo(12 - .01f), phone + ": the notice keeps its size");
+                foreach (var name in texts.Where(text => text.name.StartsWith("Emblem ") && text.name.EndsWith(" name")))
+                    Assert.That(name.fontSize, Is.GreaterThanOrEqualTo(11 - .01f), phone + ": " + name.name + " keeps the 11 dp floor");
+                var card = SkinUi.ScreenRect(host.GetComponentsInChildren<Image>().Single(image => image.name == "Emblem card").rectTransform);
+                var faces = host.GetComponentsInChildren<Image>().Where(image => image.name == "Guardian portrait").Select(image => SkinUi.ScreenRect(image.rectTransform)).ToArray();
+                Assert.That(faces.Length, Is.GreaterThan(4), phone + ": the emblems are drawn");
+                // The card's padding under its last row, as a share of its width.
+                padding[phone] = (faces.Min(face => face.yMin) - card.yMin) / card.width;
+                yield return EndScenario();
+            }
+            Assert.That(padding["360 x 640"], Is.LessThan(padding["Seeker"]), "Only the phone with no height to spare tightens its card");
+        }
         [UnityTest] public IEnumerator FeaturedIdentityRequiresAnExplicitWearAndShowsConfirmedReadback() => WearProfile("profile-success", 8, 3);
         [UnityTest] public IEnumerator AutomaticCanBeRestoredWithItsSelectedBorder() => WearProfile("profile-auto", 0, 0);
         [UnityTest] public IEnumerator ChangingOnlyTheBorderKeepsAutomaticStored() => WearProfile("profile-border-only", 0, 3);

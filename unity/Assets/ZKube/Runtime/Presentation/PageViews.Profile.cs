@@ -22,14 +22,22 @@ namespace ZKube.Presentation
         private void Profile(ProfilePageView value)
         {
             var kit = Kit;
-            var body = new List<Piece> { WearerCard(value, kit) };
-            body.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
-                ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
-                ("Daily streak", SkinSlots.IconClock, Days(value.Streak))));
-            if (value.Emblems.Length != 0) body.Add(EmblemCard(value.Emblems, kit, value.Tier == null));
-            Place(kit, new ScreenKit.Slots { Title = kit.Title("Profile", null), Body = body,
-                Notices = string.IsNullOrEmpty(value.Notice) ? (Piece?)null : kit.Note(value.Notice),
-                Tertiary = Control(value.Tertiary) });
+            ScreenKit.Slots Slots(bool tight)
+            {
+                var body = new List<Piece> { WearerCard(value, kit) };
+                body.Add(kit.Stats(("Campaign stars", SkinSlots.StarLit, value.Stars + "/" + Protocol.Realms.Length * Protocol.CampaignTargets.Length * 3),
+                    ("Best Daily", SkinSlots.IconCrown, value.BestDailyScore.ToString("N0", CultureInfo.InvariantCulture)),
+                    ("Daily streak", SkinSlots.IconClock, Days(value.Streak))));
+                if (value.Emblems.Length != 0) body.Add(EmblemCard(value.Emblems, kit, value.Tier == null, tight));
+                return new ScreenKit.Slots { Title = kit.Title("Profile", null), Body = body,
+                    Notices = string.IsNullOrEmpty(value.Notice) ? (Piece?)null : kit.Note(value.Notice),
+                    Tertiary = Control(value.Tertiary) };
+            }
+            // A phone with no height to spare tightens the emblem card evenly, its padding and the gaps
+            // between its rows, as the pause tightens its cards; the notice and every word keep their size.
+            var slots = Slots(false);
+            if (!kit.Fits(slots)) slots = Slots(true);
+            Place(kit, slots);
         }
         // One quiet button as a row's part, as wide as its words.
         private ScreenKit.Side Quiet(ScreenKit kit, PageAction action, string icon = null)
@@ -94,10 +102,13 @@ namespace ZKube.Presentation
         // over the grid (where the profile has no ladder standing to show in
         // its place, as the Arena's wireframe draws it), then four across, 4u apart and rows 8u apart, each
         // emblem 56u in the guardian ring over its name ("· worn" on the worn
-        // one); locked ones are dimmed with a lock and take no tap.
-        private Piece EmblemCard(ProfileChoiceView[] emblems, ScreenKit kit, bool explained)
+        // one); locked ones are dimmed with a lock and take no tap. A tight card
+        // halves its padding and the gaps between its rows.
+        private const float EmblemRowGapU = 8, TightEmblemRowGapU = 4, TightEmblemPadU = 5;
+        private Piece EmblemCard(ProfileChoiceView[] emblems, ScreenKit kit, bool explained, bool tight)
         {
             float u = kit.U, k = kit.K; var inside = kit.Inside();
+            float rowGap = (tight ? TightEmblemRowGapU : EmblemRowGapU) * u;
             float cell = 56 * u, nameDp = Mathf.Max(11, 10.5f * k);
             const string how = "Win a guardian’s final trial to earn its emblem.";
             float howHeight = inside.Block(how, inside.Width, inside.SmallDp, SkinUi.Type.Caption, ScreenKit.CaptionLeading);
@@ -105,7 +116,7 @@ namespace ZKube.Presentation
             string Name(ProfileChoiceView choice) => choice.Detail == null ? choice.Name : choice.Name + " · " + choice.Detail.ToLowerInvariant();
             var rows = Enumerable.Range(0, (emblems.Length + across - 1) / across).Select(row => emblems.Skip(row * across).Take(across)
                 .Max(choice => inside.Block(Name(choice), pitch, nameDp, SkinUi.Type.Caption, 1.15f))).ToArray();
-            float grid = rows.Sum(label => cell + 2 * u + label) + (rows.Length - 1) * 8 * u;
+            float grid = rows.Sum(label => cell + 2 * u + label) + (rows.Length - 1) * rowGap;
             var parts = new List<Piece>();
             if (explained) parts.Add(new Piece(howHeight + 6 * u, rect => inside.Text("Emblem how", how, new Rect(rect.x, rect.yMax - howHeight, rect.width, howHeight), inside.SmallDp,
                     SkinTokens.TextMuted, SkinUi.Type.Caption, ScreenKit.CaptionLeading, TextAlignmentOptions.Left)));
@@ -138,11 +149,11 @@ namespace ZKube.Presentation
                             }
                             Tap(hit, new PageAction { Name = "Emblem " + choice.Id, CanInvoke = choice.CanSelect, Invoke = choice.Select }, ScreenKit.Role.Choice);
                         }
-                        y -= cell + 2 * u + rows[row] + 8 * u;
+                        y -= cell + 2 * u + rows[row] + rowGap;
                     }
                     if (portraits.Count != 0) StartCoroutine(LoadPortraits(portraits, epoch));
                 }));
-            return kit.Card("Guardian emblems", parts, "Emblem card");
+            return kit.Card("Guardian emblems", parts, "Emblem card", padU: tight ? TightEmblemPadU : ScreenKit.CardPadU);
         }
 
         // Settings: the title, the Sound card (a slider per channel, whose name
