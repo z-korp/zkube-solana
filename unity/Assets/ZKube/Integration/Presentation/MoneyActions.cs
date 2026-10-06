@@ -191,7 +191,7 @@ namespace ZKube.Integration.Presentation
         }
         // Until the Arena launches, its pages say so and lead to the Campaign.
         private PanelBlock[] OpensSoon() => new[] {
-            PanelBlock.Talk("Arena opens soon.", "idle"),
+            PanelBlock.Title("Arena opens soon", centered: true),
             PanelBlock.Card("Opens soon card", PanelBlock.Row("Campaign open", "Campaign", "Open", tagToken: SkinTokens.Positive)),
             PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable()), true, SkinSlots.IconPlay) };
     }

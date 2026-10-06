@@ -279,7 +279,6 @@ namespace ZKube.Integration.Presentation
             return new PanelPageView { Key = "Entry", Title = "Enter today’s Daily", Subtitle = realm.realmName + " · " + Day(lobby.DayId),
                 Back = PageAction("Back", close, CanUseDaily),
                 Blocks = new[] {
-                    PanelBlock.Talk(realm.guardianLines.dailyGreeting, "greeting"),
                     PanelBlock.Card("Entry card",
                         PanelBlock.Row("Entry cost", "Entry", "1 Kredit", icon: SkinSlots.IconKredit),
                         PanelBlock.Row("Entry balance", "Confirmed balance", NumberFit.Figure(lobby.Profile.Kredits), icon: SkinSlots.IconKredit),

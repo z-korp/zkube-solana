@@ -167,15 +167,15 @@ namespace ZKube.Integration.Presentation
             refusal != null && refusalFamily == family && family != "Device" && family != "Kredits" && family != "Daily" && family != "Operation" ? refusal : failure ?? info;
 
         // A page whose read is not there yet: what is being checked, or, when the
-        // read failed, the guardian says why with the way forward. A read that
-        // went stale is simply made again.
+        // read failed, why, with the way forward. A read that went stale is
+        // simply made again.
         private PanelPageView Waiting(string key, string title, string subtitle, AppPage? tab, string message)
         {
             var page = new PanelPageView { Key = key + " waiting", Title = title, Subtitle = subtitle, Tab = tab };
             if (failure != null && !Busy)
                 page.Blocks = new[] {
-                    PanelBlock.Talk(failure, "defeated"),
-                    PanelBlock.Title("Not loaded"),
+                    PanelBlock.Title("Not loaded", centered: true),
+                    PanelBlock.Text("Page failure", failure, centered: true),
                     PanelBlock.Button(PageAction("Try again", () => _ = RefreshOverview(), () => PageAvailable() && !Busy), true),
                     PanelBlock.Button(PageAction("Play Campaign", () => _ = OpenCampaign(), () => PageAvailable() && identity.Owner != null), false) };
             else

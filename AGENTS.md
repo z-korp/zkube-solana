@@ -402,6 +402,12 @@ deployment or spending approval.
   `TheArenaLoadsAfterConnectingThroughAWalletThatPausedTheApp`, `APageWhoseReadIsAbsentReadsItWithoutATap`,
   `EveryArenaPageReadsAgainByItselfWhenItsReadGoesStale` and
   `BackAndTheStepperNeverWaitForAReadAndStopOnlyAtTheirLimits` guard them.
+- **Utility pages:** an Arena identity page is a utility page and carries no guardian (owner, 2026-10-06): the
+  entry confirmation, this device and its disable confirmation, Kredits, Boards, the last operation, a page before
+  launch and a page whose read failed say what they have to say in words and figures alone. No panel block draws
+  a guardian; the guardian stays on the board, the preview, the results, the talk scenes and the lessons.
+  `NoArenaIdentityPageCarriesAGuardian` and `EveryArenaPageMatchesItsWireframe` guard the pages and the entry
+  confirmation's wireframe.
 - **Failed requests:** a request that fails has one classification, `RequestFailure`: a timeout, no network, an
   insecure connection, a busy endpoint (429), a refusal (401, 403), a server error, another HTTP status, an RPC
   error reply, a reply that cannot be read, or an error on the device. The page words it with the service that
