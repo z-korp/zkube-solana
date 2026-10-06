@@ -185,7 +185,7 @@ namespace ZKube.Local.App
         public SettingsPageView SettingsPage()
         {
             var view = AppPreferences.Read(Refresh, board);
-            view.Identity = new[] { PanelBlock.Button(Store("Restore purchases"), false, icon: SkinSlots.IconRetry) };
+            view.Tertiary = Store("Restore purchases");
             return view;
         }
         public ResultPageView ResultPage()

@@ -38,12 +38,15 @@ namespace ZKube.Presentation
         }
         private Piece Buttons(params (PageAction action, ScreenKit.Kind kind, string icon)[] items) => Buttons(Kit, items);
         // The buttons across kit's column: the screen's, or a card's inside.
-        private Piece Buttons(ScreenKit kit, params (PageAction action, ScreenKit.Kind kind, string icon)[] items)
+        private Piece Buttons(ScreenKit kit, params (PageAction action, ScreenKit.Kind kind, string icon)[] items) => Buttons(kit, null, items);
+        // role names what the buttons are where a kit piece, not the composer, places them (a row's quiet pill).
+        private Piece Buttons(ScreenKit kit, ScreenKit.Role? role, params (PageAction action, ScreenKit.Kind kind, string icon)[] items)
         {
             items = items.Where(item => item.action != null).ToArray();
             return kit.Buttons(items.Select(item => (item.action.Name ?? item.action.Label, item.action.Progress ?? item.action.Label, actions.Click(item.action), item.kind,
                     Mark(item.action, item.icon))).ToArray(), (i, button, text) => {
                     actions.Bind(button, items[i].action, relabel: items[i].action.Progress == null ? value => text.text = value : (Action<string>)null);
+                    if (role.HasValue) ScreenKit.As(button, role.Value);
                     Loader(button, items[i].action);
                 }, shorter: items.Select(item => item.action.Short).ToArray());
         }

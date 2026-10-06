@@ -389,7 +389,8 @@ namespace ZKube.Presentation
         // A ledge is empty room kept at the card's top, under its padding, for what rests on its edge.
         public const float CardPadU = 10;
         // padU is the card's padding above and below, for a screen that has to tighten.
-        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", Side? tag = null, float ledge = 0, float padU = CardPadU)
+        // end is the card's own action: a chip at the end of its header line.
+        public Piece Card(string header, IEnumerable<Piece> parts, string name = "Screen card", Side? tag = null, float ledge = 0, float padU = CardPadU, Side? end = null)
         {
             const float padHU = 12;
             float u = U, pad = padU * u;
@@ -409,6 +410,11 @@ namespace ZKube.Presentation
                         head.ForceMeshUpdate();
                         float x = inside.x + head.textBounds.size.x + 6 * u, middle = inside.yMax - (headerHeight - 4 * u) / 2;
                         tag.Value.Draw(new Rect(x, middle - tag.Value.Height / 2, tag.Value.Width, tag.Value.Height));
+                    }
+                    if (end.HasValue)
+                    {
+                        float middle = inside.yMax - (headerHeight - 4 * u) / 2;
+                        end.Value.Draw(new Rect(inside.xMax - end.Value.Width, middle - end.Value.Height / 2, end.Value.Width, end.Value.Height));
                     }
                 }
                 stack.Draw(new Rect(inside.x, inside.y, inside.width, inside.height - headerHeight));

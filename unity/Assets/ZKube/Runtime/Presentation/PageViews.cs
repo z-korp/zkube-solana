@@ -113,7 +113,7 @@ namespace ZKube.Presentation
                     Frame(AppPage.Profile, null, null, null, null); Profile(profile); break;
                 case AppPage.Settings:
                     var settings = source.SettingsPage();
-                    Frame(AppPage.Settings, null, null, null, null);
+                    Stage(AppPage.Settings, false);
                     Settings(settings); break;
                 case AppPage.Result:
                     var result = source.ResultPage();

@@ -43,7 +43,7 @@ namespace ZKube.Presentation
         // One quiet button as a row's part, as wide as its words.
         private ScreenKit.Side Quiet(ScreenKit kit, PageAction action, string icon = null)
         {
-            var buttons = Buttons(kit, (action, ScreenKit.Kind.Quiet, icon));
+            var buttons = Buttons(kit, ScreenKit.Role.WayIn, (action, ScreenKit.Kind.Quiet, icon));
             float width = ui.TextWidth(action.Label, kit.QuietDp, SkinUi.Type.Caption) + 32 * kit.U + (icon == null ? 0 : 36 * kit.U);
             return new ScreenKit.Side(width, buttons.Height, buttons.Draw);
         }
@@ -158,39 +158,43 @@ namespace ZKube.Presentation
             return kit.Card("Guardian emblems", parts, "Emblem card");
         }
 
-        // Settings, as the wireframe draws it: the title, the Sound card (a
-        // slider per channel, whose name switches it off and back to the level
-        // it had), the card of haptics, reduced motion and the text size, then
-        // the identity's own actions; How to play stands in the corner.
+        // Settings: the title, the Sound card (a slider per channel, whose name
+        // switches it off and back to the level it had; while everything is muted
+        // its header ends with the Unmute chip), the card of haptics, reduced
+        // motion, the text size and How to play, a row that replays every lesson,
+        // then the identity's own cards. The identity's actions are the foot row.
         private void Settings(SettingsPageView value)
         {
             var kit = Kit; var inside = kit.Inside();
-            var pieces = new List<Piece> { kit.Title("Settings", null) };
-            pieces.Add(kit.Card("Sound", new[] { Volume(inside, "Music", SkinSlots.IconMusic, value.Music, value.SetMusic, true, false),
-                Volume(inside, "Effects", SkinSlots.IconSound, value.Effects, value.SetEffects, false, true) }, "Sound card"));
+            ScreenKit.Side? unmute = null;
+            if (value.Muted)
+            {
+                var chip = Tag(kit, "Unmute", SkinTokens.Accent, "Unmute");
+                float reach = inside.Touch(44);
+                unmute = new ScreenKit.Side(chip.Width, chip.Height, rect => {
+                    chip.Draw(rect);
+                    // The chip takes a tap over 48 dp round its face.
+                    var hit = ui.Rect<Image>("Unmute tap", new Rect(rect.center.x - Mathf.Max(rect.width, reach) / 2, rect.center.y - reach / 2, Mathf.Max(rect.width, reach), reach), shell.Page);
+                    hit.color = Color.clear; Tap(hit, new PageAction { Label = "Unmute", Name = "Unmute all sound", Invoke = value.Unmute }, ScreenKit.Role.CardAction);
+                });
+            }
+            var body = new List<Piece> { kit.Card("Sound", new[] { Volume(inside, "Music", SkinSlots.IconMusic, value.Music, value.SetMusic, true, false),
+                Volume(inside, "Effects", SkinSlots.IconSound, value.Effects, value.SetEffects, false, true) }, "Sound card", end: unmute) };
             string current = (value.LargeText ? "Larger" : "Standard") + " ›";
-            pieces.Add(kit.Card(null, new[] { Switch(inside, "Haptics", value.Haptics, value.ToggleHaptics, false),
+            body.Add(kit.Card(null, new[] { Switch(inside, "Haptics", value.Haptics, value.ToggleHaptics, false),
                 Switch(inside, "Reduced motion", value.ReducedMotion, value.ToggleMotion, true),
                 Tapped(inside.Row("Text size", null, "Text size", null, inside.Value("Text size value", current, SkinTokens.Text), true),
-                    "Text size: " + (value.LargeText ? "larger" : "standard"), value.ToggleText) }, "Switches card"));
-            if (value.Muted) pieces.Add(Buttons(kit, (new PageAction { Label = "Unmute all sound", Invoke = value.Unmute }, ScreenKit.Kind.Quiet, SkinSlots.IconSound)));
-            // The identity's own actions are quiet buttons.
-            if (value.Identity.Length != 0)
-                pieces.Add(value.Identity.All(block => block.Kind == PanelKind.Button)
-                    ? Buttons(kit, value.Identity.Select(block => (block.Action, block.Primary == 0 ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet, block.Sprite)).ToArray())
-                    : BlockPiece("Identity settings", value.Identity, kit));
-            pieces.Add(Piece.Grow);
-            Compose(pieces.ToArray());
-            // How to play (.x3 corner): the guardian's pointing hand, 12u in from the right
-            // beside the title, so the page keeps the wireframe's height; it replays every lesson.
-            float size = kit.Touch(40);
-            HeaderButton(new PageAction { Name = "How to play", Label = "How to play", Invoke = () => Teach(Lessons.HowToPlay(brand == "arena"), null) },
-                new Rect(shell.SafeArea.xMax - 12 * kit.U - size, kit.Edge - size, size, size), SkinSlots.HandPointer, false);
+                    "Text size: " + (value.LargeText ? "larger" : "standard"), value.ToggleText, ScreenKit.Role.Setting),
+                Tapped(inside.Row("How to play row", inside.Icon("How to play icon", SkinSlots.HandPointer, 26), "How to play", null,
+                    inside.Value("How to play chevron", "›", SkinTokens.Text), true),
+                    "How to play", () => Teach(Lessons.HowToPlay(brand == "arena"), null), ScreenKit.Role.WayIn) }, "Switches card"));
+            if (value.Identity.Length != 0) body.Add(BlockPiece("Identity settings", value.Identity, kit));
+            Place(kit, new ScreenKit.Slots { Title = kit.Title("Settings", null), Body = body, Tertiary = Control(value.Tertiary), Destructive = Control(value.Destructive) });
         }
         // A row that is one button: a tap anywhere on it runs invoke.
-        private Piece Tapped(Piece row, string name, Action invoke) => new Piece(row.Height, rect => {
+        private Piece Tapped(Piece row, string name, Action invoke, ScreenKit.Role role) => new Piece(row.Height, rect => {
             var face = ui.Rect<Image>(name, rect, shell.Page); face.color = Color.clear; face.raycastTarget = true;
-            var button = face.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None;
+            var button = face.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; ScreenKit.As(button, role);
             face.gameObject.AddComponent<PressSquash>();
             actions.Wire(button, new PageAction { Invoke = invoke }, fade: false);
             row.Draw(rect);
@@ -234,7 +238,7 @@ namespace ZKube.Presentation
                 slider = ui.Slider(title + " slider", new Rect(trackX, rect.center.y - 24 * d, rect.xMax - levelWidth - 10 * u - trackX, 48 * d), (float)value,
                     next => apply(Math.Round(next * 100) / 100d), shell.Page);
                 level.text = value > 0 ? Math.Round(value * 100) + "%" : "Off";
-                var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None;
+                var button = hit.gameObject.AddComponent<Button>(); button.transition = Selectable.Transition.None; ScreenKit.As(button, ScreenKit.Role.Setting);
                 actions.Wire(button, new PageAction { Name = title + " switch", Invoke = () => apply(value > 0 ? 0 : music ? lastMusic : lastEffects) }, fade: false);
             });
         }

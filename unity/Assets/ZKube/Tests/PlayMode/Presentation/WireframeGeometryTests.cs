@@ -49,7 +49,7 @@ namespace ZKube.Tests.Presentation
             {
                 var settings = AppPreferences.Read(() => { });
                 settings.Music = .2; settings.Effects = .4; settings.Muted = false;
-                settings.Identity = new[] { PanelBlock.Button(new PageAction { Label = "Restore purchases" }, false, icon: SkinSlots.IconRetry) };
+                settings.Tertiary = new PageAction { Label = "Restore purchases" };
                 return settings;
             }
             public ResultPageView Result;

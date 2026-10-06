@@ -768,8 +768,8 @@ stepper as the lowest row, its two arrows at the ends of one bar that never chan
 bottom edge. A page hands its controls over by role and places none itself; an action carries its own icon. The
 kit names each control's role where it places it, and `Placement` holds every control of a drawn page to its band
 and slot. Pages move onto the composer family by family: `EveryPagePlacesItsControlsByRole` walks those that have
-at both phones (the Boards page, both products' Daily result, the Campaign map, a realm that is not open and the
-level preview), and the walks of their every state make the same check
+at both phones (the Boards page, both products' Daily result, the Campaign map, a realm that is not open, the
+level preview and both products' Settings), and the walks of their every state make the same check
 (`TheBoardsPageFitsBothPhonesOnEveryKindOfDay`, `PauseAndItsEndRunConfirmFitWithOneGuardianOnBothPhones`,
 `DailyEntryRequiresConfirmationThenNativeInputSettlesBothMetricsOnce`). On the Campaign the stepper steps realms.
 A realm that is not open has the bar: the realm before, "Realm N of 10", the realm after, under its purchase and
@@ -777,7 +777,10 @@ restore where the store closes it; a realm waiting for stars has no button, and 
 on. The open map has no height for a bar (the compact phone's path did not fit under one,
 `EveryRealmsMapFitsWholeAndItsNodesClearEachOtherOnBothPhones`), so its two arrows stand at the ends of the
 lowest row with Play between them, and its header says "Realm N of 10". A level's preview goes back by Back, top
-left, like every page opened from another. A result page shows a result: with none to show, it is Home. The device and the wallet have no icon of
+left, like every page opened from another. A result page shows a result: with none to show, it is Home. On
+Settings, How to play is the last row of the switches card, Unmute is a chip at the end of the Sound card's header
+while everything is muted, and the identity's actions are the foot row: Restore purchases in Realms; Last
+operation, then Disconnect, in the Arena. A page taller than its phone is checked at its top and at its foot. The device and the wallet have no icon of
 their own yet: `StandInIcons` names the kit icons that stand in for them until the art is drawn.
 
 One parsed theme catalog and generated constraint captions serve pages and boards. One startup/configuration

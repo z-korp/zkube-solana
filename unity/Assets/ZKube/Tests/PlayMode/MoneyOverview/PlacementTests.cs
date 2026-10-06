@@ -27,6 +27,14 @@ namespace ZKube.Tests.MoneyOverview
             yield return null; Canvas.ForceUpdateCanvases();
             Placement.Check(source.transform, shell.SafeArea, 1, at);
             yield return Captures.Snap(shell, "placement " + at);
+            // A page taller than its phone is checked again at its foot.
+            if (shell.Scroll.content.rect.height > shell.Viewport.rect.height + .5f)
+            {
+                shell.Scroll.verticalNormalizedPosition = 0; yield return null; Canvas.ForceUpdateCanvases();
+                Placement.Check(source.transform, shell.SafeArea, 1, at + ", scrolled to its foot");
+                yield return Captures.Snap(shell, "placement " + at + " foot");
+                shell.Scroll.verticalNormalizedPosition = 1; yield return null;
+            }
         }
 
         [UnityTest] public IEnumerator EveryPagePlacesItsControlsByRole()
@@ -46,6 +54,8 @@ namespace ZKube.Tests.MoneyOverview
                 host.GetComponent<PageViews>().Greetings = new GuardianGreetings(() => ~0, _ => { });
                 yield return Wait(Adapter.OpenCampaign()); yield return Idle();
                 yield return Held(host.transform, phone + " Arena map");
+                Click("Settings"); yield return Idle();
+                yield return Held(host.transform, phone + " Arena settings");
                 yield return EndScenario();
 
                 // Realms.
@@ -74,6 +84,8 @@ namespace ZKube.Tests.MoneyOverview
                     product.Write(state => { state.Stars[9] = 1; state.Stars[19] = 1; state.Stars[29] = 1; return state; });
                     store.Flow.Campaign.SelectRealm(4); yield return Rendered(store, AppPage.Campaign); yield return new WaitForSecondsRealtime(.6f);
                     yield return Held(store, phone + " Realms realm waiting for its purchase");
+                    store.Navigate(AppPage.Settings); yield return Rendered(store, AppPage.Settings);
+                    yield return Held(store, phone + " Realms settings");
                     store.Flow.PlayDaily(); yield return Rendered(store, AppPage.Result);
                     yield return Held(store, phone + " Realms Daily result");
                 }

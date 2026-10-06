@@ -262,7 +262,7 @@ namespace ZKube.Presentation
         private ScreenKit.Side Small(ScreenKit kit, PageAction action, bool primary)
         {
             var buttons = kit.Buttons(new[] { (action.Name ?? action.Label, action.Label, actions.Click(action), primary ? ScreenKit.Kind.Primary : ScreenKit.Kind.Quiet,
-                (string)null) }, (i, button, text) => actions.Bind(button, action, relabel: value => text.text = value), small: true);
+                (string)null) }, (i, button, text) => { actions.Bind(button, action, relabel: value => text.text = value); ScreenKit.As(button, ScreenKit.Role.WayIn); }, small: true);
             float width = ui.TextWidth(action.Label, primary ? 18 * kit.K : kit.QuietDp, primary ? SkinUi.Type.Display : SkinUi.Type.Caption) + 32 * kit.U;
             return new ScreenKit.Side(width, buttons.Height, buttons.Draw);
         }

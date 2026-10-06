@@ -31,13 +31,16 @@ namespace ZKube.Tests.Presentation
             var past = face.raycastPadding; float scale = button.transform.lossyScale.x;
             return new Rect(rect.x + past.x * scale, rect.y + past.y * scale, rect.width - (past.x + past.z) * scale, rect.height - (past.y + past.w) * scale);
         }
-        // A list that scrolls inside its page (a board's rows) shows its controls through
-        // its own window: one scrolled out of it is not on the page.
+        // What scrolls (a page taller than its phone, a board's rows inside their card) shows
+        // its controls through its window: one whose middle is scrolled out of it is not on the
+        // page as it stands. A page that scrolls is checked at its top and at its foot.
         private static bool Hidden(Button button)
         {
-            var window = button.GetComponentInParent<RectMask2D>();
-            if (window == null || window.transform.parent == null || window.transform.parent.GetComponentInParent<RectMask2D>() == null) return false;
-            return !SkinUi.ScreenRect(window.rectTransform).Overlaps(SkinUi.ScreenRect((RectTransform)button.transform));
+            Vector2 middle = SkinUi.ScreenRect((RectTransform)button.transform).center;
+            for (var window = button.GetComponentInParent<RectMask2D>(); window != null;
+                window = window.transform.parent == null ? null : window.transform.parent.GetComponentInParent<RectMask2D>())
+                if (!SkinUi.ScreenRect(window.rectTransform).Contains(middle)) return true;
+            return false;
         }
 
         public static void Check(Transform page, Rect safe, float density, string at)
@@ -68,9 +71,10 @@ namespace ZKube.Tests.Presentation
             var plates = page.GetComponentsInChildren<Image>().Where(image => image.gameObject.activeInHierarchy && image.name == "Screen title plate")
                 .Select(image => SkinUi.ScreenRect(image.rectTransform)).ToList();
             if (back.Count == 0 && plates.Count != 0 && controls.All(control => control.rect.yMax <= plates.Max(plate => plate.yMax) + .5f)) titleRow = plates.Min(plate => plate.yMin);
-            // The top band is Back's and a lesson's Skip: every other control lies under the title row.
+            // The top band is Back's and a lesson's Skip: every other control stands under the title row
+            // (a chip's 48 dp reach may pass its card's edge; where the control stands is its middle).
             foreach (var control in controls.Where(control => control.placed.Role != ScreenKit.Role.Back && control.placed.Role != ScreenKit.Role.Skip))
-                Assert.That(control.rect.yMax, Is.LessThanOrEqualTo(titleRow + .5f), at + ": " + control.button.name + " " + control.rect + " is in the top band");
+                Assert.That(control.rect.center.y, Is.LessThanOrEqualTo(titleRow + .5f), at + ": " + control.button.name + " " + control.rect + " is in the top band");
 
             // Tabs: on the bottom edge, under everything else.
             var tabs = Of(ScreenKit.Role.Tab);

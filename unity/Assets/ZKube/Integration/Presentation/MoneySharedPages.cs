@@ -70,9 +70,10 @@ namespace ZKube.Integration.Presentation
             view.Identity = new[] {
                 PanelBlock.Card("Device card", PanelBlock.Eyebrow("This device", SkinTokens.TextMuted),
                     new PanelBlock { Kind = PanelKind.Text, Name = "Device status", Copy = DeviceState(session).Short,
-                        Token = DeviceState(session).Token, Action = PageAction("Manage", () => _ = OpenSession(true), () => PageAvailable() && !Busy) }),
-                PanelBlock.Pair(PageAction("Last operation", OpenOperation, () => PageAvailable() && !Busy),
-                    PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable())) };
+                        Token = DeviceState(session).Token, Action = PageAction("Manage", () => _ = OpenSession(true), () => PageAvailable() && !Busy) }) };
+            // The foot row: the last operation, and Disconnect last.
+            view.Tertiary = PageAction("Last operation", OpenOperation, () => PageAvailable() && !Busy); view.Tertiary.Icon = SkinSlots.IconClock;
+            view.Destructive = PageAction("Disconnect", () => _ = Disconnect(), () => PageAvailable()); view.Destructive.Icon = StandInIcons.Wallet;
             return view;
         }
         // The Campaign's result is the journey's; the Arcade's is its last kept run.

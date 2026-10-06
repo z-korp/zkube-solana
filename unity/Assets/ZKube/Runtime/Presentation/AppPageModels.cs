@@ -202,8 +202,10 @@ namespace ZKube.Presentation
         public bool Muted, ReducedMotion, Haptics, LargeText;
         public Action<double> SetMusic, SetEffects;
         public Action Unmute, ToggleMotion, ToggleHaptics, ToggleText;
-        // The identity's own settings, such as restoring purchases.
+        // The identity's own cards, such as this device's.
         public PanelBlock[] Identity = Array.Empty<PanelBlock>();
+        // The identity's own actions, by role, for the foot row: restoring purchases; the last operation, and disconnecting last.
+        public PageAction Tertiary, Destructive;
     }
 
     public sealed class ResultPageView
