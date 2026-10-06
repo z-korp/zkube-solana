@@ -23,8 +23,9 @@ namespace ZKube.Tests.MoneyOverview
         private IEnumerator Held(Component source, string at)
         {
             var shell = source.GetComponent<PageShell>();
-            var leaving = (ICollection)typeof(PageShell).GetField("leaving", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(shell);
-            for (float until = Time.realtimeSinceStartup + 5; leaving.Count != 0 && Time.realtimeSinceStartup < until;) yield return null;
+            // A page is checked where it stands, once it has arrived and the one before it has left.
+            for (float until = Time.realtimeSinceStartup + 5; shell.Moving && Time.realtimeSinceStartup < until;) yield return null;
+            Assert.That(shell.Moving, Is.False, at + ": the page settles");
             yield return null; Canvas.ForceUpdateCanvases();
             yield return Captures.Snap(shell, "placement " + at);
             Placement.Check(source.transform, shell.SafeArea, 1, at);

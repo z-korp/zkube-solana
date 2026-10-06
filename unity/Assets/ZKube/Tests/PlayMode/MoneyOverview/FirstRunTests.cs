@@ -135,7 +135,8 @@ namespace ZKube.Tests.MoneyOverview
             yield return Wait(Adapter.OpenSession()); yield return Idle();
             Assert.That(Text("Device state"), Is.EqualTo("Deposit low"));
             Assert.That(Text("Deposit"), Is.EqualTo("0.00" + CurrencyMark.Tag));
-            Assert.That(Text("Device guide"), Is.EqualTo("Top up the deposit to continue. Your wallet brings it back to " + deposit + "."));
+            Assert.That(Text("Device guide"), Is.EqualTo("Top up the deposit to continue. Your wallet brings it back to " +
+                ZKube.Integration.Presentation.MoneyText.SolInWords(ZKube.Integration.Planning.DeviceFunding.DepositLamports) + "."), "A sentence says the word");
             NoFee("low");
             yield return SessionClick("Top up deposit"); yield return Idle();
             Assert.That(Adapter.LastReceipt.Outcome, Is.EqualTo(ExecutionOutcome.ConfirmedSuccess));

@@ -120,6 +120,8 @@ namespace ZKube.Presentation
         // replaces it, and a leaving page holds it until its motion ends.
         private List<Action> held = new List<Action>();
         private readonly List<(GameObject layer, List<Action> art)> leaving = new List<(GameObject, List<Action>)>();
+        // Whether a page is still arriving or leaving: its pieces are not yet where they stand.
+        public bool Moving => transition != null || leaving.Count != 0;
         public void Hold(Action release) { if (release != null && !held.Contains(release)) held.Add(release); }
         private void Release(IEnumerable<Action> art)
         {
