@@ -126,9 +126,10 @@ deployment or spending approval.
   typography or leaves a value in English unsaid, and emits one table a language with one accessor a key
   (`Words`); no page, caption, guardian line or notice is written in code. Each language writes whole phrases
   with its own plurals and order; captions and guardian rules are that language's phrases, never English parts
-  joined. Numbers and dates take the language's form. Money and rule statements are locked
-  (assets/words/locked.json): each names the meaning it keeps and, per language, what its words say and a seal of
-  both texts, so a change to either is read again. The language is a Settings row, the device's by default
+  joined. Numbers and dates take the language's form, the first of a month included (French writes "1er"). Money
+  and rule statements are locked (assets/words/locked.json): each names the meaning it keeps and, per language,
+  what its words say and a seal of both texts, so a change to either is read again. The language is a Settings
+  row, the device's by default
   (`EveryLanguageOfTheCatalogueIsSomeDevicesLanguage`), changed without a restart and saved with the other
   preferences. A longer language gets a tighter phrase,
   never a font under the floors. Three kinds of name are fixed: Daily is the mode's name in every language, a
@@ -137,9 +138,10 @@ deployment or spending approval.
   `no_key_is_left_in_english_unless_its_language_says_so`, `names_the_owner_fixed_stay_fixed`,
   `each_language_keeps_its_own_typography`, `each_language_counts_its_own_way`,
   `a_locked_statement_is_read_again_whenever_either_text_changes`,
-  `no_two_kinds_share_a_caption_in_any_language`, `EveryRealmsPageFitsBothPhonesInEveryLanguage` and
-  `EveryArenaPageFitsBothPhonesInEveryLanguage` guard the words, the captions, the fit on both phones (no word
-  cut in two) and that every word on a page is the catalogue's; the font import refuses a character no shipped
+  `no_two_kinds_share_a_caption_in_any_language`, `TheFirstOfTheMonthIsWrittenAsTheLanguageWritesIt`,
+  `EveryRealmsPageFitsBothPhonesInEveryLanguage` and `EveryArenaPageFitsBothPhonesInEveryLanguage` guard the
+  words, the captions, the dates, the fit on both phones (no word cut in two) and that every word on a page is
+  the catalogue's; the font import refuses a character no shipped
   font draws. The supersession list scans every language. Chinese, Japanese and Korean are drawn by three pinned
   script fonts (Noto Sans SC, JP and KR, derived by unity/tools/font_sources/derive_cjk.py) that stand behind
   every text font and hold no Latin letter. The codegen names each language's script font and the characters it

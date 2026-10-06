@@ -75,11 +75,12 @@ namespace ZKube.Core.Generated
         public static string Month(int month) => At(monthRow + month - 1);
         public static string Weekday(DayOfWeek day) => At(weekdayRow + (int)day);
         // A day of the year ("6 Oct"), with its weekday ("Tue 6 Oct") or its year.
-        public static string Date(DateTime day) => FormatDate(day.Day.ToString(CultureInfo.InvariantCulture), Month(day.Month));
-        public static string DateWithWeekday(DateTime day) =>
-            FormatDateWeekday(Weekday(day.DayOfWeek), day.Day.ToString(CultureInfo.InvariantCulture), Month(day.Month));
+        public static string Date(DateTime day) => FormatDate(DayOfMonth(day), Month(day.Month));
+        public static string DateWithWeekday(DateTime day) => FormatDateWeekday(Weekday(day.DayOfWeek), DayOfMonth(day), Month(day.Month));
         public static string DateWithYear(DateTime day) =>
-            FormatDateYear(day.Day.ToString(CultureInfo.InvariantCulture), Month(day.Month), day.Year.ToString(CultureInfo.InvariantCulture));
+            FormatDateYear(DayOfMonth(day), Month(day.Month), day.Year.ToString(CultureInfo.InvariantCulture));
+        // The first of a month is written as the language writes it: French says "1er oct.".
+        private static string DayOfMonth(DateTime day) => day.Day == 1 ? FormatDayFirst : day.Day.ToString(CultureInfo.InvariantCulture);
 
         // A large figure cut to one decimal and its unit: thousands by thousands
         // ("18.4K"), or by ten thousands where the language counts that way.

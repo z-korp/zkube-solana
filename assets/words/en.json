@@ -387,6 +387,7 @@
  "format.date_time": "{date} · {time} UTC",
  "format.date_weekday": "{weekday} {day} {month}",
  "format.date_year": "{day} {month} {year}",
+ "format.day_first": "1",
  "format.decimal": ".",
  "format.month.01": "Jan",
  "format.month.02": "Feb",
